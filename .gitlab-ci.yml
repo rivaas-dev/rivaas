@@ -1,0 +1,42 @@
+include:
+  - project: 'datacluster/gitlab-templates'
+    file: 'golang-templates.yaml'
+
+variables:
+  GO_VERSION: "1.17"
+  GO_BUILD_MAIN_PKG: "./cmd/api"
+  SWAGGER_VALIDATE_DISABLED: "true"
+  SWAGGER_VALIDATE_SWAGGER_SPEC: "swagger.yaml"
+
+  HELM_DEFAULTS: "
+    --set image.tag=$${IMAGE_TAG} \
+    --set ingress.hosts[0].host=$${HOST} \
+    --set ingress.hosts[0].paths[0].path=/ \
+    --set ingress.hosts[0].paths[0].pathType=Prefix \
+    --set ingress.tls[0].hosts[0]=$${HOST} \
+    --set ingress.tls[0].secretName=${KUBE_INGRESS_TLS_DEFAULT_SECRET_NAME} \
+  "
+
+  HELM_ACC_VARIABLES: "
+    --set ingress.enabled=true \
+    --set serviceMonitor.enabled=true \
+    --set tolerations[0].key=namespace \
+    --set tolerations[0].operator=Equal \
+    --set tolerations[0].value=acc \
+    --set tolerations[0].effect=NoSchedule \
+    --set nodeSelector.\"kubernetes\\.ci\\.fdmg\\.org/nodegroup\"=acc \
+    --set config.tyk.endpoint=\"acc-tyk-gateway.tyk-402:9696\" \
+    --set config.tyk.secret=\"a7BLAktwAFZH2UvTJveRcxtxEGsHTdB3ZuervmtppmD529ZwSTFBaByC4rgXdVHxfxp5UCLaK9CkYU9jRr3ENF9SpkAPVswuSxd32VxBdE3rsbH88ApYQSa2xxuh9hQw\" \
+  "
+
+  HELM_PROD_VARIABLES: "
+    --set ingress.enabled=true \
+    --set serviceMonitor.enabled=true \
+    --set tolerations[0].key=namespace \
+    --set tolerations[0].operator=Equal \
+    --set tolerations[0].value=acc \
+    --set tolerations[0].effect=NoSchedule \
+    --set nodeSelector.\"kubernetes\\.ci\\.fdmg\\.org/nodegroup\"=prod \
+    --set config.tyk.endpoint=\"prod-tyk-gateway.tyk-402:9696\" \
+    --set config.tyk.secret=\"8GbU4fky7XB2QGsdwssuHRtWyH6szJjssRdj97yuxTjYSkaDPwQV8nwAALHfHV5f5sjk6jYEJxzkmUyfBX8j6MJgrGSannnxargJaMMEtfVDkfjcNZfq4DymHsfJ9r3E\" \
+  "

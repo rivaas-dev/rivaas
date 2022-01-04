@@ -1,0 +1,83 @@
+swagger: '3.0'
+info:
+  version: 1.0.0
+  title: API Gateway API
+  description: |
+    This is where you can manage API Gateway using APIs
+schemes:
+  - https
+  - http
+consumes:
+  - application/json
+produces:
+  - application/hal+json
+  - application/problem+json
+tags:
+  - name: key
+    description: Calls related to API keys
+paths:
+  /key:
+    post:
+      operationId: create_key
+      tags:
+        - key
+      description: |
+        Create a new API key
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: request
+          description: The details of the key being created.
+          schema:
+            type: object
+            required:
+              - urn
+            properties:
+              policies:
+                type: array
+                description: The access policies to give, leave empty for all
+                items:
+                  type: string
+              urn:
+                type: string
+                description: The reference to the actor. In simple words, this is what binds an API key to a user/customer.
+                pattern: '^(ci|ds|mi|ws):\d+(:\d+)?$'
+      responses:
+        '201':
+          description: An API key has been created
+          schema:
+            allOf:
+              - $ref: https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Resource.json#/definitions/Resource
+              - type: object
+                description: A key
+                $ref: APIKey
+        '400':
+          $ref: "#/responses/BadRequest"
+        '500':
+          $ref: "#/responses/InternalServerError"
+
+responses:
+  BadRequest:
+    description: Bad Request
+    schema:
+      $ref: "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Problem.json#/definitions/Problem"
+  InternalServerError:
+    description: Internal Server Error
+    schema:
+      $ref: "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Problem.json#/definitions/Problem"
+definitions:
+  Key:
+    title: Key
+    description: An API key
+    type: object
+    allOf:
+      - $ref: https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Resource.json#/definitions/Resource
+      - properties:
+          key:
+            type: string
+            description: The created API key which can be used to access APIs.
+          hash:
+            type: string
+            description: The key hash. This is a unique identifier to each API key.
+        required: [ "key", "hash" ]
