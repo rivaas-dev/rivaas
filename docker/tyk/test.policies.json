@@ -1,0 +1,18 @@
+{
+  "test": {
+    "rate": 100,
+    "per": 1,
+    "quota_max": 100,
+    "quota_renewal_rate": 60,
+    "access_rights": {
+      "test_api": {
+        "api_name": "test_api",
+        "api_id": "test_api",
+        "versions": [
+          "Default"
+        ]
+      }
+    },
+    "org_id": "test_org"
+  }
+}

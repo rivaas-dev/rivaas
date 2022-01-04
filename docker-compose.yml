@@ -1,0 +1,29 @@
+version: '3.3'
+services:
+  tyk-gateway:
+    container_name: agw-api-tyk
+    image: tykio/tyk-gateway:v2.9.2
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./docker/tyk/test.tyk.conf:/opt/tyk-gateway/tyk.conf
+      - ./docker/tyk/test.policies.json:/opt/tyk-gateway/policies/policies.json
+      - ./docker/tyk/test.apis.json:/opt/tyk-gateway/apps/app_sample.json
+    depends_on:
+      - tyk-redis
+
+  tyk-redis:
+    image: redis:5.0-alpine
+    container_name: agw-api-redis
+
+  api:
+    image: registry.ci.fdmg.org/datacluster/docker/go-ci/1.17
+    container_name: agw-api
+    entrypoint: ["go", "run", "-mod", "vendor", "cmd/api/main.go"]
+    volumes:
+      - .:/app
+    working_dir: /app
+    depends_on:
+      - tyk-gateway
+    ports:
+      - "8080:8080"
