@@ -30,6 +30,7 @@ variables:
   "
 
   HELM_PROD_VARIABLES: "
+    --set replicaCount=3 
     --set ingress.enabled=true \
     --set serviceMonitor.enabled=true \
     --set tolerations[0].key=namespace \
