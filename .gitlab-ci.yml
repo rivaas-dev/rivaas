@@ -34,7 +34,7 @@ variables:
     --set serviceMonitor.enabled=true \
     --set tolerations[0].key=namespace \
     --set tolerations[0].operator=Equal \
-    --set tolerations[0].value=acc \
+    --set tolerations[0].value=prod \
     --set tolerations[0].effect=NoSchedule \
     --set nodeSelector.\"kubernetes\\.ci\\.fdmg\\.org/nodegroup\"=prod \
     --set config.tyk.endpoint=\"prod-tyk-gateway.tyk-402:9696\" \
