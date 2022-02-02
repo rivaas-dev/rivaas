@@ -8,6 +8,7 @@ variables:
   SWAGGER_VALIDATE_DISABLED: "true"
   SWAGGER_VALIDATE_SWAGGER_SPEC: "swagger.yaml"
 
+  # temporary hard-coded policy for the pipeline
   HELM_DEFAULTS: "
     --set image.tag=$${IMAGE_TAG} \
     --set ingress.hosts[0].host=$${HOST} \
@@ -15,6 +16,7 @@ variables:
     --set ingress.hosts[0].paths[0].pathType=Prefix \
     --set ingress.tls[0].hosts[0]=$${HOST} \
     --set ingress.tls[0].secretName=${KUBE_INGRESS_TLS_DEFAULT_SECRET_NAME} \
+    --set config.tyk.policies[0]=compliance-full-access-policy \
   "
 
   HELM_ACC_VARIABLES: "

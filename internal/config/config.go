@@ -25,10 +25,11 @@ type Application struct {
 }
 
 type Tyk struct {
-	Endpoint string `mapstructure:"endpoint"`
-	Scheme   string `mapstructure:"scheme"`
-	Debug    bool   `mapstructure:"debug"`
-	Secret   string `mapstructure:"secret"`
+	Endpoint string   `mapstructure:"endpoint"`
+	Scheme   string   `mapstructure:"scheme"`
+	Debug    bool     `mapstructure:"debug"`
+	Secret   string   `mapstructure:"secret"`
+	Policies []string `mapstructure:"policies"`
 }
 
 func (cfg *TYKConfiguration) Fetch() error {
