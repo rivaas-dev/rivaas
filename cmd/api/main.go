@@ -6,7 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/config"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/handler"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/keys"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policies"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
 
@@ -29,13 +30,11 @@ func main() {
 
 	server := goskell.NewServer(gin.Logger(), gin.Recovery())
 	server.WithLivez()
-
-	keysHandler, err := handler.NewKeysHandlerWithConfiguration(&cfg.Config.Tyk)
-	if err != nil {
-		log.WithError(err).Fatal("could not create KeysHandler")
-	}
+	policyHandler := policies.NewHandler(cfg.Config.Tyk.Policies)
+	keysHandler := keys.NewHandlerFromConfiguration(&cfg.Config.Tyk)
 	server.WithReadyZ(keysHandler)
 	server.POST("/key", keysHandler.HandlePOST)
+	server.GET("/policies", policyHandler.GetPolicy)
 
 	if err = server.Run(fmt.Sprintf("%s:%d", cfg.Config.Application.Host, cfg.Config.Application.Port)); err != nil {
 		log.WithError(err).Fatal("could not start the server")

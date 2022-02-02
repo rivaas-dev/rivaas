@@ -1,4 +1,4 @@
-swagger: '3.0'
+swagger: '2.0'
 info:
   version: 1.0.0
   title: API Gateway API
@@ -56,7 +56,24 @@ paths:
           $ref: "#/responses/BadRequest"
         '500':
           $ref: "#/responses/InternalServerError"
-
+  /policies:
+    get:
+      operationId: list_policies
+      tags:
+        - policy
+      description: |
+        Get the list of available policies
+      consumes:
+        - application/json
+      parameters: []
+      responses:
+        '200':
+          description: list of available policies
+          schema:
+              type: array
+              items:
+                type: string
+              example: ["compliance-monitor-full-access", "routeplanner-full-access"]
 responses:
   BadRequest:
     description: Bad Request

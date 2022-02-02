@@ -8,3 +8,6 @@ tyk:
   endpoint: "agw-api-tyk:8081"
   debug: "false"
   secret: "secret"
+  policies:
+    - "compliance-monitor-full-access"
+    - "routeplanner-full-access"
