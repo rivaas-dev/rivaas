@@ -27,3 +27,15 @@ services:
       - tyk-gateway
     ports:
       - "8080:8080"
+
+  db:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: key_management
+      MYSQL_USER: key-management-api
+      MYSQL_PASSWORD: "password"
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./docker/mysql/:/docker-entrypoint-initdb.d/

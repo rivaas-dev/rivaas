@@ -16,6 +16,14 @@ type TYKConfiguration struct {
 type Configuration struct {
 	Application Application `mapstructure:"application"`
 	Tyk         Tyk         `mapstructure:"tyk"`
+	Database    Database    `mapstructure:"database"`
+}
+
+type Database struct {
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	Address  string `mapstructure:"address"` // pay attention, this is host+port
+	Name     string `mapstructure:"name"`
 }
 
 type Application struct {

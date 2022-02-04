@@ -53,8 +53,25 @@ config:
     endpoint: "agw-api-tyk:8081"
     debug: "true"
     secret: "secret"
+  database:
+    address: "localhost:3306"
+    username: "key-management-api"
+    password: "password"
+    name: "key_management"
 
 serviceMonitor:
   enabled: false
   interval: 60s
   scrapeTimeout: 10s
+
+
+mysql:
+  primary:
+    persistence:
+      enabled: false
+  auth:
+    database: key_management
+    username: key-management-api
+    password: password
+    rootPassword: root
+  initdbScriptsConfigMap: ""

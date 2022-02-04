@@ -60,3 +60,14 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Create mysql configmap name override
+*/}}
+{{- define "mysql.configname" -}}
+{{- if .Values.mysql.initdbScriptsConfigMap }}
+{{- .Values.mysql.initdbScriptsConfigMap | trunc 63 | lower | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-mysql-config" (include "chart.fullname" .) }}
+{{- end }}
+{{- end }}
