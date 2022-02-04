@@ -1,0 +1,14 @@
+{{ if .Values.mysql.enabled }}
+# Note that we expect a documents folder with data in it for the provisioner. In the Gitlab pipeline of this project
+# we copy the {project_root}/docker/mysql/ folder to {project_root}/chart/documents
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mysql.configname" . }}
+data:
+  {{ $root := . }}
+  {{ range $path, $bytes := .Files.Glob "documents/mysql/*" }}
+  {{ base $path }}: |-
+{{ $root.Files.Get $path | indent 4 }}
+  {{ end }}
+{{ end }}

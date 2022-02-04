@@ -28,12 +28,19 @@ func main() {
 	logger := log.New()
 	logger.SetLevel(lvl)
 
+	dbConfig := cfg.Config.Database
+	keysRepository, err := keys.NewSQLRepositoryFromCredentials(dbConfig.Address, dbConfig.Username, dbConfig.Password,
+		dbConfig.Name)
+	if err != nil {
+		panic(err)
+	}
+
 	server := goskell.NewServer(gin.Logger(), gin.Recovery())
 	server.WithLivez()
 	policyHandler := policies.NewHandler(cfg.Config.Tyk.Policies)
-	keysHandler := keys.NewHandlerFromConfiguration(&cfg.Config.Tyk)
+	keysHandler := keys.NewHandlerFromConfiguration(&cfg.Config.Tyk, keysRepository, cfg.Config.Tyk.Policies)
 	server.WithReadyZ(keysHandler)
-	server.POST("/key", keysHandler.HandlePOST)
+	server.POST("/keys", keysHandler.HandlePOST)
 	server.GET("/policies", policyHandler.GetPolicy)
 
 	if err = server.Run(fmt.Sprintf("%s:%d", cfg.Config.Application.Host, cfg.Config.Application.Port)); err != nil {

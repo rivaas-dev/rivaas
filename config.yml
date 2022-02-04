@@ -9,5 +9,10 @@ tyk:
   debug: "false"
   secret: "secret"
   policies:
-    - "compliance-monitor-full-access"
-    - "routeplanner-full-access"
+    - "test"
+
+database:
+  address: "localhost:3306"
+  username: "key-management-api"
+  password: "password"
+  name: "key_management"

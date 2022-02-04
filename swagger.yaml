@@ -16,11 +16,11 @@ tags:
   - name: key
     description: Calls related to API keys
 paths:
-  /key:
+  /keys:
     post:
       operationId: create_key
       tags:
-        - key
+        - keys
       description: |
         Create a new API key
       consumes:
@@ -32,17 +32,17 @@ paths:
           schema:
             type: object
             required:
-              - urn
+              - actor_id
             properties:
               policies:
                 type: array
                 description: The access policies to give, leave empty for all
                 items:
                   type: string
-              urn:
+              actor_id:
                 type: string
                 description: The reference to the actor. In simple words, this is what binds an API key to a user/customer.
-                pattern: '^(ci|ds|mi|ws):\d+(:\d+)?$'
+                pattern: '^.{1,16}'
       responses:
         '201':
           description: An API key has been created

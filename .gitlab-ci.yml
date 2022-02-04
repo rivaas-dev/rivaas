@@ -19,6 +19,13 @@ variables:
     --set config.tyk.policies[0]=compliance-full-access-policy \
   "
 
+  HELM_TESTING_VARIABLES: "
+    --set mysql.enabled=true \
+    --set mysql.initdbScriptsConfigMap=test-$CI_COMMIT_REF_SLUG-config-mysql \
+    --set config.database.address=test-$CI_COMMIT_REF_SLUG-mysql:3306 \
+    --set mysql.fullnameOverride=test-$CI_COMMIT_REF_SLUG-mysql \
+  "
+
   HELM_ACC_VARIABLES: "
     --set ingress.enabled=true \
     --set serviceMonitor.enabled=true \
@@ -43,3 +50,11 @@ variables:
     --set config.tyk.endpoint=\"prod-tyk-gateway.tyk-402:9696\" \
     --set config.tyk.secret=\"8GbU4fky7XB2QGsdwssuHRtWyH6szJjssRdj97yuxTjYSkaDPwQV8nwAALHfHV5f5sjk6jYEJxzkmUyfBX8j6MJgrGSannnxargJaMMEtfVDkfjcNZfq4DymHsfJ9r3E\" \
   "
+
+deploy:testing:
+  script:
+    - mkdir chart/documents
+    - cp -r docker/mysql/ ./chart/documents/mysql
+    - setup_kubernetes
+    - deploy
+
