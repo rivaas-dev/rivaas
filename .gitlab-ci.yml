@@ -17,6 +17,9 @@ variables:
     --set ingress.tls[0].hosts[0]=$${HOST} \
     --set ingress.tls[0].secretName=${KUBE_INGRESS_TLS_DEFAULT_SECRET_NAME} \
     --set config.tyk.policies[0]=compliance-full-access-policy \
+    --set config.tyk.policies[1]=routeplanner-full-access-policy \
+    --set config.tyk.policies[2]=international-business-full \
+    --set config.tyk.policies[3]=dutchbusiness-full-access-policy \
   "
 
   HELM_TESTING_VARIABLES: "

@@ -89,10 +89,8 @@ func (h *Handler) IsReady() bool {
 }
 
 func (h Handler) buildKeyOptions(body PostKeyRequest) (*tyk.AddKeyOpts, error) {
-	metadata := make(map[string]map[string]interface{})
-	metadata["actor_id"] = map[string]interface{}{
-		"actor_id": body.ActorID,
-	}
+	metadata := make(map[string]interface{})
+	metadata["actor_id"] = body.ActorID
 
 	return &tyk.AddKeyOpts{SessionState: optional.NewInterface(tyk.SessionState{
 		ApplyPolicies: body.Policies,
