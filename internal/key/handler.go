@@ -96,9 +96,7 @@ func (h *Handler) IsReady() bool {
 
 func (h Handler) buildKeyOptions(body request.Post) *tyk.AddKeyOpts {
 	metadata := make(map[string]interface{})
-	metadata["actor_id"] = map[string]interface{}{
-		"actor_id": body.ActorID,
-	}
+	metadata["actor_id"] = body.ActorID
 	var expires int64
 	if body.ExpirationDate != nil {
 		expires = body.ExpirationDate.Unix()
