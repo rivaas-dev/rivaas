@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/config"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/keys"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policies"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
@@ -29,7 +29,7 @@ func main() {
 	logger.SetLevel(lvl)
 
 	dbConfig := cfg.Config.Database
-	keysRepository, err := keys.NewSQLRepositoryFromCredentials(dbConfig.Address, dbConfig.Username, dbConfig.Password,
+	keysRepository, err := key.NewSQLRepositoryFromCredentials(dbConfig.Address, dbConfig.Username, dbConfig.Password,
 		dbConfig.Name)
 	if err != nil {
 		panic(err)
@@ -38,7 +38,7 @@ func main() {
 	server := goskell.NewServer(gin.Logger(), gin.Recovery())
 	server.WithLivez()
 	policyHandler := policies.NewHandler(cfg.Config.Tyk.Policies)
-	keysHandler := keys.NewHandlerFromConfiguration(&cfg.Config.Tyk, keysRepository, cfg.Config.Tyk.Policies)
+	keysHandler := key.NewHandlerFromConfiguration(&cfg.Config.Tyk, keysRepository, cfg.Config.Tyk.Policies)
 	server.WithReadyZ(keysHandler)
 	server.POST("/keys", keysHandler.HandlePOST)
 	server.GET("/policies", policyHandler.GetPolicy)

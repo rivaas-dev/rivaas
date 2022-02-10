@@ -1,4 +1,6 @@
-package keys
+package key
+
+//go:generate mockgen -destination=./mock_keys_repository.go -package=key -source=repository.go RepositoryInterface
 
 //RepositoryInterface Key Repository
 type RepositoryInterface interface {
