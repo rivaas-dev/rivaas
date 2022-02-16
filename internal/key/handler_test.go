@@ -103,10 +103,12 @@ func TestHandler_Success(t *testing.T) {
 	a, repo, client, w, c := constructAllTestObjects(t)
 	nextYear := time.Now().AddDate(1, 0, 0)
 	d := date.YmdDate{Time: nextYear}
+	q := int64(4)
 	body := request.Post{
 		Policies:       []string{"existingPolicy"},
 		ActorID:        "1234",
 		ExpirationDate: &d,
+		Quota:          &q,
 	}
 	jsonBody, err := json.Marshal(body)
 	a.Nil(err)

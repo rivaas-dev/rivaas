@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	StoreKeyQueryTemplate       = `INSERT INTO api_keys(key_hash, actor_id, expiration_date) VALUES (?, ?, ?)`
+	StoreKeyQueryTemplate       = `INSERT INTO api_keys(key_hash, actor_id, expiration_date, description) VALUES (?, ?, ?, ?)`
 	GetKeyByHashQueryTemplate   = "SELECT key_hash, actor_id, expiration_date FROM api_keys WHERE key_hash = ?"
 	GetKeysByActorQueryTemplate = "SELECT key_hash, actor_id, expiration_date FROM api_keys WHERE actor_id = ?"
 	ListKeysQueryTemplate       = "SELECT key_hash, actor_id, expiration_date FROM api_keys"
@@ -49,7 +49,7 @@ func NewSQLRepositoryFromCredentials(address string, username string, password s
 
 //StoreKey does what it says
 func (s SQLRepository) StoreKey(key Key) error {
-	_, err := s.client.Exec(StoreKeyQueryTemplate, key.Hash, key.ActorID, key.ExpirationDate)
+	_, err := s.client.Exec(StoreKeyQueryTemplate, key.Hash, key.ActorID, key.ExpirationDate, key.Description)
 	return err
 }
 
