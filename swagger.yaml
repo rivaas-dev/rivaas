@@ -36,7 +36,7 @@ paths:
             properties:
               policies:
                 type: array
-                description: The access policies to give, leave empty for all
+                description: The access policies to give, leave empty for none
                 items:
                   type: string
               actor_id:
@@ -45,9 +45,16 @@ paths:
                 pattern: '^.{1,16}'
               expiration_date:
                 type: string
-                description: Date on which the api key will expire at 00.00
+                description: Date on which the api key will expire at 00.00 (optional)
                 format: date
                 pattern: '^\d{4}\-\d{2}-\d{2}'
+              quota:
+                type: integer
+                description: The amount of calls the API Key can make (optional)
+              description:
+                type: string
+                description: Description for the key (optional)
+                maxLength: 64
       responses:
         '201':
           description: An API key has been created

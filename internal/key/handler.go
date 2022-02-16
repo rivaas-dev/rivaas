@@ -69,7 +69,7 @@ func (h *Handler) HandlePOST(c *gin.Context) {
 		expiration = &body.ExpirationDate.Time
 	}
 
-	key := New(tykResponse.KeyHash, body.ActorID, expiration)
+	key := New(tykResponse.KeyHash, body.ActorID, expiration, body.Quota, body.Description)
 	err = h.keysRepository.StoreKey(*key)
 	if err != nil {
 		log.WithError(err).Error("could not store key in database, removing again from tyk..")
@@ -97,15 +97,21 @@ func (h *Handler) IsReady() bool {
 func (h Handler) buildKeyOptions(body request.Post) *tyk.AddKeyOpts {
 	metadata := make(map[string]interface{})
 	metadata["actor_id"] = body.ActorID
-	var expires int64
-	if body.ExpirationDate != nil {
-		expires = body.ExpirationDate.Unix()
-	}
 
-	return &tyk.AddKeyOpts{SessionState: optional.NewInterface(tyk.SessionState{
+	stateObj := tyk.SessionState{
 		ApplyPolicies: body.Policies,
 		Tags:          []string{},
 		MetaData:      metadata,
-		Expires:       expires,
-	})}
+	}
+
+	if body.ExpirationDate != nil {
+		stateObj.Expires = body.ExpirationDate.Unix()
+	}
+
+	if body.Quota != nil {
+		stateObj.QuotaRemaining = *body.Quota
+		stateObj.QuotaMax = *body.Quota
+	}
+
+	return &tyk.AddKeyOpts{SessionState: optional.NewInterface(stateObj)}
 }
