@@ -1,0 +1,201 @@
+package key
+
+import (
+	"encoding/json"
+	"errors"
+	"github.com/golang/mock/gomock"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/date"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+)
+
+func TestHandlerGet_TykError(t *testing.T) {
+	// setup all test objects
+	a, repo, client, w, c := constructAllTestObjects(t)
+	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
+	httpResponse := http.Response{StatusCode: http.StatusOK}
+	description := "yes"
+	l := time.Now()
+	key := Key{
+		Hash:           "hash1",
+		ActorID:        "actor1",
+		CreationDate:   &l,
+		Description:    &description,
+		ExpirationDate: nil,
+	}
+	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tyk.SessionState{}, &httpResponse,
+		errors.New("error"))
+	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
+	// execution
+	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler.HandleGETKey(c)
+	// get and compare results
+	result, err := ioutil.ReadAll(w.Result().Body)
+	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
+	a.Nil(err)
+	var mappie map[string]interface{}
+	err = json.Unmarshal(result, &mappie)
+	a.Nil(err)
+	expected := map[string]interface{}{"error": "could not get key from gateway"}
+	a.Equal(expected, mappie)
+}
+
+func TestHandlerGet_NoTykKey(t *testing.T) {
+	// setup all test objects
+	a, repo, client, w, c := constructAllTestObjects(t)
+	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
+	httpResponse := http.Response{StatusCode: http.StatusNotFound}
+	description := "yes"
+	l := time.Now()
+	key := Key{
+		Hash:           "hash1",
+		ActorID:        "actor1",
+		CreationDate:   &l,
+		Description:    &description,
+		ExpirationDate: nil,
+	}
+	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tyk.SessionState{}, &httpResponse, nil)
+	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
+	// execution
+	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler.HandleGETKey(c)
+	// get and compare results
+	result, err := ioutil.ReadAll(w.Result().Body)
+	a.Equal(http.StatusOK, w.Result().StatusCode)
+	a.Nil(err)
+	var mappie map[string]interface{}
+	err = json.Unmarshal(result, &mappie)
+	a.Nil(err)
+	expected := map[string]interface{}{
+		"actor_id":      "actor1",
+		"description":   "yes",
+		"creation_date": l.Format(time.RFC3339Nano),
+	}
+	a.Equal(expected, mappie)
+}
+
+func TestHandlerGet_SuccessQuota(t *testing.T) {
+	// setup all test objects
+	a, repo, client, w, c := constructAllTestObjects(t)
+	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
+	setTime, err := date.CreateYmdFromString("2022-02-16")
+	a.Nil(err)
+	tykResponse := tyk.SessionState{
+		ApplyPolicies:  []string{"p1", "p2"},
+		QuotaMax:       500,
+		QuotaRemaining: 400,
+		Expires:        setTime.Unix(),
+	}
+	httpResponse := http.Response{StatusCode: 200}
+	description := "yes"
+	l := time.Now()
+	key := Key{
+		Hash:           "hash1",
+		ActorID:        "actor1",
+		CreationDate:   &l,
+		Description:    &description,
+		ExpirationDate: nil,
+	}
+	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tykResponse, &httpResponse, nil)
+	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
+	// execution
+	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler.HandleGETKey(c)
+	// get and compare results
+	result, err := ioutil.ReadAll(w.Result().Body)
+	a.Equal(http.StatusOK, w.Result().StatusCode)
+	a.Nil(err)
+	var mappie map[string]interface{}
+	err = json.Unmarshal(result, &mappie)
+	a.Nil(err)
+	expected := map[string]interface{}{
+		"actor_id":        "actor1",
+		"expiration_date": "2022-02-16",
+		"quota":           float64(400),
+		"description":     "yes",
+		"policies":        []interface{}{"p1", "p2"},
+		"creation_date":   l.Format(time.RFC3339Nano),
+	}
+	a.Equal(expected, mappie)
+}
+
+func TestHandlerGet_SuccessUnlimitedQuota(t *testing.T) {
+	// setup all test objects
+	a, repo, client, w, c := constructAllTestObjects(t)
+	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
+	setTime, err := date.CreateYmdFromString("2022-02-16")
+	a.Nil(err)
+	tykResponse := tyk.SessionState{
+		ApplyPolicies:  []string{"p1", "p2"},
+		QuotaMax:       -1,
+		QuotaRemaining: -1,
+		Expires:        setTime.Unix(),
+	}
+
+	httpResponse := http.Response{StatusCode: 200}
+	description := "yes"
+	l := time.Now()
+	key := Key{
+		Hash:           "hash1",
+		ActorID:        "actor1",
+		CreationDate:   &l,
+		Description:    &description,
+		ExpirationDate: nil,
+	}
+	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tykResponse, &httpResponse, nil)
+	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
+	// execution
+	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler.HandleGETKey(c)
+	result, err := ioutil.ReadAll(w.Result().Body)
+	// get and compare results
+	a.Equal(http.StatusOK, w.Result().StatusCode)
+	a.Nil(err)
+	var mappie map[string]interface{}
+	err = json.Unmarshal(result, &mappie)
+	a.Nil(err)
+	expected := map[string]interface{}{
+		"actor_id":        "actor1",
+		"expiration_date": "2022-02-16",
+		"description":     "yes",
+		"policies":        []interface{}{"p1", "p2"},
+		"creation_date":   l.Format(time.RFC3339Nano),
+	}
+	a.Equal(expected, mappie)
+}
+
+func TestHandlerGet_NotFound(t *testing.T) {
+	// setup all test objects
+	a, repo, client, w, c := constructAllTestObjects(t)
+	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
+	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(nil, nil)
+	// execution
+	handler := NewHandler(client, repo, []string{})
+	handler.HandleGETKey(c)
+	_, err := ioutil.ReadAll(w.Result().Body)
+	a.Equal(http.StatusNotFound, w.Result().StatusCode)
+	a.Nil(err)
+}
+
+func TestHandlerGet_DBError(t *testing.T) {
+	// setup all test objects
+	a, repo, client, w, c := constructAllTestObjects(t)
+	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
+	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(nil, errors.New("error"))
+	// execution
+	handler := NewHandler(client, repo, []string{})
+	handler.HandleGETKey(c)
+	// get and compare results
+	res, err := ioutil.ReadAll(w.Result().Body)
+	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
+	a.Nil(err)
+	var mappie map[string]interface{}
+	err = json.Unmarshal(res, &mappie)
+	a.Nil(err)
+	expected := map[string]interface{}{"error": "could not get key from database"}
+	a.Equal(expected, mappie)
+}

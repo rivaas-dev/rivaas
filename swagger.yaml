@@ -60,12 +60,37 @@ paths:
           description: An API key has been created
           schema:
             allOf:
-              - $ref: https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Resource.json#/definitions/Resource
               - type: object
                 description: A key
-                $ref: APIKey
+                $ref: "#/definitions/KeyCredentials"
         '400':
           $ref: "#/responses/BadRequest"
+        '500':
+          $ref: "#/responses/InternalServerError"
+  /keys/{key_hash}:
+    get:
+      operationId: get_key
+      tags:
+        - keys
+      description: |
+        Get an api key
+      consumes:
+        - application/json
+      parameters:
+        - in: path
+          name: key_hash
+          description: The key hash
+          type: string
+          required: true
+      responses:
+        '200':
+          description: Detailed properties of a key
+          schema:
+              $ref: '#/definitions/KeyDetails'
+        '400':
+          $ref: "#/responses/BadRequest"
+        '404':
+          $ref: "#/responses/NotFound"
         '500':
           $ref: "#/responses/InternalServerError"
   /policies:
@@ -87,6 +112,10 @@ paths:
                 type: string
               example: ["compliance-monitor-full-access", "routeplanner-full-access"]
 responses:
+  NotFound:
+    description: NotFound
+    schema:
+      $ref: "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Problem.json#/definitions/Problem"
   BadRequest:
     description: Bad Request
     schema:
@@ -96,12 +125,11 @@ responses:
     schema:
       $ref: "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Problem.json#/definitions/Problem"
 definitions:
-  Key:
-    title: Key
-    description: An API key
+  KeyCredentials:
+    title: KeyCredentials
+    description: API key credentials
     type: object
     allOf:
-      - $ref: https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Resource.json#/definitions/Resource
       - properties:
           key:
             type: string
@@ -110,3 +138,35 @@ definitions:
             type: string
             description: The key hash. This is a unique identifier to each API key.
         required: [ "key", "hash" ]
+  KeyDetails:
+    title: KeyDetails
+    description: Detailed properties of a key
+    type: object
+    allOf:
+      - properties:
+          actor_id:
+            type: string
+            description: The actor id of the key
+          policies:
+            type: array
+            items:
+              type: string
+            example: ["compliance-monitor-full-access", "routeplanner-full-access"]
+          expiration_date:
+            type: string
+            description: Date on which the api key will expire at 00.00 (optional)
+            format: date
+            pattern: '^\d{4}\-\d{2}-\d{2}'
+          quota:
+            type: string
+            description: The actor id of the key
+          description:
+            type: string
+            description: Description for the key (optional)
+            maxLength: 64
+          creation_date:
+            type: string
+            description: DateTime on which the api key was created
+            format: date
+            pattern: '^\d{4}\-\d{2}-\d{2}'
+        required: [ "actor_id", "creation_date" ]

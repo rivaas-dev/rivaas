@@ -7,11 +7,11 @@ type Key struct {
 	Hash           string
 	ActorID        string
 	ExpirationDate *time.Time
-	Quota          *int64
+	CreationDate   *time.Time
 	Description    *string
 }
 
 //New key
-func New(hash string, actorID string, expirationDate *time.Time, quota *int64, description *string) *Key {
-	return &Key{Hash: hash, ActorID: actorID, ExpirationDate: expirationDate, Quota: quota, Description: description}
+func New(hash string, actorID string, expirationDate *time.Time, description *string) *Key {
+	return &Key{Hash: hash, ActorID: actorID, ExpirationDate: expirationDate, Description: description}
 }

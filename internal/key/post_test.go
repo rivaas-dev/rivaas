@@ -51,7 +51,8 @@ func TestHandler_DatabaseError(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/keys", strings.NewReader(string(jsonBody)))
 	client.EXPECT().AddKey(gomock.Any(), gomock.Any()).Return(tyk.ApiModifyKeySuccess{Key: "12345", KeyHash: "123"},
 		nil, nil)
-	client.EXPECT().DeleteKey(gomock.Any(), gomock.Any()).Return(tyk.ApiStatusMessage{}, nil, errors.New("delete error"))
+	client.EXPECT().DeleteKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tyk.ApiStatusMessage{}, nil,
+		errors.New("delete error"))
 	repo.EXPECT().StoreKey(gomock.Any()).Return(errors.New("storage error"))
 
 	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
@@ -99,7 +100,7 @@ func TestHandler_InvalidInput(t *testing.T) {
 	a.Equal("invalid input parameters", mappie["error"])
 }
 
-func TestHandler_Success(t *testing.T) {
+func TestHandlerPost_Success(t *testing.T) {
 	a, repo, client, w, c := constructAllTestObjects(t)
 	nextYear := time.Now().AddDate(1, 0, 0)
 	d := date.YmdDate{Time: nextYear}
@@ -138,7 +139,6 @@ func TestHandler_Constructor(t *testing.T) {
 	configuration := config.Tyk{}
 	h := NewHandlerFromConfiguration(&configuration, nil, []string{})
 	a.NotNil(h)
-	a.True(h.IsReady())
 }
 
 func constructAllTestObjects(t *testing.T) (*assert.Assertions, *MockRepositoryInterface, *MockClientInterface,

@@ -39,3 +39,10 @@ func CreateYmdFromString(dateString string) (*YmdDate, error) {
 	err := d.UnmarshalJSON([]byte(dateString))
 	return &d, err
 }
+
+func CreateYmdFromTimePtr(t *time.Time) *YmdDate {
+	if t == nil {
+		return nil
+	}
+	return &YmdDate{Time: *t}
+}
