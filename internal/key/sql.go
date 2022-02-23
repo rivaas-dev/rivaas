@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	StoreKeyQueryTemplate       = `INSERT INTO api_keys(key_hash, actor_id, expiration_date, description) VALUES (?, ?, ?, ?)`
-	GetKeyByHashQueryTemplate   = "SELECT key_hash, actor_id, expiration_date FROM api_keys WHERE key_hash = ?"
+	StoreKeyQueryTemplate     = `INSERT INTO api_keys(key_hash, actor_id, expiration_date, description) VALUES (?, ?, ?, ?)`
+	GetKeyByHashQueryTemplate = "SELECT key_hash, actor_id, expiration_date, creation_date, description " +
+		"FROM api_keys WHERE key_hash = ? LIMIT 1"
 	GetKeysByActorQueryTemplate = "SELECT key_hash, actor_id, expiration_date FROM api_keys WHERE actor_id = ?"
 	ListKeysQueryTemplate       = "SELECT key_hash, actor_id, expiration_date FROM api_keys"
 )
@@ -31,6 +32,7 @@ func NewSQLRepositoryFromCredentials(address string, username string, password s
 		Addr:                 address,
 		Net:                  "tcp",
 		AllowNativePasswords: true,
+		ParseTime:            true,
 	}
 
 	var err error
@@ -53,9 +55,13 @@ func (s SQLRepository) StoreKey(key Key) error {
 	return err
 }
 
-// TODO do when we implement the /keys endpoint
+//GetKeyByHash single key
 func (s SQLRepository) GetKeyByHash(hash string) (*Key, error) {
-	panic("implement me")
+	var k Key
+	err := s.client.QueryRow(GetKeyByHashQueryTemplate, hash).Scan(&k.Hash, &k.ActorID, &k.ExpirationDate,
+		&k.CreationDate, &k.Description)
+
+	return &k, err
 }
 
 // TODO do when we implement the /keys endpoint

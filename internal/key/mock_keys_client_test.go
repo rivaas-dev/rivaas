@@ -53,9 +53,9 @@ func (mr *MockClientInterfaceMockRecorder) AddKey(ctx, localVarOptionals interfa
 }
 
 // DeleteKey mocks base method.
-func (m *MockClientInterface) DeleteKey(ctx context.Context, keyID string) (tyk.ApiStatusMessage, *http.Response, error) {
+func (m *MockClientInterface) DeleteKey(ctx context.Context, keyID string, localVarOptionals *tyk.DeleteKeyOpts) (tyk.ApiStatusMessage, *http.Response, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteKey", ctx, keyID)
+	ret := m.ctrl.Call(m, "DeleteKey", ctx, keyID, localVarOptionals)
 	ret0, _ := ret[0].(tyk.ApiStatusMessage)
 	ret1, _ := ret[1].(*http.Response)
 	ret2, _ := ret[2].(error)
@@ -63,7 +63,23 @@ func (m *MockClientInterface) DeleteKey(ctx context.Context, keyID string) (tyk.
 }
 
 // DeleteKey indicates an expected call of DeleteKey.
-func (mr *MockClientInterfaceMockRecorder) DeleteKey(ctx, keyID interface{}) *gomock.Call {
+func (mr *MockClientInterfaceMockRecorder) DeleteKey(ctx, keyID, localVarOptionals interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteKey", reflect.TypeOf((*MockClientInterface)(nil).DeleteKey), ctx, keyID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteKey", reflect.TypeOf((*MockClientInterface)(nil).DeleteKey), ctx, keyID, localVarOptionals)
+}
+
+// GetKey mocks base method.
+func (m *MockClientInterface) GetKey(ctx context.Context, keyID string, localVarOptionals *tyk.GetKeyOpts) (tyk.SessionState, *http.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKey", ctx, keyID, localVarOptionals)
+	ret0, _ := ret[0].(tyk.SessionState)
+	ret1, _ := ret[1].(*http.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetKey indicates an expected call of GetKey.
+func (mr *MockClientInterfaceMockRecorder) GetKey(ctx, keyID, localVarOptionals interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKey", reflect.TypeOf((*MockClientInterface)(nil).GetKey), ctx, keyID, localVarOptionals)
 }

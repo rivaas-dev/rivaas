@@ -36,11 +36,10 @@ func main() {
 	}
 
 	server := goskell.NewServer(gin.Logger(), gin.Recovery())
-	server.WithLivez()
 	policyHandler := policies.NewHandler(cfg.Config.Tyk.Policies)
 	keysHandler := key.NewHandlerFromConfiguration(&cfg.Config.Tyk, keysRepository, cfg.Config.Tyk.Policies)
-	server.WithReadyZ(keysHandler)
 	server.POST("/keys", keysHandler.HandlePOST)
+	server.GET("/keys/:"+key.HashPathName, keysHandler.HandleGETKey)
 	server.GET("/policies", policyHandler.GetPolicy)
 
 	if err = server.Run(fmt.Sprintf("%s:%d", cfg.Config.Application.Host, cfg.Config.Application.Port)); err != nil {
