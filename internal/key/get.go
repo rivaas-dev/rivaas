@@ -11,7 +11,9 @@ import (
 	"time"
 )
 
-const HashPathName = "key_hash"
+const (
+	HashPathName = "key_hash"
+)
 
 //HandleGETKey get single key by hash
 func (h *Handler) HandleGETKey(c *gin.Context) {
@@ -33,8 +35,8 @@ func (h *Handler) HandleGETKey(c *gin.Context) {
 	// Means the key has expired probably (or it was removed)
 	if resp.StatusCode == http.StatusNotFound {
 		// build key from db response
-		key := response.NewKeyDetailed(dbKey.ActorID, dbKey.ExpirationDate, nil, dbKey.Description,
-			nil, *dbKey.CreationDate)
+		key := response.NewKeyDetailsWithGatewayContext(dbKey.ActorID, dbKey.ExpirationDate, nil, dbKey.Description,
+			nil, dbKey.CreatedAt)
 		c.JSON(http.StatusOK, key)
 		return
 	}
@@ -57,8 +59,29 @@ func (h *Handler) HandleGETKey(c *gin.Context) {
 	if *q < 0 {
 		q = nil
 	}
-	key := response.NewKeyDetailed(dbKey.ActorID, expiration, q, dbKey.Description,
-		tykResponse.ApplyPolicies, *dbKey.CreationDate)
+	key := response.NewKeyDetailsWithGatewayContext(dbKey.ActorID, expiration, q, dbKey.Description,
+		tykResponse.ApplyPolicies, dbKey.CreatedAt)
 
 	c.JSON(http.StatusOK, key)
+}
+
+//HandleGETKeys list the keys and optionally filter
+func (h *Handler) HandleGETKeys(c *gin.Context) {
+	// parse and validate the request
+	var input GetKeysInput
+	_ = c.ShouldBindQuery(&input)
+	dbKeys, err := h.keysRepository.GetKeys(input)
+	if err != nil || dbKeys == nil {
+		log.WithError(err).Error("could not get keys from database")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not get keys from database"})
+		return
+	}
+	res := []response.KeyDetails{}
+	// response DB records
+	for _, k := range dbKeys {
+		newK := response.NewKeyDetails(k.Hash, k.ActorID, k.ExpirationDate, k.Description, k.CreatedAt)
+		res = append(res, *newK)
+	}
+
+	c.JSON(http.StatusOK, res)
 }
