@@ -48,34 +48,19 @@ func (mr *MockRepositoryInterfaceMockRecorder) GetKeyByHash(hash interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKeyByHash", reflect.TypeOf((*MockRepositoryInterface)(nil).GetKeyByHash), hash)
 }
 
-// GetKeysByActorID mocks base method.
-func (m *MockRepositoryInterface) GetKeysByActorID(actorID string) ([]*Key, error) {
+// GetKeys mocks base method.
+func (m *MockRepositoryInterface) GetKeys(input GetKeysInput) ([]*Key, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetKeysByActorID", actorID)
+	ret := m.ctrl.Call(m, "GetKeys", input)
 	ret0, _ := ret[0].([]*Key)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetKeysByActorID indicates an expected call of GetKeysByActorID.
-func (mr *MockRepositoryInterfaceMockRecorder) GetKeysByActorID(actorID interface{}) *gomock.Call {
+// GetKeys indicates an expected call of GetKeys.
+func (mr *MockRepositoryInterfaceMockRecorder) GetKeys(input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKeysByActorID", reflect.TypeOf((*MockRepositoryInterface)(nil).GetKeysByActorID), actorID)
-}
-
-// ListKeys mocks base method.
-func (m *MockRepositoryInterface) ListKeys() ([]*Key, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListKeys")
-	ret0, _ := ret[0].([]*Key)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListKeys indicates an expected call of ListKeys.
-func (mr *MockRepositoryInterfaceMockRecorder) ListKeys() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListKeys", reflect.TypeOf((*MockRepositoryInterface)(nil).ListKeys))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKeys", reflect.TypeOf((*MockRepositoryInterface)(nil).GetKeys), input)
 }
 
 // StoreKey mocks base method.

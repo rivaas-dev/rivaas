@@ -6,6 +6,11 @@ package key
 type RepositoryInterface interface {
 	StoreKey(key Key) error
 	GetKeyByHash(hash string) (*Key, error)
-	GetKeysByActorID(actorID string) ([]*Key, error)
-	ListKeys() ([]*Key, error)
+	GetKeys(input GetKeysInput) ([]*Key, error)
+}
+
+//GetKeysInput input
+type GetKeysInput struct {
+	ActorID     string  `form:"actor_id"`
+	Description *string `form:"description"`
 }

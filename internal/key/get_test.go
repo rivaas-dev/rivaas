@@ -13,6 +13,60 @@ import (
 	"time"
 )
 
+func TestHandlerList_DBError(t *testing.T) {
+	// setup all test objects
+	a, repo, client, w, c := constructAllTestObjects(t)
+	c.Request = httptest.NewRequest(http.MethodGet, "/keys", nil)
+	repo.EXPECT().GetKeys(gomock.Any()).Return(nil, errors.New("myError"))
+	// execution
+	handler := NewHandler(client, repo, []string{})
+	handler.HandleGETKeys(c)
+	// get and compare results
+	result, err := ioutil.ReadAll(w.Result().Body)
+	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
+	a.Nil(err)
+	var mappie map[string]interface{}
+	err = json.Unmarshal(result, &mappie)
+	a.Nil(err)
+	expected := map[string]interface{}{"error": "could not get keys from database"}
+	a.Equal(expected, mappie)
+}
+
+func TestHandlerList_SuccessWithActor(t *testing.T) {
+	// setup all test objects
+	a, repo, client, w, c := constructAllTestObjects(t)
+	c.Request = httptest.NewRequest(http.MethodGet, "/keys?actor_id=hi&description=desc", nil)
+	description := "yes"
+	l := time.Now()
+	key := Key{
+		Hash:           "hash1",
+		ActorID:        "actor1",
+		CreatedAt:      l,
+		Description:    &description,
+		ExpirationDate: nil,
+	}
+	repo.EXPECT().GetKeys(gomock.Any()).Return([]*Key{&key}, nil)
+	// execution
+	handler := NewHandler(client, repo, []string{})
+	handler.HandleGETKeys(c)
+	// get and compare results
+	result, err := ioutil.ReadAll(w.Result().Body)
+	a.Equal(http.StatusOK, w.Result().StatusCode)
+	a.Nil(err)
+	var mappie []map[string]interface{}
+	err = json.Unmarshal(result, &mappie)
+	a.Nil(err)
+	expected := []map[string]interface{}{
+		{
+			"hash":          "hash1",
+			"actor_id":      "actor1",
+			"description":   "yes",
+			"creation_date": l.Format(time.RFC3339Nano),
+		},
+	}
+	a.Equal(expected, mappie)
+}
+
 func TestHandlerGet_TykError(t *testing.T) {
 	// setup all test objects
 	a, repo, client, w, c := constructAllTestObjects(t)
@@ -23,7 +77,7 @@ func TestHandlerGet_TykError(t *testing.T) {
 	key := Key{
 		Hash:           "hash1",
 		ActorID:        "actor1",
-		CreationDate:   &l,
+		CreatedAt:      l,
 		Description:    &description,
 		ExpirationDate: nil,
 	}
@@ -54,7 +108,7 @@ func TestHandlerGet_NoTykKey(t *testing.T) {
 	key := Key{
 		Hash:           "hash1",
 		ActorID:        "actor1",
-		CreationDate:   &l,
+		CreatedAt:      l,
 		Description:    &description,
 		ExpirationDate: nil,
 	}
@@ -96,7 +150,7 @@ func TestHandlerGet_SuccessQuota(t *testing.T) {
 	key := Key{
 		Hash:           "hash1",
 		ActorID:        "actor1",
-		CreationDate:   &l,
+		CreatedAt:      l,
 		Description:    &description,
 		ExpirationDate: nil,
 	}
@@ -142,7 +196,7 @@ func TestHandlerGet_SuccessUnlimitedQuota(t *testing.T) {
 	key := Key{
 		Hash:           "hash1",
 		ActorID:        "actor1",
-		CreationDate:   &l,
+		CreatedAt:      l,
 		Description:    &description,
 		ExpirationDate: nil,
 	}

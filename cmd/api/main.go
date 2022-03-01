@@ -39,6 +39,7 @@ func main() {
 	policyHandler := policies.NewHandler(cfg.Config.Tyk.Policies)
 	keysHandler := key.NewHandlerFromConfiguration(&cfg.Config.Tyk, keysRepository, cfg.Config.Tyk.Policies)
 	server.POST("/keys", keysHandler.HandlePOST)
+	server.GET("/keys", keysHandler.HandleGETKeys)
 	server.GET("/keys/:"+key.HashPathName, keysHandler.HandleGETKey)
 	server.GET("/policies", policyHandler.GetPolicy)
 
