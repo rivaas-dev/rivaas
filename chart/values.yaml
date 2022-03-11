@@ -25,7 +25,8 @@ ingress:
   enabled: false
   path: /
   pathType: ImplementationSpecific
-  annotations: {}
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
   hosts: []
   tls: []
 
