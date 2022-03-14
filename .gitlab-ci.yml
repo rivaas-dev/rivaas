@@ -20,6 +20,7 @@ variables:
     --set config.tyk.policies[1]=routeplanner-full-access-policy \
     --set config.tyk.policies[2]=international-business-full \
     --set config.tyk.policies[3]=dutchbusiness-full-access-policy \
+    --set config.tyk.policies[4]=marketing-intelligence-full-access-policy \
   "
 
   HELM_TESTING_VARIABLES: "
