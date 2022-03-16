@@ -4,7 +4,7 @@ import "time"
 
 //Post response
 type Post struct {
-	ID             string     `json:"key"`
-	Hash           string     `json:"hash"`
-	ExpirationDate *time.Time `json:"expiration_date,omitempty"`
+	ID           string     `json:"key"`
+	Hash         string     `json:"hash"`
+	QuotaEndDate *time.Time `json:"quota_end_date,omitempty"`
 }

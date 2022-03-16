@@ -36,12 +36,12 @@ func (h *Handler) HandlePOST(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	var expiration *time.Time
-	if body.ExpirationDate != nil {
-		expiration = &body.ExpirationDate.Time
+	var quotaEndDate *time.Time
+	if body.QuotaEndDate != nil {
+		quotaEndDate = &body.QuotaEndDate.Time
 	}
 
-	key := New(tykResponse.KeyHash, body.ActorID, expiration, body.Description)
+	key := New(tykResponse.KeyHash, body.ActorID, quotaEndDate, body.Description)
 	err = h.keysRepository.StoreKey(*key)
 	if err != nil {
 		log.WithError(err).Error("could not store key in database, removing again from tyk..")
@@ -56,9 +56,9 @@ func (h *Handler) HandlePOST(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, response.Post{
-		ID:             tykResponse.Key,
-		Hash:           tykResponse.KeyHash,
-		ExpirationDate: expiration,
+		ID:           tykResponse.Key,
+		Hash:         tykResponse.KeyHash,
+		QuotaEndDate: quotaEndDate,
 	})
 }
 
@@ -72,12 +72,13 @@ func (h Handler) buildKeyOptions(body request.Post) *tyk.AddKeyOpts {
 		MetaData:      metadata,
 	}
 
-	if body.ExpirationDate != nil {
-		stateObj.Expires = body.ExpirationDate.Unix()
-	}
+	stateObj.Expires = 0 // never expire!
+	// make sure the quota never renews
+	stateObj.QuotaRenews = -1
+	stateObj.QuotaRenewalRate = 0
+
 	stateObj.QuotaRemaining = -1
 	stateObj.QuotaMax = -1
-
 	if body.Quota != nil {
 		stateObj.QuotaRemaining = *body.Quota
 		stateObj.QuotaMax = *body.Quota

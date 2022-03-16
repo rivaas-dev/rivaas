@@ -12,15 +12,15 @@ func TestValidator_ValidatePost_Success(t *testing.T) {
 	nextYear := time.Now().AddDate(1, 0, 0)
 	d := date.YmdDate{Time: nextYear}
 	body := Post{
-		Policies:       []string{"existingPolicy"},
-		ActorID:        "1234",
-		ExpirationDate: &d,
+		Policies:     []string{"existingPolicy"},
+		ActorID:      "1234",
+		QuotaEndDate: &d,
 	}
 	validator := NewValidator([]string{"existingPolicy", "anotherOne"})
 	err := validator.ValidatePost(body)
 	a.Nil(err)
 	// also valid
-	body.ExpirationDate = nil
+	body.QuotaEndDate = nil
 	err = validator.ValidatePost(body)
 	a.Nil(err)
 }
@@ -41,9 +41,9 @@ func TestValidator_ValidatePost_InvalidDate(t *testing.T) {
 	a := assert.New(t)
 	d, _ := date.CreateYmdFromString("2017-03-12")
 	body := Post{
-		Policies:       []string{"existingPolicy"},
-		ActorID:        "1234",
-		ExpirationDate: d,
+		Policies:     []string{"existingPolicy"},
+		ActorID:      "1234",
+		QuotaEndDate: d,
 	}
 	validator := NewValidator([]string{"existingPolicy", "anotherOne"})
 	err := validator.ValidatePost(body)

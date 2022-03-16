@@ -20,7 +20,7 @@ func NewValidator(policies []string) *Validator {
 	f := []validationFunc{
 		v.validatePolicies,
 		v.validateActor,
-		v.validateExpirationDate,
+		v.validateQuotaEndDate,
 	}
 	v.validationFunctions = f
 
@@ -67,14 +67,14 @@ func (v *Validator) validateActor(body Post) error {
 	return nil
 }
 
-//validateExpirationDate should be in the future
-func (v *Validator) validateExpirationDate(body Post) error {
-	if body.ExpirationDate == nil {
+//validateQuotaEndDate should be in the future
+func (v *Validator) validateQuotaEndDate(body Post) error {
+	if body.QuotaEndDate == nil {
 		return nil
 	}
 
-	if body.ExpirationDate.Before(time.Now()) {
-		return errors.New("expiration date must be in the future")
+	if body.QuotaEndDate.Before(time.Now()) {
+		return errors.New("quota end date must be in the future")
 	}
 
 	return nil
