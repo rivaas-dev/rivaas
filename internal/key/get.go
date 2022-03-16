@@ -8,7 +8,6 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/response"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
 	"net/http"
-	"time"
 )
 
 const (
@@ -32,10 +31,10 @@ func (h *Handler) HandleGETKey(c *gin.Context) {
 	}
 
 	tykResponse, resp, err := h.keysClient.GetKey(ctx, hash, &tyk.GetKeyOpts{Hashed: optional.NewBool(true)})
-	// Means the key has expired probably (or it was removed)
+	// Means the key was probably removed
 	if resp.StatusCode == http.StatusNotFound {
 		// build key from db response
-		key := response.NewKeyDetailsWithGatewayContext(dbKey.ActorID, dbKey.ExpirationDate, nil, dbKey.Description,
+		key := response.NewKeyDetailsWithGatewayContext(dbKey.ActorID, dbKey.QuotaEndDate, nil, dbKey.Description,
 			nil, dbKey.CreatedAt)
 		c.JSON(http.StatusOK, key)
 		return
@@ -47,19 +46,12 @@ func (h *Handler) HandleGETKey(c *gin.Context) {
 		return
 	}
 
-	// build key from tyk response and DB record
-	var expiration *time.Time
-	if tykResponse.Expires > 0 {
-		n := time.Unix(tykResponse.Expires, 0)
-		expiration = &n
-	}
-
 	q := &tykResponse.QuotaRemaining
 	// If the quota is smaller than 0 it means it's unlimited, so we send nil back
 	if *q < 0 {
 		q = nil
 	}
-	key := response.NewKeyDetailsWithGatewayContext(dbKey.ActorID, expiration, q, dbKey.Description,
+	key := response.NewKeyDetailsWithGatewayContext(dbKey.ActorID, dbKey.QuotaEndDate, q, dbKey.Description,
 		tykResponse.ApplyPolicies, dbKey.CreatedAt)
 
 	c.JSON(http.StatusOK, key)
@@ -79,7 +71,7 @@ func (h *Handler) HandleGETKeys(c *gin.Context) {
 	res := []response.KeyDetails{}
 	// response DB records
 	for _, k := range dbKeys {
-		newK := response.NewKeyDetails(k.Hash, k.ActorID, k.ExpirationDate, k.Description, k.CreatedAt)
+		newK := response.NewKeyDetails(k.Hash, k.ActorID, k.QuotaEndDate, k.Description, k.CreatedAt)
 		res = append(res, *newK)
 	}
 

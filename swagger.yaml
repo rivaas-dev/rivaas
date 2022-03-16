@@ -73,9 +73,9 @@ paths:
                 type: string
                 description: The reference to the actor. In simple words, this is what binds an API key to a user/customer.
                 pattern: '^.{1,16}'
-              expiration_date:
+              quota_end_date:
                 type: string
-                description: Date on which the api key will expire at 00.00 (optional)
+                description: Date on which the key quota will expire at 00.00 (optional)
                 format: date
                 pattern: '^\d{4}\-\d{2}-\d{2}'
               quota:
@@ -180,9 +180,9 @@ definitions:
           actor_id:
             type: string
             description: The actor id of the key
-          expiration_date:
+          quota_end_date:
             type: string
-            description: Date on which the api key will expire at 00.00 (optional)
+            description: Date on which the keys quota will expire at 00.00 (optional)
             format: date
             pattern: '^\d{4}\-\d{2}-\d{2}'
           description:
@@ -209,9 +209,9 @@ definitions:
             items:
               type: string
             example: ["compliance-monitor-full-access", "routeplanner-full-access"]
-          expiration_date:
+          quota_end_date:
             type: string
-            description: Date on which the api key will expire at 00.00 (optional)
+            description: Date on which the key quota will expire at 00.00 (optional)
             format: date
             pattern: '^\d{4}\-\d{2}-\d{2}'
           quota:

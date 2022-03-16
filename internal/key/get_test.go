@@ -35,15 +35,15 @@ func TestHandlerList_DBError(t *testing.T) {
 func TestHandlerList_SuccessWithActor(t *testing.T) {
 	// setup all test objects
 	a, repo, client, w, c := constructAllTestObjects(t)
-	c.Request = httptest.NewRequest(http.MethodGet, "/keys?actor_id=hi&description=desc", nil)
+	c.Request = httptest.NewRequest(http.MethodGet, "/keys?actor_id=hi", nil)
 	description := "yes"
 	l := time.Now()
 	key := Key{
-		Hash:           "hash1",
-		ActorID:        "actor1",
-		CreatedAt:      l,
-		Description:    &description,
-		ExpirationDate: nil,
+		Hash:         "hash1",
+		ActorID:      "actor1",
+		CreatedAt:    l,
+		Description:  &description,
+		QuotaEndDate: nil,
 	}
 	repo.EXPECT().GetKeys(gomock.Any()).Return([]*Key{&key}, nil)
 	// execution
@@ -75,11 +75,11 @@ func TestHandlerGet_TykError(t *testing.T) {
 	description := "yes"
 	l := time.Now()
 	key := Key{
-		Hash:           "hash1",
-		ActorID:        "actor1",
-		CreatedAt:      l,
-		Description:    &description,
-		ExpirationDate: nil,
+		Hash:         "hash1",
+		ActorID:      "actor1",
+		CreatedAt:    l,
+		Description:  &description,
+		QuotaEndDate: nil,
 	}
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tyk.SessionState{}, &httpResponse,
 		errors.New("error"))
@@ -106,11 +106,11 @@ func TestHandlerGet_NoTykKey(t *testing.T) {
 	description := "yes"
 	l := time.Now()
 	key := Key{
-		Hash:           "hash1",
-		ActorID:        "actor1",
-		CreatedAt:      l,
-		Description:    &description,
-		ExpirationDate: nil,
+		Hash:         "hash1",
+		ActorID:      "actor1",
+		CreatedAt:    l,
+		Description:  &description,
+		QuotaEndDate: nil,
 	}
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tyk.SessionState{}, &httpResponse, nil)
 	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
@@ -148,11 +148,11 @@ func TestHandlerGet_SuccessQuota(t *testing.T) {
 	description := "yes"
 	l := time.Now()
 	key := Key{
-		Hash:           "hash1",
-		ActorID:        "actor1",
-		CreatedAt:      l,
-		Description:    &description,
-		ExpirationDate: nil,
+		Hash:         "hash1",
+		ActorID:      "actor1",
+		CreatedAt:    l,
+		Description:  &description,
+		QuotaEndDate: nil,
 	}
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tykResponse, &httpResponse, nil)
 	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
@@ -167,12 +167,11 @@ func TestHandlerGet_SuccessQuota(t *testing.T) {
 	err = json.Unmarshal(result, &mappie)
 	a.Nil(err)
 	expected := map[string]interface{}{
-		"actor_id":        "actor1",
-		"expiration_date": "2022-02-16",
-		"quota":           float64(400),
-		"description":     "yes",
-		"policies":        []interface{}{"p1", "p2"},
-		"creation_date":   l.Format(time.RFC3339Nano),
+		"actor_id":      "actor1",
+		"quota":         float64(400),
+		"description":   "yes",
+		"policies":      []interface{}{"p1", "p2"},
+		"creation_date": l.Format(time.RFC3339Nano),
 	}
 	a.Equal(expected, mappie)
 }
@@ -194,11 +193,11 @@ func TestHandlerGet_SuccessUnlimitedQuota(t *testing.T) {
 	description := "yes"
 	l := time.Now()
 	key := Key{
-		Hash:           "hash1",
-		ActorID:        "actor1",
-		CreatedAt:      l,
-		Description:    &description,
-		ExpirationDate: nil,
+		Hash:         "hash1",
+		ActorID:      "actor1",
+		CreatedAt:    l,
+		Description:  &description,
+		QuotaEndDate: nil,
 	}
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tykResponse, &httpResponse, nil)
 	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
@@ -213,11 +212,10 @@ func TestHandlerGet_SuccessUnlimitedQuota(t *testing.T) {
 	err = json.Unmarshal(result, &mappie)
 	a.Nil(err)
 	expected := map[string]interface{}{
-		"actor_id":        "actor1",
-		"expiration_date": "2022-02-16",
-		"description":     "yes",
-		"policies":        []interface{}{"p1", "p2"},
-		"creation_date":   l.Format(time.RFC3339Nano),
+		"actor_id":      "actor1",
+		"description":   "yes",
+		"policies":      []interface{}{"p1", "p2"},
+		"creation_date": l.Format(time.RFC3339Nano),
 	}
 	a.Equal(expected, mappie)
 }

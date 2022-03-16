@@ -106,10 +106,10 @@ func TestHandlerPost_Success(t *testing.T) {
 	d := date.YmdDate{Time: nextYear}
 	q := int64(4)
 	body := request.Post{
-		Policies:       []string{"existingPolicy"},
-		ActorID:        "1234",
-		ExpirationDate: &d,
-		Quota:          &q,
+		Policies:     []string{"existingPolicy"},
+		ActorID:      "1234",
+		QuotaEndDate: &d,
+		Quota:        &q,
 	}
 	jsonBody, err := json.Marshal(body)
 	a.Nil(err)
