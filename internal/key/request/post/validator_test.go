@@ -1,4 +1,4 @@
-package request
+package post
 
 import (
 	"github.com/stretchr/testify/assert"

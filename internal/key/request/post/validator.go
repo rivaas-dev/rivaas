@@ -1,9 +1,8 @@
-package request
+package post
 
 import (
 	"errors"
-	"fmt"
-	"time"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request/validation"
 )
 
 type validationFunc = func(post Post) error
@@ -40,22 +39,7 @@ func (v *Validator) ValidatePost(body Post) error {
 
 //validatePolicies check if all the policies in the request are also in the validators list
 func (v *Validator) validatePolicies(body Post) error {
-	var policyFound bool
-	for _, reqPolicy := range body.Policies {
-		policyFound = false
-		// check if policy is available
-		for _, availablePolicy := range v.policies {
-			if reqPolicy == availablePolicy {
-				policyFound = true
-				break
-			}
-		}
-		// exit condition
-		if !policyFound {
-			return fmt.Errorf("policy `%s` not available", reqPolicy)
-		}
-	}
-	return nil
+	return validation.ValidatePolicies(v.policies, body.Policies)
 }
 
 //validateActor empty is not allowed (perhaps we should eventually add more checks here)
@@ -69,13 +53,5 @@ func (v *Validator) validateActor(body Post) error {
 
 //validateQuotaEndDate should be in the future
 func (v *Validator) validateQuotaEndDate(body Post) error {
-	if body.QuotaEndDate == nil {
-		return nil
-	}
-
-	if body.QuotaEndDate.Before(time.Now()) {
-		return errors.New("quota end date must be in the future")
-	}
-
-	return nil
+	return validation.ValidateQuotaEndDate(body.QuotaEndDate)
 }
