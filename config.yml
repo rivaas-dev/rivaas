@@ -10,6 +10,7 @@ tyk:
   secret: "secret"
   policies:
     - "test"
+    - "test2"
 
 database:
   address: "localhost:3306"

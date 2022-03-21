@@ -5,7 +5,7 @@ import (
 	"github.com/antihax/optional"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request/post"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/response"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
 	"net/http"
@@ -15,20 +15,20 @@ import (
 //HandlePOST simply tries to create new key from the given input and insert it in the database
 func (h *Handler) HandlePOST(c *gin.Context) {
 	// parse and validate the request
-	var body request.Post
+	var body post.Post
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input parameters"})
 		return
 	}
 
-	if err := h.reqValidator.ValidatePost(body); err != nil {
+	if err := h.postReqValidator.ValidatePost(body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	// prepare the request for Tyk
 	ctx := context.Background()
-	options := h.buildKeyOptions(body)
+	options := h.buildPostKeyOptions(body)
 
 	tykResponse, _, err := h.keysClient.AddKey(ctx, options)
 	if err != nil {
@@ -62,7 +62,7 @@ func (h *Handler) HandlePOST(c *gin.Context) {
 	})
 }
 
-func (h Handler) buildKeyOptions(body request.Post) *tyk.AddKeyOpts {
+func (h Handler) buildPostKeyOptions(body post.Post) *tyk.AddKeyOpts {
 	metadata := make(map[string]interface{})
 	metadata["actor_id"] = body.ActorID
 

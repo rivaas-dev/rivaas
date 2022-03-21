@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/config"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/date"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request/post"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
 	"io/ioutil"
 	"net/http"
@@ -20,7 +20,7 @@ import (
 
 func TestHandler_TykError(t *testing.T) {
 	a, repo, client, w, c := constructAllTestObjects(t)
-	body := request.Post{
+	body := post.Post{
 		Policies: []string{"existingPolicy"},
 		ActorID:  "1234",
 	}
@@ -42,7 +42,7 @@ func TestHandler_TykError(t *testing.T) {
 
 func TestHandler_DatabaseError(t *testing.T) {
 	a, repo, client, w, c := constructAllTestObjects(t)
-	body := request.Post{
+	body := post.Post{
 		Policies: []string{"existingPolicy"},
 		ActorID:  "1234",
 	}
@@ -68,7 +68,7 @@ func TestHandler_DatabaseError(t *testing.T) {
 
 func TestHandler_InvalidPolicy(t *testing.T) {
 	a, repo, client, w, c := constructAllTestObjects(t)
-	body := request.Post{
+	body := post.Post{
 		Policies: []string{"nope"},
 		ActorID:  "1234",
 	}
@@ -105,7 +105,7 @@ func TestHandlerPost_Success(t *testing.T) {
 	nextYear := time.Now().AddDate(1, 0, 0)
 	d := date.YmdDate{Time: nextYear}
 	q := int64(4)
-	body := request.Post{
+	body := post.Post{
 		Policies:     []string{"existingPolicy"},
 		ActorID:      "1234",
 		QuotaEndDate: &d,

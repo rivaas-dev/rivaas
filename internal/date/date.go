@@ -34,12 +34,14 @@ func (d *YmdDate) String() string {
 	return d.Time.Format(YmdFormat)
 }
 
+//CreateYmdFromString simple helper function
 func CreateYmdFromString(dateString string) (*YmdDate, error) {
 	d := YmdDate{}
 	err := d.UnmarshalJSON([]byte(dateString))
 	return &d, err
 }
 
+//CreateYmdFromTimePtr simple helper function
 func CreateYmdFromTimePtr(t *time.Time) *YmdDate {
 	if t == nil {
 		return nil
