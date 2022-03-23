@@ -76,3 +76,18 @@ func (mr *MockRepositoryInterfaceMockRecorder) StoreKey(key interface{}) *gomock
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreKey", reflect.TypeOf((*MockRepositoryInterface)(nil).StoreKey), key)
 }
+
+// UpdateKeyByHash mocks base method.
+func (m *MockRepositoryInterface) UpdateKeyByHash(hash string, values map[string]interface{}) (*Key, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateKeyByHash", hash, values)
+	ret0, _ := ret[0].(*Key)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateKeyByHash indicates an expected call of UpdateKeyByHash.
+func (mr *MockRepositoryInterfaceMockRecorder) UpdateKeyByHash(hash, values interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateKeyByHash", reflect.TypeOf((*MockRepositoryInterface)(nil).UpdateKeyByHash), hash, values)
+}

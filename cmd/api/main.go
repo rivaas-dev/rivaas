@@ -41,6 +41,7 @@ func main() {
 	server.POST("/keys", keysHandler.HandlePOST)
 	server.GET("/keys", keysHandler.HandleGETKeys)
 	server.GET("/keys/:"+key.HashPathName, keysHandler.HandleGETKey)
+	server.PATCH("/keys/:"+key.HashPathName, keysHandler.HandlePATCHKey)
 	server.GET("/policies", policyHandler.GetPolicy)
 
 	if err = server.Run(fmt.Sprintf("%s:%d", cfg.Config.Application.Host, cfg.Config.Application.Port)); err != nil {

@@ -6,6 +6,7 @@ package key
 type RepositoryInterface interface {
 	StoreKey(key Key) error
 	GetKeyByHash(hash string) (*Key, error)
+	UpdateKeyByHash(hash string, values map[string]interface{}) (*Key, error)
 	GetKeys(input GetKeysInput) ([]*Key, error)
 }
 

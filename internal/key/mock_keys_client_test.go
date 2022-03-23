@@ -83,3 +83,19 @@ func (mr *MockClientInterfaceMockRecorder) GetKey(ctx, keyID, localVarOptionals 
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKey", reflect.TypeOf((*MockClientInterface)(nil).GetKey), ctx, keyID, localVarOptionals)
 }
+
+// UpdateKey mocks base method.
+func (m *MockClientInterface) UpdateKey(ctx context.Context, keyID string, localVarOptionals *tyk.UpdateKeyOpts) (tyk.ApiModifyKeySuccess, *http.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateKey", ctx, keyID, localVarOptionals)
+	ret0, _ := ret[0].(tyk.ApiModifyKeySuccess)
+	ret1, _ := ret[1].(*http.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// UpdateKey indicates an expected call of UpdateKey.
+func (mr *MockClientInterfaceMockRecorder) UpdateKey(ctx, keyID, localVarOptionals interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateKey", reflect.TypeOf((*MockClientInterface)(nil).UpdateKey), ctx, keyID, localVarOptionals)
+}

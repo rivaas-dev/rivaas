@@ -28,8 +28,7 @@ func TestHandlerList_DBError(t *testing.T) {
 	var mappie map[string]interface{}
 	err = json.Unmarshal(result, &mappie)
 	a.Nil(err)
-	expected := map[string]interface{}{"error": "could not get keys from database"}
-	a.Equal(expected, mappie)
+	a.Equal(DBCommunicationErrorText, mappie["Title"])
 }
 
 func TestHandlerList_SuccessWithActor(t *testing.T) {
@@ -94,8 +93,7 @@ func TestHandlerGet_TykError(t *testing.T) {
 	var mappie map[string]interface{}
 	err = json.Unmarshal(result, &mappie)
 	a.Nil(err)
-	expected := map[string]interface{}{"error": "could not get key from gateway"}
-	a.Equal(expected, mappie)
+	a.Equal(GatewayCommunicationErrorText, mappie["Title"])
 }
 
 func TestHandlerGet_NoTykKey(t *testing.T) {
@@ -248,6 +246,5 @@ func TestHandlerGet_DBError(t *testing.T) {
 	var mappie map[string]interface{}
 	err = json.Unmarshal(res, &mappie)
 	a.Nil(err)
-	expected := map[string]interface{}{"error": "could not get key from database"}
-	a.Equal(expected, mappie)
+	a.Equal(DBCommunicationErrorText, mappie["Title"])
 }
