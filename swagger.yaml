@@ -123,6 +123,54 @@ paths:
           $ref: "#/responses/NotFound"
         '500':
           $ref: "#/responses/InternalServerError"
+    patch:
+      operationId: update_key
+      tags:
+        - keys
+      description: |
+        Update an api key
+      consumes:
+        - application/json
+      parameters:
+        - in: path
+          name: key_hash
+          description: The key hash from the key that will be updated
+          type: string
+          required: true
+        - in: body
+          name: request
+          description: The details of the key that need updating
+          schema:
+            properties:
+              policies:
+                type: array
+                description: The access policies to give, leave empty for none (optional)
+                items:
+                  type: string
+              quota_end_date:
+                type: string
+                description: Date on which the api key quota will expire at 00.00 (optional)
+                format: date
+                pattern: '^\d{4}\-\d{2}-\d{2}'
+              quota:
+                type: integer
+                description: The amount of calls the API Key has left (optional), set to -1 for unlimited
+              description:
+                type: string
+                description: Description for the key (optional)
+                maxLength: 64
+      responses:
+        '200':
+          description: Detailed properties of a key
+          schema:
+            $ref: '#/definitions/KeyDetailsWithGatewayContext'
+        '400':
+          $ref: "#/responses/BadRequest"
+        '404':
+          $ref: "#/responses/NotFound"
+        '500':
+          $ref: "#/responses/InternalServerError"
+
   /policies:
     get:
       operationId: list_policies

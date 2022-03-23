@@ -7,6 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/response"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 	"net/http"
 )
 
@@ -21,12 +23,12 @@ func (h *Handler) HandleGETKey(c *gin.Context) {
 	ctx := context.Background()
 	dbKey, err := h.keysRepository.GetKeyByHash(hash)
 	if err != nil {
-		log.WithError(err).Error("could not get key from database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not get key from database"})
+		log.WithError(err).Error(DBCommunicationErrorText)
+		goskell.ProblemJSON(c, problem.Details{Title: DBCommunicationErrorText, Status: http.StatusInternalServerError})
 		return
 	}
 	if dbKey == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error ": "key not found"})
+		goskell.ProblemJSON(c, problem.Details{Title: DBKeyNotFoundText, Status: http.StatusNotFound})
 		return
 	}
 
@@ -41,8 +43,8 @@ func (h *Handler) HandleGETKey(c *gin.Context) {
 	}
 
 	if err != nil {
-		log.WithError(err).Error("could not get key from tyk")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not get key from gateway"})
+		log.WithError(err).Error(GatewayCommunicationErrorText)
+		goskell.ProblemJSON(c, problem.Details{Title: GatewayCommunicationErrorText, Status: http.StatusInternalServerError})
 		return
 	}
 
@@ -64,8 +66,8 @@ func (h *Handler) HandleGETKeys(c *gin.Context) {
 	_ = c.ShouldBindQuery(&input)
 	dbKeys, err := h.keysRepository.GetKeys(input)
 	if err != nil || dbKeys == nil {
-		log.WithError(err).Error("could not get keys from database")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not get keys from database"})
+		log.WithError(err).Error(DBCommunicationErrorText)
+		goskell.ProblemJSON(c, problem.Details{Title: DBCommunicationErrorText, Status: http.StatusInternalServerError})
 		return
 	}
 	res := []response.KeyDetails{}

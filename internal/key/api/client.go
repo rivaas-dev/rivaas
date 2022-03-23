@@ -13,4 +13,5 @@ type ClientInterface interface {
 	AddKey(ctx context.Context, localVarOptionals *tyk.AddKeyOpts) (tyk.ApiModifyKeySuccess, *http.Response, error)
 	DeleteKey(ctx context.Context, keyID string, localVarOptionals *tyk.DeleteKeyOpts) (tyk.ApiStatusMessage, *http.Response, error)
 	GetKey(ctx context.Context, keyID string, localVarOptionals *tyk.GetKeyOpts) (tyk.SessionState, *http.Response, error)
+	UpdateKey(ctx context.Context, keyID string, localVarOptionals *tyk.UpdateKeyOpts) (tyk.ApiModifyKeySuccess, *http.Response, error)
 }

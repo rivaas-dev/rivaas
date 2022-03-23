@@ -8,6 +8,8 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request/post"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/response"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 	"net/http"
 	"time"
 )
@@ -17,12 +19,12 @@ func (h *Handler) HandlePOST(c *gin.Context) {
 	// parse and validate the request
 	var body post.Post
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input parameters"})
+		goskell.ProblemJSON(c, problem.Details{Title: http.StatusText(http.StatusBadRequest), Status: http.StatusBadRequest})
 		return
 	}
 
 	if err := h.postReqValidator.ValidatePost(body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		goskell.ProblemJSON(c, problem.Details{Title: err.Error(), Status: http.StatusBadRequest})
 		return
 	}
 
@@ -32,8 +34,8 @@ func (h *Handler) HandlePOST(c *gin.Context) {
 
 	tykResponse, _, err := h.keysClient.AddKey(ctx, options)
 	if err != nil {
-		log.WithError(err).Error("could not create key")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.WithError(err).Error(CreateKeyGeneralErrorText)
+		goskell.ProblemJSON(c, problem.Details{Title: err.Error(), Status: http.StatusInternalServerError})
 		return
 	}
 	var quotaEndDate *time.Time
@@ -45,7 +47,7 @@ func (h *Handler) HandlePOST(c *gin.Context) {
 	err = h.keysRepository.StoreKey(*key)
 	if err != nil {
 		log.WithError(err).Error("could not store key in database, removing again from tyk..")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		goskell.ProblemJSON(c, problem.Details{Title: err.Error(), Status: http.StatusInternalServerError})
 		_, _, err := h.keysClient.DeleteKey(ctx, tykResponse.KeyHash, &tyk.DeleteKeyOpts{Hashed: optional.NewBool(
 			true)})
 

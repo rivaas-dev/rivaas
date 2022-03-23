@@ -34,10 +34,10 @@ func TestHandler_TykError(t *testing.T) {
 	result, err := ioutil.ReadAll(w.Result().Body)
 	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
 	a.Nil(err)
-	var mappie map[string]string
+	var mappie map[string]interface{}
 	err = json.Unmarshal(result, &mappie)
 	a.Nil(err)
-	a.Contains(mappie["error"], "tyk error")
+	a.Contains(mappie["Title"], "tyk error")
 }
 
 func TestHandler_DatabaseError(t *testing.T) {
@@ -60,10 +60,10 @@ func TestHandler_DatabaseError(t *testing.T) {
 	result, err := ioutil.ReadAll(w.Result().Body)
 	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
 	a.Nil(err)
-	var mappie map[string]string
+	var mappie map[string]interface{}
 	err = json.Unmarshal(result, &mappie)
 	a.Nil(err)
-	a.Contains(mappie["error"], "storage error")
+	a.Contains(mappie["Title"], "storage error")
 }
 
 func TestHandler_InvalidPolicy(t *testing.T) {
@@ -80,10 +80,10 @@ func TestHandler_InvalidPolicy(t *testing.T) {
 	result, err := ioutil.ReadAll(w.Result().Body)
 	a.Equal(http.StatusBadRequest, w.Result().StatusCode)
 	a.Nil(err)
-	var mappie map[string]string
+	var mappie map[string]interface{}
 	err = json.Unmarshal(result, &mappie)
 	a.Nil(err)
-	a.Contains(mappie["error"], "not available")
+	a.Contains(mappie["Title"], "not available")
 }
 
 func TestHandler_InvalidInput(t *testing.T) {
@@ -94,10 +94,10 @@ func TestHandler_InvalidInput(t *testing.T) {
 	result, err := ioutil.ReadAll(w.Result().Body)
 	a.Equal(http.StatusBadRequest, w.Result().StatusCode)
 	a.Nil(err)
-	var mappie map[string]string
+	var mappie map[string]interface{}
 	err = json.Unmarshal(result, &mappie)
 	a.Nil(err)
-	a.Equal("invalid input parameters", mappie["error"])
+	a.Equal(http.StatusText(http.StatusBadRequest), mappie["Title"])
 }
 
 func TestHandlerPost_Success(t *testing.T) {

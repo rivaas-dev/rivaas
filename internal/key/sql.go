@@ -1,6 +1,7 @@
 package key
 
 import (
+	"errors"
 	"fmt"
 	dsn "github.com/go-sql-driver/mysql"
 	"gorm.io/driver/mysql"
@@ -44,7 +45,7 @@ func (s SQLRepository) StoreKey(key Key) error {
 func (s SQLRepository) GetKeyByHash(hash string) (*Key, error) {
 	var k Key
 	res := s.client.First(&k, "key_hash = ?", hash)
-	if res.Error != nil && res.Error.Error() == "record not found" {
+	if res.Error != nil && errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		return nil, nil // not really an error, just no result
 	}
 	return &k, res.Error
@@ -66,4 +67,15 @@ func (s SQLRepository) GetKeys(input GetKeysInput) ([]*Key, error) {
 	}
 
 	return keyList, nil
+}
+
+//UpdateKeyByHash update a key
+func (s SQLRepository) UpdateKeyByHash(hash string, values map[string]interface{}) (*Key, error) {
+	var k Key
+	res := s.client.First(&k, "key_hash = ?", hash)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	res = s.client.Model(&k).Updates(values)
+	return &k, res.Error
 }
