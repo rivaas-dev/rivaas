@@ -21,7 +21,7 @@ variables:
     --set config.tyk.policies[2]=international-business-full \
     --set config.tyk.policies[3]=dutchbusiness-full-access-policy \
     --set config.tyk.policies[4]=marketing-intelligence-full-access-policy \
-    --set config.tyk.policies[5]=ci-api-full-access \
+    --set config.tyk.policies[5]=ci-api-full \
   "
 
   HELM_TESTING_VARIABLES: "
