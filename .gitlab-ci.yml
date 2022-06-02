@@ -7,6 +7,7 @@ variables:
   GO_BUILD_MAIN_PKG: "./cmd/api"
   SWAGGER_VALIDATE_DISABLED: "true"
   SWAGGER_VALIDATE_SWAGGER_SPEC: "swagger.yaml"
+  AUTO_DEVOPS_CHART: "nexus/api-gateway-api"
 
   # temporary hard-coded policy for the pipeline
   HELM_DEFAULTS: "
@@ -67,10 +68,4 @@ variables:
     --set config.database.name=\"${DATABASE_NAME_PROD}\" \
   "
 
-deploy:testing:
-  script:
-    - mkdir chart/documents
-    - cp -r docker/mysql/ ./chart/documents/mysql
-    - setup_kubernetes
-    - deploy
 
