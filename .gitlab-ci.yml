@@ -23,7 +23,7 @@ variables:
     --set config.tyk.policies[3]=dutchbusiness-full-access-policy \
     --set config.tyk.policies[4]=marketing-intelligence-full-access-policy \
     --set config.tyk.policies[5]=ci-api-full \
-    --set config.tyk.policies[6]=credit-api-access-policy \
+    --set config.tyk.policies[6]=credit-api-full-access-policy \
   "
 
   HELM_TESTING_VARIABLES: "
@@ -52,7 +52,7 @@ variables:
 
   HELM_PROD_VARIABLES: "
     --set mysql.enabled=false \
-    --set replicaCount=3 
+    --set replicaCount=3
     --set ingress.enabled=true \
     --set serviceMonitor.enabled=true \
     --set tolerations[0].key=namespace \
