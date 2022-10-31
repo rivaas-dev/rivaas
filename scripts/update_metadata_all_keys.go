@@ -15,29 +15,25 @@ const (
 	secret = ""
 )
 
+// list with hash - new actor id
+var updateList = map[string]string{
+	"": "",
+}
+
 func main() {
 	client := tyk.NewAPIClient(&tyk.Configuration{
 		Host:          host,
 		Scheme:        scheme,
 		DefaultHeader: map[string]string{"x-tyk-authorization": secret},
 	})
-	allKeys, response, err := client.KeysApi.ListKeys(context.Background())
-	fatalAway(err, response, "")
-	for _, keyHash := range allKeys.Keys {
+	//allKeys, response, err := client.KeysApi.ListKeys(context.Background())
+	//fatalAway(err, response, "")
+	for keyHash, newActorID := range updateList {
 		keyObj, keyResp, err := client.KeysApi.GetKey(context.Background(), keyHash, &tyk.GetKeyOpts{Hashed: optional.NewBool(
 			true)})
 		fatalAway(err, keyResp, keyHash)
-		_, ok := keyObj.MetaData["actor_id"]
-		if ok {
-			// means it's already there
-			continue
-		}
-		customerID, ok := keyObj.MetaData["customer_id"]
-		if !ok {
-			// means there is nothing to copy from
-			continue
-		}
-		keyObj.MetaData["actor_id"] = customerID
+
+		keyObj.MetaData["actor_id"] = newActorID
 		_, keyResp, err = client.KeysApi.UpdateKey(context.Background(), keyHash, &tyk.UpdateKeyOpts{
 			Hashed:       optional.NewBool(true),
 			SessionState: optional.NewInterface(keyObj),
