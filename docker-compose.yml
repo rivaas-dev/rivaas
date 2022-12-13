@@ -6,10 +6,10 @@ services:
     ports:
       - "8081:8081"
     volumes:
-      - ./docker/tyk/test.tyk.conf:/opt/tyk-gateway/tyk.conf
-      - ./docker/tyk/test.policies.json:/opt/tyk-gateway/policies/policies.json
-      - ./docker/tyk/test.apis.json:/opt/tyk-gateway/apps/app_sample.json
-      - ./docker/tyk/test.api2.json:/opt/tyk-gateway/apps/app_sample2.json
+      - ./deployments/tyk/test.tyk.conf:/opt/tyk-gateway/tyk.conf
+      - ./deployments/tyk/test.policies.json:/opt/tyk-gateway/policies/policies.json
+      - ./deployments/tyk/test.apis.json:/opt/tyk-gateway/apps/app_sample.json
+      - ./deployments/tyk/test.api2.json:/opt/tyk-gateway/apps/app_sample2.json
     depends_on:
       - tyk-redis
 
@@ -30,13 +30,13 @@ services:
       - "8080:8080"
 
   db:
-    image: mysql:5.7
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: key_management
-      MYSQL_USER: key-management-api
-      MYSQL_PASSWORD: "password"
+    image: postgres:12.9-alpine3.15
+    platform: linux/x86_64
     ports:
-      - "3306:3306"
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: key_management
+      POSTGRES_USER: key-management-api
+      POSTGRES_PASSWORD: "password"
     volumes:
-      - ./docker/mysql/:/docker-entrypoint-initdb.d/
+      - "./deployments/postgresql/:/docker-entrypoint-initdb.d/"

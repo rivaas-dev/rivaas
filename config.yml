@@ -13,7 +13,8 @@ tyk:
     - "test2"
 
 database:
-  address: "localhost:3306"
+  host: "localhost"
+  port: "5432"
   username: "key-management-api"
   password: "password"
   name: "key_management"
