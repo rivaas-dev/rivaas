@@ -37,14 +37,14 @@ func LoadConfig(path string) (*TYKConfiguration, error) {
 	return Config, err
 }
 
-//validateConfig simple validation step, add more if needed
+// validateConfig simple validation step, add more if needed
 func validateConfig(config *TYKConfiguration) error {
 	if config.Config.Tyk.Policies == nil || len(config.Config.Tyk.Policies) < 1 {
 		return errors.New("did not find any policies to serve")
 	}
 
-	if config.Config.Database.Username == "" || config.Config.Database.Password == "" || config.Config.Database.
-		Address == "" || config.Config.Database.Name == "" {
+	if config.Config.Database.Username == "" || config.Config.Database.Password == "" ||
+		config.Config.Database.Host == "" || config.Config.Database.Port == 0 || config.Config.Database.Name == "" {
 		return errors.New("database not configured properly")
 	}
 
@@ -54,7 +54,8 @@ func validateConfig(config *TYKConfiguration) error {
 func printConfig(config *TYKConfiguration) {
 	fields := log.Fields{
 		"database.username": config.Config.Database.Username,
-		"database.address":  config.Config.Database.Address,
+		"database.host":     config.Config.Database.Host,
+		"database.port":     config.Config.Database.Port,
 		"database.name":     config.Config.Database.Name,
 		"tyk.endpoint":      config.Config.Tyk.Endpoint,
 	}

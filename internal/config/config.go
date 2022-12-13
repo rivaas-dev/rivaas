@@ -22,7 +22,8 @@ type Configuration struct {
 type Database struct {
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
-	Address  string `mapstructure:"address"` // pay attention, this is host+port
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
 	Name     string `mapstructure:"name"`
 }
 

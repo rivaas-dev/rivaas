@@ -27,14 +27,12 @@ variables:
   "
 
   HELM_TESTING_VARIABLES: "
-    --set mysql.enabled=true \
-    --set mysql.initdbScriptsConfigMap=test-$CI_COMMIT_REF_SLUG-config-mysql \
-    --set config.database.address=test-$CI_COMMIT_REF_SLUG-mysql:3306 \
-    --set mysql.fullnameOverride=test-$CI_COMMIT_REF_SLUG-mysql \
+    --set postgresql.enabled=true \
+    --set config.database.host=test-$CI_COMMIT_REF_SLUG-postgresql \
+    --set postgresql.fullnameOverride=test-$CI_COMMIT_REF_SLUG-postgresql \
   "
 
   HELM_ACC_VARIABLES: "
-    --set mysql.enabled=false \
     --set ingress.enabled=true \
     --set serviceMonitor.enabled=true \
     --set tolerations[0].key=namespace \
@@ -44,14 +42,14 @@ variables:
     --set nodeSelector.\"kubernetes\\.ci\\.fdmg\\.org/nodegroup\"=acc \
     --set config.tyk.endpoint=\"acc-tyk-gateway.tyk-402:9696\" \
     --set config.tyk.secret=\"a7BLAktwAFZH2UvTJveRcxtxEGsHTdB3ZuervmtppmD529ZwSTFBaByC4rgXdVHxfxp5UCLaK9CkYU9jRr3ENF9SpkAPVswuSxd32VxBdE3rsbH88ApYQSa2xxuh9hQw\" \
-    --set config.database.address=\"${DATABASE_HOST_ACC}\" \
+    --set config.database.host=\"${DATABASE_HOST_ACC}\" \
+    --set config.database.port=3306 \
     --set config.database.username=\"${DATABASE_USER_ACC}\" \
     --set config.database.password=\"${DATABASE_PASSWORD_ACC}\" \
     --set config.database.name=\"${DATABASE_NAME_ACC}\" \
   "
 
   HELM_PROD_VARIABLES: "
-    --set mysql.enabled=false \
     --set replicaCount=3
     --set ingress.enabled=true \
     --set serviceMonitor.enabled=true \
@@ -62,10 +60,9 @@ variables:
     --set nodeSelector.\"kubernetes\\.ci\\.fdmg\\.org/nodegroup\"=prod \
     --set config.tyk.endpoint=\"prod-tyk-gateway.tyk-402:9696\" \
     --set config.tyk.secret=\"8GbU4fky7XB2QGsdwssuHRtWyH6szJjssRdj97yuxTjYSkaDPwQV8nwAALHfHV5f5sjk6jYEJxzkmUyfBX8j6MJgrGSannnxargJaMMEtfVDkfjcNZfq4DymHsfJ9r3E\" \
-    --set config.database.address=\"${DATABASE_HOST_PROD}\" \
+    --set config.database.host=\"${DATABASE_HOST_PROD}\" \
+    --set config.database.port=3306 \
     --set config.database.username=\"${DATABASE_USER_PROD}\" \
     --set config.database.password=\"${DATABASE_PASSWORD_PROD}\" \
     --set config.database.name=\"${DATABASE_NAME_PROD}\" \
   "
-
-

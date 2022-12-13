@@ -29,8 +29,13 @@ func main() {
 	logger.SetLevel(lvl)
 
 	dbConfig := cfg.Config.Database
-	keysRepository, err := key.NewSQLRepositoryFromCredentials(dbConfig.Address, dbConfig.Username, dbConfig.Password,
-		dbConfig.Name)
+	keysRepository, err := key.NewSQLRepositoryFromCredentials(
+		dbConfig.Host,
+		dbConfig.Port,
+		dbConfig.Username,
+		dbConfig.Password,
+		dbConfig.Name,
+	)
 	if err != nil {
 		panic(err)
 	}
