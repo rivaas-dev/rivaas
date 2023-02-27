@@ -1,8 +1,12 @@
 package post
 
 import (
+	"context"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/date"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policy"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
 	"testing"
 	"time"
 )
@@ -16,12 +20,17 @@ func TestValidator_ValidatePost_Success(t *testing.T) {
 		ActorID:      "1234",
 		QuotaEndDate: &d,
 	}
-	validator := NewValidator([]string{"existingPolicy", "anotherOne"})
-	err := validator.ValidatePost(body)
+
+	m := gomock.NewController(t)
+	policyCli := policy.NewMockClientInterface(m)
+	policies := []string{"existingPolicy", "anotherOne"}
+	policyCli.EXPECT().ListPolicies(gomock.Any()).Return(createTykPolicies(policies), nil, nil).Times(2)
+	validator := NewValidator(policyCli)
+	err := validator.ValidatePost(context.Background(), body)
 	a.Nil(err)
 	// also valid
 	body.QuotaEndDate = nil
-	err = validator.ValidatePost(body)
+	err = validator.ValidatePost(context.Background(), body)
 	a.Nil(err)
 }
 
@@ -31,8 +40,12 @@ func TestValidator_ValidatePost_InvalidPolicy(t *testing.T) {
 		Policies: []string{"nope"},
 		ActorID:  "1234",
 	}
-	validator := NewValidator([]string{"existingPolicy", "anotherOne"})
-	err := validator.ValidatePost(body)
+	m := gomock.NewController(t)
+	policyCli := policy.NewMockClientInterface(m)
+	policies := []string{"existingPolicy", "anotherOne"}
+	policyCli.EXPECT().ListPolicies(gomock.Any()).Return(createTykPolicies(policies), nil, nil)
+	validator := NewValidator(policyCli)
+	err := validator.ValidatePost(context.Background(), body)
 	a.Error(err)
 	a.Contains(err.Error(), "policy")
 }
@@ -45,8 +58,12 @@ func TestValidator_ValidatePost_InvalidDate(t *testing.T) {
 		ActorID:      "1234",
 		QuotaEndDate: d,
 	}
-	validator := NewValidator([]string{"existingPolicy", "anotherOne"})
-	err := validator.ValidatePost(body)
+	m := gomock.NewController(t)
+	policyCli := policy.NewMockClientInterface(m)
+	policies := []string{"existingPolicy", "anotherOne"}
+	policyCli.EXPECT().ListPolicies(gomock.Any()).Return(createTykPolicies(policies), nil, nil)
+	validator := NewValidator(policyCli)
+	err := validator.ValidatePost(context.Background(), body)
 	a.Error(err)
 	a.Contains(err.Error(), "future")
 }
@@ -57,8 +74,20 @@ func TestValidator_ValidatePost_InvalidActor(t *testing.T) {
 		Policies: []string{"existingPolicy"},
 		ActorID:  "",
 	}
-	validator := NewValidator([]string{"existingPolicy", "anotherOne"})
-	err := validator.ValidatePost(body)
+	m := gomock.NewController(t)
+	policyCli := policy.NewMockClientInterface(m)
+	policies := []string{"existingPolicy", "anotherOne"}
+	policyCli.EXPECT().ListPolicies(gomock.Any()).Return(createTykPolicies(policies), nil, nil)
+	validator := NewValidator(policyCli)
+	err := validator.ValidatePost(context.Background(), body)
 	a.Error(err)
 	a.Contains(err.Error(), "actor")
+}
+
+func createTykPolicies(ids []string) []tyk.Policy {
+	var out []tyk.Policy
+	for _, id := range ids {
+		out = append(out, tyk.Policy{Id: id})
+	}
+	return out
 }

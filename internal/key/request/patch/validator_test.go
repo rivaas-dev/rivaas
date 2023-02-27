@@ -1,17 +1,24 @@
 package patch
 
 import (
+	"context"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/date"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policy"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
 	"testing"
 	"time"
 )
 
 func TestInvalidPolicy(t *testing.T) {
 	a := assert.New(t)
-
-	validator := NewValidator([]string{"test", "test1", "test2"})
-	err := validator.ValidatePatch(map[string]interface{}{}, &Typed{Policies: []string{"lol no"}, UpdatePolicies: true})
+	m := gomock.NewController(t)
+	policyCli := policy.NewMockClientInterface(m)
+	policies := []string{"test", "test1", "test2"}
+	policyCli.EXPECT().ListPolicies(gomock.Any()).Return(createTykPolicies(policies), nil, nil)
+	validator := NewValidator(policyCli)
+	err := validator.ValidatePatch(context.Background(), map[string]interface{}{}, &Typed{Policies: []string{"lol no"}, UpdatePolicies: true})
 	a.NotNil(err)
 	a.Contains(err.Error(), "policy")
 }
@@ -19,8 +26,10 @@ func TestInvalidPolicy(t *testing.T) {
 func TestInvalidInputParam(t *testing.T) {
 	a := assert.New(t)
 
-	validator := NewValidator([]string{"test", "test1", "test2"})
-	err := validator.ValidatePatch(map[string]interface{}{"bla": "I dont exist"}, &Typed{})
+	m := gomock.NewController(t)
+	policyCli := policy.NewMockClientInterface(m)
+	validator := NewValidator(policyCli)
+	err := validator.ValidatePatch(context.Background(), map[string]interface{}{"bla": "I dont exist"}, &Typed{})
 	a.NotNil(err)
 	a.Contains(err.Error(), "invalid request parameter")
 }
@@ -55,9 +64,21 @@ func TestValidateValidPatches(t *testing.T) {
 		},
 	}
 
-	validator := NewValidator([]string{"test", "test1", "test2"})
+	m := gomock.NewController(t)
+	policyCli := policy.NewMockClientInterface(m)
+	policyCli.EXPECT().ListPolicies(gomock.Any()).Return(createTykPolicies([]string{"test", "test1", "test2"}), nil, nil).Times(2)
+	validator := NewValidator(policyCli)
+
 	for _, input := range validPatches {
-		err := validator.ValidatePatch(map[string]interface{}{QuotaKey: 4}, &input)
+		err := validator.ValidatePatch(context.Background(), map[string]interface{}{QuotaKey: 4}, &input)
 		a.Nil(err)
 	}
+}
+
+func createTykPolicies(ids []string) []tyk.Policy {
+	var out []tyk.Policy
+	for _, id := range ids {
+		out = append(out, tyk.Policy{Id: id})
+	}
+	return out
 }

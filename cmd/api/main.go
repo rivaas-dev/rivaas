@@ -7,7 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/config"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policies"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policy"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/tyk"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
 
@@ -41,13 +42,17 @@ func main() {
 	}
 
 	server := goskell.NewServer(gin.Logger(), gin.Recovery())
-	policyHandler := policies.NewHandler(cfg.Config.Tyk.Policies)
-	keysHandler := key.NewHandlerFromConfiguration(&cfg.Config.Tyk, keysRepository, cfg.Config.Tyk.Policies)
+
+	tykClient := tyk.NewClient(cfg.Config.Tyk)
+
+	policyHandler := policy.NewHandler(tykClient.PoliciesApi)
+	keysHandler := key.NewHandler(tykClient.KeysApi, tykClient.PoliciesApi, keysRepository)
+
 	server.POST("/keys", keysHandler.HandlePOST)
 	server.GET("/keys", keysHandler.HandleGETKeys)
 	server.GET("/keys/:"+key.HashPathName, keysHandler.HandleGETKey)
 	server.PATCH("/keys/:"+key.HashPathName, keysHandler.HandlePATCHKey)
-	server.GET("/policies", policyHandler.GetPolicy)
+	server.GET("/policies", policyHandler.HandleGETPolicies)
 
 	if err = server.Run(fmt.Sprintf("%s:%d", cfg.Config.Application.Host, cfg.Config.Application.Port)); err != nil {
 		log.WithError(err).Fatal("could not start the server")

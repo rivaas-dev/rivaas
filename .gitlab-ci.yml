@@ -3,7 +3,7 @@ include:
     file: 'golang-templates.yaml'
 
 variables:
-  GO_VERSION: "1.17"
+  GO_VERSION: "1.19"
   GO_BUILD_MAIN_PKG: "./cmd/api"
   SWAGGER_VALIDATE_DISABLED: "true"
   SWAGGER_VALIDATE_SWAGGER_SPEC: "swagger.yaml"
@@ -17,13 +17,6 @@ variables:
     --set ingress.hosts[0].paths[0].pathType=Prefix \
     --set ingress.tls[0].hosts[0]=$${HOST} \
     --set ingress.tls[0].secretName=${KUBE_INGRESS_TLS_DEFAULT_SECRET_NAME} \
-    --set config.tyk.policies[0]=compliance-full-access-policy \
-    --set config.tyk.policies[1]=routeplanner-full-access-policy \
-    --set config.tyk.policies[2]=international-business-full \
-    --set config.tyk.policies[3]=dutchbusiness-full-access-policy \
-    --set config.tyk.policies[4]=marketing-intelligence-full-access-policy \
-    --set config.tyk.policies[5]=ci-api-full \
-    --set config.tyk.policies[6]=credit-report-api-full-access-policy \
   "
 
   HELM_TESTING_VARIABLES: "

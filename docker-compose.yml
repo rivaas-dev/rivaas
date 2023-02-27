@@ -2,7 +2,7 @@ version: '3.3'
 services:
   tyk-gateway:
     container_name: agw-api-tyk
-    image: tykio/tyk-gateway:v3.1.1
+    image: tykio/tyk-gateway:v4.2.3
     ports:
       - "8081:8081"
     volumes:

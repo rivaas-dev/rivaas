@@ -8,7 +8,7 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request/patch"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
 	"gorm.io/gorm"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,7 +18,7 @@ import (
 
 func TestHandlerPatch_TykUpdateError(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	rawYmdDate := date.YmdDate{Time: time.Now().AddDate(0, 0, 1)}
 	ymdDate, _ := date.CreateYmdFromString(rawYmdDate.String())
 	patchMap := map[string]interface{}{
@@ -51,9 +51,9 @@ func TestHandlerPatch_TykUpdateError(t *testing.T) {
 		errors.New("yes"))
 	repo.EXPECT().UpdateKeyByHash(gomock.Any(), gomock.Any()).Return(&dbReturnKey, nil)
 	// handle the request
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
 	a.Nil(err)
 	// validate result
@@ -63,7 +63,7 @@ func TestHandlerPatch_TykUpdateError(t *testing.T) {
 
 func TestHandlerPatch_TykUpdateBadResponseCode(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	rawYmdDate := date.YmdDate{Time: time.Now().AddDate(0, 0, 1)}
 	ymdDate, _ := date.CreateYmdFromString(rawYmdDate.String())
 	patchMap := map[string]interface{}{
@@ -95,9 +95,9 @@ func TestHandlerPatch_TykUpdateBadResponseCode(t *testing.T) {
 	client.EXPECT().UpdateKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tykModifyResponse, &httpResponse, nil)
 	repo.EXPECT().UpdateKeyByHash(gomock.Any(), gomock.Any()).Return(&dbReturnKey, nil)
 	// handle the request
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
 	a.Nil(err)
 	// validate result
@@ -107,7 +107,7 @@ func TestHandlerPatch_TykUpdateBadResponseCode(t *testing.T) {
 
 func TestHandlerPatch_TykNotFound(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	rawYmdDate := date.YmdDate{Time: time.Now().AddDate(0, 0, 1)}
 	ymdDate, _ := date.CreateYmdFromString(rawYmdDate.String())
 	patchMap := map[string]interface{}{
@@ -128,9 +128,9 @@ func TestHandlerPatch_TykNotFound(t *testing.T) {
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tyk.SessionState{}, &httpResponse, nil)
 	repo.EXPECT().UpdateKeyByHash(gomock.Any(), gomock.Any()).Return(&dbReturnKey, nil)
 	// handle the request
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusNotFound, w.Result().StatusCode)
 	a.Nil(err)
 	// validate result
@@ -140,7 +140,7 @@ func TestHandlerPatch_TykNotFound(t *testing.T) {
 
 func TestHandlerPatch_TykRetrieveError(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	rawYmdDate := date.YmdDate{Time: time.Now().AddDate(0, 0, 1)}
 	ymdDate, _ := date.CreateYmdFromString(rawYmdDate.String())
 	patchMap := map[string]interface{}{
@@ -160,9 +160,9 @@ func TestHandlerPatch_TykRetrieveError(t *testing.T) {
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tyk.SessionState{}, nil, errors.New("yes baby"))
 	repo.EXPECT().UpdateKeyByHash(gomock.Any(), gomock.Any()).Return(&dbReturnKey, nil)
 	// handle the request
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
 	a.Nil(err)
 	// validate result
@@ -172,7 +172,7 @@ func TestHandlerPatch_TykRetrieveError(t *testing.T) {
 
 func TestHandlerPatch_BadRequest_ValidationErr(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	patchMap := map[string]interface{}{
 		patch.PoliciesKey: []string{"syk"},
 	}
@@ -180,10 +180,11 @@ func TestHandlerPatch_BadRequest_ValidationErr(t *testing.T) {
 	a.Nil(err)
 
 	c.Request = httptest.NewRequest(http.MethodPatch, "/keys/1234", strings.NewReader(string(jsonBody)))
+	policyClient.EXPECT().ListPolicies(gomock.Any()).Return(createTykPolicies([]string{"existingPolicy", "well hello"}), nil, nil)
 	// handle the request
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Nil(err)
 	a.Equal(http.StatusBadRequest, w.Result().StatusCode)
 	a.Contains(string(result), "policy")
@@ -191,12 +192,12 @@ func TestHandlerPatch_BadRequest_ValidationErr(t *testing.T) {
 
 func TestHandlerPatch_BadRequest_WhatAreYouEvenDoing(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	c.Request = httptest.NewRequest(http.MethodPatch, "/keys/1234", strings.NewReader(string("yes lawd")))
 	// handle the request
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Nil(err)
 	a.Equal(http.StatusBadRequest, w.Result().StatusCode)
 	var mappie map[string]interface{}
@@ -208,7 +209,7 @@ func TestHandlerPatch_BadRequest_WhatAreYouEvenDoing(t *testing.T) {
 
 func TestHandlerPatch_BadRequest_BuildErr(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	patchMap := map[string]interface{}{
 		patch.QuotaEndDateKey: 4,
 	}
@@ -216,9 +217,9 @@ func TestHandlerPatch_BadRequest_BuildErr(t *testing.T) {
 
 	c.Request = httptest.NewRequest(http.MethodPatch, "/keys/1234", strings.NewReader(string(badBody)))
 	// handle the request
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Nil(err)
 	a.Equal(http.StatusBadRequest, w.Result().StatusCode)
 	var mappie map[string]interface{}
@@ -230,7 +231,7 @@ func TestHandlerPatch_BadRequest_BuildErr(t *testing.T) {
 
 func TestHandlerPatch_DBError(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	rawYmdDate := date.YmdDate{Time: time.Now().AddDate(0, 0, 1)}
 	ymdDate, _ := date.CreateYmdFromString(rawYmdDate.String())
 	patchMap := map[string]interface{}{patch.QuotaEndDateKey: ymdDate.String()}
@@ -241,9 +242,9 @@ func TestHandlerPatch_DBError(t *testing.T) {
 	// Set high expectations
 	repo.EXPECT().UpdateKeyByHash(gomock.Any(), gomock.Any()).Return(nil, errors.New("some error"))
 	// handle the request
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
 	a.Nil(err)
 	var mappie map[string]interface{}
@@ -255,7 +256,7 @@ func TestHandlerPatch_DBError(t *testing.T) {
 
 func TestHandlerPatch_KeyNotFound(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	rawYmdDate := date.YmdDate{Time: time.Now().AddDate(0, 0, 1)}
 	ymdDate, _ := date.CreateYmdFromString(rawYmdDate.String())
 	patchMap := map[string]interface{}{patch.QuotaEndDateKey: ymdDate.String()}
@@ -266,9 +267,9 @@ func TestHandlerPatch_KeyNotFound(t *testing.T) {
 	// Set high expectations
 	repo.EXPECT().UpdateKeyByHash(gomock.Any(), gomock.Any()).Return(nil, gorm.ErrRecordNotFound)
 	// handle the request
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusNotFound, w.Result().StatusCode)
 	a.Nil(err)
 	a.Contains(string(result), DBKeyNotFoundText)
@@ -276,7 +277,7 @@ func TestHandlerPatch_KeyNotFound(t *testing.T) {
 
 func TestHandlerPatch_Success(t *testing.T) {
 	// build test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyClient, w, c := constructAllTestObjects(t)
 	rawYmdDate := date.YmdDate{Time: time.Now().AddDate(0, 0, 1)}
 	ymdDate, _ := date.CreateYmdFromString(rawYmdDate.String())
 	description := "description"
@@ -313,10 +314,11 @@ func TestHandlerPatch_Success(t *testing.T) {
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tykStateResponse, &httpResponse, nil)
 	client.EXPECT().UpdateKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tykModifyResponse, &httpResponse, nil)
 	repo.EXPECT().UpdateKeyByHash(gomock.Any(), gomock.Any()).Return(&dbReturnKey, nil)
+	policyClient.EXPECT().ListPolicies(gomock.Any()).Return(createTykPolicies(policies), nil, nil)
 	// handle the request
-	handler := NewHandler(client, repo, policies)
+	handler := NewHandler(client, policyClient, repo)
 	handler.HandlePATCHKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusOK, w.Result().StatusCode)
 	a.Nil(err)
 	var mappie map[string]interface{}
@@ -325,4 +327,12 @@ func TestHandlerPatch_Success(t *testing.T) {
 	a.Nil(err)
 	a.Equal("actor", mappie["actor_id"])
 	a.Equal(ymdDate.String(), mappie["quota_end_date"])
+}
+
+func createTykPolicies(ids []string) []tyk.Policy {
+	var out []tyk.Policy
+	for _, id := range ids {
+		out = append(out, tyk.Policy{Id: id})
+	}
+	return out
 }
