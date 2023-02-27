@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-//HandlePOST simply tries to create new key from the given input and insert it in the database
+// HandlePOST simply tries to create new key from the given input and insert it in the database
 func (h *Handler) HandlePOST(c *gin.Context) {
 	// parse and validate the request
 	var body post.Post
@@ -23,7 +23,7 @@ func (h *Handler) HandlePOST(c *gin.Context) {
 		return
 	}
 
-	if err := h.postReqValidator.ValidatePost(body); err != nil {
+	if err := h.postReqValidator.ValidatePost(c, body); err != nil {
 		goskell.ProblemJSON(c, problem.Details{Title: err.Error(), Status: http.StatusBadRequest})
 		return
 	}

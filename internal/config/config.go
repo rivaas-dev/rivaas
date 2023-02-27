@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/spf13/viper"
+	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/tyk"
 	"sync"
 )
 
@@ -15,7 +16,7 @@ type TYKConfiguration struct {
 
 type Configuration struct {
 	Application Application `mapstructure:"application"`
-	Tyk         Tyk         `mapstructure:"tyk"`
+	Tyk         tyk.Config  `mapstructure:"tyk"`
 	Database    Database    `mapstructure:"database"`
 }
 
@@ -31,14 +32,6 @@ type Application struct {
 	Host     string `mapstructure:"host"`
 	LogLevel string `mapstructure:"logLevel"`
 	Port     int64  `mapstructure:"port"`
-}
-
-type Tyk struct {
-	Endpoint string   `mapstructure:"endpoint"`
-	Scheme   string   `mapstructure:"scheme"`
-	Debug    bool     `mapstructure:"debug"`
-	Secret   string   `mapstructure:"secret"`
-	Policies []string `mapstructure:"policies"`
 }
 
 func (cfg *TYKConfiguration) Fetch() error {

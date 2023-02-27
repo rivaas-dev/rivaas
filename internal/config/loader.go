@@ -4,7 +4,6 @@ import (
 	"errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"strings"
 	"sync"
 )
 
@@ -39,10 +38,6 @@ func LoadConfig(path string) (*TYKConfiguration, error) {
 
 // validateConfig simple validation step, add more if needed
 func validateConfig(config *TYKConfiguration) error {
-	if config.Config.Tyk.Policies == nil || len(config.Config.Tyk.Policies) < 1 {
-		return errors.New("did not find any policies to serve")
-	}
-
 	if config.Config.Database.Username == "" || config.Config.Database.Password == "" ||
 		config.Config.Database.Host == "" || config.Config.Database.Port == 0 || config.Config.Database.Name == "" {
 		return errors.New("database not configured properly")
@@ -58,9 +53,6 @@ func printConfig(config *TYKConfiguration) {
 		"database.port":     config.Config.Database.Port,
 		"database.name":     config.Config.Database.Name,
 		"tyk.endpoint":      config.Config.Tyk.Endpoint,
-	}
-	if config.Config.Tyk.Policies != nil {
-		fields["tyk.policies"] = strings.Join(config.Config.Tyk.Policies, ", ")
 	}
 
 	log.WithFields(fields).Info()

@@ -20,7 +20,7 @@ const (
 	tykStatusOK = "ok"
 )
 
-//HandlePATCHKey update single key by hash
+// HandlePATCHKey update single key by hash
 func (h *Handler) HandlePATCHKey(c *gin.Context) {
 	// parse and validate the request
 	typedPatch, err := h.getPatchInputOrFinishRequest(c)
@@ -50,7 +50,7 @@ func (h *Handler) HandlePATCHKey(c *gin.Context) {
 	c.JSON(http.StatusOK, key)
 }
 
-//updateKeyOrFinishRequest function to improve readability
+// updateKeyOrFinishRequest function to improve readability
 func (h *Handler) updateKeyOrFinishRequest(c *gin.Context, ctx context.Context, keyHash string,
 	patch *patch.Typed) (*tyk.SessionState, error) {
 	tykResponse, resp, err := h.keysClient.GetKey(ctx, keyHash, &tyk.GetKeyOpts{Hashed: optional.NewBool(true)})
@@ -85,7 +85,7 @@ func (h *Handler) updateKeyOrFinishRequest(c *gin.Context, ctx context.Context, 
 	return &newState, nil
 }
 
-//getPatchInputOrFinishRequest function to improve readability, updates key in DB and returns the key itself
+// getPatchInputOrFinishRequest function to improve readability, updates key in DB and returns the key itself
 func (h *Handler) patchKeyInDbOrFinishRequest(c *gin.Context, keyHash string, patch *patch.Typed) (*Key,
 	error) {
 	dbKey, err := h.keysRepository.UpdateKeyByHash(keyHash, patch.ToDBPatchMap())
@@ -102,7 +102,7 @@ func (h *Handler) patchKeyInDbOrFinishRequest(c *gin.Context, keyHash string, pa
 	return dbKey, err
 }
 
-//getPatchInputOrFinishRequest function to improve readability
+// getPatchInputOrFinishRequest function to improve readability
 func (h *Handler) getPatchInputOrFinishRequest(c *gin.Context) (*patch.Typed, error) {
 	// convert request to map
 	var inputMap map[string]interface{}
@@ -115,7 +115,7 @@ func (h *Handler) getPatchInputOrFinishRequest(c *gin.Context) (*patch.Typed, er
 		goskell.ProblemJSON(c, problem.Details{Title: err.Error(), Status: http.StatusBadRequest})
 		return nil, err
 	}
-	if err := h.patchReqValidator.ValidatePatch(inputMap, p); err != nil {
+	if err := h.patchReqValidator.ValidatePatch(c, inputMap, p); err != nil {
 		goskell.ProblemJSON(c, problem.Details{Title: err.Error(), Status: http.StatusBadRequest})
 		return nil, err
 	}

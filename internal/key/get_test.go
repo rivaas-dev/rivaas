@@ -6,7 +6,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/date"
 	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,14 +15,14 @@ import (
 
 func TestHandlerList_DBError(t *testing.T) {
 	// setup all test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyCli, w, c := constructAllTestObjects(t)
 	c.Request = httptest.NewRequest(http.MethodGet, "/keys", nil)
 	repo.EXPECT().GetKeys(gomock.Any()).Return(nil, errors.New("myError"))
 	// execution
-	handler := NewHandler(client, repo, []string{})
+	handler := NewHandler(client, policyCli, repo)
 	handler.HandleGETKeys(c)
 	// get and compare results
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
 	a.Nil(err)
 	var mappie map[string]interface{}
@@ -33,7 +33,7 @@ func TestHandlerList_DBError(t *testing.T) {
 
 func TestHandlerList_SuccessWithActor(t *testing.T) {
 	// setup all test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyCli, w, c := constructAllTestObjects(t)
 	c.Request = httptest.NewRequest(http.MethodGet, "/keys?actor_id=hi", nil)
 	description := "yes"
 	l := time.Now()
@@ -46,10 +46,10 @@ func TestHandlerList_SuccessWithActor(t *testing.T) {
 	}
 	repo.EXPECT().GetKeys(gomock.Any()).Return([]*Key{&key}, nil)
 	// execution
-	handler := NewHandler(client, repo, []string{})
+	handler := NewHandler(client, policyCli, repo)
 	handler.HandleGETKeys(c)
 	// get and compare results
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusOK, w.Result().StatusCode)
 	a.Nil(err)
 	var mappie []map[string]interface{}
@@ -68,7 +68,7 @@ func TestHandlerList_SuccessWithActor(t *testing.T) {
 
 func TestHandlerGet_TykError(t *testing.T) {
 	// setup all test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyCli, w, c := constructAllTestObjects(t)
 	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
 	httpResponse := http.Response{StatusCode: http.StatusOK}
 	description := "yes"
@@ -84,10 +84,10 @@ func TestHandlerGet_TykError(t *testing.T) {
 		errors.New("error"))
 	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
 	// execution
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyCli, repo)
 	handler.HandleGETKey(c)
 	// get and compare results
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
 	a.Nil(err)
 	var mappie map[string]interface{}
@@ -98,7 +98,7 @@ func TestHandlerGet_TykError(t *testing.T) {
 
 func TestHandlerGet_NoTykKey(t *testing.T) {
 	// setup all test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyCli, w, c := constructAllTestObjects(t)
 	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
 	httpResponse := http.Response{StatusCode: http.StatusNotFound}
 	description := "yes"
@@ -113,10 +113,10 @@ func TestHandlerGet_NoTykKey(t *testing.T) {
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tyk.SessionState{}, &httpResponse, nil)
 	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
 	// execution
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyCli, repo)
 	handler.HandleGETKey(c)
 	// get and compare results
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusOK, w.Result().StatusCode)
 	a.Nil(err)
 	var mappie map[string]interface{}
@@ -132,7 +132,7 @@ func TestHandlerGet_NoTykKey(t *testing.T) {
 
 func TestHandlerGet_SuccessQuota(t *testing.T) {
 	// setup all test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyCli, w, c := constructAllTestObjects(t)
 	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
 	setTime, err := date.CreateYmdFromString("2022-02-16")
 	a.Nil(err)
@@ -155,10 +155,10 @@ func TestHandlerGet_SuccessQuota(t *testing.T) {
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tykResponse, &httpResponse, nil)
 	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
 	// execution
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyCli, repo)
 	handler.HandleGETKey(c)
 	// get and compare results
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusOK, w.Result().StatusCode)
 	a.Nil(err)
 	var mappie map[string]interface{}
@@ -176,7 +176,7 @@ func TestHandlerGet_SuccessQuota(t *testing.T) {
 
 func TestHandlerGet_SuccessUnlimitedQuota(t *testing.T) {
 	// setup all test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyCli, w, c := constructAllTestObjects(t)
 	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
 	setTime, err := date.CreateYmdFromString("2022-02-16")
 	a.Nil(err)
@@ -200,9 +200,9 @@ func TestHandlerGet_SuccessUnlimitedQuota(t *testing.T) {
 	client.EXPECT().GetKey(gomock.Any(), gomock.Any(), gomock.Any()).Return(tykResponse, &httpResponse, nil)
 	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(&key, nil)
 	// execution
-	handler := NewHandler(client, repo, []string{"existingPolicy", "well hello"})
+	handler := NewHandler(client, policyCli, repo)
 	handler.HandleGETKey(c)
-	result, err := ioutil.ReadAll(w.Result().Body)
+	result, err := io.ReadAll(w.Result().Body)
 	// get and compare results
 	a.Equal(http.StatusOK, w.Result().StatusCode)
 	a.Nil(err)
@@ -220,27 +220,27 @@ func TestHandlerGet_SuccessUnlimitedQuota(t *testing.T) {
 
 func TestHandlerGet_NotFound(t *testing.T) {
 	// setup all test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyCli, w, c := constructAllTestObjects(t)
 	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
 	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(nil, nil)
 	// execution
-	handler := NewHandler(client, repo, []string{})
+	handler := NewHandler(client, policyCli, repo)
 	handler.HandleGETKey(c)
-	_, err := ioutil.ReadAll(w.Result().Body)
+	_, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusNotFound, w.Result().StatusCode)
 	a.Nil(err)
 }
 
 func TestHandlerGet_DBError(t *testing.T) {
 	// setup all test objects
-	a, repo, client, w, c := constructAllTestObjects(t)
+	a, repo, client, policyCli, w, c := constructAllTestObjects(t)
 	c.Request = httptest.NewRequest(http.MethodGet, "/keys/hash1", nil)
 	repo.EXPECT().GetKeyByHash(gomock.Any()).Return(nil, errors.New("error"))
 	// execution
-	handler := NewHandler(client, repo, []string{})
+	handler := NewHandler(client, policyCli, repo)
 	handler.HandleGETKey(c)
 	// get and compare results
-	res, err := ioutil.ReadAll(w.Result().Body)
+	res, err := io.ReadAll(w.Result().Body)
 	a.Equal(http.StatusInternalServerError, w.Result().StatusCode)
 	a.Nil(err)
 	var mappie map[string]interface{}
