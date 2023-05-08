@@ -1,4 +1,4 @@
-module gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager
+module gitlab.ci.fdmg.org/ci-api/admin-api
 
 go 1.19
 

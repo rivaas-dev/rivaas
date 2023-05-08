@@ -1,0 +1,14 @@
+## Configure the ConfigMap resource that allows you to store non-confidential data in key-value pairs.
+##
+configMap:
+  data:
+    config.yaml:
+      database:
+        host: "{{ .Release.Name }}-postgresql"
+        port: "5432"
+        username: "{{ .Values.postgresql.global.postgresql.auth.username }}"
+        password: "{{ .Values.postgresql.global.postgresql.auth.password }}"
+        name: "{{ .Values.postgresql.global.postgresql.auth.database }}"
+
+postgresql:
+  enabled: true

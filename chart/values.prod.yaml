@@ -1,0 +1,33 @@
+## @param tolerations Tolerations for pod assignment.
+##
+tolerations:
+  - effect: NoSchedule
+    key: namespace
+    operator: Equal
+    value: prod
+
+## @param nodeSelector Node labels for pod assignment.
+##
+nodeSelector:
+  kubernetes.ci.fdmg.org/nodegroup: prod
+
+## Add an horizontal pod autoscaling
+##
+autoscaling:
+  enabled: true
+
+## Prometheus Operator ServiceMonitor configuration
+##
+serviceMonitor:
+  enabled: true
+
+## Configure the ConfigMap resource that allows you to store non-confidential data in key-value pairs.
+##
+configMap:
+  data:
+    config.yaml:
+      tyk:
+        debug: "false"
+      database:
+        port: "3306"
+        name: "api_key_manager"

@@ -1,7 +1,7 @@
 package policy
 
 import (
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policy/api"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/policy/api"
 )
 
 // Handler handles policy requests

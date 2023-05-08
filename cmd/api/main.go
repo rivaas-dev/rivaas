@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/config"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policy"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/tyk"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/policy"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/tyk"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
 

@@ -2,7 +2,7 @@ package patch
 
 import (
 	"errors"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 )
 
 const (

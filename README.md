@@ -1,5 +1,5 @@
-# API Gateway Manager API
-This project exposes some APIs to let you interact with API Gateway. Please refer to the swagger file for more details about the endpoint.
+# Admin API
+This project provides APIs that allow for administrative tasks. Please refer to the swagger file for more details about the endpoint.
 
 ## How to setup development environment?
 1. Start the required containers by running `docker compose up` in the project root.
