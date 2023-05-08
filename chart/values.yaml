@@ -1,0 +1,104 @@
+## Helmet (App) image version
+##
+image:
+  registry: registry.ci.fdmg.org
+  repository: ci-api/admin-api
+  pullSecrets:
+    - gitlab-registry
+
+## Configure extra options for liveness probe
+##
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /livez
+    port: http
+
+## Configure extra options for readiness probe
+##
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /readyz
+    port: http
+
+## Configure the ingress resource that allows you to access the
+## APP installation. Set up the URL
+##
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+
+## Prometheus Operator ServiceMonitor configuration
+##
+serviceMonitor:
+  labels:
+    prometheus: kube-prometheus
+
+## APP's resource requests and limits
+##
+resources:
+  limits:
+    cpu: 500m
+    memory: 800Mi
+  requests:
+    cpu: 250m
+    memory: 400Mi
+
+## Configure the ConfigMap resource that allows you to store non-confidential data in key-value pairs.
+##
+configMap:
+  mounted: true
+  mountPath: "/config.yaml"
+  subPath: "config.yaml"
+  data:
+    config.yaml:
+      application:
+        host: "0.0.0.0"
+        port: "8080"
+        logLevel: "debug"
+      tyk:
+        scheme: "http"
+        endpoint: "agw-api-tyk:8081"
+        debug: "true"
+        secret: "secret"
+      database:
+        host: "localhost"
+        port: "5432"
+        username: "key-management-api"
+        password: "password"
+        name: "key_management"
+
+postgresql:
+  enabled: false
+  image:
+    tag: 12.9.0
+  architecture: standalone
+  global:
+    postgresql:
+      auth:
+        postgresPassword: "root"
+        username: key-management-api
+        password: "password"
+        database: key_management
+  primary:
+    persistence:
+      enabled: false
+    initdb:
+      scripts:
+        initialize.sql: |
+          CREATE TABLE api_keys
+          (
+              key_hash       VARCHAR(32) PRIMARY KEY NOT NULL,
+              actor_id       VARCHAR(255)            NOT NULL,
+              quota_end_date timestamp NULL,
+              creation_date  timestamp DEFAULT NOW() NOT NULL,
+              last_modified  timestamp DEFAULT NOW() NOT NULL,
+              description    TEXT      DEFAULT NULL
+          );
+          CREATE INDEX api_keys_actor_id_key ON api_keys (actor_id);
+          CREATE INDEX api_keys_description_key ON api_keys USING GIN (description);
+  readReplicas:
+    persistence:
+      enabled: false

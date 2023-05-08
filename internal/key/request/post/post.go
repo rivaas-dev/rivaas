@@ -1,6 +1,6 @@
 package post
 
-import "gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/date"
+import "gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 
 //Post request
 type Post struct {

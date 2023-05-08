@@ -7,55 +7,50 @@ variables:
   GO_BUILD_MAIN_PKG: "./cmd/api"
   SWAGGER_VALIDATE_DISABLED: "true"
   SWAGGER_VALIDATE_SWAGGER_SPEC: "swagger.yaml"
-  AUTO_DEVOPS_CHART: "nexus/api-gateway-api"
-
-  # temporary hard-coded policy for the pipeline
-  HELM_DEFAULTS: "
-    --set image.tag=$${IMAGE_TAG} \
-    --set ingress.hosts[0].host=$${HOST} \
-    --set ingress.hosts[0].paths[0].path=/ \
-    --set ingress.hosts[0].paths[0].pathType=Prefix \
-    --set ingress.tls[0].hosts[0]=$${HOST} \
-    --set ingress.tls[0].secretName=${KUBE_INGRESS_TLS_DEFAULT_SECRET_NAME} \
+  HELM_GLOBAL_VARIABLES: "
+    --set configMap.data.\"config\\.yaml\".tyk.secret=\"${TYK_SECRET}\" \
+    --set configMap.data.\"config\\.yaml\".database.username=\"${DATABASE_USER}\" \
+    --set configMap.data.\"config\\.yaml\".database.password=\"${DATABASE_PASSWORD}\" \
   "
 
-  HELM_TESTING_VARIABLES: "
-    --set postgresql.enabled=true \
-    --set config.database.host=test-$CI_COMMIT_REF_SLUG-postgresql \
-    --set postgresql.fullnameOverride=test-$CI_COMMIT_REF_SLUG-postgresql \
-  "
+deploy:testing:
+  variables:
+    HELM_GLOBAL_VARIABLES: ""
+  environment:
+    name: nl/test/$CI_COMMIT_REF_NAME
 
-  HELM_ACC_VARIABLES: "
-    --set ingress.enabled=true \
-    --set serviceMonitor.enabled=true \
-    --set tolerations[0].key=namespace \
-    --set tolerations[0].operator=Equal \
-    --set tolerations[0].value=acc \
-    --set tolerations[0].effect=NoSchedule \
-    --set nodeSelector.\"kubernetes\\.ci\\.fdmg\\.org/nodegroup\"=acc \
-    --set config.tyk.endpoint=\"acc-tyk-gateway.tyk-402:9696\" \
-    --set config.tyk.secret=\"a7BLAktwAFZH2UvTJveRcxtxEGsHTdB3ZuervmtppmD529ZwSTFBaByC4rgXdVHxfxp5UCLaK9CkYU9jRr3ENF9SpkAPVswuSxd32VxBdE3rsbH88ApYQSa2xxuh9hQw\" \
-    --set config.database.host=\"${DATABASE_HOST_ACC}\" \
-    --set config.database.port=3306 \
-    --set config.database.username=\"${DATABASE_USER_ACC}\" \
-    --set config.database.password=\"${DATABASE_PASSWORD_ACC}\" \
-    --set config.database.name=\"${DATABASE_NAME_ACC}\" \
-  "
+destroy:testing:
+  environment:
+    name: nl/test/$CI_COMMIT_REF_NAME
 
-  HELM_PROD_VARIABLES: "
-    --set replicaCount=3
-    --set ingress.enabled=true \
-    --set serviceMonitor.enabled=true \
-    --set tolerations[0].key=namespace \
-    --set tolerations[0].operator=Equal \
-    --set tolerations[0].value=prod \
-    --set tolerations[0].effect=NoSchedule \
-    --set nodeSelector.\"kubernetes\\.ci\\.fdmg\\.org/nodegroup\"=prod \
-    --set config.tyk.endpoint=\"prod-tyk-gateway.tyk-402:9696\" \
-    --set config.tyk.secret=\"8GbU4fky7XB2QGsdwssuHRtWyH6szJjssRdj97yuxTjYSkaDPwQV8nwAALHfHV5f5sjk6jYEJxzkmUyfBX8j6MJgrGSannnxargJaMMEtfVDkfjcNZfq4DymHsfJ9r3E\" \
-    --set config.database.host=\"${DATABASE_HOST_PROD}\" \
-    --set config.database.port=3306 \
-    --set config.database.username=\"${DATABASE_USER_PROD}\" \
-    --set config.database.password=\"${DATABASE_PASSWORD_PROD}\" \
-    --set config.database.name=\"${DATABASE_NAME_PROD}\" \
-  "
+deploy:testing:de:
+  extends: deploy:testing
+  variables:
+    HELM_GLOBAL_VARIABLES: ""
+  environment:
+    name: de/test/$CI_COMMIT_REF_NAME
+    on_stop: destroy:testing:de
+
+destroy:testing:de:
+  extends: destroy:testing
+  environment:
+    name: de/test/$CI_COMMIT_REF_NAME
+
+deploy:acceptance:
+  environment:
+    name: nl/acc
+
+deploy:acceptance:de:
+  extends: deploy:acceptance
+  environment:
+    name: de/acc
+
+deploy:production:
+  extends: .deploy-template
+  environment:
+    name: nl/prod
+
+deploy:production:de:
+  extends: deploy:production
+  environment:
+    name: de/prod

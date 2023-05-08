@@ -1,0 +1,15 @@
+apiVersion: v2
+name: admin-api
+description: A Helm chart for the Admin API
+type: application
+version: 1.0.0
+dependencies:
+  - name: helmet
+    version: "~0.7.0"
+    repository: "https://companyinfo.github.io/helm-charts"
+    import-values:
+      - defaults
+  - name: postgresql
+    version: "12.0.1"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled

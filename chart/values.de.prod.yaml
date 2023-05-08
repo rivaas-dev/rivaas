@@ -1,0 +1,9 @@
+## Configure the ConfigMap resource that allows you to store non-confidential data in key-value pairs.
+##
+configMap:
+  data:
+    config.yaml:
+      tyk:
+        endpoint: "prod-tyk-gateway.tyk-705:9696"
+      database:
+        host: "prod-postgresql-12-cluster.cluster-ciuqgajtn1go.eu-central-1.rds.amazonaws.com"

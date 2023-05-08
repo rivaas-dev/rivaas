@@ -1,7 +1,7 @@
 package response
 
 import (
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"time"
 )
 

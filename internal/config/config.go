@@ -2,7 +2,7 @@ package config
 
 import (
 	"github.com/spf13/viper"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/tyk"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/tyk"
 	"sync"
 )
 

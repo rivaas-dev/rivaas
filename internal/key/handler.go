@@ -1,10 +1,10 @@
 package key
 
 import (
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/api"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request/patch"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request/post"
-	policy "gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policy/api"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/api"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/request/patch"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/request/post"
+	policy "gitlab.ci.fdmg.org/ci-api/admin-api/internal/policy/api"
 )
 
 // Handler handles keys requests

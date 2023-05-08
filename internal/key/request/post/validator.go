@@ -3,8 +3,8 @@ package post
 import (
 	"context"
 	"errors"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/key/request/validation"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-api-key-manager/internal/policy/api"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/request/validation"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/policy/api"
 )
 
 type validationFunc = func(ctx context.Context, post Post) error

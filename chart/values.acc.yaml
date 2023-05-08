@@ -1,0 +1,28 @@
+## @param tolerations Tolerations for pod assignment.
+##
+tolerations:
+  - effect: NoSchedule
+    key: namespace
+    operator: Equal
+    value: acc
+
+## @param nodeSelector Node labels for pod assignment.
+##
+nodeSelector:
+  kubernetes.ci.fdmg.org/nodegroup: acc
+
+## Prometheus Operator ServiceMonitor configuration
+##
+serviceMonitor:
+  enabled: true
+
+## Configure the ConfigMap resource that allows you to store non-confidential data in key-value pairs.
+##
+configMap:
+  data:
+    config.yaml:
+      tyk:
+        debug: "true"
+      database:
+        port: "3306"
+        name: "api_key_manager"
