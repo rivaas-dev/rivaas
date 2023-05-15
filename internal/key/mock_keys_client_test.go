@@ -10,7 +10,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	tyk "gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
+	tyk "gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 )
 
 // MockClientInterface is a mock of ClientInterface interface.

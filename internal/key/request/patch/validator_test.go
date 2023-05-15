@@ -2,13 +2,14 @@ package patch
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/policy"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
-	"testing"
-	"time"
+	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 )
 
 func TestInvalidPolicy(t *testing.T) {

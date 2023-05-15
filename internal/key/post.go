@@ -2,16 +2,17 @@ package key
 
 import (
 	"context"
+	"net/http"
+	"time"
+
 	"github.com/antihax/optional"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/request/post"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/response"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
+	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
-	"net/http"
-	"time"
 )
 
 // HandlePOST simply tries to create new key from the given input and insert it in the database
