@@ -1,6 +1,6 @@
 package tyk
 
-import "gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
+import "gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 
 type Config struct {
 	Endpoint string `mapstructure:"endpoint"`

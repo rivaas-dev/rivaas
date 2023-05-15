@@ -2,8 +2,9 @@ package api
 
 import (
 	"context"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
 	"net/http"
+
+	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 )
 
 //go:generate mockgen -destination=../mock_keys_client.go -package=key -source=client.go ClientInterface

@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"github.com/antihax/optional"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
 	"log"
 	"net/http"
+
+	"github.com/antihax/optional"
+	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 )
 
 const (

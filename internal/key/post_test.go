@@ -3,19 +3,20 @@ package key
 import (
 	"encoding/json"
 	"errors"
-	"github.com/gin-gonic/gin"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/request/post"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/policy"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/request/post"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/policy"
+	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 )
 
 func TestHandler_TykError(t *testing.T) {

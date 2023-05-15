@@ -3,17 +3,18 @@ package key
 import (
 	"encoding/json"
 	"errors"
-	"github.com/golang/mock/gomock"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/request/patch"
-	"gitlab.ci.fdmg.org/datacluster/germany/api-gateway/tyk-sdk-go"
-	"gorm.io/gorm"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang/mock/gomock"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/key/request/patch"
+	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
+	"gorm.io/gorm"
 )
 
 func TestHandlerPatch_TykUpdateError(t *testing.T) {
