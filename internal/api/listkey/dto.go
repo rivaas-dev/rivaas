@@ -13,6 +13,11 @@ type input struct {
 	Description string `form:"description"`
 }
 
+type contact struct {
+	Emails []string
+	Users  []uint
+}
+
 // output represents the response body.
 type output struct {
 	Hash         string     `json:"hash"`
@@ -20,4 +25,5 @@ type output struct {
 	QuotaEndDate *date.Date `json:"quota_end_date"`
 	Description  *string    `json:"description"`
 	CreationAt   time.Time  `json:"creation_date"`
+	Contact      contact    `json:"contacts"`
 }

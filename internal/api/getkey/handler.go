@@ -83,6 +83,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*output, erro
 		Policies:     tykResponse.ApplyPolicies,
 		Quota:        tykResponse.QuotaMax,
 		CreationDate: dbKey.CreatedAt,
+		Contact:      contact(dbKey.Contact),
 	}
 	if dbKey.QuotaEndDate != nil {
 		result.QuotaEndDate = *dbKey.QuotaEndDate

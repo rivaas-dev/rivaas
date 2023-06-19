@@ -101,6 +101,7 @@ func (h *Handler) requestToWorkflowInput(request *input) workflowInput {
 		QuotaEndDate: request.QuotaEndDate,
 		Quota:        request.Quota,
 		Description:  request.Description,
+		Contact:      request.Contact,
 	}
 }
 
