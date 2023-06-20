@@ -7,3 +7,9 @@ configMap:
         endpoint: "acc-tyk-gateway.tyk-402:9696"
       database:
         host: "acc-postgresql-12-cluster.cluster-ct6gy97ncd1k.eu-west-1.rds.amazonaws.com"
+
+## @section Global parameters
+##
+global:
+  consul:
+    env: "acceptance/apis/nl"

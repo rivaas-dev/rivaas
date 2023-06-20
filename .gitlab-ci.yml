@@ -3,21 +3,22 @@ include:
     file: 'golang-templates.yaml'
 
 variables:
-  GO_VERSION: "1.19"
-  GO_BUILD_MAIN_PKG: "./cmd/api"
+  GO_VERSION: "1.20"
+  GO_BUILD_MAIN_PKG: "./cmd/admin-api/"
   SWAGGER_VALIDATE_DISABLED: "true"
-  SWAGGER_VALIDATE_SWAGGER_SPEC: "swagger.yaml"
-  HELM_GLOBAL_VARIABLES: "
-    --set configMap.data.\"config\\.yaml\".tyk.secret=\"${TYK_SECRET}\" \
-    --set configMap.data.\"config\\.yaml\".database.username=\"${DATABASE_USER}\" \
-    --set configMap.data.\"config\\.yaml\".database.password=\"${DATABASE_PASSWORD}\" \
-  "
+  SWAGGER_VALIDATE_SWAGGER_SPEC: "api/swagger.yaml"
+  IS_TEMPORAL_WORKFLOW: "true"
+  HELM_GLOBAL_VARIABLES: |
+    --set global.consul.token="${CONSUL_TOKEN}"
 
 deploy:testing:
   variables:
     HELM_GLOBAL_VARIABLES: ""
   environment:
     name: nl/test/$CI_COMMIT_REF_NAME
+    on_stop: destroy:testing
+  script:
+    - !reference [.create_deployment, script]
 
 destroy:testing:
   environment:
@@ -30,6 +31,8 @@ deploy:testing:de:
   environment:
     name: de/test/$CI_COMMIT_REF_NAME
     on_stop: destroy:testing:de
+  script:
+    - !reference [.create_deployment, script]
 
 destroy:testing:de:
   extends: destroy:testing
@@ -37,11 +40,17 @@ destroy:testing:de:
     name: de/test/$CI_COMMIT_REF_NAME
 
 deploy:acceptance:
+  variables:
+    HELM_ACC_VARIABLES: |
+      --set global.consul.env="acceptance/apis/nl"
   environment:
     name: nl/acc
 
 deploy:acceptance:de:
   extends: deploy:acceptance
+  variables:
+    HELM_ACC_VARIABLES: |
+      --set global.consul.env="acceptance/apis/de"
   environment:
     name: de/acc
 
