@@ -6,7 +6,7 @@ require (
 	github.com/antihax/optional v1.0.0
 	github.com/rs/zerolog v1.29.1
 	gitlab.ci.fdmg.org/ci-api/tyk-sdk-go v0.1.0
-	gitlab.ci.fdmg.org/datacluster/golibs/gnatcatcher v0.1.2
+	gitlab.ci.fdmg.org/datacluster/golibs/gnatcatcher v0.1.3
 	gitlab.ci.fdmg.org/datacluster/golibs/goskell v1.7.2
 	gitlab.ci.fdmg.org/datacluster/nl/webservices/goconfig v1.1.0
 	go.temporal.io/sdk v1.22.2

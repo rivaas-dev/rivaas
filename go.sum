@@ -1103,6 +1103,8 @@ gitlab.ci.fdmg.org/ci-api/tyk-sdk-go v0.1.0 h1:FrlA1f5n3ZTfcdullM6GWZxrl+mudjJl2
 gitlab.ci.fdmg.org/ci-api/tyk-sdk-go v0.1.0/go.mod h1:B2rekfacXCaarbGqmQ1h/d8JlzJ+Yt9I2mHlogtKaiE=
 gitlab.ci.fdmg.org/datacluster/golibs/gnatcatcher v0.1.2 h1:3uicEqjUkD0T94vrW87HA5YYRcGAT0fru7oSgVnndxM=
 gitlab.ci.fdmg.org/datacluster/golibs/gnatcatcher v0.1.2/go.mod h1:OT3Y611LAwbxOzMowzYJ7BII+fWNUljk6DNsQ8Pc/88=
+gitlab.ci.fdmg.org/datacluster/golibs/gnatcatcher v0.1.3 h1:pOdfnV8H6dVxE5EzEoCNbxAKrYMuJSZCFDKAyRZawI0=
+gitlab.ci.fdmg.org/datacluster/golibs/gnatcatcher v0.1.3/go.mod h1:OT3Y611LAwbxOzMowzYJ7BII+fWNUljk6DNsQ8Pc/88=
 gitlab.ci.fdmg.org/datacluster/golibs/goot v0.1.1 h1:35/mZ5XHUSjnjQ5yvn+z1grbqBNo7hhFJruB3dyHF1s=
 gitlab.ci.fdmg.org/datacluster/golibs/goot v0.1.1/go.mod h1:VB7l4PEBYgU6O7hpII4wHV2JN6g3boFiLtBuI4RgV3g=
 gitlab.ci.fdmg.org/datacluster/golibs/goskell v1.7.2 h1:FDoyJzgiwdA5iHFKgK4JfoF4w+2IfKlo63vOE8lv/9s=
