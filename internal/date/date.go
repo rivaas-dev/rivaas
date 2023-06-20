@@ -1,22 +1,27 @@
 package date
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-const YmdFormat = "2006-01-02"
-
-//YmdDate JSON marshallable Y-m-d date
-type YmdDate struct {
+// Date represents custom date type.
+type Date struct {
 	time.Time
 }
 
-//UnmarshalJSON for automatic unpacking
-func (d *YmdDate) UnmarshalJSON(buf []byte) error {
-	tt, err := time.Parse(YmdFormat, strings.Trim(string(buf), `"`))
+// dateFormat defines date format.
+const dateFormat = "2006-01-02"
+
+// UnmarshalJSON implements deserialization of the type.
+func (d *Date) UnmarshalJSON(buf []byte) error {
+	tt, err := time.Parse(dateFormat, strings.Trim(string(buf), `"`))
 	if err != nil {
 		return errors.New("invalid date format, should be `Y-m-d`")
 	}
@@ -24,27 +29,31 @@ func (d *YmdDate) UnmarshalJSON(buf []byte) error {
 	return nil
 }
 
-//MarshalJSON for automatic unpacking
-func (d *YmdDate) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.String())
+// MarshalJSON implements serialization of the type.
+func (d *Date) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.Format(dateFormat))
 }
 
-//String toString
-func (d *YmdDate) String() string {
-	return d.Time.Format(YmdFormat)
+// String implements string conversion of the type.
+func (d *Date) String() string {
+	return d.Time.Format(dateFormat)
 }
 
-//CreateYmdFromString simple helper function
-func CreateYmdFromString(dateString string) (*YmdDate, error) {
-	d := YmdDate{}
-	err := d.UnmarshalJSON([]byte(dateString))
-	return &d, err
+// Scan implements the sql.Scanner interface.
+func (d *Date) Scan(v any) error {
+	d.Time = v.(time.Time)
+	return nil
 }
 
-//CreateYmdFromTimePtr simple helper function
-func CreateYmdFromTimePtr(t *time.Time) *YmdDate {
-	if t == nil {
-		return nil
+// GormDataType implements GormDataType method for the Date type.
+func (d Date) GormDataType() string {
+	return "Date"
+}
+
+// GormValue implements GormValue method for the Date type.
+func (d Date) GormValue(ctx context.Context, db *gorm.DB) clause.Expr {
+	return clause.Expr{
+		SQL:  "?",
+		Vars: []interface{}{d.Time.Format(dateFormat)},
 	}
-	return &YmdDate{Time: *t}
 }

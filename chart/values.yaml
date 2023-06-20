@@ -54,7 +54,7 @@ configMap:
   subPath: "config.yaml"
   data:
     config.yaml:
-      application:
+      app:
         host: "0.0.0.0"
         port: "8080"
         logLevel: "debug"
@@ -69,6 +69,9 @@ configMap:
         username: "key-management-api"
         password: "password"
         name: "key_management"
+      temporal:
+        hostPort: "{{ .Values.global.temporal.hostPort }}"
+        namespace: "ci-api"
 
 postgresql:
   enabled: false
@@ -92,13 +95,24 @@ postgresql:
           (
               key_hash       VARCHAR(32) PRIMARY KEY NOT NULL,
               actor_id       VARCHAR(255)            NOT NULL,
-              quota_end_date timestamp NULL,
-              creation_date  timestamp DEFAULT NOW() NOT NULL,
-              last_modified  timestamp DEFAULT NOW() NOT NULL,
-              description    TEXT      DEFAULT NULL
+              quota_end_date timestamp   NULL,
+              creation_date  timestamp   DEFAULT NOW() NOT NULL,
+              last_modified  timestamp   DEFAULT NOW() NOT NULL,
+              description    TEXT        DEFAULT NULL,
+              deleted_at     TIMESTAMPTZ DEFAULT NULL
           );
           CREATE INDEX api_keys_actor_id_key ON api_keys (actor_id);
-          CREATE INDEX api_keys_description_key ON api_keys USING GIN (description);
+          CREATE INDEX api_keys_description_key ON api_keys USING GIN (description::text);
   readReplicas:
     persistence:
       enabled: false
+
+## @param envVars Extra environment variables to be set on APP container
+##
+envVars:
+  - name: CONSUL_HOST
+    value: "{{ .Values.global.consul.host }}"
+  - name: CONSUL_HTTP_TOKEN
+    value: "{{ .Values.global.consul.token }}"
+  - name: CONSUL_ENV
+    value: "{{ .Values.global.consul.env }}"

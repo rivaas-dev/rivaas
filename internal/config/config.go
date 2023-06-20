@@ -1,46 +1,33 @@
 package config
 
-import (
-	"github.com/spf13/viper"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/tyk"
-	"sync"
-)
-
-var Config *TYKConfiguration
-
-type TYKConfiguration struct {
-	viper  *viper.Viper
-	Config Configuration
-	lock   sync.Mutex
+// Config represents application configuration.
+type Config struct {
+	Host     string
+	Port     uint16
+	LogLevel string
+	Database Database
+	Tyk      Tyk
+	Temporal Temporal
 }
 
-type Configuration struct {
-	Application Application `mapstructure:"application"`
-	Tyk         tyk.Config  `mapstructure:"tyk"`
-	Database    Database    `mapstructure:"database"`
-}
-
+// Database represents Database configuration.
 type Database struct {
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	Name     string `mapstructure:"name"`
+	Host     string
+	Port     uint16
+	Username string
+	Password string
+	Name     string
 }
 
-type Application struct {
-	Host     string `mapstructure:"host"`
-	LogLevel string `mapstructure:"logLevel"`
-	Port     int64  `mapstructure:"port"`
+// Tyk represents Tyk configuration.
+type Tyk struct {
+	URL    string
+	Secret string
+	Debug  bool
 }
 
-func (cfg *TYKConfiguration) Fetch() error {
-	cfg.lock.Lock()
-	defer cfg.lock.Unlock()
-
-	err := cfg.viper.ReadRemoteConfig()
-	if err != nil {
-		return err
-	}
-	return cfg.viper.Unmarshal(&cfg.Config)
+// Temporal represents Temporal configuration.
+type Temporal struct {
+	HostPort  string
+	Namespace string
 }
