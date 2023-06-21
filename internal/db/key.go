@@ -6,6 +6,11 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 )
 
+type contact struct {
+	Emails []string
+	Users  []uint
+}
+
 // Key table structure.
 type Key struct {
 	Hash         string     `gorm:"column:key_hash;primaryKey"`
@@ -15,6 +20,7 @@ type Key struct {
 	UpdatedAt    time.Time  `gorm:"column:last_modified;autoUpdateTime"`
 	Description  *string    `gorm:"column:description"`
 	DeletedAt    *time.Time `gorm:"column:deleted_at"`
+	Contact      contact    `gorm:"column:contacts;type:json;serializer:json"`
 }
 
 // TableName overrides the table name used by User to `profiles`

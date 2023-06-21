@@ -91,7 +91,7 @@ postgresql:
     initdb:
       scripts:
         initialize.sql: |
-          CREATE TABLE api_keys
+          CREATE TABLE IF NOT EXISTS api_keys
           (
               key_hash       VARCHAR(32) PRIMARY KEY NOT NULL,
               actor_id       VARCHAR(255)            NOT NULL,
@@ -100,6 +100,7 @@ postgresql:
               last_modified  timestamp   DEFAULT NOW() NOT NULL,
               description    TEXT        DEFAULT NULL,
               deleted_at     TIMESTAMPTZ DEFAULT NULL
+              contacts       JSONB       NOT NULL DEFAULT '{}'::JSONB
           );
           CREATE INDEX api_keys_actor_id_key ON api_keys (actor_id);
           CREATE INDEX api_keys_description_key ON api_keys USING GIN (description::text);

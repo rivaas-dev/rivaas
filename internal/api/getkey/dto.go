@@ -7,6 +7,11 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 )
 
+type contact struct {
+	Emails []string
+	Users  []uint
+}
+
 // input represents request body.
 type input struct {
 	Hash string `uri:"id" binding:"required"` // Key ID.
@@ -20,4 +25,5 @@ type output struct {
 	Description  string    `json:"description"`
 	Policies     []string  `json:"policies"`
 	CreationDate time.Time `json:"creation_date"`
+	Contact      contact   `json:"contacts"`
 }

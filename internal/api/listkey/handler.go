@@ -59,6 +59,7 @@ func (h *Handler) convertDBResultToJSON(keys []*db.Key) []output {
 			QuotaEndDate: key.QuotaEndDate,
 			Description:  key.Description,
 			CreationAt:   key.CreatedAt,
+			Contact:      contact(key.Contact),
 		})
 	}
 	return response
