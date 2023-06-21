@@ -26,4 +26,5 @@ type output struct {
 	Policies     []string  `json:"policies"`
 	CreationDate time.Time `json:"creation_date"`
 	Contact      contact   `json:"contacts"`
+	Active       bool      `json:"active"`
 }

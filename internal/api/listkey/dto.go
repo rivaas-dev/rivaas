@@ -26,4 +26,5 @@ type output struct {
 	Description  *string    `json:"description"`
 	CreationAt   time.Time  `json:"creation_date"`
 	Contact      contact    `json:"contacts"`
+	Active       bool       `json:"active"`
 }
