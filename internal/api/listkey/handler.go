@@ -60,6 +60,7 @@ func (h *Handler) convertDBResultToJSON(keys []*db.Key) []output {
 			Description:  key.Description,
 			CreationAt:   key.CreatedAt,
 			Contact:      contact(key.Contact),
+			Active:       key.Active,
 		})
 	}
 	return response

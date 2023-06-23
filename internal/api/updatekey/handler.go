@@ -129,6 +129,9 @@ func (h *Handler) requestToWorkflowInput(request *input) workflowInput {
 		Quota:        request.Quota,
 		Description:  request.Description,
 	}
+	if request.Active != nil {
+		wInput.Active = request.Active
+	}
 	if request.Contact != nil {
 		wInput.Contact = request.Contact
 	}
@@ -145,5 +148,6 @@ func (h *Handler) workflowOutputToResponse(workflowOutput *workflowOutput) *outp
 		Description:  workflowOutput.Description,
 		CreatedDate:  workflowOutput.CreatedAt,
 		Contact:      workflowOutput.Contact,
+		Active:       workflowOutput.Active,
 	}
 }

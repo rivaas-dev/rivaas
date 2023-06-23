@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
     last_modified TIMESTAMP DEFAULT NOW() NOT NULL,
     description TEXT DEFAULT NULL,
     deleted_at TIMESTAMPTZ DEFAULT NULL,
-    contacts JSONB NOT NULL DEFAULT '{}'::JSONB
+    contacts JSONB NOT NULL DEFAULT '{}'::JSONB,
+    active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE INDEX IF NOT EXISTS api_keys_actor_id_key ON api_keys (actor_id);

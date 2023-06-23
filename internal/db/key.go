@@ -21,6 +21,7 @@ type Key struct {
 	Description  *string    `gorm:"column:description"`
 	DeletedAt    *time.Time `gorm:"column:deleted_at"`
 	Contact      contact    `gorm:"column:contacts;type:json;serializer:json"`
+	Active       bool       `gorm:"column:active;default:true"`
 }
 
 // TableName overrides the table name used by User to `profiles`

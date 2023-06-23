@@ -95,14 +95,18 @@ func (h *Handler) callWorker(ctx *goskell.Context, request workflowInput) (*work
 
 // requestToWorkflowInput converts request body into workflow's input.
 func (h *Handler) requestToWorkflowInput(request *input) workflowInput {
-	return workflowInput{
+	wInput := workflowInput{
 		ActorID:      request.ActorID,
 		Policies:     request.Policies,
 		QuotaEndDate: request.QuotaEndDate,
 		Quota:        request.Quota,
 		Description:  request.Description,
-		Contact:      request.Contact,
+		Active:       request.Active,
 	}
+	if request.Contact != nil {
+		wInput.Contact = *request.Contact
+	}
+	return wInput
 }
 
 // workflowOnputToResponse converts workflow response into API response.

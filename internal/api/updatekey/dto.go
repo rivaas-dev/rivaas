@@ -24,6 +24,7 @@ type input struct {
 	Quota        *int64     `json:"quota"`                // The amount of calls the API Key can make (optional).
 	Description  *string    `json:"description"`          // Description for the key (optional).
 	Contact      *contact   `json:"contacts,omitempty"`   // Contacts information.
+	Active       *bool      `json:"active,omitempty"`     // Defines the status of the key.
 }
 
 // validate validates request body.
@@ -45,7 +46,7 @@ func (i *input) validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
 		}
 	}
 	// Validate contact emails.
-	if len(i.Contact.Emails) > 0 {
+	if i.Contact != nil && len(i.Contact.Emails) > 0 {
 		if !validation.ValidateEmail(i.Contact.Emails) {
 			return errors.New("one or more contact emails are incorrect")
 		}
@@ -62,6 +63,7 @@ type workflowInput struct {
 	Quota        *int64     // The amount of calls the API Key can make (optional).
 	Description  *string    // Description for the key (optional).
 	Contact      *contact   // Contacts information.
+	Active       *bool      // Defines the status of the key.
 }
 
 // output represents response body.
@@ -73,6 +75,7 @@ type output struct {
 	Description  string     `json:"description"`
 	CreatedDate  time.Time  `json:"created_date"`
 	Contact      contact    `json:"contacts"`
+	Active       bool       `json:"active"`
 }
 
 // workflowOutput represents the workflow response body.
@@ -84,4 +87,5 @@ type workflowOutput struct {
 	Description  string
 	CreatedAt    time.Time
 	Contact      contact
+	Active       bool
 }
