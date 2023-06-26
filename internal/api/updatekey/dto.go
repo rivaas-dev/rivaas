@@ -12,8 +12,13 @@ import (
 )
 
 type contact struct {
-	Emails []string
-	Users  []uint
+	Emails []string `json:"emails"`
+	Users  []uint   `json:"users"`
+}
+
+type rateLimit struct {
+	Rate uint `json:"rate"`
+	Per  uint `json:"per"`
 }
 
 // input represents request body.
@@ -25,6 +30,7 @@ type input struct {
 	Description  *string    `json:"description"`          // Description for the key (optional).
 	Contact      *contact   `json:"contacts,omitempty"`   // Contacts information.
 	Active       *bool      `json:"active,omitempty"`     // Defines the status of the key.
+	RateLimit    *rateLimit `json:"rate_limit"`           // Defines rate limit of the key.
 }
 
 // validate validates request body.
@@ -64,6 +70,7 @@ type workflowInput struct {
 	Description  *string    // Description for the key (optional).
 	Contact      *contact   // Contacts information.
 	Active       *bool      // Defines the status of the key.
+	RateLimit    *rateLimit // Defines rate limit of the key.
 }
 
 // output represents response body.
@@ -76,6 +83,7 @@ type output struct {
 	CreatedDate  time.Time  `json:"created_date"`
 	Contact      contact    `json:"contacts"`
 	Active       bool       `json:"active"`
+	RateLimit    rateLimit  `json:"rate_limit"`
 }
 
 // workflowOutput represents the workflow response body.
@@ -88,4 +96,5 @@ type workflowOutput struct {
 	CreatedAt    time.Time
 	Contact      contact
 	Active       bool
+	RateLimit    rateLimit
 }

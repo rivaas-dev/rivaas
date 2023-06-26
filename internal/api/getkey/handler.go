@@ -85,6 +85,10 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*output, erro
 		CreationDate: dbKey.CreatedAt,
 		Contact:      contact(dbKey.Contact),
 		Active:       !tykResponse.IsInactive,
+		RateLimit: rateLimit{
+			Rate: uint(tykResponse.Rate),
+			Per:  uint(tykResponse.Per),
+		},
 	}
 	if dbKey.QuotaEndDate != nil {
 		result.QuotaEndDate = *dbKey.QuotaEndDate

@@ -14,8 +14,13 @@ type input struct {
 }
 
 type contact struct {
-	Emails []string
-	Users  []uint
+	Emails []string `json:"emails"`
+	Users  []uint   `json:"users"`
+}
+
+type rateLimit struct {
+	Rate uint `json:"rate"`
+	Per  uint `json:"per"`
 }
 
 // output represents the response body.
@@ -27,4 +32,5 @@ type output struct {
 	CreationAt   time.Time  `json:"creation_date"`
 	Contact      contact    `json:"contacts"`
 	Active       bool       `json:"active"`
+	RateLimit    rateLimit  `json:"rate_limit"`
 }

@@ -106,6 +106,9 @@ func (h *Handler) requestToWorkflowInput(request *input) workflowInput {
 	if request.Contact != nil {
 		wInput.Contact = *request.Contact
 	}
+	if request.RateLimit != nil {
+		wInput.RateLimit = *request.RateLimit
+	}
 	return wInput
 }
 

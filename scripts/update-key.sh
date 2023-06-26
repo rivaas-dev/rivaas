@@ -8,5 +8,9 @@ curl -X PATCH "$URL/keys/${ID}" -H "Content-Type: application/json" -d '
   "contacts": {
     "emails": ["support@local.host"],
     "users": [4, 5]
+  },
+  "rate_limit": {
+    "rate": 300,
+    "per": 1000
   }
 }' | jq .
