@@ -135,6 +135,9 @@ func (h *Handler) requestToWorkflowInput(request *input) workflowInput {
 	if request.Contact != nil {
 		wInput.Contact = request.Contact
 	}
+	if request.RateLimit != nil {
+		wInput.RateLimit = request.RateLimit
+	}
 	return wInput
 }
 
@@ -149,5 +152,6 @@ func (h *Handler) workflowOutputToResponse(workflowOutput *workflowOutput) *outp
 		CreatedDate:  workflowOutput.CreatedAt,
 		Contact:      workflowOutput.Contact,
 		Active:       workflowOutput.Active,
+		RateLimit:    workflowOutput.RateLimit,
 	}
 }

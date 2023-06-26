@@ -12,5 +12,9 @@ curl -sv -X POST "$URL/keys" -H "Content-Type: application/json" -d '
   "contacts": {
     "emails": ["info@local.host"],
     "users": [1, 2, 3]
+  },
+  "rate_limit": {
+    "rate": 1000,
+    "per": 1000
   }
 }' | jq .

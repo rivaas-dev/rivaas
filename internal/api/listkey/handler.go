@@ -53,6 +53,17 @@ func (h *Handler) Handle(ctx *goskell.Context) {
 func (h *Handler) convertDBResultToJSON(keys []*db.Key) []output {
 	var response []output = make([]output, len(keys))
 	for _, key := range keys {
+		rl := rateLimit{
+			Rate: 0,
+			Per:  0,
+		}
+		if key.Metadata != nil {
+			if data, ok := key.Metadata["rate_limit"]; ok {
+				castedData := data.(map[string]any)
+				rl.Rate = uint(castedData["Rate"].(float64))
+				rl.Per = uint(castedData["Per"].(float64))
+			}
+		}
 		response = append(response, output{
 			Hash:         key.Hash,
 			ActorID:      key.ActorID,
@@ -61,6 +72,7 @@ func (h *Handler) convertDBResultToJSON(keys []*db.Key) []output {
 			CreationAt:   key.CreatedAt,
 			Contact:      contact(key.Contact),
 			Active:       key.Active,
+			RateLimit:    rl,
 		})
 	}
 	return response

@@ -8,8 +8,13 @@ import (
 )
 
 type contact struct {
-	Emails []string
-	Users  []uint
+	Emails []string `json:"emails"`
+	Users  []uint   `json:"users"`
+}
+
+type rateLimit struct {
+	Rate uint `json:"rate"`
+	Per  uint `json:"per"`
 }
 
 // input represents request body.
@@ -25,6 +30,7 @@ type output struct {
 	Description  string    `json:"description"`
 	Policies     []string  `json:"policies"`
 	CreationDate time.Time `json:"creation_date"`
-	Contact      contact   `json:"contacts"`
+	Contact      contact   `json:"contacts,omitempty"`
 	Active       bool      `json:"active"`
+	RateLimit    rateLimit `json:"rate_limit"`
 }
