@@ -123,11 +123,11 @@ func (h *Handler) callWorker(ctx *goskell.Context, request workflowInput) (*work
 // requestToWorkflowInput converts request body into workflow's input.
 func (h *Handler) requestToWorkflowInput(request *input) workflowInput {
 	wInput := workflowInput{
-		Hash:         request.Hash,
-		Policies:     request.Policies,
-		QuotaEndDate: request.QuotaEndDate,
-		Quota:        request.Quota,
-		Description:  request.Description,
+		Hash:        request.Hash,
+		Policies:    request.Policies,
+		ExpiresAt:   request.ExpiresAt,
+		Quota:       request.Quota,
+		Description: request.Description,
 	}
 	if request.Active != nil {
 		wInput.Active = request.Active
@@ -144,14 +144,14 @@ func (h *Handler) requestToWorkflowInput(request *input) workflowInput {
 // workflowOutputToResponse converts the workflow response body into the API response.
 func (h *Handler) workflowOutputToResponse(workflowOutput *workflowOutput) *output {
 	return &output{
-		ActorID:      workflowOutput.ActorID,
-		Policies:     workflowOutput.Policies,
-		QuotaEndDate: workflowOutput.QuotaEndDate,
-		Quota:        workflowOutput.Quota,
-		Description:  workflowOutput.Description,
-		CreatedDate:  workflowOutput.CreatedAt,
-		Contact:      workflowOutput.Contact,
-		Active:       workflowOutput.Active,
-		RateLimit:    workflowOutput.RateLimit,
+		ActorID:     workflowOutput.ActorID,
+		Policies:    workflowOutput.Policies,
+		ExpiresAt:   workflowOutput.ExpiresAt,
+		Quota:       workflowOutput.Quota,
+		Description: workflowOutput.Description,
+		CreatedDate: workflowOutput.CreatedAt,
+		Contact:     workflowOutput.Contact,
+		Active:      workflowOutput.Active,
+		RateLimit:   workflowOutput.RateLimit,
 	}
 }

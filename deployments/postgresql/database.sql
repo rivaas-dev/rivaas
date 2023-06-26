@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS api_keys (
     key_hash VARCHAR(32) PRIMARY KEY NOT NULL,
     actor_id VARCHAR(255) NOT NULL,
-    quota_end_date TIMESTAMP NULL,
+    expires_at TIMESTAMP NULL,
     creation_date TIMESTAMP DEFAULT NOW() NOT NULL,
     last_modified TIMESTAMP DEFAULT NOW() NOT NULL,
     description TEXT DEFAULT NULL,

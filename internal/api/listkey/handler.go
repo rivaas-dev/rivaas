@@ -64,15 +64,21 @@ func (h *Handler) convertDBResultToJSON(keys []*db.Key) []output {
 				rl.Per = uint(castedData["Per"].(float64))
 			}
 		}
+		var expiresAt string
+		if key.ExpiresAt != nil {
+			expiresAt = key.ExpiresAt.Format("2006-01-02")
+		} else {
+			expiresAt = "0"
+		}
 		response = append(response, output{
-			Hash:         key.Hash,
-			ActorID:      key.ActorID,
-			QuotaEndDate: key.QuotaEndDate,
-			Description:  key.Description,
-			CreationAt:   key.CreatedAt,
-			Contact:      contact(key.Contact),
-			Active:       key.Active,
-			RateLimit:    rl,
+			Hash:        key.Hash,
+			ActorID:     key.ActorID,
+			ExpiresAt:   expiresAt,
+			Description: key.Description,
+			CreationAt:  key.CreatedAt,
+			Contact:     contact(key.Contact),
+			Active:      key.Active,
+			RateLimit:   rl,
 		})
 	}
 	return response

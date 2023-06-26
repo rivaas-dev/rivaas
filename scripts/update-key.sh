@@ -1,10 +1,12 @@
 #!/bin/sh
 URL="${URL:-http://127.0.0.1:8090}"
 [ -z "$ID" ] && echo "ID is needed" && exit 1
-curl -X PATCH "$URL/keys/${ID}" -H "Content-Type: application/json" -d '
+EXPIRES_AT=$(date --date="3 days" "+%Y-%m-%d")
+curl -X PATCH "$URL/keys/${ID}" -H "Content-Type: application/json" -d @- <<EOF | jq .
 {
   "description": "updated test key",
   "quota": 10000,
+  "expires_at": "${EXPIRES_AT}",
   "contacts": {
     "emails": ["support@local.host"],
     "users": [4, 5]
@@ -13,4 +15,5 @@ curl -X PATCH "$URL/keys/${ID}" -H "Content-Type: application/json" -d '
     "rate": 300,
     "per": 1000
   }
-}' | jq .
+}
+EOF

@@ -23,14 +23,14 @@ type rateLimit struct {
 
 // input represents request body.
 type input struct {
-	Hash         string     `uri:"id" binding:"required"` // Key ID.
-	Policies     *[]string  `json:"policies"`             // The access policies to give, leave empty for none.
-	QuotaEndDate *date.Date `json:"quota_end_date"`       // Date on which the key quota will expire at 00.00 (optional).
-	Quota        *int64     `json:"quota"`                // The amount of calls the API Key can make (optional).
-	Description  *string    `json:"description"`          // Description for the key (optional).
-	Contact      *contact   `json:"contacts,omitempty"`   // Contacts information.
-	Active       *bool      `json:"active,omitempty"`     // Defines the status of the key.
-	RateLimit    *rateLimit `json:"rate_limit"`           // Defines rate limit of the key.
+	Hash        string     `uri:"id" binding:"required"` // Key ID.
+	Policies    *[]string  `json:"policies"`             // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date `json:"expires_at"`           // Date on which the key quota will expire at 00.00 (optional).
+	Quota       *int64     `json:"quota"`                // The amount of calls the API Key can make (optional).
+	Description *string    `json:"description"`          // Description for the key (optional).
+	Contact     *contact   `json:"contacts,omitempty"`   // Contacts information.
+	Active      *bool      `json:"active,omitempty"`     // Defines the status of the key.
+	RateLimit   *rateLimit `json:"rate_limit"`           // Defines rate limit of the key.
 }
 
 // validate validates request body.
@@ -46,8 +46,8 @@ func (i *input) validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
 		}
 	}
 	// Validate quota end date.
-	if i.QuotaEndDate != nil {
-		if !validation.ValidateEndDate(i.QuotaEndDate) {
+	if i.ExpiresAt != nil {
+		if !validation.ValidateEndDate(i.ExpiresAt) {
 			return errors.New("quota end date must be greater than today")
 		}
 	}
@@ -63,38 +63,38 @@ func (i *input) validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
 
 // workflowInput represents the workflow request body.
 type workflowInput struct {
-	Hash         string     // Key ID.
-	Policies     *[]string  // The access policies to give, leave empty for none.
-	QuotaEndDate *date.Date // Date on which the key quota will expire at 00.00 (optional).
-	Quota        *int64     // The amount of calls the API Key can make (optional).
-	Description  *string    // Description for the key (optional).
-	Contact      *contact   // Contacts information.
-	Active       *bool      // Defines the status of the key.
-	RateLimit    *rateLimit // Defines rate limit of the key.
+	Hash        string     // Key ID.
+	Policies    *[]string  // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date // Date on which the key quota will expire at 00.00 (optional).
+	Quota       *int64     // The amount of calls the API Key can make (optional).
+	Description *string    // Description for the key (optional).
+	Contact     *contact   // Contacts information.
+	Active      *bool      // Defines the status of the key.
+	RateLimit   *rateLimit // Defines rate limit of the key.
 }
 
 // output represents response body.
 type output struct {
-	ActorID      string     `json:"actor_id"`
-	Policies     []string   `json:"policies"`
-	QuotaEndDate *date.Date `json:"quota_end_date"`
-	Quota        int64      `json:"quota"`
-	Description  string     `json:"description"`
-	CreatedDate  time.Time  `json:"created_date"`
-	Contact      contact    `json:"contacts"`
-	Active       bool       `json:"active"`
-	RateLimit    rateLimit  `json:"rate_limit"`
+	ActorID     string     `json:"actor_id"`
+	Policies    []string   `json:"policies"`
+	ExpiresAt   *date.Date `json:"expires_at"`
+	Quota       int64      `json:"quota"`
+	Description string     `json:"description"`
+	CreatedDate time.Time  `json:"created_date"`
+	Contact     contact    `json:"contacts"`
+	Active      bool       `json:"active"`
+	RateLimit   rateLimit  `json:"rate_limit"`
 }
 
 // workflowOutput represents the workflow response body.
 type workflowOutput struct {
-	ActorID      string
-	Policies     []string
-	QuotaEndDate *date.Date
-	Quota        int64
-	Description  string
-	CreatedAt    time.Time
-	Contact      contact
-	Active       bool
-	RateLimit    rateLimit
+	ActorID     string
+	Policies    []string
+	ExpiresAt   *date.Date
+	Quota       int64
+	Description string
+	CreatedAt   time.Time
+	Contact     contact
+	Active      bool
+	RateLimit   rateLimit
 }
