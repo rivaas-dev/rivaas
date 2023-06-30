@@ -51,7 +51,7 @@ func (d Date) GormDataType() string {
 }
 
 // GormValue implements GormValue method for the Date type.
-func (d Date) GormValue(ctx context.Context, db *gorm.DB) clause.Expr {
+func (d Date) GormValue(_ context.Context, _ *gorm.DB) clause.Expr {
 	return clause.Expr{
 		SQL:  "?",
 		Vars: []interface{}{d.Time.Format(dateFormat)},

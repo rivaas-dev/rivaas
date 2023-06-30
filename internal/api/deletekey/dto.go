@@ -13,5 +13,5 @@ type workflowInput struct {
 
 // workflowOutput represents the workflow output.
 type workflowOutput struct {
-	Hash    string
+	Hash string
 }

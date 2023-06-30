@@ -4,6 +4,7 @@ package getkey
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/antihax/optional"
 	"github.com/rs/zerolog/log"
@@ -68,7 +69,11 @@ func (h *Handler) Handle(ctx *goskell.Context) {
 // getKeyInfo gets more info of the key by calling Tyk API.
 func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*output, error) {
 	// Get Key info.
-	tykResponse, resp, err := h.tykClient.KeysApi.GetKey(ctx, dbKey.Hash, &tyk.GetKeyOpts{Hashed: optional.NewBool(true)})
+	tykResponse, resp, err := h.tykClient.KeysApi.GetKey(
+		ctx,
+		dbKey.Hash,
+		&tyk.GetKeyOpts{Hashed: optional.NewBool(true)},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +95,10 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*output, erro
 			Per:  uint(tykResponse.Per),
 		},
 	}
-	if dbKey.QuotaEndDate != nil {
-		result.QuotaEndDate = *dbKey.QuotaEndDate
+	if tykResponse.Expires > 0 {
+		result.ExpiresAt = time.Unix(tykResponse.Expires, 0).UTC().Format("2006-01-02")
+	} else {
+		result.ExpiresAt = "0"
 	}
 	if dbKey.Description != nil {
 		result.Description = *dbKey.Description
