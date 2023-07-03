@@ -1,0 +1,222 @@
+// Package keys defines all methods of the API key.
+package keys
+
+import (
+	"errors"
+	"net/http"
+	"time"
+
+	"github.com/rs/zerolog/log"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/validation"
+	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
+	"go.temporal.io/sdk/client"
+)
+
+// Worker addresses.
+const (
+	workerTaskQueue = "apikey"
+	workflowName    = "update-apikey"
+)
+
+// PatchInput represents the PATCH request body.
+type PatchInput struct {
+	Hash        string     `uri:"id" binding:"required"`                           // Key ID.
+	Policies    *[]string  `                            json:"policies"`           // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date `                            json:"expires_at"`         // Date on which the key quota will expire at 00.00 (optional).
+	Quota       *int64     `                            json:"quota"`              // The amount of calls the API Key can make (optional).
+	Description *string    `                            json:"description"`        // Description for the key (optional).
+	Contact     *Contact   `                            json:"contacts,omitempty"` // Contacts information.
+	Active      *bool      `                            json:"active,omitempty"`   // Defines the status of the key.
+	RateLimit   *RateLimit `                            json:"rate_limit"`         // Defines rate limit of the key.
+}
+
+// Validate validates the PATCH request body.
+func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
+	// Validate quota.
+	if i.Quota != nil && *i.Quota < -1 {
+		return errors.New("quota must be greater than equal -1")
+	}
+	// Validate policies.
+	if i.Policies != nil {
+		if !validation.ValidatePolicies(ctx, tykAPI, *i.Policies) {
+			return errors.New("invalid policy")
+		}
+	}
+	// Validate quota end date.
+	if i.ExpiresAt != nil {
+		if !validation.ValidateEndDate(i.ExpiresAt) {
+			return errors.New("quota end date must be greater than today")
+		}
+	}
+	// Validate contact emails.
+	if i.Contact != nil && len(i.Contact.Emails) > 0 {
+		if !validation.ValidateEmail(i.Contact.Emails) {
+			return errors.New("one or more contact emails are incorrect")
+		}
+	}
+
+	return nil
+}
+
+// workflowInput represents the workflow request body.
+type workflowInput struct {
+	Hash        string     // Key ID.
+	Policies    *[]string  // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date // Date on which the key quota will expire at 00.00 (optional).
+	Quota       *int64     // The amount of calls the API Key can make (optional).
+	Description *string    // Description for the key (optional).
+	Contact     *Contact   // Contacts information.
+	Active      *bool      // Defines the status of the key.
+	RateLimit   *RateLimit // Defines rate limit of the key.
+}
+
+// output represents response body.
+type output struct {
+	ActorID     string     `json:"actor_id"`
+	Policies    []string   `json:"policies"`
+	ExpiresAt   *date.Date `json:"expires_at"`
+	Quota       int64      `json:"quota"`
+	Description string     `json:"description"`
+	CreatedDate time.Time  `json:"created_date"`
+	Contact     Contact    `json:"contacts"`
+	Active      bool       `json:"active"`
+	RateLimit   RateLimit  `json:"rate_limit"`
+}
+
+// workflowOutput represents the workflow response body.
+type workflowOutput struct {
+	ActorID     string
+	Policies    []string
+	ExpiresAt   *date.Date
+	Quota       int64
+	Description string
+	CreatedAt   time.Time
+	Contact     Contact
+	Active      bool
+	RateLimit   RateLimit
+}
+
+// PATCH handles PATCH requests of the endpoint.
+func (h *Handler) PATCH(ctx *goskell.Context) {
+	// Parse request request.
+	var request PatchInput
+	if err := ctx.ShouldBindUri(&request); err != nil {
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Title:  http.StatusText(http.StatusBadRequest),
+				Status: http.StatusBadRequest,
+				Detail: err.Error(),
+			},
+		)
+		return
+	}
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Title:  http.StatusText(http.StatusBadRequest),
+				Status: http.StatusBadRequest,
+				Detail: err.Error(),
+			},
+		)
+		return
+	}
+	if err := request.Validate(ctx, h.tykClient); err != nil {
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Title:  http.StatusText(http.StatusBadRequest),
+				Status: http.StatusBadRequest,
+				Detail: err.Error(),
+			},
+		)
+		return
+	}
+
+	// Find the key in database.
+	dbKey, err := h.keysRepository.GetKey(request.Hash)
+	if err != nil {
+		log.Err(err).Msg("error while communicating with DB")
+		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
+		return
+	}
+	if dbKey == nil {
+		log.Err(err).Msg("key not found in database")
+		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusNotFound})
+		return
+	}
+
+	// Call the worker.
+	response, err := h.callPATCHWorker(ctx, h.patchRequestToWorkflowInput(&request))
+	if err != nil {
+		log.Err(err).Msg("error on calling worker")
+		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
+	}
+
+	ctx.JSON(http.StatusCreated, h.workflowOutputToPATCHResponse(response))
+}
+
+// callWorker calls workflow.
+func (h *Handler) callPATCHWorker(ctx *goskell.Context, request workflowInput) (*workflowOutput, error) {
+	// Submit request to the worker.
+	workflowOptions := client.StartWorkflowOptions{
+		TaskQueue: workerTaskQueue,
+	}
+	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx, workflowOptions, workflowName, request)
+	if err != nil {
+		return nil, err
+	}
+	log.Info().
+		Str("WorkflowID", workflowRun.GetID()).
+		Str("RunID", workflowRun.GetRunID()).
+		Msg("workflow is started")
+
+	// Get the worker's response.
+	var response workflowOutput
+	err = workflowRun.Get(ctx, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+// requestToWorkflowInput converts request body into workflow's input.
+func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput {
+	wInput := workflowInput{
+		Hash:        request.Hash,
+		Policies:    request.Policies,
+		ExpiresAt:   request.ExpiresAt,
+		Quota:       request.Quota,
+		Description: request.Description,
+	}
+	if request.Active != nil {
+		wInput.Active = request.Active
+	}
+	if request.Contact != nil {
+		wInput.Contact = request.Contact
+	}
+	if request.RateLimit != nil {
+		wInput.RateLimit = request.RateLimit
+	}
+	return wInput
+}
+
+// workflowOutputToResponse converts the workflow response body into the API response.
+func (h *Handler) workflowOutputToPATCHResponse(workflowOutput *workflowOutput) *output {
+	return &output{
+		ActorID:     workflowOutput.ActorID,
+		Policies:    workflowOutput.Policies,
+		ExpiresAt:   workflowOutput.ExpiresAt,
+		Quota:       workflowOutput.Quota,
+		Description: workflowOutput.Description,
+		CreatedDate: workflowOutput.CreatedAt,
+		Contact:     workflowOutput.Contact,
+		Active:      workflowOutput.Active,
+		RateLimit:   workflowOutput.RateLimit,
+	}
+}

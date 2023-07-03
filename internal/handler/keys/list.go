@@ -1,8 +1,9 @@
-// Package listkey returns list of keys.
-package listkey
+// Package keys defines all methods of the API key.
+package keys
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
@@ -10,22 +11,28 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 )
 
-// Handler handles keys requests
-type Handler struct {
-	keysRepository db.DatabaseExecer
+// ListInput represents the request body of the LIST endpoint.
+type ListInput struct {
+	ActorID     string `form:"actor_id"`
+	Description string `form:"description"`
 }
 
-// New constructs a new Handler.
-func New(keysRepository db.DatabaseExecer) *Handler {
-	return &Handler{
-		keysRepository: keysRepository,
-	}
+// ListOutput represents the list of key's information.
+type ListOutput struct {
+	Hash        string    `json:"hash"`
+	ActorID     string    `json:"actor_id"`
+	ExpiresAt   string    `json:"expires_at"`
+	Description *string   `json:"description"`
+	CreationAt  time.Time `json:"creation_date"`
+	Contact     Contact   `json:"contacts"`
+	Active      bool      `json:"active"`
+	RateLimit   RateLimit `json:"rate_limit"`
 }
 
-// Handle handles endpoint requests.
-func (h *Handler) Handle(ctx *goskell.Context) {
+// LIST handles GET requests on the endpoint to get list of keys.
+func (h *Handler) LIST(ctx *goskell.Context) {
 	// Parse request body.
-	var request input
+	var request ListInput
 	if err := ctx.ShouldBind(&request); err != nil {
 		goskell.ProblemJSON(
 			ctx,
@@ -46,14 +53,14 @@ func (h *Handler) Handle(ctx *goskell.Context) {
 	}
 
 	// Prepare the response.
-	response := h.convertDBResultToJSON(keys)
+	response := h.convertListDBResultToJSON(keys)
 	ctx.JSON(http.StatusCreated, response)
 }
 
-func (h *Handler) convertDBResultToJSON(keys []*db.Key) []output {
-	var response []output = make([]output, len(keys))
+func (h *Handler) convertListDBResultToJSON(keys []*db.Key) []ListOutput {
+	response := make([]ListOutput, len(keys))
 	for _, key := range keys {
-		rl := rateLimit{
+		rl := RateLimit{
 			Rate: 0,
 			Per:  0,
 		}
@@ -70,13 +77,13 @@ func (h *Handler) convertDBResultToJSON(keys []*db.Key) []output {
 		} else {
 			expiresAt = "0"
 		}
-		response = append(response, output{
+		response = append(response, ListOutput{
 			Hash:        key.Hash,
 			ActorID:     key.ActorID,
 			ExpiresAt:   expiresAt,
 			Description: key.Description,
 			CreationAt:  key.CreatedAt,
-			Contact:     contact(key.Contact),
+			Contact:     Contact(key.Contact),
 			Active:      key.Active,
 			RateLimit:   rl,
 		})

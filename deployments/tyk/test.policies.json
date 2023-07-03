@@ -1,9 +1,11 @@
 {
-  "test": {
+  "policy-1": {
+    "id": "policy-1",
+    "name": "policy-1",
     "access_rights": {
-      "test_api": {
-        "api_name": "test_api",
-        "api_id": "test_api",
+      "test_api1": {
+        "api_name": "test_api1",
+        "api_id": "test_api1",
         "versions": [
           "Default"
         ]
@@ -11,7 +13,9 @@
     },
     "org_id": "test_org"
   },
-  "test2": {
+  "policy-2": {
+    "id": "policy-2",
+    "name": "policy-2",
     "access_rights": {
       "test_api2": {
         "api_name": "test_api2",

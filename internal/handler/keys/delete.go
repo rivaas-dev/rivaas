@@ -1,11 +1,10 @@
-// Package deletekey defines delete API key handler.
-package deletekey
+// Package keys defines all methods of the API key.
+package keys
 
 import (
 	"net/http"
 
 	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 	"go.temporal.io/sdk/client"
@@ -13,28 +12,24 @@ import (
 
 // Worker addresses.
 const (
-	workerTaskQueue = "apikey"
-	workflowName    = "delete-apikey"
+	deleteWorkerTaskQueue = "apikey"
+	deleteWorkflowName    = "delete-apikey"
 )
 
-// Handler handles keys requests
-type Handler struct {
-	temporalClient client.Client
-	keysRepository db.DatabaseExecer
+// WorkflowDeleteInput represents the workflow input for a DELETE request.
+type WorkflowDeleteInput struct {
+	Hash string
 }
 
-// New constructs a new Handler.
-func New(temporalClient client.Client, keysRepository db.DatabaseExecer) *Handler {
-	return &Handler{
-		temporalClient: temporalClient,
-		keysRepository: keysRepository,
-	}
+// WorkflowDeleteOutput represents the workflow output of a DELETE request.
+type WorkflowDeleteOutput struct {
+	Hash string
 }
 
-// Handle handles endpoint requests.
-func (h *Handler) Handle(ctx *goskell.Context) {
+// DELETE handles DELETE requests on the endpoint.
+func (h *Handler) DELETE(ctx *goskell.Context) {
 	// Parse request request.
-	var request input
+	var request KeyID
 	if err := ctx.ShouldBindUri(&request); err != nil {
 		goskell.ProblemJSON(
 			ctx,
@@ -60,7 +55,7 @@ func (h *Handler) Handle(ctx *goskell.Context) {
 	}
 
 	// Call the worker.
-	err = h.callWorker(ctx, h.requestToWorkflowInput(&request))
+	err = h.callDeleteWorker(ctx, h.deleteRequestToWorkflowInput(&request))
 	if err != nil {
 		log.Err(err).Msg("error on calling worker")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
@@ -69,12 +64,12 @@ func (h *Handler) Handle(ctx *goskell.Context) {
 	ctx.Status(http.StatusNoContent)
 }
 
-func (h *Handler) callWorker(ctx *goskell.Context, request workflowInput) error {
+func (h *Handler) callDeleteWorker(ctx *goskell.Context, request WorkflowDeleteInput) error {
 	// Submit request to the worker.
 	workflowOptions := client.StartWorkflowOptions{
-		TaskQueue: workerTaskQueue,
+		TaskQueue: deleteWorkerTaskQueue,
 	}
-	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx, workflowOptions, workflowName, request)
+	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx, workflowOptions, deleteWorkflowName, request)
 	if err != nil {
 		return err
 	}
@@ -84,7 +79,7 @@ func (h *Handler) callWorker(ctx *goskell.Context, request workflowInput) error 
 		Msg("workflow is started")
 
 	// Get the worker's response.
-	var response workflowOutput
+	var response WorkflowDeleteOutput
 	err = workflowRun.Get(ctx, &response)
 	if err != nil {
 		return err
@@ -94,8 +89,8 @@ func (h *Handler) callWorker(ctx *goskell.Context, request workflowInput) error 
 }
 
 // requestToWorkflowInput converts request body into workflow's input.
-func (h *Handler) requestToWorkflowInput(request *input) workflowInput {
-	return workflowInput{
+func (h *Handler) deleteRequestToWorkflowInput(request *KeyID) WorkflowDeleteInput {
+	return WorkflowDeleteInput{
 		Hash: request.Hash,
 	}
 }

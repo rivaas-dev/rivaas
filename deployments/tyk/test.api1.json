@@ -1,6 +1,6 @@
 {
-  "name": "test_api",
-  "api_id": "test_api",
+  "name": "test_api1",
+  "api_id": "test_api1",
   "org_id": "test_org",
   "definition": {
     "location": "header",
@@ -25,7 +25,7 @@
     }
   },
   "proxy": {
-    "listen_path": "/test-api/",
+    "listen_path": "/test-api1/",
     "target_url": "http://httpbin.org",
     "strip_listen_path": true
   },

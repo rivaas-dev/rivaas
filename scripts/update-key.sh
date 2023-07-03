@@ -14,6 +14,9 @@ curl -X PATCH "$URL/keys/${ID}" -H "Content-Type: application/json" -d @- <<EOF 
   "rate_limit": {
     "rate": 300,
     "per": 1000
-  }
+  },
+  "policies": [
+    "policy-2"
+  ]
 }
 EOF

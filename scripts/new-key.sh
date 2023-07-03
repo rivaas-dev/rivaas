@@ -4,7 +4,7 @@ EXPIRES_AT=$(date --date="2 days" "+%Y-%m-%d")
 curl -sv -X POST "$URL/keys" -H "Content-Type: application/json" -d @- <<EOF | jq .
 {
   "policies": [
-    "test"
+    "policy-1"
   ],
   "actor_id": "SF:1234567890",
   "description": "test Key",
