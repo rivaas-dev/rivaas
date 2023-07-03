@@ -1,0 +1,167 @@
+// Package keys defines all methods of the API key.
+package keys
+
+import (
+	"errors"
+	"net/http"
+
+	"github.com/rs/zerolog/log"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/validation"
+	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
+	"go.temporal.io/sdk/client"
+)
+
+// Worker addresses.
+const (
+	postWorkerTaskQueue = "apikey"
+	postWorkflowName    = "create-apikey"
+)
+
+// PostInput represents POST request body.
+type PostInput struct {
+	ActorID     string     `json:"actor_id"             binding:"required"` // The reference to the actor. It binds an API key to a user/customer.
+	Policies    []string   `json:"policies"             binding:"required"` // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date `json:"expires_at"`                              // Date on which the key quota will expire at 00.00 (optional).
+	Quota       int64      `json:"quota"                binding:"min=-1"`   // The amount of calls the API Key can make (optional).
+	Description string     `json:"description"`                             // Description for the key (optional).
+	Contact     *Contact   `json:"contacts,omitempty"`                      // Contacts information.
+	Active      *bool      `json:"active"`                                  // Defines the status of the key.
+	RateLimit   *RateLimit `json:"rate_limit,omitempty"`                    // Defines rate limit of the key.
+}
+
+// Validate validates POST request body.
+func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
+	// Validate policies.
+	if !validation.ValidatePolicies(ctx, tykAPI, i.Policies) {
+		return errors.New("invalid policy")
+	}
+	// Validate quota end date.
+	if i.ExpiresAt != nil {
+		if !validation.ValidateEndDate(i.ExpiresAt) {
+			return errors.New("quota end date must be greater than today")
+		}
+	}
+	// Validate contact emails.
+	if i.Contact != nil && len(i.Contact.Emails) > 0 {
+		if !validation.ValidateEmail(i.Contact.Emails) {
+			return errors.New("one or more contact emails are incorrect")
+		}
+	}
+	return nil
+}
+
+// WorkflowPostInput represents the workflow's request body for a POST request.
+type WorkflowPostInput struct {
+	ActorID     string     // The reference to the actor. It binds an API key to a user/customer.
+	Policies    []string   // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date // Date on which the key quota will expire at 00.00 (optional).
+	Quota       int64      // The amount of calls the API Key can make (optional).
+	Description string     // Description for the key (optional).
+	Contact     Contact    // Contacts information.
+	Active      *bool      // Defines the status of the key.
+	RateLimit   RateLimit  // Defines rate limit of the key.
+}
+
+// PostOutput represents POST response body.
+type PostOutput struct {
+	Key  string `json:"key"`  // The created API key which can be used to access APIs.
+	Hash string `json:"hash"` // The key hash. This is a unique identifier to each API key.
+}
+
+// WorkflowPostOutput represents the workflow response body of a POST request.
+type WorkflowPostOutput struct {
+	Key  string
+	Hash string
+}
+
+// POST handles POST requests on the endpoint.
+func (h *Handler) POST(ctx *goskell.Context) {
+	// Parse request request.
+	var request PostInput
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Title:  http.StatusText(http.StatusBadRequest),
+				Status: http.StatusBadRequest,
+				Detail: err.Error(),
+			},
+		)
+		return
+	}
+	if err := request.Validate(ctx, h.tykClient); err != nil {
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Title:  http.StatusText(http.StatusBadRequest),
+				Status: http.StatusBadRequest,
+				Detail: err.Error(),
+			},
+		)
+		return
+	}
+
+	// Call the worker.
+	response, err := h.POSTWorker(ctx, h.postRequestToWorkflowInput(&request))
+	if err != nil {
+		log.Err(err).Msg("error on calling worker")
+		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
+	}
+
+	ctx.JSON(http.StatusCreated, h.workflowOutputToPostResponse(response))
+}
+
+// POSTWorker calls workflow on the POST request.
+func (h *Handler) POSTWorker(ctx *goskell.Context, request WorkflowPostInput) (*WorkflowPostOutput, error) {
+	// Submit request to the worker.
+	workflowOptions := client.StartWorkflowOptions{
+		TaskQueue: postWorkerTaskQueue,
+	}
+	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx, workflowOptions, postWorkflowName, request)
+	if err != nil {
+		return nil, err
+	}
+	log.Info().
+		Str("WorkflowID", workflowRun.GetID()).
+		Str("RunID", workflowRun.GetRunID()).
+		Msg("workflow is started")
+
+	// Get the worker's response.
+	var response WorkflowPostOutput
+	err = workflowRun.Get(ctx, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+// requestToWorkflowInput converts request body into workflow's input.
+func (h *Handler) postRequestToWorkflowInput(request *PostInput) WorkflowPostInput {
+	wInput := WorkflowPostInput{
+		ActorID:     request.ActorID,
+		Policies:    request.Policies,
+		ExpiresAt:   request.ExpiresAt,
+		Quota:       request.Quota,
+		Description: request.Description,
+		Active:      request.Active,
+	}
+	if request.Contact != nil {
+		wInput.Contact = *request.Contact
+	}
+	if request.RateLimit != nil {
+		wInput.RateLimit = *request.RateLimit
+	}
+	return wInput
+}
+
+// workflowOnputToResponse converts workflow response into API response.
+func (h *Handler) workflowOutputToPostResponse(workflowOutput *WorkflowPostOutput) *PostOutput {
+	return &PostOutput{
+		Key:  workflowOutput.Key,
+		Hash: workflowOutput.Hash,
+	}
+}

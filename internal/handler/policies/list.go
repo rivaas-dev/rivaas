@@ -1,5 +1,5 @@
-// Package listpolicy returns list of policies.
-package listpolicy
+// Package policies defines required methods of the API policies.
+package policies
 
 import (
 	"context"
@@ -12,20 +12,8 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 )
 
-// Handler handles keys requests
-type Handler struct {
-	tykClient *tyk.APIClient
-}
-
-// New constructs a new Handler.
-func New(tykClient *tyk.APIClient) *Handler {
-	return &Handler{
-		tykClient: tykClient,
-	}
-}
-
-// Handle handles endpoint requests.
-func (h *Handler) Handle(ctx *goskell.Context) {
+// LIST handles GET requests on the endpoint to get list of policies.
+func (h *Handler) LIST(ctx *goskell.Context) {
 	// retrieve the policies list
 	policies, err := GetPolicies(ctx.Request.Context(), h.tykClient)
 	if err != nil {

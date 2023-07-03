@@ -6,14 +6,10 @@ import (
 	"net/url"
 
 	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/api/createkey"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/api/deletekey"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/api/getkey"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/api/listkey"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/api/listpolicy"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/api/updatekey"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/keys"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/policies"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/nl/webservices/goconfig"
@@ -92,27 +88,20 @@ func newTykClient(cfg config.Tyk) *tyk.APIClient {
 		},
 	)
 }
+
 func registerHandlers(
 	server *goskell.Server,
 	dbClient db.DatabaseExecer,
 	tykClient *tyk.APIClient,
 	temporalClient client.Client,
 ) {
-	createHandler := createkey.New(temporalClient, tykClient)
-	server.POST("/keys", createHandler.Handle)
+	keyHandler := keys.New(temporalClient, tykClient, dbClient)
+	server.POST("/keys", keyHandler.POST)
+	server.GET("/keys", keyHandler.LIST)
+	server.GET("/keys/:id", keyHandler.GET)
+	server.PATCH("/keys/:id", keyHandler.PATCH)
+	server.DELETE("/keys/:id", keyHandler.DELETE)
 
-	getHandler := getkey.New(tykClient, dbClient)
-	server.GET("/keys/:id", getHandler.Handle)
-
-	updateHandler := updatekey.New(temporalClient, dbClient, tykClient)
-	server.PATCH("/keys/:id", updateHandler.Handle)
-
-	deleteHandler := deletekey.New(temporalClient, dbClient)
-	server.DELETE("/keys/:id", deleteHandler.Handle)
-
-	listHandler := listkey.New(dbClient)
-	server.GET("/keys", listHandler.Handle)
-
-	listpolicyHandler := listpolicy.New(tykClient)
-	server.GET("/policies", listpolicyHandler.Handle)
+	policiesHandler := policies.New(tykClient)
+	server.GET("/policies", policiesHandler.LIST)
 }

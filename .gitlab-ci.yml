@@ -43,6 +43,7 @@ deploy:acceptance:
   variables:
     HELM_ACC_VARIABLES: |
       --set global.consul.env="acceptance/apis/nl"
+      --set global.consul.token="${CONSUL_TOKEN}"
   environment:
     name: nl/acc
 
@@ -51,6 +52,7 @@ deploy:acceptance:de:
   variables:
     HELM_ACC_VARIABLES: |
       --set global.consul.env="acceptance/apis/de"
+      --set global.consul.token="${CONSUL_TOKEN}"
   environment:
     name: de/acc
 

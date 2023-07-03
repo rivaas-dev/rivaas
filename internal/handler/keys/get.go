@@ -1,5 +1,5 @@
-// Package getkey returns a key details.
-package getkey
+// Package keys defines all methods of the API key.
+package keys
 
 import (
 	"errors"
@@ -14,24 +14,23 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 )
 
-// Handler handles keys requests
-type Handler struct {
-	tykClient      *tyk.APIClient
-	keysRepository db.DatabaseExecer
+// GetOutput represents a Key information.
+type GetOutput struct {
+	ActorID      string    `json:"actor_id"`
+	ExpiresAt    string    `json:"expires_at"`
+	Quota        int64     `json:"quota"`
+	Description  string    `json:"description"`
+	Policies     []string  `json:"policies"`
+	CreationDate time.Time `json:"creation_date"`
+	Contact      Contact   `json:"contacts,omitempty"`
+	Active       bool      `json:"active"`
+	RateLimit    RateLimit `json:"rate_limit"`
 }
 
-// New constructs a new Handler.
-func New(tykClient *tyk.APIClient, keysRepository db.DatabaseExecer) *Handler {
-	return &Handler{
-		tykClient:      tykClient,
-		keysRepository: keysRepository,
-	}
-}
-
-// Handle handles endpoint requests.
-func (h *Handler) Handle(ctx *goskell.Context) {
+// GET handles GET requests on the endpoint.
+func (h *Handler) GET(ctx *goskell.Context) {
 	// Parse request body.
-	var request input
+	var request KeyID
 	if err := ctx.ShouldBindUri(&request); err != nil {
 		goskell.ProblemJSON(
 			ctx,
@@ -67,7 +66,7 @@ func (h *Handler) Handle(ctx *goskell.Context) {
 }
 
 // getKeyInfo gets more info of the key by calling Tyk API.
-func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*output, error) {
+func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, error) {
 	// Get Key info.
 	tykResponse, resp, err := h.tykClient.KeysApi.GetKey(
 		ctx,
@@ -83,14 +82,14 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*output, erro
 	}
 
 	// build key from db response
-	result := output{
+	result := GetOutput{
 		ActorID:      dbKey.ActorID,
 		Policies:     tykResponse.ApplyPolicies,
 		Quota:        tykResponse.QuotaMax,
 		CreationDate: dbKey.CreatedAt,
-		Contact:      contact(dbKey.Contact),
+		Contact:      Contact(dbKey.Contact),
 		Active:       !tykResponse.IsInactive,
-		RateLimit: rateLimit{
+		RateLimit: RateLimit{
 			Rate: uint(tykResponse.Rate),
 			Per:  uint(tykResponse.Per),
 		},
