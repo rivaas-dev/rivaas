@@ -8,8 +8,6 @@ variables:
   SWAGGER_VALIDATE_DISABLED: "true"
   SWAGGER_VALIDATE_SWAGGER_SPEC: "api/swagger.yaml"
   IS_TEMPORAL_WORKFLOW: "true"
-  HELM_GLOBAL_VARIABLES: |
-    --set global.consul.token="${CONSUL_TOKEN}"
 
 deploy:testing:
   variables:
@@ -58,10 +56,18 @@ deploy:acceptance:de:
 
 deploy:production:
   extends: .deploy-template
+  variables:
+    HELM_PROD_VARIABLES: |
+      --set global.consul.env="production/apis/nl"
+      --set global.consul.token="${CONSUL_TOKEN}"
   environment:
     name: nl/prod
 
 deploy:production:de:
   extends: deploy:production
+  variables:
+    HELM_PROD_VARIABLES: |
+      --set global.consul.env="production/apis/de"
+      --set global.consul.token="${CONSUL_TOKEN}"
   environment:
     name: de/prod
