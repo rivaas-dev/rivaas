@@ -58,7 +58,7 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 }
 
 func (h *Handler) convertListDBResultToJSON(keys []*db.Key) []ListOutput {
-	response := make([]ListOutput, len(keys))
+	var response []ListOutput
 	for _, key := range keys {
 		rl := RateLimit{
 			Rate: 0,
