@@ -17,3 +17,11 @@ type RateLimit struct {
 type KeyID struct {
 	Hash string `uri:"id" binding:"required"` // Key ID.
 }
+
+// ApikeysEnvironment represents the environment the key is used
+type ApikeysEnvironment = string
+
+const (
+	ProdEnv    ApikeysEnvironment = "production"
+	SandboxEnv ApikeysEnvironment = "sandbox"
+)

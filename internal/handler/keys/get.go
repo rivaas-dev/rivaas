@@ -16,15 +16,16 @@ import (
 
 // GetOutput represents a Key information.
 type GetOutput struct {
-	ActorID      string    `json:"actor_id"`
-	ExpiresAt    string    `json:"expires_at"`
-	Quota        int64     `json:"quota"`
-	Description  string    `json:"description"`
-	Policies     []string  `json:"policies"`
-	CreationDate time.Time `json:"creation_date"`
-	Contact      Contact   `json:"contacts,omitempty"`
-	Active       bool      `json:"active"`
-	RateLimit    RateLimit `json:"rate_limit"`
+	ActorID      string             `json:"actor_id"`
+	ExpiresAt    string             `json:"expires_at"`
+	Quota        int64              `json:"quota"`
+	Description  string             `json:"description"`
+	Policies     []string           `json:"policies"`
+	CreationDate time.Time          `json:"creation_date"`
+	Contact      Contact            `json:"contacts,omitempty"`
+	Active       bool               `json:"active"`
+	RateLimit    RateLimit          `json:"rate_limit"`
+	Environment  ApikeysEnvironment `json:"environment"`
 }
 
 // GET handles GET requests on the endpoint.
@@ -93,6 +94,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 			Rate: uint(tykResponse.Rate),
 			Per:  uint(tykResponse.Per),
 		},
+		Environment: dbKey.Environment,
 	}
 	if tykResponse.Expires > 0 {
 		result.ExpiresAt = time.Unix(tykResponse.Expires, 0).UTC().Format("2006-01-02")

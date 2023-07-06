@@ -19,14 +19,15 @@ type ListInput struct {
 
 // ListOutput represents the list of key's information.
 type ListOutput struct {
-	Hash        string    `json:"hash"`
-	ActorID     string    `json:"actor_id"`
-	ExpiresAt   string    `json:"expires_at"`
-	Description *string   `json:"description"`
-	CreationAt  time.Time `json:"creation_date"`
-	Contact     Contact   `json:"contacts"`
-	Active      bool      `json:"active"`
-	RateLimit   RateLimit `json:"rate_limit"`
+	Hash        string             `json:"hash"`
+	ActorID     string             `json:"actor_id"`
+	ExpiresAt   string             `json:"expires_at"`
+	Description *string            `json:"description"`
+	CreationAt  time.Time          `json:"creation_date"`
+	Contact     Contact            `json:"contacts"`
+	Active      bool               `json:"active"`
+	RateLimit   RateLimit          `json:"rate_limit"`
+	Environment ApikeysEnvironment `json:"environment"`
 }
 
 // LIST handles GET requests on the endpoint to get list of keys.
@@ -86,6 +87,7 @@ func (h *Handler) convertListDBResultToJSON(keys []*db.Key) []ListOutput {
 			Contact:     Contact(key.Contact),
 			Active:      key.Active,
 			RateLimit:   rl,
+			Environment: key.Environment,
 		})
 	}
 	return response

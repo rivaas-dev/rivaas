@@ -22,14 +22,15 @@ const (
 
 // PostInput represents POST request body.
 type PostInput struct {
-	ActorID     string     `json:"actor_id"             binding:"required"` // The reference to the actor. It binds an API key to a user/customer.
-	Policies    []string   `json:"policies"             binding:"required"` // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date `json:"expires_at"`                              // Date on which the key quota will expire at 00.00 (optional).
-	Quota       int64      `json:"quota"                binding:"min=-1"`   // The amount of calls the API Key can make (optional).
-	Description string     `json:"description"`                             // Description for the key (optional).
-	Contact     *Contact   `json:"contacts,omitempty"`                      // Contacts information.
-	Active      *bool      `json:"active"`                                  // Defines the status of the key.
-	RateLimit   *RateLimit `json:"rate_limit,omitempty"`                    // Defines rate limit of the key.
+	ActorID     string             `json:"actor_id"             binding:"required"` // The reference to the actor. It binds an API key to a user/customer.
+	Policies    []string           `json:"policies"             binding:"required"` // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date         `json:"expires_at"`                              // Date on which the key quota will expire at 00.00 (optional).
+	Quota       int64              `json:"quota"                binding:"min=-1"`   // The amount of calls the API Key can make (optional).
+	Description string             `json:"description"`                             // Description for the key (optional).
+	Contact     *Contact           `json:"contacts,omitempty"`                      // Contacts information.
+	Active      *bool              `json:"active"`                                  // Defines the status of the key.
+	RateLimit   *RateLimit         `json:"rate_limit,omitempty"`                    // Defines rate limit of the key.
+	Environment ApikeysEnvironment `json:"environment"`                             // Defines if a key is for prod or sandbox environment.
 }
 
 // Validate validates POST request body.
@@ -50,19 +51,27 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 			return errors.New("one or more contact emails are incorrect")
 		}
 	}
+	// if not specified in the request, set prod as default environment
+	if i.Environment == "" {
+		i.Environment = ProdEnv
+	}
+	if !validation.ValidateEnvironment(i.Environment) {
+		return errors.New("environment should be either 'production' or 'sandbox'")
+	}
 	return nil
 }
 
 // WorkflowPostInput represents the workflow's request body for a POST request.
 type WorkflowPostInput struct {
-	ActorID     string     // The reference to the actor. It binds an API key to a user/customer.
-	Policies    []string   // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date // Date on which the key quota will expire at 00.00 (optional).
-	Quota       int64      // The amount of calls the API Key can make (optional).
-	Description string     // Description for the key (optional).
-	Contact     Contact    // Contacts information.
-	Active      *bool      // Defines the status of the key.
-	RateLimit   RateLimit  // Defines rate limit of the key.
+	ActorID     string             // The reference to the actor. It binds an API key to a user/customer.
+	Policies    []string           // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date         // Date on which the key quota will expire at 00.00 (optional).
+	Quota       int64              // The amount of calls the API Key can make (optional).
+	Description string             // Description for the key (optional).
+	Contact     Contact            // Contacts information.
+	Active      *bool              // Defines the status of the key.
+	RateLimit   RateLimit          // Defines rate limit of the key.
+	Environment ApikeysEnvironment // Defines if a key is for prod or sandbox environment.
 }
 
 // PostOutput represents POST response body.
@@ -148,6 +157,7 @@ func (h *Handler) postRequestToWorkflowInput(request *PostInput) WorkflowPostInp
 		Quota:       request.Quota,
 		Description: request.Description,
 		Active:      request.Active,
+		Environment: request.Environment,
 	}
 	if request.Contact != nil {
 		wInput.Contact = *request.Contact

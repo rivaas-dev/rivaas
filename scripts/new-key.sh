@@ -17,6 +17,7 @@ curl -sv -X POST "$URL/keys" -H "Content-Type: application/json" -d @- <<EOF | j
   "rate_limit": {
     "rate": 1000,
     "per": 1000
-  }
+  },
+  "environment": "production"
 }
 EOF
