@@ -16,16 +16,16 @@ import (
 
 // GetOutput represents a Key information.
 type GetOutput struct {
-	ActorID      string             `json:"actor_id"`
-	ExpiresAt    string             `json:"expires_at"`
-	Quota        int64              `json:"quota"`
-	Description  string             `json:"description"`
-	Policies     []string           `json:"policies"`
-	CreationDate time.Time          `json:"creation_date"`
-	Contact      Contact            `json:"contacts,omitempty"`
-	Active       bool               `json:"active"`
-	RateLimit    RateLimit          `json:"rate_limit"`
-	Environment  ApikeysEnvironment `json:"environment"`
+	ActorID      string            `json:"actor_id"`
+	ExpiresAt    string            `json:"expires_at"`
+	Quota        int64             `json:"quota"`
+	Description  string            `json:"description"`
+	Policies     []string          `json:"policies"`
+	CreationDate time.Time         `json:"creation_date"`
+	Contact      Contact           `json:"contacts,omitempty"`
+	Active       bool              `json:"active"`
+	RateLimit    RateLimit         `json:"rate_limit"`
+	Environment  ApikeyEnvironment `json:"environment"`
 }
 
 // GET handles GET requests on the endpoint.
