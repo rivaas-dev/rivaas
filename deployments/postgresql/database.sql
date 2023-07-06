@@ -14,4 +14,4 @@ CREATE TABLE IF NOT EXISTS api_keys (
 
 CREATE INDEX IF NOT EXISTS api_keys_actor_id_key ON api_keys (actor_id);
 CREATE INDEX IF NOT EXISTS api_keys_description_key ON api_keys USING GIN (description);
-CREATE TYPE apikeys_environment AS ENUM ('production', 'sandbox');
+CREATE TYPE apikey_environment AS ENUM ('production', 'sandbox');
