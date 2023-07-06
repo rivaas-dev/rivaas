@@ -11,6 +11,13 @@ type contact struct {
 	Users  []uint
 }
 
+type Environment = string
+
+const (
+	ProdEnv    Environment = "production"
+	SandboxEnv Environment = "sandbox"
+)
+
 // Key table structure.
 type Key struct {
 	Hash        string         `gorm:"column:key_hash;primaryKey"`
@@ -23,6 +30,7 @@ type Key struct {
 	Contact     contact        `gorm:"column:contacts;type:json;serializer:json"`
 	Active      bool           `gorm:"column:active;default:true"`
 	Metadata    map[string]any `gorm:"column:metadata;type:json;serializer:json"`
+	Environment Environment    `gorm:"column:environment"`
 }
 
 // TableName overrides the table name used by User to `profiles`

@@ -8,8 +8,10 @@ CREATE TABLE IF NOT EXISTS api_keys (
     deleted_at TIMESTAMPTZ DEFAULT NULL,
     contacts JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
-    metadata JSONB NOT NULL DEFAULT '{}'::JSONB
+    metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+    environment apikeys_environment NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS api_keys_actor_id_key ON api_keys (actor_id);
 CREATE INDEX IF NOT EXISTS api_keys_description_key ON api_keys USING GIN (description);
+CREATE TYPE apikeys_environment AS ENUM ('production', 'sandbox');
