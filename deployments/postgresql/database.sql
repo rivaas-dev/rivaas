@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
     contacts JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
-    environment apikeys_environment NOT NULL
+    environment apikeys_environment NOT NULL,
+    labels JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
 CREATE INDEX IF NOT EXISTS api_keys_actor_id_key ON api_keys (actor_id);
