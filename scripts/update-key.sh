@@ -17,6 +17,9 @@ curl -X PATCH "$URL/keys/${ID}" -H "Content-Type: application/json" -d @- <<EOF 
   },
   "policies": [
     "policy-2"
-  ]
+  ],
+  "labels": {
+    "new": "label"
+  }
 }
 EOF

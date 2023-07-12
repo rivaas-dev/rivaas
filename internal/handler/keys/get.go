@@ -26,6 +26,7 @@ type GetOutput struct {
 	Active       bool              `json:"active"`
 	RateLimit    RateLimit         `json:"rate_limit"`
 	Environment  ApikeyEnvironment `json:"environment"`
+	Labels       map[string]string `json:"labels"`
 }
 
 // GET handles GET requests on the endpoint.
@@ -95,6 +96,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 			Per:  uint(tykResponse.Per),
 		},
 		Environment: dbKey.Environment,
+		Labels:      dbKey.Labels,
 	}
 	if tykResponse.Expires > 0 {
 		result.ExpiresAt = time.Unix(tykResponse.Expires, 0).UTC().Format("2006-01-02")

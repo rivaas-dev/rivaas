@@ -23,14 +23,15 @@ const (
 
 // PatchInput represents the PATCH request body.
 type PatchInput struct {
-	Hash        string     `uri:"id" binding:"required"`                           // Key ID.
-	Policies    *[]string  `                            json:"policies"`           // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date `                            json:"expires_at"`         // Date on which the key quota will expire at 00.00 (optional).
-	Quota       *int64     `                            json:"quota"`              // The amount of calls the API Key can make (optional).
-	Description *string    `                            json:"description"`        // Description for the key (optional).
-	Contact     *Contact   `                            json:"contacts,omitempty"` // Contacts information.
-	Active      *bool      `                            json:"active,omitempty"`   // Defines the status of the key.
-	RateLimit   *RateLimit `                            json:"rate_limit"`         // Defines rate limit of the key.
+	Hash        string             `uri:"id" binding:"required"`                           // Key ID.
+	Policies    *[]string          `                            json:"policies"`           // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date         `                            json:"expires_at"`         // Date on which the key quota will expire at 00.00 (optional).
+	Quota       *int64             `                            json:"quota"`              // The amount of calls the API Key can make (optional).
+	Description *string            `                            json:"description"`        // Description for the key (optional).
+	Contact     *Contact           `                            json:"contacts,omitempty"` // Contacts information.
+	Active      *bool              `                            json:"active,omitempty"`   // Defines the status of the key.
+	RateLimit   *RateLimit         `                            json:"rate_limit"`         // Defines rate limit of the key.
+	Labels      *map[string]string `json:"labels"`                                         // Contains user specified labels for categorization
 }
 
 // Validate validates the PATCH request body.
@@ -63,27 +64,29 @@ func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error
 
 // workflowInput represents the workflow request body.
 type workflowInput struct {
-	Hash        string     // Key ID.
-	Policies    *[]string  // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date // Date on which the key quota will expire at 00.00 (optional).
-	Quota       *int64     // The amount of calls the API Key can make (optional).
-	Description *string    // Description for the key (optional).
-	Contact     *Contact   // Contacts information.
-	Active      *bool      // Defines the status of the key.
-	RateLimit   *RateLimit // Defines rate limit of the key.
+	Hash        string             // Key ID.
+	Policies    *[]string          // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date         // Date on which the key quota will expire at 00.00 (optional).
+	Quota       *int64             // The amount of calls the API Key can make (optional).
+	Description *string            // Description for the key (optional).
+	Contact     *Contact           // Contacts information.
+	Active      *bool              // Defines the status of the key.
+	RateLimit   *RateLimit         // Defines rate limit of the key.
+	Labels      *map[string]string // Contains user specified labels for categorization
 }
 
 // output represents response body.
 type output struct {
-	ActorID     string     `json:"actor_id"`
-	Policies    []string   `json:"policies"`
-	ExpiresAt   *date.Date `json:"expires_at"`
-	Quota       int64      `json:"quota"`
-	Description string     `json:"description"`
-	CreatedDate time.Time  `json:"created_date"`
-	Contact     Contact    `json:"contacts"`
-	Active      bool       `json:"active"`
-	RateLimit   RateLimit  `json:"rate_limit"`
+	ActorID     string             `json:"actor_id"`
+	Policies    []string           `json:"policies"`
+	ExpiresAt   *date.Date         `json:"expires_at"`
+	Quota       int64              `json:"quota"`
+	Description string             `json:"description"`
+	CreatedDate time.Time          `json:"created_date"`
+	Contact     Contact            `json:"contacts"`
+	Active      bool               `json:"active"`
+	RateLimit   RateLimit          `json:"rate_limit"`
+	Labels      *map[string]string `json:"labels"`
 }
 
 // workflowOutput represents the workflow response body.
@@ -97,6 +100,7 @@ type workflowOutput struct {
 	Contact     Contact
 	Active      bool
 	RateLimit   RateLimit
+	Labels      *map[string]string
 }
 
 // PATCH handles PATCH requests of the endpoint.
@@ -203,6 +207,9 @@ func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput
 	if request.RateLimit != nil {
 		wInput.RateLimit = request.RateLimit
 	}
+	if request.Labels != nil {
+		wInput.Labels = request.Labels
+	}
 	return wInput
 }
 
@@ -218,5 +225,6 @@ func (h *Handler) workflowOutputToPATCHResponse(workflowOutput *workflowOutput) 
 		Contact:     workflowOutput.Contact,
 		Active:      workflowOutput.Active,
 		RateLimit:   workflowOutput.RateLimit,
+		Labels:      workflowOutput.Labels,
 	}
 }

@@ -28,6 +28,7 @@ type ListOutput struct {
 	Active      bool              `json:"active"`
 	RateLimit   RateLimit         `json:"rate_limit"`
 	Environment ApikeyEnvironment `json:"environment"`
+	Labels      map[string]string `json:"labels"`
 }
 
 // LIST handles GET requests on the endpoint to get list of keys.
@@ -88,6 +89,7 @@ func (h *Handler) convertListDBResultToJSON(keys []*db.Key) []ListOutput {
 			Active:      key.Active,
 			RateLimit:   rl,
 			Environment: key.Environment,
+			Labels:      key.Labels,
 		})
 	}
 	return response
