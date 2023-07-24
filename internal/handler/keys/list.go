@@ -21,6 +21,8 @@ type ListInput struct {
 type ListOutput struct {
 	Hash        string            `json:"hash"`
 	ActorID     string            `json:"actor_id"`
+	ClientID    int64             `json:"client_id"`
+	UserID      int64             `json:"user_id"`
 	ExpiresAt   string            `json:"expires_at"`
 	Description *string           `json:"description"`
 	CreationAt  time.Time         `json:"creation_date"`
@@ -82,6 +84,8 @@ func (h *Handler) convertListDBResultToJSON(keys []*db.Key) []ListOutput {
 		response = append(response, ListOutput{
 			Hash:        key.Hash,
 			ActorID:     key.ActorID,
+			ClientID:    key.ClientID,
+			UserID:      key.UserID,
 			ExpiresAt:   expiresAt,
 			Description: key.Description,
 			CreationAt:  key.CreatedAt,

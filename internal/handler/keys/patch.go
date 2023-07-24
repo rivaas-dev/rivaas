@@ -77,21 +77,25 @@ type workflowInput struct {
 
 // output represents response body.
 type output struct {
-	ActorID     string             `json:"actor_id"`
-	Policies    []string           `json:"policies"`
-	ExpiresAt   *date.Date         `json:"expires_at"`
-	Quota       int64              `json:"quota"`
-	Description string             `json:"description"`
-	CreatedDate time.Time          `json:"created_date"`
-	Contact     Contact            `json:"contacts"`
-	Active      bool               `json:"active"`
-	RateLimit   RateLimit          `json:"rate_limit"`
+	ActorID     string     `json:"actor_id"`
+	ClientID    int64      `json:"client_id"`
+	UserID      int64      `json:"user_id"`
+	Policies    []string   `json:"policies"`
+	ExpiresAt   *date.Date `json:"expires_at"`
+	Quota       int64      `json:"quota"`
+	Description string     `json:"description"`
+	CreatedDate time.Time  `json:"created_date"`
+	Contact     Contact    `json:"contacts"`
+	Active      bool       `json:"active"`
+	RateLimit   RateLimit  `json:"rate_limit"`
 	Labels      *map[string]string `json:"labels"`
 }
 
 // workflowOutput represents the workflow response body.
 type workflowOutput struct {
 	ActorID     string
+	ClientID    int64
+	UserID      int64
 	Policies    []string
 	ExpiresAt   *date.Date
 	Quota       int64
@@ -217,6 +221,8 @@ func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput
 func (h *Handler) workflowOutputToPATCHResponse(workflowOutput *workflowOutput) *output {
 	return &output{
 		ActorID:     workflowOutput.ActorID,
+		ClientID:    workflowOutput.ClientID,
+		UserID:      workflowOutput.UserID,
 		Policies:    workflowOutput.Policies,
 		ExpiresAt:   workflowOutput.ExpiresAt,
 		Quota:       workflowOutput.Quota,

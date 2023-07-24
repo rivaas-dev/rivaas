@@ -22,6 +22,8 @@ const (
 type Key struct {
 	Hash        string            `gorm:"column:key_hash;primaryKey"`
 	ActorID     string            `gorm:"column:actor_id;index"`
+	ClientID    int64             `gorm:"column:client_id"`
+	UserID      int64             `gorm:"column:user_id"`
 	ExpiresAt   *date.Date        `gorm:"column:expires_at"`
 	CreatedAt   time.Time         `gorm:"column:creation_date;autoCreateTime"`
 	UpdatedAt   time.Time         `gorm:"column:last_modified;autoUpdateTime"`
