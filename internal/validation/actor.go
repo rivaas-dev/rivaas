@@ -12,7 +12,7 @@ func ValidateActorID(actorID, customerID string) error {
 	}
 
 	re := regexp.MustCompile(`^[a-zA-Z]+:(\d+):(\d+)$`)
-	if re.MatchString(customerID) {
+	if re.MatchString(customerID) || actorID != "" {
 		return nil
 	} else {
 		return errors.New("customer id does not match the right pattern")
