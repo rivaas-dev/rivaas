@@ -4,6 +4,8 @@ package keys
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
@@ -22,7 +24,8 @@ const (
 
 // PostInput represents POST request body.
 type PostInput struct {
-	ActorID     string             `json:"actor_id"             binding:"required"` // The reference to the actor. It binds an API key to a user/customer.
+	ActorID     string             `json:"actor_id"`                                // The reference to the actor. It binds an API key to a user/customer.
+	CustomerID  string             `header:"X-Customer-ID"`                         // The reference to the actor. It binds an API key to a user/customer.
 	Policies    []string           `json:"policies"             binding:"required"` // The access policies to give, leave empty for none.
 	ExpiresAt   *date.Date         `json:"expires_at"`                              // Date on which the key quota will expire at 00.00 (optional).
 	Quota       int64              `json:"quota"                binding:"min=-1"`   // The amount of calls the API Key can make (optional).
@@ -30,7 +33,7 @@ type PostInput struct {
 	Contact     *Contact           `json:"contacts,omitempty"`                      // Contacts information.
 	Active      *bool              `json:"active"`                                  // Defines the status of the key.
 	RateLimit   *RateLimit         `json:"rate_limit,omitempty"`                    // Defines rate limit of the key.
-	Environment ApikeyEnvironment  `json:"environment"`                             // Defines if a key is for prod or sandbox environment.'
+	Environment ApikeyEnvironment  `json:"environment"`                             // Defines if a key is for prod or sandbox environment. // Defines if a key is for prod or sandbox environment.'
 	Labels      *map[string]string `json:"labels,omitempty"`                        // Contains user specified labels for categorization
 }
 
@@ -56,15 +59,22 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 	if i.Environment == "" {
 		i.Environment = ProdEnv
 	}
+	// validates if an environment is set to a valid environment
 	if !validation.ValidateEnvironment(i.Environment) {
 		return errors.New("environment should be either 'production' or 'sandbox'")
+	}
+	// validates actorID
+	if err := validation.ValidateActorID(i.ActorID, i.CustomerID); err != nil {
+		return err
 	}
 	return nil
 }
 
 // WorkflowPostInput represents the workflow's request body for a POST request.
 type WorkflowPostInput struct {
-	ActorID     string             // The reference to the actor. It binds an API key to a user/customer.
+	ActorID     *string            // The reference to the actor. It binds an API key to a user/customer.
+	ClientID    *int64             // References the client
+	UserID      *int64             // References the user
 	Policies    []string           // The access policies to give, leave empty for none.
 	ExpiresAt   *date.Date         // Date on which the key quota will expire at 00.00 (optional).
 	Quota       int64              // The amount of calls the API Key can make (optional).
@@ -102,6 +112,15 @@ func (h *Handler) POST(ctx *goskell.Context) {
 			},
 		)
 		return
+	}
+	if err := ctx.ShouldBindHeader(&request); err != nil {
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Title:  http.StatusText(http.StatusBadRequest),
+				Status: http.StatusBadRequest,
+				Detail: err.Error(),
+			})
 	}
 	if err := request.Validate(ctx, h.tykClient); err != nil {
 		goskell.ProblemJSON(
@@ -153,7 +172,6 @@ func (h *Handler) POSTWorker(ctx *goskell.Context, request WorkflowPostInput) (*
 // requestToWorkflowInput converts request body into workflow's input.
 func (h *Handler) postRequestToWorkflowInput(request *PostInput) WorkflowPostInput {
 	wInput := WorkflowPostInput{
-		ActorID:     request.ActorID,
 		Policies:    request.Policies,
 		ExpiresAt:   request.ExpiresAt,
 		Quota:       request.Quota,
@@ -162,6 +180,14 @@ func (h *Handler) postRequestToWorkflowInput(request *PostInput) WorkflowPostInp
 		Environment: request.Environment,
 		Labels:      request.Labels,
 	}
+	if request.CustomerID != "" {
+		clientID, userID, _ := stripActorID(request.CustomerID)
+		wInput.ClientID = &clientID
+		wInput.UserID = &userID
+	} else {
+		wInput.ActorID = &request.ActorID
+	}
+
 	if request.Contact != nil {
 		wInput.Contact = *request.Contact
 	}
@@ -177,4 +203,23 @@ func (h *Handler) workflowOutputToPostResponse(workflowOutput *WorkflowPostOutpu
 		Key:  workflowOutput.Key,
 		Hash: workflowOutput.Hash,
 	}
+}
+
+func stripActorID(actorID string) (clientID, userID int64, err error) {
+	splitActorID := strings.Split(actorID, `:`)
+	if len(splitActorID) < 3 {
+		userID = 0
+	} else {
+		userIDStr := splitActorID[2]
+		userID, err = strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	clientIDStr := splitActorID[1]
+	clientID, err = strconv.ParseInt(clientIDStr, 10, 64)
+	if err != nil {
+		return 0, 0, err
+	}
+	return clientID, userID, nil
 }

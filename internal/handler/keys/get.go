@@ -2,6 +2,7 @@
 package keys
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -17,6 +18,8 @@ import (
 // GetOutput represents a Key information.
 type GetOutput struct {
 	ActorID      string            `json:"actor_id"`
+	ClientID     int64             `json:"client_id"`
+	UserID       int64             `json:"user_id"`
 	ExpiresAt    string            `json:"expires_at"`
 	Quota        int64             `json:"quota"`
 	Description  string            `json:"description"`
@@ -85,18 +88,31 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 
 	// build key from db response
 	result := GetOutput{
-		ActorID:      dbKey.ActorID,
+		ClientID:     dbKey.ClientID,
+		UserID:       dbKey.UserID,
 		Policies:     tykResponse.ApplyPolicies,
 		Quota:        tykResponse.QuotaMax,
 		CreationDate: dbKey.CreatedAt,
 		Contact:      Contact(dbKey.Contact),
 		Active:       !tykResponse.IsInactive,
-		RateLimit: RateLimit{
-			Rate: uint(tykResponse.Rate),
-			Per:  uint(tykResponse.Per),
-		},
-		Environment: dbKey.Environment,
-		Labels:      dbKey.Labels,
+		Environment:  dbKey.Environment,
+		Labels:       dbKey.Labels,
+	}
+	if actorID, ok := dbKey.Metadata["actor_id"]; ok {
+		result.ActorID = actorID.(string)
+	}
+
+	if rateLimit, ok := dbKey.Metadata["rate_limit"]; ok {
+		jsonData, _ := json.Marshal(rateLimit)
+		var rateLimit RateLimit
+		err := json.Unmarshal(jsonData, &rateLimit)
+		if err != nil {
+			return nil, err
+		}
+		result.RateLimit = RateLimit{
+			Rate: rateLimit.Rate,
+			Per:  rateLimit.Per,
+		}
 	}
 	if tykResponse.Expires > 0 {
 		result.ExpiresAt = time.Unix(tykResponse.Expires, 0).UTC().Format("2006-01-02")

@@ -1,277 +1,451 @@
-swagger: '2.0'
+openapi: 3.0.1
 info:
-  version: 1.0.0
   title: API Gateway API
   description: |
     This is where you can manage API Gateway using APIs
-schemes:
-  - https
-  - http
-consumes:
-  - application/json
-produces:
-  - application/hal+json
-  - application/problem+json
+  version: 1.0.0
+servers:
+  - url: /
 tags:
   - name: key
     description: Calls related to API keys
 paths:
   /keys:
     get:
-      operationId: list_keys
       tags:
         - keys
       description: |
         List API Keys
-      consumes:
-        - application/json
+      operationId: list_keys
       parameters:
-        - in: query
-          name: actor_id
+        - name: actor_id
+          in: query
           description: The actor id to filter on
-          type: string
-          required: false
-        - in: query
-          name: description
-          description: The description term to fuzzy match on
-          type: string
-          required: false
-      responses:
-        '200':
-          description: List of key hashes, optionally per actor
           schema:
-            type: array
-            items:
-              type: object
-              description: A key
-              $ref: "#/definitions/KeyDetails"
-        '500':
-          $ref: "#/responses/InternalServerError"
+            type: string
+        - name: description
+          in: query
+          description: The description term to fuzzy match on
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of key hashes, optionally per actor
+          content:
+            application/hal+json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyDetails'
+            application/problem+json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyDetails'
+        500:
+          description: Internal Server Error
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
     post:
-      operationId: create_key
       tags:
         - keys
       description: |
         Create a new API key
-      consumes:
-        - application/json
+      operationId: create_key
       parameters:
-        - in: body
-          name: request
-          description: The details of the key being created.
+        - in: header
+          name: X-Customer-ID
           schema:
-            type: object
-            required:
-              - actor_id
-            properties:
-              policies:
-                type: array
-                description: The access policies to give, leave empty for none
-                items:
+            type: string
+      requestBody:
+        description: The details of the key being created.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                policies:
+                  type: array
+                  description: The access policies to give, leave empty for none
+                  items:
+                    type: string
+                actor_id:
+                  pattern: ^.{1,255}
                   type: string
-              actor_id:
-                type: string
-                description: The reference to the actor. In simple words, this is what binds an API key to a user/customer.
-                pattern: '^.{1,255}'
-              expires_at:
-                type: string
-                description: Date on which the key quota will expire at 00.00 (optional)
-                format: date
-                pattern: '^\d{4}\-\d{2}-\d{2}'
-              quota:
-                type: integer
-                description: The amount of calls the API Key can make (optional)
-              description:
-                type: string
-                description: Description for the key (optional)
-                maxLength: 64
+                  description: The reference to the actor. In simple words, this is
+                    what binds an API key to a user/customer.
+                expires_at:
+                  type: string
+                  description: Date on which the key quota will expire at 00.00 (optional)
+                  format: date
+                quota:
+                  type: integer
+                  description: The amount of calls the API Key can make (optional)
+                description:
+                  maxLength: 64
+                  type: string
+                  description: Description for the key (optional)
+        required: false
       responses:
-        '201':
+        201:
           description: An API key has been created
-          schema:
-            allOf:
-              - type: object
-                description: A key
-                $ref: "#/definitions/KeyCredentials"
-        '400':
-          $ref: "#/responses/BadRequest"
-        '500':
-          $ref: "#/responses/InternalServerError"
+          content:
+            application/hal+json:
+              schema:
+                type: object
+                properties:
+                  KeyCredentials:
+                    $ref: '#/components/schemas/KeyCredentials'
+            application/problem+json:
+              schema:
+                type: object
+                properties:
+                  KeyCredentials:
+                    $ref: '#/components/schemas/KeyCredentials'
+        400:
+          description: Bad Request
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        500:
+          description: Internal Server Error
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-codegen-request-body-name: request
   /keys/{key_hash}:
     get:
-      operationId: get_key
       tags:
         - keys
       description: |
         Get an api key
-      consumes:
-        - application/json
+      operationId: get_key
       parameters:
-        - in: path
-          name: key_hash
+        - name: key_hash
+          in: path
           description: The key hash
-          type: string
           required: true
-      responses:
-        '200':
-          description: Detailed properties of a key
           schema:
-              $ref: '#/definitions/KeyDetailsWithGatewayContext'
-        '400':
-          $ref: "#/responses/BadRequest"
-        '404':
-          $ref: "#/responses/NotFound"
-        '500':
-          $ref: "#/responses/InternalServerError"
+            type: string
+      responses:
+        200:
+          description: Detailed properties of a key
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
+        400:
+          description: Bad Request
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        404:
+          description: NotFound
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        500:
+          description: Internal Server Error
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
     patch:
-      operationId: update_key
       tags:
         - keys
       description: |
         Update an api key
-      consumes:
-        - application/json
+      operationId: update_key
       parameters:
-        - in: path
-          name: key_hash
+        - name: key_hash
+          in: path
           description: The key hash from the key that will be updated
-          type: string
           required: true
-        - in: body
-          name: request
-          description: The details of the key that need updating
           schema:
-            properties:
-              policies:
-                type: array
-                description: The access policies to give, leave empty for none (optional)
-                items:
+            type: string
+      requestBody:
+        description: The details of the key that need updating
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                policies:
+                  type: array
+                  description: The access policies to give, leave empty for none (optional)
+                  items:
+                    type: string
+                expires_at:
                   type: string
-              expires_at:
-                type: string
-                description: Date on which the api key quota will expire at 00.00 (optional)
-                format: date
-                pattern: '^\d{4}\-\d{2}-\d{2}'
-              quota:
-                type: integer
-                description: The amount of calls the API Key has left (optional), set to -1 for unlimited
-              description:
-                type: string
-                description: Description for the key (optional)
-                maxLength: 64
+                  description: Date on which the api key quota will expire at 00.00
+                    (optional)
+                  format: date
+                quota:
+                  type: integer
+                  description: The amount of calls the API Key has left (optional),
+                    set to -1 for unlimited
+                description:
+                  maxLength: 64
+                  type: string
+                  description: Description for the key (optional)
+        required: false
       responses:
-        '200':
+        200:
           description: Detailed properties of a key
-          schema:
-            $ref: '#/definitions/KeyDetailsWithGatewayContext'
-        '400':
-          $ref: "#/responses/BadRequest"
-        '404':
-          $ref: "#/responses/NotFound"
-        '500':
-          $ref: "#/responses/InternalServerError"
-
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
+        400:
+          description: Bad Request
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        404:
+          description: NotFound
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        500:
+          description: Internal Server Error
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-codegen-request-body-name: request
   /policies:
     get:
-      operationId: list_policies
       tags:
         - policy
       description: |
         Get the list of available policies
-      consumes:
-        - application/json
-      parameters: []
+      operationId: list_policies
       responses:
-        '200':
+        200:
           description: list of available policies
-          schema:
+          content:
+            application/hal+json:
+              schema:
+                type: array
+                example:
+                  - compliance-monitor-full-access
+                  - routeplanner-full-access
+                items:
+                  type: string
+            application/problem+json:
+              schema:
+                type: array
+                example:
+                  - compliance-monitor-full-access
+                  - routeplanner-full-access
+                items:
+                  type: string
+components:
+  schemas:
+    KeyCredentials:
+      title: KeyCredentials
+      description: API key credentials
+      allOf:
+        - required:
+            - hash
+            - key
+          type: object
+          properties:
+            key:
+              type: string
+              description: The created API key which can be used to access APIs.
+            hash:
+              type: string
+              description: The key hash. This is a unique identifier to each API key.
+    KeyDetails:
+      title: KeyDetails
+      description: Key details served from our internal DB
+      oneOf:
+        - required:
+            - actor_id
+            - client_id
+          type: object
+          properties:
+            actor_id:
+              type: string
+              description: The actor id of the key
+            client_id:
+              type: integer
+              description: the id of the customer
+            user_id:
+              type: integer
+              description: the id of the user
+      allOf:
+        - required:
+            - actor_id
+            - creation_date
+            - hash
+          type: object
+          properties:
+            hash:
+              type: string
+              description: The key hash
+            expires_at:
+              type: string
+              description: Date on which the keys quota will expire at 00.00 (optional)
+              format: date
+            description:
+              maxLength: 64
+              type: string
+              description: Description for the key (optional)
+            creation_date:
+              type: string
+              description: DateTime on which the api key was created
+              format: date
+    KeyDetailsWithGatewayContext:
+      title: KeyDetailsWithGatewayContext
+      description: Detailed properties of a key, both from DB and the API Gateway
+      oneOf:
+        - required:
+            - actor_id
+            - user_id
+          type: object
+          properties:
+            actor_id:
+              type: string
+              description: The actor id of the key
+            client_id:
+              type: integer
+              description: The id of the client
+            user_id:
+              type: integer
+              description: The id of the user
+      allOf:
+        - required:
+            - creation_date
+          type: object
+          properties:
+            policies:
               type: array
+              example:
+                - compliance-monitor-full-access
+                - routeplanner-full-access
               items:
                 type: string
-              example: ["compliance-monitor-full-access", "routeplanner-full-access"]
-responses:
-  NotFound:
-    description: NotFound
-    schema:
-      $ref: "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Problem.json#/definitions/Problem"
-  BadRequest:
-    description: Bad Request
-    schema:
-      $ref: "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Problem.json#/definitions/Problem"
-  InternalServerError:
-    description: Internal Server Error
-    schema:
-      $ref: "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/Problem.json#/definitions/Problem"
-definitions:
-  KeyCredentials:
-    title: KeyCredentials
-    description: API key credentials
-    type: object
-    allOf:
-      - properties:
-          key:
-            type: string
-            description: The created API key which can be used to access APIs.
-          hash:
-            type: string
-            description: The key hash. This is a unique identifier to each API key.
-        required: [ "key", "hash" ]
-  KeyDetails:
-    title: KeyDetails
-    description: Key details served from our internal DB
-    type: object
-    allOf:
-      - properties:
-          hash:
-            type: string
-            description: The key hash
-          actor_id:
-            type: string
-            description: The actor id of the key
-          expires_at:
-            type: string
-            description: Date on which the keys quota will expire at 00.00 (optional)
-            format: date
-            pattern: '^\d{4}\-\d{2}-\d{2}'
-          description:
-            type: string
-            description: Description for the key (optional)
-            maxLength: 64
-          creation_date:
-            type: string
-            description: DateTime on which the api key was created
-            format: date
-            pattern: '^\d{4}\-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z'
-        required: [ "hash", "actor_id", "creation_date" ]
-  KeyDetailsWithGatewayContext:
-    title: KeyDetailsWithGatewayContext
-    description: Detailed properties of a key, both from DB and the API Gateway
-    type: object
-    allOf:
-      - properties:
-          actor_id:
-            type: string
-            description: The actor id of the key
-          policies:
-            type: array
-            items:
+            expires_at:
               type: string
-            example: ["compliance-monitor-full-access", "routeplanner-full-access"]
-          expires_at:
-            type: string
-            description: Date on which the key quota will expire at 00.00 (optional)
-            format: date
-            pattern: '^\d{4}\-\d{2}-\d{2}'
-          quota:
-            type: string
-            description: The actor id of the key
-          description:
-            type: string
-            description: Description for the key (optional)
-            maxLength: 64
-          creation_date:
-            type: string
-            description: DateTime on which the api key was created
-            format: date
-            pattern: '^\d{4}\-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z'
-        required: [ "actor_id", "creation_date" ]
+              description: Date on which the key quota will expire at 00.00 (optional)
+              format: date
+            quota:
+              type: string
+              description: The actor id of the key
+            description:
+              maxLength: 64
+              type: string
+              description: Description for the key (optional)
+            creation_date:
+              type: string
+              description: DateTime on which the api key was created
+              format: date
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          description: |
+            An absolute URI that identifies the problem type.  When dereferenced,
+            it SHOULD provide human-readable documentation for the problem type
+            (e.g., using HTML).
+          format: uri
+          default: about:blank
+        title:
+          type: string
+          description: |
+            A short, summary of the problem type. Written in english and readable
+            for engineers (usually not suited for non technical stakeholders and
+            not localized); example: Service Unavailable
+        status:
+          maximum: 6E+2
+          minimum: 1E+2
+          type: integer
+          description: |
+            The HTTP status code generated by the origin server for this occurrence
+            of the problem.
+          format: int32
+          example: 503
+        detail:
+          type: string
+          description: |
+            A human readable explanation specific to this occurrence of the
+            problem.
+          example: Connection to database timed out
+        instance:
+          type: string
+          description: |
+            An absolute URI that identifies the specific occurrence of the problem.
+            It may or may not yield further information if dereferenced.
+          format: uri
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/hal+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/hal+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: NotFound
+      content:
+        application/hal+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
