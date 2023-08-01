@@ -6,6 +6,48 @@ image:
   pullSecrets:
     - gitlab-registry
 
+sidecars:
+  - name: opa
+    image: openpolicyagent/opa:0.54.0
+    ports:
+      - name: http
+        containerPort: 8181
+    args:
+      - "run"
+      - "--ignore=.*"  # exclude hidden dirs created by Kubernetes
+      - "--server"
+      - "--h2c"
+      - "-c"
+      - "/opa_config.yaml"
+    livenessProbe:
+      httpGet:
+        path: /health?bundle=true
+        scheme: HTTP
+        port: 8181
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    readinessProbe:
+      httpGet:
+        path: /health?bundle=true  # Include bundle activation in readiness
+        scheme: HTTP
+        port: 8181
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    volumeMounts:
+      - readOnly: true
+        mountPath: /opa_config.yaml
+        subPath: opa_config.yaml
+        name: opa-config
+
+# sidecar volume
+extraVolumes:
+  - name: opa-config
+    configMap:
+      name: "{{ .Release.Name }}-admin-api"
+      items:
+        - key: opa_config.yaml
+          path: opa_config.yaml
+
 ## Configure extra options for liveness probe
 ##
 livenessProbe:
@@ -72,6 +114,16 @@ configMap:
       temporal:
         hostPort: "{{ .Values.global.temporal.hostPort }}"
         namespace: "ci-api"
+    opa_config.yaml:
+      services:
+        - name: oma
+          url:
+      bundles:
+        authz:
+          service: oma
+          resource: /namespaces/ci-api/bundles/admin/api
+          polling:
+            long_polling_timeout_seconds: 10
 
 postgresql:
   enabled: false

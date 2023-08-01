@@ -13,6 +13,10 @@ configMap:
         temporal:
           hostPort: "{{ .Values.global.temporal.hostPort }}"
           namespace: "{{ .Values.global.temporal.namespace }}"
+    opa_config.yaml:
+      services:
+        - name: oma
+          url: "http://acc-oma.oma-4624/v1"
 
 postgresql:
   enabled: true
