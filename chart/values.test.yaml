@@ -18,5 +18,14 @@ configMap:
         - name: oma
           url: "http://acc-oma.oma-4624/v1"
 
+# sidecar volume
+extraVolumes:
+  - name: opa-config
+    configMap:
+      name: "{{ .Release.Name }}-admin-api"
+      items:
+        - key: opa_config.yaml
+          path: opa_config.yaml
+
 postgresql:
   enabled: true
