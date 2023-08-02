@@ -43,7 +43,7 @@ sidecars:
 extraVolumes:
   - name: opa-config
     configMap:
-      name: "{{ .Release.Name }}-admin-api"
+      name: "{{ .Release.Name }}"
       items:
         - key: opa_config.yaml
           path: opa_config.yaml
