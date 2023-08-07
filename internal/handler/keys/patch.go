@@ -36,10 +36,6 @@ type PatchInput struct {
 
 // Validate validates the PATCH request body.
 func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
-	// Validate quota.
-	if i.Quota != nil && *i.Quota < -1 {
-		return errors.New("quota must be greater than equal -1")
-	}
 	// Validate policies.
 	if i.Policies != nil {
 		if !validation.ValidatePolicies(ctx, tykAPI, *i.Policies) {
