@@ -2,6 +2,7 @@
 package keys
 
 import (
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"net/http"
 	"time"
 
@@ -19,11 +20,10 @@ type ListInput struct {
 
 // ListOutput represents the list of key's information.
 type ListOutput struct {
-	Hash        string            `json:"hash"`
+	ID          string            `json:"id"`
+	CreatorID   string            `json:"creator_id"`
 	ActorID     string            `json:"actor_id"`
-	ClientID    int64             `json:"client_id"`
-	UserID      int64             `json:"user_id"`
-	ExpiresAt   string            `json:"expires_at"`
+	ExpiresAt   *date.Date        `json:"expires_at"`
 	Description *string           `json:"description"`
 	CreationAt  time.Time         `json:"creation_date"`
 	Contact     Contact           `json:"contacts"`
@@ -68,6 +68,7 @@ func (h *Handler) convertListDBResultToJSON(keys []*db.Key) []ListOutput {
 			Rate: 0,
 			Per:  0,
 		}
+
 		if key.Metadata != nil {
 			if data, ok := key.Metadata["rate_limit"]; ok {
 				castedData := data.(map[string]any)
@@ -75,18 +76,12 @@ func (h *Handler) convertListDBResultToJSON(keys []*db.Key) []ListOutput {
 				rl.Per = uint(castedData["Per"].(float64))
 			}
 		}
-		var expiresAt string
-		if key.ExpiresAt != nil {
-			expiresAt = key.ExpiresAt.Format("2006-01-02")
-		} else {
-			expiresAt = "0"
-		}
+
 		response = append(response, ListOutput{
-			Hash:        key.Hash,
+			ID:          key.ID,
+			CreatorID:   key.CreatorID,
 			ActorID:     key.ActorID,
-			ClientID:    key.ClientID,
-			UserID:      key.UserID,
-			ExpiresAt:   expiresAt,
+			ExpiresAt:   key.ExpiresAt,
 			Description: key.Description,
 			CreationAt:  key.CreatedAt,
 			Contact:     Contact(key.Contact),

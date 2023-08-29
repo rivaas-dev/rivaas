@@ -5,6 +5,8 @@ services:
     image: tykio/tyk-gateway:v4.3
     ports:
       - "8081:8081"
+    networks:
+      - admin-api-network
     volumes:
       - ./deployments/tyk/test.tyk.conf:/opt/tyk-gateway/tyk.conf
       - ./deployments/tyk/test.policies.json:/opt/tyk-gateway/policies/policies.json
@@ -16,26 +18,69 @@ services:
   redis:
     hostname: redis
     image: redis
+    networks:
+      - admin-api-network
 
   api:
-    image: registry.ci.fdmg.org/datacluster/docker/go-ci/1.20
-    entrypoint: ["go", "run", "cmd/api/main.go"]
+    image: registry.ci.fdmg.org/datacluster/docker/go-ci:1.20
+    entrypoint: ["go", "run", "cmd/admin-api/main.go"]
     volumes:
       - .:/app
     working_dir: /app
     depends_on:
       - tyk
-      - db
+      - postgresql
     ports:
-      - "8090:8090"
+      - "8080:8080"
 
-  db:
-    image: postgres
+  postgresql:
+    image: postgres:12.9-alpine3.15
     ports:
       - "5432:5432"
+    networks:
+      - admin-api-network
     environment:
-      POSTGRES_DB: db
+      POSTGRES_DB: admin_api
       POSTGRES_USER: user
       POSTGRES_PASSWORD: secret
     volumes:
       - "./deployments/postgresql/:/docker-entrypoint-initdb.d/"
+
+  temporal:
+    image: temporalio/auto-setup:1.21.4
+    container_name: temporal
+    depends_on:
+      - postgresql
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=user
+      - POSTGRES_PWD=secret
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    ports:
+      - "7233:7233"
+    networks:
+      - admin-api-network
+    volumes:
+      - ./deployments/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+    labels:
+      kompose.volume.type: configMap
+
+  temporal-ui:
+    image: temporalio/ui:2.17.2
+    container_name: temporal-ui
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    networks:
+      - admin-api-network
+    ports:
+      - "8181:8080"
+
+networks:
+  admin-api-network:
+    driver: bridge
+    name: admin-api-network

@@ -23,15 +23,15 @@ const (
 
 // PatchInput represents the PATCH request body.
 type PatchInput struct {
-	Hash        string             `uri:"id" binding:"required"`                           // Key ID.
-	Policies    *[]string          `                            json:"policies"`           // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date         `                            json:"expires_at"`         // Date on which the key quota will expire at 00.00 (optional).
-	Quota       *int64             `                            json:"quota"`              // The amount of calls the API Key can make (optional).
-	Description *string            `                            json:"description"`        // Description for the key (optional).
-	Contact     *Contact           `                            json:"contacts,omitempty"` // Contacts information.
-	Active      *bool              `                            json:"active,omitempty"`   // Defines the status of the key.
-	RateLimit   *RateLimit         `                            json:"rate_limit"`         // Defines rate limit of the key.
-	Labels      *map[string]string `json:"labels"`                                         // Contains user specified labels for categorization
+	ID          string             `uri:"id" binding:"required"` // Key ID.
+	Policies    *[]string          `json:"policies"`             // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date         `json:"expires_at"`           // Date on which the key quota will expire at 00.00 (optional).
+	Quota       *int64             `json:"quota"`                // The amount of calls the API Key can make (optional).
+	Description *string            `json:"description"`          // Description for the key (optional).
+	Contact     *Contact           `json:"contacts,omitempty"`   // Contacts information.
+	Active      *bool              `json:"active,omitempty"`     // Defines the status of the key.
+	RateLimit   *RateLimit         `json:"rate_limit"`           // Defines rate limit of the key.
+	Labels      *map[string]string `json:"labels"`               // Contains user specified labels for categorization
 }
 
 // Validate validates the PATCH request body.
@@ -60,7 +60,7 @@ func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error
 
 // workflowInput represents the workflow request body.
 type workflowInput struct {
-	Hash        string             // Key ID.
+	ID          string             // Key ID.
 	Policies    *[]string          // The access policies to give, leave empty for none.
 	ExpiresAt   *date.Date         // Date on which the key quota will expire at 00.00 (optional).
 	Quota       *int64             // The amount of calls the API Key can make (optional).
@@ -73,25 +73,25 @@ type workflowInput struct {
 
 // output represents response body.
 type output struct {
-	ActorID     string     `json:"actor_id"`
-	ClientID    int64      `json:"client_id"`
-	UserID      int64      `json:"user_id"`
-	Policies    []string   `json:"policies"`
-	ExpiresAt   *date.Date `json:"expires_at"`
-	Quota       int64      `json:"quota"`
-	Description string     `json:"description"`
-	CreatedDate time.Time  `json:"created_date"`
-	Contact     Contact    `json:"contacts"`
-	Active      bool       `json:"active"`
-	RateLimit   RateLimit  `json:"rate_limit"`
+	ID          string             `json:"id"`
+	ActorID     string             `json:"actor_id"`
+	CreatorID   string             `json:"creator_id"`
+	Policies    []string           `json:"policies"`
+	ExpiresAt   *date.Date         `json:"expires_at"`
+	Quota       int64              `json:"quota"`
+	Description string             `json:"description"`
+	CreatedDate time.Time          `json:"created_date"`
+	Contact     Contact            `json:"contacts"`
+	Active      bool               `json:"active"`
+	RateLimit   RateLimit          `json:"rate_limit"`
 	Labels      *map[string]string `json:"labels"`
 }
 
 // workflowOutput represents the workflow response body.
 type workflowOutput struct {
+	ID          string
 	ActorID     string
-	ClientID    int64
-	UserID      int64
+	CreatorID   string
 	Policies    []string
 	ExpiresAt   *date.Date
 	Quota       int64
@@ -142,7 +142,7 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 	}
 
 	// Find the key in database.
-	dbKey, err := h.keysRepository.GetKey(request.Hash)
+	dbKey, err := h.keysRepository.GetKey(request.ID)
 	if err != nil {
 		log.Err(err).Msg("error while communicating with DB")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
@@ -192,7 +192,7 @@ func (h *Handler) callPATCHWorker(ctx *goskell.Context, request workflowInput) (
 // requestToWorkflowInput converts request body into workflow's input.
 func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput {
 	wInput := workflowInput{
-		Hash:        request.Hash,
+		ID:          request.ID,
 		Policies:    request.Policies,
 		ExpiresAt:   request.ExpiresAt,
 		Quota:       request.Quota,
@@ -216,9 +216,9 @@ func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput
 // workflowOutputToResponse converts the workflow response body into the API response.
 func (h *Handler) workflowOutputToPATCHResponse(workflowOutput *workflowOutput) *output {
 	return &output{
+		ID:          workflowOutput.ID,
 		ActorID:     workflowOutput.ActorID,
-		ClientID:    workflowOutput.ClientID,
-		UserID:      workflowOutput.UserID,
+		CreatorID:   workflowOutput.CreatorID,
 		Policies:    workflowOutput.Policies,
 		ExpiresAt:   workflowOutput.ExpiresAt,
 		Quota:       workflowOutput.Quota,

@@ -18,12 +18,7 @@ const (
 
 // WorkflowDeleteInput represents the workflow input for a DELETE request.
 type WorkflowDeleteInput struct {
-	Hash string
-}
-
-// WorkflowDeleteOutput represents the workflow output of a DELETE request.
-type WorkflowDeleteOutput struct {
-	Hash string
+	ID string
 }
 
 // DELETE handles DELETE requests on the endpoint.
@@ -42,7 +37,7 @@ func (h *Handler) DELETE(ctx *goskell.Context) {
 	}
 
 	// Find the key in database.
-	dbKey, err := h.keysRepository.GetKey(request.Hash)
+	dbKey, err := h.keysRepository.GetKey(request.ID)
 	if err != nil {
 		log.Err(err).Msg("error while communicating with DB")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
@@ -79,8 +74,7 @@ func (h *Handler) callDeleteWorker(ctx *goskell.Context, request WorkflowDeleteI
 		Msg("workflow is started")
 
 	// Get the worker's response.
-	var response WorkflowDeleteOutput
-	err = workflowRun.Get(ctx, &response)
+	err = workflowRun.Get(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -91,6 +85,6 @@ func (h *Handler) callDeleteWorker(ctx *goskell.Context, request WorkflowDeleteI
 // requestToWorkflowInput converts request body into workflow's input.
 func (h *Handler) deleteRequestToWorkflowInput(request *KeyID) WorkflowDeleteInput {
 	return WorkflowDeleteInput{
-		Hash: request.Hash,
+		ID: request.ID,
 	}
 }
