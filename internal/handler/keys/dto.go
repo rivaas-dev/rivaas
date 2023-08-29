@@ -15,7 +15,7 @@ type RateLimit struct {
 
 // KeyID represents the request key hash.
 type KeyID struct {
-	Hash string `uri:"id" binding:"required"` // Key ID.
+	ID string `uri:"id" binding:"required"` // Key ID.
 }
 
 // ApikeyEnvironment represents the environment the key is used

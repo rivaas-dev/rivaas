@@ -32,7 +32,7 @@ func New(host string, port uint16, username string, password string, database st
 // GetKey returns a key by hash.
 func (s DBClient) GetKey(hash string) (*Key, error) {
 	var row Key
-	res := s.client.First(&row, "key_hash = ? AND deleted_at is NULL", hash)
+	res := s.client.First(&row, "id = ? AND deleted_at is NULL", hash)
 	if res.Error != nil && errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		return nil, nil // not really an error, just no result
 	}
@@ -46,7 +46,7 @@ func (s DBClient) GetKeys(actorID, description string) ([]*Key, error) {
 	searchKey := Key{ActorID: actorID}
 	q = q.Where(searchKey).Where("deleted_at is NULL")
 	if description != "" {
-		q = q.Where("description LIKE ?", fmt.Sprintf("%%%s%%", description))
+		q = q.Where("description ILIKE ?", fmt.Sprintf("%%%s%%", description))
 	}
 	result := q.Find(&keyList)
 	if result.Error != nil {

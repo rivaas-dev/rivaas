@@ -1,6 +1,6 @@
 app:
   host: 0.0.0.0
-  port: 8090
+  port: 8080
   logLevel: "debug"
 
   database:
@@ -8,7 +8,7 @@ app:
     port: 5432
     username: user
     password: secret
-    name: db
+    name: admin_api
 
   tyk:
     url: http://127.0.0.1:8081
@@ -17,4 +17,4 @@ app:
 
   temporal:
     hostPort: 127.0.0.1:7233
-    namespace: ci-api
+    namespace: default

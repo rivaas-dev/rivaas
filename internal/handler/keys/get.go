@@ -4,6 +4,7 @@ package keys
 import (
 	"encoding/json"
 	"errors"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"net/http"
 	"time"
 
@@ -17,10 +18,10 @@ import (
 
 // GetOutput represents a Key information.
 type GetOutput struct {
+	ID           string            `json:"id"`
 	ActorID      string            `json:"actor_id"`
-	ClientID     int64             `json:"client_id"`
-	UserID       int64             `json:"user_id"`
-	ExpiresAt    string            `json:"expires_at"`
+	CreatorID    string            `json:"creator_id"`
+	ExpiresAt    *date.Date        `json:"expires_at"`
 	Quota        int64             `json:"quota"`
 	Description  string            `json:"description"`
 	Policies     []string          `json:"policies"`
@@ -48,15 +49,27 @@ func (h *Handler) GET(ctx *goskell.Context) {
 	}
 
 	// Find the key in database.
-	dbKey, err := h.keysRepository.GetKey(request.Hash)
+	dbKey, err := h.keysRepository.GetKey(request.ID)
 	if err != nil {
 		log.Err(err).Msg("error while communicating with DB")
-		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Status: http.StatusInternalServerError,
+				Title:  http.StatusText(http.StatusInternalServerError),
+			},
+		)
 		return
 	}
 	if dbKey == nil {
 		log.Err(err).Msg("key not found in database")
-		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusNotFound})
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Status: http.StatusNotFound,
+				Title:  http.StatusText(http.StatusNotFound),
+			},
+		)
 		return
 	}
 
@@ -88,8 +101,10 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 
 	// build key from db response
 	result := GetOutput{
-		ClientID:     dbKey.ClientID,
-		UserID:       dbKey.UserID,
+		ID:           dbKey.ID,
+		ActorID:      dbKey.ActorID,
+		CreatorID:    dbKey.CreatorID,
+		ExpiresAt:    dbKey.ExpiresAt,
 		Policies:     tykResponse.ApplyPolicies,
 		Quota:        tykResponse.QuotaMax,
 		CreationDate: dbKey.CreatedAt,
@@ -97,9 +112,6 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 		Active:       !tykResponse.IsInactive,
 		Environment:  dbKey.Environment,
 		Labels:       dbKey.Labels,
-	}
-	if actorID, ok := dbKey.Metadata["actor_id"]; ok {
-		result.ActorID = actorID.(string)
 	}
 
 	if rateLimit, ok := dbKey.Metadata["rate_limit"]; ok {
@@ -114,11 +126,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 			Per:  rateLimit.Per,
 		}
 	}
-	if tykResponse.Expires > 0 {
-		result.ExpiresAt = time.Unix(tykResponse.Expires, 0).UTC().Format("2006-01-02")
-	} else {
-		result.ExpiresAt = "0"
-	}
+
 	if dbKey.Description != nil {
 		result.Description = *dbKey.Description
 	}
