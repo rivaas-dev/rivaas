@@ -49,6 +49,11 @@ func (h *Handler) DELETE(ctx *goskell.Context) {
 		return
 	}
 
+	if !h.isAuthorized(ctx, dbKey) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	// Call the worker.
 	err = h.callDeleteWorker(ctx, h.deleteRequestToWorkflowInput(&request))
 	if err != nil {

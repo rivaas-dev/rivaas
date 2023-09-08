@@ -114,6 +114,11 @@ configMap:
       temporal:
         hostPort: "{{ .Values.global.temporal.hostPort }}"
         namespace: "ci-api"
+      oma:
+        address:
+        namespace: "ci-api"
+        opa:
+          address: http://localhost:8181
     opa_config.yaml:
       services:
         - name: oma

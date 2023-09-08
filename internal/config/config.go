@@ -8,6 +8,7 @@ type Config struct {
 	Database Database
 	Tyk      Tyk
 	Temporal Temporal
+	OMA      OMA
 }
 
 // Database represents Database configuration.
@@ -30,4 +31,16 @@ type Tyk struct {
 type Temporal struct {
 	HostPort  string
 	Namespace string
+}
+
+// OMA represents OMA configuration.
+type OMA struct {
+	Address   string
+	Namespace string
+	OPA       OPA
+}
+
+// OPA represents OPA configuration.
+type OPA struct {
+	Address string
 }
