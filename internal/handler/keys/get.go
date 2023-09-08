@@ -73,11 +73,24 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		return
 	}
 
+	if !h.isAuthorized(ctx, dbKey) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	// Get more info of the key.
 	response, err := h.getKeyInfo(ctx, dbKey)
 	if err != nil {
 		log.Err(err).Msg("error on calling worker")
-		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Status: http.StatusInternalServerError,
+				Title:  http.StatusText(http.StatusInternalServerError),
+			},
+		)
+
+		return
 	}
 
 	ctx.JSON(http.StatusCreated, response)

@@ -154,6 +154,11 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		return
 	}
 
+	if !h.isAuthorized(ctx, dbKey) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	// Call the worker.
 	response, err := h.callPATCHWorker(ctx, h.patchRequestToWorkflowInput(&request))
 	if err != nil {

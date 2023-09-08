@@ -3,17 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/url"
-
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/keys"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/policies"
+	policieshandler "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/policies"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/policies"
+	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/nl/webservices/goconfig"
 	"go.temporal.io/sdk/client"
+	"net/http"
+	"net/url"
 )
 
 // App defines app configuration.
@@ -67,8 +69,11 @@ func run(ctx context.Context) error {
 	}
 	defer temporalClient.Close()
 
+	// Connect to OMA and OPA
+	omaClient := newOMAClient(ctx, cfg.OMA)
+
 	// Register handlers.
-	registerHandlers(server, keysRepository, tykClient, temporalClient)
+	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient)
 
 	// Run server.
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -89,19 +94,44 @@ func newTykClient(cfg config.Tyk) *tyk.APIClient {
 	)
 }
 
+func newOMAClient(ctx context.Context, cfg config.OMA) *oma.Client {
+	baseOMAURL, err := url.Parse(cfg.Address)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to parse OMA URL")
+	}
+
+	baseOPAURL, err := url.Parse(cfg.OPA.Address)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to parse OPA URL")
+	}
+
+	c, err := oma.New(baseOMAURL, baseOPAURL, oma.WithNamespace(cfg.Namespace), oma.WithHTTPClient(&http.Client{}))
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to initialize OMA client")
+	}
+
+	err = policies.InitializeRegoFiles(ctx, c)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to initialize Rego files on OMA")
+	}
+
+	return c
+}
+
 func registerHandlers(
 	server *goskell.Server,
 	dbClient db.DatabaseExecer,
 	tykClient *tyk.APIClient,
 	temporalClient client.Client,
+	omaClient *oma.Client,
 ) {
-	keyHandler := keys.New(temporalClient, tykClient, dbClient)
+	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient)
 	server.POST("/keys", keyHandler.POST)
 	server.GET("/keys", keyHandler.LIST)
 	server.GET("/keys/:id", keyHandler.GET)
 	server.PATCH("/keys/:id", keyHandler.PATCH)
 	server.DELETE("/keys/:id", keyHandler.DELETE)
 
-	policiesHandler := policies.New(tykClient)
+	policiesHandler := policieshandler.New(tykClient)
 	server.GET("/policies", policiesHandler.LIST)
 }

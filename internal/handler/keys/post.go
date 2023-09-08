@@ -158,6 +158,11 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
+	if !h.isAuthorized(ctx, nil) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	// Call the worker.
 	response, err := h.POSTWorker(ctx, h.postRequestToWorkflowInput(&request))
 	if err != nil {

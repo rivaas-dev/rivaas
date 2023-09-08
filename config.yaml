@@ -18,3 +18,9 @@ app:
   temporal:
     hostPort: 127.0.0.1:7233
     namespace: default
+
+  oma:
+    address: http://localhost:8282
+    namespace: ci-api
+    opa:
+      address: http://localhost:8181

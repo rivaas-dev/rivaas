@@ -56,6 +56,11 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 		return
 	}
 
+	if !h.isAuthorized(ctx, nil) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	// Prepare the response.
 	response := h.convertListDBResultToJSON(keys)
 	ctx.JSON(http.StatusCreated, response)
