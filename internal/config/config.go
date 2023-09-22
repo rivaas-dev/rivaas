@@ -1,10 +1,13 @@
 package config
 
+import "gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
+
 // Config represents application configuration.
 type Config struct {
 	Host     string
 	Port     uint16
 	LogLevel string
+	KeyCloak keycloak.Config
 	Database Database
 	Tyk      Tyk
 	Temporal Temporal

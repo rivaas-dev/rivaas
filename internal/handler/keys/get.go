@@ -19,6 +19,7 @@ import (
 // GetOutput represents a Key information.
 type GetOutput struct {
 	ID           string            `json:"id"`
+	Name         string            `json:"name"`
 	ActorID      string            `json:"actor_id"`
 	CreatorID    string            `json:"creator_id"`
 	ExpiresAt    *date.Date        `json:"expires_at"`
@@ -112,9 +113,20 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 		return nil, errors.New("key not found")
 	}
 
+	// call keycloak to get the customer name, set it as unknown to avoid panic when not found
+	customerName := "UNKNOWN"
+	keycloakGroup, err := h.keycloakClient.GetGroupByActorID(ctx, dbKey.ActorID)
+	if err != nil {
+		log.Err(err).Msg("error while communicating with DB")
+	} else {
+		// Set the customer name value
+		customerName = *keycloakGroup.Name
+	}
+
 	// build key from db response
 	result := GetOutput{
 		ID:           dbKey.ID,
+		Name:         customerName,
 		ActorID:      dbKey.ActorID,
 		CreatorID:    dbKey.CreatorID,
 		ExpiresAt:    dbKey.ExpiresAt,

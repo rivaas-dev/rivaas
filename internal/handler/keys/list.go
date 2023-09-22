@@ -21,6 +21,7 @@ type ListInput struct {
 // ListOutput represents the list of key's information.
 type ListOutput struct {
 	ID          string            `json:"id"`
+	Name        string            `json:"name"`
 	CreatorID   string            `json:"creator_id"`
 	ActorID     string            `json:"actor_id"`
 	ExpiresAt   *date.Date        `json:"expires_at"`
@@ -62,11 +63,11 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	}
 
 	// Prepare the response.
-	response := h.convertListDBResultToJSON(keys)
+	response := h.convertListDBResultToJSON(ctx, keys)
 	ctx.JSON(http.StatusCreated, response)
 }
 
-func (h *Handler) convertListDBResultToJSON(keys []*db.Key) []ListOutput {
+func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key) []ListOutput {
 	var response []ListOutput
 	for _, key := range keys {
 		rl := RateLimit{
@@ -82,8 +83,19 @@ func (h *Handler) convertListDBResultToJSON(keys []*db.Key) []ListOutput {
 			}
 		}
 
+		// call keycloak to get the customer name, set it as unknown to avoid panic when not found
+		customerName := "UNKNOWN"
+		keycloakGroup, err := h.keycloakClient.GetGroupByActorID(ctx, key.ActorID)
+		if err != nil {
+			log.Err(err).Msg("cant find client in keycloak")
+		} else {
+			// Set the customer name value
+			customerName = *keycloakGroup.Name
+		}
+		// Define the response
 		response = append(response, ListOutput{
 			ID:          key.ID,
+			Name:        customerName,
 			CreatorID:   key.CreatorID,
 			ActorID:     key.ActorID,
 			ExpiresAt:   key.ExpiresAt,

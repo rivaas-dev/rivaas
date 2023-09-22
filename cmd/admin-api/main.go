@@ -6,8 +6,10 @@ import (
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/accounts"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/keys"
 	policieshandler "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/policies"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/policies"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
@@ -69,11 +71,19 @@ func run(ctx context.Context) error {
 	}
 	defer temporalClient.Close()
 
+	// Connect to Keycloak client
+	keyCloakClient, err := keycloak.New(ctx, cfg.KeyCloak)
+	if err != nil {
+		log.Fatal().
+			Err(err).
+			Msg("Unable to initialize keyCloak client")
+	}
+
 	// Connect to OMA and OPA
 	omaClient := newOMAClient(ctx, cfg.OMA)
 
 	// Register handlers.
-	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient)
+	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient)
 
 	// Run server.
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -124,8 +134,9 @@ func registerHandlers(
 	tykClient *tyk.APIClient,
 	temporalClient client.Client,
 	omaClient *oma.Client,
+	keyCloakClient *keycloak.Client,
 ) {
-	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient)
+	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient)
 	server.POST("/keys", keyHandler.POST)
 	server.GET("/keys", keyHandler.LIST)
 	server.GET("/keys/:id", keyHandler.GET)
@@ -134,4 +145,7 @@ func registerHandlers(
 
 	policiesHandler := policieshandler.New(tykClient)
 	server.GET("/policies", policiesHandler.LIST)
+
+	accountHandler := accounts.New(keyCloakClient)
+	server.GET("/accounts", accountHandler.GET)
 }
