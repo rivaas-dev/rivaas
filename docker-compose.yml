@@ -22,6 +22,8 @@ services:
       - admin-api-network
 
   api:
+    profiles:
+      - donotstart
     image: registry.ci.fdmg.org/datacluster/docker/go-ci:1.20
     entrypoint: ["go", "run", "cmd/admin-api/main.go"]
     volumes:
@@ -31,7 +33,7 @@ services:
       - tyk
       - postgresql
     ports:
-      - "8080:8080"
+      - "8090:8090"
 
   postgresql:
     image: postgres:12.9-alpine3.15
@@ -40,6 +42,7 @@ services:
     networks:
       - admin-api-network
     environment:
+      POSTGRES_HOST: localhost
       POSTGRES_DB: admin_api
       POSTGRES_USER: user
       POSTGRES_PASSWORD: secret
@@ -79,6 +82,51 @@ services:
       - admin-api-network
     ports:
       - "8181:8080"
+  temporal-admin-tools:
+    container_name: temporal-admin-tools
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    image: temporalio/admin-tools:latest
+    networks:
+      - admin-api-network
+    stdin_open: true
+    tty: true
+  sso:
+    image: "quay.io/keycloak/keycloak:19.0.3"
+    container_name: "keyCloak"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: password
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./deployments/keycloak/keycloak.conf:/opt/keycloak/conf/keycloak.conf
+    command:
+      - start-dev
+      - --db=postgres
+      - --db-username=user
+      - --db-url-database=keycloak
+      - --db-password=secret
+    depends_on:
+      - postgresql
+    ports:
+      - "8080:8080"
+    networks:
+      - admin-api-network
+
+  opa:
+   image: openpolicyagent/opa:0.56.0
+   ports:
+     - "8282:8181"
+   volumes:
+    - ./deployments/opa/config.yaml:/config.yaml
+   command:
+     - "run"
+     - "--server"
+     - "-c"
+     - "/config.yaml"
 
 networks:
   admin-api-network:

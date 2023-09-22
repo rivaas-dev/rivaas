@@ -1,0 +1,9 @@
+services:
+  - name: oma
+    url: https://oma-acc.nl.ci.fdmg.org/v1
+bundles:
+  authz:
+    service: oma
+    resource: /namespaces/ci-api/bundles/admin/api
+    polling:
+      long_polling_timeout_seconds: 10

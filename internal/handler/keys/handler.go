@@ -3,6 +3,7 @@ package keys
 
 import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"go.temporal.io/sdk/client"
@@ -14,14 +15,16 @@ type Handler struct {
 	temporalClient client.Client
 	omaClient      *oma.Client
 	keysRepository db.DatabaseExecer
+	keycloakClient *keycloak.Client
 }
 
 // New constructs a new Handler.
-func New(temporalClient client.Client, tykClient *tyk.APIClient, keysRepository db.DatabaseExecer, omaClient *oma.Client) *Handler {
+func New(temporalClient client.Client, tykClient *tyk.APIClient, keysRepository db.DatabaseExecer, omaClient *oma.Client, keycloakClient *keycloak.Client) *Handler {
 	return &Handler{
 		tykClient:      tykClient,
 		temporalClient: temporalClient,
 		omaClient:      omaClient,
 		keysRepository: keysRepository,
+		keycloakClient: keycloakClient,
 	}
 }
