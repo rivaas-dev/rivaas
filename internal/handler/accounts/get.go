@@ -1,6 +1,7 @@
 package accounts
 
 import (
+	"fmt"
 	"github.com/Nerzal/gocloak/v13"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
@@ -43,7 +44,7 @@ func GetGroup(group []*gocloak.Group) []*Group {
 			// validate
 			if isApiAccount(sub[s]) {
 				groups = append(groups, &Group{
-					CustomerName:       *customerName,
+					CustomerName:       fmt.Sprintf("%s - %s", *customerName, *sub[s].Name),
 					KeycloakAccountId:  sub[s].ID,
 					KeycloakCustomerId: customerID,
 					ActorId:            getActorId(&sub[s]),
