@@ -18,20 +18,21 @@ import (
 
 // GetOutput represents a Key information.
 type GetOutput struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	ActorID      string            `json:"actor_id"`
-	CreatorID    string            `json:"creator_id"`
-	ExpiresAt    *date.Date        `json:"expires_at"`
-	Quota        int64             `json:"quota"`
-	Description  string            `json:"description"`
-	Policies     []string          `json:"policies"`
-	CreationDate time.Time         `json:"creation_date"`
-	Contact      Contact           `json:"contacts,omitempty"`
-	Active       bool              `json:"active"`
-	RateLimit    RateLimit         `json:"rate_limit"`
-	Environment  ApikeyEnvironment `json:"environment"`
-	Labels       map[string]string `json:"labels"`
+	ID             string            `json:"id"`
+	Name           string            `json:"name"`
+	ActorID        string            `json:"actor_id"`
+	CreatorID      string            `json:"creator_id"`
+	ExpiresAt      *date.Date        `json:"expires_at"`
+	Quota          int64             `json:"quota"`
+	QuotaRemaining int64             `json:"quota_remaining"`
+	Description    string            `json:"description"`
+	Policies       []string          `json:"policies"`
+	CreationDate   time.Time         `json:"creation_date"`
+	Contact        Contact           `json:"contacts,omitempty"`
+	Active         bool              `json:"active"`
+	RateLimit      RateLimit         `json:"rate_limit"`
+	Environment    ApikeyEnvironment `json:"environment"`
+	Labels         map[string]string `json:"labels"`
 }
 
 // GET handles GET requests on the endpoint.
@@ -125,18 +126,19 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 
 	// build key from db response
 	result := GetOutput{
-		ID:           dbKey.ID,
-		Name:         customerName,
-		ActorID:      dbKey.ActorID,
-		CreatorID:    dbKey.CreatorID,
-		ExpiresAt:    dbKey.ExpiresAt,
-		Policies:     tykResponse.ApplyPolicies,
-		Quota:        tykResponse.QuotaMax,
-		CreationDate: dbKey.CreatedAt,
-		Contact:      Contact(dbKey.Contact),
-		Active:       !tykResponse.IsInactive,
-		Environment:  dbKey.Environment,
-		Labels:       dbKey.Labels,
+		ID:             dbKey.ID,
+		Name:           customerName,
+		ActorID:        dbKey.ActorID,
+		CreatorID:      dbKey.CreatorID,
+		ExpiresAt:      dbKey.ExpiresAt,
+		Policies:       tykResponse.ApplyPolicies,
+		Quota:          tykResponse.QuotaMax,
+		QuotaRemaining: tykResponse.QuotaRemaining,
+		CreationDate:   dbKey.CreatedAt,
+		Contact:        Contact(dbKey.Contact),
+		Active:         !tykResponse.IsInactive,
+		Environment:    dbKey.Environment,
+		Labels:         dbKey.Labels,
 	}
 
 	if rateLimit, ok := dbKey.Metadata["rate_limit"]; ok {
