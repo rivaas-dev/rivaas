@@ -373,8 +373,11 @@ components:
               description: Date on which the key quota will expire at 00.00 (optional)
               format: date
             quota:
-              type: string
-              description: The actor id of the key
+              type: integer
+              description: The maximum amount of calls the API Key can make
+            quota_remaining:
+              type: integer
+              description: The remaining amount of calls the API Key can make
             description:
               maxLength: 64
               type: string

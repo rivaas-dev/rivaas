@@ -73,34 +73,36 @@ type workflowInput struct {
 
 // output represents response body.
 type output struct {
-	ID          string             `json:"id"`
-	ActorID     string             `json:"actor_id"`
-	CreatorID   string             `json:"creator_id"`
-	Policies    []string           `json:"policies"`
-	ExpiresAt   *date.Date         `json:"expires_at"`
-	Quota       int64              `json:"quota"`
-	Description string             `json:"description"`
-	CreatedDate time.Time          `json:"created_date"`
-	Contact     Contact            `json:"contacts"`
-	Active      bool               `json:"active"`
-	RateLimit   RateLimit          `json:"rate_limit"`
-	Labels      *map[string]string `json:"labels"`
+	ID             string             `json:"id"`
+	ActorID        string             `json:"actor_id"`
+	CreatorID      string             `json:"creator_id"`
+	Policies       []string           `json:"policies"`
+	ExpiresAt      *date.Date         `json:"expires_at"`
+	Quota          int64              `json:"quota"`
+	QuotaRemaining int64              `json:"quota_remaining"`
+	Description    string             `json:"description"`
+	CreatedDate    time.Time          `json:"created_date"`
+	Contact        Contact            `json:"contacts"`
+	Active         bool               `json:"active"`
+	RateLimit      RateLimit          `json:"rate_limit"`
+	Labels         *map[string]string `json:"labels"`
 }
 
 // workflowOutput represents the workflow response body.
 type workflowOutput struct {
-	ID          string
-	ActorID     string
-	CreatorID   string
-	Policies    []string
-	ExpiresAt   *date.Date
-	Quota       int64
-	Description string
-	CreatedAt   time.Time
-	Contact     Contact
-	Active      bool
-	RateLimit   RateLimit
-	Labels      *map[string]string
+	ID             string
+	ActorID        string
+	CreatorID      string
+	Policies       []string
+	ExpiresAt      *date.Date
+	Quota          int64
+	QuotaRemaining int64
+	Description    string
+	CreatedAt      time.Time
+	Contact        Contact
+	Active         bool
+	RateLimit      RateLimit
+	Labels         *map[string]string
 }
 
 // PATCH handles PATCH requests of the endpoint.
@@ -221,17 +223,18 @@ func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput
 // workflowOutputToResponse converts the workflow response body into the API response.
 func (h *Handler) workflowOutputToPATCHResponse(workflowOutput *workflowOutput) *output {
 	return &output{
-		ID:          workflowOutput.ID,
-		ActorID:     workflowOutput.ActorID,
-		CreatorID:   workflowOutput.CreatorID,
-		Policies:    workflowOutput.Policies,
-		ExpiresAt:   workflowOutput.ExpiresAt,
-		Quota:       workflowOutput.Quota,
-		Description: workflowOutput.Description,
-		CreatedDate: workflowOutput.CreatedAt,
-		Contact:     workflowOutput.Contact,
-		Active:      workflowOutput.Active,
-		RateLimit:   workflowOutput.RateLimit,
-		Labels:      workflowOutput.Labels,
+		ID:             workflowOutput.ID,
+		ActorID:        workflowOutput.ActorID,
+		CreatorID:      workflowOutput.CreatorID,
+		Policies:       workflowOutput.Policies,
+		ExpiresAt:      workflowOutput.ExpiresAt,
+		Quota:          workflowOutput.Quota,
+		QuotaRemaining: workflowOutput.QuotaRemaining,
+		Description:    workflowOutput.Description,
+		CreatedDate:    workflowOutput.CreatedAt,
+		Contact:        workflowOutput.Contact,
+		Active:         workflowOutput.Active,
+		RateLimit:      workflowOutput.RateLimit,
+		Labels:         workflowOutput.Labels,
 	}
 }
