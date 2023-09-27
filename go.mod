@@ -9,7 +9,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4
-	gitlab.ci.fdmg.org/ci-api/cigourn v0.1.2
+	gitlab.ci.fdmg.org/ci-api/cigourn v0.1.3
 	gitlab.ci.fdmg.org/ci-api/oma v0.4.0
 	gitlab.ci.fdmg.org/ci-api/tyk-sdk-go v0.1.0
 	gitlab.ci.fdmg.org/datacluster/golibs/gnatcatcher v0.1.3
