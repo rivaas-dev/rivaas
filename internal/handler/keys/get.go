@@ -20,6 +20,7 @@ import (
 type GetOutput struct {
 	ID             string            `json:"id"`
 	Name           string            `json:"name"`
+	Hash           string            `json:"hash"`
 	ActorID        string            `json:"actor_id"`
 	CreatorID      string            `json:"creator_id"`
 	ExpiresAt      *date.Date        `json:"expires_at"`
@@ -128,6 +129,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 	result := GetOutput{
 		ID:             dbKey.ID,
 		Name:           customerName,
+		Hash:           dbKey.Hash,
 		ActorID:        dbKey.ActorID,
 		CreatorID:      dbKey.CreatorID,
 		ExpiresAt:      dbKey.ExpiresAt,
