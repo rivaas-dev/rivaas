@@ -22,6 +22,7 @@ type ListInput struct {
 type ListOutput struct {
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
+	Hash        string            `json:"hash"`
 	CreatorID   string            `json:"creator_id"`
 	ActorID     string            `json:"actor_id"`
 	ExpiresAt   *date.Date        `json:"expires_at"`
@@ -97,6 +98,7 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 			ID:          key.ID,
 			Name:        customerName,
 			CreatorID:   key.CreatorID,
+			Hash:        key.Hash,
 			ActorID:     key.ActorID,
 			ExpiresAt:   key.ExpiresAt,
 			Description: key.Description,
