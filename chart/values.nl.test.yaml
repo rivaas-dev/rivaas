@@ -1,0 +1,8 @@
+## Configure the ConfigMap resource that allows you to store non-confidential data in key-value pairs.
+##
+configMap:
+  data:
+    config.yaml:
+      app:
+        keycloak:
+          url: "http://acc-keycloak-http.keycloak-149.svc/auth"

@@ -15,6 +15,11 @@ configMap:
           namespace: "{{ .Values.global.temporal.namespace }}"
         oma:
           address: "http://acc-oma.oma-4624"
+        keycloak:
+          realm: servicesv2
+          clientID: temporal-provisioning
+          clientSecret: 2rgkbgTanrw7OJFxU0qHs90WIap2iaDj
+          pageSize: 50
     opa_config.yaml:
       services:
         - name: oma

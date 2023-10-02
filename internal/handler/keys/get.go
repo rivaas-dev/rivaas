@@ -4,9 +4,10 @@ package keys
 import (
 	"encoding/json"
 	"errors"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"net/http"
 	"time"
+
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 
 	"github.com/antihax/optional"
 	"github.com/rs/zerolog/log"
@@ -96,7 +97,7 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, response)
+	ctx.JSON(http.StatusOK, response)
 }
 
 // getKeyInfo gets more info of the key by calling Tyk API.

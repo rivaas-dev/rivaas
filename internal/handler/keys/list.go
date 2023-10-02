@@ -2,9 +2,10 @@
 package keys
 
 import (
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"net/http"
 	"time"
+
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
@@ -65,11 +66,11 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 
 	// Prepare the response.
 	response := h.convertListDBResultToJSON(ctx, keys)
-	ctx.JSON(http.StatusCreated, response)
+	ctx.JSON(http.StatusOK, response)
 }
 
 func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key) []ListOutput {
-	var response []ListOutput
+	response := make([]ListOutput, 0)
 	for _, key := range keys {
 		rl := RateLimit{
 			Rate: 0,
