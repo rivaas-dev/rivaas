@@ -1,7 +1,7 @@
 #!/bin/sh
-URL="${URL:-http://127.0.0.1:8080}"
+URL="${URL:-http://127.0.0.1:8090}"
 EXPIRES_AT=$(date --date="2 days" "+%Y-%m-%d")
-curl -sv -X POST "$URL/keys" -H "Content-Type: application/json" -H "X-Customer-ID: urn:online:user:123:456" -d @- <<EOF | jq .
+http post "$URL/keys" "Content-Type: application/json" "X-Customer-ID:urn:online:user:123:456" <<EOF
 {
   "policies": [
     "policy-1"

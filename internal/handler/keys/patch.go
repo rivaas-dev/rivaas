@@ -168,7 +168,7 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
 	}
 
-	ctx.JSON(http.StatusCreated, h.workflowOutputToPATCHResponse(response))
+	ctx.JSON(http.StatusOK, h.workflowOutputToPATCHResponse(response))
 }
 
 // callWorker calls workflow.
