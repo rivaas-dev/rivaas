@@ -4,6 +4,7 @@ package keys
 import (
 	"encoding/json"
 	"errors"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"net/http"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 // GetOutput represents a Key information.
 type GetOutput struct {
 	ID             string            `json:"id"`
-	Name           string            `json:"name"`
+	CustomerName   string            `json:"customer_name"`
 	Hash           string            `json:"hash"`
 	ActorID        string            `json:"actor_id"`
 	CreatorID      string            `json:"creator_id"`
@@ -116,20 +117,16 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 		return nil, errors.New("key not found")
 	}
 
-	// call keycloak to get the customer name, set it as unknown to avoid panic when not found
-	customerName := "UNKNOWN"
-	keycloakGroup, err := h.keycloakClient.GetGroupByActorID(ctx, dbKey.ActorID)
+	// Get customer data
+	keycloakGroups, err := h.keycloakClient.GetGroups(ctx)
 	if err != nil {
 		log.Err(err).Msg("error while communicating with DB")
-	} else {
-		// Set the customer name value
-		customerName = *keycloakGroup.Name
 	}
 
 	// build key from db response
 	result := GetOutput{
 		ID:             dbKey.ID,
-		Name:           customerName,
+		CustomerName:   internal.GetCustomerName(keycloakGroups, *dbKey),
 		Hash:           dbKey.Hash,
 		ActorID:        dbKey.ActorID,
 		CreatorID:      dbKey.CreatorID,

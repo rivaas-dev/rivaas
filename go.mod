@@ -6,6 +6,7 @@ require (
 	github.com/Nerzal/gocloak/v13 v13.8.0
 	github.com/antihax/optional v1.0.0
 	github.com/go-resty/resty/v2 v2.8.0
+	github.com/google/jsonapi v1.0.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4

@@ -79,6 +79,14 @@ paths:
                   type: string
                   description: The reference to the actor. In simple words, this is
                     what binds an API key to a user/customer.
+                customer_id:
+                  pattern: ^[a-zA-Z0-9_-]{1,255}$
+                  type: string
+                  description: The reference to the actor customer ID
+                account_id:
+                  pattern: ^[a-zA-Z0-9_-]{1,255}$
+                  type: string
+                  description: The reference to the actor account ID
                 expires_at:
                   type: string
                   description: Date on which the key quota will expire at 00.00 (optional)

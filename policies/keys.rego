@@ -27,7 +27,7 @@ allow := true {
 }
 
 allow := true {
-	requesterCustomerID := split(input.user.id, ":")[3]
+  requesterCustomerID := split(input.user.id, ":")[3]
   keyCustomerID := split(input.key.creator_id, ":")[3]
   input.request.method == "PATCH"
   input.request.path == "/keys/:id"
