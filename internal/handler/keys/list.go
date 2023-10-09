@@ -2,13 +2,13 @@
 package keys
 
 import (
+	"github.com/rs/zerolog/log"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"net/http"
 	"time"
 
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
-
-	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 )
@@ -21,19 +21,19 @@ type ListInput struct {
 
 // ListOutput represents the list of key's information.
 type ListOutput struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Hash        string            `json:"hash"`
-	CreatorID   string            `json:"creator_id"`
-	ActorID     string            `json:"actor_id"`
-	ExpiresAt   *date.Date        `json:"expires_at"`
-	Description *string           `json:"description"`
-	CreationAt  time.Time         `json:"creation_date"`
-	Contact     Contact           `json:"contacts"`
-	Active      bool              `json:"active"`
-	RateLimit   RateLimit         `json:"rate_limit"`
-	Environment ApikeyEnvironment `json:"environment"`
-	Labels      map[string]string `json:"labels"`
+	ID           string            `json:"id"`
+	CustomerName string            `json:"customer_name"`
+	Hash         string            `json:"hash"`
+	CreatorID    string            `json:"creator_id"`
+	ActorID      string            `json:"actor_id"`
+	ExpiresAt    *date.Date        `json:"expires_at"`
+	Description  *string           `json:"description"`
+	CreationAt   time.Time         `json:"creation_date"`
+	Contact      Contact           `json:"contacts"`
+	Active       bool              `json:"active"`
+	RateLimit    RateLimit         `json:"rate_limit"`
+	Environment  ApikeyEnvironment `json:"environment"`
+	Labels       map[string]string `json:"labels"`
 }
 
 // LIST handles GET requests on the endpoint to get list of keys.
@@ -86,29 +86,25 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 		}
 
 		// call keycloak to get the customer name, set it as unknown to avoid panic when not found
-		customerName := "UNKNOWN"
-		keycloakGroup, err := h.keycloakClient.GetGroupByActorID(ctx, key.ActorID)
+		keycloakGroups, err := h.keycloakClient.GetGroups(ctx)
 		if err != nil {
 			log.Err(err).Msg("cant find client in keycloak")
-		} else {
-			// Set the customer name value
-			customerName = *keycloakGroup.Name
 		}
 		// Define the response
 		response = append(response, ListOutput{
-			ID:          key.ID,
-			Name:        customerName,
-			CreatorID:   key.CreatorID,
-			Hash:        key.Hash,
-			ActorID:     key.ActorID,
-			ExpiresAt:   key.ExpiresAt,
-			Description: key.Description,
-			CreationAt:  key.CreatedAt,
-			Contact:     Contact(key.Contact),
-			Active:      key.Active,
-			RateLimit:   rl,
-			Environment: key.Environment,
-			Labels:      key.Labels,
+			ID:           key.ID,
+			CustomerName: internal.GetCustomerName(keycloakGroups, *key),
+			CreatorID:    key.CreatorID,
+			Hash:         key.Hash,
+			ActorID:      key.ActorID,
+			ExpiresAt:    key.ExpiresAt,
+			Description:  key.Description,
+			CreationAt:   key.CreatedAt,
+			Contact:      Contact(key.Contact),
+			Active:       key.Active,
+			RateLimit:    rl,
+			Environment:  key.Environment,
+			Labels:       key.Labels,
 		})
 	}
 	return response
