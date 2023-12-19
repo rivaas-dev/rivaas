@@ -118,7 +118,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 	}
 
 	// Get customer data
-	keycloakGroups, err := h.keycloakClient.GetGroups(ctx)
+	keycloakGroups, err := h.keycloakClient.GetGroups(ctx, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
 	if err != nil {
 		log.Err(err).Msg("error while communicating with DB")
 	}

@@ -5,4 +5,12 @@ configMap:
     config.yaml:
       app:
         keycloak:
-          url: "http://acc-keycloak-http.keycloak-149.svc/auth"
+          credentials:
+            url: "https://acc-login.company.info/auth"
+            realm: servicesv2
+            clientID: temporal-provisioning
+            clientSecret: 2rgkbgTanrw7OJFxU0qHs90WIap2iaDj
+            pageSize: 50
+          briefRepresentation: false
+          first: 0
+          max: 500
