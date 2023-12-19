@@ -20,11 +20,15 @@ app:
     namespace: default
 
   keycloak:
-    url: http://localhost:8080
-    realm: master
-    clientID: admin-cli
-    clientSecret: Asbc6VAmt7AqFCLDorGSYoazk6nKhwKx
-    pageSize: 5
+    credentials:
+      url: http://localhost:8080
+      realm: master
+      clientID: admin-cli
+      clientSecret: l52pZfoIeuZ7qZKWP6zBI5Lf17Zq62Fy
+      pageSize: 5
+    briefRepresentation: false
+    first: 0
+    max: 500
 
   oma:
     address: http://oma-acc.nl.ci.fdmg.org

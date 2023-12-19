@@ -1,10 +1,9 @@
 package accounts
 
 import (
-	"github.com/Nerzal/gocloak/v13"
 	"github.com/google/jsonapi"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 	"net/http"
@@ -17,7 +16,8 @@ const (
 	checkTypeValue string = "api"
 )
 
-// KeycloakAccount is used to fetch all groups from Keycloak
+// KeycloakAccount is used to fetch all groups from Keycloak and later
+// parsed to Account / Customer json api structs for output
 type KeycloakAccount struct {
 	KeycloakAccountID            *string
 	KeycloakAccountSalesforceId  string
@@ -25,28 +25,29 @@ type KeycloakAccount struct {
 	KeycloakCustomerSalesforceId string
 	CustomerName                 string
 	AccountName                  string
+	CustomerContactDetails       map[string]keycloak.Contact
 }
 
 // Account is the base data element
 type Account struct {
-	ID           string    `jsonapi:"primary,accounts"`
-	Customers    *Customer `jsonapi:"relation,customer"`
-	Name         string    `jsonapi:"attr,name"`
-	SalesforceID string    `jsonapi:"attr,salesforceID"`
+	ID        string    `jsonapi:"primary,accounts"`
+	Customers *Customer `jsonapi:"relation,customer"`
+	Name      string    `jsonapi:"attr,name"`
 }
 
 // Customer is in relation to an api account
 type Customer struct {
-	ID           string `jsonapi:"primary,customer"`
-	Name         string `jsonapi:"attr,name"`
-	SalesforceID string `jsonapi:"attr,salesforceID"`
+	ID                     string                      `jsonapi:"primary,customer"`
+	Name                   string                      `jsonapi:"attr,name"`
+	SalesforceID           string                      `jsonapi:"attr,salesforceID"`
+	CustomerContactDetails map[string]keycloak.Contact `jsonapi:"attr,contactDetails"`
 }
 
 // GET handles GET requests on the endpoint.
 func (h *Handler) GET(ctx *goskell.Context) {
 
 	// Fetch
-	keycloakGroups, err := h.keycloakClient.GetGroups(ctx)
+	groups, err := h.keycloakClient.GetGroups(ctx, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
 	if err != nil {
 		goskell.ProblemJSON(
 			ctx,
@@ -58,14 +59,15 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		)
 		return
 	}
+
 	// Fill the response with the data
-	groups := parseGroups(keycloakGroups)
+	parsedKeyCloakGroups := parseGroups(groups)
 	// Sort in descending alphabetic order
-	sort.Slice(groups, func(i, j int) bool {
-		return groups[i].CustomerName < groups[j].CustomerName
+	sort.Slice(parsedKeyCloakGroups, func(i, j int) bool {
+		return parsedKeyCloakGroups[i].CustomerName < parsedKeyCloakGroups[j].CustomerName
 	})
 	// Build response from groups
-	response, err := jsonapi.Marshal(buildResponse(groups))
+	response, err := jsonapi.Marshal(buildResponse(parsedKeyCloakGroups))
 	if err != nil {
 		goskell.ProblemJSON(
 			ctx,
@@ -90,12 +92,12 @@ func buildResponse(groups []*KeycloakAccount) []*Account {
 		account := Account{}
 		account.ID = *group.KeycloakAccountID
 		account.Name = group.AccountName
-		account.SalesforceID = group.KeycloakAccountSalesforceId
 		// Add relationship to api account -> customer
 		customer := Customer{}
 		customer.ID = *group.KeycloakCustomerID
 		customer.Name = group.CustomerName
 		customer.SalesforceID = group.KeycloakCustomerSalesforceId
+		customer.CustomerContactDetails = group.CustomerContactDetails
 		// Add customer
 		account.Customers = &customer
 		accounts = append(accounts, &account)
@@ -107,7 +109,7 @@ func buildResponse(groups []*KeycloakAccount) []*Account {
 // parseGroups looks at the first subgroup of the main and tries
 // to find groups that have attribute `type` = `api`. It only goes one level down
 // from the main group.
-func parseGroups(group []*gocloak.Group) []*KeycloakAccount {
+func parseGroups(group []*keycloak.Group) []*KeycloakAccount {
 	// Return
 	var groups []*KeycloakAccount
 	// iterate the main groups
@@ -115,7 +117,7 @@ func parseGroups(group []*gocloak.Group) []*KeycloakAccount {
 		// Set main group variables used for the subgroups
 		customerName := group[i].Name
 		customerID := group[i].ID
-		customerSalesforceId := getSalesforceId(group[i])
+		customerSalesforceId := getSalesforceId(*group[i])
 		// Iterate subgroup
 		sub := *group[i].SubGroups
 		for s := 0; s < len(sub); s++ {
@@ -125,9 +127,10 @@ func parseGroups(group []*gocloak.Group) []*KeycloakAccount {
 					CustomerName:                 *customerName,
 					KeycloakCustomerSalesforceId: customerSalesforceId,
 					AccountName:                  *sub[s].Name,
-					KeycloakAccountSalesforceId:  getSalesforceId(&sub[s]),
+					KeycloakAccountSalesforceId:  getSalesforceId(sub[s]),
 					KeycloakAccountID:            sub[s].ID,
 					KeycloakCustomerID:           customerID,
+					CustomerContactDetails:       getCustomerContactDetails(sub[s]),
 				})
 			}
 		}
@@ -137,7 +140,7 @@ func parseGroups(group []*gocloak.Group) []*KeycloakAccount {
 }
 
 // isApiAccount determines if the keycloak group is api account
-func isApiAccount(group gocloak.Group) bool {
+func isApiAccount(group keycloak.Group) bool {
 	// Check if there are attributes
 	if len(*group.Attributes) > 0 {
 		attrMap := *group.Attributes
@@ -150,11 +153,20 @@ func isApiAccount(group gocloak.Group) bool {
 	return false
 }
 
-func getSalesforceId(group *gocloak.Group) string {
+func getSalesforceId(group keycloak.Group) string {
 	attr, err := keycloak.ToGroupAttributes(*group.Attributes)
 	if err != nil {
 		return ""
 	}
 
 	return attr.SalesforceID
+}
+
+func getCustomerContactDetails(group keycloak.Group) map[string]keycloak.Contact {
+
+	customer, err := keycloak.ToSubGroupAttributes(*group.Attributes)
+	if err != nil {
+		return nil
+	}
+	return customer.ContactDetails
 }

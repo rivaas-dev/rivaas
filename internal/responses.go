@@ -1,12 +1,12 @@
 package internal
 
 import (
-	"github.com/Nerzal/gocloak/v13"
 	"github.com/google/jsonapi"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/cigourn"
 	"gitlab.ci.fdmg.org/ci-api/cigourn/api"
 	"gitlab.ci.fdmg.org/ci-api/cigourn/salesforce"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
 
@@ -20,7 +20,7 @@ func WriteJSONAPIResponse(ctx *goskell.Context, body any, statusCode int, header
 }
 
 // GetCustomerName compares the keycloak group id with the database key actor id.
-func GetCustomerName(keycloakGroups []*gocloak.Group, key db.Key) string {
+func GetCustomerName(keycloakGroups []*keycloak.Group, key db.Key) string {
 	// Set default as unknown
 	customerName := "UNKNOWN"
 	// Parse the URN

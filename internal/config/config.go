@@ -1,13 +1,13 @@
 package config
 
-import "gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
+import "gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 
 // Config represents application configuration.
 type Config struct {
 	Host     string
 	Port     uint16
 	LogLevel string
-	KeyCloak keycloak.Config
+	KeyCloak KeyCloakConfig
 	Database Database
 	Tyk      Tyk
 	Temporal Temporal
@@ -46,4 +46,11 @@ type OMA struct {
 // OPA represents OPA configuration.
 type OPA struct {
 	Address string
+}
+
+type KeyCloakConfig struct {
+	Credentials        keycloak.Config
+	BrifRepresentation bool
+	First              int
+	Max                int
 }

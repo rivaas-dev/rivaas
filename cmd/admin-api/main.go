@@ -8,9 +8,9 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/accounts"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/keys"
-	policieshandler "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/policies"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
+	policiesHandler "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/policies"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/policies"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
@@ -71,8 +71,14 @@ func run(ctx context.Context) error {
 	}
 	defer temporalClient.Close()
 
+	// These configs are for invoking the interface and used in the handler
+	keyCloakConfig := config.KeyCloakConfig{
+		BrifRepresentation: cfg.KeyCloak.BrifRepresentation,
+		First:              cfg.KeyCloak.First,
+		Max:                cfg.KeyCloak.Max,
+	}
 	// Connect to Keycloak client
-	keyCloakClient, err := keycloak.New(ctx, cfg.KeyCloak)
+	keyCloakClient, err := keycloak.New(ctx, cfg.KeyCloak.Credentials)
 	if err != nil {
 		log.Fatal().
 			Err(err).
@@ -83,7 +89,7 @@ func run(ctx context.Context) error {
 	omaClient := newOMAClient(ctx, cfg.OMA)
 
 	// Register handlers.
-	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient)
+	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig)
 
 	// Run server.
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -134,18 +140,19 @@ func registerHandlers(
 	tykClient *tyk.APIClient,
 	temporalClient client.Client,
 	omaClient *oma.Client,
-	keyCloakClient *keycloak.Client,
+	keyCloakClient keycloak.Client,
+	keyCloakConfig config.KeyCloakConfig,
 ) {
-	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient)
+	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig)
 	server.POST("/keys", keyHandler.POST)
 	server.GET("/keys", keyHandler.LIST)
 	server.GET("/keys/:id", keyHandler.GET)
 	server.PATCH("/keys/:id", keyHandler.PATCH)
 	server.DELETE("/keys/:id", keyHandler.DELETE)
 
-	policiesHandler := policieshandler.New(tykClient)
+	policiesHandler := policiesHandler.New(tykClient)
 	server.GET("/policies", policiesHandler.LIST)
 
-	accountHandler := accounts.New(keyCloakClient)
+	accountHandler := accounts.New(keyCloakClient, keyCloakConfig)
 	server.GET("/accounts", accountHandler.GET)
 }
