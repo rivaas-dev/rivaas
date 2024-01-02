@@ -4,6 +4,7 @@ package keys
 import (
 	"errors"
 	"fmt"
+	"github.com/companyinfo/gourn"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/validation"
@@ -93,8 +94,8 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 
 // WorkflowPostInput represents the workflow's request body for a POST request.
 type WorkflowPostInput struct {
-	ActorID     *string            // The reference to the actor. It binds an API key to a customer/user.
-	CreatorID   *string            // The reference to the creator. It binds an API key to a customer/user.
+	ActorID     *gourn.URN         // The reference to the actor. It binds an API key to a customer/user.
+	CreatorID   *gourn.URN         // The reference to the creator. It binds an API key to a customer/user.
 	CustomerID  *string            // References the actor customer ID
 	AccountID   *string            // References the actor user ID
 	Policies    []string           // The access policies to give, leave empty for none.
@@ -163,8 +164,21 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
+	workflowRequest, err := h.postRequestToWorkflowInput(&request)
+	if err != nil {
+		goskell.ProblemJSON(
+			ctx,
+			problem.Details{
+				Title:  http.StatusText(http.StatusBadRequest),
+				Status: http.StatusBadRequest,
+				Detail: err.Error(),
+			},
+		)
+		return
+	}
+
 	// Call the worker.
-	response, err := h.POSTWorker(ctx, h.postRequestToWorkflowInput(&request))
+	response, err := h.POSTWorker(ctx, workflowRequest)
 	if err != nil {
 		log.Err(err).Msg("error on calling worker")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
@@ -199,10 +213,9 @@ func (h *Handler) POSTWorker(ctx *goskell.Context, request WorkflowPostInput) (*
 }
 
 // requestToWorkflowInput converts request body into workflow's input.
-func (h *Handler) postRequestToWorkflowInput(request *PostInput) WorkflowPostInput {
+func (h *Handler) postRequestToWorkflowInput(request *PostInput) (WorkflowPostInput, error) {
+	var err error
 	wInput := WorkflowPostInput{
-		ActorID:     &request.ActorID,
-		CreatorID:   &request.CreatorID,
 		CustomerID:  &request.CustomerID,
 		AccountID:   &request.AccountID,
 		Policies:    request.Policies,
@@ -220,7 +233,19 @@ func (h *Handler) postRequestToWorkflowInput(request *PostInput) WorkflowPostInp
 	if request.RateLimit != nil {
 		wInput.RateLimit = *request.RateLimit
 	}
-	return wInput
+	if request.ActorID != "" {
+		wInput.ActorID, err = gourn.Parse(request.ActorID)
+		if err != nil {
+			return wInput, err
+		}
+	}
+	if request.CreatorID != "" {
+		wInput.CreatorID, err = gourn.Parse(request.CreatorID)
+		if err != nil {
+			return wInput, err
+		}
+	}
+	return wInput, nil
 }
 
 // workflowOnputToResponse converts workflow response into API response.
