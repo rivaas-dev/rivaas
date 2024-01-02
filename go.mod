@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/antihax/optional v1.0.0
+	github.com/companyinfo/gourn v0.1.1
 	github.com/google/jsonapi v1.0.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/rs/zerolog v1.31.0
@@ -31,7 +32,6 @@ require (
 	github.com/bytedance/sonic v1.9.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
-	github.com/companyinfo/gourn v0.1.1 // indirect
 	github.com/coreos/go-oidc/v3 v3.8.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
