@@ -2,6 +2,8 @@
 package keys
 
 import (
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
+	"go.opentelemetry.io/otel/attribute"
 	"net/http"
 
 	"github.com/rs/zerolog/log"
@@ -37,17 +39,23 @@ func (h *Handler) DELETE(ctx *goskell.Context) {
 	}
 
 	// Find the key in database.
+	_, span := goot.Span(ctx.Request.Context(), "get_from_database",
+		attribute.String("id", request.ID),
+	)
 	dbKey, err := h.keysRepository.GetKey(request.ID)
 	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
 		return
 	}
 	if dbKey == nil {
+		goot.EndSpanWithError(span, err, "key not found")
 		log.Err(err).Msg("key not found in database")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusNotFound})
 		return
 	}
+	goot.EndSpan(span)
 
 	if !h.isAuthorized(ctx, dbKey) {
 		// The appropriate response is already handled in "isAuthorized()"
@@ -69,7 +77,7 @@ func (h *Handler) callDeleteWorker(ctx *goskell.Context, request WorkflowDeleteI
 	workflowOptions := client.StartWorkflowOptions{
 		TaskQueue: deleteWorkerTaskQueue,
 	}
-	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx, workflowOptions, deleteWorkflowName, request)
+	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx.Request.Context(), workflowOptions, deleteWorkflowName, request)
 	if err != nil {
 		return err
 	}

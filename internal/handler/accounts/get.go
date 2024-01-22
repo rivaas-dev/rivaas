@@ -4,6 +4,7 @@ import (
 	"github.com/google/jsonapi"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 	"net/http"
@@ -47,8 +48,10 @@ type Customer struct {
 func (h *Handler) GET(ctx *goskell.Context) {
 
 	// Fetch
+	_, span := goot.Span(ctx.Request.Context(), "get_from_keycloak")
 	groups, err := h.keycloakClient.GetGroups(ctx, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
 	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to call keycloak")
 		goskell.ProblemJSON(
 			ctx,
 			problem.Details{
@@ -59,6 +62,8 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		)
 		return
 	}
+	goot.EndSpan(span)
+
 	// Parse the group data
 	parsedKeyCloakGroups := parseGroups(groups)
 	// Sort in descending alphabetic order

@@ -128,6 +128,23 @@ services:
      - "-c"
      - "/config.yaml"
 
+  jaeger:
+    image: docker.io/bitnami/jaeger:1
+    ports:
+      - "6831:6831"
+      - "6832:6832"
+      - "5778:5778"
+      - "16686:16686" # this is the actual port for the UI
+      - "4317:4317"
+      - "4318:4318"
+      - "14250:14250"
+      - "14268:14268" # this is the port where we send the traces
+      - "14269:14269"
+      - "9411:9411"
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+
 networks:
   admin-api-network:
     driver: bridge

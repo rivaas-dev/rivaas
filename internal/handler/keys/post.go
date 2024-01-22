@@ -193,7 +193,7 @@ func (h *Handler) POSTWorker(ctx *goskell.Context, request WorkflowPostInput) (*
 	workflowOptions := client.StartWorkflowOptions{
 		TaskQueue: postWorkerTaskQueue,
 	}
-	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx, workflowOptions, postWorkflowName, request)
+	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx.Request.Context(), workflowOptions, postWorkflowName, request)
 	if err != nil {
 		return nil, err
 	}
