@@ -3,6 +3,8 @@ package keys
 
 import (
 	"errors"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
+	"go.opentelemetry.io/otel/attribute"
 	"net/http"
 	"time"
 
@@ -144,17 +146,23 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 	}
 
 	// Find the key in database.
+	_, span := goot.Span(ctx.Request.Context(), "get_from_database",
+		attribute.String("id", request.ID),
+	)
 	dbKey, err := h.keysRepository.GetKey(request.ID)
 	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
 		return
 	}
 	if dbKey == nil {
+		goot.EndSpanWithError(span, err, "key not found")
 		log.Err(err).Msg("key not found in database")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusNotFound})
 		return
 	}
+	goot.EndSpan(span)
 
 	if !h.isAuthorized(ctx, dbKey) {
 		// The appropriate response is already handled in "isAuthorized()"
@@ -177,7 +185,7 @@ func (h *Handler) callPATCHWorker(ctx *goskell.Context, request workflowInput) (
 	workflowOptions := client.StartWorkflowOptions{
 		TaskQueue: workerTaskQueue,
 	}
-	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx, workflowOptions, workflowName, request)
+	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx.Request.Context(), workflowOptions, workflowName, request)
 	if err != nil {
 		return nil, err
 	}

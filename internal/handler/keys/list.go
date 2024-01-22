@@ -6,6 +6,7 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"net/http"
 	"time"
 
@@ -52,12 +53,15 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	}
 
 	// Fetch keys from the database.
+	_, span := goot.Span(ctx.Request.Context(), "get_from_database")
 	keys, err := h.keysRepository.GetKeys(request.ActorID, request.Description)
 	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
 		return
 	}
+	goot.EndSpan(span)
 
 	if !h.isAuthorized(ctx, nil) {
 		// The appropriate response is already handled in "isAuthorized()"

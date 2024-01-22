@@ -4,14 +4,15 @@ import "gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 
 // Config represents application configuration.
 type Config struct {
-	Host     string
-	Port     uint16
-	LogLevel string
-	KeyCloak KeyCloakConfig
-	Database Database
-	Tyk      Tyk
-	Temporal Temporal
-	OMA      OMA
+	Host          string
+	Port          uint16
+	LogLevel      string
+	KeyCloak      KeyCloakConfig
+	Database      Database
+	Tyk           Tyk
+	Temporal      Temporal
+	OMA           OMA
+	OpenTelemetry OpenTelemetry
 }
 
 // Database represents Database configuration.
@@ -53,4 +54,8 @@ type KeyCloakConfig struct {
 	BrifRepresentation bool
 	First              int
 	Max                int
+}
+
+type OpenTelemetry struct {
+	URL string
 }

@@ -24,7 +24,7 @@ app:
       url: http://localhost:8080
       realm: master
       clientID: admin-cli
-      clientSecret: l52pZfoIeuZ7qZKWP6zBI5Lf17Zq62Fy
+      clientSecret: dXXvgDaFYaybUXsVXECqw7p1sceqYAGQ
       pageSize: 5
     briefRepresentation: false
     first: 0
@@ -35,3 +35,6 @@ app:
     namespace: ci-api
     opa:
       address: http://localhost:8282
+
+  openTelemetry:
+    url: "http://localhost:14268/api/traces"

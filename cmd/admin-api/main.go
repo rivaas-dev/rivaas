@@ -13,12 +13,18 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/nl/webservices/goconfig"
+	"go.opentelemetry.io/otel/propagation"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/contrib/opentelemetry"
+	"go.temporal.io/sdk/interceptor"
 	"net/http"
 	"net/url"
 )
+
+const ProjectName = "admin_api"
 
 // App defines app configuration.
 type App struct {
@@ -39,9 +45,33 @@ func run(ctx context.Context) error {
 		return err
 	}
 
+	// initialize tracing
+	goot.SetTraceProvider(ProjectName)
+	tracer, err := goot.TracerProvider(ctx, cfg.OpenTelemetry.URL, ProjectName)
+	if err != nil {
+		return fmt.Errorf("failed to initialize tracing provider: %w", err)
+	}
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			log.Err(err).Msg("error shutting down tracer provider")
+		}
+	}()
+	// Create interceptor
+	tp := tracer.Tracer(ProjectName)
+	tracingInterceptor, err := opentelemetry.NewTracingInterceptor(opentelemetry.TracerOptions{Tracer: tp})
+	if err != nil {
+		log.Fatal().Msgf("Failed creating interceptor: %v", err)
+	}
+
 	// Initialize Goskell server.
 	server := goskell.NewServer()
 	server.WithMetrics("admin_api")
+	server.WithTrace(
+		ProjectName,
+		goot.WithPropagators(propagation.TraceContext{}),
+		goot.WithIgnoredPaths(goskell.IgnoredPathsList...),
+		goot.WithTracerProvider(tracer),
+	)
 
 	// Connect to the database.
 	keysRepository, err := db.New(
@@ -62,8 +92,9 @@ func run(ctx context.Context) error {
 	// Connect to Temporal client.
 	temporalClient, err := client.Dial(
 		client.Options{
-			HostPort:  cfg.Temporal.HostPort,
-			Namespace: cfg.Temporal.Namespace,
+			HostPort:     cfg.Temporal.HostPort,
+			Namespace:    cfg.Temporal.Namespace,
+			Interceptors: []interceptor.ClientInterceptor{tracingInterceptor},
 		},
 	)
 	if err != nil {

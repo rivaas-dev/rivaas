@@ -4,7 +4,10 @@ package keys
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
+	"go.opentelemetry.io/otel/attribute"
 	"net/http"
 	"time"
 
@@ -53,9 +56,13 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		return
 	}
 
+	_, span := goot.Span(ctx.Request.Context(), "get_from_database",
+		attribute.String("id", request.ID),
+	)
 	// Find the key in database.
 	dbKey, err := h.keysRepository.GetKey(request.ID)
 	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
 		goskell.ProblemJSON(
 			ctx,
@@ -67,6 +74,7 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		return
 	}
 	if dbKey == nil {
+		goot.EndSpanWithError(span, err, "key not found")
 		log.Err(err).Msg("key not found in database")
 		goskell.ProblemJSON(
 			ctx,
@@ -77,6 +85,7 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		)
 		return
 	}
+	goot.EndSpan(span)
 
 	if !h.isAuthorized(ctx, dbKey) {
 		// The appropriate response is already handled in "isAuthorized()"
@@ -104,24 +113,33 @@ func (h *Handler) GET(ctx *goskell.Context) {
 // getKeyInfo gets more info of the key by calling Tyk API.
 func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, error) {
 	// Get Key info.
+	_, span := goot.Span(ctx.Request.Context(), "get_from_tyk",
+		attribute.String("hash", dbKey.Hash),
+	)
 	tykResponse, resp, err := h.tykClient.KeysApi.GetKey(
 		ctx,
 		dbKey.Hash,
 		&tyk.GetKeyOpts{Hashed: optional.NewBool(true)},
 	)
 	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to call tyk")
 		return nil, err
 	}
 	// Means the key was probably removed
 	if resp.StatusCode != http.StatusOK {
+		goot.EndSpanWithError(span, err, fmt.Sprintf("key not found: status code %d", resp.StatusCode))
 		return nil, errors.New("key not found")
 	}
+	goot.EndSpan(span)
 
 	// Get customer data
+	_, span = goot.Span(ctx.Request.Context(), "get_from_keycloak")
 	keycloakGroups, err := h.keycloakClient.GetGroups(ctx, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
 	if err != nil {
-		log.Err(err).Msg("error while communicating with DB")
+		goot.EndSpanWithError(span, err, "failed to call keycloak")
+		log.Err(err).Msg("error while communicating with keycloak")
 	}
+	goot.EndSpan(span)
 
 	// build key from db response
 	result := GetOutput{
