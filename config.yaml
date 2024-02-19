@@ -37,4 +37,4 @@ app:
       address: http://localhost:8282
 
   openTelemetry:
-    url: "http://localhost:14268/api/traces"
+    url: "http://localhost:4318"

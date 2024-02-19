@@ -128,22 +128,32 @@ services:
      - "-c"
      - "/config.yaml"
 
-  jaeger:
-    image: docker.io/bitnami/jaeger:1
+  # Jaeger
+  jaeger-all-in-one:
+    image: jaegertracing/all-in-one:latest
+    restart: always
     ports:
-      - "6831:6831"
-      - "6832:6832"
-      - "5778:5778"
-      - "16686:16686" # this is the actual port for the UI
-      - "4317:4317"
-      - "4318:4318"
-      - "14250:14250"
-      - "14268:14268" # this is the port where we send the traces
-      - "14269:14269"
-      - "9411:9411"
-    environment:
-      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
-      - COLLECTOR_OTLP_ENABLED=true
+      - "16686:16686"
+      - "14268"
+      - "14250"
+    depends_on:
+      - otelcollector
+
+  # OTel Collector
+  otelcollector:
+    image: otel/opentelemetry-collector:latest
+    restart: always
+    command: ["--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}"]
+    volumes:
+      - ./deployments/otel/config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "1888:1888"   # pprof extension
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "55679:55679" # zpages extension
 
 networks:
   admin-api-network:

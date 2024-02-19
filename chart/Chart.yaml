@@ -6,7 +6,7 @@ version: 1.0.0
 dependencies:
   - name: helmet
     version: "~0.7.0"
-    repository: "https://companyinfo.github.io/helm-charts"
+    repository: "https://charts.companyinfo.dev"
     import-values:
       - defaults
   - name: postgresql
