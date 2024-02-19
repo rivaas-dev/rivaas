@@ -3,7 +3,7 @@ include:
     file: 'golang-templates.yaml'
 
 variables:
-  GO_VERSION: "1.20"
+  GO_VERSION: "1.22"
   GO_BUILD_MAIN_PKG: "./cmd/admin-api/"
   SWAGGER_VALIDATE_DISABLED: "true"
   SWAGGER_VALIDATE_SWAGGER_SPEC: "api/swagger.yaml"
