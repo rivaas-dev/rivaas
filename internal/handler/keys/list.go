@@ -16,8 +16,10 @@ import (
 
 // ListInput represents the request body of the LIST endpoint.
 type ListInput struct {
-	ActorID     string `form:"actor_id"`
-	Description string `form:"description"`
+	ActorID     string `form:"actor_id"`    // ActorID full urn of the customer. Example: urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01HX6GV6CV8NPR1XQRRQQZTMXN
+	Description string `form:"description"` // Description of the api key. Usually is the customer name and type of key, like Prod key customer X
+	CustomerID  string `form:"customer_id"` // CustomerID is the ID of the overall Customer. Example: 19fd5d47-91ea-4cac-a8e0-ea9e295fa44b
+	AccountID   string `form:"account_id"`  // AccountID is the ID of the account. An account can be for example API. Example: f82dddf1-4f06-4fa0-80bd-c2014d5f9540
 }
 
 // ListOutput represents the list of key's information.
@@ -54,7 +56,7 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 
 	// Fetch keys from the database.
 	_, span := goot.Span(ctx.Request.Context(), "get_from_database")
-	keys, err := h.keysRepository.GetKeys(request.ActorID, request.Description)
+	keys, err := h.keysRepository.GetKeys(request.ActorID, request.Description, request.CustomerID, request.AccountID)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
