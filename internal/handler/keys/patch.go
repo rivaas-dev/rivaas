@@ -157,7 +157,7 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		return
 	}
 	if dbKey == nil {
-		goot.EndSpanWithError(span, err, "key not found")
+		goot.EndSpanWithError(span, errors.New("key not found"), "key not found")
 		log.Err(err).Msg("key not found in database")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusNotFound})
 		return
