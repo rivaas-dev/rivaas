@@ -13,6 +13,7 @@ type Config struct {
 	Temporal      Temporal
 	OMA           OMA
 	OpenTelemetry OpenTelemetry
+	Solvimon      Solvimon
 }
 
 // Database represents Database configuration.
@@ -58,4 +59,10 @@ type KeyCloakConfig struct {
 
 type OpenTelemetry struct {
 	URL string
+}
+
+// Solvimon is the config for the solvimon client
+type Solvimon struct {
+	BaseUrl string
+	ApiKey  string
 }

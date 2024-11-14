@@ -11,6 +11,7 @@ import (
 	policiesHandler "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/policies"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/policies"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
@@ -116,11 +117,14 @@ func run(ctx context.Context) error {
 			Msg("Unable to initialize keyCloak client")
 	}
 
+	// Create Solvimon client
+	solvimonClient := solvimon.New(cfg.Solvimon.BaseUrl, cfg.Solvimon.ApiKey)
+
 	// Connect to OMA and OPA
 	omaClient := newOMAClient(ctx, cfg.OMA)
 
 	// Register handlers.
-	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig)
+	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, solvimonClient)
 
 	// Run server.
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -173,6 +177,7 @@ func registerHandlers(
 	omaClient *oma.Client,
 	keyCloakClient keycloak.Client,
 	keyCloakConfig config.KeyCloakConfig,
+	solvimonClient *solvimon.Client,
 ) {
 	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig)
 	server.POST("/keys", keyHandler.POST)
@@ -184,6 +189,7 @@ func registerHandlers(
 	policiesHandler := policiesHandler.New(tykClient)
 	server.GET("/policies", policiesHandler.LIST)
 
-	accountHandler := accounts.New(keyCloakClient, keyCloakConfig)
+	accountHandler := accounts.New(keyCloakClient, keyCloakConfig, solvimonClient)
 	server.GET("/accounts", accountHandler.GET)
+	server.PUT("/accounts/:id", accountHandler.PUT)
 }
