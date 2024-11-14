@@ -30,6 +30,10 @@ app:
     first: 0
     max: 500
 
+  solvimon:
+    baseUrl: https://test.api.solvimon.com/v1
+    apiKey: supersecretkey
+
   oma:
     address: http://oma-acc.nl.ci.fdmg.org
     namespace: ci-api

@@ -26,22 +26,29 @@ type KeycloakAccount struct {
 	KeycloakCustomerSalesforceId string
 	CustomerName                 string
 	AccountName                  string
-	CustomerContactDetails       []keycloak.Contact
+	CustomerContactDetails       []Contact //customer level contacts
+	AccountContactDetails        []Contact //account level contacts
 }
 
 // Account is the base data element
 type Account struct {
-	ID        string    `jsonapi:"primary,accounts"`
-	Customers *Customer `jsonapi:"relation,customer"`
-	Name      string    `jsonapi:"attr,name"`
+	ID                    string    `jsonapi:"primary,accounts"`
+	Customers             *Customer `jsonapi:"relation,customer"`
+	Name                  string    `jsonapi:"attr,name"`
+	AccountContactDetails []Contact `jsonapi:"attr,contactDetails"`
 }
 
 // Customer is in relation to an api account
 type Customer struct {
-	ID                     string             `jsonapi:"primary,customer"`
-	Name                   string             `jsonapi:"attr,name"`
-	SalesforceID           string             `jsonapi:"attr,salesforceID"`
-	CustomerContactDetails []keycloak.Contact `jsonapi:"attr,contactDetails"`
+	ID                     string    `jsonapi:"primary,customer"`
+	Name                   string    `jsonapi:"attr,name"`
+	SalesforceID           string    `jsonapi:"attr,salesforceID"`
+	CustomerContactDetails []Contact `jsonapi:"attr,contactDetails"`
+}
+
+type Contact struct {
+	ID string `jsonapi:"id" json:"id" binding:"required"`
+	keycloak.Contact
 }
 
 // GET handles GET requests on the endpoint.
@@ -92,33 +99,35 @@ func (h *Handler) GET(ctx *goskell.Context) {
 // from the main group.
 func parseGroups(group []*keycloak.Group) []*KeycloakAccount {
 	// Return
-	var groups []*KeycloakAccount
+	var accounts []*KeycloakAccount
 	// iterate the main groups
 	for i := 0; i < len(group); i++ {
 		// Set main group variables used for the subgroups
 		customerName := group[i].Name
 		customerID := group[i].ID
 		customerSalesforceId := getSalesforceId(*group[i])
+		customerContacts := getCustomerContactDetails(*group[i])
 		// Iterate subgroup
 		sub := *group[i].SubGroups
 		for s := 0; s < len(sub); s++ {
 			// validate
 			if isApiAccount(sub[s]) {
 
-				groups = append(groups, &KeycloakAccount{
+				accounts = append(accounts, &KeycloakAccount{
 					CustomerName:                 *customerName,
 					KeycloakCustomerSalesforceId: customerSalesforceId,
 					AccountName:                  *sub[s].Name,
 					KeycloakAccountSalesforceId:  getSalesforceId(sub[s]),
 					KeycloakAccountID:            sub[s].ID,
 					KeycloakCustomerID:           customerID,
-					CustomerContactDetails:       getCustomerContactDetails(sub[s]),
+					CustomerContactDetails:       customerContacts,
+					AccountContactDetails:        getCustomerContactDetails(sub[s]),
 				})
 			}
 		}
 	}
 	// Return
-	return groups
+	return accounts
 }
 
 // buildResponse Returns a list of Accounts based on the keycloak groups
@@ -130,6 +139,7 @@ func buildResponse(groups []*KeycloakAccount) []*Account {
 		account := Account{}
 		account.ID = *group.KeycloakAccountID
 		account.Name = group.AccountName
+		account.AccountContactDetails = group.AccountContactDetails
 		// Add relationship to api account -> customer
 		customer := Customer{}
 		customer.ID = *group.KeycloakCustomerID
@@ -166,15 +176,14 @@ func getSalesforceId(group keycloak.Group) string {
 	return attr.SalesforceID
 }
 
-func getCustomerContactDetails(group keycloak.Group) []keycloak.Contact {
+func getCustomerContactDetails(group keycloak.Group) []Contact {
 
-	var contacts []keycloak.Contact
+	var contacts []Contact
 	customer, _ := keycloak.ToSubGroupAttributes(*group.Attributes)
-	for _, contact := range customer.ContactDetails {
-		contacts = append(contacts, keycloak.Contact{
-			Email:     contact.Email,
-			LastName:  contact.LastName,
-			FirstName: contact.FirstName,
+	for contactID, contact := range customer.ContactDetails {
+		contacts = append(contacts, Contact{
+			ID:      contactID,
+			Contact: contact,
 		})
 	}
 	return contacts
