@@ -1,7 +1,7 @@
 package validation
 
 import (
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/policies"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/policies"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
@@ -12,12 +12,17 @@ func ValidatePolicies(ctx *goskell.Context, tykClient *tyk.APIClient, requestedP
 	if err != nil {
 		return false
 	}
-	for _, requestedPolicy := range requestedPolicies {
-		for _, policy := range policies {
-			if policy == requestedPolicy {
-				return true
-			}
-		}
+
+	policymap := make(map[string]bool)
+	for _, policy := range policies {
+		policymap[policy] = true
 	}
-	return false
+
+	for _, requestedPolicy := range requestedPolicies {
+		if !policymap[requestedPolicy] {
+			return false
+		}
+
+	}
+	return true
 }

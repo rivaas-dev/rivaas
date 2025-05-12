@@ -102,6 +102,8 @@ github.com/cncf/xds/go v0.0.0-20231109132714-523115ebc101 h1:7To3pQ+pZo0i3dsWEbi
 github.com/cncf/xds/go v0.0.0-20231109132714-523115ebc101/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/companyinfo/gourn v0.1.1 h1:RI7clfRFTvK8gItUFqelRF/WygW1/V7J9CxSIcxroFg=
 github.com/companyinfo/gourn v0.1.1/go.mod h1:NA0O393KrAiwvtU8g00Y5+DeLOh5VANZpp1C7ePu2VI=
+github.com/companyinfo/jsonapi v0.2.0 h1:oiNSnHLuzXIKtqX+RfLNFlY4vo1DXN/TEVEMdapVdI4=
+github.com/companyinfo/jsonapi v0.2.0/go.mod h1:gK53+X4NOlL7taRAZvhxwjkVJA4zWovoYh4xC2cPOTc=
 github.com/coreos/go-oidc/v3 v3.8.0 h1:s3e30r6VEl3/M7DTSCEuImmrfu1/1WBgA0cXkdzkrAY=
 github.com/coreos/go-oidc/v3 v3.8.0/go.mod h1:yQzSCqBnK3e6Fs5l+f5i0F8Kwf0zpH9bPEsbY00KanM=
 github.com/coreos/go-semver v0.3.0 h1:wkHLiw0WNATZnSG7epLsujiMCgPAc9xhjJ4tgnAxmfM=

@@ -14,6 +14,7 @@ type Config struct {
 	OMA           OMA
 	OpenTelemetry OpenTelemetry
 	Solvimon      Solvimon
+	Pagination    Pagination
 }
 
 // Database represents Database configuration.
@@ -65,4 +66,9 @@ type OpenTelemetry struct {
 type Solvimon struct {
 	BaseUrl string
 	ApiKey  string
+}
+
+type Pagination struct {
+	MaxPageSize     uint16
+	DefaultPageSize uint16
 }
