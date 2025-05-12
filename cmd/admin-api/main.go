@@ -6,9 +6,12 @@ import (
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/accounts"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/keys"
-	policiesHandler "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/policies"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/accounts"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/keys"
+	policiesHandler "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/policies"
+	accountsV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/accounts"
+	keysV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys"
+	policiesV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/policies"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon"
@@ -124,7 +127,7 @@ func run(ctx context.Context) error {
 	omaClient := newOMAClient(ctx, cfg.OMA)
 
 	// Register handlers.
-	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, solvimonClient)
+	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, solvimonClient, cfg.Pagination)
 
 	// Run server.
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -178,7 +181,9 @@ func registerHandlers(
 	keyCloakClient keycloak.Client,
 	keyCloakConfig config.KeyCloakConfig,
 	solvimonClient *solvimon.Client,
+	pagination config.Pagination,
 ) {
+	// v1 endpoints - not JSON:API compliant
 	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig)
 	server.POST("/keys", keyHandler.POST)
 	server.GET("/keys", keyHandler.LIST)
@@ -192,4 +197,19 @@ func registerHandlers(
 	accountHandler := accounts.New(keyCloakClient, keyCloakConfig, solvimonClient)
 	server.GET("/accounts", accountHandler.GET)
 	server.PUT("/accounts/:id", accountHandler.PUT)
+
+	// v2 endpoints - JSON:API compliant
+	keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig, pagination)
+	server.POST("/v2/keys", keyV2Handler.POST)
+	server.GET("/v2/keys", keyV2Handler.LIST)
+	server.GET("/v2/keys/:id", keyV2Handler.GET)
+	server.PATCH("/v2/keys/:id", keyV2Handler.PATCH)
+	server.DELETE("/v2/keys/:id", keyV2Handler.DELETE)
+
+	policiesV2Handler := policiesV2.New(tykClient)
+	server.GET("/v2/policies", policiesV2Handler.LIST)
+
+	accountsV2Handler := accountsV2.New(keyCloakClient, keyCloakConfig, solvimonClient)
+	server.GET("/v2/accounts", accountsV2Handler.GET)
+	server.PUT("/v2/accounts/:id", accountsV2Handler.PUT)
 }

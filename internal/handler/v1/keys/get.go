@@ -62,27 +62,15 @@ func (h *Handler) GET(ctx *goskell.Context) {
 	// Find the key in database.
 	dbKey, err := h.keysRepository.GetKey(request.ID)
 	if err != nil {
+		if errors.Is(err, db.ErrKeyNotFound) {
+			goot.EndSpanWithError(span, err, "key not found")
+			log.Err(err).Msg("key not found in database")
+			goskell.JsonAPIError(ctx, "key not found", err, http.StatusNotFound)
+			return
+		}
 		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
-		goskell.ProblemJSON(
-			ctx,
-			problem.Details{
-				Status: http.StatusInternalServerError,
-				Title:  http.StatusText(http.StatusInternalServerError),
-			},
-		)
-		return
-	}
-	if dbKey == nil {
-		goot.EndSpanWithError(span, err, "key not found")
-		log.Err(err).Msg("key not found in database")
-		goskell.ProblemJSON(
-			ctx,
-			problem.Details{
-				Status: http.StatusNotFound,
-				Title:  http.StatusText(http.StatusNotFound),
-			},
-		)
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
 	}
 	goot.EndSpan(span)

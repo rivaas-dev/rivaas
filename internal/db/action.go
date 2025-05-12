@@ -3,10 +3,11 @@ package db
 import (
 	"errors"
 	"fmt"
-
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+var ErrKeyNotFound = errors.New("key not found")
 
 // DBClient represents database client.
 type DBClient struct {
@@ -34,7 +35,7 @@ func (s DBClient) GetKey(hash string) (*Key, error) {
 	var row Key
 	res := s.client.First(&row, "id = ? AND deleted_at is NULL", hash)
 	if res.Error != nil && errors.Is(res.Error, gorm.ErrRecordNotFound) {
-		return nil, nil // not really an error, just no result
+		return nil, ErrKeyNotFound
 	}
 	return &row, res.Error
 }
@@ -61,4 +62,47 @@ func (s DBClient) GetKeys(actorID, description, customerID, accountID string) ([
 		return nil, result.Error
 	}
 	return keyList, nil
+}
+
+// GetKeysPaginated gets all the keys with optional filters and paginates them.
+func (s DBClient) GetKeysPaginated(searchParams SearchParams, pageSize uint16, pageNumber uint32) (keys []*Key, totalResults int64, err error) {
+	var keyList []*Key
+	q := s.client
+
+	if searchParams.ActorID != "" {
+		searchKey := Key{ActorID: searchParams.ActorID}
+		q = q.Where(searchKey)
+	}
+	if searchParams.Description != "" {
+		q = q.Where("description ILIKE ?", fmt.Sprintf("%%%s%%", searchParams.Description))
+	}
+
+	if searchParams.CustomerID != "" || searchParams.AccountID != "" {
+		q = q.Where("actor_id ILIKE ?", fmt.Sprintf("%%%s%%%s%%", searchParams.CustomerID, searchParams.AccountID))
+	}
+	q = q.Where("deleted_at is NULL")
+
+	err = q.Model(new(Key)).Count(&totalResults).Error
+	if err != nil {
+		return nil, 0, errors.New("error on calculating the totalResults")
+	}
+
+	err = q.Scopes(Paginate(uint(pageNumber), uint(pageSize))).
+		Order("creation_date DESC").
+		Find(&keyList).
+		Error
+
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, 0, errors.New("key was not found")
+	}
+
+	return keyList, totalResults, nil
+}
+
+// Paginate paginates the result
+func Paginate(pageNumber, pageSize uint) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		offset := (pageNumber - 1) * pageSize
+		return db.Offset(int(offset)).Limit(int(pageSize))
+	}
 }

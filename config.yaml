@@ -24,7 +24,7 @@ app:
       url: http://localhost:8080
       realm: master
       clientID: admin-cli
-      clientSecret: dXXvgDaFYaybUXsVXECqw7p1sceqYAGQ
+      clientSecret: kU67yLSg3J49cFc8tGeHndztZVLqATZd
       pageSize: 5
     briefRepresentation: false
     first: 0
@@ -42,3 +42,7 @@ app:
 
   openTelemetry:
     url: "http://localhost:4318"
+
+  pagination:
+    defaultPageSize: 10
+    maxPageSize: 300
