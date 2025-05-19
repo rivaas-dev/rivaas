@@ -22,31 +22,31 @@ paths:
       parameters:
         - name: filter[actorID]
           in: query
-          description: "The actor id to filter on. The actorID is the full urn of the user, for example: urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01HX6GV6CV8NPR1XQRRQQZTMXN"
+          description: "The actor id to filter on. This must be the full URN of the actor (e.g., a user), including API key, customer ID, and actor identifier. Example: urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01HX6GV6CV8NPR1XQRRQQZTMXN"
           schema:
             type: string
             example: urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01HX6GV6CV8NPR1XQRRQQZTMXN
         - name: match[description]
           in: query
-          description: The description term to fuzzy match on
+          description: Performs a partial (fuzzy) match against API key descriptions.
           schema:
             type: string
             example: prod key customer x
         - name: match[customerID]
           in: query
-          description: The id of the customer. This is the parent group of the 2 levels which defines the ID of the customer.
+          description: The ID of the customer (i.e., the top-level group in the two-level hierarchy).
           schema:
             type: string
             example: 19fd5d47-91ea-4cac-a8e0-ea9e295fa44b
         - name: match[accountID]
           in: query
-          description: The id of the account. This the child group of the 2 levels. It defines the user ID of.
+          description: The ID of the account (i.e., the child group in the two-level hierarchy, typically representing the user ID).
           schema:
             type: string
             example: f82dddf1-4f06-4fa0-80bd-c2014d5f9540
       responses:
         200:
-          description: List of keys, paginated and optionally filtered
+          description: A paginated list of API keys, optionally filtered by query parameters.
           content:
             application/vnd.api+json:
               schema:
@@ -100,7 +100,7 @@ paths:
         - keys
       operationId: patch_key_v2
       description: |
-        patch api keys
+        Updates one or more properties of an existing API key. Only the provided fields will be modified (partial update).
       parameters:
         - in: path
           name: keyID
@@ -108,7 +108,7 @@ paths:
           schema:
             type: string
       requestBody:
-        description: request body for patching a key
+        description: The request body containing the fields to update on the API key. Only specified fields will be patched; all others remain unchanged.
         content:
           application/vnd.api+json:
             schema:
@@ -134,7 +134,7 @@ paths:
         - keys
       operationId: get_key_details_v2
       description: |
-        gets details of an api key
+        Retrieves detailed information about a specific API key by its ID.
       parameters:
         - in: path
           name: keyID
@@ -162,7 +162,7 @@ paths:
         - keys
       operationId: delete_key_v2
       description: |
-        deletes a key
+        Deletes the specified API key by its ID. This action is irreversible.
       parameters:
         - in: path
           name: keyID
@@ -171,7 +171,7 @@ paths:
             type: string
       responses:
         204:
-          description: deleted the key
+          description: Successfully deleted the API key. No content is returned.
         400:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
         403:
