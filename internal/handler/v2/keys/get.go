@@ -47,7 +47,10 @@ func (h *Handler) GET(ctx *goskell.Context) {
 	}
 	goot.EndSpan(span)
 
-	if !h.isAuthorized(ctx, dbKey) {
+	if !h.isAuthorized(ctx, NewKeyActorID(
+		dbKey.ActorID,
+		dbKey.CreatorID,
+	)) {
 		// The appropriate response is already handled in "isAuthorized()"
 		return
 	}

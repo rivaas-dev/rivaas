@@ -39,3 +39,48 @@ allow := true {
   input.request.path == "/keys/:id"
   input.user.id == input.key.creator_id
 }
+
+# v2 endpoints
+
+allow := true {
+  input.request.method == "GET"
+  input.request.path == "/v2/keys/:id"
+
+  requestCustomerID := split(input.user.id, ":")[3]
+  keyCustomerID := split(input.key.actor_id, ":")[3]
+  requestCustomerID == keyCustomerID
+}
+
+allow := true {
+  input.request.method == "GET"
+  input.request.path == "/v2/keys"
+
+  # the response content is filtered out based on the customer id in the handler itself
+}
+
+allow := true {
+  input.request.method == "POST"
+  input.request.path == "/v2/keys"
+
+  requestCustomerID := split(input.user.id, ":")[3]
+  keyCustomerID := split(input.key.actor_id, ":")[3]
+  requestCustomerID == keyCustomerID
+}
+
+allow := true {
+  input.request.method == "PATCH"
+  input.request.path == "/v2/keys/:id"
+
+  requestCustomerID := split(input.user.id, ":")[3]
+  keyCustomerID := split(input.key.actor_id, ":")[3]
+  requestCustomerID == keyCustomerID
+}
+
+allow := true {
+  input.request.method == "DELETE"
+  input.request.path == "/v2/keys/:id"
+
+  requestCustomerID := split(input.user.id, ":")[3]
+  keyCustomerID := split(input.key.actor_id, ":")[3]
+  requestCustomerID == keyCustomerID
+}

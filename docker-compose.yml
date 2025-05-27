@@ -154,6 +154,16 @@ services:
       - "4317:4317"   # OTLP gRPC receiver
       - "4318:4318"   # OTLP HTTP receiver
       - "55679:55679" # zpages extension
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - '4566:4566' # LocalStack endpoint
+      - '4510-4559:4510-4559' # external services port range
+    environment:
+      PROVISION_FILES: "true"
+      SERVICES: sqs,events
+    volumes:
+      - ./deployments/localstack/provision.sh:/etc/localstack/init/ready.d/init-aws.sh
 
 networks:
   admin-api-network:

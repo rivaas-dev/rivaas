@@ -1,11 +1,11 @@
 package keys
 
 import (
+	"errors"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/cigourn/api"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
-	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 	"net/http"
 )
 
@@ -29,7 +29,30 @@ type Key struct {
 	CreatorID string `mapstructure:"creator_id"`
 }
 
-func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *db.Key) (map[string]any, error) {
+func NewKey(actorID, customerID, accountID, creatorID string) *Key {
+	if actorID == "" {
+		return NewKeyCustomerAccountID(customerID, accountID, creatorID)
+	}
+
+	return NewKeyActorID(actorID, creatorID)
+}
+
+func NewKeyActorID(actorID, creatorID string) *Key {
+	return &Key{
+		ActorID:   actorID,
+		CreatorID: creatorID,
+	}
+}
+
+func NewKeyCustomerAccountID(customerID, accountID, creatorID string) *Key {
+	key := api.Key{CustomerID: customerID, AccountID: accountID}
+	return &Key{
+		ActorID:   key.String(),
+		CreatorID: creatorID,
+	}
+}
+
+func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key) (map[string]any, error) {
 	var authzIn map[string]any
 
 	input := AuthorizationInput{
@@ -43,10 +66,7 @@ func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *db.Key) (map[
 	}
 
 	if key != nil {
-		input.Key = Key{
-			ActorID:   key.ActorID,
-			CreatorID: key.CreatorID,
-		}
+		input.Key = *key
 	}
 
 	err := mapstructure.Decode(input, &authzIn)
@@ -57,46 +77,23 @@ func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *db.Key) (map[
 	return authzIn, nil
 }
 
-func (h *Handler) isAuthorized(ctx *goskell.Context, key *db.Key) bool {
+func (h *Handler) isAuthorized(ctx *goskell.Context, key *Key) bool {
 	authorizationInput, err := h.getAuthorizationInput(ctx, key)
 	if err != nil {
-		if err != nil {
-			log.Err(err).Msg("error on checking authorization")
-			goskell.ProblemJSON(
-				ctx,
-				problem.Details{
-					Status: http.StatusInternalServerError,
-					Title:  http.StatusText(http.StatusInternalServerError),
-				},
-			)
-
-			return false
-		}
+		log.Err(err).Msg("error on marshaling response")
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
+		return false
 	}
 
 	authorized, err := h.omaClient.IsAuthorized(ctx, "/admin/api/allow", authorizationInput)
 	if err != nil {
 		log.Err(err).Msg("error on checking authorization")
-		goskell.ProblemJSON(
-			ctx,
-			problem.Details{
-				Status: http.StatusInternalServerError,
-				Title:  http.StatusText(http.StatusInternalServerError),
-			},
-		)
-
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return false
 	}
 
 	if !authorized {
-		goskell.ProblemJSON(
-			ctx,
-			problem.Details{
-				Status: http.StatusForbidden,
-				Title:  http.StatusText(http.StatusForbidden),
-			},
-		)
-
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusForbidden), errors.New("forbidden"), http.StatusForbidden)
 		return false
 	}
 

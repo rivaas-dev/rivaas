@@ -9,14 +9,15 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/cigourn"
+	"gitlab.ci.fdmg.org/ci-api/cigourn/online"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-
-	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
 
 const urlPrefix = "/keys"
@@ -40,6 +41,8 @@ var (
 
 // ListInput represents the request body of the LIST endpoint.
 type ListInput struct {
+	CustomerID       string       `header:"X-Customer-ID"` // The reference to the creator. It binds an API key to a customer/user in a URN format.
+	ParsedCustomerID *online.User // todo replace with an api user urn
 	Filter           map[string]string
 	Match            map[string]string
 	PaginationParams internal.PaginationParams
@@ -71,11 +74,9 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 		return
 	}
 
-	searchParams := db.NewSearchParameters(request.Filter, request.Match)
-
 	// Fetch keys from the database.
 	_, span := goot.Span(ctx.Request.Context(), "get_from_database")
-	keys, totalResults, err := h.keysRepository.GetKeysPaginated(searchParams, request.PaginationParams.Size, request.PaginationParams.Page)
+	keys, totalResults, err := h.getAPIKeys(request)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
@@ -111,6 +112,15 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	}
 
 	internal.WriteJSONAPIResponse(ctx, jsonAPIResponse, http.StatusOK, nil)
+}
+
+func (h *Handler) getAPIKeys(request *ListInput) (keys []*db.Key, totalResults int64, err error) {
+	// todo add admin user access here
+	// if admin {
+	//   	searchParams := NewAdminSearchParameters(request.Filter, request.Match)
+	// }
+	searchParams := NewCustomerSearchParameters(request.Filter, request.Match, request.ParsedCustomerID.CustomerID)
+	return h.keysRepository.GetKeysPaginated(searchParams, request.PaginationParams.Size, request.PaginationParams.Page)
 }
 
 func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key) []*ListOutput {
@@ -160,6 +170,23 @@ func bindRequest(ctx *goskell.Context, defaultPageSize, maxPageSize uint16) (*Li
 
 	if err := ctx.ShouldBind(&request); err != nil {
 		return nil, err
+	}
+
+	if err := ctx.ShouldBindHeader(&request); err != nil {
+		return nil, err
+	}
+
+	// Validate CustomerID
+	customerID, err := cigourn.Parse(request.CustomerID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid authorization provided: %w", err)
+	}
+
+	var ok bool
+	request.ParsedCustomerID, ok = customerID.(*online.User)
+	if !ok {
+		log.Error().Str("customerID", request.CustomerID).Msg("invalid authorization format: has to be an Online user")
+		return nil, errors.New("invalid authorization format")
 	}
 
 	// Pagination
