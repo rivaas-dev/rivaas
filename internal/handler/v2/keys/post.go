@@ -153,7 +153,12 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
-	if !h.isAuthorized(ctx, nil) {
+	if !h.isAuthorized(ctx, NewKey(
+		request.Body.Attributes.ActorID,
+		request.Body.Attributes.CustomerID,
+		request.Body.Attributes.AccountID,
+		request.Headers.CreatorID,
+	)) {
 		// The appropriate response is already handled in "isAuthorized()"
 		return
 	}
@@ -247,6 +252,7 @@ func (h *Handler) workflowOutputToPostResponse(workflowOutput *WorkflowPostOutpu
 	return &PostOutput{
 		ID:  workflowOutput.ID,
 		Key: workflowOutput.Key,
+
 		// todo add more data like in get and patch endpoints
 	}
 }

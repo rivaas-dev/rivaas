@@ -69,17 +69,15 @@ func (s DBClient) GetKeysPaginated(searchParams SearchParams, pageSize uint16, p
 	var keyList []*Key
 	q := s.client
 
-	if searchParams.ActorID != "" {
-		searchKey := Key{ActorID: searchParams.ActorID}
-		q = q.Where(searchKey)
+	actorIDQuery, actorIDArgs := createActorIDQuery(searchParams.ActorID, searchParams.CustomerID, searchParams.AccountID)
+	if actorIDQuery != "" {
+		q = q.Where(actorIDQuery, actorIDArgs)
 	}
+
 	if searchParams.Description != "" {
 		q = q.Where("description ILIKE ?", fmt.Sprintf("%%%s%%", searchParams.Description))
 	}
 
-	if searchParams.CustomerID != "" || searchParams.AccountID != "" {
-		q = q.Where("actor_id ILIKE ?", fmt.Sprintf("%%%s%%%s%%", searchParams.CustomerID, searchParams.AccountID))
-	}
 	q = q.Where("deleted_at is NULL")
 
 	err = q.Model(new(Key)).Count(&totalResults).Error
@@ -105,4 +103,21 @@ func Paginate(pageNumber, pageSize uint) func(db *gorm.DB) *gorm.DB {
 		offset := (pageNumber - 1) * pageSize
 		return db.Offset(int(offset)).Limit(int(pageSize))
 	}
+}
+
+func createActorIDQuery(actorID, customerID, accountID string) (query string, args []any) {
+	if actorID != "" {
+		return "actor_id = ?", []any{actorID}
+	}
+
+	var actorIDArg string
+	switch {
+	case customerID != "" && accountID != "":
+		actorIDArg = fmt.Sprintf("urn:api:key:%s:%s:%%", customerID, accountID)
+	case customerID != "":
+		actorIDArg = fmt.Sprintf("urn:api:key:%s:%%:%%", customerID)
+	case accountID != "":
+		actorIDArg = fmt.Sprintf("urn:api:key:%%:%s:%%", accountID)
+	}
+	return "actor_id ILIKE ?", []any{actorIDArg}
 }
