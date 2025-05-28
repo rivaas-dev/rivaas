@@ -2,6 +2,7 @@
 package keys
 
 import (
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"go.opentelemetry.io/otel/attribute"
 	"net/http"
@@ -25,7 +26,7 @@ type WorkflowDeleteInput struct {
 // DELETE handles DELETE requests on the endpoint.
 func (h *Handler) DELETE(ctx *goskell.Context) {
 	// Parse request request.
-	var request KeyID
+	var request apikey.KeyID
 	if err := ctx.ShouldBindUri(&request); err != nil {
 		goskell.JsonAPIError(ctx, "input validation", err, http.StatusBadRequest)
 		return
@@ -92,7 +93,7 @@ func (h *Handler) callDeleteWorker(ctx *goskell.Context, request WorkflowDeleteI
 }
 
 // requestToWorkflowInput converts request body into workflow's input.
-func (h *Handler) deleteRequestToWorkflowInput(request *KeyID) WorkflowDeleteInput {
+func (h *Handler) deleteRequestToWorkflowInput(request *apikey.KeyID) WorkflowDeleteInput {
 	return WorkflowDeleteInput{
 		ID: request.ID,
 	}

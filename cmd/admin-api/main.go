@@ -9,7 +9,8 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/accounts"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/keys"
 	policiesHandler "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/policies"
-	accountsV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/accounts"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/customers"
+	accountsV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/customers/accounts"
 	keysV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys"
 	policiesV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/policies"
@@ -209,7 +210,11 @@ func registerHandlers(
 	policiesV2Handler := policiesV2.New(tykClient)
 	server.GET("/v2/policies", policiesV2Handler.LIST)
 
-	accountsV2Handler := accountsV2.New(keyCloakClient, keyCloakConfig, solvimonClient)
-	server.GET("/v2/accounts", accountsV2Handler.GET)
-	server.PUT("/v2/accounts/:id", accountsV2Handler.PUT)
+	customersV2Handler := customers.New(keyCloakClient, keyCloakConfig, pagination)
+	server.GET("/v2/customers", customersV2Handler.LIST)
+	server.GET("/v2/customers/:customerID", customersV2Handler.GET)
+
+	accountsV2Handler := accountsV2.New(keyCloakClient, keyCloakConfig, solvimonClient, pagination)
+	server.GET("/v2/customers/:customerID/accounts", accountsV2Handler.LIST)
+	server.PUT("/v2/accounts/:accountID", accountsV2Handler.PUT)
 }

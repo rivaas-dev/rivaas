@@ -69,6 +69,6 @@ type Solvimon struct {
 }
 
 type Pagination struct {
-	MaxPageSize     uint16
-	DefaultPageSize uint16
+	MaxPageSize     uint
+	DefaultPageSize uint
 }

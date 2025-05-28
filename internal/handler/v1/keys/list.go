@@ -92,7 +92,7 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 		}
 
 		// call keycloak to get the customer name, set it as unknown to avoid panic when not found
-		keycloakGroups, err := h.keycloakClient.GetGroups(ctx, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
+		keycloakGroups, err := h.keycloakClient.GetGroupsPaginated(ctx, nil, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
 		if err != nil {
 			log.Err(err).Msg("cant find client in keycloak")
 		}

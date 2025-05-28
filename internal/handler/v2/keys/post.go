@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/validation"
 	"gitlab.ci.fdmg.org/ci-api/cigourn"
 	"gitlab.ci.fdmg.org/ci-api/cigourn/online"
@@ -38,18 +39,18 @@ type PostData struct {
 }
 
 type PostAttributes struct {
-	ActorID     string             `json:"actorID"`                     // The reference to the actor. It binds an API key to a client/user in the legacy format.
-	CustomerID  string             `json:"customerID"`                  // The reference to the actor customer ID
-	AccountID   string             `json:"accountID"`                   // The reference to the actor account ID
-	Policies    []string           `json:"policies" binding:"required"` // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date         `json:"expiresAt"`                   // Date on which the key quota will expire at 00.00 (optional).
-	Quota       int64              `json:"quota" binding:"min=-1"`      // The amount of calls the API Key can make (optional).
-	Description string             `json:"description"`                 // Description for the key (optional).
-	Contact     *Contact           `json:"contacts,omitempty"`          // Contacts information.
-	Active      *bool              `json:"active"`                      // Defines the status of the key.
-	RateLimit   *RateLimit         `json:"rateLimit,omitempty"`         // Defines rate limit of the key.
-	Environment ApikeyEnvironment  `json:"environment"`                 // Defines if a key is for prod or sandbox environment. // Defines if a key is for prod or sandbox environment.'
-	Labels      *map[string]string `json:"labels,omitempty"`            // Contains user specified labels for categorization
+	ActorID     string                   `json:"actorID"`                     // The reference to the actor. It binds an API key to a client/user in the legacy format.
+	CustomerID  string                   `json:"customerID"`                  // The reference to the actor customer ID
+	AccountID   string                   `json:"accountID"`                   // The reference to the actor account ID
+	Policies    []string                 `json:"policies" binding:"required"` // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date               `json:"expiresAt"`                   // Date on which the key quota will expire at 00.00 (optional).
+	Quota       int64                    `json:"quota" binding:"min=-1"`      // The amount of calls the API Key can make (optional).
+	Description string                   `json:"description"`                 // Description for the key (optional).
+	Contact     *apikey.Contact          `json:"contacts,omitempty"`          // Contacts information.
+	Active      *bool                    `json:"active"`                      // Defines the status of the key.
+	RateLimit   *apikey.RateLimit        `json:"rateLimit,omitempty"`         // Defines rate limit of the key.
+	Environment apikey.ApikeyEnvironment `json:"environment"`                 // Defines if a key is for prod or sandbox environment. // Defines if a key is for prod or sandbox environment.'
+	Labels      *map[string]string       `json:"labels,omitempty"`            // Contains user specified labels for categorization
 
 }
 
@@ -73,7 +74,7 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 	}
 	// if not specified in the request, set prod as default environment
 	if i.Body.Attributes.Environment == "" {
-		i.Body.Attributes.Environment = ProdEnv
+		i.Body.Attributes.Environment = apikey.ProdEnv
 	}
 	// validates if an environment is set to a valid environment
 	if !validation.ValidateEnvironment(i.Body.Attributes.Environment) {
@@ -107,19 +108,19 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 
 // WorkflowPostInput represents the workflow's request body for a POST request.
 type WorkflowPostInput struct {
-	ActorID     *gourn.URN         // The reference to the actor. It binds an API key to a customer/user.
-	CreatorID   *gourn.URN         // The reference to the creator. It binds an API key to a customer/user.
-	CustomerID  *string            // References the actor customer ID
-	AccountID   *string            // References the actor user ID
-	Policies    []string           // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date         // Date on which the key quota will expire at 00.00 (optional).
-	Quota       int64              // The amount of calls the API Key can make (optional).
-	Description string             // Description for the key (optional).
-	Contact     Contact            // Contacts information.
-	Active      *bool              // Defines the status of the key.
-	RateLimit   RateLimit          // Defines rate limit of the key.
-	Environment ApikeyEnvironment  // Defines if a key is for prod or sandbox environment.
-	Labels      *map[string]string // Contains user specified labels for categorization
+	ActorID     *gourn.URN               // The reference to the actor. It binds an API key to a customer/user.
+	CreatorID   *gourn.URN               // The reference to the creator. It binds an API key to a customer/user.
+	CustomerID  *string                  // References the actor customer ID
+	AccountID   *string                  // References the actor user ID
+	Policies    []string                 // The access policies to give, leave empty for none.
+	ExpiresAt   *date.Date               // Date on which the key quota will expire at 00.00 (optional).
+	Quota       int64                    // The amount of calls the API Key can make (optional).
+	Description string                   // Description for the key (optional).
+	Contact     apikey.Contact           // Contacts information.
+	Active      *bool                    // Defines the status of the key.
+	RateLimit   apikey.RateLimit         // Defines rate limit of the key.
+	Environment apikey.ApikeyEnvironment // Defines if a key is for prod or sandbox environment.
+	Labels      *map[string]string       // Contains user specified labels for categorization
 }
 
 // PostOutput represents POST response body.

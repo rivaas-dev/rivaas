@@ -1,5 +1,4 @@
-// Package keys defines all methods of the API key.
-package keys
+package apikey
 
 import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"

@@ -10,11 +10,12 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"math"
+	"net/url"
 )
 
 type PaginationParams struct {
-	Size uint16
-	Page uint32
+	Size uint
+	Page uint
 }
 
 // WriteJSONAPIResponse writes a json api response.
@@ -27,36 +28,55 @@ func WriteJSONAPIResponse(ctx *goskell.Context, body any, statusCode int, header
 }
 
 // GeneratePageLinks generates page links.
-func GeneratePageLinks(paginationParams *PaginationParams, totalResult uint, urlPrefix string) *jsonapi.Links {
-	// Generate links.
-	var url = fmt.Sprintf("/v2%s?", urlPrefix)
+func GeneratePageLinks(ctx *goskell.Context, paginationParams *PaginationParams, totalResult uint) (*jsonapi.Links, error) {
+	// Get the previous path
+	base, err := url.Parse(ctx.Request.URL.String())
+	if err != nil {
+		return nil, err
+	}
+	queries := base.Query()
 
+	// Cleanup the 'page' parameters.
+	queries.Del("page[size]")
+	queries.Del("page[number]")
+
+	// Generate base url.
+	base.RawQuery = queries.Encode()
+	baseurl, err := url.QueryUnescape(fmt.Sprintf("%s?%s", base.Path, base.RawQuery))
+	if err != nil {
+		return nil, err
+	}
+
+	fmtURL := "%s&%s=%d&%s=%d"
+	if base.RawQuery == "" { // if there are no query parameters, skip the '&'
+		fmtURL = "%s%s=%d&%s=%d"
+	}
 	// Pages.
 	links := jsonapi.Links{
 		"self": fmt.Sprintf(
-			"%s%s=%d&%s=%d",
-			url,
+			fmtURL,
+			baseurl,
 			jsonapi.QueryParamPageSize,
 			paginationParams.Size,
 			jsonapi.QueryParamPageNumber,
 			paginationParams.Page,
 		),
 	}
-	totalPage := uint32(math.Ceil(float64(totalResult) / float64(paginationParams.Size)))
+	totalPage := uint(math.Ceil(float64(totalResult) / float64(paginationParams.Size)))
 
 	// Next page.
 	if totalPage > paginationParams.Page {
 		links[jsonapi.KeyNextPage] = fmt.Sprintf(
-			"%s%s=%d&%s=%d",
-			url,
+			fmtURL,
+			baseurl,
 			jsonapi.QueryParamPageSize,
 			paginationParams.Size,
 			jsonapi.QueryParamPageNumber,
 			paginationParams.Page+1,
 		)
 		links[jsonapi.KeyLastPage] = fmt.Sprintf(
-			"%s%s=%d&%s=%d",
-			url,
+			fmtURL,
+			baseurl,
 			jsonapi.QueryParamPageSize,
 			paginationParams.Size,
 			jsonapi.QueryParamPageNumber,
@@ -67,23 +87,24 @@ func GeneratePageLinks(paginationParams *PaginationParams, totalResult uint, url
 	// Previous page.
 	if paginationParams.Page > 1 && paginationParams.Page <= totalPage {
 		links[jsonapi.KeyPreviousPage] = fmt.Sprintf(
-			"%s%s=%d&%s=%d",
-			url,
+			fmtURL,
+			baseurl,
 			jsonapi.QueryParamPageSize,
 			paginationParams.Size,
 			jsonapi.QueryParamPageNumber,
 			paginationParams.Page-1,
 		)
 		links[jsonapi.KeyFirstPage] = fmt.Sprintf(
-			"%s%s=%d&%s=1",
-			url,
+			fmtURL,
+			baseurl,
 			jsonapi.QueryParamPageSize,
 			paginationParams.Size,
 			jsonapi.QueryParamPageNumber,
+			1,
 		)
 	}
 
-	return &links
+	return &links, nil
 }
 
 // GetCustomerName compares the keycloak group id with the database key actor id.
