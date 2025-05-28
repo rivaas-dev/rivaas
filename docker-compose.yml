@@ -101,7 +101,6 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: password
     volumes:
-      - /etc/localtime:/etc/localtime:ro
       - ./deployments/keycloak/keycloak.conf:/opt/keycloak/conf/keycloak.conf
     command:
       - start-dev

@@ -65,27 +65,16 @@ func (s DBClient) GetKeys(actorID, description, customerID, accountID string) ([
 }
 
 // GetKeysPaginated gets all the keys with optional filters and paginates them.
-func (s DBClient) GetKeysPaginated(searchParams SearchParams, pageSize uint16, pageNumber uint32) (keys []*Key, totalResults int64, err error) {
+func (s DBClient) GetKeysPaginated(searchParams SearchParams, pageSize uint, pageNumber uint) (keys []*Key, totalResults int64, err error) {
 	var keyList []*Key
-	q := s.client
+	query := s.prepareListQuery(searchParams)
 
-	actorIDQuery, actorIDArgs := createActorIDQuery(searchParams.ActorID, searchParams.CustomerID, searchParams.AccountID)
-	if actorIDQuery != "" {
-		q = q.Where(actorIDQuery, actorIDArgs)
-	}
-
-	if searchParams.Description != "" {
-		q = q.Where("description ILIKE ?", fmt.Sprintf("%%%s%%", searchParams.Description))
-	}
-
-	q = q.Where("deleted_at is NULL")
-
-	err = q.Model(new(Key)).Count(&totalResults).Error
+	err = query.Model(new(Key)).Count(&totalResults).Error
 	if err != nil {
 		return nil, 0, errors.New("error on calculating the totalResults")
 	}
 
-	err = q.Scopes(Paginate(uint(pageNumber), uint(pageSize))).
+	err = query.Scopes(Paginate(pageNumber, pageSize)).
 		Order("creation_date DESC").
 		Find(&keyList).
 		Error
@@ -120,4 +109,32 @@ func createActorIDQuery(actorID, customerID, accountID string) (query string, ar
 		actorIDArg = fmt.Sprintf("urn:api:key:%%:%s:%%", accountID)
 	}
 	return "actor_id ILIKE ?", []any{actorIDArg}
+}
+
+func (s DBClient) prepareListQuery(searchParams SearchParams) *gorm.DB {
+	q := s.client
+
+	actorIDQuery, actorIDArgs := createActorIDQuery(searchParams.ActorID, searchParams.CustomerID, searchParams.AccountID)
+	if actorIDQuery != "" {
+		q = q.Where(actorIDQuery, actorIDArgs)
+	}
+
+	if searchParams.Description != "" {
+		q = q.Where("description ILIKE ?", fmt.Sprintf("%%%s%%", searchParams.Description))
+	}
+
+	if searchParams.Environment != "" {
+		q = q.Where("environment = ?", searchParams.Environment)
+	}
+
+	if searchParams.ExpiresAt != nil {
+		q = q.Where("expires_at = ?", searchParams.ExpiresAt.GormValue())
+	}
+
+	if searchParams.Active != nil {
+		q = q.Where("active = ?", *searchParams.Active)
+	}
+
+	q = q.Where("deleted_at is NULL")
+	return q
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
@@ -22,7 +23,7 @@ import (
 // GET handles GET requests on the endpoint.
 func (h *Handler) GET(ctx *goskell.Context) {
 	// Parse request body.
-	var request KeyID
+	var request apikey.KeyID
 	if err := ctx.ShouldBindUri(&request); err != nil {
 		goskell.JsonAPIError(ctx, "input body validation", err, http.StatusBadRequest)
 		return
@@ -74,7 +75,7 @@ func (h *Handler) GET(ctx *goskell.Context) {
 }
 
 // getKeyInfo gets more info of the key by calling Tyk API.
-func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*APIKey, error) {
+func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*apikey.APIKey, error) {
 	// Get Key info.
 	_, span := goot.Span(ctx.Request.Context(), "get_from_tyk",
 		attribute.String("hash", dbKey.Hash),
@@ -101,7 +102,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*APIKey, erro
 	}
 
 	// build key from db response
-	result := APIKey{
+	result := apikey.APIKey{
 		ID:             dbKey.ID,
 		CustomerName:   customerName,
 		Hash:           dbKey.Hash,
@@ -113,11 +114,11 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*APIKey, erro
 		ExpiresAt:      dbKey.ExpiresAt,
 		Quota:          tykResponse.QuotaMax,
 		QuotaRemaining: tykResponse.QuotaRemaining,
-		Description:    String(dbKey.Description),
+		Description:    apikey.String(dbKey.Description),
 		CreatedDate:    dbKey.CreatedAt.Format(time.RFC3339),
-		Contact:        Contact(dbKey.Contact),
+		Contact:        apikey.Contact(dbKey.Contact),
 		Active:         !tykResponse.IsInactive,
-		RateLimit: RateLimit{
+		RateLimit: apikey.RateLimit{
 			Rate: tykResponse.Rate,
 			Per:  tykResponse.Per,
 		},
@@ -126,12 +127,12 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*APIKey, erro
 
 	if rateLimit, ok := dbKey.Metadata["rate_limit"]; ok {
 		jsonData, _ := json.Marshal(rateLimit)
-		var rateLimit RateLimit
+		var rateLimit apikey.RateLimit
 		err := json.Unmarshal(jsonData, &rateLimit)
 		if err != nil {
 			return nil, err
 		}
-		result.RateLimit = RateLimit{
+		result.RateLimit = apikey.RateLimit{
 			Rate: rateLimit.Rate,
 			Per:  rateLimit.Per,
 		}
@@ -147,7 +148,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*APIKey, erro
 func (h *Handler) getCustomerName(ctx context.Context, dbKey *db.Key) (string, error) {
 	// Get customer data
 	_, span := goot.Span(ctx, "get_from_keycloak")
-	keycloakGroups, err := h.keycloakClient.GetGroups(ctx, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
+	keycloakGroups, err := h.keycloakClient.GetGroupsPaginated(ctx, nil, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call keycloak")
 		log.Err(err).Msg("error while communicating with keycloak")

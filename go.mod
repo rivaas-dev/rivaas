@@ -7,10 +7,11 @@ require (
 	github.com/companyinfo/gourn v0.1.1
 	github.com/companyinfo/jsonapi v0.2.0
 	github.com/google/jsonapi v1.0.0
+	github.com/google/uuid v1.5.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/rs/zerolog v1.31.0
 	gitlab.ci.fdmg.org/ci-api/cigourn v0.1.6
-	gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.6.0
+	gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.7.0
 	gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.2
 	gitlab.ci.fdmg.org/ci-api/oma v0.4.1
 	gitlab.ci.fdmg.org/ci-api/tyk-sdk-go v0.1.0
@@ -68,7 +69,6 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
-	github.com/google/uuid v1.5.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect

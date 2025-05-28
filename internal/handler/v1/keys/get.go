@@ -122,7 +122,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 
 	// Get customer data
 	_, span = goot.Span(ctx.Request.Context(), "get_from_keycloak")
-	keycloakGroups, err := h.keycloakClient.GetGroups(ctx, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
+	keycloakGroups, err := h.keycloakClient.GetGroupsPaginated(ctx, nil, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call keycloak")
 		log.Err(err).Msg("error while communicating with keycloak")

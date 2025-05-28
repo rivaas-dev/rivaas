@@ -56,7 +56,7 @@ func (h *Handler) GET(ctx *goskell.Context) {
 
 	// Fetch
 	_, span := goot.Span(ctx.Request.Context(), "get_from_keycloak")
-	groups, err := h.keycloakClient.GetGroups(ctx, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
+	groups, err := h.keycloakClient.GetGroupsPaginated(ctx, nil, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call keycloak")
 		goskell.ProblemJSON(
@@ -110,18 +110,21 @@ func parseGroups(group []*keycloak.Group) []*KeycloakAccount {
 		// Iterate subgroup
 		sub := *group[i].SubGroups
 		for s := 0; s < len(sub); s++ {
-			// validate
-			if isApiAccount(sub[s]) {
+			if sub[s] == nil {
+				continue
+			}
 
+			// validate
+			if isApiAccount(*sub[s]) {
 				accounts = append(accounts, &KeycloakAccount{
 					CustomerName:                 *customerName,
 					KeycloakCustomerSalesforceId: customerSalesforceId,
 					AccountName:                  *sub[s].Name,
-					KeycloakAccountSalesforceId:  getSalesforceId(sub[s]),
+					KeycloakAccountSalesforceId:  getSalesforceId(*sub[s]),
 					KeycloakAccountID:            sub[s].ID,
 					KeycloakCustomerID:           customerID,
 					CustomerContactDetails:       customerContacts,
-					AccountContactDetails:        getCustomerContactDetails(sub[s]),
+					AccountContactDetails:        getCustomerContactDetails(*sub[s]),
 				})
 			}
 		}

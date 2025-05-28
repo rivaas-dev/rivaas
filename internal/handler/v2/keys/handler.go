@@ -18,8 +18,8 @@ type Handler struct {
 	keysRepository  db.DatabaseExecer
 	keycloakClient  keycloak.Client
 	keycloakConfig  config.KeyCloakConfig
-	defaultPageSize uint16
-	maxPageSize     uint16
+	defaultPageSize uint
+	maxPageSize     uint
 }
 
 // New constructs a new Handler.

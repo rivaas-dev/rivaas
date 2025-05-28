@@ -1,13 +1,11 @@
 package date
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
-	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -21,9 +19,24 @@ const dateFormat = "2006-01-02"
 
 // UnmarshalJSON implements deserialization of the type.
 func (d *Date) UnmarshalJSON(buf []byte) error {
-	tt, err := time.Parse(dateFormat, strings.Trim(string(buf), `"`))
+	return d.parse(strings.Trim(string(buf), `"`))
+}
+
+// Parse parses a string in to a Date
+func Parse(str string) (*Date, error) {
+	var d Date
+	err := d.parse(str)
 	if err != nil {
-		return errors.New("invalid date format, should be `Y-m-d`")
+		return nil, err
+	}
+
+	return &d, nil
+}
+
+func (d *Date) parse(str string) error {
+	tt, err := time.Parse(dateFormat, str)
+	if err != nil {
+		return errors.New("invalid date format, should be `YYYY-mm-dd`")
 	}
 	d.Time = tt
 	return nil
@@ -51,7 +64,7 @@ func (d Date) GormDataType() string {
 }
 
 // GormValue implements GormValue method for the Date type.
-func (d Date) GormValue(_ context.Context, _ *gorm.DB) clause.Expr {
+func (d Date) GormValue() clause.Expr {
 	return clause.Expr{
 		SQL:  "?",
 		Vars: []interface{}{d.Time.Format(dateFormat)},

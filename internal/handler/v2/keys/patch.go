@@ -6,6 +6,7 @@ import (
 	"github.com/companyinfo/jsonapi"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"go.opentelemetry.io/otel/attribute"
 	"net/http"
@@ -45,9 +46,9 @@ type PatchAttributes struct {
 	ExpiresAt   *date.Date         `json:"expiresAt"`          // Date on which the key quota will expire at 00.00 (optional).
 	Quota       *int64             `json:"quota"`              // The amount of calls the API Key can make (optional).
 	Description *string            `json:"description"`        // Description for the key (optional).
-	Contact     *Contact           `json:"contacts,omitempty"` // Contacts information.
+	Contact     *apikey.Contact    `json:"contacts,omitempty"` // Contacts information.
 	Active      *bool              `json:"active,omitempty"`   // Defines the status of the key.
-	RateLimit   *RateLimit         `json:"rateLimit"`          // Defines rate limit of the key.
+	RateLimit   *apikey.RateLimit  `json:"rateLimit"`          // Defines rate limit of the key.
 	Labels      *map[string]string `json:"labels"`             // Contains user specified labels for categorization
 
 }
@@ -83,9 +84,9 @@ type workflowInput struct {
 	ExpiresAt   *date.Date         // Date on which the key quota will expire at 00.00 (optional).
 	Quota       *int64             // The amount of calls the API Key can make (optional).
 	Description *string            // Description for the key (optional).
-	Contact     *Contact           // Contacts information.
+	Contact     *apikey.Contact    // Contacts information.
 	Active      *bool              // Defines the status of the key.
-	RateLimit   *RateLimit         // Defines rate limit of the key.
+	RateLimit   *apikey.RateLimit  // Defines rate limit of the key.
 	Labels      *map[string]string // Contains user specified labels for categorization
 }
 
@@ -100,9 +101,9 @@ type workflowOutput struct {
 	QuotaRemaining int64
 	Description    string
 	CreatedAt      time.Time
-	Contact        Contact
+	Contact        apikey.Contact
 	Active         bool
-	RateLimit      RateLimit
+	RateLimit      apikey.RateLimit
 	Labels         *map[string]string
 }
 
@@ -217,7 +218,7 @@ func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput
 }
 
 // workflowOutputToResponse converts the workflow response body into the API response.
-func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.Key, workflowOutput *workflowOutput) *APIKey {
+func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.Key, workflowOutput *workflowOutput) *apikey.APIKey {
 	var labels map[string]string
 	if workflowOutput.Labels != nil {
 		labels = *workflowOutput.Labels
@@ -228,7 +229,7 @@ func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.
 		log.Err(err).Msg("failed to get customer name")
 	}
 
-	return &APIKey{
+	return &apikey.APIKey{
 		ID:             workflowOutput.ID,
 		CustomerName:   customerName,
 		Hash:           dbKey.Hash,
