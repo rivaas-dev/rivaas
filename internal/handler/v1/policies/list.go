@@ -3,15 +3,18 @@ package policies
 
 import (
 	"context"
-	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
-	"net/http"
-	"sort"
-
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
+	"net/http"
 )
+
+type Policy struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
 
 // LIST handles GET requests on the endpoint to get list of policies.
 func (h *Handler) LIST(ctx *goskell.Context) {
@@ -29,18 +32,20 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	ctx.JSON(http.StatusOK, policies)
 }
 
-// GetPolicies fetch list of policies from Tyk server.
-func GetPolicies(ctx context.Context, tykClient *tyk.APIClient) ([]string, error) {
+// GetPolicies fetch list of policies from the Tyk server.
+func GetPolicies(ctx context.Context, tykClient *tyk.APIClient) ([]Policy, error) {
 	policies, _, err := tykClient.PoliciesApi.ListPolicies(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	res := make([]string, 0, len(policies))
-	for _, p := range policies {
-		res = append(res, p.Id)
+	res := make([]Policy, len(policies))
+	for i, p := range policies {
+		res[i] = Policy{
+			ID:   p.Id,
+			Name: p.Name,
+		}
 	}
 
-	sort.Strings(res)
-	return res, err
+	return res, nil
 }
