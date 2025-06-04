@@ -15,7 +15,7 @@ func ValidatePolicies(ctx *goskell.Context, tykClient *tyk.APIClient, requestedP
 
 	policymap := make(map[string]bool)
 	for _, policy := range policies {
-		policymap[policy] = true
+		policymap[policy.ID] = true
 	}
 
 	for _, requestedPolicy := range requestedPolicies {
