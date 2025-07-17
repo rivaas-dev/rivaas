@@ -25,14 +25,14 @@ sidecars:
         scheme: HTTP
         port: 8181
       initialDelaySeconds: 5
-      periodSeconds: 5
+      periodSeconds: 30
     readinessProbe:
       httpGet:
         path: /health?bundle=true  # Include bundle activation in readiness
         scheme: HTTP
         port: 8181
       initialDelaySeconds: 5
-      periodSeconds: 5
+      periodSeconds: 30
     volumeMounts:
       - readOnly: true
         mountPath: /opa_config.yaml
