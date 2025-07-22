@@ -12,6 +12,7 @@ const (
 	actorIDFilter     = `actorID`
 	customerIDFilter  = `customerID`
 	accountIDFilter   = `accountID`
+	nameFilter        = `name`
 	descriptionFilter = `description`
 	environmentFilter = `environment`
 	expiresAtFilter   = `expiresAt`
@@ -23,8 +24,8 @@ type FilterParam struct {
 	Match  map[string]string
 }
 
-// NewAdminSearchParameters construct search parameters from maps struct for admin users
-func NewAdminSearchParameters(filter, match map[string]string) (db.SearchParams, error) {
+// NewAdministratorSearchParameters construct search parameters from maps struct for administrator users
+func NewAdministratorSearchParameters(filter, match map[string]string) (db.SearchParams, error) {
 	expiresAtParam, err := paramToDate(filter[expiresAtFilter])
 	if err != nil {
 		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`: %w", expiresAtFilter, err)
@@ -43,6 +44,7 @@ func NewAdminSearchParameters(filter, match map[string]string) (db.SearchParams,
 			Active:      activeParam,
 		},
 		MatchParams: db.MatchParams{
+			Name:        match[nameFilter],
 			Description: match[descriptionFilter],
 			CustomerID:  match[customerIDFilter],
 			AccountID:   match[accountIDFilter],
@@ -56,6 +58,12 @@ func NewCustomerSearchParameters(filter, match map[string]string, requestCustome
 	// the can only see their own keys
 	if filter, ok := match[customerIDFilter]; ok && filter != "" {
 		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`", customerIDFilter)
+	}
+
+	// actorID filter is not allowed for customers
+	// the can only see their own keys
+	if filter, ok := filter[actorIDFilter]; ok && filter != "" {
+		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`", actorIDFilter)
 	}
 
 	expiresAtParam, err := paramToDate(filter[expiresAtFilter])
@@ -75,9 +83,10 @@ func NewCustomerSearchParameters(filter, match map[string]string, requestCustome
 			Active:      activeParam,
 		},
 		MatchParams: db.MatchParams{
-			CustomerID:  requestCustomerID, // regular customers can only see keys that belong to the organization/customer id
-			AccountID:   match[accountIDFilter],
+			Name:        match[nameFilter],
 			Description: match[descriptionFilter],
+			CustomerID:  requestCustomerID, // regular customers can only see keys that belong to their organization/customer id
+			AccountID:   match[accountIDFilter],
 		},
 	}, nil
 }

@@ -21,6 +21,7 @@ const (
 // Key table structure.
 type Key struct {
 	ID          string            `gorm:"column:id;primaryKey"`
+	Name        string            `gorm:"column:name"`
 	Hash        string            `gorm:"column:key_hash"`
 	ActorID     string            `gorm:"column:actor_id;index"`
 	CreatorID   string            `gorm:"column:creator_id"`

@@ -7,6 +7,8 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/cigourn"
 )
 
+const NameMaxLength = 30
+
 var (
 	// validFilters valid filter keywords in query string and corresponding validators
 	validFilters = map[string]func(string) error{
@@ -45,6 +47,13 @@ var (
 		},
 	}
 	validMatch = map[string]func(string) error{
+		nameFilter: func(in string) error {
+			if len(in) > NameMaxLength {
+				return fmt.Errorf("maximum length is %d, %d given", NameMaxLength, len(in))
+			}
+
+			return nil
+		}, // Description of the api key. Usually is the customer name and type of key, like Prod key customer X
 		descriptionFilter: func(in string) error {
 			return nil
 		}, // Description of the api key. Usually is the customer name and type of key, like Prod key customer X

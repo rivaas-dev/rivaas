@@ -13,7 +13,7 @@ tags:
     description: Calls related to API keys
   - name: customers
   - name: accounts
-    
+
 paths:
   /v2/keys:
     get:
@@ -871,6 +871,63 @@ components:
                 key:
                   type: string
                   example: c1150966c7f54b6f96df8d0427d9440c
+                active:
+                  type: boolean
+                  example: true
+                actorID:
+                  type: string
+                  example: "urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01K04FFC8KB91M41CMT0QEG3Y1"
+                contacts:
+                  type: object
+                  properties:
+                    Emails:
+                      nullable: true
+                    Users:
+                      nullable: true
+                creatorID:
+                  type: string
+                  example: "urn:online:user:119fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540"
+                customerName:
+                  type: string
+                  example: ""
+                description:
+                  type: string
+                  example: "this key is for production"
+                environment:
+                  type: string
+                  example: "production"
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                hash:
+                  type: string
+                  example: "2432cd78"
+                labels:
+                  nullable: true
+                name:
+                  type: string
+                  example: "name X"
+                policies:
+                  type: array
+                  items:
+                    type: string
+                  example: ["policy-1"]
+                quota:
+                  type: integer
+                  example: 1000
+                quotaRemaining:
+                  type: integer
+                  example: 950
+                rateLimit:
+                  type: object
+                  properties:
+                    Rate:
+                      type: integer
+                      example: 30
+                    Per:
+                      type: integer
+                      example: 60
 
     UpdateKeyV2Request:
       type: object
@@ -1317,10 +1374,10 @@ components:
           $ref: '#/components/schemas/MetaObject'
 
     CustomerDetailsV2Response:
-          type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/CustomerDetailsV2'
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/CustomerDetailsV2'
     
     AccountAttributes:
       type: object
@@ -1333,7 +1390,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ContactDetail'
-            
+
 
     AccountDetailsV2:
       type: object
@@ -1400,7 +1457,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ContactDetail'
-      
+
 
     ContactDetail:
       type: object

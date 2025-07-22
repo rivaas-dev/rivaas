@@ -1,19 +1,18 @@
-package keys
+package customers
 
 import (
 	"errors"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
-	"gitlab.ci.fdmg.org/ci-api/cigourn/api"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"net/http"
 )
 
 type AuthorizationInput struct {
-	User    User    `mapstructure:"user"`
-	Request Request `mapstructure:"request"`
-	Key     Key     `mapstructure:"key"`
+	User     User     `mapstructure:"user"`
+	Request  Request  `mapstructure:"request"`
+	Customer Customer `mapstructure:"customer"`
 }
 
 type User struct {
@@ -26,35 +25,11 @@ type Request struct {
 	Path   string `mapstructure:"path"`
 }
 
-type Key struct {
-	ActorID   string `mapstructure:"actor_id"`
-	CreatorID string `mapstructure:"creator_id"`
+type Customer struct {
+	ID string `mapstructure:"id"`
 }
 
-func NewKey(actorID, customerID, accountID, creatorID string) *Key {
-	if actorID == "" {
-		return NewKeyCustomerAccountID(customerID, accountID, creatorID)
-	}
-
-	return NewKeyActorID(actorID, creatorID)
-}
-
-func NewKeyActorID(actorID, creatorID string) *Key {
-	return &Key{
-		ActorID:   actorID,
-		CreatorID: creatorID,
-	}
-}
-
-func NewKeyCustomerAccountID(customerID, accountID, creatorID string) *Key {
-	key := api.Key{CustomerID: customerID, AccountID: accountID}
-	return &Key{
-		ActorID:   key.String(),
-		CreatorID: creatorID,
-	}
-}
-
-func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key) (map[string]any, error) {
+func (h *Handler) getAuthorizationInput(ctx *goskell.Context, customer *Customer) (map[string]any, error) {
 	var authzIn map[string]any
 
 	authHeaders, err := headers.GetAuthorization(ctx)
@@ -73,8 +48,8 @@ func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key) (map[str
 		},
 	}
 
-	if key != nil {
-		input.Key = *key
+	if customer != nil {
+		input.Customer = *customer
 	}
 
 	err = mapstructure.Decode(input, &authzIn)
@@ -85,8 +60,8 @@ func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key) (map[str
 	return authzIn, nil
 }
 
-func (h *Handler) isAuthorized(ctx *goskell.Context, key *Key) bool {
-	authorizationInput, err := h.getAuthorizationInput(ctx, key)
+func (h *Handler) isAuthorized(ctx *goskell.Context, customer *Customer) bool {
+	authorizationInput, err := h.getAuthorizationInput(ctx, customer)
 	if err != nil {
 		log.Err(err).Msg("error on marshaling response")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)

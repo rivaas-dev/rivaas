@@ -3,7 +3,6 @@ package keys
 
 import (
 	"errors"
-	"fmt"
 	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
@@ -11,8 +10,7 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/pagination"
-	"gitlab.ci.fdmg.org/ci-api/cigourn"
-	"gitlab.ci.fdmg.org/ci-api/cigourn/online"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"math"
@@ -22,8 +20,8 @@ import (
 
 // ListInput represents the request body of the LIST endpoint.
 type ListInput struct {
-	CustomerID       string       `header:"X-Customer-ID"` // The reference to the creator. It binds an API key to a customer/user in a URN format.
-	ParsedCustomerID *online.User // todo replace with an api user urn
+	headers.Authorization
+
 	Filter           map[string]string
 	Match            map[string]string
 	PaginationParams internal.PaginationParams
@@ -32,6 +30,7 @@ type ListInput struct {
 // ListOutput represents the list of key's information.
 type ListOutput struct {
 	ID           string                   `jsonapi:"primary,keys"`
+	Name         string                   `jsonapi:"attr,name"`
 	CustomerName string                   `jsonapi:"attr,customerName"`
 	Hash         string                   `jsonapi:"attr,hash"`
 	CreatorID    string                   `jsonapi:"attr,creatorID"`
@@ -103,11 +102,12 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 }
 
 func (h *Handler) getAPIKeys(request *ListInput) (keys []*db.Key, totalResults int64, err error) {
-	// todo add admin user access here
-	// if admin {
-	//   	searchParams := NewAdminSearchParameters(request.Filter, request.Match)
-	// }
-	searchParams, err := apikey.NewCustomerSearchParameters(request.Filter, request.Match, request.ParsedCustomerID.CustomerID)
+	var searchParams db.SearchParams
+	if headers.IsAdministrator(request.Authorization.Roles) {
+		searchParams, err = apikey.NewAdministratorSearchParameters(request.Filter, request.Match)
+	} else {
+		searchParams, err = apikey.NewCustomerSearchParameters(request.Filter, request.Match, request.CustomerUser.CustomerID)
+	}
 	if err != nil {
 		return nil, 0, err
 	}
@@ -139,6 +139,7 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 		// Define the response
 		response = append(response, &ListOutput{
 			ID:           key.ID,
+			Name:         key.Name,
 			CustomerName: internal.GetCustomerName(keycloakGroups, *key),
 			CreatorID:    key.CreatorID,
 			Hash:         key.Hash,
@@ -160,25 +161,14 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 func bindRequest(ctx *goskell.Context, defaultPageSize, maxPageSize uint) (*ListInput, error) {
 	var request ListInput
 
-	if err := ctx.ShouldBind(&request); err != nil {
-		return nil, err
-	}
-
-	if err := ctx.ShouldBindHeader(&request); err != nil {
-		return nil, err
-	}
-
-	// Validate CustomerID
-	customerID, err := cigourn.Parse(request.CustomerID)
+	err := ctx.ShouldBind(&request)
 	if err != nil {
-		return nil, fmt.Errorf("invalid authorization provided: %w", err)
+		return nil, err
 	}
 
-	var ok bool
-	request.ParsedCustomerID, ok = customerID.(*online.User)
-	if !ok {
-		log.Error().Str("customerID", request.CustomerID).Msg("invalid authorization format: has to be an Online user")
-		return nil, errors.New("invalid authorization format")
+	request.Authorization, err = headers.GetAuthorization(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	request.PaginationParams, err = pagination.GetPagination(ctx, defaultPageSize, maxPageSize)
@@ -187,7 +177,7 @@ func bindRequest(ctx *goskell.Context, defaultPageSize, maxPageSize uint) (*List
 		return nil, errors.New("invalid pagination parameters")
 	}
 
-	//Filtering
+	// Filtering
 	request.Filter = ctx.QueryMap("filter")
 	request.Match = ctx.QueryMap("match")
 	if err := apikey.ValidateFilters(apikey.FilterParam{Filter: request.Filter, Match: request.Match}); err != nil {

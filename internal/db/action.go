@@ -95,6 +95,10 @@ func Paginate(pageNumber, pageSize uint) func(db *gorm.DB) *gorm.DB {
 }
 
 func createActorIDQuery(actorID, customerID, accountID string) (query string, args []any) {
+	if actorID == "" && customerID == "" && accountID == "" {
+		return "", []any{}
+	}
+
 	if actorID != "" {
 		return "actor_id = ?", []any{actorID}
 	}
@@ -119,6 +123,10 @@ func (s DBClient) prepareListQuery(searchParams SearchParams) *gorm.DB {
 		q = q.Where(actorIDQuery, actorIDArgs)
 	}
 
+	if searchParams.Name != "" {
+		q = q.Where("name ILIKE ?", fmt.Sprintf("%%%s%%", searchParams.Name))
+	}
+
 	if searchParams.Description != "" {
 		q = q.Where("description ILIKE ?", fmt.Sprintf("%%%s%%", searchParams.Description))
 	}
@@ -135,6 +143,5 @@ func (s DBClient) prepareListQuery(searchParams SearchParams) *gorm.DB {
 		q = q.Where("active = ?", *searchParams.Active)
 	}
 
-	q = q.Where("deleted_at is NULL")
 	return q
 }

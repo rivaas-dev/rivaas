@@ -18,6 +18,7 @@ type FilterParams struct {
 
 // MatchParams are used for fuzzy matching search
 type MatchParams struct {
+	Name        string
 	Description string
 	CustomerID  string
 	AccountID   string

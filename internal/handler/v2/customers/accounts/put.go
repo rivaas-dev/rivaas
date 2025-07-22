@@ -89,6 +89,16 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 		return
 	}
 
+	if !h.isAuthorized(ctx, &Customer{
+		ID: request.Body.Attributes.Customer.ID,
+		Account: Account{
+			ID: request.Path.AccountID,
+		},
+	}) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	oldFinancialEmail, err := h.updateSolvimon(ctx, request)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to update email in solvimon")

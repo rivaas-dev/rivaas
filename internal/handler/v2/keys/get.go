@@ -23,9 +23,9 @@ import (
 // GET handles GET requests on the endpoint.
 func (h *Handler) GET(ctx *goskell.Context) {
 	// Parse request body.
-	var request apikey.KeyID
-	if err := ctx.ShouldBindUri(&request); err != nil {
-		goskell.JsonAPIError(ctx, "input body validation", err, http.StatusBadRequest)
+	request, err := bindGetRequest(ctx)
+	if err != nil {
+		goskell.JsonAPIError(ctx, "request validation", err, http.StatusBadRequest)
 		return
 	}
 
@@ -96,7 +96,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*apikey.APIKe
 	}
 	goot.EndSpan(span)
 
-	customerName, err := h.getCustomerName(ctx, dbKey)
+	customerName, err := h.getCustomerName(ctx, dbKey.ActorID)
 	if err != nil {
 		return nil, errors.New("customer name not found")
 	}
@@ -104,6 +104,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*apikey.APIKe
 	// build key from db response
 	result := apikey.APIKey{
 		ID:             dbKey.ID,
+		Name:           dbKey.Name,
 		CustomerName:   customerName,
 		Hash:           dbKey.Hash,
 		CreationDate:   dbKey.CreatedAt.Format(time.RFC3339),
@@ -145,7 +146,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*apikey.APIKe
 	return &result, nil
 }
 
-func (h *Handler) getCustomerName(ctx context.Context, dbKey *db.Key) (string, error) {
+func (h *Handler) getCustomerName(ctx context.Context, actorID string) (string, error) {
 	// Get customer data
 	_, span := goot.Span(ctx, "get_from_keycloak")
 	keycloakGroups, err := h.keycloakClient.GetGroupsPaginated(ctx, nil, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
@@ -156,5 +157,11 @@ func (h *Handler) getCustomerName(ctx context.Context, dbKey *db.Key) (string, e
 	}
 
 	goot.EndSpan(span)
-	return internal.GetCustomerName(keycloakGroups, *dbKey), nil
+	return internal.GetCustomerNameByActorID(keycloakGroups, actorID), nil
+}
+
+func bindGetRequest(ctx *goskell.Context) (apikey.KeyID, error) {
+	var request apikey.KeyID
+	err := ctx.ShouldBindUri(&request)
+	return request, err
 }

@@ -31,6 +31,7 @@ const (
 
 type APIKey struct {
 	ID             string            `jsonapi:"primary,keys"` // The key identifier. This is a unique identifier to each API key.
+	Name           string            `jsonapi:"attr,name"`    // name of the API Key
 	CustomerName   string            `jsonapi:"attr,customerName"`
 	Hash           string            `jsonapi:"attr,hash,omitempty"`
 	CreationDate   string            `jsonapi:"attr,creationDate"`

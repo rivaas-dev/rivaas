@@ -23,6 +23,11 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		return
 	}
 
+	if !h.isAuthorized(ctx, &Customer{ID: request.Path.CustomerID}) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	// Fetch
 	_, span := goot.Span(ctx.Request.Context(), "get_from_keycloak")
 	group, err := h.keycloakClient.GetGroupByID(ctx, request.Path.CustomerID)
