@@ -31,6 +31,11 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 		return
 	}
 
+	if !h.isAuthorized(ctx, &Customer{ID: request.Path.CustomerID}) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	request.Query.PaginationParams, err = pagination.GetPagination(ctx, h.defaultPageSize, h.maxPageSize)
 	if err != nil {
 		log.Error().Err(err).Str("customerID", request.Path.CustomerID).Msg("invalid pagination parameters")

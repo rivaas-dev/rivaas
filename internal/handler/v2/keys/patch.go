@@ -3,6 +3,7 @@ package keys
 
 import (
 	"errors"
+	"fmt"
 	"github.com/companyinfo/jsonapi"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
@@ -42,6 +43,7 @@ type PatchData struct {
 }
 
 type PatchAttributes struct {
+	Name        *string            `json:"name"`               // name of the API Key
 	Policies    *[]string          `json:"policies"`           // The access policies to give, leave empty for none.
 	ExpiresAt   *date.Date         `json:"expiresAt"`          // Date on which the key quota will expire at 00.00 (optional).
 	Quota       *int64             `json:"quota"`              // The amount of calls the API Key can make (optional).
@@ -55,6 +57,9 @@ type PatchAttributes struct {
 
 // Validate validates the PATCH request body.
 func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
+	if i.Body.Attributes.Name != nil && len(*i.Body.Attributes.Name) > apikey.NameMaxLength {
+		return fmt.Errorf("maximum length is %d, %d given", apikey.NameMaxLength, len(*i.Body.Attributes.Name))
+	}
 	// Validate policies.
 	if i.Body.Attributes.Policies != nil {
 		if !validation.ValidatePolicies(ctx, tykAPI, *i.Body.Attributes.Policies) {
@@ -80,6 +85,7 @@ func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error
 // workflowInput represents the workflow request body.
 type workflowInput struct {
 	ID          string             // Key ID.
+	Name        *string            // Key name.
 	Policies    *[]string          // The access policies to give, leave empty for none.
 	ExpiresAt   *date.Date         // Date on which the key quota will expire at 00.00 (optional).
 	Quota       *int64             // The amount of calls the API Key can make (optional).
@@ -93,6 +99,7 @@ type workflowInput struct {
 // workflowOutput represents the workflow response body.
 type workflowOutput struct {
 	ID             string
+	Name           string
 	ActorID        string
 	CreatorID      string
 	Policies       []string
@@ -197,6 +204,7 @@ func (h *Handler) callPATCHWorker(ctx *goskell.Context, request workflowInput) (
 func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput {
 	wInput := workflowInput{
 		ID:          request.Path.ID,
+		Name:        request.Body.Attributes.Name,
 		Policies:    request.Body.Attributes.Policies,
 		ExpiresAt:   request.Body.Attributes.ExpiresAt,
 		Quota:       request.Body.Attributes.Quota,
@@ -224,13 +232,14 @@ func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.
 		labels = *workflowOutput.Labels
 	}
 
-	customerName, err := h.getCustomerName(ctx, dbKey)
+	customerName, err := h.getCustomerName(ctx, dbKey.ActorID)
 	if err != nil {
 		log.Err(err).Msg("failed to get customer name")
 	}
 
 	return &apikey.APIKey{
 		ID:             workflowOutput.ID,
+		Name:           workflowOutput.Name,
 		CustomerName:   customerName,
 		Hash:           dbKey.Hash,
 		CreationDate:   dbKey.CreatedAt.Format(time.RFC3339),

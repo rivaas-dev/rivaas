@@ -20,6 +20,7 @@ type Contact struct {
 
 type CustomerSearch struct {
 	Name *string
+	ID   *string
 }
 
 func ParseCustomerGroups(groups []*keycloak.Group) []*Customer {

@@ -109,10 +109,15 @@ func GeneratePageLinks(ctx *goskell.Context, paginationParams *PaginationParams,
 
 // GetCustomerName compares the keycloak group id with the database key actor id.
 func GetCustomerName(keycloakGroups []*keycloak.Group, key db.Key) string {
+	return GetCustomerNameByActorID(keycloakGroups, key.ActorID)
+}
+
+// GetCustomerNameByActorID compares the keycloak group id with the database key actor id.
+func GetCustomerNameByActorID(keycloakGroups []*keycloak.Group, actorID string) string {
 	// Set default as unknown
 	customerName := "UNKNOWN"
 	// Parse the URN
-	parsedURN, err := cigourn.Parse(key.ActorID)
+	parsedURN, err := cigourn.Parse(actorID)
 	if err != nil {
 		return customerName
 	}

@@ -210,11 +210,11 @@ func registerHandlers(
 	policiesV2Handler := policiesV2.New(tykClient)
 	server.GET("/v2/policies", policiesV2Handler.LIST)
 
-	customersV2Handler := customers.New(keyCloakClient, keyCloakConfig, pagination)
+	customersV2Handler := customers.New(keyCloakClient, keyCloakConfig, omaClient, pagination)
 	server.GET("/v2/customers", customersV2Handler.LIST)
 	server.GET("/v2/customers/:customerID", customersV2Handler.GET)
 
-	accountsV2Handler := accountsV2.New(keyCloakClient, keyCloakConfig, solvimonClient, pagination)
+	accountsV2Handler := accountsV2.New(keyCloakClient, keyCloakConfig, solvimonClient, omaClient, pagination)
 	server.GET("/v2/customers/:customerID/accounts", accountsV2Handler.LIST)
 	server.PUT("/v2/accounts/:accountID", accountsV2Handler.PUT)
 }

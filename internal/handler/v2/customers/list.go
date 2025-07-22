@@ -30,6 +30,11 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 		return
 	}
 
+	if !h.isAuthorized(ctx, nil) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	searchParams, err := filters.NewSearchParameters(filters.FilterParam{Match: request.Match})
 	if err != nil {
 		goskell.JsonAPIError(ctx, "invalid query parameters", err, http.StatusBadRequest)
