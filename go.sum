@@ -528,8 +528,8 @@ github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 gitlab.ci.fdmg.org/ci-api/cigourn v0.1.6 h1:TsSFZTYdRDzicRxGk3TkY4gd2mQBCIzZMcf4+8xe2iw=
 gitlab.ci.fdmg.org/ci-api/cigourn v0.1.6/go.mod h1:I8yycdQA99Ujv3A9b496fxRjhBF4nzrd1lWD+x2hHrQ=
-gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.7.1 h1:Hjow+3ppQirai4Nsjdwyf1jg24dWilvtF5FNa5kxQNA=
-gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.7.1/go.mod h1:K2OeEUxn21cgipwFE5LCnjhiB4JnVq2NJfUkKaNwNgs=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.8.2 h1:jpG8USvGSxsZXZFhlztLPDd0oNd7OMFbUq9PZGdHOF4=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.8.2/go.mod h1:K2OeEUxn21cgipwFE5LCnjhiB4JnVq2NJfUkKaNwNgs=
 gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.2 h1:e9PZU1GoVWWu7Sv9u0+Cda93PaiR0zK3xowlSkTOqCQ=
 gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.2/go.mod h1:5bbrbGcESjgn7U6gS2uqGdKkn0NcaYzsO6jmmoshBS4=
 gitlab.ci.fdmg.org/ci-api/oma v0.4.1 h1:nfjq3E6HLMJICE9+xjuq73V7yBtS/cjhWX0UzWGkweQ=
