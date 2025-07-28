@@ -3,6 +3,7 @@ package keys
 
 import (
 	"errors"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"go.opentelemetry.io/otel/attribute"
 	"net/http"
@@ -52,7 +53,7 @@ func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error
 	}
 	// Validate contact emails.
 	if i.Contact != nil && len(i.Contact.Emails) > 0 {
-		if !validation.ValidateEmail(i.Contact.Emails) {
+		if !validation.ValidateEmails(i.Contact.Emails) {
 			return errors.New("one or more contact emails are incorrect")
 		}
 	}
@@ -234,7 +235,7 @@ func (h *Handler) workflowOutputToPATCHResponse(workflowOutput *workflowOutput) 
 		ID:             workflowOutput.ID,
 		ActorID:        workflowOutput.ActorID,
 		CreatorID:      workflowOutput.CreatorID,
-		Policies:       workflowOutput.Policies,
+		Policies:       policies.FilterString(workflowOutput.Policies),
 		ExpiresAt:      workflowOutput.ExpiresAt,
 		Quota:          workflowOutput.Quota,
 		QuotaRemaining: workflowOutput.QuotaRemaining,

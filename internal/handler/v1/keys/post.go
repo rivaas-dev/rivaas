@@ -7,6 +7,7 @@ import (
 	"github.com/companyinfo/gourn"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/validation"
 	"gitlab.ci.fdmg.org/ci-api/cigourn"
 	"gitlab.ci.fdmg.org/ci-api/cigourn/online"
@@ -54,7 +55,7 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 	}
 	// Validate contact emails.
 	if i.Contact != nil && len(i.Contact.Emails) > 0 {
-		if !validation.ValidateEmail(i.Contact.Emails) {
+		if !validation.ValidateEmails(i.Contact.Emails) {
 			return errors.New("one or more contact emails are incorrect")
 		}
 	}
@@ -218,7 +219,7 @@ func (h *Handler) postRequestToWorkflowInput(request *PostInput) (WorkflowPostIn
 	wInput := WorkflowPostInput{
 		CustomerID:  &request.CustomerID,
 		AccountID:   &request.AccountID,
-		Policies:    request.Policies,
+		Policies:    policies.FilterString(request.Policies),
 		ExpiresAt:   request.ExpiresAt,
 		Quota:       request.Quota,
 		Description: request.Description,

@@ -1,7 +1,7 @@
 package validation
 
 import (
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/policies"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )

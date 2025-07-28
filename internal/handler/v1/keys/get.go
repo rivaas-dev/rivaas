@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"go.opentelemetry.io/otel/attribute"
 	"net/http"
@@ -129,6 +130,11 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 	}
 	goot.EndSpan(span)
 
+	emails := make([]string, 0, len(dbKey.Contact.Emails))
+	for _, email := range dbKey.Contact.Emails {
+		emails = append(emails, email.Address)
+	}
+
 	// build key from db response
 	result := GetOutput{
 		ID:             dbKey.ID,
@@ -137,14 +143,17 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 		ActorID:        dbKey.ActorID,
 		CreatorID:      dbKey.CreatorID,
 		ExpiresAt:      dbKey.ExpiresAt,
-		Policies:       tykResponse.ApplyPolicies,
+		Policies:       policies.FilterString(tykResponse.ApplyPolicies),
 		Quota:          tykResponse.QuotaMax,
 		QuotaRemaining: tykResponse.QuotaRemaining,
 		CreationDate:   dbKey.CreatedAt,
-		Contact:        Contact(dbKey.Contact),
-		Active:         !tykResponse.IsInactive,
-		Environment:    dbKey.Environment,
-		Labels:         dbKey.Labels,
+		Contact: Contact{
+			Emails: emails,
+			Users:  dbKey.Contact.Users,
+		},
+		Active:      !tykResponse.IsInactive,
+		Environment: dbKey.Environment,
+		Labels:      dbKey.Labels,
 	}
 
 	if rateLimit, ok := dbKey.Metadata["rate_limit"]; ok {

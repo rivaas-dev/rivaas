@@ -8,6 +8,7 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"go.opentelemetry.io/otel/attribute"
 	"net/http"
@@ -74,8 +75,10 @@ func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error
 	}
 	// Validate contact emails.
 	if i.Body.Attributes.Contact != nil && len(i.Body.Attributes.Contact.Emails) > 0 {
-		if !validation.ValidateEmail(i.Body.Attributes.Contact.Emails) {
-			return errors.New("one or more contact emails are incorrect")
+		for _, email := range i.Body.Attributes.Contact.Emails {
+			if !validation.ValidateEmail(email.Address) {
+				return errors.New("one or more contact emails are incorrect")
+			}
 		}
 	}
 
@@ -246,7 +249,7 @@ func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.
 		Environment:    dbKey.Environment,
 		ActorID:        workflowOutput.ActorID,
 		CreatorID:      workflowOutput.CreatorID,
-		Policies:       workflowOutput.Policies,
+		Policies:       policies.FilterString(workflowOutput.Policies),
 		ExpiresAt:      workflowOutput.ExpiresAt,
 		Quota:          workflowOutput.Quota,
 		QuotaRemaining: workflowOutput.QuotaRemaining,

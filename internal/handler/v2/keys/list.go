@@ -147,7 +147,7 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 			ExpiresAt:    key.ExpiresAt,
 			Description:  key.Description,
 			CreationAt:   key.CreatedAt.Format(time.RFC3339),
-			Contact:      apikey.Contact(key.Contact),
+			Contact:      apikey.DBToContact(key.Contact),
 			Active:       key.Active,
 			RateLimit:    rl,
 			Environment:  key.Environment,
