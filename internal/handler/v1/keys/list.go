@@ -96,6 +96,12 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 		if err != nil {
 			log.Err(err).Msg("cant find client in keycloak")
 		}
+
+		emails := make([]string, 0, len(key.Contact.Emails))
+		for _, email := range key.Contact.Emails {
+			emails = append(emails, email.Address)
+		}
+
 		// Define the response
 		response = append(response, ListOutput{
 			ID:           key.ID,
@@ -106,11 +112,14 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 			ExpiresAt:    key.ExpiresAt,
 			Description:  key.Description,
 			CreationAt:   key.CreatedAt,
-			Contact:      Contact(key.Contact),
-			Active:       key.Active,
-			RateLimit:    rl,
-			Environment:  key.Environment,
-			Labels:       key.Labels,
+			Contact: Contact{
+				Emails: emails,
+				Users:  key.Contact.Users,
+			},
+			Active:      key.Active,
+			RateLimit:   rl,
+			Environment: key.Environment,
+			Labels:      key.Labels,
 		})
 	}
 	return response

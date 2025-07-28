@@ -12,6 +12,7 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
@@ -111,13 +112,13 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*apikey.APIKe
 		Environment:    dbKey.Environment,
 		ActorID:        dbKey.ActorID,
 		CreatorID:      dbKey.CreatorID,
-		Policies:       tykResponse.ApplyPolicies,
+		Policies:       policies.FilterString(tykResponse.ApplyPolicies),
 		ExpiresAt:      dbKey.ExpiresAt,
 		Quota:          tykResponse.QuotaMax,
 		QuotaRemaining: tykResponse.QuotaRemaining,
 		Description:    apikey.String(dbKey.Description),
 		CreatedDate:    dbKey.CreatedAt.Format(time.RFC3339),
-		Contact:        apikey.Contact(dbKey.Contact),
+		Contact:        apikey.DBToContact(dbKey.Contact),
 		Active:         !tykResponse.IsInactive,
 		RateLimit: apikey.RateLimit{
 			Rate: tykResponse.Rate,

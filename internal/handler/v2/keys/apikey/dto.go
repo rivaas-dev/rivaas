@@ -2,12 +2,17 @@ package apikey
 
 import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 )
 
 // Contact represents contact points information.
 type Contact struct {
-	Emails []string `jsonapi:"attr,emails"`
-	Users  []uint   `jsonapi:"attr,users"`
+	Emails []Email `json:"emails" jsonapi:"attr,emails"`
+	Users  []uint  `json:"users" jsonapi:"attr,users"`
+}
+
+type Email struct {
+	Address string `json:"address"  jsonapi:"attr,address"`
 }
 
 // RateLimit represents rate limit information.
@@ -55,4 +60,30 @@ func String(str *string) string {
 		return ""
 	}
 	return *str
+}
+
+func ToDBContact(contact Contact) db.Contact {
+	emails := make([]db.Email, 0, len(contact.Emails))
+	for _, email := range contact.Emails {
+		emails = append(emails, db.Email{
+			Address: email.Address,
+		})
+	}
+	return db.Contact{
+		Emails: emails,
+		Users:  contact.Users,
+	}
+}
+
+func DBToContact(contact db.Contact) Contact {
+	emails := make([]Email, 0, len(contact.Emails))
+	for _, email := range contact.Emails {
+		emails = append(emails, Email{
+			Address: email.Address,
+		})
+	}
+	return Contact{
+		Emails: emails,
+		Users:  contact.Users,
+	}
 }

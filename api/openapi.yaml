@@ -717,9 +717,13 @@ components:
               type: object
               properties:
                 emails:
+                  type: array
                   items:
-                    type: string
-                    example: ["email@example.com", "example@email.com"]
+                    type: object
+                    properties:
+                      address:
+                        type: string
+                        example: "email@example.com"
                 users:
                   items:
                     type: string
@@ -786,9 +790,13 @@ components:
               type: object
               properties:
                 emails:
+                  type: array
                   items:
-                    type: string
-                    example: ["email@example.com", "example@email.com"]
+                    type: object
+                    properties:
+                      address:
+                        type: string
+                        example: "email@example.com"
                 users:
                   items:
                     type: string
@@ -880,9 +888,15 @@ components:
                 contacts:
                   type: object
                   properties:
-                    Emails:
-                      nullable: true
-                    Users:
+                    emails:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          address:
+                            type: string
+                            example: "email@example.com"
+                    users:
                       nullable: true
                 creatorID:
                   type: string
@@ -960,9 +974,13 @@ components:
                   type: object
                   properties:
                     emails:
+                      type: array
                       items:
-                        type: string
-                        example: ["email@example.com", "example@email.com"]
+                        type: object
+                        properties:
+                          address:
+                            type: string
+                            example: "email@example.com"
                     users:
                       items:
                         type: string
@@ -1026,9 +1044,13 @@ components:
                   type: object
                   properties:
                     emails:
+                      type: array
                       items:
-                        type: string
-                        example: ["email@example.com", "example@email.com"]
+                        type: object
+                        properties:
+                          address:
+                            type: string
+                            example: "email@example.com"
                     users:
                       items:
                         type: string
@@ -1122,13 +1144,15 @@ components:
                 contacts:
                   type: object
                   properties:
-                    Emails:
+                    emails:
                       type: array
-                      nullable: true
                       items:
-                        type: string
-                      example: null
-                    Users:
+                        type: object
+                        properties:
+                          address:
+                            type: string
+                            example: "email@example.com"
+                    users:
                       type: array
                       nullable: true
                       items:

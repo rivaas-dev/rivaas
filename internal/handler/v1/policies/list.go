@@ -2,9 +2,8 @@
 package policies
 
 import (
-	"context"
 	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
+	policiesV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
@@ -20,7 +19,7 @@ type Policy struct {
 func (h *Handler) LIST(ctx *goskell.Context) {
 	// retrieve the policies list
 	_, span := goot.Span(ctx.Request.Context(), "get_from_tyk")
-	policies, err := GetPolicies(ctx.Request.Context(), h.tykClient)
+	policies, err := policiesV2.GetPolicies(ctx.Request.Context(), h.tykClient)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to fetch policies")
 		log.Err(err).Msg("failed to fetch policies")
@@ -30,22 +29,4 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	goot.EndSpan(span)
 
 	ctx.JSON(http.StatusOK, policies)
-}
-
-// GetPolicies fetch list of policies from the Tyk server.
-func GetPolicies(ctx context.Context, tykClient *tyk.APIClient) ([]Policy, error) {
-	policies, _, err := tykClient.PoliciesApi.ListPolicies(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	res := make([]Policy, len(policies))
-	for i, p := range policies {
-		res[i] = Policy{
-			ID:   p.Id,
-			Name: p.Name,
-		}
-	}
-
-	return res, nil
 }

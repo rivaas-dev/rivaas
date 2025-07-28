@@ -6,9 +6,13 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 )
 
-type contact struct {
-	Emails []string
-	Users  []uint
+type Contact struct {
+	Emails []Email `json:"emails"`
+	Users  []uint  `json:"users"`
+}
+
+type Email struct {
+	Address string `json:"address"`
 }
 
 type Environment = string
@@ -30,7 +34,7 @@ type Key struct {
 	UpdatedAt   time.Time         `gorm:"column:last_modified;autoUpdateTime"`
 	Description *string           `gorm:"column:description"`
 	DeletedAt   *time.Time        `gorm:"column:deleted_at"`
-	Contact     contact           `gorm:"column:contacts;type:json;serializer:json"`
+	Contact     Contact           `gorm:"column:contacts;type:json;serializer:json"`
 	Active      bool              `gorm:"column:active;default:true"`
 	Metadata    map[string]any    `gorm:"column:metadata;type:json;serializer:json"`
 	Environment Environment       `gorm:"column:environment"`

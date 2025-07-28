@@ -3,9 +3,14 @@ package validation
 import "net/mail"
 
 // ValidateEmail validates email addresses.
-func ValidateEmail(emails []string) bool {
+func ValidateEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+	return err == nil
+}
+
+func ValidateEmails(emails []string) bool {
 	for _, email := range emails {
-		if _, err := mail.ParseAddress(email); err != nil {
+		if !ValidateEmail(email) {
 			return false
 		}
 	}
