@@ -6,10 +6,11 @@ import (
 	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
-	keycloakAccounts "gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
+	"go.opentelemetry.io/otel/attribute"
 	"net/http"
 )
 
@@ -18,7 +19,8 @@ import (
 // Empty fields overwrite the values since it's a PUT not PATCH!
 type AccountInput struct {
 	Path struct {
-		AccountID string `uri:"accountID" binding:"required"`
+		CustomerID string `uri:"customerID" binding:"required"`
+		AccountID  string `uri:"accountID" binding:"required"`
 	}
 	Body struct {
 		Data `json:"data" binding:"required"`
@@ -51,6 +53,9 @@ func (i AccountInput) Validate() error {
 	var financialEmail string
 	if i.Body.Attributes.Customer.ID == "" {
 		return errors.New("customer ID is required")
+	}
+	if i.Body.Attributes.Customer.ID != i.Path.CustomerID {
+		return errors.New("customer IDs in the body and URL are not equal")
 	}
 
 	for _, contact := range append(i.Body.Attributes.Customer.CustomerContactDetails, i.Body.Attributes.AccountContactDetails...) {
@@ -90,7 +95,7 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 	}
 
 	if !h.isAuthorized(ctx, &Customer{
-		ID: request.Body.Attributes.Customer.ID,
+		ID: request.Path.CustomerID,
 		Account: Account{
 			ID: request.Path.AccountID,
 		},
@@ -99,67 +104,98 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 		return
 	}
 
+	_, span := goot.Span(ctx.Request.Context(), "update_solvimon")
 	oldFinancialEmail, err := h.updateSolvimon(ctx, request)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to update email in solvimon")
+		goot.EndSpanWithError(span, err, "failed to update email in solvimon")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
 	}
+	goot.EndSpan(span)
 
+	_, span = goot.Span(ctx.Request.Context(), "update_keycloak")
 	err = keycloak.UpdateCustomerAccount(ctx, h.keycloakClient, keycloak.CustomerUpdate{
 		Account: keycloak.Account{
 			ID:       request.Path.AccountID,
 			Contacts: contactsToMap(request.Body.Attributes.AccountContactDetails),
 		},
-		ID:       request.Body.Data.Attributes.Customer.ID,
+		ID:       request.Path.CustomerID,
 		Contacts: contactsToMap(request.Body.Attributes.Customer.CustomerContactDetails),
 	})
 	if err != nil {
 		// revert Solvimon first
-		_, solvimonErr := h.updateSolvimonEmail(ctx, request.Body.Data.Attributes.Customer.ID, oldFinancialEmail)
+		_, solvimonErr := h.updateSolvimonEmail(ctx, request.Path.CustomerID, oldFinancialEmail)
 		if solvimonErr != nil {
 			log.Error().Err(solvimonErr).
 				Str("oldEmail", oldFinancialEmail).
-				Str("customerID", request.Body.Data.Attributes.Customer.ID).
+				Str("customerID", request.Path.CustomerID).
 				Msg("failed to rollback email in solvimon after keycloak error")
+			span.SetAttributes(
+				attribute.String("error_stack_message", "failed to rollback email in solvimon after keycloak error"),
+				attribute.String("error_stack", solvimonErr.Error()),
+			)
 		}
 
 		log.Error().Err(err).
-			Str("customerID", request.Body.Data.Attributes.Customer.ID).
+			Str("customerID", request.Path.CustomerID).
 			Str("accountID", request.Path.AccountID).
 			Msg("failed to update email in keycloak")
+		goot.EndSpanWithError(span, err, "failed to retrieve keycloak subgroup")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
 	}
+	goot.EndSpan(span)
 
-	group, err := h.keycloakClient.GetGroupByID(ctx, request.Body.Data.Attributes.Customer.ID)
+	_, span = goot.Span(ctx.Request.Context(), "get_group_from_keycloak",
+		attribute.String("customerID", request.Path.CustomerID),
+	)
+	group, err := h.keycloakClient.GetGroupByID(ctx, request.Path.CustomerID)
 	if err != nil {
 		log.Error().Err(err).
-			Str("customerID", request.Body.Data.Attributes.Customer.ID).
+			Str("customerID", request.Path.CustomerID).
 			Str("accountID", request.Path.AccountID).
 			Msg("failed to retrieve keycloak group, but update was successful")
+		goot.EndSpanWithError(span, err, "failed to retrieve keycloak group")
 		goskell.JsonAPIError(ctx, "updated account successfully but failed to return the new data", err, http.StatusInternalServerError)
 		return
 	}
+	goot.EndSpan(span)
 
+	_, span = goot.Span(ctx.Request.Context(), "get_subgroup_from_keycloak",
+		attribute.String("accountID", request.Path.AccountID),
+	)
 	subgroup, err := h.keycloakClient.GetSubGroupByID(*group, request.Path.AccountID)
 	if err != nil {
 		log.Error().Err(err).
-			Str("customerID", request.Body.Data.Attributes.Customer.ID).
+			Str("customerID", request.Path.CustomerID).
 			Str("accountID", request.Path.AccountID).
 			Msg("failed to retrieve keycloak subgroup, but update was successful")
+		goot.EndSpanWithError(span, err, "failed to retrieve keycloak subgroup, but update was successful")
 		goskell.JsonAPIError(ctx, "updated account successfully but failed to return the new data", err, http.StatusInternalServerError)
 		return
 	}
+	goot.EndSpan(span)
 
 	// Parse the group data
-	parsedKeyCloakGroup := keycloakAccounts.ParseAccountGroup(group, subgroup)
+	_, span = goot.Span(ctx.Request.Context(), "group_to_account")
+	parsedKeyCloakGroup, err := h.customerService.GroupToAccountExtended(group, subgroup)
+	if err != nil {
+		log.Error().Err(err).
+			Str("customerID", request.Path.CustomerID).
+			Str("accountID", request.Path.AccountID).
+			Msg("failed to convert groups to customer")
+		goot.EndSpanWithError(span, err, "failed to convert groups to customer")
+		goskell.JsonAPIError(ctx, "failed to create a response", err, http.StatusInternalServerError)
+		return
+	}
+	goot.EndSpan(span)
 
 	// Build response
 	response, err := jsonapi.Marshal(parsedKeyCloakGroup)
 	if err != nil {
 		log.Error().Err(err).
-			Str("customerID", request.Body.Data.Attributes.Customer.ID).
+			Str("customerID", request.Path.CustomerID).
 			Str("accountID", request.Path.AccountID).
 			Msg("failed to return keycloak group, but update was successful")
 		goskell.JsonAPIError(ctx, "updated account successfully but failed to return the new data", err, http.StatusInternalServerError)
@@ -193,7 +229,7 @@ func (h *Handler) updateSolvimon(ctx context.Context, request AccountInput) (old
 		return "", nil
 	}
 
-	return h.updateSolvimonEmail(ctx, request.Body.Data.Attributes.Customer.ID, financialEmail)
+	return h.updateSolvimonEmail(ctx, request.Path.CustomerID, financialEmail)
 }
 
 func (h *Handler) updateSolvimonEmail(ctx context.Context, customerReference, email string) (oldEmail string, err error) {

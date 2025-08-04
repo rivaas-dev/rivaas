@@ -53,7 +53,6 @@ type PatchAttributes struct {
 	Active      *bool              `json:"active,omitempty"`   // Defines the status of the key.
 	RateLimit   *apikey.RateLimit  `json:"rateLimit"`          // Defines rate limit of the key.
 	Labels      *map[string]string `json:"labels"`             // Contains user specified labels for categorization
-
 }
 
 // Validate validates the PATCH request body.

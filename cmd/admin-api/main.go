@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
+	customerService "gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/accounts"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v1/keys"
@@ -128,7 +129,7 @@ func run(ctx context.Context) error {
 	omaClient := newOMAClient(ctx, cfg.OMA)
 
 	// Register handlers.
-	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, solvimonClient, cfg.Pagination)
+	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, solvimonClient, cfg.Config)
 
 	// Run server.
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -182,7 +183,7 @@ func registerHandlers(
 	keyCloakClient keycloak.Client,
 	keyCloakConfig config.KeyCloakConfig,
 	solvimonClient *solvimon.Client,
-	pagination config.Pagination,
+	cfg config.Config,
 ) {
 	// v1 endpoints - not JSON:API compliant
 	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig)
@@ -199,8 +200,11 @@ func registerHandlers(
 	server.GET("/accounts", accountHandler.GET)
 	server.PUT("/accounts/:id", accountHandler.PUT)
 
+	// services for v2 handlers
+	customerSvc := customerService.New(dbClient, cfg.PricingPlans)
+
 	// v2 endpoints - JSON:API compliant
-	keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig, pagination)
+	keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig, cfg.Pagination)
 	server.POST("/v2/keys", keyV2Handler.POST)
 	server.GET("/v2/keys", keyV2Handler.LIST)
 	server.GET("/v2/keys/:id", keyV2Handler.GET)
@@ -210,11 +214,12 @@ func registerHandlers(
 	policiesV2Handler := policiesV2.New(tykClient)
 	server.GET("/v2/policies", policiesV2Handler.LIST)
 
-	customersV2Handler := customers.New(keyCloakClient, keyCloakConfig, omaClient, pagination)
+	customersV2Handler := customers.New(keyCloakClient, keyCloakConfig, omaClient, customerSvc, cfg.Pagination)
 	server.GET("/v2/customers", customersV2Handler.LIST)
 	server.GET("/v2/customers/:customerID", customersV2Handler.GET)
 
-	accountsV2Handler := accountsV2.New(keyCloakClient, keyCloakConfig, solvimonClient, omaClient, pagination)
+	accountsV2Handler := accountsV2.New(keyCloakClient, keyCloakConfig, solvimonClient, omaClient, customerSvc, cfg.Pagination, cfg.PricingPlans)
 	server.GET("/v2/customers/:customerID/accounts", accountsV2Handler.LIST)
-	server.PUT("/v2/accounts/:accountID", accountsV2Handler.PUT)
+	server.GET("/v2/customers/:customerID/accounts/:accountID", accountsV2Handler.GET)
+	server.PUT("/v2/customers/:customerID/accounts/:accountID", accountsV2Handler.PUT)
 }

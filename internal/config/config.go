@@ -1,6 +1,9 @@
 package config
 
-import "gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
+import (
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
+)
 
 // Config represents application configuration.
 type Config struct {
@@ -15,6 +18,7 @@ type Config struct {
 	OpenTelemetry OpenTelemetry
 	Solvimon      Solvimon
 	Pagination    Pagination
+	PricingPlans  map[string]customers.PricingPlan `mapstructure:"pricingplans" consul:"pricing-plans" codec:"yaml"` // mapping of pricing plan ID to pricing plan configuration
 }
 
 // Database represents Database configuration.

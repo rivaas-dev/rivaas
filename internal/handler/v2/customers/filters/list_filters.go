@@ -1,7 +1,7 @@
 package filters
 
 import (
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 )
 
 const (
@@ -13,8 +13,8 @@ type FilterParam struct {
 }
 
 // NewSearchParameters construct search parameters from maps struct
-func NewSearchParameters(params FilterParam) (keycloak.CustomerSearch, error) {
-	var search keycloak.CustomerSearch
+func NewSearchParameters(params FilterParam) (customers.CustomerSearch, error) {
+	var search customers.CustomerSearch
 	if name, ok := params.Match[nameFilter]; ok && name != "" {
 		search.Name = &name
 	}

@@ -3,7 +3,6 @@ package customers
 import (
 	"github.com/companyinfo/jsonapi"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"net/http"
@@ -39,7 +38,7 @@ func (h *Handler) GET(ctx *goskell.Context) {
 	goot.EndSpan(span)
 
 	// Parse the group data
-	parsedKeyCloakGroups := keycloak.ParseCustomerGroup(group)
+	parsedKeyCloakGroups := h.customerService.ParseCustomerGroup(group)
 
 	// Build response from groups
 	response, err := jsonapi.Marshal(parsedKeyCloakGroups)
