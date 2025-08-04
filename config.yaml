@@ -46,3 +46,13 @@ app:
   pagination:
     defaultPageSize: 10
     maxPageSize: 300
+
+  pricingPlans:
+    small:
+      quota: small
+      number_of_api_production_keys: 1
+      number_of_api_sandbox_keys: 1
+    medium:
+      quota: medium
+      number_of_api_production_keys: 3
+      number_of_api_sandbox_keys: 1

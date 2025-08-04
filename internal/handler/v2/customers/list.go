@@ -6,7 +6,6 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/customers/filters"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/pagination"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/keycloak"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"math"
@@ -66,7 +65,7 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	goot.EndSpan(span)
 
 	// Parse the group data
-	parsedKeyCloakGroups := keycloak.ParseCustomerGroups(groups)
+	parsedKeyCloakGroups := h.customerService.ParseCustomerGroups(groups)
 
 	// Build response from groups
 	jsonAPIResponse, err := jsonapi.Marshal(parsedKeyCloakGroups)

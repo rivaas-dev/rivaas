@@ -586,7 +586,7 @@ paths:
           content:
             application/vnd.api+json:
               schema:
-                $ref: '#/components/schemas/AccountDetailsListV2Response'
+                $ref: '#/components/schemas/AccountListV2Response'
         400:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
         403:
@@ -596,13 +596,18 @@ paths:
         500:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
 
-  /v2/accounts/{accountID}:
+  /v2/customers/{customerID}/accounts/{accountID}:
     put:
       summary: Update an account by ID
       tags:
         - accounts
       parameters:
         - name: accountID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: customerID
           in: path
           required: true
           schema:
@@ -614,6 +619,42 @@ paths:
             schema:
               $ref: '#/components/schemas/AccountUpdateRequest'
       responses:
+        200:
+          description: A paginated list of accounts of an API customer.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccountExtendedV2'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+    get:
+      summary: Get an account by ID
+      tags:
+        - accounts
+      parameters:
+        - name: accountID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: customerID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: A paginated list of accounts of an API customer.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccountExtendedV2'
         400:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
         403:
@@ -1415,8 +1456,38 @@ components:
           items:
             $ref: '#/components/schemas/ContactDetail'
 
+    AccountExtendedAttributes:
+      allOf:
+      - $ref: '#/components/schemas/AccountAttributes'
+      - type: object
+        properties:
+          subscription:
+            description: Subscription details of an account
+            type: object
+            properties:
+              apiKeys:
+                type: object
+                properties:
+                  production:
+                    type: object
+                    properties:
+                      maxCount:
+                        type: integer
+                        description: Maximum number of production keys an account can have
+                      currentCount:
+                        type: integer
+                        description: Number of existing production keys an account has
+                  sandbox:
+                    type: object
+                    properties:
+                      maxCount:
+                        type: integer
+                        description: Maximum number of sandbox keys an account can have
+                      currentCount:
+                        type: integer
+                        description: Number of existing sandbox keys an account has
 
-    AccountDetailsV2:
+    AccountV2:
       type: object
       title: CustomerAccountDetailsV2
       description: Details about an account of an API customer
@@ -1439,13 +1510,36 @@ components:
             customer:
               $ref: '#/components/schemas/Relationship'
 
-    AccountDetailsListV2Response:
+    AccountExtendedV2:
+      type: object
+      title: CustomerAccountDetailsV2
+      description: Details about an account of an API customer
+      required:
+        - type
+        - attributes
+        - id
+      properties:
+        type:
+          type: string
+          example: accounts
+        id:
+          type: string
+          example: 01JSERF9HRSMDHQN4ZS3DE26ZR
+        attributes:
+          $ref: '#/components/schemas/AccountExtendedAttributes'
+        relationships:
+          type: object
+          properties:
+            customer:
+              $ref: '#/components/schemas/Relationship'
+
+    AccountListV2Response:
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/AccountDetailsV2'
+            $ref: '#/components/schemas/AccountV2'
         included:
           type: array
           items:

@@ -86,6 +86,28 @@ func (s DBClient) GetKeysPaginated(searchParams SearchParams, pageSize uint, pag
 	return keyList, totalResults, nil
 }
 
+// GetKeysCountPerEnvironment gets number of all the keys with optional filters per environment.
+func (s DBClient) GetKeysCountPerEnvironment(searchParams SearchParams) (totalResults map[Environment]int64, err error) {
+	query := s.prepareListQuery(searchParams)
+	query = query.Select("environment, count(*) as count").Table(Key{}.TableName()).Group("environment")
+
+	// we need this intermediate struct because can't handle maps
+	type EnvCount struct {
+		Environment string `gorm:"column:environment"`
+		Count       int64  `gorm:"column:count"`
+	}
+	var envCounts []EnvCount
+	err = query.Scan(&envCounts).Error
+	if err != nil {
+		return nil, fmt.Errorf("calculating the number of keys by environment: %w", err)
+	}
+	counts := make(map[Environment]int64, len(envCounts))
+	for _, envCount := range envCounts {
+		counts[envCount.Environment] = envCount.Count
+	}
+	return counts, nil
+}
+
 // Paginate paginates the result
 func Paginate(pageNumber, pageSize uint) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
@@ -137,6 +159,14 @@ func (s DBClient) prepareListQuery(searchParams SearchParams) *gorm.DB {
 
 	if searchParams.ExpiresAt != nil {
 		q = q.Where("expires_at = ?", searchParams.ExpiresAt.GormValue())
+	}
+
+	if searchParams.ExpiresBefore != nil {
+		q = q.Where("expires_at < ?", searchParams.ExpiresBefore.GormValue())
+	}
+
+	if searchParams.ExpiresAfter != nil {
+		q = q.Where("expires_at > ?", searchParams.ExpiresAfter.GormValue()).Or("expires_at IS NULL")
 	}
 
 	if searchParams.Active != nil {

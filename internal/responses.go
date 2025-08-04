@@ -27,6 +27,14 @@ func WriteJSONAPIResponse(ctx *goskell.Context, body any, statusCode int, header
 	ctx.JSON(statusCode, body)
 }
 
+// WriteResponse writes a byte json api response.
+func WriteResponse(ctx *goskell.Context, body []byte, statusCode int, headers map[string]string) {
+	for key, value := range headers {
+		ctx.Header(key, value)
+	}
+	ctx.Data(statusCode, jsonapi.MediaType, body)
+}
+
 // GeneratePageLinks generates page links.
 func GeneratePageLinks(ctx *goskell.Context, paginationParams *PaginationParams, totalResult uint) (*jsonapi.Links, error) {
 	// Get the previous path

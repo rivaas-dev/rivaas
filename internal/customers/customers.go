@@ -1,4 +1,4 @@
-package keycloak
+package customers
 
 import (
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
@@ -7,10 +7,10 @@ import (
 
 // Customer is in relation to an api account
 type Customer struct {
-	ID                     string    `jsonapi:"primary,customer"`
-	Name                   string    `jsonapi:"attr,name"`
-	SalesforceID           string    `jsonapi:"attr,salesforceID,omitempty"`
-	CustomerContactDetails []Contact `jsonapi:"attr,contactDetails,omitempty"`
+	ID                     string    `json:"id" jsonapi:"primary,customer"`
+	Name                   string    `json:"name" jsonapi:"attr,name"`
+	SalesforceID           string    `json:"salesforceID" jsonapi:"attr,salesforceID,omitempty"`
+	CustomerContactDetails []Contact `json:"contactDetails" jsonapi:"attr,contactDetails,omitempty"`
 }
 
 type Contact struct {
@@ -23,7 +23,7 @@ type CustomerSearch struct {
 	ID   *string
 }
 
-func ParseCustomerGroups(groups []*keycloak.Group) []*Customer {
+func (s *Service) ParseCustomerGroups(groups []*keycloak.Group) []*Customer {
 	sort.Slice(groups, func(i, j int) bool {
 		return *groups[i].Name < *groups[j].Name
 	})
@@ -32,14 +32,14 @@ func ParseCustomerGroups(groups []*keycloak.Group) []*Customer {
 	// iterate the main groups
 	for _, group := range groups {
 		// Iterate subgroup
-		groupCustomer := ParseCustomerGroup(group)
+		groupCustomer := s.ParseCustomerGroup(group)
 		customers = append(customers, groupCustomer)
 	}
 
 	return customers
 }
 
-func ParseCustomerGroup(group *keycloak.Group) *Customer {
+func (s *Service) ParseCustomerGroup(group *keycloak.Group) *Customer {
 	return &Customer{
 		ID:                     *group.ID,
 		Name:                   *group.Name,
