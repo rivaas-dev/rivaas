@@ -18,7 +18,7 @@ type Config struct {
 	OpenTelemetry OpenTelemetry
 	Solvimon      Solvimon
 	Pagination    Pagination
-	PricingPlans  map[string]customers.PricingPlan `mapstructure:"pricingplans" consul:"pricing-plans" codec:"yaml"` // mapping of pricing plan ID to pricing plan configuration
+	PricingPlans  map[string]customers.PricingPlan
 }
 
 // Database represents Database configuration.

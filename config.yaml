@@ -1,58 +1,57 @@
-app:
-  host: 0.0.0.0
-  port: 8090
-  logLevel: "debug"
+host: 0.0.0.0
+port: 8090
+logLevel: "debug"
 
-  database:
-    host: 127.0.0.1
-    port: 5432
-    username: user
-    password: secret
-    name: admin_api
+database:
+  host: 127.0.0.1
+  port: 5432
+  username: user
+  password: secret
+  name: admin_api
 
-  tyk:
-    url: http://127.0.0.1:8081
-    secret: secret
-    debug: true
+tyk:
+  url: http://127.0.0.1:8081
+  secret: secret
+  debug: true
 
-  temporal:
-    hostPort: 127.0.0.1:7233
-    namespace: default
+temporal:
+  hostPort: 127.0.0.1:7233
+  namespace: default
 
-  keycloak:
-    credentials:
-      url: http://localhost:8080
-      realm: master
-      clientID: admin-cli
-      clientSecret: kU67yLSg3J49cFc8tGeHndztZVLqATZd
-      pageSize: 5
-    briefRepresentation: false
-    first: 0
-    max: 500
+keycloak:
+  credentials:
+    url: http://localhost:8080
+    realm: master
+    clientID: admin-cli
+    clientSecret: kU67yLSg3J49cFc8tGeHndztZVLqATZd
+    pageSize: 5
+  briefRepresentation: false
+  first: 0
+  max: 500
 
-  solvimon:
-    baseUrl: https://test.api.solvimon.com/v1
-    apiKey: supersecretkey
+solvimon:
+  baseUrl: https://test.api.solvimon.com/v1
+  apiKey: supersecretkey
 
-  oma:
-    address: http://oma-acc.nl.ci.fdmg.org
-    namespace: ci-api
-    opa:
-      address: http://localhost:8282
+oma:
+  address: http://oma-acc.nl.ci.fdmg.org
+  namespace: ci-api
+  opa:
+    address: http://localhost:8282
 
-  openTelemetry:
-    url: "http://localhost:4318"
+openTelemetry:
+  url: "http://localhost:4318"
 
-  pagination:
-    defaultPageSize: 10
-    maxPageSize: 300
+pagination:
+  defaultPageSize: 10
+  maxPageSize: 300
 
-  pricingPlans:
-    small:
-      quota: small
-      number_of_api_production_keys: 1
-      number_of_api_sandbox_keys: 1
-    medium:
-      quota: medium
-      number_of_api_production_keys: 3
-      number_of_api_sandbox_keys: 1
+pricingPlans:
+  small:
+    quota: small
+    numberOfAPIProductionKeys: 1
+    numberOfAPISandboxKeys: 1
+  medium:
+    quota: medium
+    numberOfAPIProductionKeys: 3
+    numberOfAPISandboxKeys: 1

@@ -175,9 +175,11 @@ postgresql:
 ## @param envVars Extra environment variables to be set on APP container
 ##
 envVars:
-  - name: CONSUL_HOST
+  - name: CONSUL_HTTP_ADDR
     value: "{{ .Values.global.consul.host }}"
   - name: CONSUL_HTTP_TOKEN
     value: "{{ .Values.global.consul.token }}"
-  - name: CONSUL_ENV
-    value: "{{ .Values.global.consul.env }}"
+  - name: CONSUL_APP_KEY
+    value: "{{ .Values.global.consul.app.key }}"
+  - name: CONSUL_PRICING_PLANS_KEY
+    value: "{{ .Values.global.consul.pricing_plans.key }}"
