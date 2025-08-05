@@ -21,21 +21,18 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
-	"gitlab.ci.fdmg.org/datacluster/nl/webservices/goconfig"
+	"go.companyinfo.dev/conflex"
+	"go.companyinfo.dev/conflex/codec"
 	"go.opentelemetry.io/otel/propagation"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/contrib/opentelemetry"
 	"go.temporal.io/sdk/interceptor"
 	"net/http"
 	"net/url"
+	"os"
 )
 
 const ProjectName = "admin_api"
-
-// App defines app configuration.
-type App struct {
-	config.Config `mapstructure:"app" consul:"admin-api" codec:"yaml"`
-}
 
 func main() {
 	if err := run(context.Background()); err != nil {
@@ -44,11 +41,9 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	// Load config.
-	var cfg App
-	err := goconfig.Unmarshal(&cfg)
+	cfg, err := loadConfig(ctx)
 	if err != nil {
-		return err
+		log.Fatal().Msgf("Failed to load config: %v", err)
 	}
 
 	// initialize tracing
@@ -129,7 +124,7 @@ func run(ctx context.Context) error {
 	omaClient := newOMAClient(ctx, cfg.OMA)
 
 	// Register handlers.
-	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, solvimonClient, cfg.Config)
+	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, solvimonClient, cfg)
 
 	// Run server.
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -222,4 +217,34 @@ func registerHandlers(
 	server.GET("/v2/customers/:customerID/accounts", accountsV2Handler.LIST)
 	server.GET("/v2/customers/:customerID/accounts/:accountID", accountsV2Handler.GET)
 	server.PUT("/v2/customers/:customerID/accounts/:accountID", accountsV2Handler.PUT)
+}
+
+// {"level":"fatal","time":"2025-08-05T08:02:20Z","message":"Failed to load config: failed to read config: failed to get consul key: Unexpected response code: 400 (Missing key name)"}
+func loadConfig(ctx context.Context) (config.Config, error) {
+	var (
+		cfg        config.Config
+		conflexOpt []conflex.Option
+	)
+
+	conflexOpt = []conflex.Option{
+		conflex.WithFileSource("config.yaml", codec.TypeYAML),
+		conflex.WithBinding(&cfg),
+	}
+	if os.Getenv("CONSUL_HTTP_ADDR") != "" {
+		conflexOpt = append(conflexOpt,
+			conflex.WithConsulSource(os.Getenv("CONSUL_APP_KEY"), codec.TypeYAML),
+			conflex.WithConsulSource(os.Getenv("CONSUL_PRICING_PLANS_KEY"), codec.TypeYAML),
+		)
+	}
+	cnflx, err := conflex.New(conflexOpt...)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to initialize config provider: %w", err)
+	}
+
+	err = cnflx.Load(ctx)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to read config: %w", err)
+	}
+
+	return cfg, nil
 }
