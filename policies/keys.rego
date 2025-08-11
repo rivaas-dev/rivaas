@@ -2,6 +2,8 @@
 # schemas:
 #   - input.user.id: {type: string}
 #   - input.user.roles: {type: [string]}
+#   - input.user.number_of_keys.current: {type: int}
+#   - input.user.number_of_keys.max: {type: int}
 #   - input.request.method: {type: string}
 #   - input.request.path: {type: string}
 #   - input.key.actor_id: {type: string}
@@ -9,8 +11,6 @@
 # custom:
 #  id: 01H9J0WZ5WS7BVXVC6ATC1C0FW
 package admin.api
-
-default allow := false
 
 # v1 endpoints
 
@@ -45,18 +45,11 @@ allow := true {
 
 # v2 endpoints
 
-# universal rule that covers all endpoints. Administrator have access to everything.
-allow := true {
-   input.user.roles[_] == "administrator"
-}
-
 allow := true {
   input.request.method == "GET"
   input.request.path == "/v2/keys/:id"
 
-  requester_customer_id := split(input.user.id, ":")[3]
-  key_customer_id := split(input.key.actor_id, ":")[3]
-  requester_customer_id == key_customer_id
+  is_user_authorized(input.user.id, input.key.actor_id, input.user.roles)
 }
 
 allow := true {
@@ -70,25 +63,20 @@ allow := true {
   input.request.method == "POST"
   input.request.path == "/v2/keys"
 
-  requester_customer_id := split(input.user.id, ":")[3]
-  key_customer_id := split(input.key.actor_id, ":")[3]
-  requester_customer_id == key_customer_id
+  is_user_authorized(input.user.id, input.key.actor_id, input.user.roles)
+  input.user.number_of_keys.current < input.user.number_of_keys.max
 }
 
 allow := true {
   input.request.method == "PATCH"
   input.request.path == "/v2/keys/:id"
 
-  requester_customer_id := split(input.user.id, ":")[3]
-  key_customer_id := split(input.key.actor_id, ":")[3]
-  requester_customer_id == key_customer_id
+  is_user_authorized(input.user.id, input.key.actor_id, input.user.roles)
 }
 
 allow := true {
   input.request.method == "DELETE"
   input.request.path == "/v2/keys/:id"
 
-  requester_customer_id := split(input.user.id, ":")[3]
-  key_customer_id := split(input.key.actor_id, ":")[3]
-  requester_customer_id == key_customer_id
+  is_user_authorized(input.user.id, input.key.actor_id, input.user.roles)
 }

@@ -190,12 +190,19 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
-	if !h.isAuthorized(ctx, NewKey(
+	accountExt, err := h.customerService.GetAccountExtended(ctx.Request.Context(), request.Body.Attributes.CustomerID, request.Body.Attributes.AccountID)
+	if err != nil {
+		goskell.JsonAPIError(ctx, "failed to get an account", err, http.StatusBadRequest)
+		return
+	}
+
+	key := NewKey(
 		request.Body.Attributes.ActorID,
 		request.Body.Attributes.CustomerID,
 		request.Body.Attributes.AccountID,
 		request.Headers.CreatorID,
-	)) {
+	)
+	if !h.isSubscriptionAuthorized(ctx, key, accountExt.Subscription, request.Body.Attributes.Environment) {
 		// The appropriate response is already handled in "isAuthorized()"
 		return
 	}

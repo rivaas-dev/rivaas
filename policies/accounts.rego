@@ -12,16 +12,21 @@ package admin.api
 
 allow := true {
   input.request.method == "PUT"
-  input.request.path == "/v2/accounts/:accountID"
+  input.request.path == "/v2/customers/:customerID/accounts/:accountID"
 
-  request_customer_id := split(input.user.id, ":")[3]
-  input.customer.id == request_customer_id
+  is_customer_authorized(input.user.id, input.customer.id, input.user.roles)
+}
+
+allow := true {
+  input.request.method == "GET"
+  input.request.path == "/v2/customers/:customerID/accounts/:accountID"
+
+  is_customer_authorized(input.user.id, input.customer.id, input.user.roles)
 }
 
 allow := true {
   input.request.method == "GET"
   input.request.path == "/v2/customers/:customerID/accounts"
 
-  request_customer_id := split(input.user.id, ":")[3]
-  input.customer.id == request_customer_id
+  is_customer_authorized(input.user.id, input.customer.id, input.user.roles)
 }
