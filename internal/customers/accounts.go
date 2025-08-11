@@ -1,10 +1,14 @@
 package customers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/companyinfo/jsonapi"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
+	"go.opentelemetry.io/otel/attribute"
 	"sort"
 	"strings"
 )
@@ -138,13 +142,52 @@ func (s *Service) GroupToAccountExtended(group, subGroup *keycloak.Group) (*Acco
 
 	// Maximum and current number of API keys
 	pricingPlanIDs := (*subGroup.Attributes)[keycloak.PricingPlanIDAttributesKey]
-	if len(pricingPlanIDs) > 0 { // price plan ID should be verified and is responsibility of the Provisioning Flow
-		var err error
-		accountExtended.Subscription, err = s.GetSubscription(group, subGroup, pricingPlanIDs[0])
-		if err != nil {
-			return nil, err
-		}
+	if len(pricingPlanIDs) == 0 {
+		return nil, errors.New("no pricing plan found")
+	}
+
+	if len(pricingPlanIDs) > 1 {
+		return nil, fmt.Errorf("more than one pricing plan found: %d", len(pricingPlanIDs))
+	}
+
+	var err error
+	accountExtended.Subscription, err = s.GetSubscription(group, subGroup, pricingPlanIDs[0])
+	if err != nil {
+		return nil, err
 	}
 
 	return accountExtended, nil
+}
+
+func (s *Service) GetAccountExtended(ctx context.Context, customerID, accountID string) (*AccountExtended, error) {
+	_, span := goot.Span(ctx, "get_group_from_keycloak",
+		attribute.String("customerID", customerID),
+	)
+	group, err := s.keycloakClient.GetGroupByID(ctx, customerID)
+	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to retrieve keycloak group")
+		return nil, err
+	}
+	goot.EndSpan(span)
+
+	_, span = goot.Span(ctx, "get_subgroup_from_keycloak",
+		attribute.String("accountID", accountID),
+	)
+	subgroup, err := s.keycloakClient.GetSubGroupByID(*group, accountID)
+	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to retrieve keycloak subgroup")
+		return nil, err
+	}
+	goot.EndSpan(span)
+
+	//Parse the group data
+	_, span = goot.Span(ctx, "group_to_account")
+	account, err := s.GroupToAccountExtended(group, subgroup)
+	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to convert groups to customer")
+		return nil, err
+	}
+	goot.EndSpan(span)
+
+	return account, nil
 }

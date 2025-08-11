@@ -3,6 +3,7 @@ package keys
 
 import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
@@ -18,12 +19,20 @@ type Handler struct {
 	keysRepository  db.DatabaseExecer
 	keycloakClient  keycloak.Client
 	keycloakConfig  config.KeyCloakConfig
+	customerService *customers.Service
 	defaultPageSize uint
 	maxPageSize     uint
 }
 
 // New constructs a new Handler.
-func New(temporalClient client.Client, tykClient *tyk.APIClient, keysRepository db.DatabaseExecer, omaClient *oma.Client, keycloakClient keycloak.Client, keyCloakConfig config.KeyCloakConfig, pagination config.Pagination) *Handler {
+func New(temporalClient client.Client,
+	tykClient *tyk.APIClient,
+	keysRepository db.DatabaseExecer,
+	omaClient *oma.Client,
+	keycloakClient keycloak.Client,
+	keyCloakConfig config.KeyCloakConfig,
+	customerService *customers.Service,
+	pagination config.Pagination) *Handler {
 	return &Handler{
 		tykClient:       tykClient,
 		temporalClient:  temporalClient,
@@ -31,6 +40,7 @@ func New(temporalClient client.Client, tykClient *tyk.APIClient, keysRepository 
 		keysRepository:  keysRepository,
 		keycloakClient:  keycloakClient,
 		keycloakConfig:  keyCloakConfig,
+		customerService: customerService,
 		defaultPageSize: pagination.DefaultPageSize,
 		maxPageSize:     pagination.MaxPageSize,
 	}

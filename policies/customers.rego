@@ -13,14 +13,12 @@ allow := true {
   input.request.method == "GET"
   input.request.path == "/v2/customers/:customerID"
 
-  request_customer_id := split(input.user.id, ":")[3]
-  input.customer.id == request_customer_id
+  is_customer_authorized(input.user.id, input.customer.id, input.user.roles)
 }
 
-# it's commented out because admin rule in admin.rego already covers this
-#allow := true {
-#  input.request.method == "GET"
-#  input.request.path == "/v2/customers"
-#
-#  input.user.roles[_] == "administrator"  # only administrator have access
-#}
+allow := true {
+  input.request.method == "GET"
+  input.request.path == "/v2/customers"
+
+  is_admin(input.user.roles)  # only administrator have access
+}

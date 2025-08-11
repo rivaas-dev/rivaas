@@ -2,8 +2,8 @@ package accounts
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
@@ -104,6 +104,7 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 		return
 	}
 
+	// 1. update solvimon
 	_, span := goot.Span(ctx.Request.Context(), "update_solvimon")
 	oldFinancialEmail, err := h.updateSolvimon(ctx, request)
 	if err != nil {
@@ -114,6 +115,7 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 	}
 	goot.EndSpan(span)
 
+	// 2. update keycloak
 	_, span = goot.Span(ctx.Request.Context(), "update_keycloak")
 	err = keycloak.UpdateCustomerAccount(ctx, h.keycloakClient, keycloak.CustomerUpdate{
 		Account: keycloak.Account{
@@ -124,9 +126,11 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 		Contacts: contactsToMap(request.Body.Attributes.Customer.CustomerContactDetails),
 	})
 	if err != nil {
-		// revert Solvimon first
+		// revert (1) Solvimon first
 		_, solvimonErr := h.updateSolvimonEmail(ctx, request.Path.CustomerID, oldFinancialEmail)
 		if solvimonErr != nil {
+			// if error happened even here, then log it, add to traces
+			// but don't return just yet, go back to the original error
 			log.Error().Err(solvimonErr).
 				Str("oldEmail", oldFinancialEmail).
 				Str("customerID", request.Path.CustomerID).
@@ -137,6 +141,7 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 			)
 		}
 
+		// now process original error
 		log.Error().Err(err).
 			Str("customerID", request.Path.CustomerID).
 			Str("accountID", request.Path.AccountID).
@@ -147,62 +152,29 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 	}
 	goot.EndSpan(span)
 
-	_, span = goot.Span(ctx.Request.Context(), "get_group_from_keycloak",
-		attribute.String("customerID", request.Path.CustomerID),
-	)
-	group, err := h.keycloakClient.GetGroupByID(ctx, request.Path.CustomerID)
-	if err != nil {
-		log.Error().Err(err).
-			Str("customerID", request.Path.CustomerID).
-			Str("accountID", request.Path.AccountID).
-			Msg("failed to retrieve keycloak group, but update was successful")
-		goot.EndSpanWithError(span, err, "failed to retrieve keycloak group")
-		goskell.JsonAPIError(ctx, "updated account successfully but failed to return the new data", err, http.StatusInternalServerError)
-		return
-	}
-	goot.EndSpan(span)
-
-	_, span = goot.Span(ctx.Request.Context(), "get_subgroup_from_keycloak",
-		attribute.String("accountID", request.Path.AccountID),
-	)
-	subgroup, err := h.keycloakClient.GetSubGroupByID(*group, request.Path.AccountID)
-	if err != nil {
-		log.Error().Err(err).
-			Str("customerID", request.Path.CustomerID).
-			Str("accountID", request.Path.AccountID).
-			Msg("failed to retrieve keycloak subgroup, but update was successful")
-		goot.EndSpanWithError(span, err, "failed to retrieve keycloak subgroup, but update was successful")
-		goskell.JsonAPIError(ctx, "updated account successfully but failed to return the new data", err, http.StatusInternalServerError)
-		return
-	}
-	goot.EndSpan(span)
-
-	// Parse the group data
-	_, span = goot.Span(ctx.Request.Context(), "group_to_account")
-	parsedKeyCloakGroup, err := h.customerService.GroupToAccountExtended(group, subgroup)
+	// Now get and parse the group data for the response, the spans are created inside the GetAccountExtended function
+	account, err := h.customerService.GetAccountExtended(ctx.Request.Context(), request.Path.CustomerID, request.Path.AccountID)
 	if err != nil {
 		log.Error().Err(err).
 			Str("customerID", request.Path.CustomerID).
 			Str("accountID", request.Path.AccountID).
 			Msg("failed to convert groups to customer")
-		goot.EndSpanWithError(span, err, "failed to convert groups to customer")
-		goskell.JsonAPIError(ctx, "failed to create a response", err, http.StatusInternalServerError)
+		goskell.JsonAPIError(ctx, "updated account successfully but failed to create a response", err, http.StatusInternalServerError)
 		return
 	}
-	goot.EndSpan(span)
 
-	// Build response
-	response, err := jsonapi.Marshal(parsedKeyCloakGroup)
+	response, err := json.Marshal(account)
 	if err != nil {
 		log.Error().Err(err).
 			Str("customerID", request.Path.CustomerID).
 			Str("accountID", request.Path.AccountID).
-			Msg("failed to return keycloak group, but update was successful")
+			Msg("failed to return the account, but failed to marshal account response")
 		goskell.JsonAPIError(ctx, "updated account successfully but failed to return the new data", err, http.StatusInternalServerError)
 		return
 	}
+
 	// Return JSONAPI
-	internal.WriteJSONAPIResponse(ctx, response, http.StatusOK, nil)
+	internal.WriteResponse(ctx, response, http.StatusOK, nil)
 }
 
 func contactsToMap(contacts []Contact) map[string]keycloak.Contact {
