@@ -23,7 +23,7 @@ keycloak:
     url: http://localhost:8080
     realm: master
     clientID: admin-cli
-    clientSecret: kU67yLSg3J49cFc8tGeHndztZVLqATZd
+    clientSecret: 5l3zgEE4LpItJycx7f8BOkeJsuwHKQbi
     pageSize: 5
   briefRepresentation: false
   first: 0
