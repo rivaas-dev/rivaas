@@ -56,7 +56,7 @@ type PatchAttributes struct {
 }
 
 // Validate validates the PATCH request body.
-func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
+func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient, existingKey *db.Key) error {
 	if i.Body.Attributes.Name != nil && len(*i.Body.Attributes.Name) > apikey.NameMaxLength {
 		return fmt.Errorf("maximum length is %d, %d given", apikey.NameMaxLength, len(*i.Body.Attributes.Name))
 	}
@@ -68,6 +68,10 @@ func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error
 	}
 	// Validate quota end date.
 	if i.Body.Attributes.ExpiresAt != nil {
+		if existingKey.Environment == apikey.ProdEnv {
+			return errors.New("can't set expiration date for production keys")
+		}
+
 		if !validation.ValidateEndDate(i.Body.Attributes.ExpiresAt) {
 			return errors.New("quota end date must be greater than today")
 		}
@@ -128,10 +132,6 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		goskell.JsonAPIError(ctx, "Body binding error", err, http.StatusBadRequest)
 		return
 	}
-	if err := request.Validate(ctx, h.tykClient); err != nil {
-		goskell.JsonAPIError(ctx, "validation error", err, http.StatusBadRequest)
-		return
-	}
 
 	// Find the key in database.
 	_, span := goot.Span(ctx.Request.Context(), "get_from_database",
@@ -151,6 +151,11 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		return
 	}
 	goot.EndSpan(span)
+
+	if err := request.Validate(ctx, h.tykClient, dbKey); err != nil {
+		goskell.JsonAPIError(ctx, "validation error", err, http.StatusBadRequest)
+		return
+	}
 
 	if !h.isAuthorized(ctx, NewKeyActorID(
 		dbKey.ActorID,

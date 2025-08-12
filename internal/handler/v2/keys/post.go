@@ -67,8 +67,18 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 	if !validation.ValidatePolicies(ctx, tykAPI, i.Body.Attributes.Policies) {
 		return errors.New("invalid policy")
 	}
+
+	// if not specified in the request, set prod as default environment
+	if i.Body.Attributes.Environment == "" {
+		i.Body.Attributes.Environment = apikey.ProdEnv
+	}
+
 	// Validate quota end date.
 	if i.Body.Attributes.ExpiresAt != nil {
+		if i.Body.Attributes.Environment == apikey.ProdEnv {
+			return errors.New("can't set expiration date for production keys")
+		}
+
 		if !validation.ValidateEndDate(i.Body.Attributes.ExpiresAt) {
 			return errors.New("quota end date must be greater than today")
 		}
