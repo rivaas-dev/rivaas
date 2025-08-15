@@ -96,10 +96,9 @@ configMap:
   subPath: "config.yaml"
   data:
     config.yaml:
-      app:
-        host: "0.0.0.0"
-        port: "8080"
-        logLevel: "debug"
+      host: "0.0.0.0"
+      port: "8080"
+      logLevel: "debug"
       tyk:
         scheme: "http"
         endpoint: "agw-api-tyk:8081"
@@ -119,6 +118,18 @@ configMap:
         namespace: "ci-api"
         opa:
           address: http://localhost:8181
+      solvimon:
+        baseUrl: https://test.api.solvimon.com/v1
+        apiKey: supersecretkey
+      pricingPlans:
+        small:
+          quota: small
+          numberOfAPIProductionKeys: 1
+          numberOfAPISandboxKeys: 1
+        medium:
+          quota: medium
+          numberOfAPIProductionKeys: 3
+          numberOfAPISandboxKeys: 1
     opa_config.yaml:
       services:
         - name: oma
@@ -180,6 +191,6 @@ envVars:
   - name: CONSUL_HTTP_TOKEN
     value: "{{ .Values.global.consul.token }}"
   - name: CONSUL_APP_KEY
-    value: "{{ .Values.global.consul.app.key }}"
+    value: "{{ .Values.global.consul.app_key }}"
   - name: CONSUL_PRICING_PLANS_KEY
-    value: "{{ .Values.global.consul.pricing_plans.key }}"
+    value: "{{ .Values.global.consul.pricing_plans_key }}"

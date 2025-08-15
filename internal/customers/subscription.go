@@ -74,6 +74,7 @@ func (s *Service) GetCurrentAPIKeyCount(customerID, accountID string) (productio
 		FilterParams: db.FilterParams{
 			Active:       db.Pointer(true),
 			ExpiresAfter: &date.Date{Time: time.Now()},
+			Deleted:      db.Pointer(false),
 		},
 		MatchParams: db.MatchParams{
 			CustomerID: customerID,

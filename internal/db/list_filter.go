@@ -16,6 +16,7 @@ type FilterParams struct {
 	ExpiresBefore *date.Date
 	ExpiresAfter  *date.Date
 	Active        *bool
+	Deleted       *bool
 }
 
 // MatchParams are used for fuzzy matching search

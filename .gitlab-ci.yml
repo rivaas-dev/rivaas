@@ -41,8 +41,8 @@ destroy:testing:de:
 deploy:acceptance:
   variables:
     HELM_ACC_VARIABLES: |
-      --set global.consul.app.key="acceptance/apis/nl/admin-api"
-      --set global.consul.pricing_plans.key="acceptance/apis/pricing-plans"
+      --set global.consul.app_key="acceptance/apis/nl/admin-api"
+      --set global.consul.pricing_plans_key="acceptance/apis/pricing-plans"
       --set global.consul.token="${CONSUL_TOKEN}"
   environment:
     name: nl/acc
@@ -51,8 +51,8 @@ deploy:acceptance:de:
   extends: deploy:acceptance
   variables:
     HELM_ACC_VARIABLES: |
-      --set global.consul.app.key="acceptance/apis/de/admin-api"
-      --set global.consul.pricing_plans.key="acceptance/apis/pricing-plans"
+      --set global.consul.app_key="acceptance/apis/de/admin-api"
+      --set global.consul.pricing_plans_key="acceptance/apis/pricing-plans"
       --set global.consul.token="${CONSUL_TOKEN}"
   environment:
     name: de/acc
@@ -61,8 +61,8 @@ deploy:production:
   extends: .deploy-template
   variables:
     HELM_PROD_VARIABLES: |
-      --set global.consul.app.key="production/apis/nl/admin-api"
-      --set global.consul.pricing_plans.key="production/apis/pricing-plans"
+      --set global.consul.app_key="production/apis/nl/admin-api"
+      --set global.consul.pricing_plans_key="production/apis/pricing-plans"
       --set global.consul.token="${CONSUL_TOKEN}"
   environment:
     name: nl/prod
@@ -71,8 +71,8 @@ deploy:production:de:
   extends: deploy:production
   variables:
     HELM_PROD_VARIABLES: |
-      --set global.consul.app.key="production/apis/de"
-      --set global.consul.pricing_plans.key="production/apis/pricing-plans"
+      --set global.consul.app_key="production/apis/de/admin-api"
+      --set global.consul.pricing_plans_key="production/apis/pricing-plans"
       --set global.consul.token="${CONSUL_TOKEN}"
   environment:
     name: de/prod

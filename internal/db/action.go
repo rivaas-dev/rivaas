@@ -173,5 +173,13 @@ func (s DBClient) prepareListQuery(searchParams SearchParams) *gorm.DB {
 		q = q.Where("active = ?", *searchParams.Active)
 	}
 
+	if searchParams.Deleted != nil {
+		if *searchParams.Deleted {
+			q = q.Where("deleted_at IS NOT NULL")
+		} else {
+			q = q.Where("deleted_at IS NULL")
+		}
+	}
+
 	return q
 }
