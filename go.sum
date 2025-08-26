@@ -477,6 +477,12 @@ gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.8.3 h1:yY9acvrJHCXibwWiNHqR1tS9WAZ
 gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.8.3/go.mod h1:K2OeEUxn21cgipwFE5LCnjhiB4JnVq2NJfUkKaNwNgs=
 gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.2 h1:e9PZU1GoVWWu7Sv9u0+Cda93PaiR0zK3xowlSkTOqCQ=
 gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.2/go.mod h1:5bbrbGcESjgn7U6gS2uqGdKkn0NcaYzsO6jmmoshBS4=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.3 h1:keDmVpDE+yhoMl5koMVSEMxJAm5amx3/1v1VD85XGMY=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.3/go.mod h1:5bbrbGcESjgn7U6gS2uqGdKkn0NcaYzsO6jmmoshBS4=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.4-0.20250808111514-f57942923f6c h1:8FrBo3lb0JvCjp8SBQQCVvfNWy9lYaiSth5oIbeFWEo=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.4-0.20250808111514-f57942923f6c/go.mod h1:5bbrbGcESjgn7U6gS2uqGdKkn0NcaYzsO6jmmoshBS4=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.9.0 h1:eajAlFGKi+yG235Vuubyc3IaySRJ+if8v98mhHppfME=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.9.0/go.mod h1:5bbrbGcESjgn7U6gS2uqGdKkn0NcaYzsO6jmmoshBS4=
 gitlab.ci.fdmg.org/ci-api/oma v0.4.1 h1:nfjq3E6HLMJICE9+xjuq73V7yBtS/cjhWX0UzWGkweQ=
 gitlab.ci.fdmg.org/ci-api/oma v0.4.1/go.mod h1:aDATmDmjhJBmPRj1Vz6gEblgv47IKEhD6isRcdR9Nik=
 gitlab.ci.fdmg.org/ci-api/tyk-sdk-go v0.1.0 h1:FrlA1f5n3ZTfcdullM6GWZxrl+mudjJl2VdzrbCFG/0=
