@@ -12,7 +12,7 @@ require (
 	github.com/rs/zerolog v1.34.0
 	gitlab.ci.fdmg.org/ci-api/cigourn v0.1.6
 	gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.8.3
-	gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.8.2
+	gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.9.0
 	gitlab.ci.fdmg.org/ci-api/oma v0.4.1
 	gitlab.ci.fdmg.org/ci-api/tyk-sdk-go v0.1.0
 	gitlab.ci.fdmg.org/datacluster/golibs/gnatcatcher v0.1.5
