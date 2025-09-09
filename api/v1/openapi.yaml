@@ -1,0 +1,702 @@
+openapi: 3.0.1
+info:
+  title: API Gateway API
+  description: |
+    API for creating, editing, deleting and fetching API keys
+  version: 1.0.0
+servers:
+  - url: 'https://api.company.info/internal-admin'
+security:
+  - ApiKeyAuth: []
+tags:
+  - name: keys
+    description: Calls related to API keys
+  - name: customers
+  - name: accounts
+
+paths:
+  /keys:
+    get:
+      tags:
+        - keys
+      description: |
+        List API Keys
+      operationId: list_keys
+      parameters:
+        - name: actor_id
+          in: query
+          description: The actor id to filter on
+          schema:
+            type: string
+        - name: description
+          in: query
+          description: The description term to fuzzy match on
+          schema:
+            type: string
+        - name: customer_id
+          in: query
+          description: The id of the customer
+          schema:
+            type: string
+        - name: account_id
+          in: query
+          description: The id of the account
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of key hashes, optionally per actor
+          content:
+            application/hal+json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyDetails'
+            application/problem+json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyDetails'
+        500:
+          description: Internal Server Error
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags:
+        - keys
+      description: |
+        Create a new API key
+      operationId: create_key
+      parameters:
+        - in: header
+          name: X-Customer-ID
+          schema:
+            type: string
+      requestBody:
+        description: The details of the key being created.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                policies:
+                  type: array
+                  description: The access policies to give, leave empty for none
+                  items:
+                    type: string
+                actor_id:
+                  pattern: ^.{1,255}
+                  type: string
+                  description: The reference to the actor. In simple words, this is
+                    what binds an API key to a user/customer.
+                customer_id:
+                  pattern: ^[a-zA-Z0-9_-]{1,255}$
+                  type: string
+                  description: The reference to the actor customer ID
+                account_id:
+                  pattern: ^[a-zA-Z0-9_-]{1,255}$
+                  type: string
+                  description: The reference to the actor account ID
+                expires_at:
+                  type: string
+                  description: Date on which the key quota will expire at 00.00 (optional)
+                  format: date
+                quota:
+                  type: integer
+                  description: The amount of calls the API Key can make (optional)
+                description:
+                  maxLength: 64
+                  type: string
+                  description: Description for the key (optional)
+        required: false
+      responses:
+        201:
+          description: An API key has been created
+          content:
+            application/hal+json:
+              schema:
+                type: object
+                properties:
+                  KeyCredentials:
+                    $ref: '#/components/schemas/KeyCredentials'
+            application/problem+json:
+              schema:
+                type: object
+                properties:
+                  KeyCredentials:
+                    $ref: '#/components/schemas/KeyCredentials'
+        400:
+          description: Bad Request
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        500:
+          description: Internal Server Error
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-codegen-request-body-name: request
+
+  /keys/{key_hash}:
+    get:
+      tags:
+        - keys
+      description: |
+        Get an api key
+      operationId: get_key
+      parameters:
+        - name: key_hash
+          in: path
+          description: The key hash
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Detailed properties of a key
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
+        400:
+          description: Bad Request
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        404:
+          description: NotFound
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        500:
+          description: Internal Server Error
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      tags:
+        - keys
+      description: |
+        Update an api key
+      operationId: update_key
+      parameters:
+        - name: key_hash
+          in: path
+          description: The key hash from the key that will be updated
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: The details of the key that need updating
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                policies:
+                  type: array
+                  description: The access policies to give, leave empty for none (optional)
+                  items:
+                    type: string
+                expires_at:
+                  type: string
+                  description: Date on which the api key quota will expire at 00.00
+                    (optional)
+                  format: date
+                quota:
+                  type: integer
+                  description: The amount of calls the API Key has left (optional),
+                    set to -1 for unlimited
+                description:
+                  maxLength: 64
+                  type: string
+                  description: Description for the key (optional)
+        required: false
+      responses:
+        200:
+          description: Detailed properties of a key
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
+        400:
+          description: Bad Request
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        404:
+          description: NotFound
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        500:
+          description: Internal Server Error
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-codegen-request-body-name: request
+
+  /policies:
+    get:
+      tags:
+        - policy
+      description: |
+        Get the list of available policies
+      operationId: list_policies
+      responses:
+        200:
+          description: list of available policies
+          content:
+            application/hal+json:
+              schema:
+                type: array
+                example:
+                  - compliance-monitor-full-access
+                  - routeplanner-full-access
+                items:
+                  type: string
+            application/problem+json:
+              schema:
+                type: array
+                example:
+                  - compliance-monitor-full-access
+                  - routeplanner-full-access
+                items:
+                  type: string
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+  schemas:
+    KeyCredentials:
+      title: KeyCredentials
+      description: API key credentials
+      allOf:
+        - required:
+            - hash
+            - key
+          type: object
+          properties:
+            key:
+              type: string
+              description: The created API key which can be used to access APIs.
+            hash:
+              type: string
+              description: The key hash. This is a unique identifier to each API key.
+
+    KeyDetails:
+      title: KeyDetails
+      description: Key details served from our internal DB
+      oneOf:
+        - required:
+            - actor_id
+            - client_id
+          type: object
+          properties:
+            actor_id:
+              type: string
+              description: The actor id of the key
+            client_id:
+              type: integer
+              description: the id of the customer
+            user_id:
+              type: integer
+              description: the id of the user
+      allOf:
+        - required:
+            - actor_id
+            - creation_date
+            - hash
+          type: object
+          properties:
+            hash:
+              type: string
+              description: The key hash
+            expires_at:
+              type: string
+              description: Date on which the keys quota will expire at 00.00 (optional)
+              format: date
+            description:
+              maxLength: 64
+              type: string
+              description: Description for the key (optional)
+            creation_date:
+              type: string
+              description: DateTime on which the api key was created
+              format: date
+
+    Policy:
+      type: object
+      properties:
+        type:
+          type: string
+          example: policies
+        id:
+          type: string
+          example: policy-1
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              example: policy-1
+
+    PolicyListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Policy'
+
+    JSONAPILinksObject:
+      title: "JSON:API Links Object"
+      description: "May contain `self`, `related`, or pagination links (first, last, prev, next)."
+      properties:
+        self:
+          $ref: '#/components/schemas/JSONAPILink'
+        first:
+          $ref: '#/components/schemas/JSONAPILink'
+        last:
+          $ref: '#/components/schemas/JSONAPILink'
+        prev:
+          $ref: '#/components/schemas/JSONAPILink'
+        next:
+          $ref: '#/components/schemas/JSONAPILink'
+
+    JSONAPILink:
+      title: "JSON:API Link"
+      description: "A JSON:API link can be either a URL string or a structured link object."
+      oneOf:
+        - $ref: '#/components/schemas/URL'
+        - $ref: '#/components/schemas/JSONAPILinkObject'
+
+    URL:
+      type: string
+      format: url
+      example: 'https://example.com/'
+
+    JSONAPILinkObject:
+      title: "JSON:API Link Object"
+      description: "a structured representation of a URL"
+      type: object
+      required:
+        - href
+      properties:
+        href:
+          type: string
+          example: 'https://example.com/'
+        meta:
+          type: object
+          example:
+            count: '10'
+
+    MetaObject:
+      title: "Meta information object"
+      description: "Some meta information for JSON API response objects"
+      type: object
+      properties:
+        totalPages:
+          type: number
+          example: 12
+        totalResults:
+          type: number
+          example: 100
+
+    KeyDetailsWithGatewayContext:
+      title: KeyDetailsWithGatewayContext
+      description: Detailed properties of a key, both from DB and the API Gateway
+      oneOf:
+        - required:
+            - actor_id
+            - user_id
+          type: object
+          properties:
+            actor_id:
+              type: string
+              description: The actor id of the key
+            client_id:
+              type: integer
+              description: The id of the client
+            user_id:
+              type: integer
+              description: The id of the user
+      allOf:
+        - required:
+            - creation_date
+          type: object
+          properties:
+            policies:
+              type: array
+              example:
+                - compliance-monitor-full-access
+                - routeplanner-full-access
+              items:
+                type: string
+            expires_at:
+              type: string
+              description: Date on which the key quota will expire at 00.00 (optional)
+              format: date
+            quota:
+              type: integer
+              description: The maximum amount of calls the API Key can make
+            quota_remaining:
+              type: integer
+              description: The remaining amount of calls the API Key can make
+            description:
+              maxLength: 64
+              type: string
+              description: Description for the key (optional)
+            creation_date:
+              type: string
+              description: DateTime on which the api key was created
+              format: date
+
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          description: |
+            An absolute URI that identifies the problem type.  When dereferenced,
+            it SHOULD provide human-readable documentation for the problem type
+            (e.g., using HTML).
+          format: uri
+          default: about:blank
+        title:
+          type: string
+          description: |
+            A short, summary of the problem type. Written in english and readable
+            for engineers (usually not suited for non technical stakeholders and
+            not localized); example: Service Unavailable
+        status:
+          maximum: 6E+2
+          minimum: 1E+2
+          type: integer
+          description: |
+            The HTTP status code generated by the origin server for this occurrence
+            of the problem.
+          format: int32
+          example: 503
+        detail:
+          type: string
+          description: |
+            A human readable explanation specific to this occurrence of the
+            problem.
+          example: Connection to database timed out
+        instance:
+          type: string
+          description: |
+            An absolute URI that identifies the specific occurrence of the problem.
+            It may or may not yield further information if dereferenced.
+          format: uri
+
+    AccountAttributes:
+      type: object
+      properties:
+        name:
+          description: A name of the account.
+          type: string
+          example: Company.info
+        contactDetails:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactDetail'
+
+    AccountExtendedAttributes:
+      allOf:
+      - $ref: '#/components/schemas/AccountAttributes'
+      - type: object
+        properties:
+          subscription:
+            description: Subscription details of an account
+            type: object
+            properties:
+              apiKeys:
+                type: object
+                properties:
+                  production:
+                    type: object
+                    properties:
+                      maxCount:
+                        type: integer
+                        description: Maximum number of production keys an account can have
+                      currentCount:
+                        type: integer
+                        description: Number of existing production keys an account has
+                  sandbox:
+                    type: object
+                    properties:
+                      maxCount:
+                        type: integer
+                        description: Maximum number of sandbox keys an account can have
+                      currentCount:
+                        type: integer
+                        description: Number of existing sandbox keys an account has
+
+    Customer:
+      type: object
+      properties:
+        type:
+          example: customers
+          type: string
+        id:
+          description: ID of the customer
+          type: string
+          example: 3923a257-6301-4905-abed-29e41c1daf3b
+        attributes:
+          $ref: '#/components/schemas/CustomerAttributes'
+
+    CustomerAttributes:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Company.info
+        salesforceID:
+          type: string
+          example: SF:sG2mDw1kwlKW23QL
+        contactDetails:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactDetail'
+
+
+    ContactDetail:
+      type: object
+      properties:
+        id:
+          description: ID of the contact.
+          type: string
+          example: 001DC000002ojiNFAW
+        email:
+          description: Email address of the contact.
+          type: string
+          example: "email@example.com"
+        firstName:
+          description: First name of the contact.
+          type: string
+          example: "Jane"
+        lastName:
+          description: Last name of the contact.
+          type: string
+          example: "Doe"
+        type:
+          description: Type of the contact. For example, `technical` or `financial`
+          type: string
+          example: "financial"
+
+    Relationship:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            type:
+              example: customers
+              type: string
+            id:
+              example: 3923a257-6301-4905-abed-29e41c1daf3b
+              type: string
+
+    AccountUpdateRequest:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            type:
+              type: string
+            id:
+              type: string
+            attributes:
+              type: object
+              properties:
+                contactDetails:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ContactDetail'
+                customer:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    contactDetails:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/ContactDetail'
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/hal+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/hal+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: NotFound
+      content:
+        application/hal+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

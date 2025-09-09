@@ -55,3 +55,8 @@ pricingPlans:
     quota: medium
     numberOfAPIProductionKeys: 3
     numberOfAPISandboxKeys: 1
+
+apiKeyDefaults:
+  policies:
+    - "api-hub-full-access"
+  quota: 100

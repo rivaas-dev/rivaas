@@ -17,8 +17,8 @@ type Email struct {
 
 // RateLimit represents rate limit information.
 type RateLimit struct {
-	Rate float64 `jsonapi:"attr,rate"`
-	Per  float64 `jsonapi:"attr,per"`
+	Rate float64 `json:"rate" jsonapi:"attr,rate"`
+	Per  float64 `json:"per" jsonapi:"attr,per"`
 }
 
 // KeyID represents the request key hash.

@@ -7,7 +7,7 @@ import (
 
 // Customer is in relation to an api account
 type Customer struct {
-	ID                     string    `json:"id" jsonapi:"primary,customer"`
+	ID                     string    `json:"id" jsonapi:"primary,customers"`
 	Name                   string    `json:"name" jsonapi:"attr,name"`
 	SalesforceID           string    `json:"salesforceID" jsonapi:"attr,salesforceID,omitempty"`
 	CustomerContactDetails []Contact `json:"contactDetails" jsonapi:"attr,contactDetails,omitempty"`

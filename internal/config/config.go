@@ -7,18 +7,19 @@ import (
 
 // Config represents application configuration.
 type Config struct {
-	Host          string
-	Port          uint16
-	LogLevel      string
-	KeyCloak      KeyCloakConfig
-	Database      Database
-	Tyk           Tyk
-	Temporal      Temporal
-	OMA           OMA
-	OpenTelemetry OpenTelemetry
-	Solvimon      Solvimon
-	Pagination    Pagination
-	PricingPlans  map[string]customers.PricingPlan
+	Host           string
+	Port           uint16
+	LogLevel       string
+	KeyCloak       KeyCloakConfig
+	Database       Database
+	Tyk            Tyk
+	Temporal       Temporal
+	OMA            OMA
+	OpenTelemetry  OpenTelemetry
+	Solvimon       Solvimon
+	Pagination     Pagination
+	PricingPlans   map[string]customers.PricingPlan
+	APIKeyDefaults APIKeyDefaults
 }
 
 // Database represents Database configuration.
@@ -75,4 +76,9 @@ type Solvimon struct {
 type Pagination struct {
 	MaxPageSize     uint
 	DefaultPageSize uint
+}
+
+type APIKeyDefaults struct {
+	Policies []string
+	Quota    int
 }

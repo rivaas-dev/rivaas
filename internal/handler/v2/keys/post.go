@@ -42,19 +42,15 @@ type PostData struct {
 }
 
 type PostAttributes struct {
-	Name        string                   `json:"name"`                        // Name of the key. If empty, filled in with the default text - apikey.DefaultKeyName
-	ActorID     string                   `json:"actorID"`                     // The reference to the actor. It binds an API key to a client/user in the legacy format.
-	CustomerID  string                   `json:"customerID"`                  // The reference to the actor customer ID
-	AccountID   string                   `json:"accountID"`                   // The reference to the actor account ID
-	Policies    []string                 `json:"policies" binding:"required"` // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date               `json:"expiresAt"`                   // Date on which the key quota will expire at 00.00 (optional).
-	Quota       int64                    `json:"quota" binding:"min=-1"`      // The amount of calls the API Key can make (optional).
-	Description string                   `json:"description"`                 // Description for the key (optional).
-	Contact     *apikey.Contact          `json:"contacts,omitempty"`          // Contacts information.
-	Active      *bool                    `json:"active"`                      // Defines the status of the key.
-	RateLimit   *apikey.RateLimit        `json:"rateLimit,omitempty"`         // Defines rate limit of the key.
-	Environment apikey.ApikeyEnvironment `json:"environment"`                 // Defines if a key is for prod or sandbox environment. // Defines if a key is for prod or sandbox environment.'
-	Labels      *map[string]string       `json:"labels,omitempty"`            // Contains user specified labels for categorization
+	Name        string                   `json:"name"`               // Name of the key. If empty, filled in with the default text - apikey.DefaultKeyName
+	ActorID     string                   `json:"actorID"`            // The reference to the actor. It binds an API key to a client/user in the legacy format.
+	CustomerID  string                   `json:"customerID"`         // The reference to the actor customer ID
+	AccountID   string                   `json:"accountID"`          // The reference to the actor account ID
+	Description string                   `json:"description"`        // Description for the key (optional).
+	Contact     *apikey.Contact          `json:"contacts,omitempty"` // Contacts information.
+	Active      *bool                    `json:"active"`             // Defines the status of the key.
+	Environment apikey.ApikeyEnvironment `json:"environment"`        // Defines if a key is for prod or sandbox environment. // Defines if a key is for prod or sandbox environment.'
+	Labels      *map[string]string       `json:"labels,omitempty"`   // Contains user specified labels for categorization
 
 }
 
@@ -63,26 +59,12 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 	if len(i.Body.Attributes.Name) > apikey.NameMaxLength {
 		return fmt.Errorf("maximum length is %d, %d given", apikey.NameMaxLength, len(i.Body.Attributes.Name))
 	}
-	// Validate policies.
-	if !validation.ValidatePolicies(ctx, tykAPI, i.Body.Attributes.Policies) {
-		return errors.New("invalid policy")
-	}
 
 	// if not specified in the request, set prod as default environment
 	if i.Body.Attributes.Environment == "" {
 		i.Body.Attributes.Environment = apikey.ProdEnv
 	}
 
-	// Validate quota end date.
-	if i.Body.Attributes.ExpiresAt != nil {
-		if i.Body.Attributes.Environment == apikey.ProdEnv {
-			return errors.New("can't set expiration date for production keys")
-		}
-
-		if !validation.ValidateEndDate(i.Body.Attributes.ExpiresAt) {
-			return errors.New("quota end date must be greater than today")
-		}
-	}
 	// Validate contact emails.
 	if i.Body.Attributes.Contact != nil && len(i.Body.Attributes.Contact.Emails) > 0 {
 		for _, email := range i.Body.Attributes.Contact.Emails {
@@ -272,20 +254,19 @@ func (h *Handler) postRequestToWorkflowInput(request *PostInput) (WorkflowPostIn
 		Name:        request.Body.Attributes.Name,
 		CustomerID:  &request.Body.Attributes.CustomerID,
 		AccountID:   &request.Body.Attributes.AccountID,
-		Policies:    request.Body.Attributes.Policies,
-		ExpiresAt:   request.Body.Attributes.ExpiresAt,
-		Quota:       request.Body.Attributes.Quota,
 		Description: request.Body.Attributes.Description,
 		Active:      request.Body.Attributes.Active,
 		Environment: request.Body.Attributes.Environment,
 		Labels:      request.Body.Attributes.Labels,
+
+		Policies:  h.apiKeyDefaults.Policies,
+		Quota:     int64(h.apiKeyDefaults.Quota), // FIXME placeholder before we implement quota based on the pricing plan
+		ExpiresAt: nil,
+		RateLimit: apikey.RateLimit{}, // set to empty, no rate limit on key level
 	}
 
 	if request.Body.Attributes.Contact != nil {
 		wInput.Contact = *request.Body.Attributes.Contact
-	}
-	if request.Body.Attributes.RateLimit != nil {
-		wInput.RateLimit = *request.Body.Attributes.RateLimit
 	}
 	if request.Body.Attributes.ActorID != "" {
 		wInput.ActorID, err = gourn.Parse(request.Body.Attributes.ActorID)
