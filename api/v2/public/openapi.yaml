@@ -1,8 +1,8 @@
 openapi: 3.0.1
 info:
-  title: API Gateway API
+  title: Self Service API
   description: |
-    API for creating, editing, deleting and fetching API keys
+    API for creating, editing, deleting and fetching API keys for Administrators.
   version: 2.0.0
 servers:
   - url: 'https://api.company.info/internal-admin'
@@ -23,12 +23,20 @@ paths:
         List API Keys
       operationId: list_keys_v2
       parameters:
-        - name: filter[actorID]
+        - name: page[number]
           in: query
-          description: "The actor id to filter on. This must be the full URN of the actor (e.g., a user), including API key, customer ID, and actor identifier. Example: urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01HX6GV6CV8NPR1XQRRQQZTMXN"
+          description: The number of the requested page.
           schema:
-            type: string
-            example: urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01HX6GV6CV8NPR1XQRRQQZTMXN
+            type: number
+            default: 1
+            minimum: 1
+        - name: page[size]
+          in: query
+          description: The size of the requested page.
+          schema:
+            type: number
+            default: 10
+            maximum: 100
         - name: filter[active]
           in: query
           description: A flag indicating whether the API key is active or not. Filters out active or inactive API keys depending on the value.
@@ -47,21 +55,25 @@ paths:
           schema:
             type: string
             example: production
+            enum:
+              - production
+              - sandbox
+        - name: match[name]
+          in: query
+          description: Performs a partial (fuzzy) match against API key names.
+          schema:
+            type: string
+            example: Alex Production
+            maxLength: 30
         - name: match[description]
           in: query
           description: Performs a partial (fuzzy) match against API key descriptions.
           schema:
             type: string
-            example: prod key customer x
-        - name: match[customerID]
-          in: query
-          description: The ID of the customer (i.e., the top-level group in the two-level hierarchy).
-          schema:
-            type: string
-            example: 19fd5d47-91ea-4cac-a8e0-ea9e295fa44b
+            example: Production key for Alex
         - name: match[accountID]
           in: query
-          description: The ID of the account (i.e., the child group in the two-level hierarchy, typically representing the user ID).
+          description: The ID of the account (i.e., the lower group in the two-level hierarchy, typically representing the department ID).
           schema:
             type: string
             example: f82dddf1-4f06-4fa0-80bd-c2014d5f9540
@@ -125,6 +137,8 @@ paths:
         - in: path
           name: keyID
           required: true
+          description: ID of the patched key
+          example: 01K44WCWPYT4TWYP6D5G08YSYM
           schema:
             type: string
       requestBody:
@@ -159,6 +173,8 @@ paths:
         - in: path
           name: keyID
           required: true
+          description: ID of the requested key
+          example: 01K44WCWPYT4TWYP6D5G08YSYM
           schema:
             type: string
       responses:
@@ -187,6 +203,8 @@ paths:
         - in: path
           name: keyID
           required: true
+          description: ID of the deleted key
+          example: 01K44WCWPYT4TWYP6D5G08YSYM
           schema:
             type: string
       responses:
@@ -200,270 +218,6 @@ paths:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
         500:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
-
-  /keys:
-    get:
-      tags:
-        - keys
-      description: |
-        List API Keys
-      operationId: list_keys
-      parameters:
-        - name: actor_id
-          in: query
-          description: The actor id to filter on
-          schema:
-            type: string
-        - name: description
-          in: query
-          description: The description term to fuzzy match on
-          schema:
-            type: string
-        - name: customer_id
-          in: query
-          description: The id of the customer
-          schema:
-            type: string
-        - name: account_id
-          in: query
-          description: The id of the account
-          schema:
-            type: string
-      responses:
-        200:
-          description: List of key hashes, optionally per actor
-          content:
-            application/hal+json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/KeyDetails'
-            application/problem+json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/KeyDetails'
-        500:
-          description: Internal Server Error
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-    post:
-      tags:
-        - keys
-      description: |
-        Create a new API key
-      operationId: create_key
-      parameters:
-        - in: header
-          name: X-Customer-ID
-          schema:
-            type: string
-      requestBody:
-        description: The details of the key being created.
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                policies:
-                  type: array
-                  description: The access policies to give, leave empty for none
-                  items:
-                    type: string
-                actor_id:
-                  pattern: ^.{1,255}
-                  type: string
-                  description: The reference to the actor. In simple words, this is
-                    what binds an API key to a user/customer.
-                customer_id:
-                  pattern: ^[a-zA-Z0-9_-]{1,255}$
-                  type: string
-                  description: The reference to the actor customer ID
-                account_id:
-                  pattern: ^[a-zA-Z0-9_-]{1,255}$
-                  type: string
-                  description: The reference to the actor account ID
-                expires_at:
-                  type: string
-                  description: Date on which the key quota will expire at 00.00 (optional)
-                  format: date
-                quota:
-                  type: integer
-                  description: The amount of calls the API Key can make (optional)
-                description:
-                  maxLength: 64
-                  type: string
-                  description: Description for the key (optional)
-        required: false
-      responses:
-        201:
-          description: An API key has been created
-          content:
-            application/hal+json:
-              schema:
-                type: object
-                properties:
-                  KeyCredentials:
-                    $ref: '#/components/schemas/KeyCredentials'
-            application/problem+json:
-              schema:
-                type: object
-                properties:
-                  KeyCredentials:
-                    $ref: '#/components/schemas/KeyCredentials'
-        400:
-          description: Bad Request
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        500:
-          description: Internal Server Error
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-      x-codegen-request-body-name: request
-
-  /keys/{key_hash}:
-    get:
-      tags:
-        - keys
-      description: |
-        Get an api key
-      operationId: get_key
-      parameters:
-        - name: key_hash
-          in: path
-          description: The key hash
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          description: Detailed properties of a key
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
-        400:
-          description: Bad Request
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        404:
-          description: NotFound
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        500:
-          description: Internal Server Error
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-    patch:
-      tags:
-        - keys
-      description: |
-        Update an api key
-      operationId: update_key
-      parameters:
-        - name: key_hash
-          in: path
-          description: The key hash from the key that will be updated
-          required: true
-          schema:
-            type: string
-      requestBody:
-        description: The details of the key that need updating
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                policies:
-                  type: array
-                  description: The access policies to give, leave empty for none (optional)
-                  items:
-                    type: string
-                expires_at:
-                  type: string
-                  description: Date on which the api key quota will expire at 00.00
-                    (optional)
-                  format: date
-                quota:
-                  type: integer
-                  description: The amount of calls the API Key has left (optional),
-                    set to -1 for unlimited
-                description:
-                  maxLength: 64
-                  type: string
-                  description: Description for the key (optional)
-        required: false
-      responses:
-        200:
-          description: Detailed properties of a key
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/KeyDetailsWithGatewayContext'
-        400:
-          description: Bad Request
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        404:
-          description: NotFound
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        500:
-          description: Internal Server Error
-          content:
-            application/hal+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-      x-codegen-request-body-name: request
 
   /v2/policies:
     get:
@@ -480,64 +234,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/PolicyListResponse'
 
-  /policies:
-    get:
-      tags:
-        - policy
-      description: |
-        Get the list of available policies
-      operationId: list_policies
-      responses:
-        200:
-          description: list of available policies
-          content:
-            application/hal+json:
-              schema:
-                type: array
-                example:
-                  - compliance-monitor-full-access
-                  - routeplanner-full-access
-                items:
-                  type: string
-            application/problem+json:
-              schema:
-                type: array
-                example:
-                  - compliance-monitor-full-access
-                  - routeplanner-full-access
-                items:
-                  type: string
-
-  /v2/customers:
-    get:
-      tags:
-        - customers
-      description: |
-        List API customers
-      operationId: list_customers_v2
-      parameters:
-        - name: match[name]
-          in: query
-          description: Performs a partial (fuzzy) match against customer names.
-          schema:
-            type: string
-            example: Company.info
-      responses:
-        200:
-          description: A paginated list of API customers, optionally filtered by query parameters.
-          content:
-            application/vnd.api+json:
-              schema:
-                $ref: '#/components/schemas/CustomerDetailsListV2Response'
-        400:
-          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
-        403:
-          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
-        404:
-          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
-        500:
-          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
-
   /v2/customers/{customerID}:
     get:
       tags:
@@ -549,6 +245,7 @@ paths:
         - in: path
           name: customerID
           required: true
+          example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
           schema:
             type: string
       responses:
@@ -557,7 +254,7 @@ paths:
           content:
             application/vnd.api+json:
               schema:
-                $ref: '#/components/schemas/CustomerDetailsV2'
+                $ref: '#/components/schemas/CustomerDetailsV2Response'
         400:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
         403:
@@ -605,26 +302,28 @@ paths:
         - name: accountID
           in: path
           required: true
+          example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
           schema:
             type: string
         - name: customerID
           in: path
           required: true
+          example: 6a72f403f-a1g4-4x4f-9a1s-7326fd5c36c
           schema:
             type: string
       requestBody:
         required: true
         content:
-          application/json:
+          application/vnd.api+json:
             schema:
               $ref: '#/components/schemas/AccountUpdateRequest'
       responses:
         200:
-          description: A paginated list of accounts of an API customer.
+          description: An updated account.
           content:
             application/vnd.api+json:
               schema:
-                $ref: '#/components/schemas/AccountExtendedV2'
+                $ref: '#/components/schemas/AccountExtendedV2Response'
         400:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
         403:
@@ -641,20 +340,22 @@ paths:
         - name: accountID
           in: path
           required: true
+          example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
           schema:
             type: string
         - name: customerID
           in: path
           required: true
+          example: 6a72f403f-a1g4-4x4f-9a1s-7326fd5c36c
           schema:
             type: string
       responses:
         200:
-          description: A paginated list of accounts of an API customer.
+          description: An account of a customer.
           content:
             application/vnd.api+json:
               schema:
-                $ref: '#/components/schemas/AccountExtendedV2'
+                $ref: '#/components/schemas/AccountExtendedV2Response'
         400:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
         403:
@@ -671,63 +372,6 @@ components:
       in: header
       name: X-API-KEY
   schemas:
-    KeyCredentials:
-      title: KeyCredentials
-      description: API key credentials
-      allOf:
-        - required:
-            - hash
-            - key
-          type: object
-          properties:
-            key:
-              type: string
-              description: The created API key which can be used to access APIs.
-            hash:
-              type: string
-              description: The key hash. This is a unique identifier to each API key.
-
-    KeyDetails:
-      title: KeyDetails
-      description: Key details served from our internal DB
-      oneOf:
-        - required:
-            - actor_id
-            - client_id
-          type: object
-          properties:
-            actor_id:
-              type: string
-              description: The actor id of the key
-            client_id:
-              type: integer
-              description: the id of the customer
-            user_id:
-              type: integer
-              description: the id of the user
-      allOf:
-        - required:
-            - actor_id
-            - creation_date
-            - hash
-          type: object
-          properties:
-            hash:
-              type: string
-              description: The key hash
-            expires_at:
-              type: string
-              description: Date on which the keys quota will expire at 00.00 (optional)
-              format: date
-            description:
-              maxLength: 64
-              type: string
-              description: Description for the key (optional)
-            creation_date:
-              type: string
-              description: DateTime on which the api key was created
-              format: date
-
     KeyDetailsV2:
       type: object
       title: KeyDetailsV2
@@ -752,7 +396,7 @@ components:
             actorID:
               description: "the full urn of the key"
               type: string
-              example: "urn:api:key:123:456"
+              example: "urn:api:key:1d7907f7-fe14-40c7-907a-a7be6e18079d:222daf92-4209-4375-8e0a-cb6c6df57055:12K44WCWPYT4TWYP6D5G08YSYM"
             contacts:
               description: contact details of the key
               type: object
@@ -767,10 +411,10 @@ components:
                         example: "email@example.com"
                 users:
                   items:
-                    type: string
-                    example: ["user1", "user2"]
+                    type: number
+                    example: [12344, 238732189]
             creationDate:
-              description: date the key wat created
+              description: date the key was created
               example: "2025-04-22T14:50:13Z"
               type: string
               format: date-time
@@ -782,14 +426,21 @@ components:
               description: The name of the customer
               type: string
               example: "Customer Name"
+            name:
+              description: name of the key
+              type: string
+              example: Emma Production
             description:
               description: description of the key
               type: string
-              example: prod key for customer X
+              example: Production key for Emma
             environment:
-              description: environment the key can be used for. Can be either production or sandbox
+              description: environment the key can be used for
               type: string
               example: production
+              enum:
+                - production
+                - sandbox
             expiresAt:
               description: expiration date of the key
               type: string
@@ -806,6 +457,15 @@ components:
                 type: object
                 properties:
                   meta: "metadata"
+            rateLimit:
+              type: object
+              properties:
+                rate:
+                  type: number
+                  example: 100
+                per:
+                  type: number
+                  example: 60
 
     CreateKeyV2RequestObject:
       type: object
@@ -842,11 +502,6 @@ components:
                   items:
                     type: string
                     example: ["user1", "user2"]
-            policies:
-              type: array
-              items:
-                type: string
-              example: ["policy-1", "policy-2"]
             accountID:
               type: string
               example: "a53837f8-f8c0-4280-a3d3-396d80eb5c8b"
@@ -856,25 +511,9 @@ components:
             description:
               type: string
               example: prod key for customer X
-            rateLimit:
-              type: object
-              properties:
-                rate:
-                  type: number
-                  example: 100
-                per:
-                  type: number
-                  example: 60
             environment:
               type: string
               example: production
-            expiresAt:
-              type: string
-              example: "2045-01-01"
-              format: date-time
-            quota:
-              type: number
-              example: 1230
             labels:
               type: object
               example:
@@ -996,18 +635,9 @@ components:
             attributes:
               type: object
               properties:
-                policies:
-                  type: array
-                  items:
-                    type: string
-                  example: ["policy-1", "policy-2"]
-                expiresAt:
+                name:
                   type: string
-                  example: "2045-01-01"
-                  format: date-time
-                quota:
-                  type: number
-                  example: 1230
+                  example: John Sandbox
                 description:
                   type: string
                   example: prod key for customer X
@@ -1029,15 +659,6 @@ components:
                 active:
                   type: boolean
                   example: true
-                rateLimit:
-                  type: object
-                  properties:
-                    rate:
-                      type: number
-                      example: 100
-                    per:
-                      type: number
-                      example: 60
                 labels:
                   type: object
                   example:
@@ -1078,9 +699,12 @@ components:
                 quotaRemaining:
                   type: string
                   example: 50
+                name:
+                  type: string
+                  example: John Production
                 description:
                   type: string
-                  example: prod key for customer X
+                  example: Production key for John
                 contacts:
                   type: object
                   properties:
@@ -1136,6 +760,9 @@ components:
                 hash:
                   type: string
                   example: "3c612f1b"
+                key:
+                  type: string
+                  example: "jq3c612f1ba53837f8f8396d80eb5c8bc04280a3d3396d80eb5c8b"
 
     Policy:
       type: object
@@ -1151,7 +778,7 @@ components:
           properties:
             name:
               type: string
-              example: policy-1
+              example: "Policy #1"
 
     PolicyListResponse:
       type: object
@@ -1181,7 +808,7 @@ components:
                   example: true
                 actorID:
                   type: string
-                  example: urn:online:user:123:456
+                  example: "urn:api:key:1d7907f7-fe14-40c7-907a-a7be6e18079d:222daf92-4209-4375-8e0a-cb6c6df57055:12K44WCWPYT4TWYP6D5G08YSYM"
                 contacts:
                   type: object
                   properties:
@@ -1200,22 +827,25 @@ components:
                         type: string
                       example: null
                 createdDate:
-                  type: integer
-                  format: int64
+                  type: string
+                  format: date-time
                   example: 2025-05-06T14:44:35Z
                 creationDate:
-                  type: integer
-                  format: int64
+                  type: string
+                  format: date-time
                   example: 2025-05-06T14:44:35Z
                 creatorID:
                   type: string
                   example: urn:online:user:0000:a53837f8-f8c0-4280-a3d3-396d80eb5c8b
                 customerName:
                   type: string
-                  example: customer name x
+                  example: Sam Doe
+                name:
+                  type: string
+                  example: Sam Production
                 description:
                   type: string
-                  example: PROD key for customer X
+                  example: Production key for Sam
                 environment:
                   type: string
                   example: production
@@ -1226,7 +856,7 @@ components:
                   example: null
                 hash:
                   type: string
-                  example: 2f6c710e
+                  example: 2f6c2f6c710e716c710e
                 labels:
                   type: object
                   additionalProperties: true
@@ -1238,7 +868,7 @@ components:
                   type: array
                   items:
                     type: string
-                  example: [policy-1]
+                  example: ["policy-1"]
                 quota:
                   type: integer
                   example: 122
@@ -1248,10 +878,10 @@ components:
                 rateLimit:
                   type: object
                   properties:
-                    Rate:
+                    rate:
                       type: integer
                       example: 0
-                    Per:
+                    per:
                       type: integer
                       example: 0
 
@@ -1309,55 +939,6 @@ components:
           type: number
           example: 100
 
-    KeyDetailsWithGatewayContext:
-      title: KeyDetailsWithGatewayContext
-      description: Detailed properties of a key, both from DB and the API Gateway
-      oneOf:
-        - required:
-            - actor_id
-            - user_id
-          type: object
-          properties:
-            actor_id:
-              type: string
-              description: The actor id of the key
-            client_id:
-              type: integer
-              description: The id of the client
-            user_id:
-              type: integer
-              description: The id of the user
-      allOf:
-        - required:
-            - creation_date
-          type: object
-          properties:
-            policies:
-              type: array
-              example:
-                - compliance-monitor-full-access
-                - routeplanner-full-access
-              items:
-                type: string
-            expires_at:
-              type: string
-              description: Date on which the key quota will expire at 00.00 (optional)
-              format: date
-            quota:
-              type: integer
-              description: The maximum amount of calls the API Key can make
-            quota_remaining:
-              type: integer
-              description: The remaining amount of calls the API Key can make
-            description:
-              maxLength: 64
-              type: string
-              description: Description for the key (optional)
-            creation_date:
-              type: string
-              description: DateTime on which the api key was created
-              format: date
-
     Problem:
       type: object
       properties:
@@ -1408,7 +989,7 @@ components:
       properties:
         type:
           type: string
-          example: keys
+          example: customers
         id:
           type: string
           example: 01JSERF9HRSMDHQN4ZS3DE26ZR
@@ -1422,9 +1003,11 @@ components:
             salesforceID:
               description: A Salesforce ID of the customer.
               type: string
-              example: "SF:fSaRF9sRSMdNw4ZR"
+              example: "fSaRF9sRSMdNw4ZR"
             contactDetails:
-              $ref: '#/components/schemas/ContactDetail'
+              type: array
+              items:
+                $ref: '#/components/schemas/ContactDetail'
     
     CustomerDetailsListV2Response:
       type: object
@@ -1450,7 +1033,7 @@ components:
         name:
           description: A name of the account.
           type: string
-          example: Company.info
+          example: Company.info Legal
         contactDetails:
           type: array
           items:
@@ -1473,19 +1056,19 @@ components:
                     properties:
                       maxCount:
                         type: integer
-                        description: Maximum number of production keys an account can have
+                        description: Maximum number of production keys the account can have
                       currentCount:
                         type: integer
-                        description: Number of existing production keys an account has
+                        description: Number of existing production keys the account has
                   sandbox:
                     type: object
                     properties:
                       maxCount:
                         type: integer
-                        description: Maximum number of sandbox keys an account can have
+                        description: Maximum number of sandbox keys the account can have
                       currentCount:
                         type: integer
-                        description: Number of existing sandbox keys an account has
+                        description: Number of existing sandbox keys the account has
 
     AccountV2:
       type: object
@@ -1524,13 +1107,13 @@ components:
           example: accounts
         id:
           type: string
-          example: 01JSERF9HRSMDHQN4ZS3DE26ZR
+          example: 6a72f403f-a1g4-4x4f-9a1s-7326fd5c36c
         attributes:
           $ref: '#/components/schemas/AccountExtendedAttributes'
         relationships:
           type: object
           properties:
-            customer:
+            customers:
               $ref: '#/components/schemas/Relationship'
 
     AccountListV2Response:
@@ -1548,6 +1131,16 @@ components:
           $ref: '#/components/schemas/JSONAPILinksObject'
         meta:
           $ref: '#/components/schemas/MetaObject'
+
+    AccountExtendedV2Response:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/AccountExtendedV2'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
 
     Customer:
       type: object
@@ -1575,7 +1168,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ContactDetail'
-
 
     ContactDetail:
       type: object
@@ -1611,7 +1203,8 @@ components:
               example: customers
               type: string
             id:
-              example: 3923a257-6301-4905-abed-29e41c1daf3b
+              example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
+              description: customer ID that the account belongs to
               type: string
 
     AccountUpdateRequest:
@@ -1622,12 +1215,16 @@ components:
           properties:
             type:
               type: string
+              example: accounts
             id:
               type: string
+              description: account ID that will be updated
+              example: 6a72f403f-a1g4-4x4f-9a1s-7326fd5c36c
             attributes:
               type: object
               properties:
                 contactDetails:
+                  description: list of contact details of the account. Note! There can be only one financial contact and multiple technical contacts.
                   type: array
                   items:
                     $ref: '#/components/schemas/ContactDetail'
@@ -1636,7 +1233,10 @@ components:
                   properties:
                     id:
                       type: string
+                      description: customer ID that the account belongs to
+                      example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
                     contactDetails:
+                      description: list of contact details of the account. Note! There can be only one financial contact and multiple technical contacts.
                       type: array
                       items:
                         $ref: '#/components/schemas/ContactDetail'

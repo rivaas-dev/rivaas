@@ -1,0 +1,1332 @@
+openapi: 3.0.1
+info:
+  title: API Gateway API
+  description: |
+    API for creating, editing, deleting and fetching API keys for Administrators.
+  version: 2.0.0
+servers:
+  - url: 'https://api.company.info/internal-admin'
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+tags:
+  - name: keys
+    description: Calls related to API keys
+  - name: customers
+  - name: accounts
+
+paths:
+  /v2/keys:
+    get:
+      tags:
+        - keys
+      description: |
+        List API Keys
+      operationId: list_keys_v2
+      parameters:
+        - name: page[number]
+          in: query
+          description: The number of the requested page.
+          schema:
+            type: number
+            default: 1
+            minimum: 1
+        - name: page[size]
+          in: query
+          description: The size of the requested page.
+          schema:
+            type: number
+            default: 10
+            maximum: 100
+        - name: filter[actorID]
+          in: query
+          description: "Only available to the administrators. The actor id to filter on. This must be the full URN of the actor (e.g., a user), including API key, customer ID, and actor identifier. Example: urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01HX6GV6CV8NPR1XQRRQQZTMXN"
+          schema:
+            type: string
+            example: urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01HX6GV6CV8NPR1XQRRQQZTMXN
+        - name: filter[active]
+          in: query
+          description: A flag indicating whether the API key is active or not. Filters out active or inactive API keys depending on the value.
+          schema:
+            type: boolean
+            example: true
+        - name: filter[expiresAt]
+          in: query
+          description: Filters out API keys that expire on the specified date. Should be formatted as YYYY-mm-dd.
+          schema:
+            type: string
+            example: '2025-12-31'
+        - name: filter[environment]
+          in: query
+          description: Filters out API keys that belong to the specified environment. Possible values are `production` and `sandbox`.
+          schema:
+            type: string
+            example: production
+            enum:
+              - production
+              - sandbox
+        - name: match[name]
+          in: query
+          description: Performs a partial (fuzzy) match against API key names.
+          schema:
+            type: string
+            example: Alex Production
+            maxLength: 30
+        - name: match[description]
+          in: query
+          description: Performs a partial (fuzzy) match against API key descriptions.
+          schema:
+            type: string
+            example: Production key for Alex
+        - name: match[customerID]
+          in: query
+          description: Only available to administrators. The ID of the customer (i.e., the top-level in the two-level hierarchy).
+          schema:
+            type: string
+            example: 19fd5d47-91ea-4cac-a8e0-ea9e295fa44b
+        - name: match[accountID]
+          in: query
+          description: The ID of the account (i.e., the lower group in the two-level hierarchy, typically representing the department ID).
+          schema:
+            type: string
+            example: f82dddf1-4f06-4fa0-80bd-c2014d5f9540
+      responses:
+        200:
+          description: A paginated list of API keys, optionally filtered by query parameters.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsListV2Response'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+    post:
+      tags:
+        - keys
+      description: |
+        Create a new API key
+      operationId: create_key_v2
+      parameters:
+        - in: header
+          name: X-Customer-ID
+          schema:
+            type: string
+      requestBody:
+        description: The details of the key being created.
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/CreateKeyV2Request'
+      responses:
+        201:
+          description: Key created
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/CreateKeyV2Response'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+  /v2/keys/{keyID}:
+    patch:
+      tags:
+        - keys
+      operationId: patch_key_v2
+      description: |
+        Updates one or more properties of an existing API key. Only the provided fields will be modified (partial update).
+      parameters:
+        - in: path
+          name: keyID
+          required: true
+          description: ID of the patched key
+          example: 01K44WCWPYT4TWYP6D5G08YSYM
+          schema:
+            type: string
+      requestBody:
+        description: The request body containing the fields to update on the API key. Only specified fields will be patched; all others remain unchanged.
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/UpdateKeyV2Request'
+      responses:
+        200:
+          description: "response for patching a key"
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/UpdateKeyV2Response'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+    get:
+      tags:
+        - keys
+      operationId: get_key_details_v2
+      description: |
+        Retrieves detailed information about a specific API key by its ID.
+      parameters:
+        - in: path
+          name: keyID
+          required: true
+          description: ID of the requested key
+          example: 01K44WCWPYT4TWYP6D5G08YSYM
+          schema:
+            type: string
+      responses:
+        200:
+          description: "response for fetching a key"
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/GetKeyDetailsResponseV2'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - keys
+      operationId: delete_key_v2
+      description: |
+        Deletes the specified API key by its ID. This action is irreversible.
+      parameters:
+        - in: path
+          name: keyID
+          required: true
+          description: ID of the deleted key
+          example: 01K44WCWPYT4TWYP6D5G08YSYM
+          schema:
+            type: string
+      responses:
+        204:
+          description: Successfully deleted the API key. No content is returned.
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+  /v2/policies:
+    get:
+      tags:
+        - policy
+      description: |
+        Get the list of available policies
+      operationId: list_policies_v2
+      responses:
+        200:
+          description: list of available policies
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/PolicyListResponse'
+
+  /v2/customers:
+    get:
+      tags:
+        - customers
+      description: |
+        List API customers. Only available for administrators.
+      operationId: list_customers_v2
+      parameters:
+        - name: page[number]
+          in: query
+          description: The number of the requested page.
+          schema:
+            type: number
+            default: 1
+            minimum: 1
+        - name: page[size]
+          in: query
+          description: The size of the requested page.
+          schema:
+            type: number
+            default: 10
+            maximum: 100
+        - name: match[name]
+          in: query
+          description: Performs a partial (fuzzy) match against customer names.
+          schema:
+            type: string
+            example: Company.info
+      responses:
+        200:
+          description: A paginated list of API customers, optionally filtered by query parameters.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/CustomerDetailsListV2Response'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+  /v2/customers/{customerID}:
+    get:
+      tags:
+        - customers
+      description: |
+        Details about an API customer
+      operationId: get_customer_details_v2
+      parameters:
+        - in: path
+          name: customerID
+          required: true
+          example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
+          schema:
+            type: string
+      responses:
+        200:
+          description: API customer detailed profile.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/CustomerDetailsV2Response'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+  /v2/customers/{customerID}/accounts:
+    get:
+      tags:
+        - accounts
+      description: |
+        List accounts of an API customer
+      operationId: list_customer_accounts_v2
+      parameters:
+        - in: path
+          name: customerID
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: A paginated list of accounts of an API customer.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccountListV2Response'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+  /v2/customers/{customerID}/accounts/{accountID}:
+    put:
+      summary: Update an account by ID
+      tags:
+        - accounts
+      parameters:
+        - name: accountID
+          in: path
+          required: true
+          example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
+          schema:
+            type: string
+        - name: customerID
+          in: path
+          required: true
+          example: 6a72f403f-a1g4-4x4f-9a1s-7326fd5c36c
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/AccountUpdateRequest'
+      responses:
+        200:
+          description: An updated account.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccountExtendedV2Response'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+    get:
+      summary: Get an account by ID
+      tags:
+        - accounts
+      parameters:
+        - name: accountID
+          in: path
+          required: true
+          example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
+          schema:
+            type: string
+        - name: customerID
+          in: path
+          required: true
+          example: 6a72f403f-a1g4-4x4f-9a1s-7326fd5c36c
+          schema:
+            type: string
+      responses:
+        200:
+          description: An account of a customer.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccountExtendedV2Response'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    KeyDetailsV2:
+      type: object
+      title: KeyDetailsV2
+      description: Details about the API key
+      required:
+        - type
+        - attributes
+        - id
+      properties:
+        type:
+          type: string
+          example: keys
+        id:
+          type: string
+          example: 01JSERF9HRSMDHQN4ZS3DE26ZR
+        attributes:
+          type: object
+          properties:
+            active:
+              type: boolean
+              example: true
+            actorID:
+              description: "the full urn of the key"
+              type: string
+              example: "urn:api:key:1d7907f7-fe14-40c7-907a-a7be6e18079d:222daf92-4209-4375-8e0a-cb6c6df57055:12K44WCWPYT4TWYP6D5G08YSYM"
+            contacts:
+              description: contact details of the key
+              type: object
+              properties:
+                emails:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      address:
+                        type: string
+                        example: "email@example.com"
+                users:
+                  items:
+                    type: number
+                    example: [12344, 238732189]
+            creationDate:
+              description: date the key was created
+              example: "2025-04-22T14:50:13Z"
+              type: string
+              format: date-time
+            creatorID:
+              description: the person who created the key
+              type: string
+              example: "urn:online:user:0000:a53837f8-f8c0-4280-a3d3-396d80eb5c8b"
+            customerName:
+              description: The name of the customer
+              type: string
+              example: "Customer Name"
+            name:
+              description: name of the key
+              type: string
+              example: Emma Production
+            description:
+              description: description of the key
+              type: string
+              example: Production key for Emma
+            environment:
+              description: environment the key can be used for
+              type: string
+              example: production
+              enum:
+                - production
+                - sandbox
+            expiresAt:
+              description: expiration date of the key
+              type: string
+              example: "2045-01-01"
+              format: date-time
+            hash:
+              description: hash id of th key
+              type: string
+              example: 3c612f1b
+            labels:
+              description: some meta information that can be given to the key
+              type: object
+              example:
+                type: object
+                properties:
+                  meta: "metadata"
+            rateLimit:
+              type: object
+              properties:
+                rate:
+                  type: number
+                  example: 100
+                per:
+                  type: number
+                  example: 60
+
+    CreateKeyV2RequestObject:
+      type: object
+      title: CreateKeyV2RequestObject
+      description: Object for creating a key
+      required:
+        - type
+        - attributes
+      properties:
+        type:
+          type: string
+          example: keys
+        attributes:
+          type: object
+          properties:
+            active:
+              type: boolean
+              example: true
+            actorID:
+              type: string
+              example: "urn:online:user:123:456"
+            contacts:
+              type: object
+              properties:
+                emails:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      address:
+                        type: string
+                        example: "email@example.com"
+                users:
+                  items:
+                    type: string
+                    example: ["user1", "user2"]
+            accountID:
+              type: string
+              example: "a53837f8-f8c0-4280-a3d3-396d80eb5c8b"
+            customerID:
+              type: string
+              example: "532e3378-f5c0-4280-a3d3-1912d80eb5c8"
+            description:
+              type: string
+              example: prod key for customer X
+            environment:
+              type: string
+              example: production
+            labels:
+              type: object
+              example:
+                type: object
+                properties:
+                  meta: "metadata"
+
+    KeyDetailsListV2Response:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KeyDetailsV2'
+        links:
+          $ref: '#/components/schemas/JSONAPILinksObject'
+        meta:
+          $ref: '#/components/schemas/MetaObject'
+
+    CreateKeyV2Request:
+      type: object
+      properties:
+        data:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/CreateKeyV2RequestObject'
+
+    CreateKeyV2Response:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            type:
+              type: string
+              example: keys
+            id:
+              type: string
+              example: 01JSERF9HRSMDHQN4ZS3DE26ZR
+            attributes:
+              type: object
+              properties:
+                key:
+                  type: string
+                  example: c1150966c7f54b6f96df8d0427d9440c
+                active:
+                  type: boolean
+                  example: true
+                actorID:
+                  type: string
+                  example: "urn:api:key:19fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540:01K04FFC8KB91M41CMT0QEG3Y1"
+                contacts:
+                  type: object
+                  properties:
+                    emails:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          address:
+                            type: string
+                            example: "email@example.com"
+                    users:
+                      nullable: true
+                creatorID:
+                  type: string
+                  example: "urn:online:user:119fd5d47-91ea-4cac-a8e0-ea9e295fa44b:f82dddf1-4f06-4fa0-80bd-c2014d5f9540"
+                customerName:
+                  type: string
+                  example: ""
+                description:
+                  type: string
+                  example: "this key is for production"
+                environment:
+                  type: string
+                  example: "production"
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                hash:
+                  type: string
+                  example: "2432cd78"
+                labels:
+                  nullable: true
+                name:
+                  type: string
+                  example: "name X"
+                policies:
+                  type: array
+                  items:
+                    type: string
+                  example: ["policy-1"]
+                quota:
+                  type: integer
+                  example: 1000
+                quotaRemaining:
+                  type: integer
+                  example: 950
+                rateLimit:
+                  type: object
+                  properties:
+                    Rate:
+                      type: integer
+                      example: 30
+                    Per:
+                      type: integer
+                      example: 60
+
+    UpdateKeyV2Request:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            type:
+              type: string
+              example: keys
+            attributes:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: John Sandbox
+                description:
+                  type: string
+                  example: prod key for customer X
+                contacts:
+                  type: object
+                  properties:
+                    emails:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          address:
+                            type: string
+                            example: "email@example.com"
+                    users:
+                      items:
+                        type: string
+                        example: ["user1", "user2"]
+                active:
+                  type: boolean
+                  example: true
+                labels:
+                  type: object
+                  example:
+                    type: object
+                    properties:
+                      meta: "metadata"
+
+    UpdateKeyV2Response:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            type:
+              type: string
+              example: keys
+            id:
+              type: string
+              example: 01JT84J9RBAG05HP5NT63XK40M
+            attributes:
+              type: object
+              properties:
+                actorID:
+                  type: string
+                  example: "urn:online:user:123:456"
+                policies:
+                  type: array
+                  items:
+                    type: string
+                  example: ["policy-1", "policy-2"]
+                expiresAt:
+                  type: string
+                  example: "2025-05-06"
+                  format: date-time
+                quota:
+                  type: number
+                  example: 1230
+                quotaRemaining:
+                  type: string
+                  example: 50
+                name:
+                  type: string
+                  example: John Production
+                description:
+                  type: string
+                  example: Production key for John
+                contacts:
+                  type: object
+                  properties:
+                    emails:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          address:
+                            type: string
+                            example: "email@example.com"
+                    users:
+                      items:
+                        type: string
+                        example: ["user1", "user2"]
+                active:
+                  type: boolean
+                  example: true
+                creationDate:
+                  type: string
+                  description: DateTime on which the api key was created
+                  format: date
+                  example: 2025-05-06T14:44:35Z
+                createdDate:
+                  type: string
+                  description: DateTime on which the api key was created
+                  format: date
+                  example: 2025-05-06T14:44:35Z
+                rateLimit:
+                  type: object
+                  properties:
+                    rate:
+                      type: number
+                      example: 100
+                    per:
+                      type: number
+                      example: 60
+                labels:
+                  type: object
+                  example:
+                    type: object
+                    properties:
+                      meta: "metadata"
+                creatorID:
+                  type: string
+                  example: "urn:online:user:0000:a53837f8-f8c0-4280-a3d3-396d80eb5c8b"
+                customerName:
+                  type: string
+                  example: "name of customer X"
+                environment:
+                  type: string
+                  example: "production"
+                hash:
+                  type: string
+                  example: "3c612f1b"
+                key:
+                  type: string
+                  example: "jq3c612f1ba53837f8f8396d80eb5c8bc04280a3d3396d80eb5c8b"
+
+    Policy:
+      type: object
+      properties:
+        type:
+          type: string
+          example: policies
+        id:
+          type: string
+          example: policy-1
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              example: "Policy #1"
+
+    PolicyListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Policy'
+
+    GetKeyDetailsResponseV2:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            type:
+              type: string
+              example: keys
+            id:
+              type: string
+              example: 01JT84J9RBAG05HP5NT63XK40M
+            attributes:
+              type: object
+              properties:
+                active:
+                  type: boolean
+                  example: true
+                actorID:
+                  type: string
+                  example: "urn:api:key:1d7907f7-fe14-40c7-907a-a7be6e18079d:222daf92-4209-4375-8e0a-cb6c6df57055:12K44WCWPYT4TWYP6D5G08YSYM"
+                contacts:
+                  type: object
+                  properties:
+                    emails:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          address:
+                            type: string
+                            example: "email@example.com"
+                    users:
+                      type: array
+                      nullable: true
+                      items:
+                        type: string
+                      example: null
+                createdDate:
+                  type: string
+                  format: date-time
+                  example: 2025-05-06T14:44:35Z
+                creationDate:
+                  type: string
+                  format: date-time
+                  example: 2025-05-06T14:44:35Z
+                creatorID:
+                  type: string
+                  example: urn:online:user:0000:a53837f8-f8c0-4280-a3d3-396d80eb5c8b
+                customerName:
+                  type: string
+                  example: Sam Doe
+                name:
+                  type: string
+                  example: Sam Production
+                description:
+                  type: string
+                  example: Production key for Sam
+                environment:
+                  type: string
+                  example: production
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  example: null
+                hash:
+                  type: string
+                  example: 2f6c2f6c710e716c710e
+                labels:
+                  type: object
+                  additionalProperties: true
+                  example:
+                    type: object
+                    properties:
+                      meta: "metadata"
+                policies:
+                  type: array
+                  items:
+                    type: string
+                  example: ["policy-1"]
+                quota:
+                  type: integer
+                  example: 122
+                quotaRemaining:
+                  type: integer
+                  example: 15
+                rateLimit:
+                  type: object
+                  properties:
+                    rate:
+                      type: integer
+                      example: 0
+                    per:
+                      type: integer
+                      example: 0
+
+    JSONAPILinksObject:
+      title: "JSON:API Links Object"
+      description: "May contain `self`, `related`, or pagination links (first, last, prev, next)."
+      properties:
+        self:
+          $ref: '#/components/schemas/JSONAPILink'
+        first:
+          $ref: '#/components/schemas/JSONAPILink'
+        last:
+          $ref: '#/components/schemas/JSONAPILink'
+        prev:
+          $ref: '#/components/schemas/JSONAPILink'
+        next:
+          $ref: '#/components/schemas/JSONAPILink'
+
+    JSONAPILink:
+      title: "JSON:API Link"
+      description: "A JSON:API link can be either a URL string or a structured link object."
+      oneOf:
+        - $ref: '#/components/schemas/URL'
+        - $ref: '#/components/schemas/JSONAPILinkObject'
+
+    URL:
+      type: string
+      format: url
+      example: 'https://example.com/'
+
+    JSONAPILinkObject:
+      title: "JSON:API Link Object"
+      description: "a structured representation of a URL"
+      type: object
+      required:
+        - href
+      properties:
+        href:
+          type: string
+          example: 'https://example.com/'
+        meta:
+          type: object
+          example:
+            count: '10'
+
+    MetaObject:
+      title: "Meta information object"
+      description: "Some meta information for JSON API response objects"
+      type: object
+      properties:
+        totalPages:
+          type: number
+          example: 12
+        totalResults:
+          type: number
+          example: 100
+
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          description: |
+            An absolute URI that identifies the problem type.  When dereferenced,
+            it SHOULD provide human-readable documentation for the problem type
+            (e.g., using HTML).
+          format: uri
+          default: about:blank
+        title:
+          type: string
+          description: |
+            A short, summary of the problem type. Written in english and readable
+            for engineers (usually not suited for non technical stakeholders and
+            not localized); example: Service Unavailable
+        status:
+          maximum: 6E+2
+          minimum: 1E+2
+          type: integer
+          description: |
+            The HTTP status code generated by the origin server for this occurrence
+            of the problem.
+          format: int32
+          example: 503
+        detail:
+          type: string
+          description: |
+            A human readable explanation specific to this occurrence of the
+            problem.
+          example: Connection to database timed out
+        instance:
+          type: string
+          description: |
+            An absolute URI that identifies the specific occurrence of the problem.
+            It may or may not yield further information if dereferenced.
+          format: uri
+
+    CustomerDetailsV2:
+      type: object
+      title: CustomerDetailsV2
+      description: Details about the API customer
+      required:
+        - type
+        - attributes
+        - id
+      properties:
+        type:
+          type: string
+          example: customers
+        id:
+          type: string
+          example: 01JSERF9HRSMDHQN4ZS3DE26ZR
+        attributes:
+          type: object
+          properties:
+            name:
+              description: A name of the customer.
+              type: string
+              example: Company.info
+            salesforceID:
+              description: A Salesforce ID of the customer.
+              type: string
+              example: "fSaRF9sRSMdNw4ZR"
+            contactDetails:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContactDetail'
+    
+    CustomerDetailsListV2Response:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerDetailsV2'
+        links:
+          $ref: '#/components/schemas/JSONAPILinksObject'
+        meta:
+          $ref: '#/components/schemas/MetaObject'
+
+    CustomerDetailsV2Response:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/CustomerDetailsV2'
+    
+    AccountAttributes:
+      type: object
+      properties:
+        name:
+          description: A name of the account.
+          type: string
+          example: Company.info Legal
+        contactDetails:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactDetail'
+
+    AccountExtendedAttributes:
+      allOf:
+      - $ref: '#/components/schemas/AccountAttributes'
+      - type: object
+        properties:
+          subscription:
+            description: Subscription details of an account
+            type: object
+            properties:
+              apiKeys:
+                type: object
+                properties:
+                  production:
+                    type: object
+                    properties:
+                      maxCount:
+                        type: integer
+                        description: Maximum number of production keys the account can have
+                      currentCount:
+                        type: integer
+                        description: Number of existing production keys the account has
+                  sandbox:
+                    type: object
+                    properties:
+                      maxCount:
+                        type: integer
+                        description: Maximum number of sandbox keys the account can have
+                      currentCount:
+                        type: integer
+                        description: Number of existing sandbox keys the account has
+
+    AccountV2:
+      type: object
+      title: CustomerAccountDetailsV2
+      description: Details about an account of an API customer
+      required:
+        - type
+        - attributes
+        - id
+      properties:
+        type:
+          type: string
+          example: accounts
+        id:
+          type: string
+          example: 01JSERF9HRSMDHQN4ZS3DE26ZR
+        attributes:
+          $ref: '#/components/schemas/AccountAttributes'
+        relationships:
+          type: object
+          properties:
+            customer:
+              $ref: '#/components/schemas/Relationship'
+
+    AccountExtendedV2:
+      type: object
+      title: CustomerAccountDetailsV2
+      description: Details about an account of an API customer
+      required:
+        - type
+        - attributes
+        - id
+      properties:
+        type:
+          type: string
+          example: accounts
+        id:
+          type: string
+          example: 6a72f403f-a1g4-4x4f-9a1s-7326fd5c36c
+        attributes:
+          $ref: '#/components/schemas/AccountExtendedAttributes'
+        relationships:
+          type: object
+          properties:
+            customers:
+              $ref: '#/components/schemas/Relationship'
+
+    AccountListV2Response:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountV2'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+        links:
+          $ref: '#/components/schemas/JSONAPILinksObject'
+        meta:
+          $ref: '#/components/schemas/MetaObject'
+
+    AccountExtendedV2Response:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/AccountExtendedV2'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+
+    Customer:
+      type: object
+      properties:
+        type:
+          example: customers
+          type: string
+        id:
+          description: ID of the customer
+          type: string
+          example: 3923a257-6301-4905-abed-29e41c1daf3b
+        attributes:
+          $ref: '#/components/schemas/CustomerAttributes'
+
+    CustomerAttributes:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Company.info
+        salesforceID:
+          type: string
+          example: SF:sG2mDw1kwlKW23QL
+        contactDetails:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactDetail'
+
+    ContactDetail:
+      type: object
+      properties:
+        id:
+          description: ID of the contact.
+          type: string
+          example: 001DC000002ojiNFAW
+        email:
+          description: Email address of the contact.
+          type: string
+          example: "email@example.com"
+        firstName:
+          description: First name of the contact.
+          type: string
+          example: "Jane"
+        lastName:
+          description: Last name of the contact.
+          type: string
+          example: "Doe"
+        type:
+          description: Type of the contact. For example, `technical` or `financial`
+          type: string
+          example: "financial"
+
+    Relationship:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            type:
+              example: customers
+              type: string
+            id:
+              example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
+              description: customer ID that the account belongs to
+              type: string
+
+    AccountUpdateRequest:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            type:
+              type: string
+              example: accounts
+            id:
+              type: string
+              description: account ID that will be updated
+              example: 6a72f403f-a1g4-4x4f-9a1s-7326fd5c36c
+            attributes:
+              type: object
+              properties:
+                contactDetails:
+                  description: list of contact details of the account. Note! There can be only one financial contact and multiple technical contacts.
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ContactDetail'
+                customer:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: customer ID that the account belongs to
+                      example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
+                    contactDetails:
+                      description: list of contact details of the account. Note! There can be only one financial contact and multiple technical contacts.
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/ContactDetail'
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/hal+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/hal+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: NotFound
+      content:
+        application/hal+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

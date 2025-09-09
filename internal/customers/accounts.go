@@ -54,7 +54,7 @@ func (a *AccountExtended) MarshalJSON() ([]byte, error) {
 // Account is the base data element
 type Account struct {
 	ID                    string    `json:"id" jsonapi:"primary,accounts"`
-	Customers             *Customer `json:"customers" jsonapi:"relation,customer"`
+	Customers             *Customer `json:"customers" jsonapi:"relation,customers"`
 	Name                  string    `json:"name" jsonapi:"attr,name"`
 	AccountContactDetails []Contact `json:"contactDetails" jsonapi:"attr,contactDetails,omitempty"`
 }

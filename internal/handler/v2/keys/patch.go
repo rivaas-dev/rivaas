@@ -45,13 +45,9 @@ type PatchData struct {
 
 type PatchAttributes struct {
 	Name        *string            `json:"name"`               // name of the API Key
-	Policies    *[]string          `json:"policies"`           // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date         `json:"expiresAt"`          // Date on which the key quota will expire at 00.00 (optional).
-	Quota       *int64             `json:"quota"`              // The amount of calls the API Key can make (optional).
 	Description *string            `json:"description"`        // Description for the key (optional).
 	Contact     *apikey.Contact    `json:"contacts,omitempty"` // Contacts information.
 	Active      *bool              `json:"active,omitempty"`   // Defines the status of the key.
-	RateLimit   *apikey.RateLimit  `json:"rateLimit"`          // Defines rate limit of the key.
 	Labels      *map[string]string `json:"labels"`             // Contains user specified labels for categorization
 }
 
@@ -60,22 +56,7 @@ func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient, exist
 	if i.Body.Attributes.Name != nil && len(*i.Body.Attributes.Name) > apikey.NameMaxLength {
 		return fmt.Errorf("maximum length is %d, %d given", apikey.NameMaxLength, len(*i.Body.Attributes.Name))
 	}
-	// Validate policies.
-	if i.Body.Attributes.Policies != nil {
-		if !validation.ValidatePolicies(ctx, tykAPI, *i.Body.Attributes.Policies) {
-			return errors.New("invalid policy")
-		}
-	}
-	// Validate quota end date.
-	if i.Body.Attributes.ExpiresAt != nil {
-		if existingKey.Environment == apikey.ProdEnv {
-			return errors.New("can't set expiration date for production keys")
-		}
 
-		if !validation.ValidateEndDate(i.Body.Attributes.ExpiresAt) {
-			return errors.New("quota end date must be greater than today")
-		}
-	}
 	// Validate contact emails.
 	if i.Body.Attributes.Contact != nil && len(i.Body.Attributes.Contact.Emails) > 0 {
 		for _, email := range i.Body.Attributes.Contact.Emails {
@@ -92,13 +73,9 @@ func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient, exist
 type workflowInput struct {
 	ID          string             // Key ID.
 	Name        *string            // Key name.
-	Policies    *[]string          // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date         // Date on which the key quota will expire at 00.00 (optional).
-	Quota       *int64             // The amount of calls the API Key can make (optional).
 	Description *string            // Description for the key (optional).
 	Contact     *apikey.Contact    // Contacts information.
 	Active      *bool              // Defines the status of the key.
-	RateLimit   *apikey.RateLimit  // Defines rate limit of the key.
 	Labels      *map[string]string // Contains user specified labels for categorization
 }
 
@@ -212,9 +189,6 @@ func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput
 	wInput := workflowInput{
 		ID:          request.Path.ID,
 		Name:        request.Body.Attributes.Name,
-		Policies:    request.Body.Attributes.Policies,
-		ExpiresAt:   request.Body.Attributes.ExpiresAt,
-		Quota:       request.Body.Attributes.Quota,
 		Description: request.Body.Attributes.Description,
 	}
 	if request.Body.Attributes.Active != nil {
@@ -222,9 +196,6 @@ func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput
 	}
 	if request.Body.Attributes.Contact != nil {
 		wInput.Contact = request.Body.Attributes.Contact
-	}
-	if request.Body.Attributes.RateLimit != nil {
-		wInput.RateLimit = request.Body.Attributes.RateLimit
 	}
 	if request.Body.Attributes.Labels != nil {
 		wInput.Labels = request.Body.Attributes.Labels

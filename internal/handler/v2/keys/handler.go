@@ -20,6 +20,7 @@ type Handler struct {
 	keycloakClient  keycloak.Client
 	keycloakConfig  config.KeyCloakConfig
 	customerService *customers.Service
+	apiKeyDefaults  config.APIKeyDefaults
 	defaultPageSize uint
 	maxPageSize     uint
 }
@@ -32,6 +33,7 @@ func New(temporalClient client.Client,
 	keycloakClient keycloak.Client,
 	keyCloakConfig config.KeyCloakConfig,
 	customerService *customers.Service,
+	apiKeyDefaults config.APIKeyDefaults,
 	pagination config.Pagination) *Handler {
 	return &Handler{
 		tykClient:       tykClient,
@@ -42,6 +44,7 @@ func New(temporalClient client.Client,
 		keycloakConfig:  keyCloakConfig,
 		customerService: customerService,
 		defaultPageSize: pagination.DefaultPageSize,
+		apiKeyDefaults:  apiKeyDefaults,
 		maxPageSize:     pagination.MaxPageSize,
 	}
 }

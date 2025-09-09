@@ -199,7 +199,7 @@ func registerHandlers(
 	customerSvc := customerService.New(dbClient, keyCloakClient, cfg.PricingPlans)
 
 	// v2 endpoints - JSON:API compliant
-	keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig, customerSvc, cfg.Pagination)
+	keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig, customerSvc, cfg.APIKeyDefaults, cfg.Pagination)
 	server.POST("/v2/keys", keyV2Handler.POST)
 	server.GET("/v2/keys", keyV2Handler.LIST)
 	server.GET("/v2/keys/:id", keyV2Handler.GET)
