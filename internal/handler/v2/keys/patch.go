@@ -115,13 +115,13 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		attribute.String("id", request.Path.ID),
 	)
 	dbKey, err := h.keysRepository.GetKey(request.Path.ID)
-	if err != nil {
+	if err != nil && !errors.Is(err, db.ErrKeyNotFound) {
 		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
 	}
-	if dbKey == nil {
+	if errors.Is(err, db.ErrKeyNotFound) || dbKey == nil {
 		goot.EndSpanWithError(span, errors.New("key not found"), "key not found")
 		log.Err(err).Msg("key not found in database")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusNotFound), err, http.StatusNotFound)

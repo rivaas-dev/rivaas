@@ -2,6 +2,8 @@
 package keys
 
 import (
+	"errors"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"go.opentelemetry.io/otel/attribute"
@@ -37,13 +39,13 @@ func (h *Handler) DELETE(ctx *goskell.Context) {
 		attribute.String("id", request.ID),
 	)
 	dbKey, err := h.keysRepository.GetKey(request.ID)
-	if err != nil {
+	if err != nil && !errors.Is(err, db.ErrKeyNotFound) {
 		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
 	}
-	if dbKey == nil {
+	if errors.Is(err, db.ErrKeyNotFound) || dbKey == nil {
 		goot.EndSpanWithError(span, err, "key not found")
 		log.Err(err).Msg("key not found in database")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusNotFound), err, http.StatusNotFound)
