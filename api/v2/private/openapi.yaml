@@ -569,6 +569,9 @@ components:
             customerID:
               type: string
               example: "532e3378-f5c0-4280-a3d3-1912d80eb5c8"
+            name:
+              type: string
+              example: X Production
             description:
               type: string
               example: prod key for customer X
