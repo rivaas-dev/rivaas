@@ -163,6 +163,13 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusNotFound})
 		return
 	}
+	if dbKey.DeletedAt != nil {
+		err := errors.New("key was already deleted")
+		goot.EndSpanWithError(span, err, "key was already deleted")
+		log.Error().Msg("key was already deleted")
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusBadRequest), err, http.StatusBadRequest)
+		return
+	}
 	goot.EndSpan(span)
 
 	if !h.isAuthorized(ctx, dbKey) {

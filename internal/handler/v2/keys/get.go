@@ -57,15 +57,33 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		return
 	}
 
-	// Get more info of the key.
-	response, err := h.getKeyInfo(ctx, dbKey)
+	// Get more info of the key if the key wasn't deleted
+	var tykResponse *tyk.SessionState
+	if dbKey.DeletedAt == nil {
+		tykResponse, err = h.getTykInfo(ctx, dbKey.Hash)
+		if err != nil {
+			log.Err(err).Msg("error on calling tyk")
+			goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	customerName, err := h.getCustomerName(ctx, dbKey.ActorID)
 	if err != nil {
-		log.Err(err).Msg("error on calling worker")
+		log.Err(err).Msg("error on retrieving customer name")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
 	}
+
+	key, err := h.merge(dbKey, tykResponse, customerName)
+	if err != nil {
+		log.Err(err).Msg("error on preparing output")
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
+		return
+	}
+
 	// convert to JSON API response
-	jsonAPIResponse, err := jsonapi.Marshal(response)
+	jsonAPIResponse, err := jsonapi.Marshal(key)
 	if err != nil {
 		log.Err(err).Msg("error on marshaling response")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
@@ -75,15 +93,15 @@ func (h *Handler) GET(ctx *goskell.Context) {
 	internal.WriteJSONAPIResponse(ctx, jsonAPIResponse, http.StatusOK, nil)
 }
 
-// getKeyInfo gets more info of the key by calling Tyk API.
-func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*apikey.APIKey, error) {
+// getTykInfo gets more info of the key by calling Tyk API.
+func (h *Handler) getTykInfo(ctx *goskell.Context, hash string) (*tyk.SessionState, error) {
 	// Get Key info.
 	_, span := goot.Span(ctx.Request.Context(), "get_from_tyk",
-		attribute.String("hash", dbKey.Hash),
+		attribute.String("hash", hash),
 	)
 	tykResponse, resp, err := h.tykClient.KeysApi.GetKey(
 		ctx,
-		dbKey.Hash,
+		hash,
 		&tyk.GetKeyOpts{Hashed: optional.NewBool(true)},
 	)
 	if err != nil {
@@ -97,34 +115,35 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*apikey.APIKe
 	}
 	goot.EndSpan(span)
 
-	customerName, err := h.getCustomerName(ctx, dbKey.ActorID)
-	if err != nil {
-		return nil, errors.New("customer name not found")
+	return &tykResponse, nil
+}
+
+func (h *Handler) merge(dbKey *db.Key, tykResponse *tyk.SessionState, customerName string) (*apikey.APIKey, error) {
+	result := apikey.APIKey{
+		ID:           dbKey.ID,
+		Name:         dbKey.Name,
+		CustomerName: customerName,
+		Hash:         dbKey.Hash,
+		CreationDate: dbKey.CreatedAt.Format(time.RFC3339),
+		Environment:  dbKey.Environment,
+		ActorID:      dbKey.ActorID,
+		CreatorID:    dbKey.CreatorID,
+		ExpiresAt:    dbKey.ExpiresAt,
+		Description:  apikey.String(dbKey.Description),
+		CreatedDate:  dbKey.CreatedAt.Format(time.RFC3339),
+		Contact:      apikey.DBToContact(dbKey.Contact),
+		Active:       dbKey.Active,
+		Labels:       dbKey.Labels,
 	}
 
-	// build key from db response
-	result := apikey.APIKey{
-		ID:             dbKey.ID,
-		Name:           dbKey.Name,
-		CustomerName:   customerName,
-		Hash:           dbKey.Hash,
-		CreationDate:   dbKey.CreatedAt.Format(time.RFC3339),
-		Environment:    dbKey.Environment,
-		ActorID:        dbKey.ActorID,
-		CreatorID:      dbKey.CreatorID,
-		Policies:       policies.FilterString(tykResponse.ApplyPolicies),
-		ExpiresAt:      dbKey.ExpiresAt,
-		Quota:          tykResponse.QuotaMax,
-		QuotaRemaining: tykResponse.QuotaRemaining,
-		Description:    apikey.String(dbKey.Description),
-		CreatedDate:    dbKey.CreatedAt.Format(time.RFC3339),
-		Contact:        apikey.DBToContact(dbKey.Contact),
-		Active:         !tykResponse.IsInactive,
-		RateLimit: apikey.RateLimit{
+	if tykResponse != nil { // if the key was deleted, we don't have tyk data
+		result.Policies = policies.FilterString(tykResponse.ApplyPolicies)
+		result.Quota = tykResponse.QuotaMax
+		result.QuotaRemaining = tykResponse.QuotaRemaining
+		result.RateLimit = apikey.RateLimit{
 			Rate: tykResponse.Rate,
 			Per:  tykResponse.Per,
-		},
-		Labels: dbKey.Labels,
+		}
 	}
 
 	if rateLimit, ok := dbKey.Metadata["rate_limit"]; ok {

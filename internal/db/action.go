@@ -33,7 +33,7 @@ func New(host string, port uint16, username string, password string, database st
 // GetKey returns a key by hash.
 func (s DBClient) GetKey(hash string) (*Key, error) {
 	var row Key
-	res := s.client.First(&row, "id = ? AND deleted_at is NULL", hash)
+	res := s.client.First(&row, "id = ?", hash)
 	if res.Error != nil && errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		return nil, ErrKeyNotFound
 	}
