@@ -74,6 +74,13 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
 	}
+	if dbKey.DeletedAt != nil {
+		err := errors.New("key was already deleted")
+		goot.EndSpanWithError(span, err, "key was already deleted")
+		log.Error().Msg("key was already deleted")
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusBadRequest), err, http.StatusBadRequest)
+		return
+	}
 	goot.EndSpan(span)
 
 	if !h.isAuthorized(ctx, dbKey) {

@@ -2,6 +2,7 @@
 package keys
 
 import (
+	"errors"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"go.opentelemetry.io/otel/attribute"
 	"net/http"
@@ -53,6 +54,13 @@ func (h *Handler) DELETE(ctx *goskell.Context) {
 		goot.EndSpanWithError(span, err, "key not found")
 		log.Err(err).Msg("key not found in database")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusNotFound})
+		return
+	}
+	if dbKey.DeletedAt != nil {
+		err := errors.New("key was already deleted")
+		goot.EndSpanWithError(span, err, "key was already deleted")
+		log.Error().Msg("key was already deleted")
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusBadRequest), err, http.StatusBadRequest)
 		return
 	}
 	goot.EndSpan(span)
