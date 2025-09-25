@@ -20,5 +20,5 @@ allow := true {
   input.request.method == "GET"
   input.request.path == "/v2/customers"
 
-  is_admin(input.user.roles)  # only administrator have access
+  # the response content is filtered out based on the customer id in the handler itself
 }

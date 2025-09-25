@@ -234,6 +234,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/PolicyListResponse'
 
+  /v2/customers:
+    get:
+      tags:
+        - customers
+      description: |
+        List API customers.
+      operationId: list_customers_v2
+      parameters:
+        - name: page[number]
+          in: query
+          description: The number of the requested page.
+          schema:
+            type: number
+            default: 1
+            minimum: 1
+        - name: page[size]
+          in: query
+          description: The size of the requested page.
+          schema:
+            type: number
+            default: 10
+            maximum: 100
+      responses:
+        200:
+          description: A paginated list of API customers, optionally filtered by query parameters.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/CustomerDetailsListV2Response'
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        403:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
+        404:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+
   /v2/customers/{customerID}:
     get:
       tags:
