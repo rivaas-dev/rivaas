@@ -38,6 +38,13 @@ var (
 			_, err := paramToBool(in)
 			return err
 		},
+		isDeletedFilter: func(in string) error {
+			if in == "" {
+				return nil
+			}
+			_, err := paramToBool(in)
+			return err
+		},
 		expiresAtFilter: func(in string) error {
 			if in == "" {
 				return nil

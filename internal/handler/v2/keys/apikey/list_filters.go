@@ -17,6 +17,7 @@ const (
 	environmentFilter = `environment`
 	expiresAtFilter   = `expiresAt`
 	activeFilter      = `active`
+	isDeletedFilter   = `isDeleted`
 )
 
 type FilterParam struct {
@@ -36,12 +37,24 @@ func NewAdministratorSearchParameters(filter, match map[string]string) (db.Searc
 		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`: %w", activeFilter, err)
 	}
 
+	deletedParam, err := paramToBool(filter[isDeletedFilter])
+	if err != nil {
+		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`: %w", isDeletedFilter, err)
+	}
+
+	// set the default value to true so the list isn't bombarded with unnecessary key
+	if deletedParam == nil {
+		deleted := false
+		deletedParam = &deleted
+	}
+
 	return db.SearchParams{
 		FilterParams: db.FilterParams{
 			ActorID:     filter[actorIDFilter],
 			Environment: filter[environmentFilter],
 			ExpiresAt:   expiresAtParam,
 			Active:      activeParam,
+			Deleted:     deletedParam,
 		},
 		MatchParams: db.MatchParams{
 			Name:        match[nameFilter],
@@ -76,11 +89,23 @@ func NewCustomerSearchParameters(filter, match map[string]string, requestCustome
 		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`: %w", activeFilter, err)
 	}
 
+	deletedParam, err := paramToBool(filter[isDeletedFilter])
+	if err != nil {
+		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`: %w", isDeletedFilter, err)
+	}
+
+	// set the default value to true so the list isn't bombarded with unnecessary keys
+	if deletedParam == nil {
+		deleted := false
+		deletedParam = &deleted
+	}
+
 	return db.SearchParams{
 		FilterParams: db.FilterParams{
 			Environment: filter[environmentFilter],
 			ExpiresAt:   expiresAtParam,
 			Active:      activeParam,
+			Deleted:     deletedParam,
 		},
 		MatchParams: db.MatchParams{
 			Name:        match[nameFilter],
