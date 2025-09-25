@@ -65,6 +65,16 @@ paths:
             enum:
               - production
               - sandbox
+        - name: filter[isDeleted]
+          in: query
+          description: Filters out if an API key is deleted or not
+          schema:
+            type: boolean
+            example: true
+            default: false
+            enum:
+              - true
+              - false
         - name: match[name]
           in: query
           description: Performs a partial (fuzzy) match against API key names.
