@@ -1,0 +1,250 @@
+package schema
+
+import (
+	"net"
+	"net/url"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
+	"rivaas.dev/binding"
+)
+
+// RequestMetadata contains auto-discovered information about a request struct.
+//
+// This metadata is extracted from struct tags compatible with the binding
+// package, enabling automatic OpenAPI parameter and body schema generation.
+type RequestMetadata struct {
+	Parameters []ParamSpec
+	HasBody    bool
+	BodyType   reflect.Type
+}
+
+// ParamSpec describes a single parameter extracted from struct tags.
+//
+// It contains all information needed to generate an OpenAPI Parameter,
+// including location (query, path, header, cookie), type, validation rules,
+// and documentation.
+type ParamSpec struct {
+	Name        string
+	In          string
+	Description string
+	Format      string
+	Required    bool
+	Type        reflect.Type
+	Default     any
+	Example     any
+	Enum        []string
+}
+
+// IntrospectRequest analyzes a request struct type and extracts OpenAPI metadata.
+//
+// This function automatically discovers:
+//   - Query parameters from `query` tags
+//   - Path parameters from `params` tags
+//   - Header parameters from `header` tags
+//   - Cookie parameters from `cookie` tags
+//   - Request body presence from `json` tags
+//
+// Returns nil if the type is not a struct or pointer to struct.
+func IntrospectRequest(t reflect.Type) *RequestMetadata {
+	if t == nil {
+		return nil
+	}
+
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	if t.Kind() != reflect.Struct {
+		return nil
+	}
+
+	meta := &RequestMetadata{
+		Parameters: make([]ParamSpec, 0),
+	}
+
+	// Extract parameters from tags (query, params, header, cookie)
+	for _, tag := range []struct {
+		name string
+		loc  string
+	}{
+		{binding.TagQuery, "query"},
+		{binding.TagParams, "path"},
+		{binding.TagHeader, "header"},
+		{binding.TagCookie, "cookie"},
+	} {
+		meta.Parameters = append(meta.Parameters, extractParamsFromTag(t, tag.name, tag.loc)...)
+	}
+
+	// Detect JSON body
+	hasBody := false
+	walkFields(t, func(f reflect.StructField) {
+		if !f.IsExported() {
+			return
+		}
+		if s := f.Tag.Get(binding.TagJSON); s != "" && s != "-" {
+			hasBody = true
+		}
+	})
+
+	meta.HasBody = hasBody
+	meta.BodyType = t
+
+	return meta
+}
+
+// extractParamsFromTag extracts parameters from struct fields with the given tag.
+func extractParamsFromTag(t reflect.Type, tagName, location string) []ParamSpec {
+	out := []ParamSpec{}
+
+	walkFields(t, func(field reflect.StructField) {
+		if !field.IsExported() {
+			return
+		}
+
+		tagVal := field.Tag.Get(tagName)
+		if tagVal == "" || tagVal == "-" {
+			return
+		}
+
+		parts := strings.Split(tagVal, ",")
+		name := strings.TrimSpace(parts[0])
+		if name == "" {
+			name = field.Name
+		}
+
+		spec := ParamSpec{
+			Name:        name,
+			In:          location,
+			Type:        field.Type,
+			Description: field.Tag.Get("doc"),
+			Required:    isParamRequired(field, tagName),
+			Example:     parseValue(field.Tag.Get("example"), field.Type),
+			Format:      inferFormat(field),
+		}
+
+		if d := field.Tag.Get("default"); d != "" {
+			spec.Default = parseValue(d, field.Type)
+		}
+
+		if e := field.Tag.Get("enum"); e != "" {
+			spec.Enum = parseEnumValues(e)
+		}
+
+		// Also support validate:"oneof=a b c"
+		if v := field.Tag.Get("validate"); strings.Contains(v, "oneof=") {
+			oneof := strings.SplitN(v, "oneof=", 2)[1]
+			spec.Enum = append(spec.Enum, strings.Fields(oneof)...)
+		}
+
+		out = append(out, spec)
+	})
+
+	return out
+}
+
+// isParamRequired determines if a parameter is required.
+func isParamRequired(field reflect.StructField, tagName string) bool {
+	// Path parameters are always required
+	if tagName == binding.TagParams {
+		return true
+	}
+
+	// Pointer types are optional
+	if field.Type.Kind() == reflect.Ptr {
+		return false
+	}
+
+	// Explicit required validation
+	if strings.Contains(field.Tag.Get("validate"), "required") {
+		return true
+	}
+
+	return false
+}
+
+// parseEnumValues parses comma-separated enum values.
+func parseEnumValues(s string) []string {
+	parts := strings.Split(s, ",")
+	out := []string{}
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// parseValue attempts to parse a string value into the target type.
+func parseValue(s string, t reflect.Type) any {
+	if s == "" {
+		return nil
+	}
+
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	switch t.Kind() {
+	case reflect.String:
+		return s
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if v, err := strconv.ParseInt(s, 10, 64); err == nil {
+			return v
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if v, err := strconv.ParseUint(s, 10, 64); err == nil {
+			return v
+		}
+	case reflect.Float32, reflect.Float64:
+		if v, err := strconv.ParseFloat(s, 64); err == nil {
+			return v
+		}
+	case reflect.Bool:
+		if v, err := strconv.ParseBool(s); err == nil {
+			return v
+		}
+	}
+
+	return s
+}
+
+// inferFormat infers OpenAPI format from field type and validation tags.
+func inferFormat(field reflect.StructField) string {
+	if f := field.Tag.Get("format"); f != "" {
+		return f
+	}
+
+	v := field.Tag.Get("validate")
+
+	switch {
+	case strings.Contains(v, "email"):
+		return "email"
+	case strings.Contains(v, "url"):
+		return "uri"
+	case strings.Contains(v, "uuid"):
+		return "uuid"
+	case strings.Contains(v, "ipv4"):
+		return "ipv4"
+	case strings.Contains(v, "ipv6"):
+		return "ipv6"
+	}
+
+	t := field.Type
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	switch t {
+	case reflect.TypeOf(time.Time{}):
+		return "date-time"
+	case reflect.TypeOf(url.URL{}):
+		return "uri"
+	case reflect.TypeOf(net.IP{}):
+		return "ip"
+	}
+
+	return ""
+}

@@ -1,0 +1,175 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package router
+
+// ParameterReader defines the interface for reading request parameters,
+// query strings, form values, cookies, and other request data.
+//
+// This interface enables:
+//   - Easier testing by allowing mock implementations
+//   - Clearer separation of concerns
+//   - Composition with other interfaces
+//
+// Example usage:
+//
+//	func processRequest(reader ParameterReader) {
+//	    userID := reader.Param("id")
+//	    page := reader.Query("page")
+//	}
+type ParameterReader interface {
+	// Param returns the value of the URL path parameter by key.
+	// Returns empty string if the parameter is not found.
+	//
+	// Example:
+	//   Route: /users/:id
+	//   Request: /users/123
+	//   c.Param("id") // Returns "123"
+	Param(key string) string
+
+	// Query returns the value of the URL query parameter by key.
+	// Returns empty string if the parameter is not found.
+	// For parameters with multiple values, returns the last value.
+	//
+	// Example:
+	//   Request: /search?q=golang&page=2
+	//   c.Query("q")    // Returns "golang"
+	//   c.Query("page") // Returns "2"
+	Query(key string) string
+
+	// QueryDefault returns the value of the URL query parameter by key,
+	// or the default value if the parameter is not found.
+	//
+	// Example:
+	//   c.QueryDefault("page", "1") // Returns "1" if "page" is not in query
+	QueryDefault(key, defaultValue string) string
+
+	// FormValue returns the value of the form field by key.
+	// Handles both application/x-www-form-urlencoded and multipart/form-data.
+	// Returns empty string if the field is not found.
+	FormValue(key string) string
+
+	// FormValueDefault returns the value of the form field by key,
+	// or the default value if the field is not found.
+	FormValueDefault(key, defaultValue string) string
+
+	// AllParams returns all URL path parameters as a map.
+	// Returns a new map (copy) to prevent external modification.
+	AllParams() map[string]string
+
+	// AllQueries returns all query parameters as a map.
+	// For parameters with multiple values, returns the last value.
+	AllQueries() map[string]string
+
+	// GetCookie returns the value of the named cookie.
+	// Returns an error if the cookie is not found.
+	GetCookie(name string) (string, error)
+}
+
+// ResponseWriter defines the interface for writing HTTP responses.
+//
+// Response helpers follow a consistent pattern:
+//
+//   - WriteXxx(...) error
+//     Low-level primitive. Writes directly to the underlying http.ResponseWriter
+//     and returns an error if anything fails (encoding, write failure, etc.).
+//
+//   - Xxx(...)
+//     High-level helper. Calls WriteXxx(...) and, if an error occurs, adds it
+//     to the context's error stack via Error(err). Never returns an error.
+//
+// Typical handlers use the high-level form:
+//
+//	c.JSON(200, user)
+//
+// If you need fine-grained control over write failures, use the WriteXxx variant:
+//
+//	if err := c.WriteJSON(200, user); err != nil {
+//	    c.Logger().Error("failed to write json", "err", err)
+//	    c.Error(err)  // Still collect it if desired
+//	}
+type ResponseWriter interface {
+	// High-level helpers (collect errors automatically)
+	JSON(code int, obj any)
+	IndentedJSON(code int, obj any)
+	PureJSON(code int, obj any)
+	SecureJSON(code int, obj any, prefix ...string)
+	ASCIIJSON(code int, obj any)
+	String(code int, value string)
+	Stringf(code int, format string, values ...any)
+	HTML(code int, html string)
+	YAML(code int, obj any)
+	Data(code int, contentType string, data []byte)
+
+	// Low-level primitives (return errors)
+	WriteJSON(code int, obj any) error
+	WriteIndentedJSON(code int, obj any) error
+	WritePureJSON(code int, obj any) error
+	WriteSecureJSON(code int, obj any, prefix ...string) error
+	WriteASCIIJSON(code int, obj any) error
+	WriteString(code int, value string) error
+	WriteStringf(code int, format string, values ...any) error
+	WriteHTML(code int, html string) error
+	WriteYAML(code int, obj any) error
+	WriteData(code int, contentType string, data []byte) error
+
+	// Status and headers
+	Status(code int)
+	Header(key, value string)
+	Redirect(code int, location string)
+	NoContent()
+	SetCookie(name, value string, maxAge int, path, domain string, secure, httpOnly bool)
+}
+
+// ContextReader combines ParameterReader with additional context reading methods.
+// This interface extends ParameterReader with methods that read context-specific
+// information like version, route template, and request metadata.
+//
+// Example usage:
+//
+//	func processRequest(reader ContextReader) {
+//	    version := reader.Version()
+//	    if reader.IsVersion("v2") {
+//	        // Handle v2 API
+//	    }
+//	}
+type ContextReader interface {
+	ParameterReader
+
+	// Version returns the current API version (e.g., "v1", "v2").
+	// Returns empty string if versioning is not used.
+	Version() string
+
+	// IsVersion checks if the current API version matches the specified version.
+	IsVersion(version string) bool
+
+	// RouteTemplate returns the matched route template.
+	// Example: "/users/:id" or "_not_found"
+	RouteTemplate() string
+}
+
+// ContextWriter combines ResponseWriter with additional context writing methods.
+// This interface extends ResponseWriter with methods that write context-specific
+// responses.
+type ContextWriter interface {
+	ResponseWriter
+}
+
+// Ensure Context implements all interfaces at compile time.
+var (
+	_ ParameterReader = (*Context)(nil)
+	_ ResponseWriter  = (*Context)(nil)
+	_ ContextReader   = (*Context)(nil)
+	_ ContextWriter   = (*Context)(nil)
+)

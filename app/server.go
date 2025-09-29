@@ -1,0 +1,386 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package app
+
+import (
+	"context"
+	"crypto/tls"
+	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"rivaas.dev/router"
+)
+
+// serverStartFunc defines the function type for starting a server.
+// serverStartFunc is used internally by runServer().
+type serverStartFunc func() error
+
+// logLifecycleEvent logs a lifecycle event using the base logger.
+// logLifecycleEvent is a private helper for logging lifecycle events.
+func (a *App) logLifecycleEvent(ctx context.Context, level slog.Level, msg string, args ...any) {
+	logger := a.BaseLogger()
+	if logger.Enabled(ctx, level) {
+		logger.Log(ctx, level, msg, args...)
+	}
+}
+
+// logStartupInfo logs startup information including address, environment, and observability status.
+// logStartupInfo is a private helper for logging startup information.
+func (a *App) logStartupInfo(addr, protocol string) {
+	attrs := []any{
+		"address", addr,
+		"environment", a.config.environment,
+		"protocol", protocol,
+	}
+
+	if a.metrics != nil {
+		attrs = append(attrs, "metrics_enabled", true, "metrics_address", a.metrics.GetServerAddress())
+	}
+
+	a.logLifecycleEvent(context.Background(), slog.LevelInfo, "server starting", attrs...)
+
+	if a.tracing != nil {
+		a.logLifecycleEvent(context.Background(), slog.LevelInfo, "tracing enabled")
+	}
+}
+
+// shutdownObservability gracefully shuts down all enabled observability components.
+// shutdownObservability is a private helper for shutting down metrics and tracing.
+func (a *App) shutdownObservability(ctx context.Context) {
+	// Shutdown metrics if running
+	if a.metrics != nil {
+		if err := a.metrics.Shutdown(ctx); err != nil {
+			a.logLifecycleEvent(ctx, slog.LevelWarn, "metrics shutdown failed", "error", err)
+		}
+	}
+
+	// Shutdown tracing if running
+	if a.tracing != nil {
+		if err := a.tracing.Shutdown(ctx); err != nil {
+			a.logLifecycleEvent(ctx, slog.LevelWarn, "tracing shutdown failed", "error", err)
+		}
+	}
+}
+
+// runServer handles the common lifecycle logic for starting and shutting down an HTTP server.
+// runServer accepts an http.Server and a startFunc (either ListenAndServe or ListenAndServeTLS).
+// runServer is a private helper used by Run(), RunTLS(), and RunMTLS().
+func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol string) error {
+	// Start server in a goroutine
+	serverErr := make(chan error, 1)
+	serverReady := make(chan struct{})
+	go func() {
+		a.printStartupBanner(server.Addr, protocol)
+		a.logStartupInfo(server.Addr, protocol)
+		// Routes are now displayed as part of the startup banner
+
+		// Signal that server is ready to accept connections
+		close(serverReady)
+
+		if err := startFunc(); err != nil && err != http.ErrServerClosed {
+			serverErr <- fmt.Errorf("%s server failed to start: %w", protocol, err)
+		}
+	}()
+
+	// Wait for server to be ready, then execute OnReady hooks
+	<-serverReady
+	a.executeReadyHooks()
+
+	// Wait for interrupt signal or server error
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-serverErr:
+		return err
+	case <-quit:
+		a.logLifecycleEvent(context.Background(), slog.LevelInfo, "server shutting down", "protocol", protocol)
+	}
+
+	// Create a deadline for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), a.config.server.shutdownTimeout)
+	defer cancel()
+
+	// Execute OnShutdown hooks (LIFO order)
+	a.executeShutdownHooks(ctx)
+
+	// Shutdown the server
+	if err := server.Shutdown(ctx); err != nil {
+		return fmt.Errorf("%s server forced to shutdown: %w", protocol, err)
+	}
+
+	// Shutdown observability components (metrics and tracing)
+	a.shutdownObservability(ctx)
+
+	// Execute OnStop hooks (best-effort)
+	a.executeStopHooks()
+
+	a.logLifecycleEvent(ctx, slog.LevelInfo, "server exited", "protocol", protocol)
+	return nil
+}
+
+// registerOpenAPIEndpoints registers OpenAPI spec and UI endpoints.
+// registerOpenAPIEndpoints is the integration between router and openapi packages.
+func (a *App) registerOpenAPIEndpoints() {
+	if a.openapi == nil {
+		return
+	}
+
+	// Register spec endpoint
+	a.router.GET(a.openapi.SpecPath(), func(c *router.Context) {
+		specJSON, etag, err := a.openapi.GenerateSpec()
+		if err != nil {
+			c.Stringf(http.StatusInternalServerError, "Failed to generate OpenAPI specification: %v", err)
+			return
+		}
+
+		// Check If-None-Match header for caching
+		if match := c.Request.Header.Get("If-None-Match"); match != "" && match == etag {
+			c.Status(http.StatusNotModified)
+			return
+		}
+
+		c.Response.Header().Set("ETag", etag)
+		c.Response.Header().Set("Cache-Control", "public, max-age=3600")
+		c.Response.Header().Set("Content-Type", "application/json")
+		c.Response.Write(specJSON)
+	})
+
+	// Register UI endpoint if enabled
+	if a.openapi.ServeUI() {
+		a.router.GET(a.openapi.UIPath(), func(c *router.Context) {
+			ui := a.openapi.UIConfig()
+			configJSON, err := ui.ToJSON(a.openapi.SpecPath())
+			if err != nil {
+				// Fallback to basic config
+				configJSON = `{"url":"` + a.openapi.SpecPath() + `","dom_id":"#swagger-ui"}`
+			}
+
+			html := `<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="description" content="API Documentation" />
+	<title>API Documentation</title>
+	<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.30.2/swagger-ui.css" />
+</head>
+<body>
+	<div id="swagger-ui"></div>
+	<script src="https://unpkg.com/swagger-ui-dist@5.30.2/swagger-ui-bundle.js" crossorigin></script>
+	<script>
+		window.onload = () => {
+			window.ui = SwaggerUIBundle(` + configJSON + `);
+		};
+	</script>
+</body>
+</html>`
+
+			c.HTML(http.StatusOK, html)
+		})
+	}
+}
+
+// Run starts the HTTP server with graceful shutdown.
+// Run automatically freezes the router before starting, making routes immutable.
+//
+// Example:
+//
+//	if err := app.Run(":8080"); err != nil {
+//	    log.Fatal(err)
+//	}
+func (a *App) Run(addr string) error {
+	// Execute OnStart hooks sequentially, stopping on first error
+	ctx := context.Background()
+	if err := a.executeStartHooks(ctx); err != nil {
+		return fmt.Errorf("startup failed: %w", err)
+	}
+
+	// Register OpenAPI endpoints before freezing
+	a.registerOpenAPIEndpoints()
+
+	// Freeze router before starting (point of no return)
+	a.router.Freeze()
+
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           a.router,
+		ReadTimeout:       a.config.server.readTimeout,
+		WriteTimeout:      a.config.server.writeTimeout,
+		IdleTimeout:       a.config.server.idleTimeout,
+		ReadHeaderTimeout: a.config.server.readHeaderTimeout,
+		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
+	}
+
+	return a.runServer(server, server.ListenAndServe, "HTTP")
+}
+
+// RunTLS starts the HTTPS server with graceful shutdown.
+// RunTLS automatically freezes the router before starting, making routes immutable.
+//
+// Example:
+//
+//	if err := app.RunTLS(":8443", "server.crt", "server.key"); err != nil {
+//	    log.Fatal(err)
+//	}
+func (a *App) RunTLS(addr, certFile, keyFile string) error {
+	// Execute OnStart hooks sequentially, stopping on first error
+	ctx := context.Background()
+	if err := a.executeStartHooks(ctx); err != nil {
+		return fmt.Errorf("startup failed: %w", err)
+	}
+
+	// Register OpenAPI endpoints before freezing
+	a.registerOpenAPIEndpoints()
+
+	// Freeze router before starting (point of no return)
+	a.router.Freeze()
+
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           a.router,
+		ReadTimeout:       a.config.server.readTimeout,
+		WriteTimeout:      a.config.server.writeTimeout,
+		IdleTimeout:       a.config.server.idleTimeout,
+		ReadHeaderTimeout: a.config.server.readHeaderTimeout,
+		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
+	}
+
+	return a.runServer(server, func() error {
+		return server.ListenAndServeTLS(certFile, keyFile)
+	}, "HTTPS")
+}
+
+// RunMTLS starts an HTTPS server with mutual TLS (mTLS) authentication.
+// RunMTLS requires both client and server certificates for bidirectional authentication.
+// RunMTLS automatically freezes the router before starting, making routes immutable.
+//
+// RunMTLS configures the server to:
+//   - Require client certificates (ClientAuth: RequireAndVerifyClientCert)
+//   - Validate client certificates against ClientCAs
+//   - Optionally authorize clients using the WithAuthorize callback
+//   - Support SNI via WithSNI callback
+//   - Support hot-reload via WithConfigForClient callback
+//
+// Example:
+//
+//	// Load server certificate
+//	serverCert, err := tls.LoadX509KeyPair("server.crt", "server.key")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	// Load CA certificate for client validation
+//	caCert, err := os.ReadFile("ca.crt")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	caCertPool := x509.NewCertPool()
+//	caCertPool.AppendCertsFromPEM(caCert)
+//
+//	// Start server with mTLS
+//	err = app.RunMTLS(":8443", serverCert,
+//	    app.WithClientCAs(caCertPool),
+//	    app.WithMinVersion(tls.VersionTLS13),
+//	    app.WithAuthorize(func(cert *x509.Certificate) (string, bool) {
+//	        // Extract principal from certificate
+//	        return cert.Subject.CommonName, cert.Subject.CommonName != ""
+//	    }),
+//	)
+func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOption) error {
+	// Create mTLS configuration from options
+	cfg := newMTLSConfig(serverCert, opts...)
+
+	// Validate configuration
+	if err := cfg.validate(); err != nil {
+		return fmt.Errorf("invalid mTLS configuration: %w", err)
+	}
+
+	// Execute OnStart hooks sequentially, stopping on first error
+	ctx := context.Background()
+	if err := a.executeStartHooks(ctx); err != nil {
+		return fmt.Errorf("startup failed: %w", err)
+	}
+
+	// Register OpenAPI endpoints before freezing
+	a.registerOpenAPIEndpoints()
+
+	// Freeze router before starting (point of no return)
+	a.router.Freeze()
+
+	// Build TLS configuration
+	tlsConfig := cfg.buildTLSConfig()
+
+	// Create listener
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", addr, err)
+	}
+
+	// Wrap listener with TLS
+	tlsListener := tls.NewListener(listener, tlsConfig)
+
+	// Create HTTP server
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           a.router,
+		TLSConfig:         tlsConfig,
+		ReadTimeout:       a.config.server.readTimeout,
+		WriteTimeout:      a.config.server.writeTimeout,
+		IdleTimeout:       a.config.server.idleTimeout,
+		ReadHeaderTimeout: a.config.server.readHeaderTimeout,
+		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
+	}
+
+	// Wrap ConnState callback to authorize client certificates
+	// Authorization happens at connection time; principal extraction happens per-request
+	originalConnState := server.ConnState
+	server.ConnState = func(conn net.Conn, state http.ConnState) {
+		if state == http.StateActive {
+			if tlsConn, ok := conn.(*tls.Conn); ok {
+				// Extract peer certificate
+				connState := tlsConn.ConnectionState()
+				if len(connState.PeerCertificates) > 0 {
+					peerCert := connState.PeerCertificates[0]
+
+					// Authorize if callback provided
+					if cfg.authorize != nil {
+						_, allowed := cfg.authorize(peerCert)
+						if !allowed {
+							// Close connection if not authorized
+							conn.Close()
+							return
+						}
+					}
+				}
+			}
+		}
+
+		// Call original ConnState if set
+		if originalConnState != nil {
+			originalConnState(conn, state)
+		}
+	}
+
+	// Use runServer helper with custom start function for TLS listener
+	return a.runServer(server, func() error {
+		return server.Serve(tlsListener)
+	}, "mTLS")
+}

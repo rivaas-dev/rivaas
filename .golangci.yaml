@@ -1,0 +1,36 @@
+version: "2"
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - modernize
+    - errcheck
+    - err113
+    - errname
+  settings:
+    asasalint:
+      use-builtin-exclusions: false
+    bidichk:
+      left-to-right-embedding: false
+      right-to-left-embedding: false
+      pop-directional-formatting: false
+      left-to-right-override: false
+      right-to-left-override: false
+      left-to-right-isolate: false
+      right-to-left-isolate: false
+      first-strong-isolate: false
+      pop-directional-isolate: false
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      disable-default-exclusions: true
+      exclude-functions: []
+      verbose: true
+    copyloopvar:
+      check-alias: true

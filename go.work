@@ -1,0 +1,15 @@
+go 1.25.0
+
+use (
+	./app
+	./binding
+	./errors
+	./logging
+	./metrics
+	./openapi
+	./router
+	./router/benchmarks
+	./telemetry
+	./tracing
+	./validation
+)

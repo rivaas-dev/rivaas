@@ -1,0 +1,28 @@
+# Coverage files (all formats)
+coverage.txt
+coverage.out
+coverage.html
+coverage.json
+coverage.lcov
+*.lcov.html
+*.lcov.json
+coverage_*.out
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Nix
+.direnv/
+.envrc.cache
+result
+result-*
+.golangci-cache/

@@ -1,0 +1,104 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package app
+
+import (
+	"sync"
+)
+
+// Gate represents a component that reports its readiness status.
+// Used for health checks and readiness probes.
+type Gate interface {
+	// Ready returns true if the component is ready to serve traffic.
+	Ready() bool
+	// Name returns the name of the gate for identification.
+	Name() string
+}
+
+// ReadinessManager manages readiness gates for health checks.
+type ReadinessManager struct {
+	gates map[string]Gate
+	mu    sync.RWMutex
+}
+
+// Register registers a readiness gate.
+// If a gate with the same name already exists, it is replaced.
+//
+// Example:
+//
+//	type DatabaseGate struct {
+//	    db *sql.DB
+//	}
+//	func (g *DatabaseGate) Ready() bool {
+//	    return g.db.Ping() == nil
+//	}
+//	func (g *DatabaseGate) Name() string { return "database" }
+//
+//	app.Readiness().Register("db", &DatabaseGate{db: db})
+func (rm *ReadinessManager) Register(name string, gate Gate) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	if rm.gates == nil {
+		rm.gates = make(map[string]Gate)
+	}
+	rm.gates[name] = gate
+}
+
+// Unregister removes a readiness gate by name.
+//
+// Example:
+//
+//	app.Readiness().Unregister("database")
+func (rm *ReadinessManager) Unregister(name string) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	delete(rm.gates, name)
+}
+
+// Check checks if all registered gates are ready.
+// Check returns true if all gates are ready, false otherwise.
+// Check also returns a map of gate names to their readiness status.
+//
+// Example:
+//
+//	ready, status := app.Readiness().Check()
+//	if !ready {
+//	    for name, isReady := range status {
+//	        if !isReady {
+//	            log.Printf("Gate %s is not ready", name)
+//	        }
+//	    }
+//	}
+func (rm *ReadinessManager) Check() (bool, map[string]bool) {
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
+
+	if len(rm.gates) == 0 {
+		return true, nil // No gates = always ready
+	}
+
+	status := make(map[string]bool, len(rm.gates))
+	allReady := true
+
+	for name, gate := range rm.gates {
+		ready := gate.Ready()
+		status[name] = ready
+		if !ready {
+			allReady = false
+		}
+	}
+
+	return allReady, status
+}

@@ -1,0 +1,15 @@
+# Test binaries
+*.test
+*.out
+
+# Profiling data
+*.prof
+cpu.prof
+mem.prof
+*.pprof
+
+# Coverage files
+*.coverprofile
+coverage.html
+coverage.txt
+

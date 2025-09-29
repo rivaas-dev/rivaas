@@ -1,0 +1,912 @@
+# Rivaas App
+
+A high-level, batteries-included web framework built on top of the Rivaas router. This package provides a simple, opinionated API for building web applications with integrated observability, middleware, and graceful shutdown.
+
+## Features
+
+- **Batteries-Included**: Pre-configured with sensible defaults
+- **Integrated Observability**: Built-in metrics and tracing support
+- **Common Middleware**: Logger, recovery, CORS, and more
+- **Graceful Shutdown**: Proper server shutdown handling
+- **Environment-Aware**: Development and production modes
+- **Functional Options**: Clean, extensible configuration API
+- **Type-Safe Configuration**: Validated configuration with clear error messages
+
+## When to Use
+
+### Use `app` Package When
+
+- **Building a complete web application** - Need a full-featured framework with batteries included
+- **Want integrated observability** - Metrics and tracing configured out of the box
+- **Need quick development** - Sensible defaults get you started immediately
+- **Building a REST API** - Pre-configured with common middleware and patterns
+- **Prefer convention over configuration** - Opinionated defaults that work well together
+
+### Use `router` Package Directly When
+
+- **Building a library or framework** - Need full control over the routing layer
+- **Have custom observability setup** - Already using specific metrics/tracing solutions
+- **Maximum performance is critical** - Want zero overhead from default middleware
+- **Need complete flexibility** - Don't want any opinions or defaults imposed
+- **Integrating into existing systems** - Need to fit into established patterns
+
+The `app` package adds approximately 1-2% latency overhead compared to using `router` directly, but provides significant development speed and maintainability benefits through integrated observability and sensible defaults.
+
+## Quick Start
+
+### Simple App
+
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+    "rivaas.dev/app"
+    "rivaas.dev/router"
+)
+
+func main() {
+    // Create app with defaults
+    a, err := app.New()
+    if err != nil {
+        log.Fatalf("Failed to create app: %v", err)
+    }
+
+    // Register routes
+    a.GET("/", func(c *router.Context) {
+        c.JSON(http.StatusOK, map[string]string{
+            "message": "Hello from Rivaas App!",
+        })
+    })
+
+    // Start server with graceful shutdown
+    if err := a.Run(":8080"); err != nil {
+        log.Fatalf("Server error: %v", err)
+    }
+}
+```
+
+### Full-Featured App
+
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+    "time"
+    
+    "rivaas.dev/app"
+    "rivaas.dev/router"
+    "rivass.dev/router/middleware"
+    "go.opentelemetry.io/otel/attribute"
+)
+
+func main() {
+    // Create app with full observability
+    a, err := app.New(
+        app.WithServiceName("my-api"),
+        app.WithVersion("v1.0.0"),
+        app.WithEnvironment("production"),
+        app.WithMetrics(),
+        app.WithTracing(),
+        app.WithLogging(),
+        app.WithServerConfig(
+            app.WithReadTimeout(15 * time.Second),
+            app.WithWriteTimeout(15 * time.Second),
+        ),
+    )
+    if err != nil {
+        log.Fatalf("Failed to create app: %v", err)
+    }
+
+    // Add middleware
+    a.Use(middleware.RequestID())
+    a.Use(middleware.CORS(middleware.WithAllowAllOrigins(true)))
+
+    // Register routes
+    a.GET("/", func(c *router.Context) {
+        c.JSON(http.StatusOK, map[string]any{
+            "message":     "Full Featured API",
+            "service":     "my-api",
+            "version":     "v1.0.0",
+            "trace_id":    c.TraceID(),
+            "request_id":  c.Response.Header().Get("X-Request-ID"),
+        })
+    })
+
+    a.GET("/users/:id", func(c *router.Context) {
+        userID := c.Param("id")
+        
+        // Add span attributes
+        c.SetSpanAttribute("user.id", userID)
+        c.AddSpanEvent("user_lookup_started")
+        
+        // Record custom metrics
+        c.IncrementCounter("user_lookups_total",
+            attribute.String("user_id", userID),
+        )
+        
+        c.JSON(http.StatusOK, map[string]any{
+            "user_id":    userID,
+            "name":       "John Doe",
+            "trace_id":   c.TraceID(),
+            "request_id": c.Response.Header().Get("X-Request-ID"),
+        })
+    })
+
+    // Start server
+    if err := a.Run(":8080"); err != nil {
+        log.Fatalf("Server error: %v", err)
+    }
+}
+```
+
+## Configuration Options
+
+### Service Configuration
+
+```go
+app.WithServiceName("my-service")
+app.WithVersion("v1.0.0")
+app.WithEnvironment("production") // or "development"
+```
+
+### Observability
+
+```go
+// Configure individually
+// Note: Service name and version are automatically injected from app-level configuration
+app.WithMetrics(
+    metrics.WithProvider(metrics.PrometheusProvider),
+    metrics.WithPort(":9090"),
+)
+
+app.WithTracing(
+    tracing.WithSampleRate(0.1),
+    tracing.WithExcludePaths("/health"),
+)
+
+app.WithLogging(
+    logging.WithJSONHandler(),
+)
+```
+
+**Automatic Service Metadata Injection:**
+
+Service name and version set via `WithServiceName()` and `WithServiceVersion()` are automatically injected into all observability components (logging, metrics, and tracing). You don't need to pass them explicitly:
+
+```go
+app.New(
+    app.WithServiceName("my-service"),      // Set once
+    app.WithServiceVersion("v1.0.0"),       // Set once
+    app.WithLogging(),                       // Automatically gets service metadata
+    app.WithMetrics(),                       // Automatically gets service metadata
+    app.WithTracing(),                       // Automatically gets service metadata
+)
+```
+
+If you need to override the service metadata for a specific component, you can still pass it explicitly (your options will override the injected ones):
+
+```go
+app.New(
+    app.WithServiceName("my-service"),
+    app.WithServiceVersion("v1.0.0"),
+    app.WithLogging(
+        logging.WithServiceName("custom-logger"), // Overrides injected value
+    ),
+)
+```
+
+### Important: Tracing Requires OpenTelemetry Setup
+
+When you see "🔍 Tracing enabled" in the logs, it means tracing *configuration* is enabled, but **traces won't actually be generated or exported** until you set up an OpenTelemetry tracer provider.
+
+The `trace_id` will be empty and no traces will appear in stdout because:
+
+- By default, OpenTelemetry uses a **no-op tracer provider**
+- You must explicitly configure a tracer provider with an exporter
+- This must be done **before** creating the app
+
+**Quick Start - Stdout Tracing (Development):**
+
+```go
+import "rivaas.dev/tracing"
+
+// Set up stdout exporter BEFORE creating app
+tp, err := tracing.SetupStdout("my-service", "v1.0.0")
+if err != nil {
+    log.Fatal(err)
+}
+defer tp.Shutdown(context.Background())
+
+// Now create app - traces will actually work!
+app, _ := app.New(
+    app.WithMetrics(),
+    app.WithTracing(),
+    app.WithLogging(),
+)
+```
+
+**Just run it:**
+
+```bash
+go run main.go  # No build tags needed!
+```
+
+**Switch exporters:**
+
+```bash
+# Development: stdout tracing
+ENVIRONMENT=development go run main.go
+
+# Production: OTLP to Jaeger/Tempo
+ENVIRONMENT=production OTLP_ENDPOINT=jaeger:4317 go run main.go
+```
+
+**See:** `examples/02-full-featured/` for a complete production-ready example with:
+
+- Multi-exporter tracing (stdout/OTLP/noop)
+- Environment-based configuration
+- Full middleware stack
+- Custom metrics and tracing in handlers
+
+**Note:** Request IDs work independently and don't require any tracing setup.
+
+### Server Configuration
+
+Configure server timeouts and limits using functional options:
+
+```go
+app.WithServerConfig(
+    app.WithReadTimeout(10 * time.Second),
+    app.WithWriteTimeout(10 * time.Second),
+    app.WithIdleTimeout(60 * time.Second),
+    app.WithReadHeaderTimeout(2 * time.Second),
+    app.WithMaxHeaderBytes(1 << 20), // 1MB
+    app.WithShutdownTimeout(30 * time.Second), // Graceful shutdown timeout
+)
+```
+
+**Partial Configuration:** You can set only the fields you need. Unset fields will use their default values:
+
+```go
+// Only override read and write timeouts
+app.WithServerConfig(
+    app.WithReadTimeout(15 * time.Second),
+    app.WithWriteTimeout(15 * time.Second),
+    // Other fields (IdleTimeout, etc.) will use defaults
+)
+```
+
+**Default Values:**
+
+- `ReadTimeout`: 10s
+- `WriteTimeout`: 10s  
+- `IdleTimeout`: 60s
+- `ReadHeaderTimeout`: 2s
+- `MaxHeaderBytes`: 1MB
+- `ShutdownTimeout`: 30s
+
+**Configuration Validation:**
+
+Server configuration is automatically validated when creating the app. The validation catches common misconfigurations:
+
+- ✅ **All timeouts must be positive** - Prevents invalid timeout values
+- ✅ **ReadTimeout should not exceed WriteTimeout** - Common misconfiguration that can cause issues where the server times out reading the request body before it can write the response
+- ✅ **ShutdownTimeout must be at least 1 second** - Ensures proper graceful shutdown (needs time to stop accepting connections, wait for in-flight requests, close idle connections, and clean up resources)
+- ✅ **MaxHeaderBytes must be at least 1KB** - Prevents legitimate requests from failing due to standard HTTP headers (User-Agent, Accept, Cookie, etc.) exceeding the limit
+
+**Example - Invalid Configuration:**
+
+```go
+app, err := app.New(
+    app.WithServiceName("my-api"),
+    app.WithServerConfig(
+        app.WithReadTimeout(15 * time.Second),
+        app.WithWriteTimeout(10 * time.Second), // ❌ Invalid: read > write
+        app.WithShutdownTimeout(100 * time.Millisecond), // ❌ Invalid: too short
+        app.WithMaxHeaderBytes(512), // ❌ Invalid: too small
+    ),
+)
+// err will contain validation errors:
+// validation errors (3):
+//   1. configuration error in server.readTimeout: read timeout should not exceed write timeout (compared with server.writeTimeout: 10s) (constraint: server.readTimeout vs server.writeTimeout, value: 15s)
+//   2. configuration error in server.shutdownTimeout: must be at least 1 second for proper graceful shutdown (value: 100ms)
+//   3. configuration error in server.maxHeaderBytes: must be at least 1KB (1024 bytes) to handle standard HTTP headers (value: 512)
+```
+
+**Example - Valid Configuration:**
+
+```go
+app, err := app.New(
+    app.WithServiceName("my-api"),
+    app.WithServerConfig(
+        app.WithReadTimeout(10 * time.Second),
+        app.WithWriteTimeout(15 * time.Second), // ✅ Valid: write >= read
+        app.WithShutdownTimeout(5 * time.Second), // ✅ Valid: >= 1s
+        app.WithMaxHeaderBytes(2048), // ✅ Valid: >= 1KB
+    ),
+)
+// err will be nil - configuration is valid
+```
+
+### Middleware Configuration
+
+Add middleware during initialization or after app creation:
+
+```go
+// Option 1: Add middleware during initialization
+a, err := app.New(
+    app.WithServiceName("my-service"),
+    app.WithMiddleware(
+        middleware.Logger(),
+        middleware.Recovery(),
+        middleware.RequestID(),
+    ),
+)
+
+// Option 2: Add middleware after creation (more flexible)
+a, err := app.New(
+    app.WithServiceName("my-service"),
+)
+a.Use(middleware.Logger())
+a.Use(middleware.Recovery())
+a.Use(middleware.RequestID())
+
+// Option 3: Mix both approaches
+a, err := app.New(
+    app.WithServiceName("my-service"),
+    app.WithMiddleware(middleware.Recovery()), // Core middleware
+)
+a.Use(middleware.Logger())  // Additional middleware
+```
+
+**Default Behavior:**
+
+- **Development mode**: Automatically includes `Recovery()` and `Logger()` middleware
+- **Production mode**: Automatically includes only `Recovery()` middleware
+- **To disable defaults**: Call `app.WithMiddleware()` with no arguments (empty) to opt out of defaults
+
+## Built-in Middleware
+
+The app package provides access to high-quality middleware from `router/middleware`:
+
+```go
+import "rivaas.dev/router/middleware"
+```
+
+### Logger
+
+```go
+// Basic logger
+app.Use(middleware.Logger())
+
+// With options
+app.Use(middleware.Logger(
+    middleware.WithColors(true),
+    middleware.WithSkipPaths([]string{"/health", "/metrics"}),
+))
+```
+
+Logs requests with timing, status codes, and client IPs. Supports colored output, custom formatters, and path skipping.
+
+### Recovery
+
+```go
+// Basic recovery
+app.Use(middleware.Recovery())
+
+// With options
+app.Use(middleware.Recovery(
+    middleware.WithStackTrace(true),
+    middleware.WithRecoveryLogger(customLogger),
+))
+```
+
+Recovers from panics and returns proper error responses. Configurable stack traces and custom handlers.
+
+### CORS
+
+```go
+// Allow all origins (development)
+app.Use(middleware.CORS(middleware.WithAllowAllOrigins(true)))
+
+// Specific origins (production)
+app.Use(middleware.CORS(
+    middleware.WithAllowedOrigins([]string{"https://example.com"}),
+    middleware.WithAllowCredentials(true),
+))
+```
+
+Handles Cross-Origin Resource Sharing with flexible configuration options.
+
+### Request ID
+
+```go
+// Basic request ID
+app.Use(middleware.RequestID())
+
+// With custom header
+app.Use(middleware.RequestID(
+    middleware.WithRequestIDHeader("X-Correlation-ID"),
+))
+```
+
+Adds unique request IDs to each request for distributed tracing.
+
+### Timeout
+
+```go
+// Basic timeout
+app.Use(middleware.Timeout(30 * time.Second))
+
+// With options
+app.Use(middleware.Timeout(30*time.Second,
+    middleware.WithTimeoutSkipPaths([]string{"/stream"}),
+))
+```
+
+Adds request timeout handling with context cancellation.
+
+### Rate Limiting
+
+```go
+app.Use(app.RateLimit(100, time.Minute)) // 100 requests per minute
+```
+
+Simple in-memory rate limiting. Note: This is suitable for single-instance deployments only. For production with multiple instances, use a distributed rate limiting solution.
+
+## Routing
+
+### Basic Routes
+
+```go
+app.GET("/users", getUsersHandler)
+app.POST("/users", createUserHandler)
+app.PUT("/users/:id", updateUserHandler)
+app.DELETE("/users/:id", deleteUserHandler)
+app.PATCH("/users/:id", patchUserHandler)
+app.HEAD("/users", headUsersHandler)
+app.OPTIONS("/users", optionsUsersHandler)
+```
+
+### Route Groups
+
+```go
+api := app.Group("/api/v1")
+api.GET("/users", getUsersHandler)
+api.POST("/users", createUserHandler)
+
+admin := app.Group("/admin", adminMiddleware)
+admin.GET("/dashboard", dashboardHandler)
+```
+
+### Static Files
+
+```go
+app.Static("/static", "./public")
+```
+
+## Server Management
+
+### HTTP Server
+
+```go
+// Start HTTP server
+app.Run(":8080")
+```
+
+### HTTPS Server
+
+```go
+// Start HTTPS server
+app.RunTLS(":8443", "cert.pem", "key.pem")
+```
+
+### Graceful Shutdown
+
+The app automatically handles graceful shutdown on SIGINT or SIGTERM signals.
+
+**Architecture:** HTTP and HTTPS servers share the same lifecycle implementation through `runServer`, which provides:
+
+- **Unified telemetry**: Startup/shutdown events are logged through the configured slog logger with protocol identification
+- **Consistent shutdown**: Both protocols use the same graceful shutdown timeout and signal handling
+- **Observability teardown**: Metrics and tracing components are shut down in the correct order after the server stops accepting connections
+- **Protocol abstraction**: The design uses a function parameter (`serverStartFunc`) to abstract the difference between `ListenAndServe` and `ListenAndServeTLS`, ensuring identical behavior for both protocols
+
+This design ensures that HTTP and HTTPS deployments have identical lifecycle behavior, making it safe to switch protocols without changing shutdown logic.
+
+## Accessing Underlying Components
+
+### Router
+
+```go
+router := app.Router()
+// Use router for advanced features
+```
+
+### Metrics
+
+```go
+metrics := app.Metrics()
+if metrics != nil {
+    handler, err := app.GetMetricsHandler()
+    if err != nil {
+        log.Fatalf("Failed to get metrics handler: %v", err)
+    }
+    // Serve metrics manually
+    http.Handle("/metrics", handler)
+}
+```
+
+### Tracing
+
+```go
+tracing := app.Tracing()
+if tracing != nil {
+    // Access tracing configuration
+}
+```
+
+## Environment Modes
+
+### Development Mode
+
+```go
+app := app.New(
+    app.WithEnvironment("development"),
+)
+```
+
+- Logger middleware enabled by default
+- More verbose error messages
+- Development-friendly defaults
+
+### Production Mode
+
+```go
+app := app.New(
+    app.WithEnvironment("production"),
+)
+```
+
+- Optimized for performance
+- Minimal logging
+- Production-ready defaults
+
+## Examples
+
+The `examples/` directory contains two examples:
+
+### Example 01: Quick Start
+
+Minimal setup - perfect for learning the basics:
+
+```bash
+cd examples/01-quick-start
+go run main.go
+```
+
+**Shows:** Basic routing, JSON responses, default configuration (~20 lines of code)
+
+### Example 02: Full-Featured Production App
+
+Complete production-ready application with full observability:
+
+```bash
+cd examples/02-full-featured
+
+# Development mode (stdout tracing)
+go run main.go
+
+# Production mode (OTLP to Jaeger)
+ENVIRONMENT=production OTLP_ENDPOINT=localhost:4317 go run main.go
+```
+
+**Shows:**
+
+- Multi-exporter tracing (stdout/OTLP/noop)
+- Environment-based configuration  
+- Full middleware stack
+- Custom metrics and tracing
+- RESTful API patterns
+- Production deployment patterns
+
+**See:** `examples/README.md` for detailed comparison and usage guide
+
+## Migration from Router
+
+If you're migrating from the low-level router package:
+
+### Before (Router)
+
+```go
+import "rivass.dev/router"
+
+r := router.New(
+    router.WithMetrics(),
+    router.WithTracing(),
+)
+// No error handling needed
+```
+
+### After (App)
+
+```go
+import "rivass.dev/app"
+
+a, err := app.New(
+    app.WithMetrics(),
+    app.WithTracing(),
+    app.WithLogging(),
+)
+if err != nil {
+    log.Fatalf("Failed to create app: %v", err)
+}
+// Configuration is validated at creation time
+```
+
+**Key Differences:**
+
+- `New()` now returns `(*App, error)` for better error handling
+- Configuration is validated immediately
+- Invalid configurations are caught at startup, not runtime
+- Use `any` instead of `interface{}` for JSON responses
+
+## Performance
+
+- **Minimal Overhead**: App layer adds minimal overhead over raw router
+- **Optimized Defaults**: Sensible defaults for production use
+- **Graceful Shutdown**: Proper resource cleanup
+- **Memory Efficient**: Reuses router's memory optimizations
+
+## Troubleshooting
+
+### Common Issues
+
+#### Server Won't Start
+
+**Problem:** `app.Run()` returns an error immediately.
+
+**Solutions:**
+
+- Check if the port is already in use: `lsof -i :8080` or `netstat -an | grep 8080`
+- Verify you have permission to bind to the port (ports < 1024 require root on Unix)
+- Check firewall rules if running in a container or cloud environment
+
+#### Configuration Validation Errors
+
+**Problem:** `app.New()` returns validation errors.
+
+**Solutions:**
+
+- Ensure all timeout values are positive: `WithReadTimeout(10 * time.Second)`
+- Read timeout must not exceed write timeout
+- Shutdown timeout must be at least 1 second
+- Max header bytes must be at least 1KB
+
+**Example:**
+
+```go
+// ❌ Invalid
+app.WithServerConfig(
+    app.WithReadTimeout(15 * time.Second),
+    app.WithWriteTimeout(10 * time.Second), // Read > Write
+)
+
+// ✅ Valid
+app.WithServerConfig(
+    app.WithReadTimeout(10 * time.Second),
+    app.WithWriteTimeout(15 * time.Second), // Write >= Read
+)
+```
+
+#### Metrics Not Appearing
+
+**Problem:** Metrics endpoint returns 404 or empty response.
+
+**Solutions:**
+
+- Ensure metrics are enabled: `app.WithMetrics()`
+- Check the metrics path: `app.Metrics().Path()` (default: `/metrics`)
+- Verify the metrics server is running: `app.Metrics().GetServerAddress()`
+- In development mode, check the startup banner for metrics address
+
+#### Tracing Not Working
+
+**Problem:** No traces appear in your tracing backend.
+
+**Solutions:**
+
+- Verify tracing is enabled: `app.WithTracing()`
+- Check OTLP endpoint configuration: `OTLP_ENDPOINT=jaeger:4317`
+- Ensure the tracing provider is correct: `tracing.WithProvider(tracing.OTLPProvider)`
+- Check network connectivity to the tracing backend
+- Review logs for tracing initialization errors
+
+#### Graceful Shutdown Not Working
+
+**Problem:** Server doesn't shut down cleanly or takes too long.
+
+**Solutions:**
+
+- Increase shutdown timeout: `app.WithServerConfig(app.WithShutdownTimeout(60 * time.Second))`
+- Ensure OnShutdown hooks complete quickly (they block shutdown)
+- Check for long-running requests that don't respect context cancellation
+- Verify OnStop hooks don't perform blocking operations
+
+#### Routes Not Registering
+
+**Problem:** Routes return 404 even though they're registered.
+
+**Solutions:**
+
+- Ensure routes are registered before calling `app.Run()` (router is frozen on startup)
+- Check route paths match exactly (case-sensitive, trailing slashes matter)
+- Verify HTTP method matches (GET vs POST)
+- Use `app.PrintRoutes()` to see all registered routes
+- Check middleware isn't blocking requests
+
+#### Middleware Not Executing
+
+**Problem:** Middleware functions aren't being called.
+
+**Solutions:**
+
+- Ensure middleware is added before routes: `app.Use(middleware.Logger())` before `app.GET(...)`
+- Check middleware calls `c.Next()` to continue the chain
+- Verify middleware isn't returning early without calling `c.Next()`
+- In development mode, check logs for middleware execution
+
+### Debugging Tips
+
+1. **Enable Development Mode:**
+
+   ```go
+   app.WithEnvironment(EnvironmentDevelopment)
+   ```
+
+   This enables verbose logging and route table display.
+
+2. **Print Registered Routes:**
+
+   ```go
+   app.PrintRoutes() // Shows all routes in a formatted table
+   ```
+
+3. **Check Observability Status:**
+
+   ```go
+   if app.Metrics() != nil {
+       fmt.Println("Metrics enabled:", app.Metrics().GetServerAddress())
+   }
+   if app.Tracing() != nil {
+       fmt.Println("Tracing enabled")
+   }
+   ```
+
+4. **Use Test Helpers:**
+
+   ```go
+   resp, err := app.Test(req) // Test requests without starting server
+   ```
+
+5. **Enable GC Tracing (for memory issues):**
+
+   ```bash
+   GODEBUG=gctrace=1 go run main.go
+   ```
+
+## API Reference
+
+### Core Functions
+
+| Function | Description | Returns |
+|----------|-------------|---------|
+| `New(...Option)` | Create a new App instance | `(*App, error)` |
+| `MustNew(...Option)` | Create a new App instance (panics on error) | `*App` |
+
+### App Methods
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `Run(addr string)` | Start HTTP server with graceful shutdown | `error` |
+| `RunTLS(addr, certFile, keyFile string)` | Start HTTPS server | `error` |
+| `RunMTLS(addr string, cert tls.Certificate, opts ...MTLSOption)` | Start mTLS server | `error` |
+| `GET(path string, handler HandlerFunc)` | Register GET route | - |
+| `POST(path string, handler HandlerFunc)` | Register POST route | - |
+| `PUT(path string, handler HandlerFunc)` | Register PUT route | - |
+| `DELETE(path string, handler HandlerFunc)` | Register DELETE route | - |
+| `PATCH(path string, handler HandlerFunc)` | Register PATCH route | - |
+| `HEAD(path string, handler HandlerFunc)` | Register HEAD route | - |
+| `OPTIONS(path string, handler HandlerFunc)` | Register OPTIONS route | - |
+| `Group(prefix string, middleware ...HandlerFunc)` | Create route group | `*Group` |
+| `Use(middleware ...HandlerFunc)` | Add middleware | - |
+| `Static(prefix, root string)` | Serve static files | - |
+| `Router()` | Get underlying router | `*router.Router` |
+| `Metrics()` | Get metrics configuration | `*metrics.Config` |
+| `Tracing()` | Get tracing configuration | `*tracing.Config` |
+| `Route(name string)` | Get route by name | `(router.Route, bool)` |
+| `Routes()` | Get all named routes | `[]router.Route` |
+| `PrintRoutes()` | Print all registered routes | - |
+
+### App Configuration Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithServiceName(name string)` | Set service name | `"rivaas-app"` |
+| `WithServiceVersion(version string)` | Set service version | `"1.0.0"` |
+| `WithEnvironment(env string)` | Set environment | `"development"` |
+| `WithMetrics(opts ...metrics.Option)` | Enable metrics | Disabled |
+| `WithTracing(opts ...tracing.Option)` | Enable tracing | Disabled |
+| `WithLogging(opts ...logging.Option)` | Enable logging | Disabled |
+| `WithServerConfig(opts ...ServerOption)` | Configure server settings | See defaults below |
+| `WithMiddleware(middlewares ...HandlerFunc)` | Add middleware | Auto-included in dev |
+| `WithRouterOptions(opts ...router.Option)` | Configure router | - |
+
+### Server Configuration Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithReadTimeout(d time.Duration)` | Request read timeout | `10s` |
+| `WithWriteTimeout(d time.Duration)` | Response write timeout | `10s` |
+| `WithIdleTimeout(d time.Duration)` | Idle connection timeout | `60s` |
+| `WithReadHeaderTimeout(d time.Duration)` | Header read timeout | `2s` |
+| `WithMaxHeaderBytes(n int)` | Max request header size | `1MB` |
+| `WithShutdownTimeout(d time.Duration)` | Graceful shutdown timeout | `30s` |
+
+### Lifecycle Hooks
+
+| Hook | Description | Execution |
+|------|-------------|-----------|
+| `OnStart(fn func(context.Context) error)` | Called before server starts | Sequential, fail-fast |
+| `OnReady(fn func())` | Called when server is ready | Async, non-blocking |
+| `OnShutdown(fn func(context.Context))` | Called during shutdown | LIFO order |
+| `OnStop(fn func())` | Called after shutdown | Best-effort |
+
+## Architecture
+
+The `app` package is built on top of the `router` package and adds:
+
+```text
+┌─────────────────────────────────────────┐
+│           Application Layer             │
+│  (app package - this package)           │
+│                                         │
+│  • Configuration Management             │
+│  • Lifecycle Hooks                      │
+│  • Observability Integration            │
+│  • Server Management                    │
+│  • Startup Banner                       │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│           Router Layer                  │
+│  (router package)                       │
+│                                         │
+│  • HTTP Routing                         │
+│  • Middleware Chain                     │
+│  • Request Context                      │
+│  • Path Parameters                      │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│        Standard Library                 │
+│  (net/http)                             │
+└─────────────────────────────────────────┘
+```
+
+**Key Design Principles:**
+
+1. **Separation of Concerns**: App handles configuration and lifecycle; router handles HTTP routing
+2. **Functional Options**: Clean, extensible configuration API
+3. **Graceful Degradation**: Works with or without observability components
+4. **Environment Awareness**: Different defaults for development vs production
+
+## License
+
+MIT License - see LICENSE file for details.
