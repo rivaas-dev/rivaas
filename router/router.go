@@ -53,6 +53,9 @@ import (
 	"sync"
 )
 
+// RouterOption defines functional options for router configuration.
+type RouterOption func(*Router)
+
 // RouteConstraint represents a compiled constraint for route parameters.
 // Constraints are pre-compiled for zero-allocation validation during routing.
 type RouteConstraint struct {
@@ -89,9 +92,10 @@ type Router struct {
 	middleware  []HandlerFunc    // Global middleware chain applied to all routes
 	contextPool sync.Pool        // Pool of Context objects to reduce allocations
 	routes      []RouteInfo      // Registered routes for introspection
+	tracing     *TracingConfig   // OpenTelemetry tracing configuration
 }
 
-// New creates a new router instance with optimized performance settings.
+// New creates a new router instance with optional configuration.
 // It initializes the radix trees for HTTP methods and sets up context pooling
 // to minimize memory allocations during request handling.
 //
@@ -102,8 +106,14 @@ type Router struct {
 //	r := router.New()
 //	r.GET("/health", healthHandler)
 //	http.ListenAndServe(":8080", r)
-func New() *Router {
-	return &Router{
+//
+// With tracing enabled:
+//
+//	r := router.New(router.WithTracing())
+//	r.GET("/api/users", getUserHandler)
+//	http.ListenAndServe(":8080", r)
+func New(opts ...RouterOption) *Router {
+	r := &Router{
 		trees: make(map[string]*node),
 		contextPool: sync.Pool{
 			New: func() interface{} {
@@ -111,6 +121,13 @@ func New() *Router {
 			},
 		},
 	}
+
+	// Apply functional options
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
 }
 
 // Use adds global middleware to the router that will be executed for all routes.
@@ -272,6 +289,7 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 //   - Context pooling to reduce garbage collection pressure
 //   - Direct parameter extraction into context arrays for up to 8 parameters
 //   - Zero-allocation path matching where possible
+//   - Optional OpenTelemetry tracing with minimal overhead (when enabled)
 //
 // Static routes use stack allocation to eliminate pool overhead, while
 // dynamic routes use context pooling for optimal memory reuse.
@@ -284,45 +302,40 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	path := req.URL.Path
 
+	// Check if tracing is enabled and path should be traced
+	shouldTrace := r.tracing != nil && r.tracing.enabled && !r.tracing.excludePaths[path]
+
 	// Try ultra-fast path for static routes first
 	if handlers := tree.getRouteStatic(path); handlers != nil {
-		// Static route - use stack allocation to eliminate pool overhead
-		ctx := &Context{
-			Request:    req,
-			Response:   w,
-			index:      -1,
-			paramCount: 0,
+		if shouldTrace {
+			r.serveWithTracing(w, req, handlers, path, true)
+		} else {
+			r.serveStatic(w, req, handlers)
 		}
-
-		// Execute handlers directly for static routes
-		for i := 0; i < len(handlers); i++ {
-			handlers[i](ctx)
-		}
-
 		return
 	}
 
 	// Dynamic route with parameters
 	c := r.contextPool.Get().(*Context)
+	defer r.contextPool.Put(c)
+
 	c.Request = req
 	c.Response = w
 	c.index = -1
 	c.paramCount = 0
 
-	// Find the route and extract parameters directly into context
+	// Find the route and extract parameters
 	handlers := tree.getRoute(path, c)
 	if handlers == nil {
-		r.contextPool.Put(c)
 		http.NotFound(w, req)
 		return
 	}
 
-	// Direct handler execution for maximum performance
-	for i := 0; i < len(handlers); i++ {
-		handlers[i](c)
+	if shouldTrace {
+		r.serveDynamicWithTracing(c, handlers, path)
+	} else {
+		r.serveDynamic(c, handlers)
 	}
-
-	r.contextPool.Put(c)
 }
 
 // Group represents a route group that allows organizing related routes
@@ -656,4 +669,25 @@ func getHandlerName(handler HandlerFunc) string {
 	}
 
 	return "unknown"
+}
+
+// serveStatic handles static routes without tracing.
+func (r *Router) serveStatic(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc) {
+	ctx := &Context{
+		Request:    req,
+		Response:   w,
+		index:      -1,
+		paramCount: 0,
+	}
+
+	for i := 0; i < len(handlers); i++ {
+		handlers[i](ctx)
+	}
+}
+
+// serveDynamic handles dynamic routes without tracing.
+func (r *Router) serveDynamic(c *Context, handlers []HandlerFunc) {
+	for i := 0; i < len(handlers); i++ {
+		handlers[i](c)
+	}
 }

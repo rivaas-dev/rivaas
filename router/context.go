@@ -1,12 +1,15 @@
 package router
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Context represents the context of the current HTTP request with optimizations
@@ -18,6 +21,7 @@ import (
 //   - Zero-allocation parameter lookup for common cases
 //   - Optimized response methods with minimal allocations
 //   - Efficient middleware chain execution
+//   - OpenTelemetry tracing support with minimal overhead
 //
 // Context objects are pooled and reused to minimize garbage collection pressure.
 // Do not retain references to Context objects beyond the request lifetime.
@@ -32,6 +36,10 @@ type Context struct {
 	paramKeys   [8]string // Parameter names (up to 8 parameters)
 	paramValues [8]string // Parameter values (up to 8 parameters)
 	paramCount  int       // Number of parameters stored in arrays
+
+	// OpenTelemetry tracing support
+	span     trace.Span      // Current OpenTelemetry span
+	traceCtx context.Context // Trace context for propagation
 }
 
 // HandlerFunc defines the handler function signature for route handlers and middleware.

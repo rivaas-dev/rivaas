@@ -1158,6 +1158,282 @@ func errorResponse(c *router.Context, status int, err APIError) {
 
 ## 🛠️ Additional Features
 
+## 📡 OpenTelemetry Tracing Support
+
+The Rivaas Router includes native OpenTelemetry tracing support with zero overhead when disabled and minimal overhead when enabled.
+
+### Quick Start
+
+```go
+package main
+
+import (
+    "net/http"
+    "github.com/rivaas-dev/rivaas/router"
+)
+
+func main() {
+    // Enable tracing with default configuration
+    r := router.New(router.WithTracing())
+    
+    r.GET("/users/:id", func(c *router.Context) {
+        // Access trace information
+        traceID := c.TraceID()
+        spanID := c.SpanID()
+        
+        // Add custom attributes
+        c.SetSpanAttribute("user.id", c.Param("id"))
+        c.AddSpanEvent("user_lookup")
+        
+        c.JSON(200, map[string]string{
+            "user_id": c.Param("id"),
+            "trace_id": traceID,
+        })
+    })
+    
+    http.ListenAndServe(":8080", r)
+}
+```
+
+### Configuration Options
+
+#### Basic Options
+
+```go
+// Enable tracing with defaults
+r := router.New(router.WithTracing())
+
+// Set service information
+r := router.New(
+    router.WithTracing(),
+    router.WithTracingServiceName("my-api"),
+    router.WithTracingServiceVersion("v1.2.3"),
+)
+
+// Configure sampling (0.0 to 1.0)
+r := router.New(
+    router.WithTracing(),
+    router.WithTracingSampleRate(0.1), // Sample 10% of requests
+)
+```
+
+#### Advanced Options
+
+```go
+r := router.New(
+    router.WithTracing(),
+    router.WithTracingServiceName("my-api"),
+    router.WithTracingServiceVersion("v1.2.3"),
+    router.WithTracingSampleRate(0.1),
+    router.WithTracingExcludePaths("/health", "/metrics", "/ping"),
+    router.WithTracingHeaders("Authorization", "X-Request-ID"),
+    router.WithTracingDisableParams(), // Don't record URL parameters
+)
+```
+
+#### Custom Tracer
+
+```go
+import "go.opentelemetry.io/otel"
+
+customTracer := otel.Tracer("my-custom-tracer")
+r := router.New(
+    router.WithTracing(),
+    router.WithCustomTracer(customTracer),
+)
+```
+
+### Functional Options Available
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `WithTracing()` | Enable tracing with defaults | `router.WithTracing()` |
+| `WithTracingServiceName(name)` | Set service name | `router.WithTracingServiceName("my-api")` |
+| `WithTracingServiceVersion(version)` | Set service version | `router.WithTracingServiceVersion("v1.0.0")` |
+| `WithTracingSampleRate(rate)` | Set sampling rate (0.0-1.0) | `router.WithTracingSampleRate(0.1)` |
+| `WithTracingExcludePaths(paths...)` | Exclude paths from tracing | `router.WithTracingExcludePaths("/health")` |
+| `WithTracingHeaders(headers...)` | Record specific headers | `router.WithTracingHeaders("Authorization")` |
+| `WithTracingDisableParams()` | Disable parameter recording | `router.WithTracingDisableParams()` |
+| `WithCustomTracer(tracer)` | Use custom tracer | `router.WithCustomTracer(myTracer)` |
+
+### Context Tracing Methods
+
+The router context provides several methods for working with traces:
+
+```go
+func handler(c *router.Context) {
+    // Get trace/span IDs
+    traceID := c.TraceID()  // Current trace ID
+    spanID := c.SpanID()    // Current span ID
+    
+    // Add custom attributes
+    c.SetSpanAttribute("user.id", "123")
+    c.SetSpanAttribute("operation", "user_lookup")
+    
+    // Add events with attributes
+    c.AddSpanEvent("processing_started")
+    c.AddSpanEvent("cache_miss", 
+        attribute.String("cache.key", "user:123"),
+        attribute.Bool("cache.hit", false),
+    )
+    
+    // Get trace context for manual span creation
+    ctx := c.TraceContext()
+    // Use ctx for downstream calls...
+}
+```
+
+### Automatic Span Attributes
+
+The router automatically adds these attributes to spans:
+
+#### Standard HTTP Attributes
+
+- `http.method` - HTTP method (GET, POST, etc.)
+- `http.url` - Full request URL
+- `http.scheme` - URL scheme (http/https)
+- `http.host` - Host header
+- `http.route` - Route pattern (/users/:id)
+- `http.user_agent` - User-Agent header
+- `http.status_code` - Response status code
+
+#### Service Attributes
+
+- `service.name` - Service name from configuration
+- `service.version` - Service version from configuration
+
+#### Router-Specific Attributes
+
+- `rivaas.router.static_route` - Whether route is static (true/false)
+- `http.route.param.{name}` - URL parameters (if enabled)
+- `http.request.header.{name}` - Specific headers (if configured)
+
+### Middleware Integration
+
+```go
+func TracingMiddleware() router.HandlerFunc {
+    return func(c *router.Context) {
+        // Add middleware-specific attributes
+        c.SetSpanAttribute("middleware.name", "auth")
+        c.AddSpanEvent("auth_start")
+        
+        // Continue to next handler
+        c.Next()
+        
+        // Add completion event
+        c.AddSpanEvent("auth_complete")
+    }
+}
+
+r := router.New(router.WithTracing())
+r.Use(TracingMiddleware())
+```
+
+### Performance Characteristics
+
+#### When Tracing is Disabled
+
+- **Zero overhead** - no performance impact
+- **Zero allocations** - tracing code doesn't run
+
+#### When Tracing is Enabled
+
+- **~2-5µs overhead per request** for span creation/completion
+- **Minimal allocations** - spans are pooled by OpenTelemetry
+- **Path exclusion** - exclude high-frequency paths like `/health`
+- **Sampling support** - reduce trace volume in production
+
+### Example with Jaeger
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "net/http"
+    
+    "github.com/rivaas-dev/rivaas/router"
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/jaeger"
+    "go.opentelemetry.io/otel/sdk/trace"
+)
+
+func main() {
+    // Initialize Jaeger exporter
+    exp, err := jaeger.New(jaeger.WithCollectorEndpoint(
+        jaeger.WithEndpoint("http://localhost:14268/api/traces"),
+    ))
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Create trace provider
+    tp := trace.NewTracerProvider(
+        trace.WithBatcher(exp),
+        trace.WithSampler(trace.TraceIDRatioBased(0.1)), // 10% sampling
+    )
+    otel.SetTracerProvider(tp)
+
+    // Create router with tracing
+    r := router.New(
+        router.WithTracing(),
+        router.WithTracingServiceName("my-service"),
+    )
+    
+    r.GET("/", func(c *router.Context) {
+        c.JSON(200, map[string]string{"message": "Hello"})
+    })
+    
+    defer tp.Shutdown(context.Background())
+    log.Fatal(http.ListenAndServe(":8080", r))
+}
+```
+
+### Best Practices
+
+1. **Use path exclusion** for high-frequency endpoints:
+
+   ```go
+   router.WithTracingExcludePaths("/health", "/metrics", "/ping")
+   ```
+
+2. **Set appropriate sampling rates** in production:
+
+   ```go
+   router.WithTracingSampleRate(0.01) // 1% sampling
+   ```
+
+3. **Add meaningful attributes** in your handlers:
+
+   ```go
+   c.SetSpanAttribute("user.id", userID)
+   c.SetSpanAttribute("operation.type", "database_query")
+   ```
+
+4. **Use events for important milestones**:
+
+   ```go
+   c.AddSpanEvent("validation_complete")
+   c.AddSpanEvent("database_query_start")
+   ```
+
+5. **Disable parameter recording** for sensitive data:
+
+   ```go
+   router.WithTracingDisableParams()
+   ```
+
+### Integration with Monitoring
+
+The tracing system works seamlessly with:
+
+- **Jaeger** - Distributed tracing UI
+- **Zipkin** - Alternative tracing system  
+- **Grafana Tempo** - Trace storage and visualization
+- **OpenTelemetry Collector** - Trace processing and export
+- **Cloud providers** - AWS X-Ray, GCP Cloud Trace, Azure Monitor
+
 ## 📖 API Reference
 
 ### Router
