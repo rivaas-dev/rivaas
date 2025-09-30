@@ -137,11 +137,11 @@ func (rw *responseWriter) Flush() {
 // accessing it simultaneously without any additional synchronization.
 // Route registration is now lock-free using atomic operations.
 type Router struct {
-	routeTree    atomicRouteTree // Lock-free route tree with atomic operations
-	middleware   []HandlerFunc   // Global middleware chain applied to all routes
-	enhancedPool *ContextPool    // Enhanced context pool with specialized pools
-	tracing      *TracingConfig  // OpenTelemetry tracing configuration
-	metrics      *MetricsConfig  // OpenTelemetry metrics configuration
+	routeTree   atomicRouteTree // Lock-free route tree with atomic operations
+	middleware  []HandlerFunc   // Global middleware chain applied to all routes
+	contextPool *ContextPool    // Enhanced context pool with specialized pools
+	tracing     *TracingConfig  // OpenTelemetry tracing configuration
+	metrics     *MetricsConfig  // OpenTelemetry metrics configuration
 }
 
 // New creates a new router instance with optional configuration.
@@ -169,7 +169,7 @@ func New(opts ...RouterOption) *Router {
 	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(&initialTrees))
 
 	// Initialize enhanced context pool (primary optimization)
-	r.enhancedPool = NewContextPool(r)
+	r.contextPool = NewContextPool(r)
 
 	// Apply functional options
 	for _, opt := range opts {
@@ -407,5 +407,5 @@ func (r *Router) WarmupOptimizations() {
 	r.CompileAllRoutes()
 
 	// Warm up context pools
-	r.enhancedPool.WarmupPools()
+	r.contextPool.WarmupPools()
 }
