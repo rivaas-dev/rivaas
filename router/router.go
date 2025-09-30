@@ -45,6 +45,7 @@ package router
 import (
 	"bufio"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -223,9 +224,7 @@ func (r *Router) addRouteToTree(method, path string, handlers []HandlerFunc, con
 
 		// Create new trees map with the new method tree
 		newTrees := make(map[string]*node, len(currentTrees)+1)
-		for m, t := range currentTrees {
-			newTrees[m] = t
-		}
+		maps.Copy(newTrees, currentTrees)
 		newTrees[method] = &node{}
 		newTrees[method].addRouteWithConstraints(path, handlers, constraints)
 		return newTrees
@@ -409,26 +408,4 @@ func (r *Router) WarmupOptimizations() {
 
 	// Warm up context pools
 	r.enhancedPool.WarmupPools()
-}
-
-// serveStatic handles static routes without tracing.
-func (r *Router) serveStatic(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc) {
-	ctx := &Context{
-		Request:    req,
-		Response:   w,
-		index:      -1,
-		paramCount: 0,
-		router:     r,
-	}
-
-	for i := range len(handlers) {
-		handlers[i](ctx)
-	}
-}
-
-// serveDynamic handles dynamic routes without tracing.
-func (r *Router) serveDynamic(c *Context, handlers []HandlerFunc) {
-	for i := range len(handlers) {
-		handlers[i](c)
-	}
 }

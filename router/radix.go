@@ -6,13 +6,6 @@ import (
 	"sync"
 )
 
-// Global hash pool to avoid allocations during route lookups
-var hashPool = sync.Pool{
-	New: func() interface{} {
-		return fnv.New64a()
-	},
-}
-
 // fnv1aHash computes FNV-1a hash of a string without allocations
 func fnv1aHash(s string) uint64 {
 	const (
@@ -354,19 +347,6 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 	}
 
 	// If we reached here without returning, no match
-	return nil
-}
-
-// getRouteStatic provides ultra-fast lookup for static routes only.
-// This method is now deprecated in favor of compiled route tables.
-// Kept for backward compatibility but should not be used in new code.
-//
-//go:inline
-func (n *node) getRouteStatic(path string) []HandlerFunc {
-	// Delegate to compiled routes for maximum performance
-	if compiled := n.compileStaticRoutes(); compiled != nil {
-		return compiled.getRoute(path)
-	}
 	return nil
 }
 

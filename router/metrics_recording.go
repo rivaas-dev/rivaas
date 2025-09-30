@@ -327,14 +327,6 @@ func (m *MetricsConfig) recordErrorCountAtomically() {
 	atomic.AddInt64(&m.atomicErrorCount, 1)
 }
 
-func (m *MetricsConfig) recordContextPoolHitAtomically() {
-	atomic.AddInt64(&m.atomicContextPoolHits, 1)
-}
-
-func (m *MetricsConfig) recordContextPoolMissAtomically() {
-	atomic.AddInt64(&m.atomicContextPoolMisses, 1)
-}
-
 func (m *MetricsConfig) recordCustomMetricFailureAtomically() {
 	atomic.AddInt64(&m.atomicErrorCount, 1)
 }
