@@ -143,9 +143,14 @@ func (c *Context) AddSpanEvent(name string, attrs ...attribute.KeyValue) {
 
 // TraceContext returns the OpenTelemetry trace context.
 // This can be used for manual span creation or context propagation.
+// If tracing is not enabled, it returns the request context for proper cancellation support.
 func (c *Context) TraceContext() context.Context {
 	if c.traceCtx != nil {
 		return c.traceCtx
+	}
+	// Use request context as parent for proper cancellation support
+	if c.Request != nil {
+		return c.Request.Context()
 	}
 	return context.Background()
 }
@@ -231,6 +236,7 @@ func (r *Router) serveWithTracing(w http.ResponseWriter, req *http.Request, hand
 		Response:   w,
 		index:      -1,
 		paramCount: 0,
+		router:     r,
 	}
 
 	r.startTracing(ctx, path, isStatic)

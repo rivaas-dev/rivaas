@@ -22,6 +22,7 @@ import (
 //   - Optimized response methods with minimal allocations
 //   - Efficient middleware chain execution
 //   - OpenTelemetry tracing support with minimal overhead
+//   - Custom metrics recording capabilities
 //
 // Context objects are pooled and reused to minimize garbage collection pressure.
 // Do not retain references to Context objects beyond the request lifetime.
@@ -31,6 +32,7 @@ type Context struct {
 	Params   map[string]string   // URL parameters (fallback for >8 params)
 	handlers []HandlerFunc       // Handler chain for this request
 	index    int                 // Current handler index in the chain
+	router   *Router             // Reference to the router for metrics access
 
 	// Fast parameter storage to avoid map allocations for common cases
 	paramKeys   [8]string // Parameter names (up to 8 parameters)
@@ -73,6 +75,7 @@ func NewContext(w http.ResponseWriter, r *http.Request) *Context {
 		Request:  r,
 		Response: w,
 		index:    -1,
+		router:   nil, // Will be set when needed for metrics
 		// No allocations in constructor for maximum performance
 	}
 }
@@ -122,84 +125,96 @@ func (c *Context) Param(key string) string {
 
 // JSON sends a JSON response with the specified status code.
 // The object will be marshaled to JSON and written to the response.
+// Returns an error if JSON encoding fails.
 //
 // Example:
 //
-//	c.JSON(http.StatusOK, map[string]string{"message": "Hello World"})
+//	if err := c.JSON(http.StatusOK, map[string]string{"message": "Hello World"}); err != nil {
+//		return err
+//	}
 //	c.JSON(http.StatusCreated, user)
-func (c *Context) JSON(code int, obj interface{}) {
+func (c *Context) JSON(code int, obj interface{}) error {
 	c.Response.Header().Set("Content-Type", "application/json")
-	c.Response.WriteHeader(code)
-	json.NewEncoder(c.Response).Encode(obj)
+
+	// Check if headers have already been written to avoid "superfluous response.WriteHeader call"
+	// This happens when middleware or other code has already written headers
+	if rw, ok := c.Response.(*responseWriter); ok {
+		if !rw.Written() {
+			c.Response.WriteHeader(code)
+		}
+	} else {
+		c.Response.WriteHeader(code)
+	}
+
+	return json.NewEncoder(c.Response).Encode(obj)
 }
 
 // String sends a plain text response with optional formatting.
-// This method is heavily optimized to minimize allocations for common patterns.
+// This method is optimized to minimize allocations for common patterns.
+// Returns an error if writing to the response fails.
 //
 // For simple strings without formatting, zero allocations are achieved:
 //
-//	c.String(200, "Hello World")           // Zero allocations
-//	c.String(200, "User: %s", username)    // Optimized for common patterns
-//	c.String(200, "Complex: %d %s", id, name) // Falls back to fmt.Sprintf
+//	c.String(200, "Hello World")              // Zero allocations
+//	c.String(200, "User: %s", username)       // Optimized for single %s
+//	c.String(200, "Complex: %d %s", id, name) // Falls back to fmt.Fprintf
 //
-// The method includes hardcoded fast paths for common formatting patterns
-// to avoid string allocation overhead in hot code paths.
-func (c *Context) String(code int, format string, values ...interface{}) {
-	// Avoid header allocation if possible by checking if already set
+// The method automatically optimizes single %s patterns when exactly one value is provided.
+func (c *Context) String(code int, format string, values ...any) error {
 	if c.Response.Header().Get("Content-Type") == "" {
 		c.Response.Header().Set("Content-Type", "text/plain")
 	}
-	c.Response.WriteHeader(code)
 
-	// Ultra-optimized: avoid all unnecessary allocations
-	if len(values) == 0 {
-		// Direct byte conversion - most efficient
-		c.Response.Write([]byte(format))
-		return
+	// Check if headers have already been written to avoid "superfluous response.WriteHeader call"
+	if rw, ok := c.Response.(*responseWriter); ok {
+		if !rw.Written() {
+			c.Response.WriteHeader(code)
+		}
+	} else {
+		c.Response.WriteHeader(code)
 	}
 
+	// Zero allocations for plain strings
+	if len(values) == 0 {
+		_, err := c.Response.Write([]byte(format))
+		return err
+	}
+
+	// Optimize single %s pattern with single string value (common case)
+	// Only applies when: 1 value, value is string, exactly 1 %s in format
 	if len(values) == 1 {
-		// Ultra-fast path for single string parameter
-		if v, ok := values[0].(string); ok {
-			// Hardcoded fast paths for common patterns to avoid any string operations
-			switch format {
-			case "User: %s":
-				c.Response.Write([]byte("User: "))
-				c.Response.Write([]byte(v))
-				return
-			case "Hello":
-				c.Response.Write([]byte("Hello"))
-				return
-			default:
-				// Try to avoid allocations for simple %s patterns
-				if strings.Count(format, "%s") == 1 {
-					// Find %s position and construct without allocations
-					idx := strings.Index(format, "%s")
-					if idx != -1 {
-						c.Response.Write([]byte(format[:idx]))
-						c.Response.Write([]byte(v))
-						c.Response.Write([]byte(format[idx+2:]))
-						return
-					}
+		if v, ok := values[0].(string); ok && strings.Count(format, "%s") == 1 {
+			idx := strings.Index(format, "%s")
+			if idx != -1 {
+				if _, err := c.Response.Write([]byte(format[:idx])); err != nil {
+					return err
 				}
+				if _, err := c.Response.Write([]byte(v)); err != nil {
+					return err
+				}
+				_, err := c.Response.Write([]byte(format[idx+2:]))
+				return err
 			}
 		}
 	}
 
-	// Fallback for complex cases (unavoidable allocation)
-	c.Response.Write([]byte(fmt.Sprintf(format, values...)))
+	// Fallback for complex formatting (multiple values, non-string types, etc.)
+	_, err := fmt.Fprintf(c.Response, format, values...)
+	return err
 }
 
 // HTML sends an HTML response with the specified status code.
+// Returns an error if writing to the response fails.
 //
 // Example:
 //
 //	c.HTML(200, "<h1>Welcome</h1>")
 //	c.HTML(404, "<h1>Page Not Found</h1>")
-func (c *Context) HTML(code int, html string) {
+func (c *Context) HTML(code int, html string) error {
 	c.Response.Header().Set("Content-Type", "text/html")
 	c.Response.WriteHeader(code)
-	c.Response.Write([]byte(html))
+	_, err := c.Response.Write([]byte(html))
+	return err
 }
 
 // Status sets the HTTP status code for the response.
@@ -209,15 +224,36 @@ func (c *Context) HTML(code int, html string) {
 //
 //	c.Status(http.StatusNoContent) // 204 No Content
 func (c *Context) Status(code int) {
-	c.Response.WriteHeader(code)
+	// Check if headers have already been written to avoid "superfluous response.WriteHeader call"
+	if rw, ok := c.Response.(*responseWriter); ok {
+		if !rw.Written() {
+			c.Response.WriteHeader(code)
+		}
+	} else {
+		c.Response.WriteHeader(code)
+	}
 }
 
 // Header sets a response header. Headers must be set before writing the response body.
+//
+// SECURITY NOTE: This method does not validate header values. Be cautious when setting
+// headers from user input to prevent header injection attacks. Consider sanitizing or
+// validating values before setting them.
 //
 // Example:
 //
 //	c.Header("Cache-Control", "no-cache")
 //	c.Header("Content-Type", "application/pdf")
+//
+// For headers from user input, validate the values:
+//
+//	// BAD: Direct user input
+//	c.Header("X-User-Agent", c.Query("ua")) // Vulnerable to header injection
+//
+//	// GOOD: Validate before setting
+//	if ua := c.Query("ua"); isValidUserAgent(ua) {
+//	    c.Header("X-User-Agent", ua)
+//	}
 func (c *Context) Header(key, value string) {
 	c.Response.Header().Set(key, value)
 }

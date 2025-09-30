@@ -43,7 +43,9 @@
 package router
 
 import (
+	"bufio"
 	"fmt"
+	"net"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -55,6 +57,71 @@ import (
 
 // RouterOption defines functional options for router configuration.
 type RouterOption func(*Router)
+
+// responseWriter wraps http.ResponseWriter to capture status code and size.
+// responseWriter wraps http.ResponseWriter to capture status code and size.
+// It also prevents "superfluous response.WriteHeader call" errors
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+	size       int
+	written    bool
+}
+
+// WriteHeader captures the status code and prevents duplicate calls.
+func (rw *responseWriter) WriteHeader(code int) {
+	if !rw.written {
+		rw.statusCode = code
+		rw.ResponseWriter.WriteHeader(code)
+		rw.written = true
+	}
+}
+
+// Write captures the response size and marks as written.
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	if !rw.written {
+		rw.written = true
+	}
+	if rw.statusCode == 0 {
+		rw.statusCode = http.StatusOK
+	}
+	n, err := rw.ResponseWriter.Write(b)
+	rw.size += n
+	return n, err
+}
+
+// StatusCode returns the HTTP status code.
+func (rw *responseWriter) StatusCode() int {
+	if rw.statusCode == 0 {
+		return http.StatusOK
+	}
+	return rw.statusCode
+}
+
+// Size returns the response size in bytes.
+func (rw *responseWriter) Size() int {
+	return rw.size
+}
+
+// Written returns true if headers have been written.
+func (rw *responseWriter) Written() bool {
+	return rw.written
+}
+
+// Hijack implements http.Hijacker interface.
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, fmt.Errorf("responseWriter does not implement http.Hijacker")
+}
+
+// Flush implements http.Flusher interface.
+func (rw *responseWriter) Flush() {
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
 
 // RouteConstraint represents a compiled constraint for route parameters.
 // Constraints are pre-compiled for zero-allocation validation during routing.
@@ -71,6 +138,7 @@ type Route struct {
 	path        string
 	handlers    []HandlerFunc
 	constraints []RouteConstraint
+	finalized   bool // Prevents duplicate route registration
 }
 
 // RouteInfo contains information about a registered route for introspection.
@@ -93,6 +161,8 @@ type Router struct {
 	contextPool sync.Pool        // Pool of Context objects to reduce allocations
 	routes      []RouteInfo      // Registered routes for introspection
 	tracing     *TracingConfig   // OpenTelemetry tracing configuration
+	metrics     *MetricsConfig   // OpenTelemetry metrics configuration
+	mu          sync.RWMutex     // Protects trees and routes during registration
 }
 
 // New creates a new router instance with optional configuration.
@@ -115,10 +185,14 @@ type Router struct {
 func New(opts ...RouterOption) *Router {
 	r := &Router{
 		trees: make(map[string]*node),
-		contextPool: sync.Pool{
-			New: func() interface{} {
-				return &Context{}
-			},
+	}
+
+	// Set up context pool with router reference
+	r.contextPool = sync.Pool{
+		New: func() interface{} {
+			return &Context{
+				router: r, // Set router reference for metrics access
+			}
 		},
 	}
 
@@ -250,16 +324,9 @@ func (r *Router) addRoute(method, path string, handlers []HandlerFunc) {
 // addRouteWithConstraints adds a route with support for parameter constraints.
 // Returns a Route object that can be used to add constraints and metadata.
 func (r *Router) addRouteWithConstraints(method, path string, handlers []HandlerFunc) *Route {
+	r.mu.Lock()
 	if r.trees[method] == nil {
 		r.trees[method] = &node{}
-	}
-
-	// Create route object for constraint support
-	route := &Route{
-		router:   r,
-		method:   method,
-		path:     path,
-		handlers: handlers,
 	}
 
 	// Store route info for introspection (zero performance impact)
@@ -272,6 +339,18 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 		Path:        path,
 		HandlerName: handlerName,
 	})
+	r.mu.Unlock()
+
+	// Create route object for constraint support
+	route := &Route{
+		router:   r,
+		method:   method,
+		path:     path,
+		handlers: handlers,
+	}
+
+	// Record route registration for metrics
+	r.recordRouteRegistration(method, path)
 
 	// Note: The actual route is added to the tree when constraints are finalized
 	// This is handled by finalizeRoute() which is called automatically
@@ -294,7 +373,10 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 // Static routes use stack allocation to eliminate pool overhead, while
 // dynamic routes use context pooling for optimal memory reuse.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.mu.RLock()
 	tree := r.trees[req.Method]
+	r.mu.RUnlock()
+
 	if tree == nil {
 		http.NotFound(w, req)
 		return
@@ -305,12 +387,23 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Check if tracing is enabled and path should be traced
 	shouldTrace := r.tracing != nil && r.tracing.enabled && !r.tracing.excludePaths[path]
 
+	// Check if metrics are enabled and path should be measured
+	shouldMeasure := r.metrics != nil && r.metrics.enabled && !r.metrics.excludePaths[path]
+
 	// Try ultra-fast path for static routes first
 	if handlers := tree.getRouteStatic(path); handlers != nil {
-		if shouldTrace {
-			r.serveWithTracing(w, req, handlers, path, true)
+		// Wrap response writer for status code and size tracking (needed for metrics)
+	// Always use custom responseWriter to prevent WriteHeader conflicts
+	rw := &responseWriter{ResponseWriter: w}
+
+		if shouldTrace && shouldMeasure {
+			r.serveWithTracingAndMetrics(rw, req, handlers, path, true)
+		} else if shouldTrace {
+			r.serveWithTracing(rw, req, handlers, path, true)
+		} else if shouldMeasure {
+			r.serveWithMetrics(rw, req, handlers, path, true)
 		} else {
-			r.serveStatic(w, req, handlers)
+			r.serveStatic(rw, req, handlers)
 		}
 		return
 	}
@@ -319,20 +412,28 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c := r.contextPool.Get().(*Context)
 	defer r.contextPool.Put(c)
 
+	// Wrap response writer for status code and size tracking (needed for metrics)
+	// Always use custom responseWriter to prevent WriteHeader conflicts
+	rw := &responseWriter{ResponseWriter: w}
+
 	c.Request = req
-	c.Response = w
+	c.Response = rw
 	c.index = -1
 	c.paramCount = 0
 
 	// Find the route and extract parameters
 	handlers := tree.getRoute(path, c)
 	if handlers == nil {
-		http.NotFound(w, req)
+		http.NotFound(rw, req)
 		return
 	}
 
-	if shouldTrace {
+	if shouldTrace && shouldMeasure {
+		r.serveDynamicWithTracingAndMetrics(c, handlers, path)
+	} else if shouldTrace {
 		r.serveDynamicWithTracing(c, handlers, path)
+	} else if shouldMeasure {
+		r.serveDynamicWithMetrics(c, handlers, path)
 	} else {
 		r.serveDynamic(c, handlers)
 	}
@@ -415,8 +516,23 @@ func (g *Group) HEAD(path string, handlers ...HandlerFunc) *Route {
 // and merging group middleware with the route handlers. This is an internal method
 // used by the HTTP method functions on groups.
 func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *Route {
-	fullPath := g.prefix + path
-	allHandlers := append(g.middleware, handlers...)
+	// Optimize string concatenation using strings.Builder
+	var fullPath string
+	if len(g.prefix) > 0 && len(path) > 0 {
+		var sb strings.Builder
+		sb.Grow(len(g.prefix) + len(path))
+		sb.WriteString(g.prefix)
+		sb.WriteString(path)
+		fullPath = sb.String()
+	} else {
+		fullPath = g.prefix + path
+	}
+
+	// Pre-allocate slice with exact capacity to avoid reallocations
+	allHandlers := make([]HandlerFunc, 0, len(g.middleware)+len(handlers))
+	allHandlers = append(allHandlers, g.middleware...)
+	allHandlers = append(allHandlers, handlers...)
+
 	return g.router.addRouteWithConstraints(method, fullPath, allHandlers)
 }
 
@@ -432,8 +548,10 @@ func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *Route {
 //	}
 func (r *Router) Routes() []RouteInfo {
 	// Create a copy to avoid exposing internal slice
+	r.mu.RLock()
 	routes := make([]RouteInfo, len(r.routes))
 	copy(routes, r.routes)
+	r.mu.RUnlock()
 
 	// Sort by method, then by path for consistent output
 	sort.Slice(routes, func(i, j int) bool {
@@ -565,15 +683,27 @@ func (r *Router) StaticFile(relativePath, filepath string) {
 
 // finalizeRoute adds the route to the radix tree with its current constraints.
 // This is called automatically when the route is created or when constraints are added.
+// It uses the finalized flag to prevent duplicate route registration.
 func (route *Route) finalizeRoute() {
+	if route.finalized {
+		return // Already added to tree, skip re-registration
+	}
+	route.finalized = true
+
 	// Combine global middleware with route handlers
 	allHandlers := append(route.router.middleware, route.handlers...)
+
+	route.router.mu.Lock()
 	route.router.trees[route.method].addRouteWithConstraints(route.path, allHandlers, route.constraints)
+	route.router.mu.Unlock()
 }
 
 // Where adds a constraint to a route parameter using a regular expression.
 // The constraint is pre-compiled for zero-allocation validation during routing.
 // This method provides a fluent interface for building routes with validation.
+//
+// IMPORTANT: This method panics if the regex pattern is invalid. This is intentional
+// for fail-fast behavior during application startup. Ensure patterns are tested.
 //
 // Common patterns:
 //   - Numeric: `\d+` (one or more digits)
@@ -584,8 +714,10 @@ func (route *Route) finalizeRoute() {
 //
 //	r.GET("/users/:id", getUserHandler).Where("id", `\d+`)
 //	r.GET("/files/:filename", getFileHandler).Where("filename", `[a-zA-Z0-9.-]+`)
+//
+// The panic on invalid regex is by design for early error detection during development.
 func (route *Route) Where(param, pattern string) *Route {
-	// Pre-compile the regex pattern
+	// Pre-compile the regex pattern (panics on invalid pattern for fail-fast)
 	regex, err := regexp.Compile("^" + pattern + "$")
 	if err != nil {
 		panic(fmt.Sprintf("Invalid regex pattern for parameter '%s': %v", param, err))
@@ -597,7 +729,8 @@ func (route *Route) Where(param, pattern string) *Route {
 		Pattern: regex,
 	})
 
-	// Re-add the route to the tree with updated constraints
+	// Reset finalized flag and re-add the route to the tree with updated constraints
+	route.finalized = false
 	route.finalizeRoute()
 
 	return route
@@ -678,6 +811,7 @@ func (r *Router) serveStatic(w http.ResponseWriter, req *http.Request, handlers 
 		Response:   w,
 		index:      -1,
 		paramCount: 0,
+		router:     r,
 	}
 
 	for i := 0; i < len(handlers); i++ {
