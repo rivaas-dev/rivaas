@@ -7,13 +7,24 @@
 
 Rivaas is a modern, cloud-native service framework for Go that provides high-performance building blocks for scalable applications. Built with performance and developer experience in mind.
 
+## 📋 Table of Contents
+
+- [🚀 Modules](#-modules)
+- [📦 Installation](#-installation)
+- [🚀 Quick Start](#-quick-start)
+- [📊 Performance](#-performance)
+- [🏗️ Architecture](#️-architecture)
+- [📚 Documentation](#-documentation)
+- [🤝 Contributing](#-contributing)
+- [📜 License](#-license)
+
 ## 🚀 Modules
 
 ### 🛣️ Router
 
 High-performance HTTP router with radix tree routing, zero-allocation static routes, and comprehensive middleware support.
 
-- **Performance**: 223K+ req/s, 4.5µs latency, 51 bytes/req
+- **Performance**: 294K+ req/s, 3.4µs latency, 55 bytes/req
 - **Features**: Parameter binding, route groups, constraints, static files
 - **Middleware**: Context-aware chain execution with pooling
 
@@ -39,6 +50,12 @@ Built-in metrics collection with Prometheus integration and custom collectors.
 ### 🔍 Tracing *(Planned)*
 
 Distributed tracing support with OpenTelemetry integration.
+
+## 📋 Requirements
+
+- **Go**: 1.23.0 or higher
+- **Dependencies**: None (zero external dependencies)
+- **Platforms**: Linux, macOS, Windows
 
 ## 📦 Installation
 
@@ -73,10 +90,19 @@ func main() {
     
     // Route groups and middleware
     api := r.Group("/api/v1")
-    api.Use(authMiddleware())
-    api.GET("/users/:id", getUserHandler)
+    api.Use(Logger()) // Use defined middleware
+    api.GET("/users/:id", func(c *router.Context) {
+        c.JSON(200, map[string]string{"user_id": c.Param("id")})
+    })
     
     http.ListenAndServe(":8080", r)
+}
+
+func Logger() router.HandlerFunc {
+    return func(c *router.Context) {
+        // Simple logging middleware
+        c.Next()
+    }
 }
 ```
 
@@ -86,16 +112,16 @@ The router module delivers exceptional performance:
 
 | Metric | Value |
 |--------|--------|
-| Throughput | 223K+ req/s |
-| Latency | 4.5µs avg |
-| Memory/Request | 51 bytes |
-| Allocations/Request | 3 |
+| Throughput | 294K+ req/s |
+| Latency | 3.4µs avg |
+| Memory/Request | 55 bytes |
+| Allocations/Request | 2 |
 
 **Comparison with popular routers:**
 
-- **Rivaas**: 153.5 ns/op, 51B/op, 3 allocs/op
-- **Echo**: 135.1 ns/op, 62B/op, 2 allocs/op  
-- **Gin**: 155.3 ns/op, 100B/op, 3 allocs/op
+- **Rivaas**: 198.0 ns/op, 55B/op, 2 allocs/op
+- **Echo**: 138.0 ns/op, 61B/op, 2 allocs/op  
+- **Gin**: 165.0 ns/op, 101B/op, 3 allocs/op
 
 ## 🏗️ Architecture
 
