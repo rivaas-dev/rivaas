@@ -184,7 +184,10 @@ func TestMetricsLimitEnforcement(t *testing.T) {
 	}
 
 	// Verify we didn't exceed the limit
-	totalMetrics := len(r.metrics.customCounters) + len(r.metrics.customHistograms) + len(r.metrics.customGauges)
+	counters := r.metrics.getAtomicCustomCounters()
+	histograms := r.metrics.getAtomicCustomHistograms()
+	gauges := r.metrics.getAtomicCustomGauges()
+	totalMetrics := len(counters) + len(histograms) + len(gauges)
 	if totalMetrics > maxMetrics {
 		t.Errorf("Metrics limit exceeded: %d > %d", totalMetrics, maxMetrics)
 	}

@@ -10,7 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+	"unsafe"
 
 	promclient "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -71,12 +73,18 @@ type MetricsConfig struct {
 	contextPoolMisses    metric.Int64Counter
 	customMetricFailures metric.Int64Counter
 
-	// Custom metrics cache
-	customCounters   map[string]metric.Int64Counter
-	customHistograms map[string]metric.Float64Histogram
-	customGauges     map[string]metric.Float64Gauge
-	metricsMutex     sync.RWMutex // Protects custom metrics maps
-	maxCustomMetrics int          // Maximum number of custom metrics
+	// Atomic custom metrics cache - lock-free operations
+	atomicCustomCounters   unsafe.Pointer // *map[string]metric.Int64Counter
+	atomicCustomHistograms unsafe.Pointer // *map[string]metric.Float64Histogram
+	atomicCustomGauges     unsafe.Pointer // *map[string]metric.Float64Gauge
+	maxCustomMetrics       int            // Maximum number of custom metrics
+
+	// Atomic counters for built-in metrics
+	atomicRequestCount      int64
+	atomicActiveRequests    int64
+	atomicErrorCount        int64
+	atomicContextPoolHits   int64
+	atomicContextPoolMisses int64
 }
 
 // WithMetrics enables OpenTelemetry metrics with auto-configured Prometheus (default).
@@ -94,11 +102,17 @@ func WithMetrics() RouterOption {
 			metricsPort:      ":9090",
 			metricsPath:      "/metrics",
 			autoStartServer:  true,
-			customCounters:   make(map[string]metric.Int64Counter),
-			customHistograms: make(map[string]metric.Float64Histogram),
-			customGauges:     make(map[string]metric.Float64Gauge),
 			maxCustomMetrics: 1000, // Limit to prevent memory leaks
 		}
+
+		// Initialize atomic custom metrics maps
+		initialCounters := make(map[string]metric.Int64Counter)
+		initialHistograms := make(map[string]metric.Float64Histogram)
+		initialGauges := make(map[string]metric.Float64Gauge)
+
+		atomic.StorePointer(&config.atomicCustomCounters, unsafe.Pointer(&initialCounters))
+		atomic.StorePointer(&config.atomicCustomHistograms, unsafe.Pointer(&initialHistograms))
+		atomic.StorePointer(&config.atomicCustomGauges, unsafe.Pointer(&initialGauges))
 
 		// Read from environment variables if available
 		config.readFromEnv()
@@ -736,7 +750,8 @@ func (r *Router) startMetrics(c *Context, path string, isStatic bool) *requestMe
 		}
 	}
 
-	// Increment active requests
+	// Increment active requests atomically
+	r.metrics.recordActiveRequestAtomically()
 	r.metrics.activeRequests.Add(context.Background(), 1, metric.WithAttributes(metrics.attributes...))
 
 	// Record request size
@@ -771,14 +786,17 @@ func (r *Router) finishMetrics(c *Context, requestMetrics *requestMetrics) {
 	// Record duration
 	r.metrics.requestDuration.Record(context.Background(), duration, metric.WithAttributes(finalAttributes...))
 
-	// Increment request count
+	// Increment request count atomically
+	r.metrics.recordRequestCountAtomically()
 	r.metrics.requestCount.Add(context.Background(), 1, metric.WithAttributes(finalAttributes...))
 
-	// Decrement active requests
+	// Decrement active requests atomically
+	r.metrics.recordActiveRequestCompleteAtomically()
 	r.metrics.activeRequests.Add(context.Background(), -1, metric.WithAttributes(finalAttributes...))
 
 	// Record error if status indicates error
 	if statusCode >= 400 {
+		r.metrics.recordErrorCountAtomically()
 		r.metrics.errorCount.Add(context.Background(), 1, metric.WithAttributes(finalAttributes...))
 	}
 
@@ -808,146 +826,313 @@ func getStatusClass(statusCode int) string {
 	}
 }
 
+// Atomic metrics helper methods
+
+// getAtomicCustomCounters atomically loads the custom counters map.
+func (m *MetricsConfig) getAtomicCustomCounters() map[string]metric.Int64Counter {
+	countersPtr := atomic.LoadPointer(&m.atomicCustomCounters)
+	return *(*map[string]metric.Int64Counter)(countersPtr)
+}
+
+// getAtomicCustomHistograms atomically loads the custom histograms map.
+func (m *MetricsConfig) getAtomicCustomHistograms() map[string]metric.Float64Histogram {
+	histogramsPtr := atomic.LoadPointer(&m.atomicCustomHistograms)
+	return *(*map[string]metric.Float64Histogram)(histogramsPtr)
+}
+
+// getAtomicCustomGauges atomically loads the custom gauges map.
+func (m *MetricsConfig) getAtomicCustomGauges() map[string]metric.Float64Gauge {
+	gaugesPtr := atomic.LoadPointer(&m.atomicCustomGauges)
+	return *(*map[string]metric.Float64Gauge)(gaugesPtr)
+}
+
+// updateAtomicCustomCounters atomically updates the custom counters map.
+func (m *MetricsConfig) updateAtomicCustomCounters(updater func(map[string]metric.Int64Counter) map[string]metric.Int64Counter) {
+	for {
+		currentPtr := atomic.LoadPointer(&m.atomicCustomCounters)
+		currentCounters := *(*map[string]metric.Int64Counter)(currentPtr)
+		newCounters := updater(currentCounters)
+
+		if atomic.CompareAndSwapPointer(&m.atomicCustomCounters, currentPtr, unsafe.Pointer(&newCounters)) {
+			return
+		}
+	}
+}
+
+// updateAtomicCustomHistograms atomically updates the custom histograms map.
+func (m *MetricsConfig) updateAtomicCustomHistograms(updater func(map[string]metric.Float64Histogram) map[string]metric.Float64Histogram) {
+	for {
+		currentPtr := atomic.LoadPointer(&m.atomicCustomHistograms)
+		currentHistograms := *(*map[string]metric.Float64Histogram)(currentPtr)
+		newHistograms := updater(currentHistograms)
+
+		if atomic.CompareAndSwapPointer(&m.atomicCustomHistograms, currentPtr, unsafe.Pointer(&newHistograms)) {
+			return
+		}
+	}
+}
+
+// updateAtomicCustomGauges atomically updates the custom gauges map.
+func (m *MetricsConfig) updateAtomicCustomGauges(updater func(map[string]metric.Float64Gauge) map[string]metric.Float64Gauge) {
+	for {
+		currentPtr := atomic.LoadPointer(&m.atomicCustomGauges)
+		currentGauges := *(*map[string]metric.Float64Gauge)(currentPtr)
+		newGauges := updater(currentGauges)
+
+		if atomic.CompareAndSwapPointer(&m.atomicCustomGauges, currentPtr, unsafe.Pointer(&newGauges)) {
+			return
+		}
+	}
+}
+
 // Custom metrics management methods
 
-// getOrCreateCounter gets an existing counter or creates a new one.
+// getOrCreateCounter gets an existing counter or creates a new one using atomic operations.
 // Returns error if max custom metrics limit is reached to prevent memory leaks.
 func (m *MetricsConfig) getOrCreateCounter(name string) (metric.Int64Counter, error) {
-	m.metricsMutex.RLock()
-	if counter, exists := m.customCounters[name]; exists {
-		m.metricsMutex.RUnlock()
-		return counter, nil
-	}
-	m.metricsMutex.RUnlock()
-
-	// Check if we've reached the limit before creating
-	m.metricsMutex.Lock()
-	defer m.metricsMutex.Unlock()
-
-	// Double-check after acquiring write lock
-	if counter, exists := m.customCounters[name]; exists {
+	// Try to get existing counter first (lock-free read)
+	counters := m.getAtomicCustomCounters()
+	if counter, exists := counters[name]; exists {
 		return counter, nil
 	}
 
-	// Check total custom metrics count
-	totalMetrics := len(m.customCounters) + len(m.customHistograms) + len(m.customGauges)
-	if totalMetrics >= m.maxCustomMetrics {
-		// Record failure metric
-		if m.customMetricFailures != nil {
-			m.customMetricFailures.Add(context.Background(), 1,
-				metric.WithAttributes(
-					attribute.String("metric_type", "counter"),
-					attribute.String("metric_name", name),
-					attribute.String("reason", "limit_reached"),
-				))
+	// Counter doesn't exist, need to create it atomically
+	var newCounter metric.Int64Counter
+	var err error
+
+	m.updateAtomicCustomCounters(func(currentCounters map[string]metric.Int64Counter) map[string]metric.Int64Counter {
+		// Double-check after atomic update
+		if counter, exists := currentCounters[name]; exists {
+			newCounter = counter
+			return currentCounters
 		}
-		return nil, fmt.Errorf("max custom metrics limit (%d) reached, cannot create counter %s", m.maxCustomMetrics, name)
-	}
 
-	counter, err := m.meter.Int64Counter(
-		name,
-		metric.WithDescription(fmt.Sprintf("Custom counter metric: %s", name)),
-	)
+		// Check total custom metrics count
+		histograms := m.getAtomicCustomHistograms()
+		gauges := m.getAtomicCustomGauges()
+		totalMetrics := len(currentCounters) + len(histograms) + len(gauges)
+		if totalMetrics >= m.maxCustomMetrics {
+			// Record failure metric
+			if m.customMetricFailures != nil {
+				m.customMetricFailures.Add(context.Background(), 1,
+					metric.WithAttributes(
+						attribute.String("metric_type", "counter"),
+						attribute.String("metric_name", name),
+						attribute.String("reason", "limit_reached"),
+					))
+			}
+			err = fmt.Errorf("max custom metrics limit (%d) reached, cannot create counter %s", m.maxCustomMetrics, name)
+			return currentCounters
+		}
+
+		counter, createErr := m.meter.Int64Counter(
+			name,
+			metric.WithDescription(fmt.Sprintf("Custom counter metric: %s", name)),
+		)
+		if createErr != nil {
+			err = fmt.Errorf("failed to create counter %s: %w", name, createErr)
+			return currentCounters
+		}
+
+		// Create new map with the added counter
+		newCounters := make(map[string]metric.Int64Counter, len(currentCounters)+1)
+		for k, v := range currentCounters {
+			newCounters[k] = v
+		}
+		newCounters[name] = counter
+		newCounter = counter
+		return newCounters
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to create counter %s: %w", name, err)
+		return nil, err
 	}
-
-	m.customCounters[name] = counter
-	return counter, nil
+	return newCounter, nil
 }
 
 // getOrCreateHistogram gets an existing histogram or creates a new one.
 // Returns error if max custom metrics limit is reached to prevent memory leaks.
 func (m *MetricsConfig) getOrCreateHistogram(name string) (metric.Float64Histogram, error) {
-	m.metricsMutex.RLock()
-	if histogram, exists := m.customHistograms[name]; exists {
-		m.metricsMutex.RUnlock()
-		return histogram, nil
-	}
-	m.metricsMutex.RUnlock()
-
-	// Check if we've reached the limit before creating
-	m.metricsMutex.Lock()
-	defer m.metricsMutex.Unlock()
-
-	// Double-check after acquiring write lock
-	if histogram, exists := m.customHistograms[name]; exists {
+	// Try to get existing histogram first (lock-free read)
+	histograms := m.getAtomicCustomHistograms()
+	if histogram, exists := histograms[name]; exists {
 		return histogram, nil
 	}
 
-	// Check total custom metrics count
-	totalMetrics := len(m.customCounters) + len(m.customHistograms) + len(m.customGauges)
-	if totalMetrics >= m.maxCustomMetrics {
-		// Record failure metric
-		if m.customMetricFailures != nil {
-			m.customMetricFailures.Add(context.Background(), 1,
-				metric.WithAttributes(
-					attribute.String("metric_type", "histogram"),
-					attribute.String("metric_name", name),
-					attribute.String("reason", "limit_reached"),
-				))
+	// Histogram doesn't exist, need to create it atomically
+	var newHistogram metric.Float64Histogram
+	var err error
+
+	m.updateAtomicCustomHistograms(func(currentHistograms map[string]metric.Float64Histogram) map[string]metric.Float64Histogram {
+		// Double-check after atomic update
+		if histogram, exists := currentHistograms[name]; exists {
+			newHistogram = histogram
+			return currentHistograms
 		}
-		return nil, fmt.Errorf("max custom metrics limit (%d) reached, cannot create histogram %s", m.maxCustomMetrics, name)
-	}
 
-	histogram, err := m.meter.Float64Histogram(
-		name,
-		metric.WithDescription(fmt.Sprintf("Custom histogram metric: %s", name)),
-		metric.WithUnit("1"),
-	)
+		// Check total custom metrics count
+		counters := m.getAtomicCustomCounters()
+		gauges := m.getAtomicCustomGauges()
+		totalMetrics := len(counters) + len(currentHistograms) + len(gauges)
+		if totalMetrics >= m.maxCustomMetrics {
+			// Record failure metric
+			if m.customMetricFailures != nil {
+				m.customMetricFailures.Add(context.Background(), 1,
+					metric.WithAttributes(
+						attribute.String("metric_type", "histogram"),
+						attribute.String("metric_name", name),
+						attribute.String("reason", "limit_reached"),
+					))
+			}
+			err = fmt.Errorf("max custom metrics limit (%d) reached, cannot create histogram %s", m.maxCustomMetrics, name)
+			return currentHistograms
+		}
+
+		histogram, createErr := m.meter.Float64Histogram(
+			name,
+			metric.WithDescription(fmt.Sprintf("Custom histogram metric: %s", name)),
+			metric.WithUnit("1"),
+		)
+		if createErr != nil {
+			err = fmt.Errorf("failed to create histogram %s: %w", name, createErr)
+			return currentHistograms
+		}
+
+		// Create new map with the added histogram
+		newHistograms := make(map[string]metric.Float64Histogram, len(currentHistograms)+1)
+		for k, v := range currentHistograms {
+			newHistograms[k] = v
+		}
+		newHistograms[name] = histogram
+		newHistogram = histogram
+		return newHistograms
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to create histogram %s: %w", name, err)
+		return nil, err
 	}
-
-	m.customHistograms[name] = histogram
-	return histogram, nil
+	return newHistogram, nil
 }
 
 // getOrCreateGauge gets an existing gauge or creates a new one.
 // Returns error if max custom metrics limit is reached to prevent memory leaks.
 func (m *MetricsConfig) getOrCreateGauge(name string) (metric.Float64Gauge, error) {
-	m.metricsMutex.RLock()
-	if gauge, exists := m.customGauges[name]; exists {
-		m.metricsMutex.RUnlock()
-		return gauge, nil
-	}
-	m.metricsMutex.RUnlock()
-
-	// Check if we've reached the limit before creating
-	m.metricsMutex.Lock()
-	defer m.metricsMutex.Unlock()
-
-	// Double-check after acquiring write lock
-	if gauge, exists := m.customGauges[name]; exists {
+	// Try to get existing gauge first (lock-free read)
+	gauges := m.getAtomicCustomGauges()
+	if gauge, exists := gauges[name]; exists {
 		return gauge, nil
 	}
 
-	// Check total custom metrics count
-	totalMetrics := len(m.customCounters) + len(m.customHistograms) + len(m.customGauges)
-	if totalMetrics >= m.maxCustomMetrics {
-		// Record failure metric
-		if m.customMetricFailures != nil {
-			m.customMetricFailures.Add(context.Background(), 1,
-				metric.WithAttributes(
-					attribute.String("metric_type", "gauge"),
-					attribute.String("metric_name", name),
-					attribute.String("reason", "limit_reached"),
-				))
+	// Gauge doesn't exist, need to create it atomically
+	var newGauge metric.Float64Gauge
+	var err error
+
+	m.updateAtomicCustomGauges(func(currentGauges map[string]metric.Float64Gauge) map[string]metric.Float64Gauge {
+		// Double-check after atomic update
+		if gauge, exists := currentGauges[name]; exists {
+			newGauge = gauge
+			return currentGauges
 		}
-		return nil, fmt.Errorf("max custom metrics limit (%d) reached, cannot create gauge %s", m.maxCustomMetrics, name)
-	}
 
-	gauge, err := m.meter.Float64Gauge(
-		name,
-		metric.WithDescription(fmt.Sprintf("Custom gauge metric: %s", name)),
-		metric.WithUnit("1"),
-	)
+		// Check total custom metrics count
+		counters := m.getAtomicCustomCounters()
+		histograms := m.getAtomicCustomHistograms()
+		totalMetrics := len(counters) + len(histograms) + len(currentGauges)
+		if totalMetrics >= m.maxCustomMetrics {
+			// Record failure metric
+			if m.customMetricFailures != nil {
+				m.customMetricFailures.Add(context.Background(), 1,
+					metric.WithAttributes(
+						attribute.String("metric_type", "gauge"),
+						attribute.String("metric_name", name),
+						attribute.String("reason", "limit_reached"),
+					))
+			}
+			err = fmt.Errorf("max custom metrics limit (%d) reached, cannot create gauge %s", m.maxCustomMetrics, name)
+			return currentGauges
+		}
+
+		gauge, createErr := m.meter.Float64Gauge(
+			name,
+			metric.WithDescription(fmt.Sprintf("Custom gauge metric: %s", name)),
+			metric.WithUnit("1"),
+		)
+		if createErr != nil {
+			err = fmt.Errorf("failed to create gauge %s: %w", name, createErr)
+			return currentGauges
+		}
+
+		// Create new map with the added gauge
+		newGauges := make(map[string]metric.Float64Gauge, len(currentGauges)+1)
+		for k, v := range currentGauges {
+			newGauges[k] = v
+		}
+		newGauges[name] = gauge
+		newGauge = gauge
+		return newGauges
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gauge %s: %w", name, err)
+		return nil, err
 	}
+	return newGauge, nil
+}
 
-	m.customGauges[name] = gauge
-	return gauge, nil
+// Atomic built-in metrics recording methods
+
+// recordRequestCountAtomically atomically increments the request count.
+func (m *MetricsConfig) recordRequestCountAtomically() {
+	atomic.AddInt64(&m.atomicRequestCount, 1)
+}
+
+// recordActiveRequestAtomically atomically increments active requests.
+func (m *MetricsConfig) recordActiveRequestAtomically() {
+	atomic.AddInt64(&m.atomicActiveRequests, 1)
+}
+
+// recordActiveRequestCompleteAtomically atomically decrements active requests.
+func (m *MetricsConfig) recordActiveRequestCompleteAtomically() {
+	atomic.AddInt64(&m.atomicActiveRequests, -1)
+}
+
+// recordErrorCountAtomically atomically increments the error count.
+func (m *MetricsConfig) recordErrorCountAtomically() {
+	atomic.AddInt64(&m.atomicErrorCount, 1)
+}
+
+// recordContextPoolHitAtomically atomically increments context pool hits.
+func (m *MetricsConfig) recordContextPoolHitAtomically() {
+	atomic.AddInt64(&m.atomicContextPoolHits, 1)
+}
+
+// recordContextPoolMissAtomically atomically increments context pool misses.
+func (m *MetricsConfig) recordContextPoolMissAtomically() {
+	atomic.AddInt64(&m.atomicContextPoolMisses, 1)
+}
+
+// getAtomicRequestCount returns the current atomic request count.
+func (m *MetricsConfig) getAtomicRequestCount() int64 {
+	return atomic.LoadInt64(&m.atomicRequestCount)
+}
+
+// getAtomicActiveRequests returns the current atomic active requests count.
+func (m *MetricsConfig) getAtomicActiveRequests() int64 {
+	return atomic.LoadInt64(&m.atomicActiveRequests)
+}
+
+// getAtomicErrorCount returns the current atomic error count.
+func (m *MetricsConfig) getAtomicErrorCount() int64 {
+	return atomic.LoadInt64(&m.atomicErrorCount)
+}
+
+// getAtomicContextPoolHits returns the current atomic context pool hits.
+func (m *MetricsConfig) getAtomicContextPoolHits() int64 {
+	return atomic.LoadInt64(&m.atomicContextPoolHits)
+}
+
+// getAtomicContextPoolMisses returns the current atomic context pool misses.
+func (m *MetricsConfig) getAtomicContextPoolMisses() int64 {
+	return atomic.LoadInt64(&m.atomicContextPoolMisses)
 }
 
 // Context methods for custom metrics

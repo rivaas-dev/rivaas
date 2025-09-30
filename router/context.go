@@ -435,3 +435,23 @@ func (c *Context) GetCookie(name string) (string, error) {
 	}
 	return value, nil
 }
+
+// reset resets the context to its initial state for reuse.
+// This method is optimized for high-performance context pooling.
+func (c *Context) reset() {
+	// Reset all fields to zero values
+	c.Request = nil
+	c.Response = nil
+	c.Params = nil
+	c.handlers = nil
+	c.index = -1
+	c.paramCount = 0
+	c.span = nil
+	c.traceCtx = nil
+
+	// Clear parameter arrays
+	for i := range c.paramKeys {
+		c.paramKeys[i] = ""
+		c.paramValues[i] = ""
+	}
+}

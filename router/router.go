@@ -61,7 +61,6 @@ import (
 type RouterOption func(*Router)
 
 // responseWriter wraps http.ResponseWriter to capture status code and size.
-// responseWriter wraps http.ResponseWriter to capture status code and size.
 // It also prevents "superfluous response.WriteHeader call" errors
 type responseWriter struct {
 	http.ResponseWriter
@@ -166,14 +165,6 @@ type atomicRouteTree struct {
 	routesMutex sync.RWMutex
 }
 
-// getTreeForMethod atomically gets the tree for a specific HTTP method.
-// This method is optimized to avoid map copying during route lookup.
-func (r *Router) getTreeForMethod(method string) *node {
-	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
-	trees := *(*map[string]*node)(treesPtr)
-	return trees[method]
-}
-
 // getTreeForMethodDirect atomically gets the tree for a specific HTTP method without copying.
 // This method uses direct pointer access to avoid allocations.
 func (r *Router) getTreeForMethodDirect(method string) *node {
@@ -186,15 +177,23 @@ func (r *Router) getTreeForMethodDirect(method string) *node {
 // It uses a radix tree for fast path matching and includes context pooling
 // to minimize memory allocations during request handling.
 //
+// Key performance optimizations:
+//   - Radix tree for O(k) path matching where k is the path length
+//   - Context pooling to reduce garbage collection pressure
+//   - Lock-free route registration using atomic operations
+//   - Zero-allocation path matching where possible
+//   - Optional OpenTelemetry tracing with minimal overhead (when enabled)
+//   - Optimized middleware chain execution with pre-compilation
+//
 // The Router is safe for concurrent use and can handle multiple goroutines
 // accessing it simultaneously without any additional synchronization.
 // Route registration is now lock-free using atomic operations.
 type Router struct {
-	routeTree   atomicRouteTree // Lock-free route tree with atomic operations
-	middleware  []HandlerFunc   // Global middleware chain applied to all routes
-	contextPool sync.Pool       // Pool of Context objects to reduce allocations
-	tracing     *TracingConfig  // OpenTelemetry tracing configuration
-	metrics     *MetricsConfig  // OpenTelemetry metrics configuration
+	routeTree       atomicRouteTree      // Lock-free route tree with atomic operations
+	middleware      []HandlerFunc        // Global middleware chain applied to all routes
+	contextPool     sync.Pool            // Pool of Context objects to reduce allocations
+	tracing         *TracingConfig       // OpenTelemetry tracing configuration
+	metrics         *MetricsConfig       // OpenTelemetry metrics configuration
 }
 
 // New creates a new router instance with optional configuration.
@@ -221,12 +220,15 @@ func New(opts ...RouterOption) *Router {
 	initialTrees := make(map[string]*node)
 	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(&initialTrees))
 
-	// Set up context pool with router reference
+	// Set up optimized context pool with router reference
 	r.contextPool = sync.Pool{
 		New: func() interface{} {
-			return &Context{
+			ctx := &Context{
 				router: r, // Set router reference for metrics access
 			}
+			// Initialize context for optimal performance
+			ctx.reset()
+			return ctx
 		},
 	}
 
@@ -236,13 +238,6 @@ func New(opts ...RouterOption) *Router {
 	}
 
 	return r
-}
-
-// getTrees atomically loads the current route trees map.
-// This method is lock-free and safe for concurrent access.
-func (r *Router) getTrees() map[string]*node {
-	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
-	return *(*map[string]*node)(treesPtr)
 }
 
 // updateTrees atomically updates the route trees map using copy-on-write.
@@ -407,15 +402,6 @@ func (r *Router) HEAD(path string, handlers ...HandlerFunc) *Route {
 	return r.addRouteWithConstraints("HEAD", path, handlers)
 }
 
-// addRoute adds a route to the router's radix tree for the specified HTTP method.
-// It combines global middleware with route-specific handlers to create the complete
-// handler chain that will be executed for matching requests.
-//
-// This is an internal method used by the HTTP method functions (GET, POST, etc.).
-func (r *Router) addRoute(method, path string, handlers []HandlerFunc) {
-	r.addRouteWithConstraints(method, path, handlers)
-}
-
 // addRouteWithConstraints adds a route with support for parameter constraints.
 // Returns a Route object that can be used to add constraints and metadata.
 // This method is now lock-free and uses atomic operations for thread safety.
@@ -505,6 +491,18 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Dynamic route with parameters
 	c := r.contextPool.Get().(*Context)
+	if c == nil {
+		// Pool miss - create new context
+		if r.metrics != nil && r.metrics.enabled {
+			r.metrics.recordContextPoolMissAtomically()
+		}
+		c = &Context{}
+	} else {
+		// Pool hit
+		if r.metrics != nil && r.metrics.enabled {
+			r.metrics.recordContextPoolHitAtomically()
+		}
+	}
 	defer r.contextPool.Put(c)
 
 	c.Request = req
