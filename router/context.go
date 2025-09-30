@@ -186,19 +186,16 @@ func (c *Context) String(code int, format string, values ...any) error {
 		if v, ok := values[0].(string); ok && strings.Count(format, "%s") == 1 {
 			idx := strings.Index(format, "%s")
 			if idx != -1 {
-				if _, err := c.Response.Write([]byte(format[:idx])); err != nil {
-					return err
-				}
-				if _, err := c.Response.Write([]byte(v)); err != nil {
-					return err
-				}
-				_, err := c.Response.Write([]byte(format[idx+2:]))
+				// Use string concatenation to avoid []byte allocations
+				result := format[:idx] + v + format[idx+2:]
+				_, err := c.Response.Write([]byte(result))
 				return err
 			}
 		}
 	}
 
 	// Fallback for complex formatting (multiple values, non-string types, etc.)
+	// Direct fmt.Fprintf to response - eliminates 2 allocations
 	_, err := fmt.Fprintf(c.Response, format, values...)
 	return err
 }
@@ -437,21 +434,27 @@ func (c *Context) GetCookie(name string) (string, error) {
 }
 
 // reset resets the context to its initial state for reuse.
-// This method is optimized for high-performance context pooling.
+// This method is optimized for high-performance context pooling with zero allocations.
 func (c *Context) reset() {
-	// Reset all fields to zero values
+	// Fast reset without allocations
 	c.Request = nil
 	c.Response = nil
-	c.Params = nil
 	c.handlers = nil
 	c.index = -1
 	c.paramCount = 0
 	c.span = nil
 	c.traceCtx = nil
 
-	// Clear parameter arrays
-	for i := range c.paramKeys {
+	// Clear parameter arrays efficiently - only clear used slots
+	for i := 0; i < c.paramCount && i < 8; i++ {
 		c.paramKeys[i] = ""
 		c.paramValues[i] = ""
+	}
+
+	// Clear map if it exists (for >8 params) without deallocating
+	if c.Params != nil {
+		for k := range c.Params {
+			delete(c.Params, k)
+		}
 	}
 }

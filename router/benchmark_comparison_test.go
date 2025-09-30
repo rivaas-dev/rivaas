@@ -22,6 +22,9 @@ func BenchmarkRivaasRouter(b *testing.B) {
 		c.String(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
 	})
 
+	// Warm up all optimizations for maximum performance
+	r.WarmupOptimizations()
+
 	req := httptest.NewRequest("GET", "/users/123", nil)
 	w := httptest.NewRecorder()
 

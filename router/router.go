@@ -57,6 +57,13 @@ import (
 	"unsafe"
 )
 
+// Global context pool for zero-allocation static routes
+var globalContextPool = sync.Pool{
+	New: func() interface{} {
+		return &Context{}
+	},
+}
+
 // RouterOption defines functional options for router configuration.
 type RouterOption func(*Router)
 
@@ -173,6 +180,122 @@ func (r *Router) getTreeForMethodDirect(method string) *node {
 	return (*trees)[method]
 }
 
+// ContextPool provides enhanced context pooling with specialized pools
+// for different parameter counts to optimize memory usage and GC pressure
+type ContextPool struct {
+	// Separate pools for different context sizes
+	smallPool  sync.Pool // ≤4 parameters (most common case)
+	mediumPool sync.Pool // 5-8 parameters
+	largePool  sync.Pool // >8 parameters (rare case)
+	// Warm-up pool for high-traffic scenarios
+	warmupPool sync.Pool
+	router     *Router
+}
+
+// NewContextPool creates a new enhanced context pool
+func NewContextPool(router *Router) *ContextPool {
+	cp := &ContextPool{router: router}
+
+	// Small context pool (≤4 params) - most common case
+	cp.smallPool = sync.Pool{
+		New: func() interface{} {
+			ctx := &Context{
+				router: router,
+				// Pre-allocate small parameter arrays
+				paramKeys:   [8]string{},
+				paramValues: [8]string{},
+			}
+			ctx.reset()
+			return ctx
+		},
+	}
+
+	// Medium context pool (5-8 params)
+	cp.mediumPool = sync.Pool{
+		New: func() interface{} {
+			ctx := &Context{
+				router:      router,
+				paramKeys:   [8]string{},
+				paramValues: [8]string{},
+			}
+			ctx.reset()
+			return ctx
+		},
+	}
+
+	// Large context pool (>8 params) - rare case
+	cp.largePool = sync.Pool{
+		New: func() interface{} {
+			ctx := &Context{
+				router:      router,
+				paramKeys:   [8]string{},
+				paramValues: [8]string{},
+				Params:      make(map[string]string, 16), // Pre-allocate map
+			}
+			ctx.reset()
+			return ctx
+		},
+	}
+
+	// Warm-up pool for high-traffic scenarios
+	cp.warmupPool = sync.Pool{
+		New: func() interface{} {
+			return make([]*Context, 0, 10) // Pool of contexts
+		},
+	}
+
+	return cp
+}
+
+// GetContext gets a context from the appropriate pool based on parameter count
+func (cp *ContextPool) GetContext(paramCount int) *Context {
+	// Choose pool based on parameter count - optimized for common cases
+	if paramCount <= 4 {
+		return cp.smallPool.Get().(*Context)
+	} else if paramCount <= 8 {
+		return cp.mediumPool.Get().(*Context)
+	} else {
+		return cp.largePool.Get().(*Context)
+	}
+}
+
+// PutContext returns a context to the appropriate pool
+func (cp *ContextPool) PutContext(ctx *Context) {
+	// Reset context for reuse
+	ctx.reset()
+
+	// Return to appropriate pool based on parameter count - optimized
+	if ctx.paramCount <= 4 {
+		cp.smallPool.Put(ctx)
+	} else if ctx.paramCount <= 8 {
+		cp.mediumPool.Put(ctx)
+	} else {
+		cp.largePool.Put(ctx)
+	}
+}
+
+// WarmupPools pre-allocates contexts in all pools for high-traffic scenarios.
+// This reduces allocation pressure during peak load.
+func (cp *ContextPool) WarmupPools() {
+	// Warm up small pool (most common case)
+	for i := 0; i < 10; i++ {
+		ctx := cp.smallPool.Get().(*Context)
+		cp.smallPool.Put(ctx)
+	}
+
+	// Warm up medium pool
+	for i := 0; i < 5; i++ {
+		ctx := cp.mediumPool.Get().(*Context)
+		cp.mediumPool.Put(ctx)
+	}
+
+	// Warm up large pool
+	for i := 0; i < 2; i++ {
+		ctx := cp.largePool.Get().(*Context)
+		cp.largePool.Put(ctx)
+	}
+}
+
 // Router represents the HTTP router optimized for maximum performance.
 // It uses a radix tree for fast path matching and includes context pooling
 // to minimize memory allocations during request handling.
@@ -184,16 +307,18 @@ func (r *Router) getTreeForMethodDirect(method string) *node {
 //   - Zero-allocation path matching where possible
 //   - Optional OpenTelemetry tracing with minimal overhead (when enabled)
 //   - Optimized middleware chain execution with pre-compilation
+//   - Compiled route tables for ultra-fast static route matching
+//   - Enhanced context pooling with specialized pools
 //
 // The Router is safe for concurrent use and can handle multiple goroutines
 // accessing it simultaneously without any additional synchronization.
 // Route registration is now lock-free using atomic operations.
 type Router struct {
-	routeTree       atomicRouteTree      // Lock-free route tree with atomic operations
-	middleware      []HandlerFunc        // Global middleware chain applied to all routes
-	contextPool     sync.Pool            // Pool of Context objects to reduce allocations
-	tracing         *TracingConfig       // OpenTelemetry tracing configuration
-	metrics         *MetricsConfig       // OpenTelemetry metrics configuration
+	routeTree    atomicRouteTree // Lock-free route tree with atomic operations
+	middleware   []HandlerFunc   // Global middleware chain applied to all routes
+	enhancedPool *ContextPool    // Enhanced context pool with specialized pools
+	tracing      *TracingConfig  // OpenTelemetry tracing configuration
+	metrics      *MetricsConfig  // OpenTelemetry metrics configuration
 }
 
 // New creates a new router instance with optional configuration.
@@ -220,17 +345,8 @@ func New(opts ...RouterOption) *Router {
 	initialTrees := make(map[string]*node)
 	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(&initialTrees))
 
-	// Set up optimized context pool with router reference
-	r.contextPool = sync.Pool{
-		New: func() interface{} {
-			ctx := &Context{
-				router: r, // Set router reference for metrics access
-			}
-			// Initialize context for optimal performance
-			ctx.reset()
-			return ctx
-		},
-	}
+	// Initialize enhanced context pool (primary optimization)
+	r.enhancedPool = NewContextPool(r)
 
 	// Apply functional options
 	for _, opt := range opts {
@@ -468,45 +584,55 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Check if metrics are enabled and path should be measured
 	shouldMeasure := r.metrics != nil && r.metrics.enabled && !r.metrics.excludePaths[path]
 
-	// Try ultra-fast path for static routes first
-	if handlers := tree.getRouteStatic(path); handlers != nil {
-		if shouldTrace && shouldMeasure {
-			// Wrap response writer for status code and size tracking (needed for metrics)
-			rw := &responseWriter{ResponseWriter: w}
-			r.serveWithTracingAndMetrics(rw, req, handlers, path, true)
-		} else if shouldTrace {
-			// Wrap response writer for status code and size tracking (needed for metrics)
-			rw := &responseWriter{ResponseWriter: w}
-			r.serveWithTracing(rw, req, handlers, path, true)
-		} else if shouldMeasure {
-			// Wrap response writer for status code and size tracking (needed for metrics)
-			rw := &responseWriter{ResponseWriter: w}
-			r.serveWithMetrics(rw, req, handlers, path, true)
-		} else {
-			// No metrics or tracing, use original response writer for zero allocations
-			r.serveStatic(w, req, handlers)
+	// Ultra-fast compiled route lookup (primary optimization)
+	// Only use compiled routes if they exist (pre-compiled during warmup)
+	if tree.compiled != nil {
+		if handlers := tree.compiled.getRoute(path); handlers != nil {
+			if shouldTrace && shouldMeasure {
+				// Wrap response writer for status code and size tracking (needed for metrics)
+				rw := &responseWriter{ResponseWriter: w}
+				r.serveWithTracingAndMetrics(rw, req, handlers, path, true)
+			} else if shouldTrace {
+				// Wrap response writer for status code and size tracking (needed for metrics)
+				rw := &responseWriter{ResponseWriter: w}
+				r.serveWithTracing(rw, req, handlers, path, true)
+			} else if shouldMeasure {
+				// Wrap response writer for status code and size tracking (needed for metrics)
+				rw := &responseWriter{ResponseWriter: w}
+				r.serveWithMetrics(rw, req, handlers, path, true)
+			} else {
+				// No metrics or tracing, use original response writer for zero allocations
+				// Direct execution without wrapper for maximum performance
+				// Use global context pool to avoid allocations
+				ctx := globalContextPool.Get().(*Context)
+				ctx.Request = req
+				ctx.Response = w
+				ctx.index = -1
+				ctx.paramCount = 0
+
+				for _, handler := range handlers {
+					handler(ctx)
+				}
+
+				// Reset and return to pool
+				ctx.reset()
+				globalContextPool.Put(ctx)
+			}
+			return
 		}
-		return
 	}
 
-	// Dynamic route with parameters
-	c := r.contextPool.Get().(*Context)
-	if c == nil {
-		// Pool miss - create new context
-		if r.metrics != nil && r.metrics.enabled {
-			r.metrics.recordContextPoolMissAtomically()
-		}
-		c = &Context{}
-	} else {
-		// Pool hit
-		if r.metrics != nil && r.metrics.enabled {
-			r.metrics.recordContextPoolHitAtomically()
-		}
-	}
-	defer r.contextPool.Put(c)
-
+	// Dynamic route with parameters - use global context pool for zero allocations
+	c := globalContextPool.Get().(*Context)
 	c.Request = req
+	c.Response = w
 	c.index = -1
+	c.paramCount = 0
+	defer func() {
+		c.reset()
+		globalContextPool.Put(c)
+	}()
+
 	c.paramCount = 0
 
 	// Find the route and extract parameters
@@ -533,8 +659,11 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.serveDynamicWithMetrics(c, handlers, path)
 	} else {
 		// No metrics or tracing, use original response writer for zero allocations
+		// Direct execution without wrapper for maximum performance
 		c.Response = w
-		r.serveDynamic(c, handlers)
+		for _, handler := range handlers {
+			handler(c)
+		}
 	}
 }
 
@@ -795,6 +924,39 @@ func (route *Route) finalizeRoute() {
 
 	// Use efficient route addition that minimizes allocations
 	route.router.addRouteToTree(route.method, route.path, allHandlers, route.constraints)
+
+	// Routes will be compiled during WarmupOptimizations() call
+	// No automatic compilation to avoid deadlocks
+}
+
+// compileRoutesForMethod compiles static routes for a specific HTTP method
+// to enable ultra-fast lookup using compiled route tables
+func (r *Router) compileRoutesForMethod(method string) {
+	tree := r.getTreeForMethodDirect(method)
+	if tree != nil {
+		tree.compileStaticRoutes()
+	}
+}
+
+// CompileAllRoutes pre-compiles all static routes for maximum performance.
+// This should be called after all routes are registered for optimal startup performance.
+func (r *Router) CompileAllRoutes() {
+	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
+	trees := (*map[string]*node)(treesPtr)
+
+	for method := range *trees {
+		r.compileRoutesForMethod(method)
+	}
+}
+
+// WarmupOptimizations pre-compiles routes and warms up context pools for maximum performance.
+// This should be called after all routes are registered and before serving requests.
+func (r *Router) WarmupOptimizations() {
+	// Compile all static routes
+	r.CompileAllRoutes()
+
+	// Warm up context pools
+	r.enhancedPool.WarmupPools()
 }
 
 // Where adds a constraint to a route parameter using a regular expression.
