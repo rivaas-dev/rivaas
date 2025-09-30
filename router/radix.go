@@ -311,7 +311,7 @@ func validateConstraints(constraints []RouteConstraint, ctx *Context) bool {
 		found := false
 
 		// Check fast array lookup first (up to 8 params)
-		for i := 0; i < ctx.paramCount; i++ {
+		for i := range ctx.paramCount {
 			if ctx.paramKeys[i] == constraint.Param {
 				value = ctx.paramValues[i]
 				found = true

@@ -529,7 +529,7 @@ func findAvailablePort(preferredPort string) (string, error) {
 	}
 
 	// Try up to 100 ports starting from the preferred port
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		testPort := portNum + i
 		testAddr := fmt.Sprintf(":%d", testPort)
 
@@ -732,7 +732,7 @@ func (r *Router) startMetrics(c *Context, path string, isStatic bool) *requestMe
 
 	// Record parameters if enabled
 	if r.metrics.recordParams && c.paramCount > 0 {
-		for i := 0; i < c.paramCount; i++ {
+		for i := range c.paramCount {
 			metrics.attributes = append(metrics.attributes, attribute.String(
 				fmt.Sprintf("http.route.param.%s", c.paramKeys[i]),
 				c.paramValues[i],
@@ -1291,7 +1291,7 @@ func (r *Router) serveWithMetrics(w http.ResponseWriter, req *http.Request, hand
 	requestMetrics := r.startMetrics(ctx, path, isStatic)
 	defer r.finishMetrics(ctx, requestMetrics)
 
-	for i := 0; i < len(handlers); i++ {
+	for i := range len(handlers) {
 		handlers[i](ctx)
 	}
 }
@@ -1301,7 +1301,7 @@ func (r *Router) serveDynamicWithMetrics(c *Context, handlers []HandlerFunc, pat
 	requestMetrics := r.startMetrics(c, path, false)
 	defer r.finishMetrics(c, requestMetrics)
 
-	for i := 0; i < len(handlers); i++ {
+	for i := range len(handlers) {
 		handlers[i](c)
 	}
 }
@@ -1324,7 +1324,7 @@ func (r *Router) serveWithTracingAndMetrics(w http.ResponseWriter, req *http.Req
 		r.finishMetrics(ctx, requestMetrics)
 	}()
 
-	for i := 0; i < len(handlers); i++ {
+	for i := range len(handlers) {
 		handlers[i](ctx)
 	}
 }
@@ -1339,7 +1339,7 @@ func (r *Router) serveDynamicWithTracingAndMetrics(c *Context, handlers []Handle
 		r.finishMetrics(c, requestMetrics)
 	}()
 
-	for i := 0; i < len(handlers); i++ {
+	for i := range len(handlers) {
 		handlers[i](c)
 	}
 }

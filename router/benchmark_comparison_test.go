@@ -26,7 +26,7 @@ func BenchmarkRivaasRouter(b *testing.B) {
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r.ServeHTTP(w, req)
 	}
 }
@@ -51,7 +51,7 @@ func BenchmarkStandardMux(b *testing.B) {
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		mux.ServeHTTP(w, req)
 	}
 }
@@ -85,7 +85,7 @@ func BenchmarkSimpleRouter(b *testing.B) {
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		handler(w, req)
 	}
 }
@@ -108,7 +108,7 @@ func BenchmarkGinRouter(b *testing.B) {
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r.ServeHTTP(w, req)
 	}
 }
@@ -130,7 +130,7 @@ func BenchmarkEchoRouter(b *testing.B) {
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		e.ServeHTTP(w, req)
 	}
 }

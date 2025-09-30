@@ -103,10 +103,10 @@ func TestOptimizedMiddlewareChainConcurrency(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < requestsPerGoroutine; j++ {
+			for range requestsPerGoroutine {
 				req := httptest.NewRequest("GET", "/test", nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
@@ -129,7 +129,7 @@ func TestOptimizedMiddlewareChainPerformance(t *testing.T) {
 	r := New()
 
 	// Add multiple middleware layers
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		r.Use(func(c *Context) {
 			// Simulate middleware work
 		})
@@ -176,7 +176,7 @@ func TestOptimizedMiddlewareChainMemorySafety(t *testing.T) {
 	})
 
 	// Test multiple requests to ensure memory safety
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		req := httptest.NewRequest("GET", "/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)

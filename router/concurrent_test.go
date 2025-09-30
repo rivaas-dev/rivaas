@@ -16,7 +16,7 @@ func TestConcurrentRouteRegistration(t *testing.T) {
 	routeCount := 100
 
 	// Register routes concurrently
-	for i := 0; i < routeCount; i++ {
+	for i := range routeCount {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
@@ -92,7 +92,7 @@ func TestConcurrentRequests(t *testing.T) {
 	requestCount := 1000
 	errors := make(chan error, requestCount)
 
-	for i := 0; i < requestCount; i++ {
+	for i := range requestCount {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
@@ -143,7 +143,7 @@ func TestConcurrentMetricsCreation(t *testing.T) {
 	var wg sync.WaitGroup
 	requestCount := 100
 
-	for i := 0; i < requestCount; i++ {
+	for range requestCount {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -166,7 +166,7 @@ func TestMetricsLimitEnforcement(t *testing.T) {
 
 	// Create metrics up to the limit using valid metric names
 	r.GET("/test", func(c *Context) {
-		for i := 0; i < maxMetrics+10; i++ {
+		for i := range maxMetrics+10 {
 			// These should succeed up to limit, then fail silently (errors logged)
 			// Use valid metric names with only alphanumeric and underscore
 			c.IncrementCounter("test_counter_" + fmt.Sprint(i))
@@ -241,7 +241,7 @@ func TestContextPoolingUnderLoad(t *testing.T) {
 	var wg sync.WaitGroup
 	requestCount := 1000
 
-	for i := 0; i < requestCount; i++ {
+	for i := range requestCount {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()

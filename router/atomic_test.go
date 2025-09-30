@@ -19,7 +19,7 @@ func TestAtomicRouteRegistration(t *testing.T) {
 	concurrency := 10
 
 	// Register routes concurrently
-	for i := 0; i < concurrency; i++ {
+	for i := range concurrency {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
@@ -82,7 +82,7 @@ func TestAtomicRouteLookup(t *testing.T) {
 	concurrency := 10
 
 	// Make concurrent requests
-	for i := 0; i < concurrency; i++ {
+	for range concurrency {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -131,7 +131,7 @@ func TestConcurrentRegistrationAndLookup(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			path := "/concurrent" + string(rune('0'+i%10))
 			r.GET(path, func(c *Context) {
 				c.String(http.StatusOK, "OK")
@@ -240,7 +240,7 @@ func TestAtomicTreeMemorySafety(t *testing.T) {
 	r := New()
 
 	// Register many routes to test memory management
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		path := "/memory" + string(rune('0'+i%10)) + "/" + string(rune('0'+i%100))
 		r.GET(path, func(c *Context) {
 			c.String(http.StatusOK, "OK")

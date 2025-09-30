@@ -13,7 +13,7 @@ func TestRouterStress(t *testing.T) {
 	r := New()
 
 	// Add many routes to test scalability
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		route := "/api/v1/users/" + string(rune('a'+i%26))
 		r.GET(route, func(c *Context) {
 			c.String(http.StatusOK, "User")
@@ -21,7 +21,7 @@ func TestRouterStress(t *testing.T) {
 	}
 
 	// Add parameter routes
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		route := "/api/v1/users/:id/posts/:post_id"
 		r.GET(route, func(c *Context) {
 			c.String(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
@@ -35,11 +35,11 @@ func TestRouterStress(t *testing.T) {
 
 	start := time.Now()
 
-	for i := 0; i < concurrency; i++ {
+	for range concurrency {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < requests/concurrency; j++ {
+			for range requests/concurrency {
 				req := httptest.NewRequest("GET", "/api/v1/users/123/posts/456", nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
@@ -91,7 +91,7 @@ func BenchmarkRouterMemoryAllocations(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r.ServeHTTP(w, req)
 	}
 }

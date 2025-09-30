@@ -913,14 +913,14 @@ func (r *Router) serveStatic(w http.ResponseWriter, req *http.Request, handlers 
 		router:     r,
 	}
 
-	for i := 0; i < len(handlers); i++ {
+	for i := range len(handlers) {
 		handlers[i](ctx)
 	}
 }
 
 // serveDynamic handles dynamic routes without tracing.
 func (r *Router) serveDynamic(c *Context, handlers []HandlerFunc) {
-	for i := 0; i < len(handlers); i++ {
+	for i := range len(handlers) {
 		handlers[i](c)
 	}
 }

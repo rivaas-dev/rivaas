@@ -26,7 +26,7 @@ func TestAtomicMetricsOperations(t *testing.T) {
 	wg.Add(numGoroutines)
 
 	// Start concurrent requests
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < requestsPerGoroutine; j++ {
@@ -84,7 +84,7 @@ func TestAtomicCustomMetrics(t *testing.T) {
 	wg.Add(numGoroutines)
 
 	// Start concurrent requests
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < requestsPerGoroutine; j++ {
@@ -143,7 +143,7 @@ func TestAtomicMetricsConsistency(t *testing.T) {
 	wg.Add(numGoroutines)
 
 	// Start concurrent requests
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 			req := httptest.NewRequest("GET", "/test", nil)
@@ -198,7 +198,7 @@ func TestAtomicMetricsMemorySafety(t *testing.T) {
 	wg.Add(numGoroutines)
 
 	// Start concurrent requests
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 			req := httptest.NewRequest("GET", "/test", nil)

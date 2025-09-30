@@ -114,7 +114,7 @@ func (c *Context) Next() {
 // Returns an empty string if the parameter doesn't exist.
 func (c *Context) Param(key string) string {
 	// Fast array lookup first (zero allocations for ≤8 params)
-	for i := 0; i < c.paramCount; i++ {
+	for i := range c.paramCount {
 		if c.paramKeys[i] == key {
 			return c.paramValues[i]
 		}

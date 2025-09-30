@@ -186,7 +186,7 @@ func (r *Router) startTracing(c *Context, path string, isStatic bool) {
 
 	// Record parameters if enabled
 	if r.tracing.recordParams && c.paramCount > 0 {
-		for i := 0; i < c.paramCount; i++ {
+		for i := range c.paramCount {
 			span.SetAttributes(attribute.String(
 				fmt.Sprintf("http.route.param.%s", c.paramKeys[i]),
 				c.paramValues[i],
@@ -242,7 +242,7 @@ func (r *Router) serveWithTracing(w http.ResponseWriter, req *http.Request, hand
 	r.startTracing(ctx, path, isStatic)
 	defer r.finishTracing(ctx)
 
-	for i := 0; i < len(handlers); i++ {
+	for i := range len(handlers) {
 		handlers[i](ctx)
 	}
 }
@@ -252,7 +252,7 @@ func (r *Router) serveDynamicWithTracing(c *Context, handlers []HandlerFunc, pat
 	r.startTracing(c, path, false)
 	defer r.finishTracing(c)
 
-	for i := 0; i < len(handlers); i++ {
+	for i := range len(handlers) {
 		handlers[i](c)
 	}
 }
