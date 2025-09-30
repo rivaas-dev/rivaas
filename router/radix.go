@@ -2,6 +2,7 @@ package router
 
 import (
 	"strings"
+	"sync"
 )
 
 // node represents a node in the radix tree used for fast route matching.
@@ -13,6 +14,7 @@ import (
 //   - Parameter routes use segment-based traversal
 //   - Full path storage for faster exact matching
 //   - Pre-allocated children maps to reduce allocations
+//   - Thread-safe operations for concurrent route registration
 type node struct {
 	handlers    []HandlerFunc     // Handler chain for this route
 	children    map[string]*node  // Static child routes
@@ -20,6 +22,7 @@ type node struct {
 	wildcard    *wildcard         // Wildcard child route (if any)
 	constraints []RouteConstraint // Parameter constraints for this route
 	path        string            // Full path for this node (optimization)
+	mu          sync.RWMutex      // Protects concurrent access to this node
 }
 
 // param represents a parameter node in the radix tree.
@@ -49,7 +52,11 @@ func (n *node) addRoute(path string, handlers []HandlerFunc) {
 }
 
 // addRouteWithConstraints adds a route with parameter constraints.
+// This method is thread-safe and can be called concurrently.
 func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, constraints []RouteConstraint) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
 	// Handle root path specially
 	if path == "/" {
 		n.handlers = handlers
@@ -173,6 +180,9 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 //
 //go:inline
 func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
 	// Handle root path specially - most common case
 	if path == "/" {
 		return n.handlers
@@ -270,6 +280,9 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 //
 //go:inline
 func (n *node) getRouteStatic(path string) []HandlerFunc {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
 	// Handle root path
 	if path == "/" {
 		return n.handlers

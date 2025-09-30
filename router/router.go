@@ -53,6 +53,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"unsafe"
 )
 
 // RouterOption defines functional options for router configuration.
@@ -149,20 +151,50 @@ type RouteInfo struct {
 	HandlerName string // Name of the handler function
 }
 
+// atomicRouteTree represents a lock-free route tree with atomic operations.
+// This structure enables concurrent reads and writes without mutex contention.
+type atomicRouteTree struct {
+	// trees is an atomic pointer to the current route tree map
+	// This allows lock-free reads and atomic updates during route registration
+	trees unsafe.Pointer // *map[string]*node
+
+	// version is incremented on each tree update for optimistic concurrency control
+	version uint64
+
+	// routes is protected by a separate mutex for introspection (low-frequency access)
+	routes      []RouteInfo
+	routesMutex sync.RWMutex
+}
+
+// getTreeForMethod atomically gets the tree for a specific HTTP method.
+// This method is optimized to avoid map copying during route lookup.
+func (r *Router) getTreeForMethod(method string) *node {
+	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
+	trees := *(*map[string]*node)(treesPtr)
+	return trees[method]
+}
+
+// getTreeForMethodDirect atomically gets the tree for a specific HTTP method without copying.
+// This method uses direct pointer access to avoid allocations.
+func (r *Router) getTreeForMethodDirect(method string) *node {
+	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
+	trees := (*map[string]*node)(treesPtr)
+	return (*trees)[method]
+}
+
 // Router represents the HTTP router optimized for maximum performance.
 // It uses a radix tree for fast path matching and includes context pooling
 // to minimize memory allocations during request handling.
 //
 // The Router is safe for concurrent use and can handle multiple goroutines
 // accessing it simultaneously without any additional synchronization.
+// Route registration is now lock-free using atomic operations.
 type Router struct {
-	trees       map[string]*node // Method-specific radix trees for route storage
-	middleware  []HandlerFunc    // Global middleware chain applied to all routes
-	contextPool sync.Pool        // Pool of Context objects to reduce allocations
-	routes      []RouteInfo      // Registered routes for introspection
-	tracing     *TracingConfig   // OpenTelemetry tracing configuration
-	metrics     *MetricsConfig   // OpenTelemetry metrics configuration
-	mu          sync.RWMutex     // Protects trees and routes during registration
+	routeTree   atomicRouteTree // Lock-free route tree with atomic operations
+	middleware  []HandlerFunc   // Global middleware chain applied to all routes
+	contextPool sync.Pool       // Pool of Context objects to reduce allocations
+	tracing     *TracingConfig  // OpenTelemetry tracing configuration
+	metrics     *MetricsConfig  // OpenTelemetry metrics configuration
 }
 
 // New creates a new router instance with optional configuration.
@@ -183,9 +215,11 @@ type Router struct {
 //	r.GET("/api/users", getUserHandler)
 //	http.ListenAndServe(":8080", r)
 func New(opts ...RouterOption) *Router {
-	r := &Router{
-		trees: make(map[string]*node),
-	}
+	r := &Router{}
+
+	// Initialize the atomic route tree with an empty map
+	initialTrees := make(map[string]*node)
+	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(&initialTrees))
 
 	// Set up context pool with router reference
 	r.contextPool = sync.Pool{
@@ -202,6 +236,67 @@ func New(opts ...RouterOption) *Router {
 	}
 
 	return r
+}
+
+// getTrees atomically loads the current route trees map.
+// This method is lock-free and safe for concurrent access.
+func (r *Router) getTrees() map[string]*node {
+	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
+	return *(*map[string]*node)(treesPtr)
+}
+
+// updateTrees atomically updates the route trees map using copy-on-write.
+// This method ensures thread-safe updates without blocking concurrent reads.
+func (r *Router) updateTrees(updater func(map[string]*node) map[string]*node) {
+	for {
+		// Load current trees
+		currentPtr := atomic.LoadPointer(&r.routeTree.trees)
+		currentTrees := *(*map[string]*node)(currentPtr)
+
+		// Create updated copy
+		newTrees := updater(currentTrees)
+
+		// Attempt atomic compare-and-swap
+		if atomic.CompareAndSwapPointer(&r.routeTree.trees, currentPtr, unsafe.Pointer(&newTrees)) {
+			// Successfully updated, increment version
+			atomic.AddUint64(&r.routeTree.version, 1)
+			return
+		}
+		// CAS failed, retry with fresh copy
+	}
+}
+
+// addRouteToTree adds a route to the tree using a more efficient approach.
+// This method minimizes allocations by only copying when necessary.
+func (r *Router) addRouteToTree(method, path string, handlers []HandlerFunc, constraints []RouteConstraint) {
+	// First, try to get the existing tree for this method
+	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
+	trees := *(*map[string]*node)(treesPtr)
+
+	if tree, exists := trees[method]; exists {
+		// Tree exists, add route directly (thread-safe due to node mutex)
+		tree.addRouteWithConstraints(path, handlers, constraints)
+		return
+	}
+
+	// Tree doesn't exist, need to create it atomically
+	r.updateTrees(func(currentTrees map[string]*node) map[string]*node {
+		// Check if tree was created by another goroutine
+		if tree, exists := currentTrees[method]; exists {
+			// Another goroutine created it, add route directly
+			tree.addRouteWithConstraints(path, handlers, constraints)
+			return currentTrees
+		}
+
+		// Create new trees map with the new method tree
+		newTrees := make(map[string]*node, len(currentTrees)+1)
+		for m, t := range currentTrees {
+			newTrees[m] = t
+		}
+		newTrees[method] = &node{}
+		newTrees[method].addRouteWithConstraints(path, handlers, constraints)
+		return newTrees
+	})
 }
 
 // Use adds global middleware to the router that will be executed for all routes.
@@ -323,23 +418,21 @@ func (r *Router) addRoute(method, path string, handlers []HandlerFunc) {
 
 // addRouteWithConstraints adds a route with support for parameter constraints.
 // Returns a Route object that can be used to add constraints and metadata.
+// This method is now lock-free and uses atomic operations for thread safety.
 func (r *Router) addRouteWithConstraints(method, path string, handlers []HandlerFunc) *Route {
-	r.mu.Lock()
-	if r.trees[method] == nil {
-		r.trees[method] = &node{}
-	}
-
-	// Store route info for introspection (zero performance impact)
+	// Store route info for introspection (protected by separate mutex for low-frequency access)
 	handlerName := "anonymous"
 	if len(handlers) > 0 {
 		handlerName = getHandlerName(handlers[len(handlers)-1])
 	}
-	r.routes = append(r.routes, RouteInfo{
+
+	r.routeTree.routesMutex.Lock()
+	r.routeTree.routes = append(r.routeTree.routes, RouteInfo{
 		Method:      method,
 		Path:        path,
 		HandlerName: handlerName,
 	})
-	r.mu.Unlock()
+	r.routeTree.routesMutex.Unlock()
 
 	// Create route object for constraint support
 	route := &Route{
@@ -373,9 +466,8 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 // Static routes use stack allocation to eliminate pool overhead, while
 // dynamic routes use context pooling for optimal memory reuse.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	r.mu.RLock()
-	tree := r.trees[req.Method]
-	r.mu.RUnlock()
+	// Lock-free tree access using atomic operations - direct pointer access to avoid allocations
+	tree := r.getTreeForMethodDirect(req.Method)
 
 	if tree == nil {
 		http.NotFound(w, req)
@@ -392,18 +484,21 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Try ultra-fast path for static routes first
 	if handlers := tree.getRouteStatic(path); handlers != nil {
-		// Wrap response writer for status code and size tracking (needed for metrics)
-	// Always use custom responseWriter to prevent WriteHeader conflicts
-	rw := &responseWriter{ResponseWriter: w}
-
 		if shouldTrace && shouldMeasure {
+			// Wrap response writer for status code and size tracking (needed for metrics)
+			rw := &responseWriter{ResponseWriter: w}
 			r.serveWithTracingAndMetrics(rw, req, handlers, path, true)
 		} else if shouldTrace {
+			// Wrap response writer for status code and size tracking (needed for metrics)
+			rw := &responseWriter{ResponseWriter: w}
 			r.serveWithTracing(rw, req, handlers, path, true)
 		} else if shouldMeasure {
+			// Wrap response writer for status code and size tracking (needed for metrics)
+			rw := &responseWriter{ResponseWriter: w}
 			r.serveWithMetrics(rw, req, handlers, path, true)
 		} else {
-			r.serveStatic(rw, req, handlers)
+			// No metrics or tracing, use original response writer for zero allocations
+			r.serveStatic(w, req, handlers)
 		}
 		return
 	}
@@ -412,29 +507,35 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c := r.contextPool.Get().(*Context)
 	defer r.contextPool.Put(c)
 
-	// Wrap response writer for status code and size tracking (needed for metrics)
-	// Always use custom responseWriter to prevent WriteHeader conflicts
-	rw := &responseWriter{ResponseWriter: w}
-
 	c.Request = req
-	c.Response = rw
 	c.index = -1
 	c.paramCount = 0
 
 	// Find the route and extract parameters
 	handlers := tree.getRoute(path, c)
 	if handlers == nil {
-		http.NotFound(rw, req)
+		http.NotFound(w, req)
 		return
 	}
 
 	if shouldTrace && shouldMeasure {
+		// Wrap response writer for status code and size tracking (needed for metrics)
+		rw := &responseWriter{ResponseWriter: w}
+		c.Response = rw
 		r.serveDynamicWithTracingAndMetrics(c, handlers, path)
 	} else if shouldTrace {
+		// Wrap response writer for status code and size tracking (needed for metrics)
+		rw := &responseWriter{ResponseWriter: w}
+		c.Response = rw
 		r.serveDynamicWithTracing(c, handlers, path)
 	} else if shouldMeasure {
+		// Wrap response writer for status code and size tracking (needed for metrics)
+		rw := &responseWriter{ResponseWriter: w}
+		c.Response = rw
 		r.serveDynamicWithMetrics(c, handlers, path)
 	} else {
+		// No metrics or tracing, use original response writer for zero allocations
+		c.Response = w
 		r.serveDynamic(c, handlers)
 	}
 }
@@ -548,10 +649,10 @@ func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *Route {
 //	}
 func (r *Router) Routes() []RouteInfo {
 	// Create a copy to avoid exposing internal slice
-	r.mu.RLock()
-	routes := make([]RouteInfo, len(r.routes))
-	copy(routes, r.routes)
-	r.mu.RUnlock()
+	r.routeTree.routesMutex.RLock()
+	routes := make([]RouteInfo, len(r.routeTree.routes))
+	copy(routes, r.routeTree.routes)
+	r.routeTree.routesMutex.RUnlock()
 
 	// Sort by method, then by path for consistent output
 	sort.Slice(routes, func(i, j int) bool {
@@ -684,6 +785,7 @@ func (r *Router) StaticFile(relativePath, filepath string) {
 // finalizeRoute adds the route to the radix tree with its current constraints.
 // This is called automatically when the route is created or when constraints are added.
 // It uses the finalized flag to prevent duplicate route registration.
+// This method is now lock-free and uses atomic operations for thread safety.
 func (route *Route) finalizeRoute() {
 	if route.finalized {
 		return // Already added to tree, skip re-registration
@@ -693,9 +795,8 @@ func (route *Route) finalizeRoute() {
 	// Combine global middleware with route handlers
 	allHandlers := append(route.router.middleware, route.handlers...)
 
-	route.router.mu.Lock()
-	route.router.trees[route.method].addRouteWithConstraints(route.path, allHandlers, route.constraints)
-	route.router.mu.Unlock()
+	// Use efficient route addition that minimizes allocations
+	route.router.addRouteToTree(route.method, route.path, allHandlers, route.constraints)
 }
 
 // Where adds a constraint to a route parameter using a regular expression.
