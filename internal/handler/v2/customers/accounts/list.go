@@ -76,7 +76,11 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	goot.EndSpan(span)
 
 	// Parse the group data
-	parsedKeyCloakGroups := h.customerService.GroupsToAccount(group, subgroups)
+	parsedKeyCloakGroups, err := h.customerService.GroupsToAccount(group, subgroups)
+	if err != nil {
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
+		return
+	}
 
 	// Build response from groups
 	response, err := jsonapi.Marshal(parsedKeyCloakGroups)
