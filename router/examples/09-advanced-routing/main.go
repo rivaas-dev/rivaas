@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	// Create router with advanced routing features
+	// Create router with routing features
 	r := router.New(
 		// Configure versioning with header and query parameter support
 		router.WithVersioning(
@@ -26,7 +26,7 @@ func main() {
 	r.GET("/health", healthHandler)
 	r.GET("/status", statusHandler)
 
-	// Enhanced wildcard routes
+	// Wildcard routes
 	r.GET("/files/*", fileHandler)     // Wildcard route for files
 	r.GET("/static/*", staticHandler)  // Wildcard route for static assets
 	r.GET("/uploads/*", uploadHandler) // Wildcard route for uploads
@@ -53,12 +53,12 @@ func main() {
 	v2API.PUT("/profile", updateProfileV2)
 
 	// Start server
-	fmt.Println("🚀 Advanced Router Server starting on :8080")
+	fmt.Println("🚀 Router Server starting on :8080")
 	fmt.Println("📋 Features:")
 	fmt.Println("  ✅ Wildcard routes with custom parameter names")
 	fmt.Println("  ✅ Route versioning with header/query detection")
 	fmt.Println("  ✅ Version-specific route groups")
-	fmt.Println("  ✅ Zero-allocation performance")
+	fmt.Println("  ✅ Efficient performance")
 	fmt.Println("")
 	fmt.Println("🔗 Test endpoints:")
 	fmt.Println("  GET /health")
@@ -109,7 +109,7 @@ func healthHandler(c *router.Context) {
 
 func statusHandler(c *router.Context) {
 	c.JSON(http.StatusOK, map[string]interface{}{
-		"service": "advanced-router",
+		"service": "router",
 		"version": c.Version(),
 		"features": []string{
 			"wildcard_routes",
@@ -119,7 +119,7 @@ func statusHandler(c *router.Context) {
 	})
 }
 
-// Enhanced wildcard handlers
+// Wildcard handlers
 func fileHandler(c *router.Context) {
 	filepath := c.Param("filepath")
 	c.JSON(http.StatusOK, map[string]string{

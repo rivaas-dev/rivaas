@@ -69,14 +69,14 @@ func (bf *bloomFilter) Test(data []byte) bool {
 	return true
 }
 
-// CompiledRoute represents a pre-compiled static route for ultra-fast lookup
+// CompiledRoute represents a pre-compiled static route for fast lookup
 type CompiledRoute struct {
 	path     string        // Route path
 	handlers []HandlerFunc // Handler chain
 	hash     uint64        // Pre-computed hash for instant matching
 }
 
-// CompiledRouteTable provides ultra-fast static route lookup
+// CompiledRouteTable provides fast static route lookup
 type CompiledRouteTable struct {
 	routes map[uint64]*CompiledRoute // Hash-based route lookup
 	bloom  *bloomFilter              // Bloom filter for fast negative lookups
@@ -84,16 +84,15 @@ type CompiledRouteTable struct {
 }
 
 // node represents a node in the radix tree used for fast route matching.
-// The radix tree implementation is optimized for performance with different
-// strategies for static and dynamic routes.
+// The radix tree implementation uses different strategies for static and dynamic routes.
 //
-// Performance optimizations:
+// Performance features:
 //   - Static routes use direct map lookups for O(1) access
 //   - Parameter routes use segment-based traversal
 //   - Full path storage for faster exact matching
 //   - Pre-allocated children maps to reduce allocations
 //   - Thread-safe operations for concurrent route registration
-//   - Compiled route table for ultra-fast static route matching
+//   - Compiled route table for fast static route matching
 type node struct {
 	handlers    []HandlerFunc       // Handler chain for this route
 	children    map[string]*node    // Static child routes
@@ -101,7 +100,7 @@ type node struct {
 	wildcard    *wildcard           // Wildcard child route (if any)
 	constraints []RouteConstraint   // Parameter constraints for this route
 	path        string              // Full path for this node (optimization)
-	compiled    *CompiledRouteTable // Compiled static routes for ultra-fast lookup
+	compiled    *CompiledRouteTable // Compiled static routes for fast lookup
 	mu          sync.RWMutex        // Protects concurrent access to this node
 }
 
@@ -119,8 +118,8 @@ type wildcard struct {
 	paramName string // Custom parameter name instead of default "filepath"
 }
 
-// addRoute adds a route to the radix tree with optimized insertion strategy.
-// The method handles different route types with specific optimizations:
+// addRoute adds a route to the radix tree with insertion strategy.
+// The method handles different route types with specific approaches:
 //
 //   - Root routes ("/") are handled specially
 //   - Static routes (no parameters) use fast path insertion
@@ -253,16 +252,16 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 }
 
 // getRoute finds a route and extracts parameters directly into context arrays.
-// This method provides the highest performance by avoiding map allocations entirely
+// This method provides good performance by avoiding map allocations entirely
 // for routes with up to 8 parameters.
 //
 // Performance features:
-//   - Zero-allocation path parsing
+//   - Efficient path parsing
 //   - Direct parameter storage in context arrays
-//   - Ultra-fast static route detection
+//   - Fast static route detection
 //   - Fallback to map for >8 parameters (rare case)
 //
-// This is the primary route matching method used by the router for maximum performance.
+// This is the primary route matching method used by the router.
 //
 //go:inline
 func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
@@ -278,14 +277,14 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 		return n.handlers
 	}
 
-	// Ultra-fast path for static routes (no parameters) - check full path first
+	// Fast path for static routes (no parameters) - check full path first
 	if n.children != nil {
 		if child, exists := n.children[path]; exists && child.handlers != nil {
 			return child.handlers
 		}
 	}
 
-	// Zero-allocation path parsing - avoid strings.Split entirely
+	// Efficient path parsing - avoid strings.Split entirely
 	current := n
 	start := 0
 	if path[0] == '/' {
@@ -309,7 +308,7 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 		if current.children != nil && current.children[segment] != nil {
 			current = current.children[segment]
 		} else if current.param != nil {
-			// Match parameter - optimized zero-allocation storage
+			// Match parameter - efficient storage
 			if ctx.paramCount < 8 {
 				// Fast path: use pre-allocated arrays
 				ctx.paramKeys[ctx.paramCount] = current.param.key
@@ -362,7 +361,7 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 }
 
 // validateConstraints checks if all parameter constraints are satisfied.
-// This function is optimized for performance with early exits.
+// This function uses early exits for performance.
 func validateConstraints(constraints []RouteConstraint, ctx *Context) bool {
 	if len(constraints) == 0 {
 		return true // No constraints to validate
@@ -396,7 +395,7 @@ func validateConstraints(constraints []RouteConstraint, ctx *Context) bool {
 }
 
 // compileStaticRoutes compiles all static routes in this node and its children
-// into an optimized lookup table with bloom filter for ultra-fast matching
+// into a lookup table with bloom filter for fast matching
 func (n *node) compileStaticRoutes() *CompiledRouteTable {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -419,7 +418,7 @@ func (n *node) compileStaticRoutes() *CompiledRouteTable {
 func (n *node) compileStaticRoutesRecursive(table *CompiledRouteTable, prefix string) {
 	// If this node has handlers and is a static route (no parameters), compile it
 	if n.handlers != nil && !strings.Contains(prefix, ":") && prefix != "" {
-		// Compute hash for ultra-fast lookup
+		// Compute hash for fast lookup
 		hash := fnv.New64a()
 		hash.Write([]byte(prefix))
 		routeHash := hash.Sum64()
@@ -450,7 +449,7 @@ func (n *node) compileStaticRoutesRecursive(table *CompiledRouteTable, prefix st
 	}
 }
 
-// getRouteCompiled provides ultra-fast lookup for compiled static routes
+// getRouteCompiled provides fast lookup for compiled static routes
 // Returns handlers if found, nil if not a static route or doesn't exist
 func (table *CompiledRouteTable) getRoute(path string) []HandlerFunc {
 	if table == nil {
@@ -479,7 +478,7 @@ func (table *CompiledRouteTable) getRoute(path string) []HandlerFunc {
 	// Compute hash for exact match - use FNV-1a for zero allocations
 	routeHash := fnv1aHash(path)
 
-	// Ultra-fast hash-based lookup
+	// Fast hash-based lookup
 	if route, exists := table.routes[routeHash]; exists {
 		return route.handlers
 	}

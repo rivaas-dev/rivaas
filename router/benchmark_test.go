@@ -39,7 +39,7 @@ func BenchmarkRouter(b *testing.B) {
 		})
 	}
 
-	// Warm up all optimizations for maximum performance
+	// Warm up all optimizations for performance
 	r.WarmupOptimizations()
 
 	// Test paths
@@ -276,7 +276,7 @@ func BenchmarkStaticRoutes(b *testing.B) {
 		})
 	}
 
-	// Warm up all optimizations for maximum performance
+	// Warm up all optimizations for performance
 	r.WarmupOptimizations()
 
 	// Test paths
@@ -326,7 +326,7 @@ func BenchmarkStaticRoutes(b *testing.B) {
 	})
 }
 
-// BenchmarkContextPool tests the performance of enhanced context pooling
+// BenchmarkContextPool tests the performance of context pooling
 func BenchmarkContextPool(b *testing.B) {
 	r := New()
 
@@ -348,7 +348,7 @@ func BenchmarkContextPool(b *testing.B) {
 		})
 	}
 
-	// Warm up all optimizations for maximum performance
+	// Warm up all optimizations for performance
 	r.WarmupOptimizations()
 
 	// Test paths with different parameter counts
@@ -426,7 +426,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 		})
 	}
 
-	// Warm up all optimizations for maximum performance
+	// Warm up all optimizations for performance
 	r.WarmupOptimizations()
 
 	// Test paths
@@ -527,7 +527,7 @@ func BenchmarkBloomFilter(b *testing.B) {
 		})
 	}
 
-	// Warm up all optimizations for maximum performance
+	// Warm up all optimizations for performance
 	r.WarmupOptimizations()
 
 	// Test paths (mix of existing and non-existing routes)

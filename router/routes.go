@@ -13,7 +13,7 @@ import (
 )
 
 // RouteConstraint represents a compiled constraint for route parameters.
-// Constraints are pre-compiled for zero-allocation validation during routing.
+// Constraints are pre-compiled for efficient validation during routing.
 type RouteConstraint struct {
 	Param   string         // Parameter name
 	Pattern *regexp.Regexp // Pre-compiled regex pattern
@@ -267,7 +267,7 @@ func (route *Route) finalizeRoute() {
 }
 
 // Where adds a constraint to a route parameter using a regular expression.
-// The constraint is pre-compiled for zero-allocation validation during routing.
+// The constraint is pre-compiled for efficient validation during routing.
 // This method provides a fluent interface for building routes with validation.
 //
 // IMPORTANT: This method panics if the regex pattern is invalid. This is intentional

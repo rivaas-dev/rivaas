@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// TestOptimizedMiddlewareChain tests the optimized middleware chain execution
-func TestOptimizedMiddlewareChain(t *testing.T) {
+// TestMiddlewareChain tests middleware chain execution with proper ordering
+func TestMiddlewareChain(t *testing.T) {
 	r := New()
 
 	// Add middleware that tracks execution
@@ -50,8 +50,8 @@ func TestOptimizedMiddlewareChain(t *testing.T) {
 	}
 }
 
-// TestOptimizedMiddlewareChainCaching tests that middleware chains are cached properly
-func TestOptimizedMiddlewareChainCaching(t *testing.T) {
+// TestMiddlewareChainCaching tests that middleware chains are cached properly
+func TestMiddlewareChainCaching(t *testing.T) {
 	r := New()
 
 	// Add middleware
@@ -82,8 +82,8 @@ func TestOptimizedMiddlewareChainCaching(t *testing.T) {
 	}
 }
 
-// TestOptimizedMiddlewareChainConcurrency tests concurrent middleware chain execution
-func TestOptimizedMiddlewareChainConcurrency(t *testing.T) {
+// TestMiddlewareChainConcurrency tests concurrent middleware chain execution
+func TestMiddlewareChainConcurrency(t *testing.T) {
 	r := New()
 
 	// Add middleware that tracks concurrent execution
@@ -124,8 +124,8 @@ func TestOptimizedMiddlewareChainConcurrency(t *testing.T) {
 	t.Logf("Successfully handled %d concurrent requests", numGoroutines*requestsPerGoroutine)
 }
 
-// TestOptimizedMiddlewareChainPerformance tests the performance improvement of optimized chains
-func TestOptimizedMiddlewareChainPerformance(t *testing.T) {
+// TestMiddlewareChainPerformance tests middleware chain execution performance
+func TestMiddlewareChainPerformance(t *testing.T) {
 	r := New()
 
 	// Add multiple middleware layers
@@ -153,16 +153,16 @@ func TestOptimizedMiddlewareChainPerformance(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 
-	// Should be very fast with optimized chains
+	// Should complete within reasonable time
 	if duration > 10*time.Millisecond {
 		t.Logf("Warning: Middleware execution took %v, which is slower than expected", duration)
 	}
 
-	t.Logf("Optimized middleware chain execution time: %v", duration)
+	t.Logf("Middleware chain execution time: %v", duration)
 }
 
-// TestOptimizedMiddlewareChainMemorySafety tests memory safety of optimized chains
-func TestOptimizedMiddlewareChainMemorySafety(t *testing.T) {
+// TestMiddlewareChainMemorySafety tests memory safety of middleware chains
+func TestMiddlewareChainMemorySafety(t *testing.T) {
 	r := New()
 
 	// Add middleware that manipulates context
@@ -189,8 +189,8 @@ func TestOptimizedMiddlewareChainMemorySafety(t *testing.T) {
 	t.Log("Memory safety test passed - no memory leaks or corruption detected")
 }
 
-// TestOptimizedMiddlewareChainCacheEfficiency tests the efficiency of middleware chain caching
-func TestOptimizedMiddlewareChainCacheEfficiency(t *testing.T) {
+// TestMiddlewareChainCacheEfficiency tests the efficiency of middleware chain caching
+func TestMiddlewareChainCacheEfficiency(t *testing.T) {
 	r := New()
 
 	// Add middleware

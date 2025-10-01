@@ -9,9 +9,9 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// BenchmarkRivaasRouter benchmarks our optimized router
+// BenchmarkRivaasRouter benchmarks our router
 func BenchmarkRivaasRouter(b *testing.B) {
-	r := New() // Now uses the optimized implementation
+	r := New()
 	r.GET("/", func(c *Context) {
 		c.String(http.StatusOK, "Hello")
 	})
@@ -22,7 +22,7 @@ func BenchmarkRivaasRouter(b *testing.B) {
 		c.String(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
 	})
 
-	// Warm up all optimizations for maximum performance
+	// Warm up all optimizations for performance
 	r.WarmupOptimizations()
 
 	req := httptest.NewRequest("GET", "/users/123", nil)

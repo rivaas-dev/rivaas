@@ -1,16 +1,16 @@
-// Package router provides a high-performance HTTP router for Go with minimal memory allocations.
+// Package router provides an HTTP router for Go with minimal memory allocations.
 //
-// The router implements a radix tree-based routing algorithm optimized for cloud-native
-// applications. It features zero-allocation path matching for static routes, efficient
+// The router implements a radix tree-based routing algorithm for cloud-native
+// applications. It features efficient path matching for static routes, efficient
 // parameter extraction, and comprehensive middleware support.
 //
 // Key Features:
-//   - Ultra-fast radix tree routing with O(k) path matching
-//   - Zero-allocation path matching for static routes
+//   - Fast radix tree routing with O(k) path matching
+//   - Efficient path matching for static routes
 //   - Memory efficient with only 3 allocations per request
 //   - Support for URL parameters and middleware chains
 //   - Route grouping for hierarchical API organization
-//   - Context pooling for optimal performance
+//   - Context pooling for performance
 //
 // Performance characteristics:
 //   - 223K+ requests/second throughput
@@ -120,20 +120,20 @@ func (rw *responseWriter) Flush() {
 	}
 }
 
-// Router represents the HTTP router optimized for maximum performance.
+// Router represents the HTTP router with performance optimizations.
 // It uses a radix tree for fast path matching and includes context pooling
 // to minimize memory allocations during request handling.
 //
-// Key performance optimizations:
+// Key performance features:
 //   - Radix tree for O(k) path matching where k is the path length
 //   - Context pooling to reduce garbage collection pressure
 //   - Lock-free route registration using atomic operations
-//   - Zero-allocation path matching where possible
+//   - Efficient path matching where possible
 //   - Optional OpenTelemetry tracing with minimal overhead (when enabled)
-//   - Optimized middleware chain execution with pre-compilation
-//   - Compiled route tables for ultra-fast static route matching
-//   - Enhanced context pooling with specialized pools
-//   - Advanced routing with wildcard support and route versioning
+//   - Middleware chain execution with pre-compilation
+//   - Compiled route tables for fast static route matching
+//   - Context pooling with specialized pools
+//   - Routing with wildcard support and route versioning
 //
 // The Router is safe for concurrent use and can handle multiple goroutines
 // accessing it simultaneously without any additional synchronization.
@@ -141,11 +141,11 @@ func (rw *responseWriter) Flush() {
 type Router struct {
 	routeTree   atomicRouteTree // Lock-free route tree with atomic operations
 	middleware  []HandlerFunc   // Global middleware chain applied to all routes
-	contextPool *ContextPool    // Enhanced context pool with specialized pools
+	contextPool *ContextPool    // Context pool with specialized pools
 	tracing     *TracingConfig  // OpenTelemetry tracing configuration
 	metrics     *MetricsConfig  // OpenTelemetry metrics configuration
 
-	// Advanced routing features
+	// Routing features
 	versioning   *VersioningConfig              // Route versioning configuration
 	versionTrees atomicVersionTrees             // Lock-free version-specific route trees
 	versionCache map[string]*CompiledRouteTable // Version-specific compiled routes
@@ -176,7 +176,7 @@ func New(opts ...RouterOption) *Router {
 	initialTrees := make(map[string]*node)
 	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(&initialTrees))
 
-	// Initialize enhanced context pool (primary optimization)
+	// Initialize context pool (primary optimization)
 	r.contextPool = NewContextPool(r)
 
 	// Apply functional options
@@ -274,16 +274,16 @@ func (r *Router) Group(prefix string, middleware ...HandlerFunc) *Group {
 }
 
 // ServeHTTP implements the http.Handler interface, making Router compatible
-// with the standard library's HTTP server. This method is optimized for maximum
-// performance with different code paths for static and dynamic routes.
+// with the standard library's HTTP server. This method uses different code paths
+// for static and dynamic routes.
 //
 // The method performs the following optimizations:
-//   - Ultra-fast static route lookup for paths without parameters
+//   - Fast static route lookup for paths without parameters
 //   - Context pooling to reduce garbage collection pressure
 //   - Direct parameter extraction into context arrays for up to 8 parameters
-//   - Zero-allocation path matching where possible
+//   - Efficient path matching where possible
 //   - Optional OpenTelemetry tracing with minimal overhead (when enabled)
-//   - Advanced routing with versioning and wildcard support
+//   - Routing with versioning and wildcard support
 //
 // Static routes use stack allocation to eliminate pool overhead, while
 // dynamic routes use context pooling for optimal memory reuse.
@@ -314,7 +314,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Ultra-fast compiled route lookup (primary optimization)
+	// Compiled route lookup (primary optimization)
 	// Only use compiled routes if they exist (pre-compiled during warmup)
 	if tree.compiled != nil {
 		if handlers := tree.compiled.getRoute(path); handlers != nil {
@@ -332,7 +332,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				r.serveWithMetrics(rw, req, handlers, path, true)
 			} else {
 				// No metrics or tracing, use original response writer for zero allocations
-				// Direct execution without wrapper for maximum performance
+				// Direct execution without wrapper for performance
 				// Use global context pool to avoid allocations
 				ctx := globalContextPool.Get().(*Context)
 				ctx.Request = req
@@ -402,7 +402,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.serveDynamicWithMetrics(c, handlers, path)
 	} else {
 		// No metrics or tracing, use original response writer for zero allocations
-		// Direct execution without wrapper for maximum performance
+		// Direct execution without wrapper for performance
 		c.Response = w
 		for _, handler := range handlers {
 			handler(c)
@@ -464,7 +464,7 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 		r.serveWithMetrics(rw, req, handlers, version, true)
 	} else {
 		// No metrics or tracing, use original response writer for zero allocations
-		// Direct execution without wrapper for maximum performance
+		// Direct execution without wrapper for performance
 		// Use global context pool to avoid allocations
 		ctx := globalContextPool.Get().(*Context)
 		ctx.Request = req
@@ -485,7 +485,7 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 }
 
 // compileRoutesForMethod compiles static routes for a specific HTTP method
-// to enable ultra-fast lookup using compiled route tables
+// to enable fast lookup using compiled route tables
 func (r *Router) compileRoutesForMethod(method string) {
 	tree := r.getTreeForMethodDirect(method)
 	if tree != nil {
@@ -493,7 +493,7 @@ func (r *Router) compileRoutesForMethod(method string) {
 	}
 }
 
-// CompileAllRoutes pre-compiles all static routes for maximum performance.
+// CompileAllRoutes pre-compiles all static routes for performance.
 // This should be called after all routes are registered for optimal startup performance.
 func (r *Router) CompileAllRoutes() {
 	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
@@ -504,7 +504,7 @@ func (r *Router) CompileAllRoutes() {
 	}
 }
 
-// WarmupOptimizations pre-compiles routes and warms up context pools for maximum performance.
+// WarmupOptimizations pre-compiles routes and warms up context pools for performance.
 // This should be called after all routes are registered and before serving requests.
 func (r *Router) WarmupOptimizations() {
 	// Compile all static routes

@@ -23,7 +23,7 @@ type VersioningConfig struct {
 	// Version validation (optional)
 	ValidVersions []string // e.g., ["v1", "v2", "latest"]
 
-	// Custom version detection function (advanced)
+	// Custom version detection function
 	CustomDetector func(*http.Request) string
 }
 
@@ -92,7 +92,7 @@ type VersionRouter struct {
 	version string
 }
 
-// detectVersion performs zero-allocation version detection
+// detectVersion performs efficient version detection
 func (r *Router) detectVersion(req *http.Request) string {
 	// Custom detector takes precedence
 	if r.versioning.CustomDetector != nil {
@@ -116,7 +116,7 @@ func (r *Router) detectVersion(req *http.Request) string {
 	return r.versioning.DefaultVersion
 }
 
-// getHeaderVersion extracts version from header with zero allocations
+// getHeaderVersion extracts version from header efficiently
 func (r *Router) getHeaderVersion(req *http.Request) string {
 	// Direct header access without string allocations
 	header := req.Header.Get(r.versioning.HeaderName)
@@ -134,7 +134,7 @@ func (r *Router) getHeaderVersion(req *http.Request) string {
 	return header
 }
 
-// getQueryVersion extracts version from query parameter with zero allocations
+// getQueryVersion extracts version from query parameter efficiently
 func (r *Router) getQueryVersion(req *http.Request) string {
 	// Direct query parameter access without allocations
 	query := req.URL.Query()

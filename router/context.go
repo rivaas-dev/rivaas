@@ -13,13 +13,13 @@ import (
 )
 
 // Context represents the context of the current HTTP request with optimizations
-// for high-performance request handling. It provides access to request/response
+// for request handling. It provides access to request/response
 // objects, URL parameters, and middleware chain execution.
 //
-// The Context is optimized for speed with several performance features:
+// The Context includes several performance features:
 //   - Fast parameter storage using arrays for up to 8 parameters
-//   - Zero-allocation parameter lookup for common cases
-//   - Optimized response methods with minimal allocations
+//   - Efficient parameter lookup for common cases
+//   - Response methods with minimal allocations
 //   - Efficient middleware chain execution
 //   - OpenTelemetry tracing support with minimal overhead
 //   - Custom metrics recording capabilities
@@ -80,7 +80,7 @@ func NewContext(w http.ResponseWriter, r *http.Request) *Context {
 		Response: w,
 		index:    -1,
 		router:   nil, // Will be set when needed for metrics
-		// No allocations in constructor for maximum performance
+		// No allocations in constructor for performance
 	}
 }
 
@@ -107,7 +107,7 @@ func (c *Context) Next() {
 }
 
 // Param returns the value of the URL parameter by key.
-// This method is optimized for performance with zero allocations for up to 8 parameters.
+// This method is efficient with minimal allocations for up to 8 parameters.
 //
 // For routes with parameters like "/users/:id/posts/:post_id", you can extract
 // the parameter values using their names:
@@ -154,13 +154,13 @@ func (c *Context) JSON(code int, obj interface{}) error {
 }
 
 // String sends a plain text response with optional formatting.
-// This method is optimized to minimize allocations for common patterns.
+// This method minimizes allocations for common patterns.
 // Returns an error if writing to the response fails.
 //
 // For simple strings without formatting, zero allocations are achieved:
 //
 //	c.String(200, "Hello World")              // Zero allocations
-//	c.String(200, "User: %s", username)       // Optimized for single %s
+//	c.String(200, "User: %s", username)       // Efficient for single %s
 //	c.String(200, "Complex: %d %s", id, name) // Falls back to fmt.Fprintf
 //
 // The method automatically optimizes single %s patterns when exactly one value is provided.
@@ -284,14 +284,14 @@ func (c *Context) PostForm(key string) string {
 }
 
 // IsJSON returns true if the request content type is application/json.
-// This is a zero-allocation helper for content type checking.
+// This is an efficient helper for content type checking.
 func (c *Context) IsJSON() bool {
 	contentType := c.Request.Header.Get("Content-Type")
 	return strings.Contains(contentType, "application/json")
 }
 
 // IsXML returns true if the request content type is application/xml or text/xml.
-// This is a zero-allocation helper for content type checking.
+// This is an efficient helper for content type checking.
 func (c *Context) IsXML() bool {
 	contentType := c.Request.Header.Get("Content-Type")
 	return strings.Contains(contentType, "application/xml") || strings.Contains(contentType, "text/xml")
@@ -313,7 +313,7 @@ func (c *Context) AcceptsHTML() bool {
 
 // GetClientIP returns the real client IP address.
 // It checks X-Forwarded-For, X-Real-IP headers and falls back to RemoteAddr.
-// This is optimized for zero allocations in common cases.
+// This is efficient for common cases.
 func (c *Context) GetClientIP() string {
 	// Check X-Forwarded-For header first (most common proxy header)
 	if xff := c.Request.Header.Get("X-Forwarded-For"); xff != "" {
@@ -363,7 +363,7 @@ func (c *Context) Redirect(code int, location string) {
 }
 
 // File serves a file from the filesystem to the client.
-// This is optimized for performance and handles proper content types.
+// This handles proper content types efficiently.
 //
 // Example:
 //
@@ -418,7 +418,7 @@ func (c *Context) Version() string {
 }
 
 // IsVersion returns true if the current request is for the specified version.
-// This is a zero-allocation helper for version checking.
+// This is an efficient helper for version checking.
 //
 // Example:
 //
@@ -465,7 +465,7 @@ func (c *Context) GetCookie(name string) (string, error) {
 }
 
 // reset resets the context to its initial state for reuse.
-// This method is optimized for high-performance context pooling with zero allocations.
+// This method is efficient for context pooling with minimal allocations.
 func (c *Context) reset() {
 	// Fast reset without allocations
 	c.Request = nil

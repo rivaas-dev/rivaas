@@ -4,14 +4,14 @@ import (
 	"sync"
 )
 
-// Global context pool for zero-allocation static routes
+// Global context pool for static routes
 var globalContextPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &Context{}
 	},
 }
 
-// ContextPool provides enhanced context pooling with specialized pools
+// ContextPool provides context pooling with specialized pools
 // for different parameter counts to optimize memory usage and GC pressure
 type ContextPool struct {
 	// Separate pools for different context sizes
@@ -23,13 +23,13 @@ type ContextPool struct {
 	router     *Router
 }
 
-// NewContextPool creates a new enhanced context pool
+// NewContextPool creates a new context pool
 func NewContextPool(router *Router) *ContextPool {
 	cp := &ContextPool{router: router}
 
 	// Small context pool (≤4 params) - most common case
 	cp.smallPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			ctx := &Context{
 				router: router,
 				// Pre-allocate small parameter arrays
@@ -43,7 +43,7 @@ func NewContextPool(router *Router) *ContextPool {
 
 	// Medium context pool (5-8 params)
 	cp.mediumPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			ctx := &Context{
 				router:      router,
 				paramKeys:   [8]string{},
@@ -56,7 +56,7 @@ func NewContextPool(router *Router) *ContextPool {
 
 	// Large context pool (>8 params) - rare case
 	cp.largePool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			ctx := &Context{
 				router:      router,
 				paramKeys:   [8]string{},
@@ -70,7 +70,7 @@ func NewContextPool(router *Router) *ContextPool {
 
 	// Warm-up pool for high-traffic scenarios
 	cp.warmupPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make([]*Context, 0, 10) // Pool of contexts
 		},
 	}
@@ -80,7 +80,7 @@ func NewContextPool(router *Router) *ContextPool {
 
 // GetContext gets a context from the appropriate pool based on parameter count
 func (cp *ContextPool) GetContext(paramCount int) *Context {
-	// Choose pool based on parameter count - optimized for common cases
+	// Choose pool based on parameter count - efficient for common cases
 	if paramCount <= 4 {
 		return cp.smallPool.Get().(*Context)
 	} else if paramCount <= 8 {
@@ -95,7 +95,7 @@ func (cp *ContextPool) PutContext(ctx *Context) {
 	// Reset context for reuse
 	ctx.reset()
 
-	// Return to appropriate pool based on parameter count - optimized
+	// Return to appropriate pool based on parameter count - efficient
 	if ctx.paramCount <= 4 {
 		cp.smallPool.Put(ctx)
 	} else if ctx.paramCount <= 8 {
@@ -109,19 +109,19 @@ func (cp *ContextPool) PutContext(ctx *Context) {
 // This reduces allocation pressure during peak load.
 func (cp *ContextPool) WarmupPools() {
 	// Warm up small pool (most common case)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		ctx := cp.smallPool.Get().(*Context)
 		cp.smallPool.Put(ctx)
 	}
 
 	// Warm up medium pool
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		ctx := cp.mediumPool.Get().(*Context)
 		cp.mediumPool.Put(ctx)
 	}
 
 	// Warm up large pool
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		ctx := cp.largePool.Get().(*Context)
 		cp.largePool.Put(ctx)
 	}
