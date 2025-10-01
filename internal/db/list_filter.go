@@ -1,6 +1,8 @@
 package db
 
-import "gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+import (
+	"time"
+)
 
 // SearchParams represents the search parameters.
 type SearchParams struct {
@@ -12,9 +14,9 @@ type SearchParams struct {
 type FilterParams struct {
 	ActorID       string
 	Environment   string
-	ExpiresAt     *date.Date
-	ExpiresBefore *date.Date
-	ExpiresAfter  *date.Date
+	ExpiresAt     *time.Time
+	ExpiresBefore *time.Time
+	ExpiresAfter  *time.Time
 	Active        *bool
 	Deleted       *bool
 }

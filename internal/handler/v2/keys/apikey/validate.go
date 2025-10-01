@@ -3,6 +3,7 @@ package apikey
 import (
 	"fmt"
 	"github.com/google/uuid"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/validation"
 	"gitlab.ci.fdmg.org/ci-api/cigourn"
 )
@@ -49,7 +50,7 @@ var (
 			if in == "" {
 				return nil
 			}
-			_, err := paramToDate(in)
+			_, err := date.ParseTime(in)
 			return err
 		},
 	}

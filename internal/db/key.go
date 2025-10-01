@@ -2,8 +2,6 @@ package db
 
 import (
 	"time"
-
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 )
 
 type Contact struct {
@@ -29,11 +27,11 @@ type Key struct {
 	Hash        string            `gorm:"column:key_hash"`
 	ActorID     string            `gorm:"column:actor_id;index"`
 	CreatorID   string            `gorm:"column:creator_id"`
-	ExpiresAt   *date.Date        `gorm:"column:expires_at"`
 	CreatedAt   time.Time         `gorm:"column:creation_date;autoCreateTime"`
 	UpdatedAt   time.Time         `gorm:"column:last_modified;autoUpdateTime"`
-	Description *string           `gorm:"column:description"`
+	ExpiresAt   *time.Time        `gorm:"column:expires_at"`
 	DeletedAt   *time.Time        `gorm:"column:deleted_at"`
+	Description *string           `gorm:"column:description"`
 	Contact     Contact           `gorm:"column:contacts;type:json;serializer:json"`
 	Active      bool              `gorm:"column:active;default:true"`
 	Metadata    map[string]any    `gorm:"column:metadata;type:json;serializer:json"`

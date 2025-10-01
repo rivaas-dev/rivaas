@@ -4,21 +4,21 @@ package keys
 import (
 	"errors"
 	"fmt"
-	"github.com/companyinfo/jsonapi"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
-	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
-	"go.opentelemetry.io/otel/attribute"
 	"net/http"
 	"time"
 
+	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/validation"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
+	"go.opentelemetry.io/otel/attribute"
 	"go.temporal.io/sdk/client"
 )
 
@@ -86,7 +86,7 @@ type workflowOutput struct {
 	ActorID        string
 	CreatorID      string
 	Policies       []string
-	ExpiresAt      *date.Date
+	ExpiresAt      *time.Time
 	Quota          int64
 	QuotaRemaining int64
 	Description    string
@@ -141,11 +141,13 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		return
 	}
 
-	if !h.isAuthorized(ctx, NewKeyActorID(
+	if !h.isAuthorizedWithBody(ctx, NewKeyActorID(
 		dbKey.ActorID,
 		dbKey.CreatorID,
-	)) {
-		// The appropriate response is already handled in "isAuthorized()"
+	), &Body{
+		Active: request.Body.Attributes.Active,
+	}) {
+		// The appropriate response is already handled in "isAuthorizedWithPatch()"
 		return
 	}
 
@@ -227,16 +229,16 @@ func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.
 		Name:           workflowOutput.Name,
 		CustomerName:   customerName,
 		Hash:           dbKey.Hash,
-		CreationDate:   dbKey.CreatedAt.Format(time.RFC3339),
+		CreatedAt:      date.FormatTime(dbKey.CreatedAt),
+		DeletedAt:      date.FormatTimeToPtr(dbKey.DeletedAt),
 		Environment:    dbKey.Environment,
 		ActorID:        workflowOutput.ActorID,
 		CreatorID:      workflowOutput.CreatorID,
 		Policies:       policies.FilterString(workflowOutput.Policies),
-		ExpiresAt:      workflowOutput.ExpiresAt,
+		ExpiresAt:      date.FormatTimeToPtr(workflowOutput.ExpiresAt),
 		Quota:          workflowOutput.Quota,
 		QuotaRemaining: workflowOutput.QuotaRemaining,
 		Description:    workflowOutput.Description,
-		CreatedDate:    workflowOutput.CreatedAt.Format(time.RFC3339),
 		Contact:        workflowOutput.Contact,
 		Active:         workflowOutput.Active,
 		RateLimit:      workflowOutput.RateLimit,

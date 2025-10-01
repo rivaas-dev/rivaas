@@ -158,15 +158,15 @@ func (s DBClient) prepareListQuery(searchParams SearchParams) *gorm.DB {
 	}
 
 	if searchParams.ExpiresAt != nil {
-		q = q.Where("expires_at = ?", searchParams.ExpiresAt.GormValue())
+		q = q.Where("expires_at = ?", searchParams.ExpiresAt)
 	}
 
 	if searchParams.ExpiresBefore != nil {
-		q = q.Where("expires_at < ?", searchParams.ExpiresBefore.GormValue())
+		q = q.Where("expires_at < ?", searchParams.ExpiresBefore)
 	}
 
 	if searchParams.ExpiresAfter != nil {
-		q = q.Where(s.client.Or("expires_at > ?", searchParams.ExpiresAfter.GormValue()).Or("expires_at IS NULL"))
+		q = q.Where(s.client.Or("expires_at > ?", searchParams.ExpiresAfter).Or("expires_at IS NULL"))
 	}
 
 	if searchParams.Active != nil {

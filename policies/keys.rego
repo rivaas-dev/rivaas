@@ -6,6 +6,7 @@
 #   - input.user.number_of_keys.max: {type: int}
 #   - input.request.method: {type: string}
 #   - input.request.path: {type: string}
+#   - input.request.body.active: {type: bool}
 #   - input.key.actor_id: {type: string}
 #   - input.key.creator_id: {type: string}
 # custom:
@@ -67,11 +68,24 @@ allow := true {
   input.user.number_of_keys.current < input.user.number_of_keys.max
 }
 
+# v2 PATCH rules: only admins may modify 'active'; everyone may modify other fields (i.e., when 'active' is absent).
+allow := true {
+  input.request.method == "PATCH"
+  input.request.path == "/v2/keys/:id"
+
+  # If 'active' is provided, only administrators may patch it.
+  input.request.body.active != null
+  is_admin(input.user.roles)
+}
+
 allow := true {
   input.request.method == "PATCH"
   input.request.path == "/v2/keys/:id"
 
   is_user_authorized(input.user.id, input.key.actor_id, input.user.roles)
+
+  # If 'active' is not provided at all, users can patch their own keys (other attributes only).
+  input.request.body.active == null
 }
 
 allow := true {

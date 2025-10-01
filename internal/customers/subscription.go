@@ -2,7 +2,6 @@ package customers
 
 import (
 	"errors"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"time"
@@ -73,7 +72,7 @@ func (s *Service) GetCurrentAPIKeyCount(customerID, accountID string) (productio
 	params := db.SearchParams{
 		FilterParams: db.FilterParams{
 			Active:       db.Pointer(true),
-			ExpiresAfter: &date.Date{Time: time.Now()},
+			ExpiresAfter: db.Pointer(time.Now()),
 			Deleted:      db.Pointer(false),
 		},
 		MatchParams: db.MatchParams{
