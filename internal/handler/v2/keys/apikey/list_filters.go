@@ -27,7 +27,7 @@ type FilterParam struct {
 
 // NewAdministratorSearchParameters construct search parameters from maps struct for administrator users
 func NewAdministratorSearchParameters(filter, match map[string]string) (db.SearchParams, error) {
-	expiresAtParam, err := paramToDate(filter[expiresAtFilter])
+	expiresAtParam, err := date.ParseTime(filter[expiresAtFilter])
 	if err != nil {
 		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`: %w", expiresAtFilter, err)
 	}
@@ -79,7 +79,7 @@ func NewCustomerSearchParameters(filter, match map[string]string, requestCustome
 		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`", actorIDFilter)
 	}
 
-	expiresAtParam, err := paramToDate(filter[expiresAtFilter])
+	expiresAtParam, err := date.ParseTime(filter[expiresAtFilter])
 	if err != nil {
 		return db.SearchParams{}, fmt.Errorf("invalid filter `%s`: %w", expiresAtFilter, err)
 	}
@@ -127,17 +127,4 @@ func paramToBool(param string) (*bool, error) {
 	}
 
 	return &out, nil
-}
-
-func paramToDate(param string) (*date.Date, error) {
-	if param == "" {
-		return nil, nil
-	}
-
-	result, err := date.Parse(param)
-	if err != nil {
-		return result, err
-	}
-
-	return result, nil
 }

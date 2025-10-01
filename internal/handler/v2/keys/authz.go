@@ -3,6 +3,8 @@ package keys
 import (
 	"errors"
 	"fmt"
+	"net/http"
+
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
@@ -10,7 +12,6 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
 	"gitlab.ci.fdmg.org/ci-api/cigourn/api"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
-	"net/http"
 )
 
 type AuthorizationInput struct {
@@ -33,11 +34,16 @@ type NumberOfKeys struct {
 type Request struct {
 	Method string `mapstructure:"method"`
 	Path   string `mapstructure:"path"`
+	Body   *Body  `mapstructure:"body,omitempty"`
 }
 
 type Key struct {
 	ActorID   string `mapstructure:"actor_id"`
 	CreatorID string `mapstructure:"creator_id"`
+}
+
+type Body struct {
+	Active *bool `mapstructure:"active"`
 }
 
 func NewKey(actorID, customerID, accountID, creatorID string) *Key {
@@ -63,7 +69,7 @@ func NewKeyCustomerAccountID(customerID, accountID, creatorID string) *Key {
 	}
 }
 
-func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key) (map[string]any, error) {
+func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key, body *Body) (map[string]any, error) {
 	var authzIn map[string]any
 
 	authHeaders, err := headers.GetAuthorization(ctx)
@@ -79,6 +85,7 @@ func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key) (map[str
 		Request: Request{
 			Method: ctx.Request.Method,
 			Path:   ctx.FullPath(),
+			Body:   body,
 		},
 	}
 
@@ -144,7 +151,18 @@ func (h *Handler) getSubscriptionAuthorizationInput(ctx *goskell.Context, key *K
 }
 
 func (h *Handler) isAuthorized(ctx *goskell.Context, key *Key) bool {
-	authorizationInput, err := h.getAuthorizationInput(ctx, key)
+	authorizationInput, err := h.getAuthorizationInput(ctx, key, nil)
+	if err != nil {
+		log.Err(err).Msg("error on marshaling response")
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
+		return false
+	}
+
+	return h.isInputAuthorized(ctx, authorizationInput)
+}
+
+func (h *Handler) isAuthorizedWithBody(ctx *goskell.Context, key *Key, body *Body) bool {
+	authorizationInput, err := h.getAuthorizationInput(ctx, key, body)
 	if err != nil {
 		log.Err(err).Msg("error on marshaling response")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)

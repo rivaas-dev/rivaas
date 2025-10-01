@@ -468,11 +468,22 @@ components:
                   items:
                     type: number
                     example: [12344, 238732189]
-            creationDate:
-              description: date the key was created
-              example: "2025-04-22T14:50:13Z"
-              type: string
-              format: date-time
+                createdAt:
+                  description: time and date when the key was created
+                  example: "2025-04-22T14:50:13Z"
+                  type: string
+                  format: date-time
+                expiresAt:
+                  description: expiration time and date of the key
+                  type: string
+                  example: "2045-04-22T14:50:13Z"
+                  format: date-time
+                deletedAt:
+                  description: time and date when the key was deleted
+                  type: string
+                  example: "2035-04-22T14:50:13Z"
+                  format: date-time
+                  nullable: true
             creatorID:
               description: the person who created the key
               type: string
@@ -496,11 +507,6 @@ components:
               enum:
                 - production
                 - sandbox
-            expiresAt:
-              description: expiration date of the key
-              type: string
-              example: "2045-01-01"
-              format: date-time
             hash:
               description: hash id of th key
               type: string
@@ -648,8 +654,20 @@ components:
                 environment:
                   type: string
                   example: "production"
-                expiresAt:
+                createdAt:
+                  description: time and date when the key was created
+                  example: "2025-04-22T14:50:13Z"
                   type: string
+                  format: date-time
+                expiresAt:
+                  description: expiration time and date of the key
+                  type: string
+                  example: "2045-04-22T14:50:13Z"
+                  format: date-time
+                deletedAt:
+                  description: time and date when the key was deleted
+                  type: string
+                  example: "2035-04-22T14:50:13Z"
                   format: date-time
                   nullable: true
                 hash:
@@ -740,9 +758,6 @@ components:
                       items:
                         type: string
                         example: ["user1", "user2"]
-                active:
-                  type: boolean
-                  example: true
                 labels:
                   type: object
                   example:
@@ -773,10 +788,6 @@ components:
                   items:
                     type: string
                   example: ["policy-1", "policy-2"]
-                expiresAt:
-                  type: string
-                  example: "2025-05-06"
-                  format: date-time
                 quota:
                   type: number
                   example: 1230
@@ -807,16 +818,22 @@ components:
                 active:
                   type: boolean
                   example: true
-                creationDate:
+                createdAt:
+                  description: time and date when the key was created
+                  example: "2025-04-22T14:50:13Z"
                   type: string
-                  description: DateTime on which the api key was created
-                  format: date
-                  example: 2025-05-06T14:44:35Z
-                createdDate:
+                  format: date-time
+                expiresAt:
+                  description: expiration time and date of the key
                   type: string
-                  description: DateTime on which the api key was created
-                  format: date
-                  example: 2025-05-06T14:44:35Z
+                  example: "2045-04-22T14:50:13Z"
+                  format: date-time
+                deletedAt:
+                  description: time and date when the key was deleted
+                  type: string
+                  example: "2035-04-22T14:50:13Z"
+                  format: date-time
+                  nullable: true
                 rateLimit:
                   type: object
                   properties:
@@ -910,14 +927,22 @@ components:
                       items:
                         type: string
                       example: null
-                createdDate:
+                createdAt:
+                  description: time and date when the key was created
+                  example: "2025-04-22T14:50:13Z"
                   type: string
                   format: date-time
-                  example: 2025-05-06T14:44:35Z
-                creationDate:
+                expiresAt:
+                  description: expiration time and date of the key
                   type: string
+                  example: "2045-04-22T14:50:13Z"
                   format: date-time
-                  example: 2025-05-06T14:44:35Z
+                deletedAt:
+                  description: time and date when the key was deleted
+                  type: string
+                  example: "2035-04-22T14:50:13Z"
+                  format: date-time
+                  nullable: true
                 creatorID:
                   type: string
                   example: urn:online:user:0000:a53837f8-f8c0-4280-a3d3-396d80eb5c8b
@@ -933,11 +958,6 @@ components:
                 environment:
                   type: string
                   example: production
-                expiresAt:
-                  type: string
-                  format: date-time
-                  nullable: true
-                  example: null
                 hash:
                   type: string
                   example: 2f6c2f6c710e716c710e

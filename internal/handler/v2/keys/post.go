@@ -9,8 +9,6 @@ import (
 	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
@@ -117,7 +115,7 @@ type WorkflowPostInput struct {
 	CustomerID  *string                  // References the actor customer ID
 	AccountID   *string                  // References the actor user ID
 	Policies    []string                 // The access policies to give, leave empty for none.
-	ExpiresAt   *date.Date               // Date on which the key quota will expire at 00.00 (optional).
+	ExpiresAt   *time.Time               // Date on which the key quota will expire at 00.00 (optional).
 	Quota       int64                    // The amount of calls the API Key can make (optional).
 	Description string                   // Description for the key (optional).
 	Contact     apikey.Contact           // Contacts information.
@@ -138,7 +136,8 @@ type PostOutput struct {
 	ActorID        string                   `jsonapi:"attr,actorID"`
 	CreatorID      string                   `jsonapi:"attr,creatorID"`
 	Policies       []string                 `jsonapi:"attr,policies"`
-	ExpiresAt      *date.Date               `jsonapi:"attr,expiresAt"`
+	ExpiresAt      *time.Time               `jsonapi:"attr,expiresAt"`
+	CreatedAt      time.Time                `jsonapi:"attr,createdAt,omitempty"`
 	Quota          int64                    `jsonapi:"attr,quota"`
 	QuotaRemaining int64                    `jsonapi:"attr,quotaRemaining"`
 	Description    string                   `jsonapi:"attr,description"`
@@ -158,7 +157,7 @@ type WorkflowPostOutput struct {
 	ActorID        string                   `json:"actorID"`
 	CreatorID      string                   `json:"creatorID"`
 	Policies       []string                 `json:"policies"`
-	ExpiresAt      *date.Date               `json:"expiresAt"`
+	ExpiresAt      *time.Time               `json:"expiresAt"`
 	Quota          int64                    `json:"quota"`
 	QuotaRemaining int64                    `json:"quotaRemaining"`
 	Description    string                   `json:"description"`
@@ -316,6 +315,7 @@ func (h *Handler) workflowOutputToPostResponse(ctx context.Context, workflowOutp
 		CreatorID:      workflowOutput.CreatorID,
 		Policies:       policies.FilterString(workflowOutput.Policies),
 		ExpiresAt:      workflowOutput.ExpiresAt,
+		CreatedAt:      workflowOutput.CreationDate,
 		Quota:          workflowOutput.Quota,
 		QuotaRemaining: workflowOutput.QuotaRemaining,
 		Description:    workflowOutput.Description,

@@ -15,7 +15,6 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"math"
 	"net/http"
-	"time"
 )
 
 // ListInput represents the request body of the LIST endpoint.
@@ -25,24 +24,6 @@ type ListInput struct {
 	Filter           map[string]string
 	Match            map[string]string
 	PaginationParams internal.PaginationParams
-}
-
-// ListOutput represents the list of key's information.
-type ListOutput struct {
-	ID           string                   `jsonapi:"primary,keys"`
-	Name         string                   `jsonapi:"attr,name"`
-	CustomerName string                   `jsonapi:"attr,customerName"`
-	Hash         string                   `jsonapi:"attr,hash"`
-	CreatorID    string                   `jsonapi:"attr,creatorID"`
-	ActorID      string                   `jsonapi:"attr,actorID"`
-	CreationAt   string                   `jsonapi:"attr,creationDate"`
-	Contact      apikey.Contact           `jsonapi:"attr,contacts"`
-	Active       bool                     `jsonapi:"attr,active"`
-	RateLimit    apikey.RateLimit         `jsonapi:"attr,rateLimit"`
-	ExpiresAt    *date.Date               `jsonapi:"attr,expiresAt"`
-	Description  *string                  `jsonapi:"attr,description"`
-	Environment  apikey.ApikeyEnvironment `jsonapi:"attr,environment"`
-	Labels       map[string]string        `jsonapi:"attr,labels"`
 }
 
 // LIST handles GET requests on the endpoint to get list of keys.
@@ -115,8 +96,8 @@ func (h *Handler) getAPIKeys(request *ListInput) (keys []*db.Key, totalResults i
 	return h.keysRepository.GetKeysPaginated(searchParams, request.PaginationParams.Size, request.PaginationParams.Page)
 }
 
-func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key) []*ListOutput {
-	response := make([]*ListOutput, 0)
+func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key) []*apikey.ListOutput {
+	response := make([]*apikey.ListOutput, 0)
 	for _, key := range keys {
 		rl := apikey.RateLimit{
 			Rate: 0,
@@ -137,16 +118,17 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 			log.Err(err).Msg("cant find client in keycloak")
 		}
 		// Define the response
-		response = append(response, &ListOutput{
+		response = append(response, &apikey.ListOutput{
 			ID:           key.ID,
 			Name:         key.Name,
 			CustomerName: internal.GetCustomerName(keycloakGroups, *key),
 			CreatorID:    key.CreatorID,
 			Hash:         key.Hash,
 			ActorID:      key.ActorID,
-			ExpiresAt:    key.ExpiresAt,
 			Description:  key.Description,
-			CreationAt:   key.CreatedAt.Format(time.RFC3339),
+			CreatedAt:    date.FormatTime(key.CreatedAt),
+			ExpiresAt:    date.FormatTimeToPtr(key.ExpiresAt),
+			DeletedAt:    date.FormatTimeToPtr(key.DeletedAt),
 			Contact:      apikey.DBToContact(key.Contact),
 			Active:       key.Active,
 			RateLimit:    rl,

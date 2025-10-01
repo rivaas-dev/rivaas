@@ -1,7 +1,6 @@
 package apikey
 
 import (
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 )
 
@@ -37,22 +36,41 @@ const (
 type APIKey struct {
 	ID             string            `jsonapi:"primary,keys"` // The key identifier. This is a unique identifier to each API key.
 	Name           string            `jsonapi:"attr,name"`    // name of the API Key
-	CustomerName   string            `jsonapi:"attr,customerName"`
 	Hash           string            `jsonapi:"attr,hash,omitempty"`
-	CreationDate   string            `jsonapi:"attr,creationDate"`
+	Description    string            `jsonapi:"attr,description"`
 	Environment    ApikeyEnvironment `jsonapi:"attr,environment"`
+	CustomerName   string            `jsonapi:"attr,customerName"`
 	ActorID        string            `jsonapi:"attr,actorID"`
 	CreatorID      string            `jsonapi:"attr,creatorID"`
 	Policies       []string          `jsonapi:"attr,policies"`
-	ExpiresAt      *date.Date        `jsonapi:"attr,expiresAt"`
-	Quota          int64             `jsonapi:"attr,quota"`
-	QuotaRemaining int64             `jsonapi:"attr,quotaRemaining"`
-	Description    string            `jsonapi:"attr,description"`
-	CreatedDate    string            `jsonapi:"attr,createdDate"`
 	Contact        Contact           `jsonapi:"attr,contacts"`
 	Active         bool              `jsonapi:"attr,active"`
 	RateLimit      RateLimit         `jsonapi:"attr,rateLimit"`
+	Quota          int64             `jsonapi:"attr,quota"`
+	QuotaRemaining int64             `jsonapi:"attr,quotaRemaining"`
 	Labels         map[string]string `jsonapi:"attr,labels"`
+	CreatedAt      string            `jsonapi:"attr,createdAt"`
+	ExpiresAt      *string           `jsonapi:"attr,expiresAt"`
+	DeletedAt      *string           `jsonapi:"attr,deletedAt"`
+}
+
+// ListOutput represents the list of key's information.
+type ListOutput struct {
+	ID           string            `jsonapi:"primary,keys"`
+	Name         string            `jsonapi:"attr,name"`
+	Hash         string            `jsonapi:"attr,hash"`
+	Description  *string           `jsonapi:"attr,description"`
+	Environment  ApikeyEnvironment `jsonapi:"attr,environment"`
+	CustomerName string            `jsonapi:"attr,customerName"`
+	ActorID      string            `jsonapi:"attr,actorID"`
+	CreatorID    string            `jsonapi:"attr,creatorID"`
+	Contact      Contact           `jsonapi:"attr,contacts"`
+	Active       bool              `jsonapi:"attr,active"`
+	RateLimit    RateLimit         `jsonapi:"attr,rateLimit"`
+	Labels       map[string]string `jsonapi:"attr,labels"`
+	CreatedAt    string            `jsonapi:"attr,createdAt"`
+	DeletedAt    *string           `jsonapi:"attr,deletedAt"`
+	ExpiresAt    *string           `jsonapi:"attr,expiresAt"`
 }
 
 func String(str *string) string {

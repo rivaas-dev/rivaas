@@ -149,7 +149,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 		Hash:           dbKey.Hash,
 		ActorID:        dbKey.ActorID,
 		CreatorID:      dbKey.CreatorID,
-		ExpiresAt:      dbKey.ExpiresAt,
+		ExpiresAt:      date.FromTimePtr(dbKey.ExpiresAt),
 		Policies:       policies.FilterString(tykResponse.ApplyPolicies),
 		Quota:          tykResponse.QuotaMax,
 		QuotaRemaining: tykResponse.QuotaRemaining,

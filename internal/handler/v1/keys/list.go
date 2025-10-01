@@ -109,7 +109,7 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 			CreatorID:    key.CreatorID,
 			Hash:         key.Hash,
 			ActorID:      key.ActorID,
-			ExpiresAt:    key.ExpiresAt,
+			ExpiresAt:    date.FromTimePtr(key.ExpiresAt),
 			Description:  key.Description,
 			CreationAt:   key.CreatedAt,
 			Contact: Contact{

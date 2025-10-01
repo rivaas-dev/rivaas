@@ -10,6 +10,7 @@ import (
 	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
@@ -18,7 +19,6 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"go.opentelemetry.io/otel/attribute"
 	"net/http"
-	"time"
 )
 
 // GET handles GET requests on the endpoint.
@@ -122,15 +122,15 @@ func (h *Handler) merge(dbKey *db.Key, tykResponse *tyk.SessionState, customerNa
 	result := apikey.APIKey{
 		ID:           dbKey.ID,
 		Name:         dbKey.Name,
+		Description:  apikey.String(dbKey.Description),
 		CustomerName: customerName,
 		Hash:         dbKey.Hash,
-		CreationDate: dbKey.CreatedAt.Format(time.RFC3339),
 		Environment:  dbKey.Environment,
 		ActorID:      dbKey.ActorID,
 		CreatorID:    dbKey.CreatorID,
-		ExpiresAt:    dbKey.ExpiresAt,
-		Description:  apikey.String(dbKey.Description),
-		CreatedDate:  dbKey.CreatedAt.Format(time.RFC3339),
+		ExpiresAt:    date.FormatTimeToPtr(dbKey.ExpiresAt),
+		DeletedAt:    date.FormatTimeToPtr(dbKey.DeletedAt),
+		CreatedAt:    date.FormatTime(dbKey.CreatedAt),
 		Contact:      apikey.DBToContact(dbKey.Contact),
 		Active:       dbKey.Active,
 		Labels:       dbKey.Labels,
