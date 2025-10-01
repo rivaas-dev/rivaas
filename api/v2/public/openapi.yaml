@@ -133,6 +133,12 @@ paths:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
         404:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        422:
+          description: Unprocessable Entity
+          content:
+            "application/vnd.api+json":
+              schema:
+                $ref: "#/components/schemas/CreateKeyV2UnprocessableEntityResponse"
         500:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
 
@@ -674,6 +680,32 @@ components:
                     Per:
                       type: integer
                       example: 60
+
+    CreateKeyV2UnprocessableEntityResponse:
+      type: object
+      properties:
+        errors:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+                default: "failed on API key creation failed"
+              detail:
+                type: string
+                default: "this account is not a valid API plan. Please assign/select an API plan before creating API keys"
+              status:
+                description: "the HTTP status code applicable to this problem"
+                type: string
+                example: 422
+                minLength: 3
+                maxLength: 3
+              code:
+                description: "an application-specific error code (not always the same as 'status')"
+                type: string
+                example: 422
 
     UpdateKeyV2Request:
       type: object

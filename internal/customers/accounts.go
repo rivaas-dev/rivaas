@@ -18,6 +18,8 @@ const (
 	checkTypeValue string = "api"
 )
 
+var ErrInvalidGroup = errors.New("invalid group or sub group")
+
 type AccountExtended struct {
 	Account
 	Subscription Subscription `json:"subscription,omitempty" jsonapi:"attr,subscription,omitempty"`
@@ -75,7 +77,7 @@ type KeycloakAccount struct {
 // GroupsToAccount looks at the first subgroup of the main and tries
 // to find groups that have attribute `type` = `api`. It only goes one level down
 // from the main group.
-func (s *Service) GroupsToAccount(group *keycloak.Group, subGroups []*keycloak.Group) []*Account {
+func (s *Service) GroupsToAccount(group *keycloak.Group, subGroups []*keycloak.Group) ([]*Account, error) {
 	sort.Slice(subGroups, func(i, j int) bool {
 		return *subGroups[i].Name < *subGroups[j].Name
 	})
@@ -84,20 +86,27 @@ func (s *Service) GroupsToAccount(group *keycloak.Group, subGroups []*keycloak.G
 	// iterate the main groups
 	for _, subGroup := range subGroups {
 		// Iterate subgroup
-		groupAccount := s.GroupToAccount(group, subGroup)
+		groupAccount, err := s.GroupToAccount(group, subGroup)
+
+		if errors.Is(ErrInvalidGroup, err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
 		if groupAccount == nil {
 			continue
 		}
 		accounts = append(accounts, groupAccount)
 	}
 
-	return accounts
+	return accounts, nil
 }
 
-func (s *Service) GroupToAccount(group, subGroup *keycloak.Group) *Account {
+func (s *Service) GroupToAccount(group, subGroup *keycloak.Group) (*Account, error) {
 	// validate
 	if !isGroupValid(group) || !isGroupValid(subGroup) || !isApiAccount(*subGroup) {
-		return nil
+		return nil, ErrInvalidGroup
 	}
 
 	// add an account
@@ -117,7 +126,7 @@ func (s *Service) GroupToAccount(group, subGroup *keycloak.Group) *Account {
 	// Add customer
 	account.Customers = &customer
 
-	return &account
+	return &account, nil
 }
 
 // isApiAccount determines if the keycloak group is an api account
@@ -133,9 +142,9 @@ func isApiAccount(group keycloak.Group) bool {
 }
 
 func (s *Service) GroupToAccountExtended(group, subGroup *keycloak.Group) (*AccountExtended, error) {
-	account := s.GroupToAccount(group, subGroup)
-	if account == nil {
-		return nil, errors.New("could not convert group to account")
+	account, err := s.GroupToAccount(group, subGroup)
+	if err != nil {
+		return nil, err
 	}
 
 	accountExtended := &AccountExtended{Account: *account}
@@ -150,7 +159,6 @@ func (s *Service) GroupToAccountExtended(group, subGroup *keycloak.Group) (*Acco
 		return nil, fmt.Errorf("more than one pricing plan found: %d", len(pricingPlanIDs))
 	}
 
-	var err error
 	accountExtended.Subscription, err = s.GetSubscription(group, subGroup, pricingPlanIDs[0])
 	if err != nil {
 		return nil, err

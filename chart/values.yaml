@@ -144,6 +144,8 @@ configMap:
 postgresql:
   enabled: false
   image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
     tag: 12.9.0
   architecture: standalone
   global:

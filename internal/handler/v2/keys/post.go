@@ -9,6 +9,7 @@ import (
 	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
@@ -26,6 +27,11 @@ import (
 const (
 	postWorkerTaskQueue = "apikey"
 	postWorkflowName    = "create-apikey"
+)
+
+var (
+	// ErrNoValidAPIPlan is returned when an account doesn't have a valid API plan
+	ErrNoValidAPIPlan = errors.New("this account is not a valid API plan. Please assign/select an API plan before creating API keys")
 )
 
 // PostInput represents POST request body.
@@ -183,8 +189,12 @@ func (h *Handler) POST(ctx *goskell.Context) {
 	}
 
 	accountExt, err := h.customerService.GetAccountExtended(ctx.Request.Context(), request.Body.Attributes.CustomerID, request.Body.Attributes.AccountID)
+	if errors.Is(err, customers.ErrInvalidGroup) {
+		goskell.JsonAPIError(ctx, "API key creation failed", ErrNoValidAPIPlan, http.StatusUnprocessableEntity)
+		return
+	}
 	if err != nil {
-		goskell.JsonAPIError(ctx, "failed to get an account", err, http.StatusBadRequest)
+		goskell.JsonAPIError(ctx, "getting an account", err, http.StatusBadRequest)
 		return
 	}
 
