@@ -5,10 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/companyinfo/gourn"
 	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
@@ -17,8 +21,6 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"go.temporal.io/sdk/client"
-	"net/http"
-	"time"
 )
 
 // Worker addresses.
