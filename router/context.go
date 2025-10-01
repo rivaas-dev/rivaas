@@ -23,6 +23,7 @@ import (
 //   - Efficient middleware chain execution
 //   - OpenTelemetry tracing support with minimal overhead
 //   - Custom metrics recording capabilities
+//   - Route versioning support for API versioning
 //
 // Context objects are pooled and reused to minimize garbage collection pressure.
 // Do not retain references to Context objects beyond the request lifetime.
@@ -38,6 +39,9 @@ type Context struct {
 	paramKeys   [8]string // Parameter names (up to 8 parameters)
 	paramValues [8]string // Parameter values (up to 8 parameters)
 	paramCount  int       // Number of parameters stored in arrays
+
+	// Route versioning support
+	version string // Current API version (e.g., "v1", "v2")
 
 	// OpenTelemetry tracing support
 	span     trace.Span      // Current OpenTelemetry span
@@ -400,6 +404,33 @@ func (c *Context) PostFormDefault(key, defaultValue string) string {
 	return value
 }
 
+// Version returns the current API version for this request.
+// Returns an empty string if versioning is not enabled or no version is detected.
+//
+// Example:
+//
+//	version := c.Version() // "v1", "v2", etc.
+//	if c.IsVersion("v2") {
+//	    // Handle v2 specific logic
+//	}
+func (c *Context) Version() string {
+	return c.version
+}
+
+// IsVersion returns true if the current request is for the specified version.
+// This is a zero-allocation helper for version checking.
+//
+// Example:
+//
+//	if c.IsVersion("v1") {
+//	    // Handle v1 specific logic
+//	} else if c.IsVersion("v2") {
+//	    // Handle v2 specific logic
+//	}
+func (c *Context) IsVersion(version string) bool {
+	return c.version == version
+}
+
 // SetCookie sets a cookie with the given name and value.
 // This is a convenience wrapper around http.SetCookie.
 //
@@ -442,6 +473,7 @@ func (c *Context) reset() {
 	c.handlers = nil
 	c.index = -1
 	c.paramCount = 0
+	c.version = ""
 	c.span = nil
 	c.traceCtx = nil
 

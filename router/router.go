@@ -48,6 +48,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 )
@@ -132,6 +133,7 @@ func (rw *responseWriter) Flush() {
 //   - Optimized middleware chain execution with pre-compilation
 //   - Compiled route tables for ultra-fast static route matching
 //   - Enhanced context pooling with specialized pools
+//   - Advanced routing with wildcard support and route versioning
 //
 // The Router is safe for concurrent use and can handle multiple goroutines
 // accessing it simultaneously without any additional synchronization.
@@ -142,6 +144,12 @@ type Router struct {
 	contextPool *ContextPool    // Enhanced context pool with specialized pools
 	tracing     *TracingConfig  // OpenTelemetry tracing configuration
 	metrics     *MetricsConfig  // OpenTelemetry metrics configuration
+
+	// Advanced routing features
+	versioning   *VersioningConfig              // Route versioning configuration
+	versionTrees atomicVersionTrees             // Lock-free version-specific route trees
+	versionCache map[string]*CompiledRouteTable // Version-specific compiled routes
+	versionMutex sync.RWMutex                   // Protects version cache
 }
 
 // New creates a new router instance with optional configuration.
@@ -275,18 +283,11 @@ func (r *Router) Group(prefix string, middleware ...HandlerFunc) *Group {
 //   - Direct parameter extraction into context arrays for up to 8 parameters
 //   - Zero-allocation path matching where possible
 //   - Optional OpenTelemetry tracing with minimal overhead (when enabled)
+//   - Advanced routing with versioning and wildcard support
 //
 // Static routes use stack allocation to eliminate pool overhead, while
 // dynamic routes use context pooling for optimal memory reuse.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	// Lock-free tree access using atomic operations - direct pointer access to avoid allocations
-	tree := r.getTreeForMethodDirect(req.Method)
-
-	if tree == nil {
-		http.NotFound(w, req)
-		return
-	}
-
 	path := req.URL.Path
 
 	// Check if tracing is enabled and path should be traced
@@ -294,6 +295,24 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Check if metrics are enabled and path should be measured
 	shouldMeasure := r.metrics != nil && r.metrics.enabled && !r.metrics.excludePaths[path]
+
+	// Try version-specific routing first if versioning is enabled
+	if r.versioning != nil {
+		version := r.detectVersion(req)
+		if tree := r.getVersionTree(version, req.Method); tree != nil {
+			r.serveVersionedRequest(w, req, tree, path, version, shouldTrace, shouldMeasure)
+			return
+		}
+		// If no version-specific route found, continue with standard routing
+		// but set version in context for handlers to access
+	}
+
+	// Fallback to standard routing
+	tree := r.getTreeForMethodDirect(req.Method)
+	if tree == nil {
+		http.NotFound(w, req)
+		return
+	}
 
 	// Ultra-fast compiled route lookup (primary optimization)
 	// Only use compiled routes if they exist (pre-compiled during warmup)
@@ -322,6 +341,11 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				ctx.paramCount = 0
 				ctx.router = r
 
+				// Set version if versioning is enabled
+				if r.versioning != nil {
+					ctx.version = r.detectVersion(req)
+				}
+
 				for _, handler := range handlers {
 					handler(ctx)
 				}
@@ -341,6 +365,12 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c.index = -1
 	c.paramCount = 0
 	c.router = r
+
+	// Set version if versioning is enabled
+	if r.versioning != nil {
+		c.version = r.detectVersion(req)
+	}
+
 	defer func() {
 		c.reset()
 		globalContextPool.Put(c)
@@ -377,6 +407,80 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		for _, handler := range handlers {
 			handler(c)
 		}
+	}
+}
+
+// serveVersionedRequest handles requests with version-specific routing
+func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request, tree *node, path, version string, shouldTrace, shouldMeasure bool) {
+	// Check if version has compiled routes
+	r.versionMutex.RLock()
+	compiled := r.versionCache[version]
+	r.versionMutex.RUnlock()
+
+	// Try compiled routes first
+	if compiled != nil {
+		if handlers := compiled.getRoute(path); handlers != nil {
+			r.serveVersionedHandlers(w, req, handlers, version, shouldTrace, shouldMeasure)
+			return
+		}
+	}
+
+	// Fallback to dynamic routing
+	c := globalContextPool.Get().(*Context)
+	c.Request = req
+	c.Response = w
+	c.index = -1
+	c.paramCount = 0
+	c.router = r
+	c.version = version
+	defer func() {
+		c.reset()
+		globalContextPool.Put(c)
+	}()
+
+	// Find the route and extract parameters
+	handlers := tree.getRoute(path, c)
+	if handlers == nil {
+		http.NotFound(w, req)
+		return
+	}
+
+	r.serveVersionedHandlers(w, req, handlers, version, shouldTrace, shouldMeasure)
+}
+
+// serveVersionedHandlers executes handlers with version information
+func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, version string, shouldTrace, shouldMeasure bool) {
+	if shouldTrace && shouldMeasure {
+		// Wrap response writer for status code and size tracking (needed for metrics)
+		rw := &responseWriter{ResponseWriter: w}
+		r.serveWithTracingAndMetrics(rw, req, handlers, version, true)
+	} else if shouldTrace {
+		// Wrap response writer for status code and size tracking (needed for metrics)
+		rw := &responseWriter{ResponseWriter: w}
+		r.serveWithTracing(rw, req, handlers, version, true)
+	} else if shouldMeasure {
+		// Wrap response writer for status code and size tracking (needed for metrics)
+		rw := &responseWriter{ResponseWriter: w}
+		r.serveWithMetrics(rw, req, handlers, version, true)
+	} else {
+		// No metrics or tracing, use original response writer for zero allocations
+		// Direct execution without wrapper for maximum performance
+		// Use global context pool to avoid allocations
+		ctx := globalContextPool.Get().(*Context)
+		ctx.Request = req
+		ctx.Response = w
+		ctx.index = -1
+		ctx.paramCount = 0
+		ctx.router = r
+		ctx.version = version
+
+		for _, handler := range handlers {
+			handler(ctx)
+		}
+
+		// Reset and return to pool
+		ctx.reset()
+		globalContextPool.Put(ctx)
 	}
 }
 

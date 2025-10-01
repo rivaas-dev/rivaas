@@ -115,7 +115,8 @@ type param struct {
 // wildcard represents a wildcard node that matches everything.
 // Used for static file serving with /* patterns.
 type wildcard struct {
-	node *node // Node containing the handlers for wildcard routes
+	node      *node  // Node containing the handlers for wildcard routes
+	paramName string // Custom parameter name instead of default "filepath"
 }
 
 // addRoute adds a route to the radix tree with optimized insertion strategy.
@@ -156,10 +157,15 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 	if strings.HasSuffix(path, "/*") {
 		// Handle wildcard route
 		prefix := strings.TrimSuffix(path, "/*")
+		paramName := "filepath" // Default parameter name
+
+		// For now, use simple wildcard parsing
+		// Custom parameter names can be added later if needed
+
 		if prefix == "" {
 			// Root wildcard
 			if n.wildcard == nil {
-				n.wildcard = &wildcard{node: &node{}}
+				n.wildcard = &wildcard{node: &node{}, paramName: paramName}
 			}
 			n.wildcard.node.handlers = handlers
 			n.wildcard.node.constraints = constraints
@@ -185,7 +191,7 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 		}
 
 		if current.wildcard == nil {
-			current.wildcard = &wildcard{node: &node{}}
+			current.wildcard = &wildcard{node: &node{}, paramName: paramName}
 		}
 		current.wildcard.node.handlers = handlers
 		current.wildcard.node.constraints = constraints
@@ -194,8 +200,8 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 	}
 
 	// Optimize: avoid string splitting for simple paths without parameters
-	if !strings.Contains(path, ":") {
-		// Fast path for static routes
+	if !strings.Contains(path, ":") && !strings.HasSuffix(path, "/*") {
+		// Fast path for static routes (but not wildcard routes)
 		if n.children == nil {
 			n.children = make(map[string]*node, 8) // Pre-allocate with reasonable capacity
 		}
@@ -319,15 +325,20 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 			current = current.param.node
 		} else if current.wildcard != nil {
 			// Match wildcard - captures rest of path
+			paramName := current.wildcard.paramName
+			if paramName == "" {
+				paramName = "filepath" // Default fallback
+			}
+
 			if ctx.paramCount < 8 {
-				ctx.paramKeys[ctx.paramCount] = "filepath"
+				ctx.paramKeys[ctx.paramCount] = paramName
 				ctx.paramValues[ctx.paramCount] = path[start:]
 				ctx.paramCount++
 			} else {
 				if ctx.Params == nil {
 					ctx.Params = make(map[string]string, 2) // Pre-allocate with capacity
 				}
-				ctx.Params["filepath"] = path[start:]
+				ctx.Params[paramName] = path[start:]
 			}
 			return current.wildcard.node.handlers
 		} else {

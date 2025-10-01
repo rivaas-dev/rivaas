@@ -1,6 +1,6 @@
 # Rivaas
 
-**Cloud-Native Go Service Framework**
+## Cloud-Native Go Service Framework
 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.23.0-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
