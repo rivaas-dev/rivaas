@@ -6,23 +6,41 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
 )
 
-// TestMiddlewareChain tests middleware chain execution with proper ordering
-func TestMiddlewareChain(t *testing.T) {
-	r := New()
+// MiddlewareTestSuite tests middleware functionality
+type MiddlewareTestSuite struct {
+	suite.Suite
+	router *Router
+}
 
+func (suite *MiddlewareTestSuite) SetupTest() {
+	suite.router = New()
+}
+
+func (suite *MiddlewareTestSuite) TearDownTest() {
+	if suite.router != nil {
+		suite.router.StopMetricsServer()
+	}
+}
+
+// TestMiddlewareChain tests middleware chain execution with proper ordering
+func (suite *MiddlewareTestSuite) TestMiddlewareChain() {
 	// Add middleware that tracks execution
 	executionOrder := make([]string, 0)
-	r.Use(func(c *Context) {
+	suite.router.Use(func(c *Context) {
 		executionOrder = append(executionOrder, "global1")
+		c.Next()
 	})
-	r.Use(func(c *Context) {
+	suite.router.Use(func(c *Context) {
 		executionOrder = append(executionOrder, "global2")
+		c.Next()
 	})
 
 	// Add a route
-	r.GET("/test", func(c *Context) {
+	suite.router.GET("/test", func(c *Context) {
 		executionOrder = append(executionOrder, "handler")
 		c.String(http.StatusOK, "test")
 	})
@@ -30,60 +48,46 @@ func TestMiddlewareChain(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
 
-	r.ServeHTTP(w, req)
+	suite.router.ServeHTTP(w, req)
 
 	// Verify execution order
 	expected := []string{"global1", "global2", "handler"}
-	if len(executionOrder) != len(expected) {
-		t.Errorf("Expected %d middleware executions, got %d", len(expected), len(executionOrder))
-	}
-
-	for i, expectedItem := range expected {
-		if i >= len(executionOrder) || executionOrder[i] != expectedItem {
-			t.Errorf("Expected execution order %v, got %v", expected, executionOrder)
-			break
-		}
-	}
-
-	if w.Code != 200 {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(len(expected), len(executionOrder))
+	suite.Equal(expected, executionOrder)
+	suite.Equal(200, w.Code)
 }
 
 // TestMiddlewareChainCaching tests that middleware chains are cached properly
-func TestMiddlewareChainCaching(t *testing.T) {
-	r := New()
-
+func (suite *MiddlewareTestSuite) TestMiddlewareChainCaching() {
 	// Add middleware
-	r.Use(func(c *Context) {
-		c.String(http.StatusOK, "middleware")
+	suite.router.Use(func(c *Context) {
+		c.Next()
 	})
 
 	// Add multiple routes with same middleware
-	r.GET("/route1", func(c *Context) {
+	suite.router.GET("/route1", func(c *Context) {
 		c.String(http.StatusOK, "route1")
 	})
-	r.GET("/route2", func(c *Context) {
+	suite.router.GET("/route2", func(c *Context) {
 		c.String(http.StatusOK, "route2")
 	})
 
 	// Test both routes
 	req1 := httptest.NewRequest("GET", "/route1", nil)
 	w1 := httptest.NewRecorder()
-	r.ServeHTTP(w1, req1)
+	suite.router.ServeHTTP(w1, req1)
 
 	req2 := httptest.NewRequest("GET", "/route2", nil)
 	w2 := httptest.NewRecorder()
-	r.ServeHTTP(w2, req2)
+	suite.router.ServeHTTP(w2, req2)
 
 	// Both should work
-	if w1.Code != 200 || w2.Code != 200 {
-		t.Errorf("Expected both routes to return 200, got %d and %d", w1.Code, w2.Code)
-	}
+	suite.Equal(200, w1.Code)
+	suite.Equal(200, w2.Code)
 }
 
 // TestMiddlewareChainConcurrency tests concurrent middleware chain execution
-func TestMiddlewareChainConcurrency(t *testing.T) {
+func (suite *MiddlewareTestSuite) TestMiddlewareChainConcurrency() {
 	r := New()
 
 	// Add middleware that tracks concurrent execution
@@ -111,9 +115,7 @@ func TestMiddlewareChainConcurrency(t *testing.T) {
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 
-				if w.Code != 200 {
-					t.Errorf("Expected status 200, got %d", w.Code)
-				}
+				suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
 			}
 		}()
 	}
@@ -121,11 +123,11 @@ func TestMiddlewareChainConcurrency(t *testing.T) {
 	wg.Wait()
 
 	// Verify no race conditions occurred
-	t.Logf("Successfully handled %d concurrent requests", numGoroutines*requestsPerGoroutine)
+	suite.T().Logf("Successfully handled %d concurrent requests", numGoroutines*requestsPerGoroutine)
 }
 
 // TestMiddlewareChainPerformance tests middleware chain execution performance
-func TestMiddlewareChainPerformance(t *testing.T) {
+func (suite *MiddlewareTestSuite) TestMiddlewareChainPerformance() {
 	r := New()
 
 	// Add multiple middleware layers
@@ -149,20 +151,18 @@ func TestMiddlewareChainPerformance(t *testing.T) {
 
 	duration := time.Since(start)
 
-	if w.Code != 200 {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
 
 	// Should complete within reasonable time
 	if duration > 10*time.Millisecond {
-		t.Logf("Warning: Middleware execution took %v, which is slower than expected", duration)
+		suite.T().Logf("Warning: Middleware execution took %v, which is slower than expected", duration)
 	}
 
-	t.Logf("Middleware chain execution time: %v", duration)
+	suite.T().Logf("Middleware chain execution time: %v", duration)
 }
 
 // TestMiddlewareChainMemorySafety tests memory safety of middleware chains
-func TestMiddlewareChainMemorySafety(t *testing.T) {
+func (suite *MiddlewareTestSuite) TestMiddlewareChainMemorySafety() {
 	r := New()
 
 	// Add middleware that manipulates context
@@ -181,16 +181,14 @@ func TestMiddlewareChainMemorySafety(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		if w.Code != 200 {
-			t.Errorf("Expected status 200, got %d", w.Code)
-		}
+		suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
 	}
 
-	t.Log("Memory safety test passed - no memory leaks or corruption detected")
+	suite.T().Log("Memory safety test passed - no memory leaks or corruption detected")
 }
 
 // TestMiddlewareChainCacheEfficiency tests the efficiency of middleware chain caching
-func TestMiddlewareChainCacheEfficiency(t *testing.T) {
+func (suite *MiddlewareTestSuite) TestMiddlewareChainCacheEfficiency() {
 	r := New()
 
 	// Add middleware
@@ -222,9 +220,13 @@ func TestMiddlewareChainCacheEfficiency(t *testing.T) {
 	r.ServeHTTP(w2, req2)
 
 	// Both should work
-	if w1.Code != 200 || w2.Code != 200 {
-		t.Errorf("Expected both routes to return 200, got %d and %d", w1.Code, w2.Code)
-	}
+	suite.Equal(200, w1.Code, "Expected route1 to return 200, got %d", w1.Code)
+	suite.Equal(200, w2.Code, "Expected /api/users to return 200, got %d", w2.Code)
 
-	t.Log("Middleware chain cache efficiency test passed")
+	suite.T().Log("Middleware chain cache efficiency test passed")
+}
+
+// TestMiddlewareSuite runs the middleware test suite
+func TestMiddlewareSuite(t *testing.T) {
+	suite.Run(t, new(MiddlewareTestSuite))
 }

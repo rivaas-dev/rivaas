@@ -6,16 +6,32 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
 )
 
-// TestRouterStress tests the router under high concurrent load
-func TestRouterStress(t *testing.T) {
-	r := New()
+// StressTestSuite tests router under high load
+type StressTestSuite struct {
+	suite.Suite
+	router *Router
+}
 
+func (suite *StressTestSuite) SetupTest() {
+	suite.router = New()
+}
+
+func (suite *StressTestSuite) TearDownTest() {
+	if suite.router != nil {
+		suite.router.StopMetricsServer()
+	}
+}
+
+// TestRouterStress tests the router under high concurrent load
+func (suite *StressTestSuite) TestRouterStress() {
 	// Add many routes to test scalability
 	for i := range 100 {
 		route := "/api/v1/users/" + string(rune('a'+i%26))
-		r.GET(route, func(c *Context) {
+		suite.router.GET(route, func(c *Context) {
 			c.String(http.StatusOK, "User")
 		})
 	}
@@ -23,7 +39,7 @@ func TestRouterStress(t *testing.T) {
 	// Add parameter routes
 	for range 50 {
 		route := "/api/v1/users/:id/posts/:post_id"
-		r.GET(route, func(c *Context) {
+		suite.router.GET(route, func(c *Context) {
 			c.String(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
 		})
 	}
@@ -39,14 +55,12 @@ func TestRouterStress(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for range requests/concurrency {
+			for range requests / concurrency {
 				req := httptest.NewRequest("GET", "/api/v1/users/123/posts/456", nil)
 				w := httptest.NewRecorder()
-				r.ServeHTTP(w, req)
+				suite.router.ServeHTTP(w, req)
 
-				if w.Code != http.StatusOK {
-					t.Errorf("Expected status 200, got %d", w.Code)
-				}
+				suite.Equal(http.StatusOK, w.Code)
 			}
 		}()
 	}
@@ -54,10 +68,10 @@ func TestRouterStress(t *testing.T) {
 	wg.Wait()
 	duration := time.Since(start)
 
-	t.Logf("Processed %d requests with %d concurrent goroutines in %v",
+	suite.T().Logf("Processed %d requests with %d concurrent goroutines in %v",
 		requests, concurrency, duration)
-	t.Logf("Average: %v per request", duration/time.Duration(requests))
-	t.Logf("Throughput: %.2f requests/second",
+	suite.T().Logf("Average: %v per request", duration/time.Duration(requests))
+	suite.T().Logf("Throughput: %.2f requests/second",
 		float64(requests)/duration.Seconds())
 }
 
@@ -94,4 +108,9 @@ func BenchmarkRouterMemoryAllocations(b *testing.B) {
 	for b.Loop() {
 		r.ServeHTTP(w, req)
 	}
+}
+
+// TestStressSuite runs the stress test suite
+func TestStressSuite(t *testing.T) {
+	suite.Run(t, new(StressTestSuite))
 }

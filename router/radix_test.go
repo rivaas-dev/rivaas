@@ -2,19 +2,30 @@ package router
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/suite"
 )
 
-func TestRadixTree(t *testing.T) {
-	root := &node{}
+// RadixTestSuite tests radix tree functionality
+type RadixTestSuite struct {
+	suite.Suite
+	root *node
+}
 
+func (suite *RadixTestSuite) SetupTest() {
+	suite.root = &node{}
+}
+
+// TestRadixTree tests basic radix tree functionality
+func (suite *RadixTestSuite) TestRadixTree() {
 	// Add routes
-	root.addRoute("/", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/users", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/users/:id", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/users/:id/posts", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/posts", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/posts/:id", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/users", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/users/:id", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/users/:id/posts", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/posts", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/posts/:id", []HandlerFunc{func(c *Context) {}})
 
 	// Test cases
 	tests := []struct {
@@ -34,39 +45,32 @@ func TestRadixTree(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
+		suite.Run(tt.path, func() {
 			ctx := &Context{}
-			handlers := root.getRoute(tt.path, ctx)
+			handlers := suite.root.getRoute(tt.path, ctx)
 
 			if tt.expected {
-				if handlers == nil {
-					t.Errorf("Expected to find route for %s", tt.path)
-				}
+				suite.NotNil(handlers, "Expected to find route for %s", tt.path)
 
 				// Check parameters
 				for key, expectedValue := range tt.params {
 					actualValue := ctx.Param(key)
-					if actualValue != expectedValue {
-						t.Errorf("Expected param %s=%s, got %s", key, expectedValue, actualValue)
-					}
+					suite.Equal(expectedValue, actualValue, "Expected param %s=%s, got %s", key, expectedValue, actualValue)
 				}
 			} else {
-				if handlers != nil {
-					t.Errorf("Expected no route for %s", tt.path)
-				}
+				suite.Nil(handlers, "Expected no route for %s", tt.path)
 			}
 		})
 	}
 }
 
-func TestRadixTreeComplex(t *testing.T) {
-	root := &node{}
-
+// TestRadixTreeComplex tests complex radix tree scenarios
+func (suite *RadixTestSuite) TestRadixTreeComplex() {
 	// Add complex routes
-	root.addRoute("/api/v1/users/:id", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/api/v1/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/api/v1/posts/:id/comments/:comment_id", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/api/v2/users", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/api/v1/users/:id", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/api/v1/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/api/v1/posts/:id/comments/:comment_id", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/api/v2/users", []HandlerFunc{func(c *Context) {}})
 
 	// Test cases
 	tests := []struct {
@@ -83,40 +87,33 @@ func TestRadixTreeComplex(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
+		suite.Run(tt.path, func() {
 			ctx := &Context{}
-			handlers := root.getRoute(tt.path, ctx)
+			handlers := suite.root.getRoute(tt.path, ctx)
 
 			if tt.expected {
-				if handlers == nil {
-					t.Errorf("Expected to find route for %s", tt.path)
-				}
+				suite.NotNil(handlers, "Expected to find route for %s", tt.path)
 
 				// Check parameters
 				for key, expectedValue := range tt.params {
 					actualValue := ctx.Param(key)
-					if actualValue != expectedValue {
-						t.Errorf("Expected param %s=%s, got %s", key, expectedValue, actualValue)
-					}
+					suite.Equal(expectedValue, actualValue, "Expected param %s=%s, got %s", key, expectedValue, actualValue)
 				}
 			} else {
-				if handlers != nil {
-					t.Errorf("Expected no route for %s", tt.path)
-				}
+				suite.Nil(handlers, "Expected no route for %s", tt.path)
 			}
 		})
 	}
 }
 
-func TestRadixTreeEdgeCases(t *testing.T) {
-	root := &node{}
-
+// TestRadixTreeEdgeCases tests edge cases for radix tree
+func (suite *RadixTestSuite) TestRadixTreeEdgeCases() {
 	// Add edge case routes
-	root.addRoute("/", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/a", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/ab", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/abc", []HandlerFunc{func(c *Context) {}})
-	root.addRoute("/:param", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/a", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/ab", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/abc", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRoute("/:param", []HandlerFunc{func(c *Context) {}})
 
 	// Test cases
 	tests := []struct {
@@ -133,27 +130,26 @@ func TestRadixTreeEdgeCases(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
+		suite.Run(tt.path, func() {
 			ctx := &Context{}
-			handlers := root.getRoute(tt.path, ctx)
+			handlers := suite.root.getRoute(tt.path, ctx)
 
 			if tt.expected {
-				if handlers == nil {
-					t.Errorf("Expected to find route for %s", tt.path)
-				}
+				suite.NotNil(handlers, "Expected to find route for %s", tt.path)
 
 				// Check parameters
 				for key, expectedValue := range tt.params {
 					actualValue := ctx.Param(key)
-					if actualValue != expectedValue {
-						t.Errorf("Expected param %s=%s, got %s", key, expectedValue, actualValue)
-					}
+					suite.Equal(expectedValue, actualValue, "Expected param %s=%s, got %s", key, expectedValue, actualValue)
 				}
 			} else {
-				if handlers != nil {
-					t.Errorf("Expected no route for %s", tt.path)
-				}
+				suite.Nil(handlers, "Expected no route for %s", tt.path)
 			}
 		})
 	}
+}
+
+// TestRadixSuite runs the radix test suite
+func TestRadixSuite(t *testing.T) {
+	suite.Run(t, new(RadixTestSuite))
 }

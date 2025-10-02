@@ -7,29 +7,41 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
 )
 
-func TestMetricsDisabled(t *testing.T) {
-	r := New()
+// MetricsTestSuite tests metrics functionality
+type MetricsTestSuite struct {
+	suite.Suite
+	router *Router
+}
 
-	r.GET("/test", func(c *Context) {
+func (suite *MetricsTestSuite) SetupTest() {
+	suite.router = New()
+}
+
+func (suite *MetricsTestSuite) TearDownTest() {
+	if suite.router != nil {
+		suite.router.StopMetricsServer()
+	}
+}
+
+// TestMetricsDisabled tests router without metrics
+func (suite *MetricsTestSuite) TestMetricsDisabled() {
+	suite.router.GET("/test", func(c *Context) {
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	suite.router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
-
-	if r.metrics != nil {
-		t.Error("Expected no metrics configuration")
-	}
+	suite.Equal(http.StatusOK, w.Code)
+	suite.Nil(suite.router.metrics)
 }
 
-func TestMetricsPrometheusDefault(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsPrometheusDefault() {
 	r := New(
 		WithMetrics(),
 		WithMetricsPort(":9091"), // Use unique port to avoid conflicts
@@ -41,37 +53,26 @@ func TestMetricsPrometheusDefault(t *testing.T) {
 	// Give the server a moment to start
 	time.Sleep(10 * time.Millisecond)
 
-	if r.metrics == nil {
-		t.Fatal("Expected metrics to be configured")
-	}
-
-	if r.metrics.provider != PrometheusProvider {
-		t.Errorf("Expected Prometheus provider by default, got %s", r.metrics.provider)
-	}
+	suite.NotNil(r.metrics, "Expected metrics to be configured")
+	suite.Equal(PrometheusProvider, r.metrics.provider, "Expected Prometheus provider by default, got %s", r.metrics.provider)
 
 	// Note: The actual port might be auto-discovered if 9091 is in use
 	address := r.GetMetricsServerAddress()
-	if address == "" {
-		t.Error("Expected non-empty metrics server address")
-	}
+	suite.NotEmpty(address, "Expected non-empty metrics server address")
 
 	// Should be able to get Prometheus handler
 	handler := r.GetMetricsHandler()
-	if handler == nil {
-		t.Error("Expected non-nil Prometheus handler")
-	}
+	suite.NotNil(handler, "Expected non-nil Prometheus handler")
 
 	// Test the handler
 	req := httptest.NewRequest("GET", "/metrics", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200 from metrics handler, got %d", w.Code)
-	}
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200 from metrics handler, got %d", w.Code)
 }
 
-func TestMetricsCustomPort(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsCustomPort() {
 	r := New(
 		WithMetrics(),
 		WithMetricsPort(":9092"),
@@ -82,75 +83,52 @@ func TestMetricsCustomPort(t *testing.T) {
 
 	// Note: Port might be auto-discovered, so check the actual configured port
 	actualPort := r.GetMetricsServerAddress()
-	if actualPort == "" {
-		t.Error("Expected non-empty server address")
-	}
+	suite.NotEmpty(actualPort, "Expected non-empty server address")
 
-	if r.metrics.metricsPath != "/custom-metrics" {
-		t.Errorf("Expected custom path /custom-metrics, got %s", r.metrics.metricsPath)
-	}
+	suite.Equal("/custom-metrics", r.metrics.metricsPath, "Expected custom path /custom-metrics, got %s", r.metrics.metricsPath)
 }
 
-func TestMetricsServerDisabled(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsServerDisabled() {
 	r := New(
 		WithMetrics(),
 		WithMetricsServerDisabled(),
 		WithMetricsServiceName("test-service"),
 	)
 
-	if r.metrics.autoStartServer {
-		t.Error("Expected auto-start server to be disabled")
-	}
-
-	if r.GetMetricsServerAddress() != "" {
-		t.Errorf("Expected empty server address when disabled, got %s", r.GetMetricsServerAddress())
-	}
+	suite.False(r.metrics.autoStartServer, "Expected auto-start server to be disabled")
+	suite.Empty(r.GetMetricsServerAddress(), "Expected empty server address when disabled, got %s", r.GetMetricsServerAddress())
 
 	// Should still be able to get the handler for manual serving
 	handler := r.GetMetricsHandler()
-	if handler == nil {
-		t.Error("Expected non-nil Prometheus handler even when server disabled")
-	}
+	suite.NotNil(handler, "Expected non-nil Prometheus handler even when server disabled")
 }
 
-func TestMetricsProviderOTLP(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsProviderOTLP() {
 	r := New(
 		WithMetrics(),
 		WithMetricsProviderOTLP("http://localhost:4318"),
 		WithMetricsServiceName("test-service"),
 	)
 
-	if r.metrics == nil {
-		t.Fatal("Expected metrics to be configured")
-	}
-
-	if r.metrics.provider != OTLPProvider {
-		t.Errorf("Expected OTLP provider, got %s", r.metrics.provider)
-	}
-
-	if r.metrics.endpoint != "http://localhost:4318" {
-		t.Errorf("Expected endpoint http://localhost:4318, got %s", r.metrics.endpoint)
-	}
+	suite.NotNil(r.metrics, "Expected metrics to be configured")
+	suite.Equal(OTLPProvider, r.metrics.provider, "Expected OTLP provider, got %s", r.metrics.provider)
+	suite.Equal("http://localhost:4318", r.metrics.endpoint, "Expected endpoint http://localhost:4318, got %s", r.metrics.endpoint)
 
 	// Should not have metrics server for OTLP
-	if r.GetMetricsServerAddress() != "" {
-		t.Errorf("Expected no metrics server address for OTLP, got %s", r.GetMetricsServerAddress())
-	}
+	suite.Empty(r.GetMetricsServerAddress(), "Expected no metrics server address for OTLP, got %s", r.GetMetricsServerAddress())
 }
 
-func TestMetricsProviderOTLPDefaultEndpoint(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsProviderOTLPDefaultEndpoint() {
 	r := New(
 		WithMetrics(),
 		WithMetricsProviderOTLP(), // No endpoint specified
 		WithMetricsServiceName("test-service"),
 	)
 
-	if r.metrics.endpoint != "http://localhost:4318" {
-		t.Errorf("Expected default OTLP endpoint, got %s", r.metrics.endpoint)
-	}
+	suite.Equal("http://localhost:4318", r.metrics.endpoint, "Expected default OTLP endpoint, got %s", r.metrics.endpoint)
 }
 
-func TestMetricsProviderStdout(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsProviderStdout() {
 	r := New(
 		WithMetrics(),
 		WithMetricsProviderStdout(),
@@ -158,25 +136,15 @@ func TestMetricsProviderStdout(t *testing.T) {
 		WithMetricsExportInterval(1*time.Second),
 	)
 
-	if r.metrics == nil {
-		t.Fatal("Expected metrics to be configured")
-	}
-
-	if r.metrics.provider != StdoutProvider {
-		t.Errorf("Expected stdout provider, got %s", r.metrics.provider)
-	}
-
-	if r.GetMetricsProvider() != StdoutProvider {
-		t.Errorf("Expected stdout provider, got %s", r.GetMetricsProvider())
-	}
+	suite.NotNil(r.metrics, "Expected metrics to be configured")
+	suite.Equal(StdoutProvider, r.metrics.provider, "Expected stdout provider, got %s", r.metrics.provider)
+	suite.Equal(StdoutProvider, r.GetMetricsProvider(), "Expected stdout provider, got %s", r.GetMetricsProvider())
 
 	// Should not have metrics server for stdout
-	if r.GetMetricsServerAddress() != "" {
-		t.Errorf("Expected no metrics server address for stdout, got %s", r.GetMetricsServerAddress())
-	}
+	suite.Empty(r.GetMetricsServerAddress(), "Expected no metrics server address for stdout, got %s", r.GetMetricsServerAddress())
 }
 
-func TestMetricsEnvironmentConfig(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsEnvironmentConfig() {
 	// Save original env vars
 	oldService := os.Getenv("OTEL_SERVICE_NAME")
 	oldVersion := os.Getenv("OTEL_SERVICE_VERSION")
@@ -200,24 +168,13 @@ func TestMetricsEnvironmentConfig(t *testing.T) {
 	defer r.StopMetricsServer()
 
 	// Check that environment config was applied
-	if r.metrics.serviceName != "env-test-service" {
-		t.Errorf("Expected service name from env, got %s", r.metrics.serviceName)
-	}
-
-	if r.metrics.serviceVersion != "v2.0.0" {
-		t.Errorf("Expected service version from env, got %s", r.metrics.serviceVersion)
-	}
-
-	if r.metrics.metricsPort != ":8090" {
-		t.Errorf("Expected metrics port from env :8090, got %s", r.metrics.metricsPort)
-	}
-
-	if r.metrics.metricsPath != "/prometheus" {
-		t.Errorf("Expected metrics path from env /prometheus, got %s", r.metrics.metricsPath)
-	}
+	suite.Equal("env-test-service", r.metrics.serviceName, "Expected service name from env, got %s", r.metrics.serviceName)
+	suite.Equal("v2.0.0", r.metrics.serviceVersion, "Expected service version from env, got %s", r.metrics.serviceVersion)
+	suite.Equal(":8090", r.metrics.metricsPort, "Expected metrics port from env :8090, got %s", r.metrics.metricsPort)
+	suite.Equal("/prometheus", r.metrics.metricsPath, "Expected metrics path from env /prometheus, got %s", r.metrics.metricsPath)
 }
 
-func TestMetricsPortWithoutColon(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsPortWithoutColon() {
 	// Test that port numbers without colon are handled correctly
 	oldPort := os.Getenv("RIVAAS_METRICS_PORT")
 	defer os.Setenv("RIVAAS_METRICS_PORT", oldPort)
@@ -228,31 +185,29 @@ func TestMetricsPortWithoutColon(t *testing.T) {
 	defer r.StopMetricsServer()
 
 	// Check that port has colon prefix (the important part)
-	if !strings.HasPrefix(r.metrics.metricsPort, ":") {
-		t.Errorf("Expected port to start with colon, got %s", r.metrics.metricsPort)
-	}
+	suite.True(strings.HasPrefix(r.metrics.metricsPort, ":"), "Expected port to start with colon, got %s", r.metrics.metricsPort)
 
 	// Check that the port number is correct (ignore the colon)
 	expectedPort := ":9091"
 	if r.metrics.metricsPort != expectedPort {
-		t.Logf("Note: Port assignment may vary in concurrent test environment. Expected %s, got %s", expectedPort, r.metrics.metricsPort)
+		suite.T().Logf("Note: Port assignment may vary in concurrent test environment. Expected %s, got %s", expectedPort, r.metrics.metricsPort)
 		// Don't fail the test for port assignment in concurrent environment
 	}
 }
 
-func TestGetMetricsHandlerPanicWithoutMetrics(t *testing.T) {
+func (suite *MetricsTestSuite) TestGetMetricsHandlerPanicWithoutMetrics() {
 	r := New() // No metrics enabled
 
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error("Expected panic when getting metrics handler without metrics enabled")
+			suite.T().Error("Expected panic when getting metrics handler without metrics enabled")
 		}
 	}()
 
 	r.GetMetricsHandler()
 }
 
-func TestGetMetricsHandlerPanicWithOTLP(t *testing.T) {
+func (suite *MetricsTestSuite) TestGetMetricsHandlerPanicWithOTLP() {
 	r := New(
 		WithMetrics(),
 		WithMetricsProviderOTLP(),
@@ -260,14 +215,14 @@ func TestGetMetricsHandlerPanicWithOTLP(t *testing.T) {
 
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error("Expected panic when getting Prometheus handler with OTLP provider")
+			suite.T().Error("Expected panic when getting Prometheus handler with OTLP provider")
 		}
 	}()
 
 	r.GetMetricsHandler()
 }
 
-func TestMetricsWithRequest(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsWithRequest() {
 	r := New(
 		WithMetrics(),
 		WithMetricsServiceName("test-service"),
@@ -284,12 +239,10 @@ func TestMetricsWithRequest(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 }
 
-func TestMetricsConfiguration(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsConfiguration() {
 	r := New(
 		WithMetrics(),
 		WithMetricsServiceName("custom-service"),
@@ -303,67 +256,35 @@ func TestMetricsConfiguration(t *testing.T) {
 	)
 	defer r.StopMetricsServer()
 
-	if r.metrics == nil {
-		t.Fatal("Expected metrics config to be set")
-	}
-
-	if r.metrics.serviceName != "custom-service" {
-		t.Errorf("Expected service name 'custom-service', got '%s'", r.metrics.serviceName)
-	}
-
-	if r.metrics.serviceVersion != "v2.0.0" {
-		t.Errorf("Expected service version 'v2.0.0', got '%s'", r.metrics.serviceVersion)
-	}
-
-	if r.metrics.metricsPort != ":8091" {
-		t.Errorf("Expected metrics port ':8091', got '%s'", r.metrics.metricsPort)
-	}
-
-	if r.metrics.metricsPath != "/custom-metrics" {
-		t.Errorf("Expected metrics path '/custom-metrics', got '%s'", r.metrics.metricsPath)
-	}
-
-	if !r.metrics.excludePaths["/health"] {
-		t.Error("Expected /health to be in exclude paths")
-	}
-
-	if r.metrics.recordParams {
-		t.Error("Expected params recording to be disabled")
-	}
-
-	if len(r.metrics.recordHeaders) != 1 || r.metrics.recordHeaders[0] != "Authorization" {
-		t.Error("Expected Authorization header to be recorded")
-	}
-
-	if r.metrics.exportInterval != 30*time.Second {
-		t.Errorf("Expected 30s export interval, got %v", r.metrics.exportInterval)
-	}
+	suite.NotNil(r.metrics, "Expected metrics config to be set")
+	suite.Equal("custom-service", r.metrics.serviceName, "Expected service name 'custom-service', got '%s'", r.metrics.serviceName)
+	suite.Equal("v2.0.0", r.metrics.serviceVersion, "Expected service version 'v2.0.0', got '%s'", r.metrics.serviceVersion)
+	suite.Equal(":8091", r.metrics.metricsPort, "Expected metrics port ':8091', got '%s'", r.metrics.metricsPort)
+	suite.Equal("/custom-metrics", r.metrics.metricsPath, "Expected metrics path '/custom-metrics', got '%s'", r.metrics.metricsPath)
+	suite.True(r.metrics.excludePaths["/health"], "Expected /health to be in exclude paths")
+	suite.False(r.metrics.recordParams, "Expected params recording to be disabled")
+	suite.Len(r.metrics.recordHeaders, 1, "Expected Authorization header to be recorded")
+	suite.Equal("Authorization", r.metrics.recordHeaders[0], "Expected Authorization header to be recorded")
+	suite.Equal(30*time.Second, r.metrics.exportInterval, "Expected 30s export interval, got %v", r.metrics.exportInterval)
 }
 
-func TestProviderSwitchingStopsServer(t *testing.T) {
+func (suite *MetricsTestSuite) TestProviderSwitchingStopsServer() {
 	// Start with Prometheus (should start server)
 	r := New(
 		WithMetrics(),
 		WithMetricsServiceName("test-service"),
 	)
 
-	if r.GetMetricsServerAddress() == "" {
-		t.Error("Expected metrics server to be started with Prometheus")
-	}
+	suite.NotEmpty(r.GetMetricsServerAddress(), "Expected metrics server to be started with Prometheus")
 
 	// Switch to OTLP (should stop server)
 	WithMetricsProviderOTLP()(r)
 
-	if r.GetMetricsServerAddress() != "" {
-		t.Error("Expected metrics server to be stopped when switching to OTLP")
-	}
-
-	if r.metrics.provider != OTLPProvider {
-		t.Errorf("Expected OTLP provider after switch, got %s", r.metrics.provider)
-	}
+	suite.Empty(r.GetMetricsServerAddress(), "Expected metrics server to be stopped when switching to OTLP")
+	suite.Equal(OTLPProvider, r.metrics.provider, "Expected OTLP provider after switch, got %s", r.metrics.provider)
 }
 
-func TestMetricsWithTracing(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsWithTracing() {
 	// Test that both tracing and metrics work together
 	r := New(
 		WithTracing(),
@@ -383,21 +304,14 @@ func TestMetricsWithTracing(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 
 	// Check that both are configured
-	if r.tracing == nil {
-		t.Error("Expected tracing to be configured")
-	}
-
-	if r.metrics == nil {
-		t.Error("Expected metrics to be configured")
-	}
+	suite.NotNil(r.tracing, "Expected tracing to be configured")
+	suite.NotNil(r.metrics, "Expected metrics to be configured")
 }
 
-func TestMetricsWithGroups(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsWithGroups() {
 	r := New(WithMetrics(), WithMetricsPort(":9093"))
 	defer r.StopMetricsServer()
 
@@ -412,12 +326,10 @@ func TestMetricsWithGroups(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 }
 
-func TestMetricsExcludePaths(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsExcludePaths() {
 	r := New(
 		WithMetrics(),
 		WithMetricsExcludePaths("/health", "/metrics"),
@@ -437,30 +349,21 @@ func TestMetricsExcludePaths(t *testing.T) {
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 
-	if w1.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for /health, got %d", w1.Code)
-	}
+	suite.Equal(http.StatusOK, w1.Code, "Expected status 200 for /health, got %d", w1.Code)
 
 	// Test non-excluded path
 	req2 := httptest.NewRequest("GET", "/api/users", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 
-	if w2.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for /api/users, got %d", w2.Code)
-	}
+	suite.Equal(http.StatusOK, w2.Code, "Expected status 200 for /api/users, got %d", w2.Code)
 
 	// Check exclude paths configuration
-	if !r.metrics.excludePaths["/health"] {
-		t.Error("Expected /health to be excluded")
-	}
-
-	if !r.metrics.excludePaths["/metrics"] {
-		t.Error("Expected /metrics to be excluded")
-	}
+	suite.True(r.metrics.excludePaths["/health"], "Expected /health to be excluded")
+	suite.True(r.metrics.excludePaths["/metrics"], "Expected /metrics to be excluded")
 }
 
-func TestMetricsErrorCounting(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsErrorCounting() {
 	r := New(WithMetrics(), WithMetricsPort(":9094"))
 	defer r.StopMetricsServer()
 
@@ -477,21 +380,17 @@ func TestMetricsErrorCounting(t *testing.T) {
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 
-	if w1.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500 for /error, got %d", w1.Code)
-	}
+	suite.Equal(http.StatusInternalServerError, w1.Code, "Expected status 500 for /error, got %d", w1.Code)
 
 	// Test success response
 	req2 := httptest.NewRequest("GET", "/success", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 
-	if w2.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for /success, got %d", w2.Code)
-	}
+	suite.Equal(http.StatusOK, w2.Code, "Expected status 200 for /success, got %d", w2.Code)
 }
 
-func TestMetricsEnvironmentProviderOverride(t *testing.T) {
+func (suite *MetricsTestSuite) TestMetricsEnvironmentProviderOverride() {
 	// Set environment to Prometheus
 	oldExporter := os.Getenv("OTEL_METRICS_EXPORTER")
 	os.Setenv("OTEL_METRICS_EXPORTER", "prometheus")
@@ -503,31 +402,28 @@ func TestMetricsEnvironmentProviderOverride(t *testing.T) {
 	)
 
 	// Should use the explicit override, not environment
-	if r.metrics.provider != OTLPProvider {
-		t.Errorf("Expected OTLP provider (override), got %s", r.metrics.provider)
-	}
+	suite.Equal(OTLPProvider, r.metrics.provider, "Expected OTLP provider (override), got %s", r.metrics.provider)
 }
 
-func TestGetMetricsProvider(t *testing.T) {
+func (suite *MetricsTestSuite) TestGetMetricsProvider() {
 	r1 := New(WithMetrics(), WithMetricsPort(":9095"))
 	defer r1.StopMetricsServer()
 
-	if r1.GetMetricsProvider() != PrometheusProvider {
-		t.Errorf("Expected Prometheus provider, got %s", r1.GetMetricsProvider())
-	}
+	suite.Equal(PrometheusProvider, r1.GetMetricsProvider(), "Expected Prometheus provider, got %s", r1.GetMetricsProvider())
 
 	r2 := New(
 		WithMetrics(),
 		WithMetricsProviderOTLP(),
 	)
 
-	if r2.GetMetricsProvider() != OTLPProvider {
-		t.Errorf("Expected OTLP provider, got %s", r2.GetMetricsProvider())
-	}
+	suite.Equal(OTLPProvider, r2.GetMetricsProvider(), "Expected OTLP provider, got %s", r2.GetMetricsProvider())
 
 	r3 := New()
 
-	if r3.GetMetricsProvider() != "" {
-		t.Errorf("Expected empty provider when metrics disabled, got %s", r3.GetMetricsProvider())
-	}
+	suite.Empty(r3.GetMetricsProvider(), "Expected empty provider when metrics disabled, got %s", r3.GetMetricsProvider())
+}
+
+// TestMetricsSuite runs the metrics test suite
+func TestMetricsSuite(t *testing.T) {
+	suite.Run(t, new(MetricsTestSuite))
 }

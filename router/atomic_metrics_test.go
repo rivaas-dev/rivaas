@@ -6,10 +6,28 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
 )
 
+// AtomicMetricsTestSuite tests atomic metrics operations
+type AtomicMetricsTestSuite struct {
+	suite.Suite
+	router *Router
+}
+
+func (suite *AtomicMetricsTestSuite) SetupTest() {
+	suite.router = New(WithMetrics())
+}
+
+func (suite *AtomicMetricsTestSuite) TearDownTest() {
+	if suite.router != nil {
+		suite.router.StopMetricsServer()
+	}
+}
+
 // TestAtomicMetricsOperations tests atomic metrics operations for thread safety
-func TestAtomicMetricsOperations(t *testing.T) {
+func (suite *AtomicMetricsTestSuite) TestAtomicMetricsOperations() {
 	// Create router with metrics enabled
 	r := New(WithMetrics())
 
@@ -44,27 +62,21 @@ func TestAtomicMetricsOperations(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify atomic counters are working
-	if r.metrics == nil {
-		t.Fatal("Metrics not initialized")
-	}
+	suite.NotNil(r.metrics, "Metrics not initialized")
 
 	// Check that atomic counters have been incremented
 	requestCount := r.metrics.getAtomicRequestCount()
-	if requestCount == 0 {
-		t.Error("Expected atomic request count to be > 0")
-	}
+	suite.Greater(requestCount, int64(0), "Expected atomic request count to be > 0")
 
 	activeRequests := r.metrics.getAtomicActiveRequests()
-	if activeRequests != 0 {
-		t.Errorf("Expected active requests to be 0, got %d", activeRequests)
-	}
+	suite.Equal(int64(0), activeRequests, "Expected active requests to be 0, got %d", activeRequests)
 
-	t.Logf("Atomic request count: %d", requestCount)
-	t.Logf("Atomic active requests: %d", activeRequests)
+	suite.T().Logf("Atomic request count: %d", requestCount)
+	suite.T().Logf("Atomic active requests: %d", activeRequests)
 }
 
 // TestAtomicCustomMetrics tests atomic custom metrics operations
-func TestAtomicCustomMetrics(t *testing.T) {
+func (suite *AtomicMetricsTestSuite) TestAtomicCustomMetrics() {
 	// Create router with metrics enabled
 	r := New(WithMetrics())
 
@@ -102,32 +114,24 @@ func TestAtomicCustomMetrics(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify that custom metrics were created atomically
-	if r.metrics == nil {
-		t.Fatal("Metrics not initialized")
-	}
+	suite.NotNil(r.metrics, "Metrics not initialized")
 
 	// Check that custom metrics maps exist
 	counters := r.metrics.getAtomicCustomCounters()
 	histograms := r.metrics.getAtomicCustomHistograms()
 	gauges := r.metrics.getAtomicCustomGauges()
 
-	if len(counters) == 0 {
-		t.Error("Expected custom counters to be created")
-	}
-	if len(histograms) == 0 {
-		t.Error("Expected custom histograms to be created")
-	}
-	if len(gauges) == 0 {
-		t.Error("Expected custom gauges to be created")
-	}
+	suite.Greater(len(counters), 0, "Expected custom counters to be created")
+	suite.Greater(len(histograms), 0, "Expected custom histograms to be created")
+	suite.Greater(len(gauges), 0, "Expected custom gauges to be created")
 
-	t.Logf("Custom counters: %d", len(counters))
-	t.Logf("Custom histograms: %d", len(histograms))
-	t.Logf("Custom gauges: %d", len(gauges))
+	suite.T().Logf("Custom counters: %d", len(counters))
+	suite.T().Logf("Custom histograms: %d", len(histograms))
+	suite.T().Logf("Custom gauges: %d", len(gauges))
 }
 
 // TestAtomicMetricsConsistency tests that atomic metrics remain consistent under concurrent access
-func TestAtomicMetricsConsistency(t *testing.T) {
+func (suite *AtomicMetricsTestSuite) TestAtomicMetricsConsistency() {
 	// Create router with metrics enabled
 	r := New(WithMetrics())
 
@@ -159,30 +163,24 @@ func TestAtomicMetricsConsistency(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify metrics consistency
-	if r.metrics == nil {
-		t.Fatal("Metrics not initialized")
-	}
+	suite.NotNil(r.metrics, "Metrics not initialized")
 
 	// Check that atomic counters are consistent
 	requestCount := r.metrics.getAtomicRequestCount()
 	activeRequests := r.metrics.getAtomicActiveRequests()
 
 	// Active requests should be 0 after all requests complete
-	if activeRequests != 0 {
-		t.Errorf("Expected active requests to be 0, got %d", activeRequests)
-	}
+	suite.Equal(int64(0), activeRequests, "Expected active requests to be 0, got %d", activeRequests)
 
 	// Request count should be positive
-	if requestCount <= 0 {
-		t.Errorf("Expected request count to be > 0, got %d", requestCount)
-	}
+	suite.Greater(requestCount, int64(0), "Expected request count to be > 0, got %d", requestCount)
 
-	t.Logf("Final request count: %d", requestCount)
-	t.Logf("Final active requests: %d", activeRequests)
+	suite.T().Logf("Final request count: %d", requestCount)
+	suite.T().Logf("Final active requests: %d", activeRequests)
 }
 
 // TestAtomicMetricsMemorySafety tests that atomic metrics operations are memory safe
-func TestAtomicMetricsMemorySafety(t *testing.T) {
+func (suite *AtomicMetricsTestSuite) TestAtomicMetricsMemorySafety() {
 	// Create router with metrics enabled
 	r := New(WithMetrics())
 
@@ -215,9 +213,7 @@ func TestAtomicMetricsMemorySafety(t *testing.T) {
 
 	// Verify that no race conditions occurred
 	// This test will fail if race conditions are detected by the race detector
-	if r.metrics == nil {
-		t.Fatal("Metrics not initialized")
-	}
+	suite.NotNil(r.metrics, "Metrics not initialized")
 
 	// Access atomic counters to ensure they're safe
 	_ = r.metrics.getAtomicRequestCount()
@@ -226,5 +222,10 @@ func TestAtomicMetricsMemorySafety(t *testing.T) {
 	_ = r.metrics.getAtomicContextPoolHits()
 	_ = r.metrics.getAtomicContextPoolMisses()
 
-	t.Log("Atomic metrics memory safety test passed")
+	suite.T().Log("Atomic metrics memory safety test passed")
+}
+
+// TestAtomicMetricsSuite runs the atomic metrics test suite
+func TestAtomicMetricsSuite(t *testing.T) {
+	suite.Run(t, new(AtomicMetricsTestSuite))
 }

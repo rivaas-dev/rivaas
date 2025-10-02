@@ -5,26 +5,40 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/suite"
 )
 
-func TestRouteIntrospection(t *testing.T) {
-	r := New()
+// ExtendedTestSuite tests extended router functionality
+type ExtendedTestSuite struct {
+	suite.Suite
+	router *Router
+}
 
+func (suite *ExtendedTestSuite) SetupTest() {
+	suite.router = New()
+}
+
+func (suite *ExtendedTestSuite) TearDownTest() {
+	if suite.router != nil {
+		suite.router.StopMetricsServer()
+	}
+}
+
+// TestRouteIntrospection tests route introspection functionality
+func (suite *ExtendedTestSuite) TestRouteIntrospection() {
 	// Add some routes
-	r.GET("/", func(c *Context) { c.String(200, "home") })
-	r.GET("/users/:id", func(c *Context) { c.String(200, "user") })
-	r.POST("/users", func(c *Context) { c.String(200, "create") })
+	suite.router.GET("/", func(c *Context) { c.String(200, "home") })
+	suite.router.GET("/users/:id", func(c *Context) { c.String(200, "user") })
+	suite.router.POST("/users", func(c *Context) { c.String(200, "create") })
 
 	// Test Routes() method
-	routes := r.Routes()
-	if len(routes) != 3 {
-		t.Errorf("Expected 3 routes, got %d", len(routes))
-	}
+	routes := suite.router.Routes()
+	suite.Equal(3, len(routes), "Expected 3 routes")
 
 	// Check if routes are sorted
-	if routes[0].Method != "GET" || routes[0].Path != "/" {
-		t.Errorf("Expected first route to be GET /, got %s %s", routes[0].Method, routes[0].Path)
-	}
+	suite.Equal("GET", routes[0].Method, "Expected first route method to be GET")
+	suite.Equal("/", routes[0].Path, "Expected first route path to be /")
 
 	// Test that we can find our routes
 	found := false
@@ -34,12 +48,10 @@ func TestRouteIntrospection(t *testing.T) {
 			break
 		}
 	}
-	if !found {
-		t.Error("Expected to find POST /users route")
-	}
+	suite.True(found, "Expected to find POST /users route")
 }
 
-func TestRequestHelpers(t *testing.T) {
+func (suite *ExtendedTestSuite) TestRequestHelpers() {
 	r := New()
 
 	r.GET("/test", func(c *Context) {
@@ -70,13 +82,11 @@ func TestRequestHelpers(t *testing.T) {
 
 		r.ServeHTTP(w, req)
 
-		if w.Body.String() != test.expected {
-			t.Errorf("Expected %s for content type %s, got %s", test.expected, test.contentType, w.Body.String())
-		}
+		suite.Equal(test.expected, w.Body.String(), "Expected %s for content type %s, got %s", test.expected, test.contentType, w.Body.String())
 	}
 }
 
-func TestAcceptsHelpers(t *testing.T) {
+func (suite *ExtendedTestSuite) TestAcceptsHelpers() {
 	r := New()
 
 	r.GET("/test", func(c *Context) {
@@ -105,13 +115,11 @@ func TestAcceptsHelpers(t *testing.T) {
 
 		r.ServeHTTP(w, req)
 
-		if !strings.Contains(w.Header().Get("Content-Type"), test.contentType) {
-			t.Errorf("Expected content type %s for accept %s, got %s", test.contentType, test.accept, w.Header().Get("Content-Type"))
-		}
+		suite.Contains(w.Header().Get("Content-Type"), test.contentType, "Expected content type %s for accept %s, got %s", test.contentType, test.accept, w.Header().Get("Content-Type"))
 	}
 }
 
-func TestClientIP(t *testing.T) {
+func (suite *ExtendedTestSuite) TestClientIP() {
 	r := New()
 
 	r.GET("/ip", func(c *Context) {
@@ -151,7 +159,7 @@ func TestClientIP(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		suite.Run(test.name, func() {
 			req := httptest.NewRequest("GET", "/ip", nil)
 			req.RemoteAddr = test.remoteAddr
 			if test.xForwardedFor != "" {
@@ -164,14 +172,12 @@ func TestClientIP(t *testing.T) {
 
 			r.ServeHTTP(w, req)
 
-			if !strings.HasPrefix(w.Body.String(), test.expectedPrefix) {
-				t.Errorf("Expected IP to start with %s, got %s", test.expectedPrefix, w.Body.String())
-			}
+			suite.True(strings.HasPrefix(w.Body.String(), test.expectedPrefix), "Expected IP to start with %s, got %s", test.expectedPrefix, w.Body.String())
 		})
 	}
 }
 
-func TestRedirect(t *testing.T) {
+func (suite *ExtendedTestSuite) TestRedirect() {
 	r := New()
 
 	r.GET("/redirect", func(c *Context) {
@@ -183,16 +189,11 @@ func TestRedirect(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusFound {
-		t.Errorf("Expected status %d, got %d", http.StatusFound, w.Code)
-	}
-
-	if w.Header().Get("Location") != "/target" {
-		t.Errorf("Expected Location header '/target', got '%s'", w.Header().Get("Location"))
-	}
+	suite.Equal(http.StatusFound, w.Code, "Expected status %d, got %d", http.StatusFound, w.Code)
+	suite.Equal("/target", w.Header().Get("Location"), "Expected Location header '/target', got '%s'", w.Header().Get("Location"))
 }
 
-func TestRouteConstraints(t *testing.T) {
+func (suite *ExtendedTestSuite) TestRouteConstraints() {
 	r := New()
 
 	// Add route with numeric constraint
@@ -222,17 +223,15 @@ func TestRouteConstraints(t *testing.T) {
 
 		r.ServeHTTP(w, req)
 
-		if w.Code != test.statusCode {
-			t.Errorf("Path %s: expected status %d, got %d", test.path, test.statusCode, w.Code)
-		}
+		suite.Equal(test.statusCode, w.Code, "Path %s: expected status %d, got %d", test.path, test.statusCode, w.Code)
 
-		if test.contains != "" && !strings.Contains(w.Body.String(), test.contains) {
-			t.Errorf("Path %s: expected body to contain '%s', got '%s'", test.path, test.contains, w.Body.String())
+		if test.contains != "" {
+			suite.Contains(w.Body.String(), test.contains, "Path %s: expected body to contain '%s', got '%s'", test.path, test.contains, w.Body.String())
 		}
 	}
 }
 
-func TestMultipleConstraints(t *testing.T) {
+func (suite *ExtendedTestSuite) TestMultipleConstraints() {
 	r := New()
 
 	r.GET("/posts/:id/:slug", func(c *Context) {
@@ -254,13 +253,11 @@ func TestMultipleConstraints(t *testing.T) {
 
 		r.ServeHTTP(w, req)
 
-		if w.Code != test.statusCode {
-			t.Errorf("Path %s: expected status %d, got %d", test.path, test.statusCode, w.Code)
-		}
+		suite.Equal(test.statusCode, w.Code, "Path %s: expected status %d, got %d", test.path, test.statusCode, w.Code)
 	}
 }
 
-func TestStaticFileRoute(t *testing.T) {
+func (suite *ExtendedTestSuite) TestStaticFileRoute() {
 	r := New()
 
 	// Test that static file routes are registered correctly
@@ -275,12 +272,10 @@ func TestStaticFileRoute(t *testing.T) {
 		}
 	}
 
-	if !found {
-		t.Error("Expected to find static file route for /favicon.ico")
-	}
+	suite.True(found, "Expected to find static file route for /favicon.ico")
 }
 
-func TestQueryDefaults(t *testing.T) {
+func (suite *ExtendedTestSuite) TestQueryDefaults() {
 	r := New()
 
 	r.GET("/search", func(c *Context) {
@@ -319,14 +314,14 @@ func TestQueryDefaults(t *testing.T) {
 
 		r.ServeHTTP(w, req)
 
-		if w.Code != 200 {
-			t.Errorf("Path %s: expected status 200, got %d", test.path, w.Code)
-		}
+		suite.Equal(200, w.Code, "Path %s: expected status 200, got %d", test.path, w.Code)
 
 		for key, expectedValue := range test.expected {
-			if !strings.Contains(w.Body.String(), expectedValue) {
-				t.Errorf("Path %s: expected %s=%s in response", test.path, key, expectedValue)
-			}
+			suite.Contains(w.Body.String(), expectedValue, "Path %s: expected %s=%s in response", test.path, key, expectedValue)
 		}
 	}
+}
+
+func TestExtendedSuite(t *testing.T) {
+	suite.Run(t, new(ExtendedTestSuite))
 }

@@ -5,24 +5,36 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/suite"
 	"go.opentelemetry.io/otel"
 )
 
-func TestTracingDisabled(t *testing.T) {
-	// Router without tracing should work normally
-	r := New()
+// TracingTestSuite tests tracing functionality
+type TracingTestSuite struct {
+	suite.Suite
+	router *Router
+}
 
-	r.GET("/test", func(c *Context) {
+func (suite *TracingTestSuite) SetupTest() {
+	suite.router = New()
+}
+
+func (suite *TracingTestSuite) TearDownTest() {
+	if suite.router != nil {
+		suite.router.StopMetricsServer()
+	}
+}
+
+// TestTracingDisabled tests router without tracing
+func (suite *TracingTestSuite) TestTracingDisabled() {
+	// Router without tracing should work normally
+	suite.router.GET("/test", func(c *Context) {
 		// Tracing methods should be safe to call
 		traceID := c.TraceID()
 		spanID := c.SpanID()
 
-		if traceID != "" {
-			t.Error("Expected empty trace ID when tracing disabled")
-		}
-		if spanID != "" {
-			t.Error("Expected empty span ID when tracing disabled")
-		}
+		suite.Equal("", traceID, "Expected empty trace ID when tracing disabled")
+		suite.Equal("", spanID, "Expected empty span ID when tracing disabled")
 
 		// These should be no-ops
 		c.SetSpanAttribute("test.key", "test.value")
@@ -34,14 +46,12 @@ func TestTracingDisabled(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
 
-	r.ServeHTTP(w, req)
+	suite.router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(http.StatusOK, w.Code)
 }
 
-func TestTracingEnabled(t *testing.T) {
+func (suite *TracingTestSuite) TestTracingEnabled() {
 	// Set up a test tracer
 	testTracer := otel.Tracer("test-tracer")
 
@@ -75,12 +85,10 @@ func TestTracingEnabled(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 }
 
-func TestTracingExcludePaths(t *testing.T) {
+func (suite *TracingTestSuite) TestTracingExcludePaths() {
 	r := New(
 		WithTracing(),
 		WithTracingExcludePaths("/health", "/metrics"),
@@ -99,21 +107,17 @@ func TestTracingExcludePaths(t *testing.T) {
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 
-	if w1.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for /health, got %d", w1.Code)
-	}
+	suite.Equal(http.StatusOK, w1.Code, "Expected status 200 for /health, got %d", w1.Code)
 
 	// Test non-excluded path
 	req2 := httptest.NewRequest("GET", "/api/users", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 
-	if w2.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for /api/users, got %d", w2.Code)
-	}
+	suite.Equal(http.StatusOK, w2.Code, "Expected status 200 for /api/users, got %d", w2.Code)
 }
 
-func TestTracingConfiguration(t *testing.T) {
+func (suite *TracingTestSuite) TestTracingConfiguration() {
 	// Test that configuration options are applied correctly
 	r := New(
 		WithTracing(),
@@ -125,40 +129,18 @@ func TestTracingConfiguration(t *testing.T) {
 		WithTracingDisableParams(),
 	)
 
-	if r.tracing == nil {
-		t.Fatal("Expected tracing config to be set")
-	}
-
-	if !r.tracing.enabled {
-		t.Error("Expected tracing to be enabled")
-	}
-
-	if r.tracing.serviceName != "custom-service" {
-		t.Errorf("Expected service name 'custom-service', got '%s'", r.tracing.serviceName)
-	}
-
-	if r.tracing.serviceVersion != "v2.0.0" {
-		t.Errorf("Expected service version 'v2.0.0', got '%s'", r.tracing.serviceVersion)
-	}
-
-	if r.tracing.sampleRate != 0.5 {
-		t.Errorf("Expected sample rate 0.5, got %f", r.tracing.sampleRate)
-	}
-
-	if !r.tracing.excludePaths["/health"] {
-		t.Error("Expected /health to be in exclude paths")
-	}
-
-	if r.tracing.recordParams {
-		t.Error("Expected params recording to be disabled")
-	}
-
-	if len(r.tracing.recordHeaders) != 1 || r.tracing.recordHeaders[0] != "Authorization" {
-		t.Error("Expected Authorization header to be recorded")
-	}
+	suite.NotNil(r.tracing, "Expected tracing config to be set")
+	suite.True(r.tracing.enabled, "Expected tracing to be enabled")
+	suite.Equal("custom-service", r.tracing.serviceName, "Expected service name 'custom-service', got '%s'", r.tracing.serviceName)
+	suite.Equal("v2.0.0", r.tracing.serviceVersion, "Expected service version 'v2.0.0', got '%s'", r.tracing.serviceVersion)
+	suite.Equal(0.5, r.tracing.sampleRate, "Expected sample rate 0.5, got %f", r.tracing.sampleRate)
+	suite.True(r.tracing.excludePaths["/health"], "Expected /health to be in exclude paths")
+	suite.False(r.tracing.recordParams, "Expected params recording to be disabled")
+	suite.Len(r.tracing.recordHeaders, 1, "Expected Authorization header to be recorded")
+	suite.Equal("Authorization", r.tracing.recordHeaders[0], "Expected Authorization header to be recorded")
 }
 
-func TestTracingWithGroups(t *testing.T) {
+func (suite *TracingTestSuite) TestTracingWithGroups() {
 	r := New(WithTracing())
 
 	api := r.Group("/api/v1")
@@ -174,7 +156,10 @@ func TestTracingWithGroups(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
+}
+
+// TestTracingSuite runs the tracing test suite
+func TestTracingSuite(t *testing.T) {
+	suite.Run(t, new(TracingTestSuite))
 }

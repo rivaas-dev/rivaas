@@ -6,12 +6,28 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/suite"
 )
 
-// TestConcurrentRouteRegistration tests concurrent route registration
-func TestConcurrentRouteRegistration(t *testing.T) {
-	r := New()
+// ConcurrentTestSuite tests concurrent operations
+type ConcurrentTestSuite struct {
+	suite.Suite
+	router *Router
+}
 
+func (suite *ConcurrentTestSuite) SetupTest() {
+	suite.router = New()
+}
+
+func (suite *ConcurrentTestSuite) TearDownTest() {
+	if suite.router != nil {
+		suite.router.StopMetricsServer()
+	}
+}
+
+// TestConcurrentRouteRegistration tests concurrent route registration
+func (suite *ConcurrentTestSuite) TestConcurrentRouteRegistration() {
 	var wg sync.WaitGroup
 	routeCount := 100
 
@@ -20,7 +36,7 @@ func TestConcurrentRouteRegistration(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			r.GET("/test", func(c *Context) {
+			suite.router.GET("/test", func(c *Context) {
 				c.String(200, "OK")
 			})
 		}(i)
@@ -31,15 +47,13 @@ func TestConcurrentRouteRegistration(t *testing.T) {
 	// Verify router is still functional
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	suite.router.ServeHTTP(w, req)
 
-	if w.Code != 200 {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(200, w.Code)
 }
 
 // TestConcurrentConstraintAddition tests adding constraints concurrently
-func TestConcurrentConstraintAddition(t *testing.T) {
+func (suite *ConcurrentTestSuite) TestConcurrentConstraintAddition() {
 	r := New()
 
 	route := r.GET("/users/:id", func(c *Context) {
@@ -62,22 +76,18 @@ func TestConcurrentConstraintAddition(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != 200 {
-		t.Errorf("Expected status 200 for valid ID, got %d", w.Code)
-	}
+	suite.Equal(200, w.Code, "Expected status 200 for valid ID, got %d", w.Code)
 
 	// Test invalid non-numeric ID
 	req = httptest.NewRequest("GET", "/users/abc", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != 404 {
-		t.Errorf("Expected status 404 for invalid ID, got %d", w.Code)
-	}
+	suite.Equal(404, w.Code, "Expected status 404 for invalid ID, got %d", w.Code)
 }
 
 // TestConcurrentRequests tests handling concurrent requests
-func TestConcurrentRequests(t *testing.T) {
+func (suite *ConcurrentTestSuite) TestConcurrentRequests() {
 	r := New()
 
 	r.GET("/", func(c *Context) {
@@ -122,13 +132,11 @@ func TestConcurrentRequests(t *testing.T) {
 		errorCount++
 	}
 
-	if errorCount > 0 {
-		t.Errorf("Got %d errors out of %d requests", errorCount, requestCount)
-	}
+	suite.Equal(0, errorCount, "Got %d errors out of %d requests", errorCount, requestCount)
 }
 
 // TestConcurrentMetricsCreation tests custom metrics creation under concurrent load
-func TestConcurrentMetricsCreation(t *testing.T) {
+func (suite *ConcurrentTestSuite) TestConcurrentMetricsCreation() {
 	r := New(WithMetrics())
 	defer r.StopMetricsServer()
 
@@ -157,7 +165,7 @@ func TestConcurrentMetricsCreation(t *testing.T) {
 }
 
 // TestMetricsLimitEnforcement tests that custom metrics limit is enforced
-func TestMetricsLimitEnforcement(t *testing.T) {
+func (suite *ConcurrentTestSuite) TestMetricsLimitEnforcement() {
 	r := New(WithMetrics())
 	defer r.StopMetricsServer()
 
@@ -166,7 +174,7 @@ func TestMetricsLimitEnforcement(t *testing.T) {
 
 	// Create metrics up to the limit using valid metric names
 	r.GET("/test", func(c *Context) {
-		for i := range maxMetrics+10 {
+		for i := range maxMetrics + 10 {
 			// These should succeed up to limit, then fail silently (errors logged)
 			// Use valid metric names with only alphanumeric and underscore
 			c.IncrementCounter("test_counter_" + fmt.Sprint(i))
@@ -179,22 +187,18 @@ func TestMetricsLimitEnforcement(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Should still respond successfully even if metric creation fails
-	if w.Code != 200 {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
 
 	// Verify we didn't exceed the limit
 	counters := r.metrics.getAtomicCustomCounters()
 	histograms := r.metrics.getAtomicCustomHistograms()
 	gauges := r.metrics.getAtomicCustomGauges()
 	totalMetrics := len(counters) + len(histograms) + len(gauges)
-	if totalMetrics > maxMetrics {
-		t.Errorf("Metrics limit exceeded: %d > %d", totalMetrics, maxMetrics)
-	}
+	suite.LessOrEqual(totalMetrics, maxMetrics, "Metrics limit exceeded: %d > %d", totalMetrics, maxMetrics)
 }
 
 // TestResponseWriterStatusCode tests that status code is properly captured
-func TestResponseWriterStatusCode(t *testing.T) {
+func (suite *ConcurrentTestSuite) TestResponseWriterStatusCode() {
 	r := New(WithMetrics())
 	defer r.StopMetricsServer()
 
@@ -211,22 +215,18 @@ func TestResponseWriterStatusCode(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != 200 {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
 
 	// Test 500 response
 	req = httptest.NewRequest("GET", "/error", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != 500 {
-		t.Errorf("Expected status 500, got %d", w.Code)
-	}
+	suite.Equal(500, w.Code, "Expected status 500, got %d", w.Code)
 }
 
 // TestContextPoolingUnderLoad tests context pooling with many concurrent requests
-func TestContextPoolingUnderLoad(t *testing.T) {
+func (suite *ConcurrentTestSuite) TestContextPoolingUnderLoad() {
 	r := New()
 
 	r.GET("/users/:id/posts/:post_id", func(c *Context) {
@@ -249,11 +249,14 @@ func TestContextPoolingUnderLoad(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			if w.Code != 200 {
-				t.Errorf("Request %d: expected status 200, got %d", id, w.Code)
-			}
+			suite.Equal(200, w.Code, "Request %d: expected status 200, got %d", id, w.Code)
 		}(i)
 	}
 
 	wg.Wait()
+}
+
+// TestConcurrentSuite runs the concurrent test suite
+func TestConcurrentSuite(t *testing.T) {
+	suite.Run(t, new(ConcurrentTestSuite))
 }
