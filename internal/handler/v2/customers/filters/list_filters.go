@@ -13,11 +13,11 @@ type FilterParam struct {
 }
 
 // NewSearchParameters construct search parameters from maps struct
-func NewSearchParameters(params FilterParam) (customers.CustomerSearch, error) {
+func NewSearchParameters(params FilterParam) customers.CustomerSearch {
 	var search customers.CustomerSearch
 	if name, ok := params.Match[nameFilter]; ok && name != "" {
 		search.Name = &name
 	}
 
-	return search, nil
+	return search
 }

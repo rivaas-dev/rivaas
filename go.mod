@@ -9,6 +9,7 @@ require (
 	github.com/google/jsonapi v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/mitchellh/mapstructure v1.5.0
+	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
 	gitlab.ci.fdmg.org/ci-api/cigourn v0.1.6
 	gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.8.3
@@ -92,7 +93,6 @@ require (
 	github.com/open-policy-agent/opa v0.56.0 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.16.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
