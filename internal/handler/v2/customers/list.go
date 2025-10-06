@@ -2,6 +2,9 @@ package customers
 
 import (
 	"context"
+	"math"
+	"net/http"
+
 	"github.com/companyinfo/jsonapi"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -13,8 +16,6 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"go.opentelemetry.io/otel/attribute"
-	"math"
-	"net/http"
 )
 
 // ListInput represents the request body of the LIST endpoint.
@@ -123,10 +124,7 @@ func (h *Handler) getCustomers(ctx context.Context, request *ListInput) (groups 
 		return []*keycloak.Group{group}, 1, nil
 	}
 
-	searchParams, err := filters.NewSearchParameters(filters.FilterParam{Match: request.Match})
-	if err != nil {
-		return nil, 0, err
-	}
+	searchParams := filters.NewSearchParameters(filters.FilterParam{Match: request.Match})
 
 	firstElement := int((request.Query.PaginationParams.Page - 1) * request.Query.PaginationParams.Size)
 	maxPageSize := int(request.Query.PaginationParams.Size)
