@@ -253,9 +253,9 @@ func (r *Router) serveWithMetrics(w http.ResponseWriter, req *http.Request, hand
 	metrics := r.startMetrics(ctx, path, isStatic)
 
 	// Execute handlers
-	for _, handler := range handlers {
-		handler(ctx)
-	}
+	ctx.handlers = handlers
+	ctx.index = -1
+	ctx.Next()
 
 	// Finish metrics collection
 	r.finishMetrics(ctx, metrics)
@@ -267,9 +267,9 @@ func (r *Router) serveDynamicWithMetrics(c *Context, handlers []HandlerFunc, pat
 	metrics := r.startMetrics(c, path, false)
 
 	// Execute handlers
-	for _, handler := range handlers {
-		handler(c)
-	}
+	c.handlers = handlers
+	c.index = -1
+	c.Next()
 
 	// Finish metrics collection
 	r.finishMetrics(c, metrics)
@@ -285,9 +285,9 @@ func (r *Router) serveWithTracingAndMetrics(w http.ResponseWriter, req *http.Req
 	metrics := r.startMetrics(c, path, isStatic)
 
 	// Execute handlers
-	for _, handler := range handlers {
-		handler(c)
-	}
+	c.handlers = handlers
+	c.index = -1
+	c.Next()
 
 	// Finish metrics collection
 	r.finishMetrics(c, metrics)
@@ -302,9 +302,9 @@ func (r *Router) serveDynamicWithTracingAndMetrics(c *Context, handlers []Handle
 	metrics := r.startMetrics(c, path, false)
 
 	// Execute handlers
-	for _, handler := range handlers {
-		handler(c)
-	}
+	c.handlers = handlers
+	c.index = -1
+	c.Next()
 
 	// Finish metrics collection
 	r.finishMetrics(c, metrics)

@@ -346,9 +346,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					ctx.version = r.detectVersion(req)
 				}
 
-				for _, handler := range handlers {
-					handler(ctx)
-				}
+				ctx.handlers = handlers
+				ctx.Next()
 
 				// Reset and return to pool
 				ctx.reset()
@@ -402,11 +401,10 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.serveDynamicWithMetrics(c, handlers, path)
 	} else {
 		// No metrics or tracing, use original response writer for zero allocations
-		// Direct execution without wrapper for performance
 		c.Response = w
-		for _, handler := range handlers {
-			handler(c)
-		}
+		c.handlers = handlers
+		c.index = -1
+		c.Next()
 	}
 }
 
@@ -474,9 +472,8 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 		ctx.router = r
 		ctx.version = version
 
-		for _, handler := range handlers {
-			handler(ctx)
-		}
+		ctx.handlers = handlers
+		ctx.Next()
 
 		// Reset and return to pool
 		ctx.reset()
