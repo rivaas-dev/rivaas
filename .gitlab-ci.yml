@@ -7,7 +7,6 @@ variables:
   GO_BUILD_MAIN_PKG: "./cmd/admin-api/"
   SWAGGER_VALIDATE_DISABLED: "true"
   SWAGGER_VALIDATE_SWAGGER_SPEC: "api/swagger.yaml"
-  IS_TEMPORAL_WORKFLOW: "true"
   SAST_OPTIONS: "-exclude=G115"
 
 deploy:testing:
