@@ -9,6 +9,13 @@ import (
 // The relativePath is the URL prefix, and root is the filesystem directory.
 // This creates efficient file serving routes with proper caching headers.
 //
+// SECURITY: This method uses http.FileServer which automatically prevents
+// path traversal attacks (e.g., "../../../etc/passwd"). The http.Dir implementation
+// cleans paths and prevents access to parent directories. However, ensure that:
+//   - The root directory only contains files intended to be publicly accessible
+//   - Sensitive files are not stored in the served directory
+//   - File permissions are properly configured at the OS level
+//
 // Example:
 //
 //	r.Static("/assets", "./public")      // Serve ./public/* at /assets/*

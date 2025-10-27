@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -357,17 +358,19 @@ func getHandlerName(handler HandlerFunc) string {
 	}
 
 	fullName := funcPtr.Name()
+	file, line := funcPtr.FileLine(funcPtr.Entry())
 
-	// Extract just the function name from the full path
-	parts := strings.Split(fullName, ".")
-	if len(parts) > 0 {
-		name := parts[len(parts)-1]
-		// Remove closure suffixes like .func1
-		if strings.Contains(name, ".func") {
-			return "anonymous"
-		}
-		return name
+	// Extract meaningful name: package.function instead of full path
+	// Example: "github.com/user/project/main.getUserHandler" -> "main.getUserHandler"
+	//          "github.com/user/project/main.main.func1" -> "main.main.func1"
+	lastSlash := strings.LastIndex(fullName, "/")
+	if lastSlash >= 0 {
+		fullName = fullName[lastSlash+1:]
 	}
 
-	return "unknown"
+	// Extract just filename from full path
+	fileName := filepath.Base(file)
+
+	// Add file location for better debugging
+	return fmt.Sprintf("%s (%s:%d)", fullName, fileName, line)
 }

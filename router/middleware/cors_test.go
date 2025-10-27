@@ -338,7 +338,7 @@ func BenchmarkCORS_SimpleRequest(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -358,7 +358,7 @@ func BenchmarkCORS_Preflight(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -383,7 +383,7 @@ func BenchmarkCORS_OriginValidation(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -404,7 +404,7 @@ func BenchmarkCORS_OriginFunc(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}

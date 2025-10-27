@@ -81,16 +81,21 @@ func (g *Group) HEAD(path string, handlers ...HandlerFunc) *Route {
 // and merging group middleware with the route handlers. This is an internal method
 // used by the HTTP method functions on groups.
 func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *Route {
-	// Optimize string concatenation using strings.Builder
+	// Optimize string concatenation for common cases
 	var fullPath string
-	if len(g.prefix) > 0 && len(path) > 0 {
+	
+	// Fast path: handle empty strings without string builder
+	if len(g.prefix) == 0 {
+		fullPath = path
+	} else if len(path) == 0 {
+		fullPath = g.prefix
+	} else {
+		// Both non-empty: use string builder for efficiency
 		var sb strings.Builder
 		sb.Grow(len(g.prefix) + len(path))
 		sb.WriteString(g.prefix)
 		sb.WriteString(path)
 		fullPath = sb.String()
-	} else {
-		fullPath = g.prefix + path
 	}
 
 	// Pre-allocate slice with exact capacity to avoid reallocations

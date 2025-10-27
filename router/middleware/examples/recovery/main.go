@@ -61,9 +61,9 @@ func customHandlerExample(r *router.Router) {
 
 	// Recovery with custom handler that includes request ID
 	api.Use(middleware.Recovery(
-		middleware.WithRecoveryHandler(func(c *router.Context, err interface{}) {
+		middleware.WithRecoveryHandler(func(c *router.Context, err any) {
 			// Send custom error response
-			c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			c.JSON(http.StatusInternalServerError, map[string]any{
 				"error":   "Internal server error",
 				"code":    "INTERNAL_ERROR",
 				"message": "An unexpected error occurred. Please try again later.",
@@ -86,7 +86,7 @@ func customLoggerExample(r *router.Router) {
 
 	// Recovery with custom structured logger
 	logged.Use(middleware.Recovery(
-		middleware.WithRecoveryLogger(func(c *router.Context, err interface{}, stack []byte) {
+		middleware.WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
 			// Structured logging (you could use your own logger here)
 			log.Printf(`{"level":"error","type":"panic_recovered","error":%q,"path":"%s","method":"%s","client_ip":"%s","timestamp":"%s","stack":"%s"}`,
 				fmt.Sprint(err),
@@ -115,33 +115,30 @@ func advancedExample(r *router.Router) {
 		middleware.WithStackTrace(true),
 
 		// Set custom stack size (8KB)
-		middleware.WithStackSize(8 << 10),
-
-		// Disable printing to stderr (useful in production)
-		middleware.WithDisablePrintStack(true),
+		middleware.WithStackSize(8<<10),
 
 		// Custom logger
-		middleware.WithRecoveryLogger(func(c *router.Context, err interface{}, stack []byte) {
+		middleware.WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
 			log.Printf("[PANIC RECOVERED] Error: %v, Path: %s", err, c.Request.URL.Path)
 		}),
 
 		// Custom handler with different responses based on error type
-		middleware.WithRecoveryHandler(func(c *router.Context, err interface{}) {
+		middleware.WithRecoveryHandler(func(c *router.Context, err any) {
 			// Different responses based on panic type
 			switch e := err.(type) {
 			case string:
-				c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				c.JSON(http.StatusInternalServerError, map[string]any{
 					"error":   "Internal server error",
 					"message": "A string error occurred",
 					"details": e,
 				})
 			case error:
-				c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				c.JSON(http.StatusInternalServerError, map[string]any{
 					"error":   "Internal server error",
 					"message": e.Error(),
 				})
 			default:
-				c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				c.JSON(http.StatusInternalServerError, map[string]any{
 					"error":   "Internal server error",
 					"message": "An unexpected error occurred",
 				})
@@ -175,11 +172,8 @@ func productionExample() *router.Router {
 		// Capture stack traces
 		middleware.WithStackTrace(true),
 
-		// Don't print to stderr in production
-		middleware.WithDisablePrintStack(true),
-
 		// Custom logger (integrate with your logging system)
-		middleware.WithRecoveryLogger(func(c *router.Context, err interface{}, stack []byte) {
+		middleware.WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
 			// Send to your logging system (e.g., Sentry, DataDog, etc.)
 			log.Printf("[PRODUCTION PANIC] Error: %v, Path: %s, Method: %s, IP: %s",
 				err,
@@ -190,8 +184,8 @@ func productionExample() *router.Router {
 		}),
 
 		// Clean error response for clients
-		middleware.WithRecoveryHandler(func(c *router.Context, err interface{}) {
-			c.JSON(http.StatusInternalServerError, map[string]interface{}{
+		middleware.WithRecoveryHandler(func(c *router.Context, err any) {
+			c.JSON(http.StatusInternalServerError, map[string]any{
 				"error":   "Internal server error",
 				"message": "We're sorry, something went wrong. Please try again later.",
 				"code":    "INTERNAL_ERROR",

@@ -21,7 +21,7 @@ func (suite *ExtendedTestSuite) SetupTest() {
 
 func (suite *ExtendedTestSuite) TearDownTest() {
 	if suite.router != nil {
-		suite.router.StopMetricsServer()
+		// Cleanup if needed
 	}
 }
 

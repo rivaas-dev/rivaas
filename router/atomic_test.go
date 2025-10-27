@@ -23,7 +23,7 @@ func (suite *AtomicTestSuite) SetupTest() {
 
 func (suite *AtomicTestSuite) TearDownTest() {
 	if suite.router != nil {
-		suite.router.StopMetricsServer()
+		// Cleanup if needed
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rivaas-dev/rivaas/router"
+	"github.com/rivaas-dev/rivaas/router/middleware"
 )
 
 // User represents a user in the system
@@ -104,7 +105,7 @@ func main() {
 	store := NewUserStore()
 
 	// Global middleware
-	r.Use(Logger(), Recovery(), CORS())
+	r.Use(middleware.Logger(), middleware.Recovery(), middleware.CORS(middleware.WithAllowAllOrigins(true)))
 
 	// API routes
 	api := r.Group("/api/v1")
@@ -244,43 +245,6 @@ func main() {
 }
 
 // Middleware
-func Logger() router.HandlerFunc {
-	return func(c *router.Context) {
-		start := time.Now()
-		c.Next()
-		log.Printf("[%s] %s - (%v)", c.Request.Method, c.Request.URL.Path, time.Since(start))
-	}
-}
-
-func Recovery() router.HandlerFunc {
-	return func(c *router.Context) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Printf("Panic: %v", err)
-				c.JSON(http.StatusInternalServerError, map[string]string{
-					"error": "Internal server error",
-				})
-			}
-		}()
-		c.Next()
-	}
-}
-
-func CORS() router.HandlerFunc {
-	return func(c *router.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		if c.Request.Method == "OPTIONS" {
-			// For OPTIONS requests, return early with just headers
-			// Use c.String instead of c.JSON to avoid WriteHeader conflicts
-			c.String(http.StatusOK, "")
-			return
-		}
-		c.Next()
-	}
-}
-
 func JSONMiddleware() router.HandlerFunc {
 	return func(c *router.Context) {
 		c.Header("Content-Type", "application/json")

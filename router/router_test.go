@@ -22,7 +22,7 @@ func (suite *RouterTestSuite) SetupTest() {
 // TearDownTest runs after each individual test
 func (suite *RouterTestSuite) TearDownTest() {
 	if suite.router != nil {
-		suite.router.StopMetricsServer()
+		// Cleanup if needed
 	}
 }
 
@@ -209,7 +209,7 @@ func (suite *RouterTestSuite) TestContextMethods() {
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
-	suite.Equal("application/json", w.Header().Get("Content-Type"))
+	suite.Equal("application/json; charset=utf-8", w.Header().Get("Content-Type"))
 
 	// Test String
 	req = httptest.NewRequest("GET", "/string", nil)

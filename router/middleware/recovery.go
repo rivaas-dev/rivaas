@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"runtime/debug"
@@ -16,43 +15,39 @@ type RecoveryOption func(*recoveryConfig)
 type recoveryConfig struct {
 	// stackTrace enables/disables printing stack traces on panic
 	stackTrace bool
-	
+
 	// stackSize sets the maximum size of the stack trace in bytes
 	stackSize int
-	
+
 	// logger is the custom logger function for panic messages
-	logger func(c *router.Context, err interface{}, stack []byte)
-	
+	logger func(c *router.Context, err any, stack []byte)
+
 	// handler is the custom recovery handler
-	handler func(c *router.Context, err interface{})
-	
+	handler func(c *router.Context, err any)
+
 	// disableStackAll disables full stack trace from all goroutines
 	disableStackAll bool
-	
-	// disablePrintStack disables printing stack to stderr
-	disablePrintStack bool
 }
 
 // defaultRecoveryConfig returns the default configuration for Recovery middleware.
 func defaultRecoveryConfig() *recoveryConfig {
 	return &recoveryConfig{
-		stackTrace:        true,
-		stackSize:         4 << 10, // 4KB
-		disableStackAll:   true,
-		disablePrintStack: false,
-		logger:            defaultRecoveryLogger,
-		handler:           defaultRecoveryHandler,
+		stackTrace:      true,
+		stackSize:       4 << 10, // 4KB
+		disableStackAll: true,
+		logger:          defaultRecoveryLogger,
+		handler:         defaultRecoveryHandler,
 	}
 }
 
 // defaultRecoveryLogger logs panic information with stack trace.
-func defaultRecoveryLogger(c *router.Context, err interface{}, stack []byte) {
+func defaultRecoveryLogger(c *router.Context, err any, stack []byte) {
 	log.Printf("[Recovery] panic recovered:\n%v\n%s", err, stack)
 }
 
 // defaultRecoveryHandler sends a 500 Internal Server Error response.
-func defaultRecoveryHandler(c *router.Context, err interface{}) {
-	c.JSON(http.StatusInternalServerError, map[string]interface{}{
+func defaultRecoveryHandler(c *router.Context, err any) {
+	c.JSON(http.StatusInternalServerError, map[string]any{
 		"error": "Internal server error",
 		"code":  "INTERNAL_ERROR",
 	})
@@ -87,10 +82,10 @@ func WithStackSize(size int) RecoveryOption {
 //
 // Example:
 //
-//	middleware.Recovery(middleware.WithRecoveryLogger(func(c *router.Context, err interface{}, stack []byte) {
+//	middleware.Recovery(middleware.WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
 //	    myLogger.Error("panic recovered", "error", err, "stack", string(stack))
 //	}))
-func WithRecoveryLogger(logger func(c *router.Context, err interface{}, stack []byte)) RecoveryOption {
+func WithRecoveryLogger(logger func(c *router.Context, err any, stack []byte)) RecoveryOption {
 	return func(cfg *recoveryConfig) {
 		cfg.logger = logger
 	}
@@ -101,10 +96,10 @@ func WithRecoveryLogger(logger func(c *router.Context, err interface{}, stack []
 //
 // Example:
 //
-//	middleware.Recovery(middleware.WithRecoveryHandler(func(c *router.Context, err interface{}) {
+//	middleware.Recovery(middleware.WithRecoveryHandler(func(c *router.Context, err any) {
 //	    c.JSON(500, map[string]string{"error": "Something went wrong"})
 //	}))
-func WithRecoveryHandler(handler func(c *router.Context, err interface{})) RecoveryOption {
+func WithRecoveryHandler(handler func(c *router.Context, err any)) RecoveryOption {
 	return func(cfg *recoveryConfig) {
 		cfg.handler = handler
 	}
@@ -120,18 +115,6 @@ func WithRecoveryHandler(handler func(c *router.Context, err interface{})) Recov
 func WithDisableStackAll(disabled bool) RecoveryOption {
 	return func(cfg *recoveryConfig) {
 		cfg.disableStackAll = disabled
-	}
-}
-
-// WithDisablePrintStack disables automatic printing of stack traces to stderr.
-// Default: false (stack traces are printed)
-//
-// Example:
-//
-//	middleware.Recovery(middleware.WithDisablePrintStack(true))
-func WithDisablePrintStack(disabled bool) RecoveryOption {
-	return func(cfg *recoveryConfig) {
-		cfg.disablePrintStack = disabled
 	}
 }
 
@@ -157,8 +140,8 @@ func WithDisablePrintStack(disabled bool) RecoveryOption {
 // Custom handler:
 //
 //	r.Use(middleware.Recovery(
-//	    middleware.WithRecoveryHandler(func(c *router.Context, err interface{}) {
-//	        c.JSON(500, map[string]interface{}{
+//	    middleware.WithRecoveryHandler(func(c *router.Context, err any) {
+//	        c.JSON(500, map[string]any{
 //	            "error": "Internal server error",
 //	            "request_id": c.Param("request_id"),
 //	        })
@@ -194,14 +177,9 @@ func Recovery(opts ...RecoveryOption) router.HandlerFunc {
 						// Use full stack from all goroutines
 						stack = fullStack
 					}
-
-					// Print to stderr if not disabled
-					if !cfg.disablePrintStack {
-						fmt.Printf("[Recovery] panic recovered:\n%v\n%s", err, stack)
-					}
 				}
 
-				// Call custom logger if provided
+				// Call logger (default or custom)
 				if cfg.logger != nil {
 					cfg.logger(c, err, stack)
 				}

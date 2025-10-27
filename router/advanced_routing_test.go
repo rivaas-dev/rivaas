@@ -20,9 +20,7 @@ func (suite *AdvancedRoutingTestSuite) SetupTest() {
 }
 
 func (suite *AdvancedRoutingTestSuite) TearDownTest() {
-	if suite.router != nil {
-		suite.router.StopMetricsServer()
-	}
+	// Cleanup if needed
 }
 
 func (suite *AdvancedRoutingTestSuite) TestWildcardRoutes() {

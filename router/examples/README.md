@@ -60,65 +60,31 @@ curl -X POST http://localhost:8080/api/v1/users -H 'Content-Type: application/js
 
 ---
 
-### 5. [Metrics](./05-metrics/)
-
-Metrics collection with multiple providers (Prometheus, OTLP, Stdout).
-
-```bash
-# Prometheus (default)
-cd 05-metrics && go run main.go
-curl http://localhost:9090/metrics
-
-# OTLP
-METRICS_PROVIDER=otlp OTLP_ENDPOINT=http://localhost:4318 go run main.go
-
-# Stdout (development)
-METRICS_PROVIDER=stdout go run main.go
-```
-
-**Learn:** Automatic request metrics, custom metrics (counters, gauges, histograms), different providers
-
----
-
-### 6. [Tracing](./06-tracing/)
-
-Distributed tracing with OpenTelemetry.
-
-```bash
-cd 06-tracing && go run main.go
-curl http://localhost:8080/users/123
-# Watch console for trace output
-```
-
-**Learn:** Span attributes, events, trace IDs, OpenTelemetry integration
-
----
-
-### 7. [Observability](./07-observability/)
-
-Combined metrics and tracing for full observability.
-
-```bash
-cd 07-observability && go run main.go
-curl -X POST http://localhost:8080/orders
-curl http://localhost:9090/metrics
-```
-
-**Learn:** Correlating traces with metrics, trace ID in responses, comprehensive monitoring
-
----
-
-### 8. [Advanced](./08-advanced/)
+### 5. [Advanced](./05-advanced/)
 
 Advanced features: route constraints, helpers, static files, introspection.
 
 ```bash
-cd 08-advanced && go run main.go
+cd 05-advanced && go run main.go
 curl http://localhost:8080/users/123           # ✓ Valid (numeric)
 curl http://localhost:8080/users/abc           # ✗ Invalid (not numeric)
 ```
 
 **Learn:** Route validation, constraints (UUID, numeric, alpha), static files, cookie handling, introspection
+
+---
+
+### 6. [Advanced Routing](./06-advanced-routing/)
+
+Advanced routing features: versioning and wildcards.
+
+```bash
+cd 06-advanced-routing && go run main.go
+curl -H "API-Version: v1" http://localhost:8080/users
+curl http://localhost:8080/files/static/image.jpg
+```
+
+**Learn:** API versioning (header/query), version-specific groups, wildcard routes, efficient routing
 
 ---
 
@@ -141,19 +107,14 @@ curl http://localhost:8080/users/abc           # ✗ Invalid (not numeric)
 
 ## 📖 Learning Path
 
-### For Beginners
+### Progressive Learning
 
 1. Start with **01-hello-world** to understand the basics
 2. Move to **02-routing** to learn about routes and parameters
 3. Explore **03-middleware** for request processing
 4. Build a **04-rest-api** to see everything together
-
-### For Production
-
-5. Add **05-metrics** for monitoring
-6. Implement **06-tracing** for debugging
-7. Combine with **07-observability** for full visibility
-8. Use **08-advanced** features as needed
+5. Learn **05-advanced** features for constraints and helpers
+6. Master **06-advanced-routing** for versioning and wildcards
 
 ## 🔧 Common Patterns
 
@@ -167,9 +128,10 @@ r := router.New()
 
 ```go
 r := router.New(
-    router.WithMetrics(),
-    router.WithTracing(),
-    router.WithMetricsServiceName("my-api"),
+    router.WithVersioning(
+        router.WithHeaderVersioning("API-Version"),
+        router.WithDefaultVersion("v1"),
+    ),
 )
 ```
 
@@ -211,74 +173,37 @@ r.GET("/entities/:uuid", handler).WhereUUID("uuid")
 r.GET("/files/:name", handler).Where("name", `[a-zA-Z0-9._-]+`)
 ```
 
-## 📊 Metrics Providers
-
-### Prometheus (Default)
-
-```go
-r := router.New(router.WithMetrics())
-// Metrics at http://localhost:9090/metrics
-```
-
-### OTLP (Push to Collector)
+### API Versioning
 
 ```go
 r := router.New(
-    router.WithMetrics(),
-    router.WithMetricsProviderOTLP("http://localhost:4318"),
+    router.WithVersioning(
+        router.WithHeaderVersioning("API-Version"),
+        router.WithQueryVersioning("version"),
+        router.WithDefaultVersion("v1"),
+    ),
 )
+
+// Version-specific routes
+v1 := r.Version("v1")
+v1.GET("/users", getUsersV1)
+
+v2 := r.Version("v2")
+v2.GET("/users", getUsersV2)
 ```
 
-### Stdout (Development)
+### Wildcard Routes
 
 ```go
-r := router.New(
-    router.WithMetrics(),
-    router.WithMetricsProviderStdout(),
-)
-```
+// Wildcard routes
+r.GET("/files/*", fileHandler)
+r.GET("/static/*", staticHandler)
 
-## 🔍 Tracing
-
-### Basic Setup
-
-```go
-r := router.New(
-    router.WithTracing(),
-    router.WithTracingServiceName("my-api"),
-)
-```
-
-### In Handlers
-
-```go
-func handler(c *router.Context) {
-    c.SetSpanAttribute("user.id", userID)
-    c.AddSpanEvent("processing_started")
-    
-    // ... your logic ...
-    
-    c.JSON(http.StatusOK, map[string]string{
-        "trace_id": c.TraceID(),
-    })
+// Access in handler
+func fileHandler(c *router.Context) {
+    filepath := c.Param("filepath")
+    // Handle file request
 }
-```
-
-## 🛠️ Environment Configuration
-
-Rivaas supports environment variables for configuration:
-
-```bash
-# Service identification
-export OTEL_SERVICE_NAME="my-api"
-export OTEL_SERVICE_VERSION="v1.0.0"
-
-# Metrics configuration
-export RIVAAS_METRICS_PORT=":9090"
-export RIVAAS_METRICS_PATH="/metrics"
-
-# Run your app
-go run main.go
 ```
 
 ## 🧪 Testing Examples
@@ -298,8 +223,9 @@ curl http://localhost:8080/
 1. **Copy a similar example** as a starting point
 2. **Modify routes** to match your API design
 3. **Add middleware** as needed for auth, logging, etc.
-4. **Enable observability** with metrics and tracing
-5. **Add validation** with route constraints
+4. **Add validation** with route constraints
+5. **Use versioning** for API evolution
+6. **Implement wildcards** for flexible routing
 
 ## 🤝 Need Help?
 

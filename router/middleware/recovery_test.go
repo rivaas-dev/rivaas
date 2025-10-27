@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -65,9 +64,9 @@ func TestRecovery_CustomHandler(t *testing.T) {
 
 	customHandlerCalled := false
 	r.Use(Recovery(
-		WithRecoveryHandler(func(c *router.Context, err interface{}) {
+		WithRecoveryHandler(func(c *router.Context, err any) {
 			customHandlerCalled = true
-			c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			c.JSON(http.StatusInternalServerError, map[string]any{
 				"custom_error": "Custom recovery",
 				"panic_value":  err,
 			})
@@ -91,7 +90,7 @@ func TestRecovery_CustomHandler(t *testing.T) {
 		t.Errorf("Expected status 500, got %d", w.Code)
 	}
 
-	var response map[string]interface{}
+	var response map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
@@ -113,7 +112,7 @@ func TestRecovery_CustomLogger(t *testing.T) {
 	loggerCalled := false
 
 	r.Use(Recovery(
-		WithRecoveryLogger(func(c *router.Context, err interface{}, stack []byte) {
+		WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
 			loggerCalled = true
 			loggedError = err
 			loggedStack = stack
@@ -148,7 +147,7 @@ func TestRecovery_DisableStackTrace(t *testing.T) {
 	var loggedStack []byte
 	r.Use(Recovery(
 		WithStackTrace(false),
-		WithRecoveryLogger(func(c *router.Context, err interface{}, stack []byte) {
+		WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
 			loggedStack = stack
 		}),
 	))
@@ -173,7 +172,7 @@ func TestRecovery_CustomStackSize(t *testing.T) {
 	var loggedStack []byte
 	r.Use(Recovery(
 		WithStackSize(1024), // 1KB
-		WithRecoveryLogger(func(c *router.Context, err interface{}, stack []byte) {
+		WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
 			loggedStack = stack
 		}),
 	))
@@ -252,7 +251,7 @@ func TestRecovery_PanicInMiddleware(t *testing.T) {
 func TestRecovery_DifferentPanicTypes(t *testing.T) {
 	tests := []struct {
 		name       string
-		panicValue interface{}
+		panicValue any
 	}{
 		{"string panic", "string error"},
 		{"int panic", 42},
@@ -265,9 +264,9 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := router.New()
 
-			var capturedPanic interface{}
+			var capturedPanic any
 			r.Use(Recovery(
-				WithRecoveryLogger(func(c *router.Context, err interface{}, stack []byte) {
+				WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
 					capturedPanic = err
 				}),
 			))
@@ -298,18 +297,19 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 	}
 }
 
-func TestRecovery_DisablePrintStack(t *testing.T) {
+func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
 	r := router.New()
 
-	// Capture stderr
-	oldStderr := bytes.NewBuffer(nil)
-
+	loggerCalled := false
 	r.Use(Recovery(
-		WithDisablePrintStack(true),
+		WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
+			loggerCalled = true
+			// Custom logger - doesn't print to stderr
+		}),
 	))
 
 	r.GET("/panic", func(c *router.Context) {
-		panic("no print")
+		panic("custom logger test")
 	})
 
 	req := httptest.NewRequest("GET", "/panic", nil)
@@ -317,14 +317,12 @@ func TestRecovery_DisablePrintStack(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	// Should not panic and should handle recovery
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500, got %d", w.Code)
+	if !loggerCalled {
+		t.Error("Custom logger should be called")
 	}
 
-	// Check that nothing was printed to our buffer
-	if oldStderr.Len() > 0 {
-		t.Error("Stack trace should not be printed when disabled")
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", w.Code)
 	}
 }
 
@@ -387,11 +385,10 @@ func TestRecovery_MultipleOptions(t *testing.T) {
 	r.Use(Recovery(
 		WithStackTrace(true),
 		WithStackSize(2048),
-		WithDisablePrintStack(true),
-		WithRecoveryLogger(func(c *router.Context, err interface{}, stack []byte) {
+		WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
 			loggerCalled = true
 		}),
-		WithRecoveryHandler(func(c *router.Context, err interface{}) {
+		WithRecoveryHandler(func(c *router.Context, err any) {
 			handlerCalled = true
 			c.JSON(http.StatusInternalServerError, map[string]string{"error": "recovered"})
 		}),
@@ -433,7 +430,7 @@ func BenchmarkRecovery_NoPanic(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -452,7 +449,7 @@ func BenchmarkRecovery_WithPanic(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}

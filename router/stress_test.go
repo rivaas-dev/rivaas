@@ -22,7 +22,7 @@ func (suite *StressTestSuite) SetupTest() {
 
 func (suite *StressTestSuite) TearDownTest() {
 	if suite.router != nil {
-		suite.router.StopMetricsServer()
+		// Cleanup if needed
 	}
 }
 

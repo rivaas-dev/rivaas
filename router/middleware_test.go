@@ -22,7 +22,7 @@ func (suite *MiddlewareTestSuite) SetupTest() {
 
 func (suite *MiddlewareTestSuite) TearDownTest() {
 	if suite.router != nil {
-		suite.router.StopMetricsServer()
+		// Cleanup if needed
 	}
 }
 

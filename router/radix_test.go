@@ -19,13 +19,13 @@ func (suite *RadixTestSuite) SetupTest() {
 // TestRadixTree tests basic radix tree functionality
 func (suite *RadixTestSuite) TestRadixTree() {
 	// Add routes
-	suite.root.addRoute("/", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/users", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/users/:id", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/users/:id/posts", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/posts", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/posts/:id", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRouteWithConstraints("/", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/users", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/users/:id", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/users/:id/posts", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/posts", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/posts/:id", []HandlerFunc{func(c *Context) {}}, nil)
 
 	// Test cases
 	tests := []struct {
@@ -67,10 +67,10 @@ func (suite *RadixTestSuite) TestRadixTree() {
 // TestRadixTreeComplex tests complex radix tree scenarios
 func (suite *RadixTestSuite) TestRadixTreeComplex() {
 	// Add complex routes
-	suite.root.addRoute("/api/v1/users/:id", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/api/v1/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/api/v1/posts/:id/comments/:comment_id", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/api/v2/users", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRouteWithConstraints("/api/v1/users/:id", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/api/v1/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/api/v1/posts/:id/comments/:comment_id", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/api/v2/users", []HandlerFunc{func(c *Context) {}}, nil)
 
 	// Test cases
 	tests := []struct {
@@ -109,11 +109,11 @@ func (suite *RadixTestSuite) TestRadixTreeComplex() {
 // TestRadixTreeEdgeCases tests edge cases for radix tree
 func (suite *RadixTestSuite) TestRadixTreeEdgeCases() {
 	// Add edge case routes
-	suite.root.addRoute("/", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/a", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/ab", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/abc", []HandlerFunc{func(c *Context) {}})
-	suite.root.addRoute("/:param", []HandlerFunc{func(c *Context) {}})
+	suite.root.addRouteWithConstraints("/", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/a", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/ab", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/abc", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/:param", []HandlerFunc{func(c *Context) {}}, nil)
 
 	// Test cases
 	tests := []struct {

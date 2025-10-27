@@ -201,7 +201,7 @@ func BenchmarkRadixTree(b *testing.B) {
 	}
 
 	for _, route := range routes {
-		root.addRoute(route, []HandlerFunc{func(c *Context) {}})
+		root.addRouteWithConstraints(route, []HandlerFunc{func(c *Context) {}}, nil)
 	}
 
 	// Test paths
