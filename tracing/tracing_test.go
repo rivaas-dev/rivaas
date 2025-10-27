@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"rivaas.dev/router"
 )
 
 func TestTracingConfig(t *testing.T) {
@@ -29,7 +28,7 @@ func TestTracingConfig(t *testing.T) {
 	assert.NotNil(t, config.GetPropagator())
 }
 
-func TestTracingWithRouter(t *testing.T) {
+func TestTracingWithHTTP(t *testing.T) {
 	// Create tracing config
 	config := MustNew(
 		WithServiceName("test-service"),
@@ -37,19 +36,18 @@ func TestTracingWithRouter(t *testing.T) {
 	)
 	defer config.Shutdown(context.Background())
 
-	// Create router
-	r := router.New()
-	r.SetTracingRecorder(config)
-
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-	})
+	// Create HTTP handler with tracing middleware
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "ok")
 }
 
 func TestTracingOptions(t *testing.T) {
@@ -111,34 +109,39 @@ func TestTracingMiddleware(t *testing.T) {
 }
 
 func TestTracingIntegration(t *testing.T) {
-	// Test full integration with router
+	// Test full integration with HTTP middleware
 	config := MustNew(
 		WithServiceName("integration-test"),
 		WithExcludePaths("/health"),
 	)
 
-	r := router.New()
-	r.SetTracingRecorder(config)
+	// Create HTTP mux
+	mux := http.NewServeMux()
 
 	// Add routes
-	r.GET("/", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "Hello"})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"message":"Hello"}`))
 	})
 
-	r.GET("/health", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"status": "healthy"})
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy"}`))
 	})
+
+	// Wrap with tracing middleware
+	handler := Middleware(config)(mux)
 
 	// Test normal route
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// Test health route (should be excluded from tracing)
 	req = httptest.NewRequest("GET", "/health", nil)
 	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
@@ -190,21 +193,17 @@ func TestSamplingRate(t *testing.T) {
 			WithServiceName("test-service"),
 			WithSampleRate(1.0),
 		)
+		defer config.Shutdown(context.Background())
 
 		// All requests should be traced
-		r := router.New()
-		r.SetTracingRecorder(config)
-
-		r.GET("/test", func(c *router.Context) {
-			// Trace should always be active at 100% sampling
-			traceID := c.TraceID()
-			// A valid trace ID would be generated
-			c.JSON(http.StatusOK, map[string]string{"trace_id": traceID})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		req := httptest.NewRequest("GET", "/test", nil)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -214,53 +213,48 @@ func TestSamplingRate(t *testing.T) {
 			WithServiceName("test-service"),
 			WithSampleRate(0.0),
 		)
+		defer config.Shutdown(context.Background())
 
 		// No requests should be traced
-		r := router.New()
-		r.SetTracingRecorder(config)
-
-		r.GET("/test", func(c *router.Context) {
-			traceID := c.TraceID()
-			// At 0% sampling, no trace should be created
-			c.JSON(http.StatusOK, map[string]string{"trace_id": traceID})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		req := httptest.NewRequest("GET", "/test", nil)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
 	t.Run("SampleRateStatistical", func(t *testing.T) {
 		// Note: This test validates that sampling logic works correctly.
-		// With a noop tracer (default), spans won't be recording, but we can
-		// verify the sampling logic is being called correctly by testing with
-		// the router integration where we can observe the behavior.
+		// With a noop tracer (default), spans won't be recorded, but we can
+		// verify the sampling logic is being called correctly.
 
 		config := MustNew(
 			WithServiceName("test-service"),
 			WithSampleRate(0.5),
 		)
-
-		r := router.New()
-		r.SetTracingRecorder(config)
+		defer config.Shutdown(context.Background())
 
 		// The sampling logic is working correctly if:
 		// 1. Requests are processed without errors
 		// 2. No panics or race conditions occur
 		// 3. The behavior is consistent
 
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		// Make multiple requests to verify sampling doesn't cause issues
 		const numRequests = 100
 		for i := 0; i < numRequests; i++ {
 			req := httptest.NewRequest("GET", "/test", nil)
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code)
 		}
 
@@ -274,17 +268,16 @@ func TestParameterRecording(t *testing.T) {
 		config := MustNew(
 			WithServiceName("test-service"),
 		)
+		defer config.Shutdown(context.Background())
 
-		r := router.New()
-		r.SetTracingRecorder(config)
-
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		req := httptest.NewRequest("GET", "/test?foo=bar&baz=qux", nil)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -294,19 +287,18 @@ func TestParameterRecording(t *testing.T) {
 			WithServiceName("test-service"),
 			WithDisableParams(),
 		)
+		defer config.Shutdown(context.Background())
 
 		assert.False(t, config.recordParams)
 
-		r := router.New()
-		r.SetTracingRecorder(config)
-
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		req := httptest.NewRequest("GET", "/test?foo=bar", nil)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -357,28 +349,31 @@ func TestErrorStatusCodes(t *testing.T) {
 	config := MustNew(
 		WithServiceName("test-service"),
 	)
+	defer config.Shutdown(context.Background())
 
-	r := router.New()
-	r.SetTracingRecorder(config)
-
-	r.GET("/not-found", func(c *router.Context) {
-		c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+	// Create mux with different status codes
+	mux := http.NewServeMux()
+	mux.HandleFunc("/not-found", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"not found"}`))
+	})
+	mux.HandleFunc("/error", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"server error"}`))
 	})
 
-	r.GET("/error", func(c *router.Context) {
-		c.JSON(http.StatusInternalServerError, map[string]string{"error": "server error"})
-	})
+	handler := Middleware(config)(mux)
 
 	// Test 404
 	req := httptest.NewRequest("GET", "/not-found", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	// Test 500
 	req = httptest.NewRequest("GET", "/error", nil)
 	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
@@ -386,13 +381,12 @@ func TestConcurrentResponseWriter(t *testing.T) {
 	config := MustNew(
 		WithServiceName("test-service"),
 	)
+	defer config.Shutdown(context.Background())
 
-	r := router.New()
-	r.SetTracingRecorder(config)
-
-	r.GET("/concurrent", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-	})
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
 
 	// Test concurrent requests
 	const numRequests = 50
@@ -404,7 +398,7 @@ func TestConcurrentResponseWriter(t *testing.T) {
 			defer wg.Done()
 			req := httptest.NewRequest("GET", "/concurrent", nil)
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code)
 		}()
 	}
@@ -416,31 +410,32 @@ func TestContextTracingHelpers(t *testing.T) {
 	config := MustNew(
 		WithServiceName("test-service"),
 	)
+	defer config.Shutdown(context.Background())
 
-	r := router.New()
-	r.SetTracingRecorder(config)
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Get span from context and test attribute setting
+		ctx := r.Context()
 
-	r.GET("/test", func(c *router.Context) {
-		// Test different attribute types through context
-		c.SetSpanAttribute("string", "value")
-		c.SetSpanAttribute("int", 42)
-		c.SetSpanAttribute("float", 3.14)
-		c.SetSpanAttribute("bool", true)
+		// Test setting attributes through context (if span is available)
+		SetSpanAttributeFromContext(ctx, "string", "value")
+		SetSpanAttributeFromContext(ctx, "int", 42)
+		SetSpanAttributeFromContext(ctx, "float", 3.14)
+		SetSpanAttributeFromContext(ctx, "bool", true)
 
-		c.AddSpanEvent("test_event")
+		// Test adding span event
+		AddSpanEventFromContext(ctx, "test_event")
 
-		traceID := c.TraceID()
-		spanID := c.SpanID()
+		// Test getting trace ID and span ID from context
+		traceID := TraceID(ctx)
+		spanID := SpanID(ctx)
 
-		c.JSON(http.StatusOK, map[string]string{
-			"trace_id": traceID,
-			"span_id":  spanID,
-		})
-	})
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fmt.Sprintf(`{"trace_id":"%s","span_id":"%s"}`, traceID, spanID)))
+	}))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -716,17 +711,16 @@ func TestDisabledRecording(t *testing.T) {
 			WithServiceName("test"),
 			WithDisableParams(),
 		)
+		defer config.Shutdown(context.Background())
 
-		r := router.New()
-		r.SetTracingRecorder(config)
-
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		req := httptest.NewRequest("GET", "/test?secret=password&token=abc123", nil)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -736,19 +730,18 @@ func TestDisabledRecording(t *testing.T) {
 			WithServiceName("test"),
 			WithHeaders("X-Request-ID", "User-Agent"),
 		)
+		defer config.Shutdown(context.Background())
 
-		r := router.New()
-		r.SetTracingRecorder(config)
-
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("X-Request-ID", "test-123")
 		req.Header.Set("User-Agent", "test-agent")
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -765,49 +758,10 @@ func TestDisabledRecording(t *testing.T) {
 	})
 }
 
-// TestRouterIntegration tests the integration layer between tracing and router
-func TestRouterIntegration(t *testing.T) {
-	t.Run("WithTracingOption", func(t *testing.T) {
-		// Test that WithTracing creates and sets config
-		r := router.New()
-		opt := WithTracing(
-			WithServiceName("test-service"),
-			WithSampleRate(0.5),
-		)
-		opt(r)
-
-		// Add a route and verify tracing works
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
-
-		req := httptest.NewRequest("GET", "/test", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
-	t.Run("WithTracingFromConfig", func(t *testing.T) {
-		config := MustNew(
-			WithServiceName("existing-config"),
-			WithSampleRate(1.0),
-		)
-
-		r := router.New()
-		opt := WithTracingFromConfig(config)
-		opt(r)
-
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
-
-		req := httptest.NewRequest("GET", "/test", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
+// TestMiddlewareIntegration tests the middleware integration with standard HTTP handlers
+func TestMiddlewareIntegration(t *testing.T) {
+	// NOTE: Router-specific integration tests (WithTracing, WithTracingFromConfig)
+	// have been moved to the router module's tests for proper separation of concerns.
 
 	t.Run("MiddlewareIntegration", func(t *testing.T) {
 		config := MustNew(

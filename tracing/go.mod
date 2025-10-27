@@ -9,7 +9,6 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.38.0
 	go.opentelemetry.io/otel/sdk v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
-	rivaas.dev/router v0.0.0
 )
 
 require (
@@ -33,5 +32,3 @@ require (
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace rivaas.dev/router => ../router

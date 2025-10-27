@@ -8,62 +8,55 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
-	"rivaas.dev/router"
 )
 
 // BenchmarkTracingOverhead measures the overhead of tracing operations
 func BenchmarkTracingOverhead(b *testing.B) {
 	b.Run("NoTracing", func(b *testing.B) {
 		config := MustNew(WithSampleRate(0.0))
-		r := router.New()
-		r.SetTracingRecorder(config)
-
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		req := httptest.NewRequest("GET", "/test", nil)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 		}
 	})
 
 	b.Run("WithTracing100Percent", func(b *testing.B) {
 		config := MustNew(WithSampleRate(1.0))
-		r := router.New()
-		r.SetTracingRecorder(config)
-
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		req := httptest.NewRequest("GET", "/test", nil)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 		}
 	})
 
 	b.Run("WithTracing50Percent", func(b *testing.B) {
 		config := MustNew(WithSampleRate(0.5))
-		r := router.New()
-		r.SetTracingRecorder(config)
-
-		r.GET("/test", func(c *router.Context) {
-			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-		})
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
 
 		req := httptest.NewRequest("GET", "/test", nil)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 		}
 	})
 }
@@ -165,19 +158,17 @@ func BenchmarkContextPropagation(b *testing.B) {
 // BenchmarkResponseWriterConcurrency measures responseWriter mutex contention
 func BenchmarkResponseWriterConcurrency(b *testing.B) {
 	config := MustNew(WithSampleRate(1.0))
-	r := router.New()
-	r.SetTracingRecorder(config)
-
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-	})
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 		}
 	})
 }
