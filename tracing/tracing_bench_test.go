@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rivaas-dev/rivaas/router"
 	"go.opentelemetry.io/otel/attribute"
+	"rivaas.dev/router"
 )
 
 // BenchmarkTracingOverhead measures the overhead of tracing operations

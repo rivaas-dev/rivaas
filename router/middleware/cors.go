@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 // CORSOption defines functional options for CORS middleware configuration.

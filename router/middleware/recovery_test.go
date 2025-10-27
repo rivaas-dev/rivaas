@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func TestRecovery_BasicPanic(t *testing.T) {

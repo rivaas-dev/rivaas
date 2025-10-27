@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 // requestIDKey is the context key for storing request ID.

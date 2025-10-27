@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rivaas-dev/rivaas/router"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"rivaas.dev/router"
 )
 
 // waitForMetricsServer waits for the metrics server to be ready

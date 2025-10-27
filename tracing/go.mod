@@ -1,15 +1,15 @@
-module github.com/rivaas-dev/rivaas/tracing
+module rivaas.dev/tracing
 
 go 1.24.0
 
 require (
-	github.com/rivaas-dev/rivaas/router v0.0.0-20251010135317-8b1aee294353
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.38.0
 	go.opentelemetry.io/otel/sdk v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
+	rivaas.dev/router v0.0.0
 )
 
 require (
@@ -34,4 +34,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/rivaas-dev/rivaas/router => ../router
+replace rivaas.dev/router => ../router

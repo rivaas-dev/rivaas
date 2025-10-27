@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func TestBasicAuth(t *testing.T) {

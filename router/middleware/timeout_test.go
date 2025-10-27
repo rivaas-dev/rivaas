@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func TestTimeout_CompletesWithinTimeout(t *testing.T) {

@@ -1,10 +1,9 @@
-module github.com/rivaas-dev/rivaas/metrics
+module rivaas.dev/metrics
 
 go 1.24.0
 
 require (
 	github.com/prometheus/client_golang v1.23.2
-	github.com/rivaas-dev/rivaas/router v0.0.0-20251010135317-8b1aee294353
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.38.0
@@ -12,6 +11,7 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.38.0
 	go.opentelemetry.io/otel/metric v1.38.0
 	go.opentelemetry.io/otel/sdk/metric v1.38.0
+	rivaas.dev/router v0.0.0
 )
 
 require (
@@ -43,4 +43,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/rivaas-dev/rivaas/router => ../router
+replace rivaas.dev/router => ../router

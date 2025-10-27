@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func main() {

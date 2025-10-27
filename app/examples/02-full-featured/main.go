@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rivaas-dev/rivaas/app"
-	"github.com/rivaas-dev/rivaas/metrics"
-	"github.com/rivaas-dev/rivaas/router"
-	"github.com/rivaas-dev/rivaas/router/middleware"
-	"github.com/rivaas-dev/rivaas/tracing"
 	"go.opentelemetry.io/otel/attribute"
+	"rivaas.dev/app"
+	"rivaas.dev/metrics"
+	"rivaas.dev/router"
+	"rivaas.dev/router/middleware"
+	"rivaas.dev/tracing"
 )
 
 func main() {

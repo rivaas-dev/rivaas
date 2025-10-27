@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func TestRequestID_GeneratesID(t *testing.T) {

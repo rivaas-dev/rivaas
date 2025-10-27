@@ -19,7 +19,3 @@ coverage_*.out
 # OS files
 .DS_Store
 Thumbs.db
-
-# Go workspace (if using)
-go.work
-go.work.sum

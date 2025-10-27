@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func TestLogger_BasicLogging(t *testing.T) {

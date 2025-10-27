@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func TestCORS_NoCORSRequest(t *testing.T) {

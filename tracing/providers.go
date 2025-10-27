@@ -18,7 +18,7 @@ func (c *Config) initNoopProvider() error {
 	if c.customTracerProvider {
 		c.logDebug("Using custom user-provided tracer provider")
 		if c.tracer == nil {
-			c.tracer = c.tracerProvider.Tracer("github.com/rivaas-dev/rivaas/tracing")
+			c.tracer = c.tracerProvider.Tracer("rivaas.dev/tracing")
 		}
 		return nil
 	}
@@ -30,7 +30,7 @@ func (c *Config) initNoopProvider() error {
 	)
 
 	c.tracerProvider = tp
-	c.tracer = tp.Tracer("github.com/rivaas-dev/rivaas/tracing")
+	c.tracer = tp.Tracer("rivaas.dev/tracing")
 
 	// Set global tracer provider
 	c.logDebug("Setting global OpenTelemetry tracer provider", "provider", "noop")
@@ -45,7 +45,7 @@ func (c *Config) initStdoutProvider() error {
 	if c.customTracerProvider {
 		c.logDebug("Using custom user-provided tracer provider")
 		if c.tracer == nil {
-			c.tracer = c.tracerProvider.Tracer("github.com/rivaas-dev/rivaas/tracing")
+			c.tracer = c.tracerProvider.Tracer("rivaas.dev/tracing")
 		}
 		return nil
 	}
@@ -68,7 +68,7 @@ func (c *Config) initStdoutProvider() error {
 	)
 
 	c.tracerProvider = tp
-	c.tracer = tp.Tracer("github.com/rivaas-dev/rivaas/tracing")
+	c.tracer = tp.Tracer("rivaas.dev/tracing")
 
 	// Set global tracer provider
 	c.logDebug("Setting global OpenTelemetry tracer provider", "provider", "stdout")
@@ -84,7 +84,7 @@ func (c *Config) initOTLPProvider() error {
 	if c.customTracerProvider {
 		c.logDebug("Using custom user-provided tracer provider")
 		if c.tracer == nil {
-			c.tracer = c.tracerProvider.Tracer("github.com/rivaas-dev/rivaas/tracing")
+			c.tracer = c.tracerProvider.Tracer("rivaas.dev/tracing")
 		}
 		return nil
 	}
@@ -116,7 +116,7 @@ func (c *Config) initOTLPProvider() error {
 	)
 
 	c.tracerProvider = tp
-	c.tracer = tp.Tracer("github.com/rivaas-dev/rivaas/tracing")
+	c.tracer = tp.Tracer("rivaas.dev/tracing")
 
 	// Set global tracer provider
 	c.logDebug("Setting global OpenTelemetry tracer provider", "provider", "otlp")

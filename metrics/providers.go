@@ -26,7 +26,7 @@ func (c *Config) initializeProvider() error {
 			return fmt.Errorf("custom meter provider is nil")
 		}
 		c.logDebug("Using custom user-provided meter provider")
-		c.meter = c.meterProvider.Meter("github.com/rivaas-dev/rivaas/metrics")
+		c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
 		return c.initializeMetrics()
 	}
 
@@ -71,7 +71,7 @@ func (c *Config) initPrometheusProvider() error {
 	c.logDebug("Setting global OpenTelemetry meter provider", "provider", "prometheus")
 	otel.SetMeterProvider(c.meterProvider)
 
-	c.meter = c.meterProvider.Meter("github.com/rivaas-dev/rivaas/metrics")
+	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
 
 	// Initialize metrics instruments
 	if err := c.initializeMetrics(); err != nil {
@@ -133,7 +133,7 @@ func (c *Config) initOTLPProvider() error {
 	c.logDebug("Setting global OpenTelemetry meter provider", "provider", "otlp")
 	otel.SetMeterProvider(c.meterProvider)
 
-	c.meter = c.meterProvider.Meter("github.com/rivaas-dev/rivaas/metrics")
+	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
 	return c.initializeMetrics()
 }
 
@@ -158,7 +158,7 @@ func (c *Config) initStdoutProvider() error {
 	c.logDebug("Setting global OpenTelemetry meter provider", "provider", "stdout")
 	otel.SetMeterProvider(c.meterProvider)
 
-	c.meter = c.meterProvider.Meter("github.com/rivaas-dev/rivaas/metrics")
+	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
 	return c.initializeMetrics()
 }
 

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 // contextKey is a type for context keys to avoid collisions.

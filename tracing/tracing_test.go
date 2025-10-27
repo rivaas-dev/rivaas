@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rivaas-dev/rivaas/router"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"rivaas.dev/router"
 )
 
 func TestTracingConfig(t *testing.T) {

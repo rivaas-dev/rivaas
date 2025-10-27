@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 // CompressionOption defines functional options for Compression middleware configuration.

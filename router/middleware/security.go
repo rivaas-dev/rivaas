@@ -3,7 +3,7 @@ package middleware
 import (
 	"fmt"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 // SecurityOption defines functional options for Security middleware configuration.

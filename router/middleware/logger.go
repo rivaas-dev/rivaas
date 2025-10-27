@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 // LoggerOption defines functional options for Logger middleware configuration.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func TestSecurity_DefaultHeaders(t *testing.T) {

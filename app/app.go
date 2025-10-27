@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rivaas-dev/rivaas/metrics"
-	"github.com/rivaas-dev/rivaas/router"
-	"github.com/rivaas-dev/rivaas/router/middleware"
-	"github.com/rivaas-dev/rivaas/tracing"
+	"rivaas.dev/metrics"
+	"rivaas.dev/router"
+	"rivaas.dev/router/middleware"
+	"rivaas.dev/tracing"
 )
 
 // Default configuration values.

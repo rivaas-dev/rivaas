@@ -1,12 +1,18 @@
-module github.com/rivaas-dev/rivaas/app
+module rivaas.dev/app
 
 go 1.24.0
 
 require (
-	github.com/rivaas-dev/rivaas/metrics v0.0.0
-	github.com/rivaas-dev/rivaas/router v0.0.0
-	github.com/rivaas-dev/rivaas/tracing v0.0.0
+	rivaas.dev/metrics v0.0.0
+	rivaas.dev/router v0.0.0
+	rivaas.dev/tracing v0.0.0
 )
+
+replace rivaas.dev/metrics => ../metrics
+
+replace rivaas.dev/router => ../router
+
+replace rivaas.dev/tracing => ../tracing
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -43,9 +49,3 @@ require (
 	google.golang.org/grpc v1.75.1 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 )
-
-replace github.com/rivaas-dev/rivaas/metrics => ../metrics
-
-replace github.com/rivaas-dev/rivaas/router => ../router
-
-replace github.com/rivaas-dev/rivaas/tracing => ../tracing

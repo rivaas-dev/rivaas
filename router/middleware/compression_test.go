@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func TestCompression_BasicGzip(t *testing.T) {

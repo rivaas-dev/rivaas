@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rivaas-dev/rivaas/router"
+	"rivaas.dev/router"
 )
 
 func main() {
