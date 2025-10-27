@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"rivaas.dev/router"
 )
 
 // waitForMetricsServer waits for the metrics server to be ready
@@ -45,7 +44,7 @@ func TestMetricsConfig(t *testing.T) {
 	assert.Equal(t, PrometheusProvider, config.GetProvider())
 }
 
-func TestMetricsWithRouter(t *testing.T) {
+func TestMetricsWithHTTP(t *testing.T) {
 	// Create metrics config
 	config := MustNew(
 		WithServiceName("test-service"),
@@ -56,17 +55,15 @@ func TestMetricsWithRouter(t *testing.T) {
 	err := waitForMetricsServer("localhost:9092", 1*time.Second)
 	require.NoError(t, err, "Metrics server should start")
 
-	// Create router
-	r := router.New()
-	r.SetMetricsRecorder(config)
-
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-	})
+	// Create HTTP handler with metrics middleware
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -181,35 +178,40 @@ func TestMetricsOptions(t *testing.T) {
 }
 
 func TestMetricsIntegration(t *testing.T) {
-	// Test full integration with router
+	// Test full integration with HTTP middleware
 	config := MustNew(
 		WithServiceName("integration-test"),
 		WithPort(":9096"),
 		WithExcludePaths("/health"),
 	)
 
-	r := router.New()
-	r.SetMetricsRecorder(config)
+	// Create HTTP mux
+	mux := http.NewServeMux()
 
 	// Add routes
-	r.GET("/", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "Hello"})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"message":"Hello"}`))
 	})
 
-	r.GET("/health", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"status": "healthy"})
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy"}`))
 	})
+
+	// Wrap with metrics middleware
+	handler := Middleware(config)(mux)
 
 	// Test normal route
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// Test health route (should be excluded from metrics)
 	req = httptest.NewRequest("GET", "/health", nil)
 	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
@@ -219,29 +221,27 @@ func TestMetricsHandler(t *testing.T) {
 		WithPort(":9097"),
 	)
 
-	// Create a router with metrics to generate some data
-	r := router.New()
-	r.SetMetricsRecorder(config)
-
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-	})
+	// Create HTTP handler with metrics to generate some data
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
 
 	// Make a request to generate metrics
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// Now test the metrics handler
-	handler, err := config.GetHandler()
+	metricsHandler, err := config.GetHandler()
 	require.NoError(t, err)
-	require.NotNil(t, handler)
+	require.NotNil(t, metricsHandler)
 
 	// Test that the handler responds
 	req = httptest.NewRequest("GET", "/metrics", nil)
 	w = httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	metricsHandler.ServeHTTP(w, req)
 
 	// Should return 200 and contain some metrics
 	assert.Equal(t, http.StatusOK, w.Code)
