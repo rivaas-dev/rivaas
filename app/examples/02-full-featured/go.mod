@@ -3,11 +3,11 @@ module example.com/full-featured
 go 1.24.0
 
 require (
-	github.com/rivaas-dev/rivaas/app v0.0.0
-	github.com/rivaas-dev/rivaas/metrics v0.0.0
-	github.com/rivaas-dev/rivaas/router v0.0.0
-	github.com/rivaas-dev/rivaas/tracing v0.0.0
 	go.opentelemetry.io/otel v1.38.0
+	rivaas.dev/app v0.0.0
+	rivaas.dev/metrics v0.0.0
+	rivaas.dev/router v0.0.0
+	rivaas.dev/tracing v0.0.0
 )
 
 require (
@@ -45,10 +45,10 @@ require (
 	google.golang.org/protobuf v1.36.9 // indirect
 )
 
-replace github.com/rivaas-dev/rivaas/app => ../..
+replace rivaas.dev/app => ../..
 
-replace github.com/rivaas-dev/rivaas/router => ../../../router
+replace rivaas.dev/router => ../../../router
 
-replace github.com/rivaas-dev/rivaas/metrics => ../../../metrics
+replace rivaas.dev/metrics => ../../../metrics
 
-replace github.com/rivaas-dev/rivaas/tracing => ../../../tracing
+replace rivaas.dev/tracing => ../../../tracing
