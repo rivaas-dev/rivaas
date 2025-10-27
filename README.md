@@ -32,8 +32,8 @@ package main
 
 import (
     "net/http"
-    "github.com/rivaas-dev/rivaas/app"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/app"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -62,9 +62,9 @@ package main
 
 import (
     "net/http"
-    "github.com/rivaas-dev/rivaas/metrics"
-    "github.com/rivaas-dev/rivaas/router"
-    "github.com/rivaas-dev/rivaas/tracing"
+    "rivass.dev/metrics"
+    "rivass.dev/router"
+    "rivass.dev/tracing"
 )
 
 func main() {
@@ -275,8 +275,8 @@ package main
 
 import (
     "net/http"
-    "github.com/rivaas-dev/rivaas/app"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/app"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -308,8 +308,8 @@ package main
 import (
     "database/sql"
     "net/http"
-    "github.com/rivaas-dev/rivaas/app"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/app"
+    "rivass.dev/router"
     _ "github.com/lib/pq"
 )
 

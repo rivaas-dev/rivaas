@@ -42,8 +42,8 @@ package main
 import (
     "log"
     "net/http"
-    "github.com/rivaas-dev/rivaas/app"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/app"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -77,9 +77,9 @@ import (
     "net/http"
     "time"
     
-    "github.com/rivaas-dev/rivaas/app"
-    "github.com/rivaas-dev/rivaas/router"
-    "github.com/rivaas-dev/rivaas/router/middleware"
+    "rivass.dev/app"
+    "rivass.dev/router"
+    "rivass.dev/router/middleware"
     "go.opentelemetry.io/otel/attribute"
 )
 
@@ -181,7 +181,7 @@ The `trace_id` will be empty and no traces will appear in stdout because:
 **Quick Start - Stdout Tracing (Development):**
 
 ```go
-import "github.com/rivaas-dev/rivaas/tracing"
+import "rivass.dev/tracing"
 
 // Set up stdout exporter BEFORE creating app
 tp, err := tracing.SetupStdout("my-service", "v1.0.0")
@@ -276,7 +276,7 @@ By default:
 The app package provides access to high-quality middleware from `router/middleware`:
 
 ```go
-import "github.com/rivaas-dev/rivaas/router/middleware"
+import "rivass.dev/router/middleware"
 ```
 
 ### Logger
@@ -515,7 +515,7 @@ If you're migrating from the low-level router package:
 ### Before (Router)
 
 ```go
-import "github.com/rivaas-dev/rivaas/router"
+import "rivass.dev/router"
 
 r := router.New(
     router.WithMetrics(),
@@ -527,7 +527,7 @@ r := router.New(
 ### After (App)
 
 ```go
-import "github.com/rivaas-dev/rivaas/app"
+import "rivass.dev/app"
 
 a, err := app.New(
     app.WithObservability(),

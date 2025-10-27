@@ -280,7 +280,7 @@ func CORS() router.HandlerFunc {
 ## 📦 Installation
 
 ```bash
-go get github.com/rivaas-dev/rivaas/router
+go get rivass.dev/router
 ```
 
 **Requirements**: Go 1.23.0 or higher
@@ -299,7 +299,7 @@ import (
     "fmt"
     "net/http"
     "time"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -437,7 +437,7 @@ package main
 
 import (
     "net/http"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -754,7 +754,7 @@ import (
     "io"
     "net/http"
     "time"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/router"
 )
 
 func getUser(c *router.Context) {
@@ -826,7 +826,7 @@ import (
     "net/http"
     "net/http/httptest"
     "testing"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/router"
 )
 
 func TestGetUser(t *testing.T) {
@@ -866,7 +866,7 @@ package main
 
 import (
     "net/http"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -1465,7 +1465,7 @@ import (
     "net/http/httptest"
     "testing"
     
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/router"
 )
 
 func setupRouter() *router.Router {
@@ -1731,7 +1731,7 @@ package main
 
 import (
     "net/http"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -1915,7 +1915,7 @@ import (
     "log"
     "net/http"
     
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/router"
     "go.opentelemetry.io/otel"
     "go.opentelemetry.io/otel/exporters/jaeger"
     "go.opentelemetry.io/otel/sdk/trace"
@@ -2441,5 +2441,5 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](../LIC
 ## 🔗 Links
 
 - [Examples](examples/)
-- [Go Package Documentation](https://pkg.go.dev/github.com/rivaas-dev/rivaas/router)
+- [Go Package Documentation](https://pkg.go.dev/rivass.dev/router)
 - [GitHub Repository](https://github.com/rivaas-dev/rivaas)

@@ -27,8 +27,8 @@ import (
     "net/http"
     "time"
     
-    "github.com/rivaas-dev/rivaas/metrics"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/metrics"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -67,7 +67,7 @@ package main
 import (
     "context"
     
-    "github.com/rivaas-dev/rivaas/metrics"
+    "rivass.dev/metrics"
     "go.opentelemetry.io/otel/attribute"
 )
 
@@ -301,7 +301,7 @@ The package automatically reads configuration from environment variables:
 For manual integration with other HTTP frameworks:
 
 ```go
-import "github.com/rivaas-dev/rivaas/metrics"
+import "rivass.dev/metrics"
 
 config := metrics.New(
     metrics.WithServiceName("my-service"),

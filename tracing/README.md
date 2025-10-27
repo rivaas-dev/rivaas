@@ -39,7 +39,7 @@ The tracing package provides a unified API consistent with the metrics package, 
 import (
     "context"
     "log"
-    "github.com/rivaas-dev/rivaas/tracing"
+    "rivass.dev/tracing"
 )
 
 func main() {
@@ -192,8 +192,8 @@ import (
     "context"
     "log"
     "net/http"
-    "github.com/rivaas-dev/rivaas/tracing"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/tracing"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -228,8 +228,8 @@ import (
     "context"
     "log"
     "net/http"
-    "github.com/rivaas-dev/rivaas/tracing"
-    "github.com/rivaas-dev/rivaas/router"
+    "rivass.dev/tracing"
+    "rivass.dev/router"
 )
 
 func main() {
@@ -275,7 +275,7 @@ package main
 import (
     "context"
     "log"
-    "github.com/rivaas-dev/rivaas/tracing"
+    "rivass.dev/tracing"
     "go.opentelemetry.io/otel/attribute"
 )
 
@@ -518,7 +518,7 @@ config.InjectTraceContext(ctx, resp.Header)
 For manual integration with other HTTP frameworks:
 
 ```go
-import "github.com/rivaas-dev/rivaas/tracing"
+import "rivass.dev/tracing"
 
 config := tracing.MustNew(
     tracing.WithServiceName("my-service"),
@@ -715,7 +715,7 @@ When using the exporter setup functions, always shutdown the tracer provider bef
 import (
     "context"
     "time"
-    "github.com/rivaas-dev/rivaas/tracing"
+    "rivass.dev/tracing"
 )
 
 // During application initialization
@@ -833,7 +833,7 @@ Switch exporters based on environment or configuration:
 ```go
 import (
     "os"
-    "github.com/rivaas-dev/rivaas/tracing"
+    "rivass.dev/tracing"
 )
 
 func setupTracing() (*tracing.TracerProvider, error) {
@@ -879,7 +879,7 @@ By default, the tracing package sets the global OpenTelemetry tracer provider. T
 
 ```go
 import (
-    "github.com/rivaas-dev/rivaas/tracing"
+    "rivass.dev/tracing"
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
     "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 )
