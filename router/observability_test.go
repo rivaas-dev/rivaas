@@ -594,8 +594,8 @@ func TestPostFormDefault(t *testing.T) {
 	r := New()
 
 	r.POST("/form", func(c *Context) {
-		role := c.PostFormDefault("role", "guest")
-		name := c.PostFormDefault("name", "anonymous")
+		role := c.FormValueDefault("role", "guest")
+		name := c.FormValueDefault("name", "anonymous")
 		c.String(http.StatusOK, "role=%s,name=%s", role, name)
 	})
 
@@ -617,7 +617,7 @@ func TestIsSecureWithTLS(t *testing.T) {
 	r := New()
 
 	r.GET("/secure", func(c *Context) {
-		if c.IsSecure() {
+		if c.IsHTTPS() {
 			c.String(http.StatusOK, "secure")
 		} else {
 			c.String(http.StatusOK, "insecure")

@@ -92,7 +92,7 @@ func customLoggerExample(r *router.Router) {
 				fmt.Sprint(err),
 				c.Request.URL.Path,
 				c.Request.Method,
-				c.GetClientIP(),
+				c.ClientIP(),
 				time.Now().Format(time.RFC3339),
 				string(stack),
 			)
@@ -179,7 +179,7 @@ func productionExample() *router.Router {
 				err,
 				c.Request.URL.Path,
 				c.Request.Method,
-				c.GetClientIP(),
+				c.ClientIP(),
 			)
 		}),
 

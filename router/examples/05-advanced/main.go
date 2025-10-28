@@ -65,10 +65,10 @@ func main() {
 
 	r.GET("/helpers", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]interface{}{
-			"client_ip":    c.GetClientIP(),
+			"client_ip":    c.ClientIP(),
 			"is_json":      c.IsJSON(),
 			"accepts_json": c.AcceptsJSON(),
-			"is_secure":    c.IsSecure(),
+			"is_secure":    c.IsHTTPS(),
 			"user_agent":   c.Request.Header.Get("User-Agent"),
 		})
 	})

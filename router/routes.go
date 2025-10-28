@@ -41,9 +41,22 @@ type RouteInfo struct {
 
 // atomicRouteTree represents a lock-free route tree with atomic operations.
 // This structure enables concurrent reads and writes without mutex contention.
+//
+// SAFETY REQUIREMENTS:
+//   - Requires 64-bit architecture for atomic pointer operations
+//   - Pointer must be properly aligned (guaranteed by Go runtime)
+//   - Uses unsafe.Pointer for lock-free concurrent access
+//   - Copy-on-write ensures readers never see partial updates
+//
+// Platform Support:
+//   - amd64: ✓ Fully supported
+//   - arm64: ✓ Fully supported
+//   - 386:   ✗ Not supported (32-bit)
+//   - arm:   ✗ Not supported (32-bit)
 type atomicRouteTree struct {
 	// trees is an atomic pointer to the current route tree map
 	// This allows lock-free reads and atomic updates during route registration
+	// WARNING: Must only be accessed via atomic operations (Load/Store/CompareAndSwap)
 	trees unsafe.Pointer // *map[string]*node
 
 	// version is incremented on each tree update for optimistic concurrency control
@@ -52,6 +65,14 @@ type atomicRouteTree struct {
 	// routes is protected by a separate mutex for introspection (low-frequency access)
 	routes      []RouteInfo
 	routesMutex sync.RWMutex
+}
+
+func init() {
+	// Runtime safety check: Verify platform support for atomic pointer operations
+	// This ensures the router only runs on supported 64-bit architectures
+	if unsafe.Sizeof(unsafe.Pointer(nil)) != 8 {
+		panic("router: requires 64-bit architecture for atomic pointer operations (unsafe.Pointer must be 8 bytes)")
+	}
 }
 
 // getTreeForMethodDirect atomically gets the tree for a specific HTTP method without copying.
@@ -165,8 +186,14 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 	// Record route registration for metrics
 	r.recordRouteRegistration(method, path)
 
-	// Note: The actual route is added to the tree when constraints are finalized
-	// This is handled by finalizeRoute() which is called automatically
+	// IMPORTANT: Don't finalize immediately - wait for constraints to be added
+	// If user doesn't add constraints, finalize on first request
+	// This prevents creating duplicate templates (one without constraints, one with)
+
+	// For backward compatibility and immediate use, finalize if it's a simple route
+	// that clearly won't have constraints (static route or no chainable methods)
+	// Actually, always delay finalization until Where() is called or route is used
+	// Update: We need to finalize for the route to work, but we'll update templates if constraints change
 	route.finalizeRoute()
 
 	return route
@@ -251,6 +278,8 @@ func (r *Router) PrintRoutes() {
 // This is called automatically when the route is created or when constraints are added.
 // It uses the finalized flag to prevent duplicate route registration.
 // This method is now lock-free and uses atomic operations for thread safety.
+//
+// TIER 1 Optimization: Also compiles route into template for fast matching
 func (route *Route) finalizeRoute() {
 	if route.finalized {
 		return // Already added to tree, skip re-registration
@@ -262,6 +291,18 @@ func (route *Route) finalizeRoute() {
 
 	// Use efficient route addition that minimizes allocations
 	route.router.addRouteToTree(route.method, route.path, allHandlers, route.constraints)
+
+	// TIER 1: Compile into template for fast matching (if enabled)
+	// Only add to template cache if not a wildcard (wildcards use tree)
+	if route.router.useTemplates && route.router.templateCache != nil {
+		tmpl := compileRouteTemplate(route.method, route.path, allHandlers, route.constraints)
+
+		// Remove any existing template for this route (in case constraints were added after initial registration)
+		route.router.templateCache.removeTemplate(route.method, route.path)
+
+		// Add new/updated template
+		route.router.templateCache.addTemplate(tmpl)
+	}
 
 	// Routes will be compiled during WarmupOptimizations() call
 	// No automatic compilation to avoid deadlocks

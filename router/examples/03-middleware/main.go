@@ -121,7 +121,7 @@ func Logger() router.HandlerFunc {
 		log.Printf("[%s] %s %s - (%v)",
 			c.Request.Method,
 			path,
-			c.GetClientIP(),
+			c.ClientIP(),
 			duration,
 		)
 	}

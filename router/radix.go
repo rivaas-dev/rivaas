@@ -105,7 +105,40 @@ func (bf *bloomFilter) Add(data []byte) {
 }
 
 // Test checks if an element might be in the bloom filter - zero allocations
+// TIER 2: Optimized with early exit and better bit manipulation
 func (bf *bloomFilter) Test(data []byte) bool {
+	// TIER 2: Unroll first iteration for common case (3 hash functions)
+	// This avoids loop overhead for the most common scenario
+	if len(bf.seeds) >= 3 {
+		// Hash 1
+		pos0 := bf.hashWithSeed(data, bf.seeds[0])
+		if bf.bits[pos0/64]&(1<<(pos0%64)) == 0 {
+			return false // Early exit - definitely not present
+		}
+
+		// Hash 2
+		pos1 := bf.hashWithSeed(data, bf.seeds[1])
+		if bf.bits[pos1/64]&(1<<(pos1%64)) == 0 {
+			return false
+		}
+
+		// Hash 3
+		pos2 := bf.hashWithSeed(data, bf.seeds[2])
+		if bf.bits[pos2/64]&(1<<(pos2%64)) == 0 {
+			return false
+		}
+
+		// Check remaining hashes if any
+		for i := 3; i < len(bf.seeds); i++ {
+			pos := bf.hashWithSeed(data, bf.seeds[i])
+			if bf.bits[pos/64]&(1<<(pos%64)) == 0 {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Fallback for non-standard hash count
 	for _, seed := range bf.seeds {
 		pos := bf.hashWithSeed(data, seed)
 		if bf.bits[pos/64]&(1<<(pos%64)) == 0 {
@@ -324,8 +357,6 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 //   - Read lock (allows concurrent requests)
 //
 // Typical performance: <100ns for static routes, <500ns for parameterized routes
-//
-//go:inline
 func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
@@ -380,12 +411,14 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 		} else if current.param != nil {
 			// Priority 2: Parameter match (e.g., :id, :name)
 			// Store parameter efficiently based on count
-			if ctx.paramCount < 8 {
+			// Optimization: Avoid bounds check by using constant
+			paramIdx := ctx.paramCount
+			if paramIdx < 8 {
 				// Fast path: use pre-allocated arrays (zero allocations)
 				// Most routes have ≤8 params, so this is the common case
-				ctx.paramKeys[ctx.paramCount] = current.param.key
-				ctx.paramValues[ctx.paramCount] = segment
-				ctx.paramCount++
+				ctx.paramKeys[paramIdx] = current.param.key
+				ctx.paramValues[paramIdx] = segment
+				ctx.paramCount = paramIdx + 1
 			} else {
 				// Fallback: use map for >8 params (extremely rare)
 				// Example: /a/:p1/b/:p2/c/:p3/.../i/:p9 (unusual route design)
@@ -404,10 +437,11 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 			}
 
 			// Store the remainder of the path as the wildcard value
-			if ctx.paramCount < 8 {
-				ctx.paramKeys[ctx.paramCount] = paramName
-				ctx.paramValues[ctx.paramCount] = path[start:] // Everything from here
-				ctx.paramCount++
+			paramIdx := ctx.paramCount
+			if paramIdx < 8 {
+				ctx.paramKeys[paramIdx] = paramName
+				ctx.paramValues[paramIdx] = path[start:] // Everything from here
+				ctx.paramCount = paramIdx + 1
 			} else {
 				if ctx.Params == nil {
 					ctx.Params = make(map[string]string, 2)
@@ -437,31 +471,61 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 }
 
 // validateConstraints checks if all parameter constraints are satisfied.
-// This function uses early exits for performance.
+// This function uses early exits and optimized lookup for performance.
+//
+// Performance optimization: For routes with many constraints (>3) and many parameters (>4),
+// build a temporary map to avoid O(n*m) nested loop. Otherwise use direct array lookup.
 func validateConstraints(constraints []RouteConstraint, ctx *Context) bool {
 	if len(constraints) == 0 {
 		return true // No constraints to validate
 	}
 
-	for _, constraint := range constraints {
-		var value string
-		found := false
+	// Fast path: Few constraints - use direct array lookup (most common case)
+	// Threshold: <=3 constraints OR <=4 parameters
+	// Rationale: Nested loop overhead < map creation overhead for small sizes
+	if len(constraints) <= 3 || ctx.paramCount <= 4 {
+		for _, constraint := range constraints {
+			var value string
+			found := false
 
-		// Check fast array lookup first (up to 8 params)
-		for i := range ctx.paramCount {
-			if ctx.paramKeys[i] == constraint.Param {
-				value = ctx.paramValues[i]
-				found = true
-				break
+			// Check fast array lookup first (up to 8 params)
+			for i := int32(0); i < ctx.paramCount; i++ {
+				if ctx.paramKeys[i] == constraint.Param {
+					value = ctx.paramValues[i]
+					found = true
+					break
+				}
+			}
+
+			// Fallback to map for >8 parameters
+			if !found && ctx.Params != nil {
+				value, found = ctx.Params[constraint.Param]
+			}
+
+			// If parameter not found or doesn't match constraint, fail
+			if !found || !constraint.Pattern.MatchString(value) {
+				return false
 			}
 		}
+		return true
+	}
 
-		// Fallback to map for >8 parameters
-		if !found && ctx.Params != nil {
-			value, found = ctx.Params[constraint.Param]
+	// Slow path: Many constraints AND many parameters - build lookup map once
+	// This changes complexity from O(n*m) to O(n+m) at the cost of one allocation
+	params := make(map[string]string, ctx.paramCount)
+	for i := int32(0); i < ctx.paramCount; i++ {
+		params[ctx.paramKeys[i]] = ctx.paramValues[i]
+	}
+	// Merge overflow map if exists
+	if ctx.Params != nil {
+		for k, v := range ctx.Params {
+			params[k] = v
 		}
+	}
 
-		// If parameter not found or doesn't match constraint, fail
+	// Validate all constraints with O(1) lookup
+	for _, constraint := range constraints {
+		value, found := params[constraint.Param]
 		if !found || !constraint.Pattern.MatchString(value) {
 			return false
 		}
@@ -473,8 +537,8 @@ func validateConstraints(constraints []RouteConstraint, ctx *Context) bool {
 // compileStaticRoutes compiles all static routes in this node and its children
 // into a lookup table with bloom filter for fast matching.
 // This method should only be called after all routes are registered.
-// The bloomFilterSize parameter controls the bloom filter capacity.
-func (n *node) compileStaticRoutes(bloomFilterSize uint64) *CompiledRouteTable {
+// The bloomFilterSize and numHashFuncs parameters control the bloom filter configuration.
+func (n *node) compileStaticRoutes(bloomFilterSize uint64, numHashFuncs int) *CompiledRouteTable {
 	n.mu.Lock()
 
 	// Initialize compiled table if not exists
@@ -486,7 +550,7 @@ func (n *node) compileStaticRoutes(bloomFilterSize uint64) *CompiledRouteTable {
 		}
 		n.compiled = &CompiledRouteTable{
 			routes: make(map[uint64]*CompiledRoute, 16), // Pre-allocate with capacity
-			bloom:  newBloomFilter(size, 3),             // Configurable bloom filter size
+			bloom:  newBloomFilter(size, numHashFuncs),  // Configurable bloom filter
 		}
 	}
 

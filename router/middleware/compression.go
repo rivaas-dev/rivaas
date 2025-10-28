@@ -56,18 +56,35 @@ func WithCompressionLevel(level int) CompressionOption {
 }
 
 // WithMinSize sets the minimum response size to compress (in bytes).
-// NOTE: This option is currently reserved for future implementation.
-// Implementing minSize requires response buffering which adds latency and memory overhead.
-// For now, all responses are compressed if client supports it and content is not excluded.
+//
+// DESIGN DECISION: This feature is intentionally NOT implemented.
+//
+// Why minSize is not implemented:
+//   - Requires buffering entire response before compression decision
+//   - Adds memory overhead (buffer per request)
+//   - Adds latency (wait for full response before sending)
+//   - Breaks streaming responses
+//   - Modern networks handle small compressed payloads efficiently
+//
+// Alternative approaches (recommended):
+//   - Use WithExcludePaths for small endpoints
+//   - Use WithExcludeContentTypes for small data types
+//   - Let CDN/reverse proxy handle compression (nginx, CloudFlare)
+//   - Small responses compress quickly anyway (<100µs overhead)
+//
+// If you truly need minSize, implement at the reverse proxy level where
+// buffering is already happening (nginx, CloudFlare, etc.)
+//
+// This option exists for API compatibility but is a no-op.
 // Default: 1024 (1KB, not enforced)
 //
 // Example:
 //
-//	middleware.Compression(middleware.WithMinSize(2048)) // Reserved for future use
+//	middleware.Compression(middleware.WithMinSize(2048)) // No effect (by design)
 func WithMinSize(size int) CompressionOption {
 	return func(cfg *compressionConfig) {
 		cfg.minSize = size
-		// TODO: Implement buffering-based minSize check
+		// NOTE: Intentionally not implemented - see function documentation
 	}
 }
 

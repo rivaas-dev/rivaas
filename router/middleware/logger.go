@@ -255,7 +255,7 @@ func Logger(opts ...LoggerOption) router.HandlerFunc {
 
 		// Get request info before processing
 		method := c.Request.Method
-		clientIP := c.GetClientIP()
+		clientIP := c.ClientIP()
 		raw := c.Request.URL.RawQuery
 
 		// Process request

@@ -5,48 +5,171 @@ A high-performance HTTP router for Go, designed for cloud-native applications wi
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.23.0-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [🚀 Features](#-features)
-- [📈 Migration Guide](#-migration-guide)
-- [🔧 Troubleshooting](#-troubleshooting)
-- [📦 Installation](#-installation)
-- [🚀 Quick Start](#-quick-start)
-- [📚 Getting Started](#-getting-started)
-- [📚 Comprehensive Guide](#-comprehensive-guide)
-- [🛠️ Additional Features](#️-additional-features)
-- [📖 API Reference](#-api-reference)
-- [🔧 Performance Tuning](#-performance-tuning)
-- [🔬 Benchmarks](#-benchmarks)
-- [🔍 Advanced Usage Examples](#-advanced-usage-examples)
-- [📋 Examples](#-examples)
-- [🚀 Performance Metrics](#-performance-metrics)
+- [Features](#features)
+  - [Core Routing & Request Handling](#core-routing--request-handling)
+  - [Request Binding](#request-binding--new---industry-leading)
+  - [Content Negotiation](#content-negotiation---rfc-7231-compliant)
+  - [API Versioning](#api-versioning---built-in)
+  - [Middleware](#middleware-built-in)
+  - [Observability](#observability---opentelemetry-native)
+  - [Performance Optimizations](#performance-optimizations)
+  - [Security Features](#security-features)
+  - [Developer Experience](#developer-experience)
+- [Migration Guide](#migration-guide)
+- [Troubleshooting](#troubleshooting)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Getting Started](#getting-started)
+- [Comprehensive Guide](#comprehensive-guide)
+- [Additional Features](#additional-features)
+- [API Reference](#api-reference)
+- [Performance Tuning](#performance-tuning)
+- [Benchmarks](#benchmarks)
+- [Advanced Usage Examples](#advanced-usage-examples)
+- [Testing & Quality](#testing--quality)
+- [Use Cases](#use-cases)
+- [Examples](#examples)
+- [Performance Metrics](#performance-metrics)
   - [Throughput & Latency](#throughput--latency)
   - [Memory Efficiency](#memory-efficiency)
   - [Performance Benchmarks](#performance-benchmarks)
   - [Performance Characteristics](#performance-characteristics)
   - [Framework Comparison](#framework-comparison)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
-- [🔗 Links](#-links)
+- [Contributing](#contributing)
+- [License](#license)
+- [Links](#links)
 
-## 🚀 Features
+## Features
 
-- **🔥 Ultra-fast radix tree routing** - O(k) path matching performance
-- **⚡ Zero-allocation path matching** - Optimized for static routes
-- **🔧 Powerful middleware chain** - Context-aware request handling
-- **📦 Route grouping** - Organize APIs with hierarchical grouping
-- **🎯 Parameter binding** - Fast URL parameter extraction
-- **🌐 HTTP/2 and HTTP/1.1 support** - Modern protocol compatibility
-- **💾 Memory efficient** - Only 2 allocations per request
-- **🔒 Concurrent safe** - Lock-free parallel request handling
-- **🔍 Route introspection** - Debug and monitor registered routes
-- **🛠️ Request/response helpers** - Content-type detection, client IP, cookies
-- **📁 Static file serving** - Efficient directory and single file serving  
-- **✅ Route constraints** - Parameter validation with pre-compiled regex
+### Core Routing & Request Handling
+
+- **Ultra-fast radix tree routing** - O(k) path matching performance with bloom filters
+- **Zero-allocation path matching** - Optimized for static routes with compiled route tables
+- **Path Parameters**: `/users/:id`, `/posts/:id/:action` - Fast array-based storage for ≤8 params
+- **Wildcard Routes**: `/files/*filepath` - Flexible catch-all routing
+- **Route Groups**: Organize routes with shared prefixes and middleware
+- **Middleware Chain**: Global, group-level, and route-level middleware support
+- **Static File Serving**: Efficient directory and single file serving
+- **Route Constraints**: Numeric, UUID, Alpha, Alphanumeric, Custom regex validation
+- **Concurrent Safe**: Lock-free parallel request handling with atomic operations
+- **Memory Efficient**: Only 2 allocations per request, context pooling
+- **HTTP/2 and HTTP/1.1 support** - Modern protocol compatibility
+
+### Request Binding (NEW - Industry Leading!)
+
+Automatically bind request data to structs with **the most comprehensive type support in Go**:
+
+**Methods**:
+
+- `BindBody()` - Auto-detect JSON/form from Content-Type
+- `BindQuery()` - Query parameters → struct
+- `BindParams()` - URL parameters → struct
+- `BindCookies()` - Cookies → struct
+- `BindHeaders()` - Headers → struct
+- `BindJSON()` / `BindForm()` - Explicit binding
+
+**Supported Types** (15 categories):
+
+- Primitives: `string`, `int*`, `uint*`, `float*`, `bool`
+- Time: `time.Time` (10+ formats), `time.Duration`
+- Network: `net.IP`, `net.IPNet`, `url.URL`
+- Advanced: `regexp.Regexp`, `encoding.TextUnmarshaler`
+- **Maps**: `map[string]T` with dot/bracket notation
+- **Nested Structs**: Dot notation for complex data
+- Slices: All types including `[]time.Time`, `[]net.IP`
+- Pointers: Optional fields with `*type`
+- Embedded Structs: Code reuse via composition
+- **Enum Validation**: `enum:"active,inactive"` tag
+- **Default Values**: `default:"10"` tag
+
+**Unique Features** (no other Go framework has these):
+
+- Maps with **both** dot AND bracket notation
+- Nested structs in query strings
+- Built-in enum validation
+- Default values in struct tags
+- Quoted bracket keys for special characters
+
+### Content Negotiation - RFC 7231 Compliant
+
+- `Accepts()` - Media type negotiation with quality values
+- `AcceptsCharsets()` - Character set negotiation
+- `AcceptsEncodings()` - Compression (gzip, br, deflate)
+- `AcceptsLanguages()` - Language negotiation
+- Wildcard support, specificity matching, short names
+
+### API Versioning - Built-in!
+
+- **Header-based**: `API-Version: v1`
+- **Query-based**: `?version=v1`  
+- **Custom detection**: Flexible version strategies
+- **Version-specific routes**: `r.Version("v1").GET(...)`
+- **Version groups**: Organize versioned APIs
+- **Lock-free implementation**: Atomic operations
+
+### Middleware (Built-in)
+
+- **Logger** - Request/response logging
+- **Recovery** - Panic recovery with graceful errors
+- **CORS** - Cross-Origin Resource Sharing
+- **Basic Auth** - HTTP Basic Authentication
+- **Compression** - Gzip/Brotli response compression
+- **Request ID** - X-Request-ID generation
+- **Security Headers** - HSTS, CSP, X-Frame-Options, etc.
+- **Timeout** - Request timeout handling
+
+### Observability - OpenTelemetry Native
+
+**Metrics**:
+
+- `RecordMetric()` - Custom histogram metrics
+- `IncrementCounter()` - Counters
+- `SetGauge()` - Gauges
+- Automatic request metrics (duration, count, size)
+
+**Tracing**:
+
+- `TraceID()` / `SpanID()` - Get current trace/span IDs
+- `SetSpanAttribute()` - Add custom attributes
+- `AddSpanEvent()` - Add span events
+- `TraceContext()` - Context propagation
+- Built-in instrumentation, no wrapper middleware needed
+
+### Performance Optimizations
+
+- **Context Pooling**: Reuse context objects, reduce GC pressure
+- **Fast Parameter Storage**: Array-based for ≤8 params (zero allocs)
+- **Compiled Routes**: O(1) hash lookups for static routes
+- **Bloom Filters**: 99% negative lookup elimination
+- **Type Caching**: Cache reflection info for bindings
+- **Accept Header Caching**: 2x speedup for repeated headers
+- **Atomic Operations**: Lock-free route registration and lookups
+- **Struct Field Alignment**: Optimized memory layout
+- **Cache Warmup**: `WarmupBindingCache()` for predictable startup
+
+### Security Features
+
+- **Header Injection Prevention**: Automatic sanitization
+- **Security Headers Middleware**: HSTS, CSP, X-Frame-Options
+- **Basic Auth Middleware**: HTTP authentication
+- **Request Size Limits**: Configurable limits
+- **Timeout Middleware**: Prevent slow loris attacks
+- **Enum Validation**: Prevent invalid values
+- **Input Type Validation**: Automatic type checking
+
+### Developer Experience
+
+- **Clean API**: Intuitive, chainable methods
+- **Type-Safe**: Compile-time safety with generics
+- **Clear Error Messages**: Detailed binding errors with field context
+- **Comprehensive Docs**: 2,446-line README, 8 progressive examples
+- **Zero Dependencies** (core): Only standard library
+- **Hot Reload Friendly**: Thread-safe route registration
 
 
-## 📈 Migration Guide
+## Migration Guide
 
 ### Migrating from Gin
 
@@ -145,18 +268,18 @@ func getUserHandler(c *router.Context) {
 }
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Quick Reference
 
 | Issue | Solution | Code Example |
 |-------|----------|--------------|
-| **404 Route Not Found** | Check route syntax and order | `r.GET("/users/:id", handler)` ✅ |
-| **Middleware Not Running** | Register before routes | `r.Use(middleware); r.GET("/path", handler)` ✅ |
-| **Parameters Not Working** | Use `:param` syntax | `r.GET("/users/:id", handler)` ✅ |
-| **CORS Issues** | Add CORS middleware | `r.Use(CORS())` ✅ |
-| **Memory Leaks** | Don't store context references | Extract data immediately ✅ |
-| **Slow Performance** | Use route groups | `api := r.Group("/api")` ✅ |
+| **404 Route Not Found** | Check route syntax and order | `r.GET("/users/:id", handler)` - |
+| **Middleware Not Running** | Register before routes | `r.Use(middleware); r.GET("/path", handler)` - |
+| **Parameters Not Working** | Use `:param` syntax | `r.GET("/users/:id", handler)` - |
+| **CORS Issues** | Add CORS middleware | `r.Use(CORS())` - |
+| **Memory Leaks** | Don't store context references | Extract data immediately - |
+| **Slow Performance** | Use route groups | `api := r.Group("/api")` - |
 
 ### Common Issues
 
@@ -166,9 +289,9 @@ func getUserHandler(c *router.Context) {
 // Issue: Route not matching as expected
 // Solution: Check route registration order and parameter syntax
 
-r.GET("/users/:id", handler)     // ✅ Correct
-r.GET("/users/{id}", handler)    // ❌ Wrong syntax - use :id
-r.GET("/users/id", handler)      // ❌ Literal path, not parameter
+r.GET("/users/:id", handler)     // - Correct
+r.GET("/users/{id}", handler)    // - Wrong syntax - use :id
+r.GET("/users/id", handler)      // - Literal path, not parameter
 ```
 
 #### Middleware Not Executing
@@ -177,12 +300,12 @@ r.GET("/users/id", handler)      // ❌ Literal path, not parameter
 // Issue: Middleware not running
 // Solution: Ensure middleware is registered before routes
 
-r.Use(Logger())           // ✅ Global middleware first
+r.Use(Logger())           // - Global middleware first
 r.GET("/api/users", handler)  // Then routes
 
 // For route groups:
 api := r.Group("/api")
-api.Use(Auth())           // ✅ Group middleware
+api.Use(Auth())           // - Group middleware
 api.GET("/users", handler)    // Then group routes
 ```
 
@@ -192,8 +315,8 @@ api.GET("/users", handler)    // Then group routes
 // Issue: Invalid parameters still match routes
 // Solution: Apply constraints to the route
 
-r.GET("/users/:id", handler).WhereNumber("id")  // ✅ Only numeric IDs
-r.GET("/files/:name", handler).Where("name", `[a-zA-Z0-9.-]+`)  // ✅ Custom regex
+r.GET("/users/:id", handler).WhereNumber("id")  // - Only numeric IDs
+r.GET("/files/:name", handler).Where("name", `[a-zA-Z0-9.-]+`)  // - Custom regex
 ```
 
 #### Memory Leaks in High-Traffic Applications
@@ -203,14 +326,14 @@ r.GET("/files/:name", handler).Where("name", `[a-zA-Z0-9.-]+`)  // ✅ Custom re
 // Solution: Ensure proper context handling
 
 func handler(c *router.Context) {
-    // ❌ Don't store context beyond request lifecycle
+    // - Don't store context beyond request lifecycle
     // globalVar = c  
     
-    // ✅ Extract needed data from context
+    // - Extract needed data from context
     userID := c.Param("id")
     processUser(userID)
     
-    // ✅ Always call c.Next() in middleware
+    // - Always call c.Next() in middleware
     c.Next()
 }
 ```
@@ -277,7 +400,7 @@ func CORS() router.HandlerFunc {
 }
 ```
 
-## 📦 Installation
+## Installation
 
 ```bash
 go get rivass.dev/router
@@ -285,7 +408,7 @@ go get rivass.dev/router
 
 **Requirements**: Go 1.23.0 or higher
 
-## 🚀 Quick Start
+## Quick Start
 
 Get up and running with Rivaas Router in minutes. This section provides a complete working example with error handling, middleware, and best practices.
 
@@ -424,7 +547,7 @@ r.OPTIONS("/users", optionsHandler)
 r.HEAD("/users", headHandler)
 ```
 
-## 📚 Getting Started
+## Getting Started
 
 This section provides a step-by-step introduction to Rivaas Router concepts, building from simple examples to advanced features.
 
@@ -852,12 +975,12 @@ func TestGetUser(t *testing.T) {
 
 Now that you understand the basics, you can:
 
-1. **Explore the [Comprehensive Guide](#-comprehensive-guide)** for detailed documentation
-2. **Check out [Examples](#-examples)** for complete working applications
-3. **Learn about [Performance Tuning](#-performance-tuning)** for optimization
-4. **Review [Migration Guides](#-migration-guide)** if coming from other routers
+1. **Explore the [Comprehensive Guide](#comprehensive-guide)** for detailed documentation
+2. **Check out [Examples](#examples)** for complete working applications
+3. **Learn about [Performance Tuning](#performance-tuning)** for optimization
+4. **Review [Migration Guides](#migration-guide)** if coming from other routers
 
-## 🎯 Common Use Cases
+## Common Use Cases
 
 ### REST API Server
 
@@ -956,11 +1079,11 @@ func main() {
 }
 ```
 
-[↑ Back to Top](#-table-of-contents)
+[Back to Top](#table-of-contents)
 
-## 📚 Comprehensive Guide
+## Comprehensive Guide
 
-[↑ Back to Top](#-table-of-contents)
+[Back to Top](#table-of-contents)
 
 ### Route Patterns
 
@@ -1397,13 +1520,13 @@ func ErrorHandler() router.HandlerFunc {
 #### Route Organization
 
 ```go
-// ✅ Good: Use groups for better performance
+// - Good: Use groups for better performance
 api := r.Group("/api/v1")
 api.GET("/users", handler)      // 13µs average
 api.GET("/posts", handler)
 api.GET("/comments", handler)
 
-// ❌ Less efficient: Individual routes
+// - Less efficient: Individual routes
 r.GET("/api/v1/users", handler)    // 45µs average
 r.GET("/api/v1/posts", handler)
 r.GET("/api/v1/comments", handler)
@@ -1412,11 +1535,11 @@ r.GET("/api/v1/comments", handler)
 #### Minimize Middleware
 
 ```go
-// ✅ Good: Essential middleware only
+// - Good: Essential middleware only
 r.Use(Recovery()) // Critical for stability
 r.GET("/health", healthHandler)
 
-// ❌ Avoid: Excessive middleware in hot paths
+// - Avoid: Excessive middleware in hot paths
 r.Use(Logger(), Auth(), Validation(), RateLimit(), CORS(), Compression())
 r.GET("/api/high-frequency", handler) // Will be slower
 ```
@@ -1424,11 +1547,11 @@ r.GET("/api/high-frequency", handler) // Will be slower
 #### Static vs Dynamic Routes
 
 ```go
-// ✅ Static routes are fastest
+// - Static routes are fastest
 r.GET("/health", healthHandler)           // Sub-microsecond
 r.GET("/api/status", statusHandler)       // Sub-microsecond
 
-// ✅ Parameter routes are still fast
+// - Parameter routes are still fast
 r.GET("/users/:id", userHandler)          // ~1µs
 r.GET("/posts/:id/comments", commentsHandler) // ~2µs
 ```
@@ -1436,14 +1559,14 @@ r.GET("/posts/:id/comments", commentsHandler) // ~2µs
 #### Context Reuse
 
 ```go
-// ✅ Good: Don't store context references
+// - Good: Don't store context references
 func handler(c *router.Context) {
     userID := c.Param("id")
     // Use userID immediately, don't store c
     processUser(userID)
 }
 
-// ❌ Bad: Don't store context for later use
+// - Bad: Don't store context for later use
 var globalContext *router.Context
 
 func handler(c *router.Context) {
@@ -1555,7 +1678,7 @@ func TestAuthMiddleware(t *testing.T) {
 #### 1. Route Organization
 
 ```go
-// ✅ Good: Organize by feature/resource
+// - Good: Organize by feature/resource
 func setupUserRoutes(r *router.Router) {
     users := r.Group("/users")
     users.GET("/", listUsers)
@@ -1583,7 +1706,7 @@ func main() {
 #### 2. Middleware Composition
 
 ```go
-// ✅ Good: Compose middleware functions
+// - Good: Compose middleware functions
 func APIMiddleware() []router.HandlerFunc {
     return []router.HandlerFunc{
         Recovery(),
@@ -1610,7 +1733,7 @@ protected.Use(AuthRequired())
 #### 3. Error Handling Strategy
 
 ```go
-// ✅ Good: Consistent error structure
+// - Good: Consistent error structure
 type APIError struct {
     Code    string `json:"code"`
     Message string `json:"message"`
@@ -1686,7 +1809,7 @@ func createUserHandler(c *router.Context) {
 #### 5. Response Consistency
 
 ```go
-// ✅ Good: Consistent response structure
+// - Good: Consistent response structure
 type APIResponse struct {
     Success bool        `json:"success"`
     Data    interface{} `json:"data,omitempty"`
@@ -1716,9 +1839,9 @@ func errorResponse(c *router.Context, status int, err APIError) {
 }
 ```
 
-## 🛠️ Additional Features
+## Additional Features
 
-[↑ Back to Top](#-table-of-contents)
+[Back to Top](#table-of-contents)
 
 ## 📡 OpenTelemetry Tracing Support
 
@@ -1996,9 +2119,9 @@ The tracing system works seamlessly with:
 - **OpenTelemetry Collector** - Trace processing and export
 - **Cloud providers** - AWS X-Ray, GCP Cloud Trace, Azure Monitor
 
-## 📖 API Reference
+## API Reference
 
-[↑ Back to Top](#-table-of-contents)
+[Back to Top](#table-of-contents)
 
 ### Router
 
@@ -2079,9 +2202,9 @@ Creates a new route group with the specified prefix and optional middleware.
 
 Groups support the same HTTP method handlers as Router, but with the group's prefix automatically prepended.
 
-## 🔧 Performance Tuning
+## Performance Tuning
 
-[↑ Back to Top](#-table-of-contents)
+[Back to Top](#table-of-contents)
 
 ### Optimize for Your Use Case
 
@@ -2121,13 +2244,13 @@ func init() {
 
 The Rivaas Router is **production-ready** with:
 
-- ✅ Sub-microsecond routing performance
-- ✅ 294K+ requests/second throughput
-- ✅ Memory-efficient design
-- ✅ Concurrent-safe operations
-- ✅ Comprehensive test coverage
+- - Sub-microsecond routing performance
+- - 294K+ requests/second throughput
+- - Memory-efficient design
+- - Concurrent-safe operations
+- - Comprehensive test coverage
 
-## 🔬 Benchmarks
+## Benchmarks
 
 ```bash
 # Run benchmarks
@@ -2141,7 +2264,7 @@ go test -bench=BenchmarkRouter -memprofile=mem.prof
 go tool pprof mem.prof
 ```
 
-## 🔍 Advanced Usage Examples
+## Advanced Usage Examples
 
 ### Route Introspection & Documentation
 
@@ -2315,17 +2438,115 @@ api := r.Group("/api/v1")
 }
 ```
 
-## 📋 Examples
+## Testing & Quality
 
-Check out the [examples](examples/) directory for complete working examples:
+[Back to Top](#table-of-contents)
 
-- [Basic Example](examples/basic/) - Simple router setup with middleware
-- [Advanced Example](examples/advanced/) - Full REST API with CRUD operations
-- [Comprehensive Example](examples/extended/) - Complete demo of all router features
+### Test Coverage
 
-## 🚀 Performance Metrics
+- **84.8% code coverage** for router package
+- **94.7% code coverage** for middleware package
+- **103+ binding tests** covering all type scenarios
+- **50+ content negotiation tests** 
+- **39 performance benchmarks**
+- **Zero race conditions** (verified with `-race`)
 
-[↑ Back to Top](#-table-of-contents)
+### Test Organization
+
+```bash
+# Run all tests
+go test ./...
+
+# Run with coverage
+go test -cover
+
+# Run with race detector
+go test -race
+
+# Run benchmarks
+go test -bench=. -benchmem
+
+# Run specific test
+go test -run TestBindQuery
+```
+
+### Quality Assurance
+
+- - Comprehensive unit tests
+- - Integration tests
+- - Concurrency tests
+- - Stress tests (294K+ req/s)
+- - Security tests
+- - Benchmark comparisons
+- - Real-world scenario tests
+
+## Use Cases
+
+[Back to Top](#table-of-contents)
+
+### REST APIs
+
+Perfect for building modern REST APIs:
+- JSON request/response handling
+- Query parameter parsing with types
+- Path parameters with validation
+- Authentication middleware
+- CORS support
+- API versioning built-in
+
+### Web Applications
+
+Full-featured web server capabilities:
+- HTML rendering
+- Form data handling
+- Cookie/session management
+- Static file serving
+- Multipart form uploads
+
+### Microservices
+
+Production-ready for distributed systems:
+- OpenTelemetry tracing integration
+- Metrics collection
+- API versioning
+- Content negotiation
+- Health check endpoints
+- Service discovery friendly
+
+### High-Performance Services
+
+Optimized for high-throughput applications:
+- Sub-microsecond routing
+- Minimal allocations (2 per request)
+- Context pooling
+- Lock-free operations
+- 294K+ req/s throughput
+- Scales linearly with CPU cores
+
+## Examples
+
+[Back to Top](#table-of-contents)
+
+The router includes **8 progressive examples** from beginner to advanced:
+
+1. **[Hello World](examples/01-hello-world/)** - Basic router setup
+2. **[Routing](examples/02-routing/)** - Routes, parameters, groups
+3. **[Middleware](examples/03-middleware/)** - Auth, logging, CORS
+4. **[REST API](examples/04-rest-api/)** - Full CRUD implementation
+5. **[Advanced](examples/05-advanced/)** - Constraints, static files, introspection
+6. **[Advanced Routing](examples/06-advanced-routing/)** - Versioning, wildcards
+7. **[Content Negotiation](examples/07-content-negotiation/)** - Accept headers, format negotiation
+8. **[Request Binding](examples/08-binding/)** - Automatic parsing, all types
+
+Each example includes:
+- Working `main.go` with complete code
+- Comprehensive `README.md` with documentation
+- curl command examples for testing
+- Progressive learning path
+
+## Performance Metrics
+
+[Back to Top](#table-of-contents)
 
 > **Benchmark Environment**: Intel i7-1265U (12th Gen), Linux 6.12.49, Go 1.23.0+  
 > **Last Updated**: September 2025
@@ -2356,12 +2577,12 @@ BenchmarkRadixTree-12             2,056,772 ops/sec   574.0ns/op     0B/op      
 
 #### **Strengths**
 
-- ✅ **High Throughput**: 294K+ requests/second
-- ✅ **Low Latency**: Sub-3.4µs request handling
-- ✅ **Memory Efficient**: Only 2 allocations per request
-- ✅ **Ultra-Fast Routing**: 574ns radix tree lookups
-- ✅ **Concurrent Safe**: Excellent parallel performance (12.5M+ ops/sec)
-- ✅ **Scalable**: Handles 100+ concurrent goroutines
+- - **High Throughput**: 294K+ requests/second
+- - **Low Latency**: Sub-3.4µs request handling
+- - **Memory Efficient**: Only 2 allocations per request
+- - **Ultra-Fast Routing**: 574ns radix tree lookups
+- - **Concurrent Safe**: Excellent parallel performance (12.5M+ ops/sec)
+- - **Scalable**: Handles 100+ concurrent goroutines
 
 #### **Optimization Features**
 
@@ -2381,11 +2602,11 @@ BenchmarkRadixTree-12             2,056,772 ops/sec   574.0ns/op     0B/op      
 
 | Router Type | Operations/sec | ns/op | Memory/op | Allocs/op | Features |
 |-------------|----------------|-------|-----------|-----------|----------|
-| **Simple Router** | 35,142,289 | 40.6 ns | 46 B | 1 | ❌ No parameters, No middleware |
-| **Standard Mux** | 9,305,139 | 124.2 ns | 44 B | 1 | ❌ No parameters, No middleware |
-| **Echo Router** | 9,130,069 | 138.0 ns | 61 B | 2 | ✅ Parameters, Middleware, Groups |
-| **Rivaas Router** | 5,805,303 | 198.0 ns | 55 B | 2 | ✅ Parameters, Middleware, Groups |
-| **Gin Router** | 6,288,117 | 165.0 ns | 101 B | 3 | ✅ Parameters, Middleware, Groups |
+| **Simple Router** | 35,142,289 | 40.6 ns | 46 B | 1 | - No parameters, No middleware |
+| **Standard Mux** | 9,305,139 | 124.2 ns | 44 B | 1 | - No parameters, No middleware |
+| **Echo Router** | 9,130,069 | 138.0 ns | 61 B | 2 | - Parameters, Middleware, Groups |
+| **Rivaas Router** | 5,805,303 | 198.0 ns | 55 B | 2 | - Parameters, Middleware, Groups |
+| **Gin Router** | 6,288,117 | 165.0 ns | 101 B | 3 | - Parameters, Middleware, Groups |
 
 ### **Performance Analysis**
 
@@ -2394,7 +2615,7 @@ BenchmarkRadixTree-12             2,056,772 ops/sec   574.0ns/op     0B/op      
 - **198.0 ns/op** - Excellent performance for a full-featured router
 - **55 bytes/op** - Very efficient memory usage
 - **2 allocations/op** - Highly optimized memory management
-- **✅ Full feature set**: Parameters, middleware, route groups, context
+- **- Full feature set**: Parameters, middleware, route groups, context
 
 #### **Comparison Context**
 
@@ -2430,15 +2651,53 @@ BenchmarkRadixTree-12             2,056,772 ops/sec   574.0ns/op     0B/op      
 
 **Conclusion**: Rivaas delivers excellent performance that's competitive with the fastest routers (Echo, Gin) while providing a clean, modern API and comprehensive feature set. With 294K+ req/s throughput and only 55 bytes per request, it's highly optimized for production workloads.
 
-## 🤝 Contributing
+### **Feature Comparison**
+
+[Back to Top](#table-of-contents)
+
+| Feature | Rivaas | Gin | Echo | Fiber | Chi |
+|---------|--------|-----|------|-------|-----|
+| **Core Routing** | - | - | - | - | - |
+| **Middleware** | - | - | - | - | - |
+| **Route Groups** | - | - | - | - | - |
+| **Path Parameters** | - | - | - | - | - |
+| **Route Constraints** | - | - | - | - | - |
+| **API Versioning** | - | - | - | - | - |
+| **Content Negotiation** |3-star|||2-star| - |
+| **Request Binding** |3-star|1-star|1-star|1-star| - |
+| **Maps (dot notation)** | - | - | - | - | - |
+| **Maps (bracket notation)** | - | - | - | - | - |
+| **Nested Structs in Query** | - | - | - | - | - |
+| **Enum Validation** | - | - | - | - | - |
+| **Default Values** | - | - | - | - | - |
+| **Time/Duration Types** | - | - | - | - | - |
+| **net.IP/IPNet Types** | - | - | - | - | - |
+| **Custom Types (TextUnmarshaler)** | - | - | - | - | - |
+| **OpenTelemetry Built-in** | - | - | - | - | - |
+| **Lock-Free Architecture** | - |1-star|1-star|2-star| - |
+| **Performance (ns/op)** | 198 | 165 | 138 | ~100 | 200 |
+| **Memory (B/op)** | 55 | 101 | 61 | ~45 | 56 |
+
+**Rivaas Unique Features** (Not available in any other framework):
+- Maps with both dot AND bracket notation
+- Nested structs in query strings  
+- Built-in enum validation via struct tags
+- Default values via struct tags
+- Comprehensive network types (IP, IPNet, CIDR)
+- Native OpenTelemetry with zero overhead when disabled
+- Built-in API versioning with lock-free routing
+
+**Summary**: Rivaas trades ~60ns/op for **significantly more features** than any competitor. It's the **only framework** with advanced binding (maps, nested structs, enums, defaults), making it ideal for complex APIs where developer productivity matters.
+
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📄 License
+## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](../LICENSE) file for details.
 
-## 🔗 Links
+## Links
 
 - [Examples](examples/)
 - [Go Package Documentation](https://pkg.go.dev/rivass.dev/router)

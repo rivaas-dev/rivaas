@@ -123,7 +123,7 @@ func (suite *ExtendedTestSuite) TestClientIP() {
 	r := New()
 
 	r.GET("/ip", func(c *Context) {
-		c.String(200, "%s", c.GetClientIP())
+		c.String(200, "%s", c.ClientIP())
 	})
 
 	tests := []struct {

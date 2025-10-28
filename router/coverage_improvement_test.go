@@ -74,8 +74,8 @@ func TestContextHelpers(t *testing.T) {
 
 	t.Run("PostForm", func(t *testing.T) {
 		r.POST("/form", func(c *Context) {
-			username := c.PostForm("username")
-			password := c.PostForm("password")
+			username := c.FormValue("username")
+			password := c.FormValue("password")
 			c.String(http.StatusOK, "user=%s,pass=%s", username, password)
 		})
 
@@ -95,7 +95,7 @@ func TestContextHelpers(t *testing.T) {
 
 	t.Run("PostFormDefault", func(t *testing.T) {
 		r.POST("/form-default", func(c *Context) {
-			role := c.PostFormDefault("role", "guest")
+			role := c.FormValueDefault("role", "guest")
 			c.String(http.StatusOK, "role=%s", role)
 		})
 
@@ -111,7 +111,7 @@ func TestContextHelpers(t *testing.T) {
 
 	t.Run("IsSecure", func(t *testing.T) {
 		r.GET("/secure", func(c *Context) {
-			if c.IsSecure() {
+			if c.IsHTTPS() {
 				c.String(http.StatusOK, "secure")
 			} else {
 				c.String(http.StatusOK, "insecure")
@@ -489,7 +489,7 @@ func TestNewContext(t *testing.T) {
 	assert.NotNil(t, ctx)
 	assert.Equal(t, req, ctx.Request)
 	assert.Equal(t, w, ctx.Response)
-	assert.Equal(t, -1, ctx.index)
+	assert.Equal(t, int32(-1), ctx.index)
 }
 
 // TestContextMetricsMethods tests metrics recording methods

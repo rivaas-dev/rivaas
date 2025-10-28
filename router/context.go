@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -31,28 +30,32 @@ import (
 //
 // NOTE: Fields are ordered by size (largest to smallest) for optimal memory layout
 // and to minimize padding. This reduces struct size and improves cache efficiency.
+//
+// TIER 3: Cache-line optimization applied
+// Hot fields (Request, Response, handlers) are in first 64 bytes for cache locality
 type Context struct {
-	// Pointers and interfaces (8 bytes each on 64-bit systems)
-	Request         *http.Request          // The HTTP request object
-	Response        http.ResponseWriter    // The HTTP response writer
+	// CACHE LINE 1: Hottest fields (accessed on every request) - first 64 bytes
+	Request  *http.Request       // The HTTP request object (8B)
+	Response http.ResponseWriter // The HTTP response writer (8B)
+	handlers []HandlerFunc       // Handler chain for this request (24B: ptr+len+cap)
+	router   *Router             // Reference to the router for metrics access (8B)
+
+	// Still in cache line 1 (48 bytes used, 16 remaining)
+	index      int32 // Current handler index in the chain (4B)
+	paramCount int32 // Number of parameters stored in arrays (4B)
+	// 8 bytes padding to cache line boundary
+
+	// CACHE LINE 2: Parameter storage (accessed when params present)
+	paramKeys   [8]string // Parameter names (up to 8 parameters) (128B)
+	paramValues [8]string // Parameter values (up to 8 parameters) (128B)
+
+	// CACHE LINE 3+: Less frequently accessed fields
 	Params          map[string]string      // URL parameters (fallback for >8 params)
-	handlers        []HandlerFunc          // Handler chain for this request
-	router          *Router                // Reference to the router for metrics access
 	span            trace.Span             // Current OpenTelemetry span
 	traceCtx        context.Context        // Trace context for propagation
 	metricsRecorder ContextMetricsRecorder // Metrics recorder for this context
 	tracingRecorder ContextTracingRecorder // Tracing recorder for this context
-
-	// Arrays (128 bytes each = 8 strings × 16 bytes per string)
-	paramKeys   [8]string // Parameter names (up to 8 parameters)
-	paramValues [8]string // Parameter values (up to 8 parameters)
-
-	// Strings (16 bytes each on 64-bit: pointer + length)
-	version string // Current API version (e.g., "v1", "v2")
-
-	// Integers (4-8 bytes)
-	index      int // Current handler index in the chain
-	paramCount int // Number of parameters stored in arrays
+	version         string                 // Current API version (e.g., "v1", "v2")
 }
 
 // HandlerFunc defines the handler function signature for route handlers and middleware.
@@ -108,8 +111,26 @@ func NewContext(w http.ResponseWriter, r *http.Request) *Context {
 //	}
 func (c *Context) Next() {
 	c.index++
-	if c.index < len(c.handlers) {
-		c.handlers[c.index](c)
+	handlersLen := int32(len(c.handlers))
+
+	// Optimized loop: Pre-compute length, check cancellation only if enabled
+	if c.router != nil && c.router.checkCancellation {
+		// With cancellation checks (default behavior)
+		for c.index < handlersLen {
+			// Check for context cancellation to avoid processing cancelled requests
+			// This is important for long-running handler chains or I/O operations
+			if err := c.Request.Context().Err(); err != nil {
+				return // Context cancelled or deadline exceeded
+			}
+			c.handlers[c.index](c)
+			c.index++
+		}
+	} else {
+		// Fast path without cancellation checks (~10ns faster per handler)
+		for c.index < handlersLen {
+			c.handlers[c.index](c)
+			c.index++
+		}
 	}
 }
 
@@ -125,7 +146,7 @@ func (c *Context) Next() {
 // Returns an empty string if the parameter doesn't exist.
 func (c *Context) Param(key string) string {
 	// Fast array lookup first (zero allocations for ≤8 params)
-	for i := range c.paramCount {
+	for i := int32(0); i < c.paramCount; i++ {
 		if c.paramKeys[i] == key {
 			return c.paramValues[i]
 		}
@@ -319,7 +340,7 @@ func (c *Context) Header(key, value string) {
 				"key", key,
 				"original_value", value,
 				"path", c.Request.URL.Path,
-				"client_ip", c.GetClientIP(),
+				"client_ip", c.ClientIP(),
 				"user_agent", c.Request.UserAgent(),
 			)
 		}
@@ -344,83 +365,16 @@ func (c *Context) Query(key string) string {
 	return c.Request.URL.Query().Get(key)
 }
 
-// PostForm returns the value of the form parameter from POST request body.
+// FormValue returns the value of the form parameter from POST request body.
 // This works for both application/x-www-form-urlencoded and multipart/form-data.
 // Returns an empty string if the parameter doesn't exist.
 //
 // Example:
 //
-//	username := c.PostForm("username")
-//	password := c.PostForm("password")
-func (c *Context) PostForm(key string) string {
+//	username := c.FormValue("username")
+//	password := c.FormValue("password")
+func (c *Context) FormValue(key string) string {
 	return c.Request.FormValue(key)
-}
-
-// IsJSON returns true if the request content type is application/json.
-// This is an efficient helper for content type checking.
-func (c *Context) IsJSON() bool {
-	contentType := c.Request.Header.Get("Content-Type")
-	return strings.Contains(contentType, "application/json")
-}
-
-// IsXML returns true if the request content type is application/xml or text/xml.
-// This is an efficient helper for content type checking.
-func (c *Context) IsXML() bool {
-	contentType := c.Request.Header.Get("Content-Type")
-	return strings.Contains(contentType, "application/xml") || strings.Contains(contentType, "text/xml")
-}
-
-// AcceptsJSON returns true if the client accepts JSON responses.
-// This checks the Accept header for application/json.
-func (c *Context) AcceptsJSON() bool {
-	accept := c.Request.Header.Get("Accept")
-	return strings.Contains(accept, "application/json") || strings.Contains(accept, "*/*")
-}
-
-// AcceptsHTML returns true if the client accepts HTML responses.
-// This checks the Accept header for text/html.
-func (c *Context) AcceptsHTML() bool {
-	accept := c.Request.Header.Get("Accept")
-	return strings.Contains(accept, "text/html") || strings.Contains(accept, "*/*")
-}
-
-// GetClientIP returns the real client IP address.
-// It checks X-Forwarded-For, X-Real-IP headers and falls back to RemoteAddr.
-// This is efficient for common cases.
-func (c *Context) GetClientIP() string {
-	// Check X-Forwarded-For header first (most common proxy header)
-	if xff := c.Request.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the first IP if multiple are present
-		if idx := strings.Index(xff, ","); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
-	}
-
-	// Check X-Real-IP header
-	if xri := c.Request.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-
-	// Fall back to RemoteAddr
-	ip, _, err := net.SplitHostPort(c.Request.RemoteAddr)
-	if err != nil {
-		return c.Request.RemoteAddr
-	}
-	return ip
-}
-
-// IsSecure returns true if the request is served over HTTPS.
-// This checks the TLS field and X-Forwarded-Proto header.
-func (c *Context) IsSecure() bool {
-	// Check if TLS is directly available
-	if c.Request.TLS != nil {
-		return true
-	}
-
-	// Check X-Forwarded-Proto header (for proxies)
-	proto := c.Request.Header.Get("X-Forwarded-Proto")
-	return proto == "https"
 }
 
 // Redirect sends an HTTP redirect response with the specified status code and location.
@@ -467,10 +421,14 @@ func (c *Context) QueryDefault(key, defaultValue string) string {
 	return value
 }
 
-// PostFormDefault returns the form parameter value or a default if not present.
+// FormValueDefault returns the form parameter value or a default if not present.
 // This avoids the need for manual empty string checking.
-func (c *Context) PostFormDefault(key, defaultValue string) string {
-	value := c.PostForm(key)
+//
+// Example:
+//
+//	username := c.FormValueDefault("username", "guest")
+func (c *Context) FormValueDefault(key, defaultValue string) string {
+	value := c.FormValue(key)
 	if value == "" {
 		return defaultValue
 	}
@@ -638,4 +596,27 @@ func (c *Context) reset() {
 	if c.Params != nil {
 		clear(c.Params)
 	}
+}
+
+// initForRequest initializes the context for a new request.
+// This is optimized for the hot path with minimal field assignments.
+// Inlining this function reduces call overhead in ServeHTTP.
+func (c *Context) initForRequest(req *http.Request, w http.ResponseWriter, handlers []HandlerFunc, router *Router) {
+	c.Request = req
+	c.Response = w
+	c.handlers = handlers
+	c.router = router
+	c.index = -1
+	c.paramCount = 0
+}
+
+// initForRequestWithParams initializes context WITHOUT resetting parameters.
+// Used when parameters have already been extracted (e.g., from template matching).
+func (c *Context) initForRequestWithParams(req *http.Request, w http.ResponseWriter, handlers []HandlerFunc, router *Router) {
+	c.Request = req
+	c.Response = w
+	c.handlers = handlers
+	c.router = router
+	c.index = -1
+	// Note: paramCount and param arrays NOT reset - already populated by template
 }

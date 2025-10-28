@@ -88,6 +88,35 @@ curl http://localhost:8080/files/static/image.jpg
 
 ---
 
+### 7. [Content Negotiation](./07-content-negotiation/)
+
+HTTP content negotiation for flexible API responses.
+
+```bash
+cd 07-content-negotiation && go run main.go
+curl -H "Accept: application/json" http://localhost:8080/api/user
+curl -H "Accept-Language: fr" http://localhost:8080/api/greeting
+```
+
+**Learn:** Accept header parsing, format negotiation (JSON/XML/HTML), language/encoding/charset negotiation
+
+---
+
+### 8. [Request Binding](./08-binding/)
+
+Automatic request data binding to structs.
+
+```bash
+cd 08-binding && go run main.go
+curl -X POST http://localhost:8080/api/users -H "Content-Type: application/json" \
+  -d '{"name":"Alice","email":"alice@example.com","age":25}'
+curl "http://localhost:8080/api/search?q=golang&page=2&tags=web&tags=api"
+```
+
+**Learn:** BindBody, BindQuery, BindParams, BindCookies, BindHeaders, type conversion, slices, pointers
+
+---
+
 ## 🚀 Quick Start
 
 1. **Choose an example** based on what you want to learn
@@ -115,6 +144,8 @@ curl http://localhost:8080/files/static/image.jpg
 4. Build a **04-rest-api** to see everything together
 5. Learn **05-advanced** features for constraints and helpers
 6. Master **06-advanced-routing** for versioning and wildcards
+7. Implement **07-content-negotiation** for flexible API responses
+8. Use **08-binding** for automatic request data parsing
 
 ## 🔧 Common Patterns
 
