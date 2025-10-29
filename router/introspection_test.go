@@ -325,3 +325,20 @@ func (suite *ExtendedTestSuite) TestQueryDefaults() {
 func TestExtendedSuite(t *testing.T) {
 	suite.Run(t, new(ExtendedTestSuite))
 }
+
+// TestPrintRoutes tests the PrintRoutes utility function
+func TestPrintRoutes(t *testing.T) {
+	r := New()
+
+	r.GET("/users", func(c *Context) {})
+	r.POST("/users", func(c *Context) {})
+	r.GET("/users/:id", func(c *Context) {})
+
+	// This should not panic
+	r.PrintRoutes()
+
+	routes := r.Routes()
+	if len(routes) != 3 {
+		t.Errorf("Expected 3 routes, got %d", len(routes))
+	}
+}

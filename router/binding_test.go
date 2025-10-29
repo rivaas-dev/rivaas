@@ -1614,7 +1614,7 @@ func TestBindQuery_Maps(t *testing.T) {
 		}
 
 		// Maps without values should remain nil (not cause error)
-		if params.Metadata != nil && len(params.Metadata) > 0 {
+		if len(params.Metadata) > 0 {
 			t.Error("Metadata should be empty")
 		}
 	})

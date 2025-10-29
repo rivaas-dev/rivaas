@@ -305,20 +305,25 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 			"Error should mention JSON encoding issue")
 	})
 
-	t.Run("MustJSON handles error automatically", func(t *testing.T) {
+	t.Run("JSON returns error on encoding failure", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/test", nil)
 
 		r.GET("/test", func(c *Context) {
 			badData := BadType{Func: func() {}}
-			c.MustJSON(200, badData)
+			if err := c.JSON(200, badData); err != nil {
+				// Handle error explicitly by sending 500 response
+				c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
+				c.Response.WriteHeader(http.StatusInternalServerError)
+				c.Response.Write([]byte(fmt.Sprintf(`{"error":"JSON encoding failed","type":"%T","details":"%s"}`, badData, err.Error())))
+			}
 		})
 
 		r.ServeHTTP(w, req)
 
-		// MustJSON should handle the error and return 500
+		// JSON should have returned an error, which handler dealt with
 		assert.Equal(t, http.StatusInternalServerError, w.Code,
-			"MustJSON should return 500 on encoding error")
+			"Handler should return 500 on encoding error")
 		assert.Contains(t, w.Body.String(), "JSON encoding failed",
 			"Response should indicate JSON encoding error")
 		assert.Contains(t, w.Body.String(), "BadType",

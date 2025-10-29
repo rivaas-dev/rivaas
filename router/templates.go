@@ -16,7 +16,7 @@ import (
 //   - Inline constraint validation (no separate validation pass)
 //   - Stack-allocated segment buffer (zero heap allocations)
 //
-// Expected improvement: 40-60% faster than tree traversal for parameter routes
+// Expected improvement: Significantly faster than tree traversal for parameter routes
 type RouteTemplate struct {
 	// Route identification
 	method  string // HTTP method (GET, POST, etc.)
@@ -44,11 +44,11 @@ type RouteTemplate struct {
 
 // TemplateCache manages compiled route templates for fast lookup.
 // Uses a three-tier strategy:
-//  1. Static routes: Hash table (O(1), ~100ns)
-//  2. Dynamic routes: Template matching (O(k), ~180ns)
-//  3. Complex routes: Tree fallback (O(k*log(n)), ~320ns)
+//  1. Static routes: Hash table with O(1) complexity
+//  2. Dynamic routes: Template matching with O(k) complexity
+//  3. Complex routes: Tree fallback with O(k*log(n)) complexity
 //
-// TIER 2 Enhancement: First-segment jump table for faster filtering
+// Enhancement: First-segment jump table for faster filtering
 type TemplateCache struct {
 	// Static route table: method+path → handlers (fastest path)
 	staticRoutes map[uint64]*RouteTemplate
@@ -57,7 +57,7 @@ type TemplateCache struct {
 	// Dynamic route templates: ordered by specificity
 	dynamicTemplates []*RouteTemplate
 
-	// TIER 2: First-segment index for fast filtering (ASCII optimization)
+	// First-segment index for fast filtering (ASCII optimization)
 	// Maps first character after '/' to templates that start with that char
 	// Example: 'u' → ["/users/:id", "/user/profile"]
 	// This reduces search space by ~95% for typical APIs
@@ -166,19 +166,17 @@ func compileRouteTemplate(method, pattern string, handlers []HandlerFunc, constr
 // 3. Validate static segments by direct position check
 // 4. Extract parameters by position with inline constraint validation
 //
-// Performance: ~180ns average (vs ~320ns for tree traversal)
-//
-// TIER 2 Enhancement: Early exit optimizations, faster slash counting
-// TIER 3 Enhancement: Fast path for common patterns, branch prediction optimization
+// matchAndExtract attempts to match a path against this template and extract parameters.
+// Uses early exit optimizations and fast paths for common patterns.
 func (t *RouteTemplate) matchAndExtract(path string, ctx *Context) bool {
 	// Handle root path specially (unlikely in most APIs)
 	if t.segmentCount == 0 {
 		return path == "/" || path == ""
 	}
 
-	// TIER 3: Fast path for common single-parameter routes
+	// Fast path for common single-parameter routes
 	// Pattern: /resource/:id (2 segments, 1 param at position 1)
-	// This is THE most common REST API pattern
+	// This is the most common REST API pattern
 	if t.segmentCount == 2 && len(t.paramPos) == 1 && t.paramPos[0] == 1 {
 		// Fast path: /users/123, /posts/456, etc.
 		// No need for full parsing - just extract after first /
@@ -232,7 +230,7 @@ func (t *RouteTemplate) matchAndExtract(path string, ctx *Context) bool {
 
 	pathLen := len(path)
 
-	// TIER 2: Quick length check for early exit
+	// Quick length check for early exit
 	// If path is too short, it can't possibly match
 	// Minimum length = segmentCount + (segmentCount - 1) slashes
 	minLen := int(t.segmentCount) + int(t.segmentCount-1)
@@ -240,10 +238,10 @@ func (t *RouteTemplate) matchAndExtract(path string, ctx *Context) bool {
 		return false
 	}
 
-	// TIER 2: Optimized slash counting with early exit
-	// Count while checking minimum requirements
+	// Count slashes with early exit
+	// Check segment count matches while counting
 	slashCount := int32(0)
-	for i := 0; i < pathLen; i++ {
+	for i := range pathLen {
 		if path[i] == '/' {
 			slashCount++
 			// Early exit if too many slashes
@@ -291,9 +289,8 @@ func (t *RouteTemplate) matchAndExtract(path string, ctx *Context) bool {
 		return false
 	}
 
-	// TIER 2: Validate static segments with early exit
+	// Validate static segments with early exit
 	// Check most distinctive segments first for faster rejection
-	// Inline first check for common cases (unrolled loop)
 	staticCount := int32(len(t.staticPos))
 	if staticCount > 0 {
 		// Unroll first check (most common case)
@@ -385,7 +382,7 @@ func (tc *TemplateCache) addTemplate(tmpl *RouteTemplate) {
 		// This ensures more specific routes match first
 		tc.sortTemplatesBySpecificity()
 
-		// TIER 2: Invalidate first-segment index (will be rebuilt on next lookup)
+		// Invalidate first-segment index (will be rebuilt on next lookup)
 		tc.hasFirstSegmentIndex = false
 	}
 	// Wildcard routes fall back to tree
@@ -427,12 +424,12 @@ func (tc *TemplateCache) lookupStatic(method, path string) *RouteTemplate {
 	return tc.staticRoutes[hash]
 }
 
-// matchDynamic attempts to match path against dynamic templates
-// TIER 2: Uses first-segment index for faster filtering
+// matchDynamic attempts to match path against dynamic templates.
+// Uses first-segment index for faster filtering.
 func (tc *TemplateCache) matchDynamic(path string, ctx *Context) *RouteTemplate {
 	tc.mu.RLock()
 
-	// TIER 2: Build first-segment index if not exists (lazy initialization)
+	// Build first-segment index if not exists (lazy initialization)
 	if !tc.hasFirstSegmentIndex && len(tc.dynamicTemplates) > 10 {
 		// Only build index if we have enough templates to benefit
 		tc.mu.RUnlock()
@@ -440,7 +437,7 @@ func (tc *TemplateCache) matchDynamic(path string, ctx *Context) *RouteTemplate 
 		tc.mu.RLock()
 	}
 
-	// TIER 2: Try first-segment index for fast filtering
+	// Try first-segment index for fast filtering
 	if tc.hasFirstSegmentIndex && len(path) > 1 {
 		// Extract first character after '/'
 		firstChar := path[1]
@@ -471,10 +468,10 @@ func (tc *TemplateCache) matchDynamic(path string, ctx *Context) *RouteTemplate 
 }
 
 // buildFirstSegmentIndex builds the first-segment jump table for faster template filtering.
-// This reduces the search space by ~95% for typical APIs.
+// This reduces the search space significantly for typical APIs.
 //
-// TIER 2 Optimization: Instead of checking all templates, only check those
-// that start with the same character as the path.
+// Instead of checking all templates, only check those that start with
+// the same character as the path.
 //
 // Example: Path "/users/123" → Only check templates starting with 'u'
 func (tc *TemplateCache) buildFirstSegmentIndex() {
@@ -500,15 +497,4 @@ func (tc *TemplateCache) buildFirstSegmentIndex() {
 	}
 
 	tc.hasFirstSegmentIndex = true
-}
-
-// countSlashes counts slashes in path without allocating
-func countSlashes(path string) int32 {
-	count := int32(0)
-	for i := 0; i < len(path); i++ {
-		if path[i] == '/' {
-			count++
-		}
-	}
-	return count
 }

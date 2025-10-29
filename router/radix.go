@@ -105,9 +105,8 @@ func (bf *bloomFilter) Add(data []byte) {
 }
 
 // Test checks if an element might be in the bloom filter - zero allocations
-// TIER 2: Optimized with early exit and better bit manipulation
 func (bf *bloomFilter) Test(data []byte) bool {
-	// TIER 2: Unroll first iteration for common case (3 hash functions)
+	// Unroll first iteration for common case (3 hash functions)
 	// This avoids loop overhead for the most common scenario
 	if len(bf.seeds) >= 3 {
 		// Hash 1
@@ -278,10 +277,10 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 		return
 	}
 
-	// Optimization 2: Fast path for simple static routes (no : or *)
+	// Fast path for simple static routes (no : or *)
 	// Store the entire path as a single child to enable O(1) lookup
 	// Example: "/api/users" is stored as a single key, not split into ["api", "users"]
-	// This makes static route lookup much faster (single map access vs tree traversal)
+	// This makes static route lookup faster (single map access vs tree traversal)
 	if !strings.Contains(path, ":") && !strings.HasSuffix(path, "/*") {
 		if n.children == nil {
 			n.children = make(map[string]*node, 8) // Pre-allocate with reasonable capacity
@@ -370,7 +369,7 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 		return n.handlers
 	}
 
-	// Optimization 2: Fast path for static routes (no parameters)
+	// Fast path for static routes (no parameters)
 	// Check full path in children map first - O(1) lookup
 	// This avoids tree traversal for static routes like /api/users, /health, etc.
 	if n.children != nil {
@@ -482,7 +481,7 @@ func validateConstraints(constraints []RouteConstraint, ctx *Context) bool {
 
 	// Fast path: Few constraints - use direct array lookup (most common case)
 	// Threshold: <=3 constraints OR <=4 parameters
-	// Rationale: Nested loop overhead < map creation overhead for small sizes
+	// For small sizes, nested loop overhead is less than map creation overhead
 	if len(constraints) <= 3 || ctx.paramCount <= 4 {
 		for _, constraint := range constraints {
 			var value string
@@ -612,17 +611,16 @@ func (n *node) compileStaticRoutesRecursive(table *CompiledRouteTable, prefix st
 // Returns handlers if found, nil if not a static route or doesn't exist
 //
 // Algorithm: Bloom filter → Hash lookup (two-stage filtering)
-// Stage 1: Bloom filter test (very fast, ~10ns)
+// Stage 1: Bloom filter test (very fast negative lookup)
 //   - If negative: route definitely doesn't exist, return nil immediately
 //   - If positive: might exist, proceed to stage 2
 //
-// Stage 2: Hash map lookup (fast, ~20ns)
+// Stage 2: Hash map lookup (fast constant-time lookup)
 //   - Check actual route existence in hash map
 //   - Return handlers if found
 //
-// Performance optimization: Skip bloom filter for small route sets
-// Why: Bloom filter overhead (hashing 3 times) isn't worth it for <10 routes
-// Direct hash lookup is faster when the map is tiny
+// Skip bloom filter for small route sets
+// For <10 routes, direct hash lookup is faster than bloom filter overhead
 func (table *CompiledRouteTable) getRoute(path string) []HandlerFunc {
 	if table == nil {
 		return nil

@@ -468,7 +468,7 @@ func bind(out any, getter valueGetter, tagName string) error {
 		// Handle slice fields
 		if field.isSlice {
 			values := getter.GetAll(field.tagName)
-			if err := setSliceField(fieldValue, values, field.elemKind); err != nil {
+			if err := setSliceField(fieldValue, values); err != nil {
 				return &BindError{
 					Field: field.name,
 					Tag:   tagName,
@@ -495,7 +495,7 @@ func bind(out any, getter valueGetter, tagName string) error {
 			}
 		}
 
-		if err := setField(fieldValue, value, field.kind, field.isPtr); err != nil {
+		if err := setField(fieldValue, value, field.isPtr); err != nil {
 			return &BindError{
 				Field: field.name,
 				Tag:   tagName,
@@ -660,7 +660,7 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 }
 
 // setField sets a single struct field value with type conversion.
-func setField(field reflect.Value, value string, kind reflect.Kind, isPtr bool) error {
+func setField(field reflect.Value, value string, isPtr bool) error {
 	fieldType := field.Type()
 
 	// Handle pointer fields
@@ -770,7 +770,7 @@ func setFieldValue(field reflect.Value, value string) error {
 }
 
 // setSliceField sets a slice field from multiple string values.
-func setSliceField(field reflect.Value, values []string, elemKind reflect.Kind) error {
+func setSliceField(field reflect.Value, values []string) error {
 	if len(values) == 0 {
 		return nil
 	}

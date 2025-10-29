@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -152,4 +153,91 @@ func (suite *RadixTestSuite) TestRadixTreeEdgeCases() {
 // TestRadixSuite runs the radix test suite
 func TestRadixSuite(t *testing.T) {
 	suite.Run(t, new(RadixTestSuite))
+}
+
+// TestEdgeCasesInRadixTree tests edge cases in radix tree matching
+func TestEdgeCasesInRadixTree(t *testing.T) {
+	r := New()
+
+	t.Run("Empty segments", func(t *testing.T) {
+		r.GET("/a//b", func(c *Context) {
+			c.String(200, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/a//b", nil)
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		if w.Code != 200 {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("Trailing slash handling", func(t *testing.T) {
+		r.GET("/users/", func(c *Context) {
+			c.String(200, "users with slash")
+		})
+		r.GET("/posts", func(c *Context) {
+			c.String(200, "posts without slash")
+		})
+
+		// Test exact match with trailing slash
+		req := httptest.NewRequest("GET", "/users/", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+		if w.Body.String() != "users with slash" {
+			t.Errorf("Expected 'users with slash', got %q", w.Body.String())
+		}
+
+		// Test exact match without trailing slash
+		req = httptest.NewRequest("GET", "/posts", nil)
+		w = httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+		if w.Body.String() != "posts without slash" {
+			t.Errorf("Expected 'posts without slash', got %q", w.Body.String())
+		}
+	})
+
+	t.Run("Multiple parameters in path", func(t *testing.T) {
+		r.GET("/a/:p1/b/:p2/c/:p3", func(c *Context) {
+			c.String(200, "%s-%s-%s", c.Param("p1"), c.Param("p2"), c.Param("p3"))
+		})
+
+		req := httptest.NewRequest("GET", "/a/x/b/y/c/z", nil)
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		if w.Code != 200 {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+		if w.Body.String() != "x-y-z" {
+			t.Errorf("Expected 'x-y-z', got %q", w.Body.String())
+		}
+	})
+
+	t.Run("Parameter at end of path", func(t *testing.T) {
+		r.GET("/items/:id", func(c *Context) {
+			c.String(200, "item %s", c.Param("id"))
+		})
+
+		req := httptest.NewRequest("GET", "/items/abc123", nil)
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		if w.Code != 200 {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+		if w.Body.String() != "item abc123" {
+			t.Errorf("Expected 'item abc123', got %q", w.Body.String())
+		}
+	})
 }

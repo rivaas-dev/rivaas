@@ -31,8 +31,8 @@ import (
 // NOTE: Fields are ordered by size (largest to smallest) for optimal memory layout
 // and to minimize padding. This reduces struct size and improves cache efficiency.
 //
-// TIER 3: Cache-line optimization applied
-// Hot fields (Request, Response, handlers) are in first 64 bytes for cache locality
+// Hot fields (Request, Response, handlers) are placed in the first 64 bytes
+// for better cache locality during request processing.
 type Context struct {
 	// CACHE LINE 1: Hottest fields (accessed on every request) - first 64 bytes
 	Request  *http.Request       // The HTTP request object (8B)
@@ -56,6 +56,11 @@ type Context struct {
 	metricsRecorder ContextMetricsRecorder // Metrics recorder for this context
 	tracingRecorder ContextTracingRecorder // Tracing recorder for this context
 	version         string                 // Current API version (e.g., "v1", "v2")
+
+	// Header parsing cache (per-request)
+	cachedAcceptHeader string       // Cached Accept header value
+	cachedAcceptSpecs  []acceptSpec // Parsed Accept header specs
+	cachedArena        *headerArena // Arena allocator for spec buffers (pooled)
 }
 
 // HandlerFunc defines the handler function signature for route handlers and middleware.
@@ -113,7 +118,7 @@ func (c *Context) Next() {
 	c.index++
 	handlersLen := int32(len(c.handlers))
 
-	// Optimized loop: Pre-compute length, check cancellation only if enabled
+	// Pre-compute length, check cancellation only if enabled
 	if c.router != nil && c.router.checkCancellation {
 		// With cancellation checks (default behavior)
 		for c.index < handlersLen {
@@ -126,7 +131,7 @@ func (c *Context) Next() {
 			c.index++
 		}
 	} else {
-		// Fast path without cancellation checks (~10ns faster per handler)
+		// Fast path without cancellation checks (slightly faster per handler)
 		for c.index < handlersLen {
 			c.handlers[c.index](c)
 			c.index++
@@ -196,30 +201,6 @@ func (c *Context) JSON(code int, obj any) error {
 	// Write the pre-encoded JSON
 	_, writeErr := c.Response.Write([]byte(buf.String()))
 	return writeErr
-}
-
-// MustJSON sends a JSON response with automatic error handling.
-// If JSON encoding fails, it automatically sends a 500 error response with details.
-// This is the recommended method for handlers that don't need custom error handling.
-//
-// BREAKING CHANGE: This method now sends detailed error information in development.
-// For production, ensure you have appropriate error handling middleware that sanitizes errors.
-//
-// Example:
-//
-//	c.MustJSON(http.StatusOK, map[string]string{"message": "Hello World"})
-//	c.MustJSON(http.StatusCreated, user)
-func (c *Context) MustJSON(code int, obj any) {
-	if err := c.JSON(code, obj); err != nil {
-		// Send error response - headers haven't been written yet due to buffering
-		c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
-		c.Response.WriteHeader(http.StatusInternalServerError)
-
-		// Send structured error response
-		errorResponse := fmt.Sprintf(`{"error":"JSON encoding failed","type":"%T","details":"%s"}`,
-			obj, err.Error())
-		c.Response.Write([]byte(errorResponse))
-	}
 }
 
 // String sends a plain text response with optional formatting.
@@ -445,6 +426,11 @@ func (c *Context) FormValueDefault(key, defaultValue string) string {
 //	    // Handle v2 specific logic
 //	}
 func (c *Context) Version() string {
+	// Lazy version detection
+	// Only detect version when first accessed, not on every request
+	if c.version == "" && c.router.versioning != nil {
+		c.version = c.router.detectVersion(c.Request)
+	}
 	return c.version
 }
 
@@ -495,24 +481,24 @@ func (c *Context) GetCookie(name string) (string, error) {
 	return value, nil
 }
 
-// RecordMetric records a custom histogram metric with the given name and value.
-// This method is thread-safe and uses atomic operations for optimal performance.
+// RecordMetric records a custom histogram metric by delegating to the metrics recorder.
+// Thread-safety depends on the underlying metrics recorder implementation.
 func (c *Context) RecordMetric(name string, value float64, attributes ...attribute.KeyValue) {
 	if c.metricsRecorder != nil {
 		c.metricsRecorder.RecordMetric(c.Request.Context(), name, value, attributes...)
 	}
 }
 
-// IncrementCounter increments a custom counter metric with the given name.
-// This method is thread-safe and uses atomic operations for optimal performance.
+// IncrementCounter increments a custom counter metric by delegating to the metrics recorder.
+// Thread-safety depends on the underlying metrics recorder implementation.
 func (c *Context) IncrementCounter(name string, attributes ...attribute.KeyValue) {
 	if c.metricsRecorder != nil {
 		c.metricsRecorder.IncrementCounter(c.Request.Context(), name, attributes...)
 	}
 }
 
-// SetGauge sets a custom gauge metric with the given name and value.
-// This method is thread-safe and uses atomic operations for optimal performance.
+// SetGauge sets a custom gauge metric by delegating to the metrics recorder.
+// Thread-safety depends on the underlying metrics recorder implementation.
 func (c *Context) SetGauge(name string, value float64, attributes ...attribute.KeyValue) {
 	if c.metricsRecorder != nil {
 		c.metricsRecorder.SetGauge(c.Request.Context(), name, value, attributes...)
@@ -580,6 +566,15 @@ func (c *Context) reset() {
 	c.traceCtx = nil
 	c.metricsRecorder = nil
 	c.tracingRecorder = nil
+
+	// Clear header parsing cache and return arena to pool
+	c.cachedAcceptHeader = ""
+	c.cachedAcceptSpecs = nil
+	if c.cachedArena != nil {
+		c.cachedArena.reset()
+		arenaPool.Put(c.cachedArena)
+		c.cachedArena = nil
+	}
 
 	// Clear parameter arrays efficiently - only clear used slots
 	// Optimization: Skip if no parameters were used (common case for static routes)

@@ -279,7 +279,7 @@ func (r *Router) PrintRoutes() {
 // It uses the finalized flag to prevent duplicate route registration.
 // This method is now lock-free and uses atomic operations for thread safety.
 //
-// TIER 1 Optimization: Also compiles route into template for fast matching
+// Also compiles route into template for fast matching
 func (route *Route) finalizeRoute() {
 	if route.finalized {
 		return // Already added to tree, skip re-registration
@@ -292,7 +292,7 @@ func (route *Route) finalizeRoute() {
 	// Use efficient route addition that minimizes allocations
 	route.router.addRouteToTree(route.method, route.path, allHandlers, route.constraints)
 
-	// TIER 1: Compile into template for fast matching (if enabled)
+	// Compile into template for fast matching (if enabled)
 	// Only add to template cache if not a wildcard (wildcards use tree)
 	if route.router.useTemplates && route.router.templateCache != nil {
 		tmpl := compileRouteTemplate(route.method, route.path, allHandlers, route.constraints)

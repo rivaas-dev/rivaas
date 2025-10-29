@@ -228,3 +228,132 @@ func (suite *RouterTestSuite) TestContextMethods() {
 func TestRouterSuite(t *testing.T) {
 	suite.Run(t, new(RouterTestSuite))
 }
+
+// TestHTTPMethods tests all HTTP method handlers
+func TestHTTPMethods(t *testing.T) {
+	r := New()
+
+	// Register all HTTP methods
+	r.GET("/get", func(c *Context) {
+		c.String(200, "GET")
+	})
+	r.POST("/post", func(c *Context) {
+		c.String(200, "POST")
+	})
+	r.PUT("/put", func(c *Context) {
+		c.String(200, "PUT")
+	})
+	r.DELETE("/delete", func(c *Context) {
+		c.String(200, "DELETE")
+	})
+	r.PATCH("/patch", func(c *Context) {
+		c.String(200, "PATCH")
+	})
+	r.OPTIONS("/options", func(c *Context) {
+		c.String(200, "OPTIONS")
+	})
+	r.HEAD("/head", func(c *Context) {
+		c.Status(200)
+	})
+
+	tests := []struct {
+		method   string
+		path     string
+		expected string
+	}{
+		{"GET", "/get", "GET"},
+		{"POST", "/post", "POST"},
+		{"PUT", "/put", "PUT"},
+		{"DELETE", "/delete", "DELETE"},
+		{"PATCH", "/patch", "PATCH"},
+		{"OPTIONS", "/options", "OPTIONS"},
+		{"HEAD", "/head", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			w := httptest.NewRecorder()
+
+			r.ServeHTTP(w, req)
+
+			if w.Code != 200 {
+				t.Errorf("Expected status 200, got %d", w.Code)
+			}
+			if tt.expected != "" && w.Body.String() != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, w.Body.String())
+			}
+		})
+	}
+}
+
+// TestCompileOptimizations tests route compilation and optimization
+func TestCompileOptimizations(t *testing.T) {
+	r := New()
+
+	// Add static routes that will be compiled
+	r.GET("/home", func(c *Context) {
+		c.String(200, "home")
+	})
+	r.GET("/about", func(c *Context) {
+		c.String(200, "about")
+	})
+	r.GET("/contact", func(c *Context) {
+		c.String(200, "contact")
+	})
+
+	// Trigger compilation
+	r.WarmupOptimizations()
+
+	// Test that compiled routes work
+	req := httptest.NewRequest("GET", "/home", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+	if w.Body.String() != "home" {
+		t.Errorf("Expected 'home', got %q", w.Body.String())
+	}
+}
+
+// TestWithBloomFilterSize tests bloom filter configuration
+func TestWithBloomFilterSize(t *testing.T) {
+	r := New(WithBloomFilterSize(2000))
+
+	if r.bloomFilterSize != 2000 {
+		t.Errorf("Expected bloom filter size 2000, got %d", r.bloomFilterSize)
+	}
+
+	// Test with zero size (should use default)
+	r2 := New(WithBloomFilterSize(0))
+	if r2.bloomFilterSize != 1000 {
+		t.Errorf("Expected default bloom filter size 1000, got %d", r2.bloomFilterSize)
+	}
+}
+
+// mockLogger implements the Logger interface for testing
+type mockLogger struct {
+	lastError string
+}
+
+func (m *mockLogger) Error(msg string, keysAndValues ...any) {
+	m.lastError = msg
+}
+
+func (m *mockLogger) Warn(msg string, keysAndValues ...any) {}
+
+func (m *mockLogger) Info(msg string, keysAndValues ...any) {}
+
+func (m *mockLogger) Debug(msg string, keysAndValues ...any) {}
+
+// TestWithLogger tests logger configuration
+func TestWithLogger(t *testing.T) {
+	logger := &mockLogger{}
+	r := New(WithLogger(logger))
+
+	if r.logger == nil {
+		t.Error("Expected logger to be set")
+	}
+}

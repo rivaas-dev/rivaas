@@ -93,64 +93,42 @@ type VersionRouter struct {
 }
 
 // detectVersion performs efficient version detection
+// Checks are ordered for the most common cases first to improve branch prediction
 func (r *Router) detectVersion(req *http.Request) string {
-	// Custom detector takes precedence
-	if r.versioning.CustomDetector != nil {
-		return r.versioning.CustomDetector(req)
-	}
+	cfg := r.versioning // Single pointer dereference
 
-	// Header-based detection (zero allocations)
-	if r.versioning.HeaderEnabled {
-		if version := r.getHeaderVersion(req); version != "" {
-			return version
+	// Header-based detection (most common in production)
+	if cfg.HeaderEnabled {
+		if header := req.Header.Get(cfg.HeaderName); header != "" {
+			// Skip validation if no ValidVersions configured
+			if len(cfg.ValidVersions) == 0 {
+				return header
+			}
+			if slices.Contains(cfg.ValidVersions, header) {
+				return header
+			}
 		}
 	}
 
-	// Query parameter-based detection (zero allocations)
-	if r.versioning.QueryEnabled {
-		if version := r.getQueryVersion(req); version != "" {
-			return version
+	// Second most common: query parameter-based detection
+	if cfg.QueryEnabled {
+		if version := req.URL.Query().Get(cfg.QueryParam); version != "" {
+			// Skip validation if no ValidVersions configured
+			if len(cfg.ValidVersions) == 0 {
+				return version
+			}
+			if slices.Contains(cfg.ValidVersions, version) {
+				return version
+			}
 		}
 	}
 
-	return r.versioning.DefaultVersion
-}
-
-// getHeaderVersion extracts version from header efficiently
-func (r *Router) getHeaderVersion(req *http.Request) string {
-	// Direct header access without string allocations
-	header := req.Header.Get(r.versioning.HeaderName)
-	if header == "" {
-		return ""
+	// Rare case: custom detector (checked last for better branch prediction)
+	if cfg.CustomDetector != nil {
+		return cfg.CustomDetector(req)
 	}
 
-	// Validate version if configured
-	if len(r.versioning.ValidVersions) > 0 {
-		if !slices.Contains(r.versioning.ValidVersions, header) {
-			return "" // Invalid version
-		}
-	}
-
-	return header
-}
-
-// getQueryVersion extracts version from query parameter efficiently
-func (r *Router) getQueryVersion(req *http.Request) string {
-	// Direct query parameter access without allocations
-	query := req.URL.Query()
-	version := query.Get(r.versioning.QueryParam)
-	if version == "" {
-		return ""
-	}
-
-	// Validate version if configured
-	if len(r.versioning.ValidVersions) > 0 {
-		if !slices.Contains(r.versioning.ValidVersions, version) {
-			return "" // Invalid version
-		}
-	}
-
-	return version
+	return cfg.DefaultVersion
 }
 
 // getVersionTree atomically gets the tree for a specific version and HTTP method
@@ -170,9 +148,9 @@ func (r *Router) getVersionTree(version, method string) *node {
 // addVersionRoute adds a route to a specific version tree using atomic compare-and-swap
 // This ensures thread-safety without locks during concurrent route registration
 //
-// Algorithm: Two-phase versioned routing with CAS loop
-// Phase 1 (Fast path): Add to existing version/method tree if it exists
-// Phase 2 (Slow path): Create new version/method tree atomically via CAS
+// Algorithm: Optimistic fast-path with CAS-based fallback
+// Fast path: Add to existing version/method tree if it exists
+// Slow path: Create new version/method tree atomically via CAS loop
 //
 // Data structure: map[version]map[method]*node
 // Example: {"v1": {"GET": tree1, "POST": tree2}, "v2": {"GET": tree3}}

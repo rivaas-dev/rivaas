@@ -54,7 +54,7 @@ func TestConstraintValidationDebug(t *testing.T) {
 }
 
 func TestFastPathConstraintValidation(t *testing.T) {
-	// Test the TIER 3 fast path directly
+	// Test the fast path for constraint validation
 	constraints := []RouteConstraint{
 		{Param: "id", Pattern: mustCompile(`^\d+$`)},
 	}
@@ -85,4 +85,51 @@ func TestFastPathConstraintValidation(t *testing.T) {
 
 func mustCompile(pattern string) *regexp.Regexp {
 	return regexp.MustCompile(pattern)
+}
+
+// TestRouteConstraints tests additional constraint validators
+func TestRouteConstraints(t *testing.T) {
+	r := New()
+
+	r.GET("/alpha/:name", func(c *Context) {
+		c.String(200, "name=%s", c.Param("name"))
+	}).WhereAlpha("name")
+
+	r.GET("/uuid/:id", func(c *Context) {
+		c.String(200, "id=%s", c.Param("id"))
+	}).WhereUUID("id")
+
+	tests := []struct {
+		name       string
+		path       string
+		shouldPass bool
+		expected   string
+	}{
+		{"valid alpha", "/alpha/john", true, "name=john"},
+		{"invalid alpha with numbers", "/alpha/john123", false, ""},
+		{"valid UUID", "/uuid/123e4567-e89b-12d3-a456-426614174000", true, "id=123e4567-e89b-12d3-a456-426614174000"},
+		{"invalid UUID", "/uuid/not-a-uuid", false, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.path, nil)
+			w := httptest.NewRecorder()
+
+			r.ServeHTTP(w, req)
+
+			if tt.shouldPass {
+				if w.Code != 200 {
+					t.Errorf("Expected status 200, got %d", w.Code)
+				}
+				if w.Body.String() != tt.expected {
+					t.Errorf("Expected %q, got %q", tt.expected, w.Body.String())
+				}
+			} else {
+				if w.Code != 404 {
+					t.Errorf("Expected status 404, got %d", w.Code)
+				}
+			}
+		})
+	}
 }

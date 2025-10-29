@@ -647,3 +647,52 @@ func TestGetCookieError(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
+
+// TestContextMetricsMethodsNoOp tests metrics recording methods when metrics are not enabled
+func TestContextMetricsMethodsNoOp(t *testing.T) {
+	r := New()
+
+	r.GET("/metrics-test", func(c *Context) {
+		// These should be no-ops when metrics are not enabled
+		c.RecordMetric("test_metric", 1.5)
+		c.IncrementCounter("test_counter")
+		c.SetGauge("test_gauge", 42)
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest("GET", "/metrics-test", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "ok", w.Body.String())
+}
+
+// TestContextTracingMethodsNoOp tests tracing methods when tracing is not enabled
+func TestContextTracingMethodsNoOp(t *testing.T) {
+	r := New()
+
+	r.GET("/tracing-test", func(c *Context) {
+		// These should be no-ops when tracing is not enabled
+		traceID := c.TraceID()
+		spanID := c.SpanID()
+		c.SetSpanAttribute("key", "value")
+		c.AddSpanEvent("event")
+		ctx := c.TraceContext()
+
+		assert.Empty(t, traceID)
+		assert.Empty(t, spanID)
+		assert.NotNil(t, ctx)
+
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest("GET", "/tracing-test", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "ok", w.Body.String())
+}

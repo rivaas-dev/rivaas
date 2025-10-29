@@ -13,10 +13,9 @@
 //   - Context pooling for performance
 //
 // Performance characteristics:
-//   - 223K+ requests/second throughput
-//   - 4.5µs average latency per request
-//   - 51 bytes memory per request
-//   - Sub-100ns radix tree routing for static paths
+//   - High throughput with minimal latency
+//   - Minimal memory allocations per request
+//   - Fast radix tree routing for static paths
 //
 // Example usage:
 //
@@ -170,7 +169,7 @@ type Router struct {
 	bloomHashFunctions int    // Number of hash functions for bloom filters (default: 3)
 	checkCancellation  bool   // Enable context cancellation checks in Next() (default: true)
 
-	// Template-based routing (TIER 1 optimization)
+	// Template-based routing
 	templateCache *TemplateCache // Pre-compiled route templates for fast matching
 	useTemplates  bool           // Enable template-based routing (default: true)
 }
@@ -204,10 +203,10 @@ func New(opts ...RouterOption) *Router {
 	initialTrees := make(map[string]*node)
 	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(&initialTrees))
 
-	// Initialize context pool (primary optimization)
+	// Initialize context pool
 	r.contextPool = NewContextPool(r)
 
-	// Initialize template cache (TIER 1 optimization)
+	// Initialize template cache
 	r.templateCache = newTemplateCache(r.bloomFilterSize, r.bloomHashFunctions)
 
 	// Apply functional options
@@ -306,7 +305,7 @@ func WithBloomFilterHashFunctions(numFuncs int) RouterOption {
 // between each handler, preventing wasted work on timed-out requests.
 //
 // Default: true (enabled)
-// Performance impact: ~5-10ns overhead per handler in chain
+// Performance impact: Small overhead per handler in chain
 //
 // Disable for maximum performance if:
 //   - Your handlers are very fast (< 1ms)
@@ -323,10 +322,10 @@ func WithCancellationCheck(enabled bool) RouterOption {
 }
 
 // WithTemplateRouting returns a RouterOption that enables/disables template-based routing.
-// When enabled, routes are pre-compiled into templates for 40-60% faster lookup.
+// When enabled, routes are pre-compiled into templates for significantly faster lookup.
 //
 // Default: true (enabled)
-// Performance impact: Positive! (~40-60% faster for parameter routes)
+// Performance impact: Positive! Substantially faster for parameter routes
 //
 // Disable only for debugging or if you encounter issues.
 //
@@ -382,13 +381,13 @@ func (r *Router) updateTrees(updater func(map[string]*node) map[string]*node) {
 // addRouteToTree adds a route to the tree using a more efficient approach.
 // This method minimizes allocations by only copying when necessary.
 //
-// Performance optimization: Two-phase approach
+// Two-phase approach:
 // Phase 1 (Fast path): If the method tree exists, add directly without CAS
 // Phase 2 (Slow path): If tree doesn't exist, create it atomically via CAS loop
 //
 // Why this matters:
 // - Most route additions happen to existing method trees (GET, POST, etc.)
-// - Fast path avoids CAS loop overhead (~30% faster for existing trees)
+// - Fast path avoids CAS loop overhead for existing trees
 // - Slow path ensures thread-safety when creating new method trees
 func (r *Router) addRouteToTree(method, path string, handlers []HandlerFunc, constraints []RouteConstraint) {
 	// Fast path: Check if method tree already exists
@@ -462,8 +461,8 @@ func (r *Router) Group(prefix string, middleware ...HandlerFunc) *Group {
 // for static and dynamic routes.
 //
 // The method performs the following optimizations:
-//   - TIER 1: Template-based matching for 40-60% faster parameter routes
-//   - TIER 1: Global static route table for method+path lookup
+//   - Template-based matching for significantly faster parameter routes
+//   - Global static route table for method+path lookup
 //   - Fast static route lookup for paths without parameters
 //   - Context pooling to reduce garbage collection pressure
 //   - Direct parameter extraction into context arrays for up to 8 parameters
@@ -482,7 +481,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Check if metrics are enabled (path exclusion is handled by StartRequest)
 	shouldMeasure := r.metrics != nil && r.metrics.IsEnabled()
 
-	// TIER 1 OPTIMIZATION: Try template-based routing first (if enabled)
+	// Try template-based routing first (if enabled)
+	// This is the fastest path - avoid any versioning overhead here
 	if r.useTemplates && r.templateCache != nil {
 		// Try static route table first (method+path hash lookup)
 		if tmpl := r.templateCache.lookupStatic(req.Method, path); tmpl != nil {
@@ -505,15 +505,19 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		globalContextPool.Put(ctx)
 	}
 
-	// Try version-specific routing first if versioning is enabled
-	if r.versioning != nil {
-		version := r.detectVersion(req)
+	// Detect version only after fast paths failed
+	// Cache version in local variable to avoid repeated detection
+	var version string
+	hasVersioning := r.versioning != nil // Hoist nil check
+
+	if hasVersioning {
+		version = r.detectVersion(req) // Called once, reused below
 		if tree := r.getVersionTree(version, req.Method); tree != nil {
 			r.serveVersionedRequest(w, req, tree, path, version, shouldTrace, shouldMeasure)
 			return
 		}
 		// If no version-specific route found, continue with standard routing
-		// but set version in context for handlers to access
+		// but pass version to context for handlers to access
 	}
 
 	// Fallback to standard routing (tree traversal)
@@ -530,15 +534,15 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			if shouldTrace && shouldMeasure {
 				// Wrap response writer for status code and size tracking (needed for metrics)
 				rw := &responseWriter{ResponseWriter: w}
-				r.serveWithTracingAndMetrics(rw, req, handlers, path, true)
+				r.serveStaticWithTracingAndMetrics(rw, req, handlers, path, true)
 			} else if shouldTrace {
 				// Wrap response writer for status code and size tracking (needed for metrics)
 				rw := &responseWriter{ResponseWriter: w}
-				r.serveWithTracing(rw, req, handlers, path)
+				r.serveStaticWithTracing(rw, req, handlers, path)
 			} else if shouldMeasure {
 				// Wrap response writer for status code and size tracking (needed for metrics)
 				rw := &responseWriter{ResponseWriter: w}
-				r.serveWithMetrics(rw, req, handlers, path, true)
+				r.serveStaticWithMetrics(rw, req, handlers, path, true)
 			} else {
 				// No metrics or tracing, use original response writer for zero allocations
 				// Direct execution without wrapper for performance
@@ -546,9 +550,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				ctx := globalContextPool.Get().(*Context)
 				ctx.initForRequest(req, w, handlers, r)
 
-				// Set version if versioning is enabled
-				if r.versioning != nil {
-					ctx.version = r.detectVersion(req)
+				// Use cached version from earlier detection
+				if hasVersioning {
+					ctx.version = version
 				}
 
 				ctx.Next()
@@ -661,15 +665,15 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 	if shouldTrace && shouldMeasure {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveWithTracingAndMetrics(rw, req, handlers, version, true)
+		r.serveStaticWithTracingAndMetrics(rw, req, handlers, version, true)
 	} else if shouldTrace {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveWithTracing(rw, req, handlers, version)
+		r.serveStaticWithTracing(rw, req, handlers, version)
 	} else if shouldMeasure {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveWithMetrics(rw, req, handlers, version, true)
+		r.serveStaticWithMetrics(rw, req, handlers, version, true)
 	} else {
 		// No metrics or tracing, use original response writer for zero allocations
 		// Direct execution without wrapper for performance
@@ -773,9 +777,9 @@ func (r *Router) WarmupOptimizations() {
 // instead of O(k) tree traversal on every request.
 //
 // Performance impact:
-// - Versioned static routes: ~100ns faster per request
-// - Memory cost: ~1KB per version (negligible)
-// - Compilation time: ~1ms per version
+// - Versioned static routes: Faster lookup per request
+// - Memory cost: Minimal per version (negligible)
+// - Compilation time: Fast per version
 func (r *Router) compileVersionRoutes() {
 	// Load version trees atomically
 	versionTreesPtr := atomic.LoadPointer(&r.versionTrees.trees)
@@ -811,8 +815,8 @@ func (r *Router) recordRouteRegistration(method, path string) {
 	}
 }
 
-// serveWithTracingAndMetrics serves a request with both tracing and metrics enabled.
-func (r *Router) serveWithTracingAndMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, path string, isStatic bool) {
+// serveStaticWithTracingAndMetrics serves a static request with both tracing and metrics enabled.
+func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, path string, isStatic bool) {
 	// Start tracing
 	ctx, span := r.tracing.StartSpan(req.Context(), req.Method+" "+path)
 	req = req.WithContext(ctx)
@@ -844,8 +848,8 @@ func (r *Router) serveWithTracingAndMetrics(rw *responseWriter, req *http.Reques
 	r.contextPool.PutContext(c)
 }
 
-// serveWithTracing serves a request with only tracing enabled.
-func (r *Router) serveWithTracing(rw *responseWriter, req *http.Request, handlers []HandlerFunc, path string) {
+// serveStaticWithTracing serves a static request with only tracing enabled.
+func (r *Router) serveStaticWithTracing(rw *responseWriter, req *http.Request, handlers []HandlerFunc, path string) {
 	// Start tracing
 	ctx, span := r.tracing.StartSpan(req.Context(), req.Method+" "+path)
 	req = req.WithContext(ctx)
@@ -871,8 +875,8 @@ func (r *Router) serveWithTracing(rw *responseWriter, req *http.Request, handler
 	r.contextPool.PutContext(c)
 }
 
-// serveWithMetrics serves a request with only metrics enabled.
-func (r *Router) serveWithMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, path string, isStatic bool) {
+// serveStaticWithMetrics serves a static request with only metrics enabled.
+func (r *Router) serveStaticWithMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, path string, isStatic bool) {
 	// Get request context
 	ctx := req.Context()
 
@@ -909,10 +913,8 @@ func (r *Router) serveDynamicWithTracingAndMetrics(c *Context, handlers []Handle
 	// Start metrics with trace context
 	metricsData := r.metrics.StartRequest(ctx, path, false)
 
-	// Set version if versioning is enabled
-	if r.versioning != nil {
-		c.version = r.detectVersion(c.Request)
-	}
+	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
+	// For non-versioned routes, version will be set lazily on first access via ctx.Version()
 
 	// Set handlers and execute
 	c.handlers = handlers
@@ -937,10 +939,8 @@ func (r *Router) serveDynamicWithTracing(c *Context, handlers []HandlerFunc, pat
 	c.span = span
 	c.traceCtx = ctx
 
-	// Set version if versioning is enabled
-	if r.versioning != nil {
-		c.version = r.detectVersion(c.Request)
-	}
+	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
+	// For non-versioned routes, version will be set lazily on first access via ctx.Version()
 
 	// Set handlers and execute
 	c.handlers = handlers
@@ -962,10 +962,8 @@ func (r *Router) serveDynamicWithMetrics(c *Context, handlers []HandlerFunc, pat
 	// Start metrics with request context
 	metricsData := r.metrics.StartRequest(ctx, path, false)
 
-	// Set version if versioning is enabled
-	if r.versioning != nil {
-		c.version = r.detectVersion(c.Request)
-	}
+	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
+	// For non-versioned routes, version will be set lazily on first access via ctx.Version()
 
 	// Set handlers and execute
 	c.handlers = handlers
@@ -984,22 +982,20 @@ func (r *Router) serveDynamicWithMetrics(c *Context, handlers []HandlerFunc, pat
 func (r *Router) serveTemplate(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, path string, shouldTrace, shouldMeasure bool) {
 	if shouldTrace && shouldMeasure {
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveWithTracingAndMetrics(rw, req, tmpl.handlers, path, true)
+		r.serveStaticWithTracingAndMetrics(rw, req, tmpl.handlers, path, true)
 	} else if shouldTrace {
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveWithTracing(rw, req, tmpl.handlers, path)
+		r.serveStaticWithTracing(rw, req, tmpl.handlers, path)
 	} else if shouldMeasure {
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveWithMetrics(rw, req, tmpl.handlers, path, true)
+		r.serveStaticWithMetrics(rw, req, tmpl.handlers, path, true)
 	} else {
 		// Fast path: no metrics or tracing
 		ctx := globalContextPool.Get().(*Context)
 		ctx.initForRequest(req, w, tmpl.handlers, r)
 
-		// Set version if versioning is enabled
-		if r.versioning != nil {
-			ctx.version = r.detectVersion(req)
-		}
+		// NOTE: Version will be set lazily on first access via ctx.Version()
+		// to avoid overhead on template fast path
 
 		ctx.Next()
 		ctx.reset()
@@ -1014,10 +1010,8 @@ func (r *Router) serveTemplateWithParams(w http.ResponseWriter, req *http.Reques
 	// Use special init that preserves parameters
 	ctx.initForRequestWithParams(req, w, tmpl.handlers, r)
 
-	// Set version if versioning is enabled
-	if r.versioning != nil {
-		ctx.version = r.detectVersion(req)
-	}
+	// NOTE: Version will be set lazily on first access via ctx.Version()
+	// to avoid overhead on template fast path
 
 	defer func() {
 		ctx.reset()
