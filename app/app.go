@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware"
@@ -39,19 +40,21 @@ type App struct {
 	router  *router.Router
 	metrics *metrics.Config
 	tracing *tracing.Config
+	logging *logging.Config
 	config  *config
 }
 
 // config holds the internal application configuration.
 // All fields are private to maintain encapsulation.
 type config struct {
-	serviceName string
-	version     string
-	environment string
-	metrics     *metricsConfig
-	tracing     *tracingConfig
-	server      *serverConfig
-	middleware  *middlewareConfig
+	serviceName    string
+	serviceVersion string
+	environment    string
+	metrics        *metricsConfig
+	tracing        *tracingConfig
+	logging        *loggingConfig
+	server         *serverConfig
+	middleware     *middlewareConfig
 }
 
 // metricsConfig holds metrics configuration.
@@ -64,6 +67,12 @@ type metricsConfig struct {
 type tracingConfig struct {
 	enabled bool
 	options []tracing.Option
+}
+
+// loggingConfig holds logging configuration.
+type loggingConfig struct {
+	enabled bool
+	options []logging.Option
 }
 
 // serverConfig holds server configuration.
@@ -102,10 +111,10 @@ func WithServiceName(name string) Option {
 	}
 }
 
-// WithVersion sets the service version.
-func WithVersion(version string) Option {
+// WithServiceVersion sets the service version.
+func WithServiceVersion(version string) Option {
 	return func(c *config) {
-		c.version = version
+		c.serviceVersion = version
 	}
 }
 
@@ -137,21 +146,38 @@ func WithTracing(opts ...tracing.Option) Option {
 	}
 }
 
-// WithObservability enables both metrics and tracing with default options.
+// WithLogging enables logging with the given options.
+func WithLogging(opts ...logging.Option) Option {
+	return func(c *config) {
+		c.logging = &loggingConfig{
+			enabled: true,
+			options: opts,
+		}
+	}
+}
+
+// WithObservability enables metrics, tracing, and logging with default options.
 func WithObservability() Option {
 	return func(c *config) {
 		c.metrics = &metricsConfig{
 			enabled: true,
 			options: []metrics.Option{
 				metrics.WithServiceName(c.serviceName),
-				metrics.WithServiceVersion(c.version),
+				metrics.WithServiceVersion(c.serviceVersion),
 			},
 		}
 		c.tracing = &tracingConfig{
 			enabled: true,
 			options: []tracing.Option{
 				tracing.WithServiceName(c.serviceName),
-				tracing.WithServiceVersion(c.version),
+				tracing.WithServiceVersion(c.serviceVersion),
+			},
+		}
+		c.logging = &loggingConfig{
+			enabled: true,
+			options: []logging.Option{
+				logging.WithJSONHandler(),
+				logging.WithServiceInfo(c.serviceName, c.serviceVersion, c.environment),
 			},
 		}
 	}
@@ -223,8 +249,8 @@ func (c *config) validate() error {
 		return fmt.Errorf("service name cannot be empty")
 	}
 
-	if c.version == "" {
-		return fmt.Errorf("version cannot be empty")
+	if c.serviceVersion == "" {
+		return fmt.Errorf("service version cannot be empty")
 	}
 
 	if c.environment != EnvironmentDevelopment && c.environment != EnvironmentProduction {
@@ -262,9 +288,9 @@ func (c *config) validate() error {
 // defaultConfig returns a configuration with sensible defaults.
 func defaultConfig() *config {
 	return &config{
-		serviceName: DefaultServiceName,
-		version:     DefaultVersion,
-		environment: DefaultEnvironment,
+		serviceName:    DefaultServiceName,
+		serviceVersion: DefaultVersion,
+		environment:    DefaultEnvironment,
 		server: &serverConfig{
 			readTimeout:       DefaultReadTimeout,
 			writeTimeout:      DefaultWriteTimeout,
@@ -311,6 +337,15 @@ func New(opts ...Option) (*App, error) {
 	}
 
 	// Initialize observability
+	if cfg.logging != nil && cfg.logging.enabled {
+		loggingConfig, err := logging.New(cfg.logging.options...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize logging: %w", err)
+		}
+		app.logging = loggingConfig
+		r.SetLogger(app.logging)
+	}
+
 	if cfg.metrics != nil && cfg.metrics.enabled {
 		metricsConfig, err := metrics.New(cfg.metrics.options...)
 		if err != nil {
@@ -338,6 +373,23 @@ func New(opts ...Option) (*App, error) {
 	}
 
 	return app, nil
+}
+
+// MustNew creates a new App instance or panics on error.
+// Use this for convenience when you want to fail fast on initialization errors.
+//
+// Example:
+//
+//	app := app.MustNew(
+//	    app.WithServiceName("my-service"),
+//	    app.WithObservability(),
+//	)
+func MustNew(opts ...Option) *App {
+	app, err := New(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("app initialization failed: %v", err))
+	}
+	return app
 }
 
 // Router returns the underlying router for advanced usage.
@@ -549,9 +601,9 @@ func (a *App) ServiceName() string {
 	return a.config.serviceName
 }
 
-// Version returns the service version.
-func (a *App) Version() string {
-	return a.config.version
+// ServiceVersion returns the service version.
+func (a *App) ServiceVersion() string {
+	return a.config.serviceVersion
 }
 
 // Environment returns the current environment (development/production).
