@@ -2,11 +2,23 @@
 
 A high-performance, modular web framework for Go with integrated observability. Rivaas provides both low-level building blocks and high-level batteries-included APIs for building modern web applications.
 
+## 🌿 Philosophy
+
+The name Rivaas comes from **ریواس (Rivās)** — a [wild rhubarb plant](https://en.wikipedia.org/wiki/Rheum_ribes) that grows high in the mountains of Iran.
+
+Rivaas survives in harsh, unpredictable climates — light, resilient, and naturally adaptive.
+
+That's the same philosophy behind this framework.
+
+Rivaas is built to thrive in dynamic, cloud-native environments — **lightweight yet powerful, modular yet simple**.
+
+Like its namesake, it grows wherever the environment allows: locally, in the cloud, or across distributed systems.
+
 ## 🚀 Features
 
 - **High Performance**: 223K+ requests/second, 4.5µs average latency
 - **Modular Design**: Use only what you need
-- **Integrated Observability**: Built-in metrics and tracing
+- **Integrated Observability**: Built-in metrics, tracing, and structured logging
 - **Memory Efficient**: Only 51 bytes memory per request
 - **Graceful Shutdown**: Production-ready server management
 - **Multiple APIs**: Choose between low-level or high-level interfaces
@@ -20,6 +32,7 @@ A high-performance, modular web framework for Go with integrated observability. 
 
 ### Observability Packages
 
+- **[logging](./logging/)** - Structured logging with slog (JSON, text, console)
 - **[metrics](./metrics/)** - OpenTelemetry metrics with Prometheus, OTLP, and stdout support
 - **[tracing](./tracing/)** - Distributed tracing with OpenTelemetry
 
@@ -94,6 +107,7 @@ func main() {
 ├─────────────────────────────────────────────────────────────┤
 │  router/       │  Low-level, high-performance HTTP router   │
 ├─────────────────────────────────────────────────────────────┤
+│  logging/      │  Structured logging (slog)                 │
 │  metrics/      │  OpenTelemetry metrics collection          │
 │  tracing/      │  OpenTelemetry distributed tracing         │
 └─────────────────────────────────────────────────────────────┘
@@ -115,6 +129,9 @@ func main() {
 # Service configuration
 OTEL_SERVICE_NAME=my-service
 OTEL_SERVICE_VERSION=v1.0.0
+RIVAAS_ENVIRONMENT=production
+
+# Logging configuration (uses OTEL_SERVICE_NAME and OTEL_SERVICE_VERSION)
 
 # Metrics configuration
 OTEL_METRICS_EXPORTER=prometheus
@@ -133,11 +150,18 @@ app := app.New(
     app.WithServiceName("my-api"),
     app.WithVersion("v1.0.0"),
     app.WithEnvironment("production"),
-    app.WithObservability(),
+    app.WithObservability(), // Enables logging, metrics, and tracing
     app.WithServerConfig(&app.ServerConfig{
         ReadTimeout:  15 * time.Second,
         WriteTimeout: 15 * time.Second,
     }),
+)
+
+// Logging configuration
+logging.WithLogging(
+    logging.WithJSONHandler(), // or WithConsoleHandler(), WithTextHandler()
+    logging.WithDebugLevel(),
+    logging.WithServiceInfo("my-api", "v1.0.0", "production"),
 )
 
 // Metrics configuration
@@ -188,6 +212,25 @@ app.Use(AuthMiddleware())
 ```
 
 ## 📈 Observability
+
+### Logging
+
+```go
+// Structured logging in handlers
+c.LogInfo("processing request", "user_id", userID, "action", "fetch_profile")
+c.LogDebug("validation passed", "field", "email")
+c.LogWarn("rate limit approaching", "requests", 950, "limit", 1000)
+c.LogError("database query failed", "error", err, "query", "SELECT * FROM users")
+
+// Access logger directly for more control
+logger := c.Logger()
+if logger != nil {
+    logger.Info("custom log", "key", "value")
+}
+
+// Logs automatically include trace_id and span_id when tracing is enabled
+// Example output: {"time":"2024-01-15T10:30:45Z","level":"INFO","msg":"processing request","user_id":"123","trace_id":"abc...","span_id":"def..."}
+```
 
 ### Metrics
 
