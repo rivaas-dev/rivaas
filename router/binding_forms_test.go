@@ -527,7 +527,7 @@ func TestBindForm_MapIntString(t *testing.T) {
 		}
 
 		// If it succeeds, verify the map was populated
-		if data.Items == nil || len(data.Items) == 0 {
+		if len(data.Items) == 0 {
 			c.JSON(http.StatusBadRequest, map[string]string{"error": "map not populated"})
 			return
 		}

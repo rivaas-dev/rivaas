@@ -2,7 +2,6 @@ package router
 
 import (
 	"bytes"
-	"io"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -635,22 +634,4 @@ func BenchmarkDataFromReader_ChunkedTransfer(b *testing.B) {
 		// contentLength = -1 triggers chunked transfer
 		_ = c.DataFromReader(200, -1, "application/octet-stream", reader, nil)
 	}
-}
-
-// limitedReader wraps an io.Reader with a read limit for benchmarking
-type limitedReader struct {
-	r io.Reader
-	n int64
-}
-
-func (lr *limitedReader) Read(p []byte) (n int, err error) {
-	if lr.n <= 0 {
-		return 0, io.EOF
-	}
-	if int64(len(p)) > lr.n {
-		p = p[0:lr.n]
-	}
-	n, err = lr.r.Read(p)
-	lr.n -= int64(n)
-	return
 }

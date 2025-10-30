@@ -898,7 +898,6 @@ func TestResponseWriter_FlushBetweenWrites(t *testing.T) {
 	// Create custom flushable writer that counts flushes
 	type countingFlusher struct {
 		*httptest.ResponseRecorder
-		count int
 	}
 
 	mockWriter := &countingFlusher{
