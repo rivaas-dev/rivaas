@@ -306,6 +306,44 @@ func main() {
 }
 ```
 
+### Logging Integration
+
+Integrate tracing with your application's logging system for visibility into tracing operations:
+
+```go
+type MyLogger struct {
+    log *slog.Logger
+}
+
+func (l *MyLogger) Error(msg string, keysAndValues ...any) {
+    l.log.Error(msg, keysAndValues...)
+}
+
+func (l *MyLogger) Warn(msg string, keysAndValues ...any) {
+    l.log.Warn(msg, keysAndValues...)
+}
+
+func (l *MyLogger) Info(msg string, keysAndValues ...any) {
+    l.log.Info(msg, keysAndValues...)
+}
+
+func (l *MyLogger) Debug(msg string, keysAndValues ...any) {
+    l.log.Debug(msg, keysAndValues...)
+}
+
+// Use custom logger with tracing
+logger := &MyLogger{log: slog.Default()}
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithLogger(logger),
+)
+```
+
+**What gets logged:**
+- **Warning**: Excluded paths limit exceeded, provider initialization issues
+- **Debug**: Sampling decisions (when requests are not sampled), provider setup details
+- **Error**: Shutdown failures, provider errors
+
 ## Configuration Options
 
 ### Convenience Helpers
@@ -355,6 +393,8 @@ tracing.MaxExcludedPaths        // 1000
 tracing.WithExcludePaths("/health", "/metrics")
 ```
 
+**Note**: Maximum 1000 paths can be excluded. If more paths are provided, only the first 1000 will be excluded and a warning will be logged (if logger is configured).
+
 ### Header Recording
 
 ```go
@@ -362,6 +402,43 @@ tracing.WithHeaders("X-Request-ID", "User-Agent")
 ```
 
 **Security Note**: Sensitive headers (Authorization, Cookie, API keys, etc.) are **automatically filtered** and will never be recorded, even if explicitly listed. This prevents accidental credential leakage.
+
+### Granular Parameter Recording
+
+Control which query parameters are recorded with fine-grained options:
+
+**Whitelist specific parameters (record only these):**
+
+```go
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithRecordParams("user_id", "request_id", "page"),
+)
+```
+
+**Blacklist sensitive parameters (record all except these):**
+
+```go
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithExcludeParams("password", "token", "api_key", "secret"),
+)
+```
+
+**Combine whitelist and blacklist:**
+
+```go
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithRecordParams("user_id", "request_id", "password"),
+    tracing.WithExcludeParams("password"), // Blacklist takes precedence
+)
+```
+
+**Logic:**
+- If parameter is in blacklist (`WithExcludeParams`), it's **never** recorded
+- If whitelist is configured (`WithRecordParams`), only listed parameters are recorded
+- Otherwise, all parameters are recorded (default behavior)
 
 ### Custom Tracer
 
@@ -418,6 +495,70 @@ By default, URL query parameters are recorded as span attributes. To disable thi
 ```go
 tracing.WithDisableParams()
 ```
+
+### Span Lifecycle Hooks
+
+Add custom logic when spans start and finish for integration with external systems, metrics, or custom attribute injection:
+
+**Span Start Hook:**
+
+```go
+startHook := func(ctx context.Context, span trace.Span, req *http.Request) {
+    // Add custom business logic attributes
+    if tenantID := req.Header.Get("X-Tenant-ID"); tenantID != "" {
+        span.SetAttributes(attribute.String("tenant.id", tenantID))
+    }
+    
+    // Add user context
+    if userID := extractUserID(req); userID != "" {
+        span.SetAttributes(attribute.String("user.id", userID))
+    }
+}
+
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithSpanStartHook(startHook),
+)
+```
+
+**Span Finish Hook:**
+
+```go
+finishHook := func(span trace.Span, statusCode int) {
+    // Record custom metrics
+    if statusCode >= 500 {
+        metrics.IncrementServerErrors()
+    }
+    
+    // Log slow requests
+    if duration := time.Since(span.StartTime()); duration > 5*time.Second {
+        log.Warn("slow request", "duration", duration)
+    }
+}
+
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithSpanFinishHook(finishHook),
+)
+```
+
+**Both hooks together:**
+
+```go
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithSpanStartHook(startHook),
+    tracing.WithSpanFinishHook(finishHook),
+)
+```
+
+**Use cases:**
+- Adding tenant/organization context from request headers
+- Recording custom metrics based on span data
+- Integration with external monitoring systems
+- Dynamic span configuration per request
+- Logging slow requests or errors
+- Post-processing trace data
 
 ## Context Integration
 
@@ -551,7 +692,106 @@ tracing.SetSpanAttributeFromContext(ctx, "key", "value")
 tracing.AddSpanEventFromContext(ctx, "event-name")
 ```
 
+### Available Configuration Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `WithServiceName(name)` | Set service name | `WithServiceName("my-api")` |
+| `WithServiceVersion(version)` | Set service version | `WithServiceVersion("v1.0.0")` |
+| `WithProvider(provider)` | Set trace exporter | `WithProvider(OTLPProvider)` |
+| `WithOTLPEndpoint(endpoint)` | Set OTLP endpoint | `WithOTLPEndpoint("localhost:4317")` |
+| `WithOTLPInsecure(bool)` | Use insecure OTLP | `WithOTLPInsecure(true)` |
+| `WithSampleRate(rate)` | Set sampling rate (0.0-1.0) | `WithSampleRate(0.1)` |
+| `WithExcludePaths(paths...)` | Exclude paths from tracing | `WithExcludePaths("/health")` |
+| `WithHeaders(headers...)` | Record specific headers | `WithHeaders("X-Request-ID")` |
+| `WithDisableParams()` | Disable all parameter recording | `WithDisableParams()` |
+| `WithRecordParams(params...)` | Whitelist parameters to record | `WithRecordParams("user_id", "page")` |
+| `WithExcludeParams(params...)` | Blacklist parameters | `WithExcludeParams("password", "token")` |
+| `WithCustomTracer(tracer)` | Use custom tracer | `WithCustomTracer(myTracer)` |
+| `WithCustomPropagator(prop)` | Use custom propagator | `WithCustomPropagator(b3.New())` |
+| `WithTracerProvider(provider)` | Use custom tracer provider | `WithTracerProvider(myProvider)` |
+| `WithLogger(logger)` | Set custom logger | `WithLogger(myLogger)` |
+| `WithSpanStartHook(hook)` | Set span start callback | `WithSpanStartHook(myStartHook)` |
+| `WithSpanFinishHook(hook)` | Set span finish callback | `WithSpanFinishHook(myFinishHook)` |
+
 ## Integration Examples
+
+### With Lifecycle Hooks
+
+Add custom business logic to spans:
+
+```go
+startHook := func(ctx context.Context, span trace.Span, req *http.Request) {
+    // Extract tenant from JWT or header
+    if tenantID := extractTenantFromRequest(req); tenantID != "" {
+        span.SetAttributes(
+            attribute.String("tenant.id", tenantID),
+            attribute.String("tenant.plan", getTenantPlan(tenantID)),
+        )
+    }
+    
+    // Add request metadata
+    if requestID := req.Header.Get("X-Request-ID"); requestID != "" {
+        span.SetAttributes(attribute.String("request.id", requestID))
+    }
+}
+
+finishHook := func(span trace.Span, statusCode int) {
+    // Record custom metrics
+    if statusCode >= 500 {
+        serverErrorsCounter.Inc()
+    } else if statusCode >= 400 {
+        clientErrorsCounter.Inc()
+    }
+    
+    // Log high-latency requests
+    ctx := span.SpanContext()
+    if ctx.IsValid() {
+        duration := time.Since(span.StartTime())
+        if duration > 5*time.Second {
+            log.Warn("slow request detected",
+                "trace_id", ctx.TraceID().String(),
+                "duration", duration,
+            )
+        }
+    }
+}
+
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithSpanStartHook(startHook),
+    tracing.WithSpanFinishHook(finishHook),
+)
+```
+
+### With Granular Parameter Recording
+
+Protect sensitive data while maintaining visibility:
+
+```go
+// Scenario 1: Only record specific safe parameters
+config := tracing.New(
+    tracing.WithServiceName("auth-service"),
+    tracing.WithRecordParams("user_id", "session_id", "redirect_uri"),
+    // password, token, etc. won't be recorded
+)
+
+// Scenario 2: Record all except sensitive ones
+config := tracing.New(
+    tracing.WithServiceName("api-service"),
+    tracing.WithExcludeParams(
+        "password", "token", "api_key", "secret", 
+        "credit_card", "ssn", "access_token",
+    ),
+)
+
+// Scenario 3: Combination approach
+config := tracing.New(
+    tracing.WithServiceName("admin-service"),
+    tracing.WithRecordParams("user_id", "action", "resource_id", "api_key"),
+    tracing.WithExcludeParams("api_key"), // Override: don't record api_key even if whitelisted
+)
+```
 
 ### With Database Operations
 

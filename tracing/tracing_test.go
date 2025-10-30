@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestTracingConfig(t *testing.T) {
@@ -22,8 +24,8 @@ func TestTracingConfig(t *testing.T) {
 	defer config.Shutdown(context.Background())
 
 	assert.True(t, config.IsEnabled())
-	assert.Equal(t, "test-service", config.GetServiceName())
-	assert.Equal(t, "v1.0.0", config.GetServiceVersion())
+	assert.Equal(t, "test-service", config.ServiceName())
+	assert.Equal(t, "v1.0.0", config.ServiceVersion())
 	assert.NotNil(t, config.GetTracer())
 	assert.NotNil(t, config.GetPropagator())
 }
@@ -888,8 +890,8 @@ func TestProductionHelper(t *testing.T) {
 	require.NotNil(t, config)
 	defer config.Shutdown(context.Background())
 
-	assert.Equal(t, "prod-service", config.GetServiceName())
-	assert.Equal(t, "v2.0.0", config.GetServiceVersion())
+	assert.Equal(t, "prod-service", config.ServiceName())
+	assert.Equal(t, "v2.0.0", config.ServiceVersion())
 	assert.Equal(t, 0.1, config.sampleRate)
 	assert.False(t, config.recordParams)
 	assert.True(t, config.ShouldExcludePath("/health"))
@@ -905,8 +907,8 @@ func TestDevelopmentHelper(t *testing.T) {
 	require.NotNil(t, config)
 	defer config.Shutdown(context.Background())
 
-	assert.Equal(t, "dev-service", config.GetServiceName())
-	assert.Equal(t, "dev", config.GetServiceVersion())
+	assert.Equal(t, "dev-service", config.ServiceName())
+	assert.Equal(t, "dev", config.ServiceVersion())
 	assert.Equal(t, 1.0, config.sampleRate)
 	assert.True(t, config.recordParams)
 	assert.True(t, config.ShouldExcludePath("/health"))
@@ -927,8 +929,8 @@ func TestProviderSetup(t *testing.T) {
 		defer config.Shutdown(context.Background())
 
 		assert.Equal(t, StdoutProvider, config.GetProvider())
-		assert.Equal(t, "test-service", config.GetServiceName())
-		assert.Equal(t, "v1.0.0", config.GetServiceVersion())
+		assert.Equal(t, "test-service", config.ServiceName())
+		assert.Equal(t, "v1.0.0", config.ServiceVersion())
 	})
 
 	t.Run("OTLPProvider", func(t *testing.T) {
@@ -1029,4 +1031,357 @@ func TestProviderSetup(t *testing.T) {
 			)
 		})
 	})
+}
+
+// TestWarningLogs tests that warning logs are generated for appropriate conditions
+func TestWarningLogs(t *testing.T) {
+	t.Run("ExcludedPathsLimitWarning", func(t *testing.T) {
+		// Create a custom logger to capture warnings
+		var loggedWarnings []string
+		logger := &testLogger{
+			warnFunc: func(msg string, keysAndValues ...any) {
+				loggedWarnings = append(loggedWarnings, msg)
+			},
+		}
+
+		// Try to add more than 1000 paths
+		paths := make([]string, 1500)
+		for i := 0; i < 1500; i++ {
+			paths[i] = fmt.Sprintf("/path%d", i)
+		}
+
+		config := MustNew(
+			WithLogger(logger),
+			WithExcludePaths(paths...),
+		)
+		defer config.Shutdown(context.Background())
+
+		// Verify warning was logged
+		assert.Len(t, loggedWarnings, 1)
+		assert.Contains(t, loggedWarnings[0], "Excluded paths limit reached")
+
+		// Verify only first 1000 paths were added
+		assert.True(t, config.ShouldExcludePath("/path0"))
+		assert.True(t, config.ShouldExcludePath("/path999"))
+		assert.False(t, config.ShouldExcludePath("/path1000"))
+	})
+
+	t.Run("SamplingDebugLogs", func(t *testing.T) {
+		// Create a custom logger to capture debug messages
+		var loggedDebugMessages []string
+		logger := &testLogger{
+			debugFunc: func(msg string, keysAndValues ...any) {
+				loggedDebugMessages = append(loggedDebugMessages, msg)
+			},
+		}
+
+		config := MustNew(
+			WithServiceName("test"),
+			WithLogger(logger),
+			WithSampleRate(0.0), // 0% sampling to trigger debug log
+		)
+		defer config.Shutdown(context.Background())
+
+		// Make a request that won't be sampled
+		req := httptest.NewRequest("GET", "/test", nil)
+		ctx := context.Background()
+		_, _ = config.StartRequestSpan(ctx, req, "/test", false)
+
+		// Verify debug log was generated - check that at least one message contains "Request not sampled"
+		assert.GreaterOrEqual(t, len(loggedDebugMessages), 1)
+		foundSamplingLog := false
+		for _, msg := range loggedDebugMessages {
+			if assert.ObjectsAreEqual("Request not sampled (0% sample rate)", msg) {
+				foundSamplingLog = true
+				break
+			}
+		}
+		assert.True(t, foundSamplingLog, "Expected to find 'Request not sampled' debug log")
+	})
+}
+
+// TestSpanLifecycleHooks tests the span start and finish hooks
+func TestSpanLifecycleHooks(t *testing.T) {
+	t.Run("SpanStartHook", func(t *testing.T) {
+		var hookCalled bool
+		var capturedReq *http.Request
+
+		startHook := func(ctx context.Context, span trace.Span, req *http.Request) {
+			hookCalled = true
+			capturedReq = req
+			// Add custom attribute
+			span.SetAttributes(attribute.String("custom.tenant_id", "tenant-123"))
+		}
+
+		config := MustNew(
+			WithServiceName("test"),
+			WithSpanStartHook(startHook),
+		)
+		defer config.Shutdown(context.Background())
+
+		// Create middleware and make request
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		// Verify hook was called
+		assert.True(t, hookCalled)
+		assert.NotNil(t, capturedReq)
+		assert.Equal(t, "/test", capturedReq.URL.Path)
+	})
+
+	t.Run("SpanFinishHook", func(t *testing.T) {
+		var hookCalled bool
+		var capturedStatusCode int
+
+		finishHook := func(span trace.Span, statusCode int) {
+			hookCalled = true
+			capturedStatusCode = statusCode
+		}
+
+		config := MustNew(
+			WithServiceName("test"),
+			WithSpanFinishHook(finishHook),
+		)
+		defer config.Shutdown(context.Background())
+
+		// Create middleware and make request
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+		}))
+
+		req := httptest.NewRequest("POST", "/test", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		// Verify hook was called with correct status code
+		assert.True(t, hookCalled)
+		assert.Equal(t, http.StatusCreated, capturedStatusCode)
+	})
+
+	t.Run("BothHooks", func(t *testing.T) {
+		var startHookCalled bool
+		var finishHookCalled bool
+
+		startHook := func(ctx context.Context, span trace.Span, req *http.Request) {
+			startHookCalled = true
+		}
+
+		finishHook := func(span trace.Span, statusCode int) {
+			finishHookCalled = true
+		}
+
+		config := MustNew(
+			WithServiceName("test"),
+			WithSpanStartHook(startHook),
+			WithSpanFinishHook(finishHook),
+		)
+		defer config.Shutdown(context.Background())
+
+		// Create middleware and make request
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		// Verify both hooks were called
+		assert.True(t, startHookCalled)
+		assert.True(t, finishHookCalled)
+	})
+
+	t.Run("HookNotCalledWhenSampledOut", func(t *testing.T) {
+		var startHookCalled bool
+		var finishHookCalled bool
+
+		startHook := func(ctx context.Context, span trace.Span, req *http.Request) {
+			startHookCalled = true
+		}
+
+		finishHook := func(span trace.Span, statusCode int) {
+			finishHookCalled = true
+		}
+
+		config := MustNew(
+			WithServiceName("test"),
+			WithSampleRate(0.0), // Don't sample anything
+			WithSpanStartHook(startHook),
+			WithSpanFinishHook(finishHook),
+		)
+		defer config.Shutdown(context.Background())
+
+		// Create middleware and make request
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		// Hooks should not be called for sampled-out requests
+		assert.False(t, startHookCalled)
+		assert.False(t, finishHookCalled)
+	})
+}
+
+// TestGranularParameterRecording tests the granular parameter recording options
+func TestGranularParameterRecording(t *testing.T) {
+	t.Run("WithRecordParams_Whitelist", func(t *testing.T) {
+		config := MustNew(
+			WithServiceName("test"),
+			WithRecordParams("user_id", "request_id"), // Only record these
+		)
+		defer config.Shutdown(context.Background())
+
+		// Verify configuration
+		assert.True(t, config.recordParams)
+		assert.Len(t, config.recordParamsList, 2)
+		assert.Equal(t, "user_id", config.recordParamsList[0])
+		assert.Equal(t, "request_id", config.recordParamsList[1])
+
+		// Test shouldRecordParam logic
+		assert.True(t, config.shouldRecordParam("user_id"))
+		assert.True(t, config.shouldRecordParam("request_id"))
+		assert.False(t, config.shouldRecordParam("password"))
+		assert.False(t, config.shouldRecordParam("token"))
+	})
+
+	t.Run("WithExcludeParams_Blacklist", func(t *testing.T) {
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludeParams("password", "token", "api_key"), // Exclude these
+		)
+		defer config.Shutdown(context.Background())
+
+		// Verify configuration
+		assert.True(t, config.recordParams)    // Default is true
+		assert.Nil(t, config.recordParamsList) // No whitelist
+		assert.Len(t, config.excludeParams, 3)
+
+		// Test shouldRecordParam logic
+		assert.False(t, config.shouldRecordParam("password"))
+		assert.False(t, config.shouldRecordParam("token"))
+		assert.False(t, config.shouldRecordParam("api_key"))
+		assert.True(t, config.shouldRecordParam("user_id"))
+		assert.True(t, config.shouldRecordParam("page"))
+	})
+
+	t.Run("WithRecordParams_And_WithExcludeParams", func(t *testing.T) {
+		// Whitelist takes precedence, but blacklist is checked first
+		config := MustNew(
+			WithServiceName("test"),
+			WithRecordParams("user_id", "request_id", "password"),
+			WithExcludeParams("password"), // Exclude password even if whitelisted
+		)
+		defer config.Shutdown(context.Background())
+
+		// Test shouldRecordParam logic
+		assert.True(t, config.shouldRecordParam("user_id"))
+		assert.True(t, config.shouldRecordParam("request_id"))
+		assert.False(t, config.shouldRecordParam("password")) // Blacklist wins
+		assert.False(t, config.shouldRecordParam("other"))    // Not in whitelist
+	})
+
+	t.Run("HTTPRequest_WithRecordParams", func(t *testing.T) {
+		config := MustNew(
+			WithServiceName("test"),
+			WithRecordParams("user_id", "page"),
+		)
+		defer config.Shutdown(context.Background())
+
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		// Request with multiple params - only user_id and page should be recorded
+		req := httptest.NewRequest("GET", "/test?user_id=123&page=5&token=secret&password=hunter2", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		// Note: We can't directly verify span attributes with noop tracer,
+		// but we've verified the logic in shouldRecordParam tests
+	})
+
+	t.Run("HTTPRequest_WithExcludeParams", func(t *testing.T) {
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludeParams("password", "token", "api_key"),
+		)
+		defer config.Shutdown(context.Background())
+
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		// Request with params - password and token should be excluded
+		req := httptest.NewRequest("GET", "/test?user_id=123&password=secret&token=abc", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("EmptyWhitelist", func(t *testing.T) {
+		config := MustNew(
+			WithServiceName("test"),
+			WithRecordParams(), // Empty list
+		)
+		defer config.Shutdown(context.Background())
+
+		// With empty whitelist, recordParams should remain false (default)
+		// or be set but recordParamsList should be nil
+		assert.True(t, config.recordParams)
+		assert.Nil(t, config.recordParamsList)
+	})
+
+	t.Run("EmptyBlacklist", func(t *testing.T) {
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludeParams(), // Empty list
+		)
+		defer config.Shutdown(context.Background())
+
+		// All params should be recorded
+		assert.True(t, config.shouldRecordParam("any_param"))
+	})
+}
+
+// testLogger is a mock logger for testing
+type testLogger struct {
+	errorFunc func(msg string, keysAndValues ...any)
+	warnFunc  func(msg string, keysAndValues ...any)
+	infoFunc  func(msg string, keysAndValues ...any)
+	debugFunc func(msg string, keysAndValues ...any)
+}
+
+func (l *testLogger) Error(msg string, keysAndValues ...any) {
+	if l.errorFunc != nil {
+		l.errorFunc(msg, keysAndValues...)
+	}
+}
+
+func (l *testLogger) Warn(msg string, keysAndValues ...any) {
+	if l.warnFunc != nil {
+		l.warnFunc(msg, keysAndValues...)
+	}
+}
+
+func (l *testLogger) Info(msg string, keysAndValues ...any) {
+	if l.infoFunc != nil {
+		l.infoFunc(msg, keysAndValues...)
+	}
+}
+
+func (l *testLogger) Debug(msg string, keysAndValues ...any) {
+	if l.debugFunc != nil {
+		l.debugFunc(msg, keysAndValues...)
+	}
 }

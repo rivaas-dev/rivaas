@@ -76,10 +76,10 @@ package tracing
 import (
 	"context"
 	"fmt"
-	"math/rand/v2"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"go.opentelemetry.io/otel"
@@ -88,6 +88,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+	"rivaas.dev/logging"
 )
 
 const (
@@ -100,6 +101,15 @@ const (
 	// DefaultSampleRate is the default sampling rate (100% of requests).
 	DefaultSampleRate = 1.0
 )
+
+// Attribute key prefixes for efficient string building
+const (
+	attrPrefixParam  = "http.request.param."
+	attrPrefixHeader = "http.request.header."
+)
+
+// Fast sampling multiplier (Knuth's multiplicative hash constant)
+const samplingMultiplier = 2654435761
 
 // TracingProvider represents the available tracing providers.
 type TracingProvider string
@@ -115,14 +125,31 @@ const (
 	OTLPProvider TracingProvider = "otlp"
 )
 
-// Logger is an interface for structured logging.
-// Implement this interface to provide custom logging.
-type Logger interface {
-	Error(msg string, keysAndValues ...any)
-	Warn(msg string, keysAndValues ...any)
-	Info(msg string, keysAndValues ...any)
-	Debug(msg string, keysAndValues ...any)
-}
+// SpanStartHook is called when a request span is started.
+// It receives the context, span, and HTTP request.
+// This can be used for custom attribute injection, dynamic sampling, or integration with APM tools.
+//
+// Example:
+//
+//	hook := func(ctx context.Context, span trace.Span, req *http.Request) {
+//	    // Add custom business logic attributes
+//	    span.SetAttributes(attribute.String("tenant.id", extractTenantID(req)))
+//	}
+type SpanStartHook func(ctx context.Context, span trace.Span, req *http.Request)
+
+// SpanFinishHook is called when a request span is finished.
+// It receives the span and the HTTP status code.
+// This can be used for custom metrics, logging, or post-processing.
+//
+// Example:
+//
+//	hook := func(span trace.Span, statusCode int) {
+//	    // Record custom metrics
+//	    if statusCode >= 500 {
+//	        metrics.RecordServerError()
+//	    }
+//	}
+type SpanFinishHook func(span trace.Span, statusCode int)
 
 // Config holds OpenTelemetry tracing configuration.
 // All operations on Config are thread-safe.
@@ -140,31 +167,42 @@ type Logger interface {
 // Only one tracing configuration should be active per process. Creating multiple
 // configurations will cause them to overwrite each other's global tracer provider.
 type Config struct {
-	// Core tracing components
-	enabled        bool
-	serviceName    string
-	serviceVersion string
+	// Core tracing components (pointers and large types first for optimal memory layout)
 	tracer         trace.Tracer
 	propagator     propagation.TextMapPropagator
 	tracerProvider *sdktrace.TracerProvider
-	logger         Logger
+	logger         logging.Logger
+	excludePaths   map[string]bool
+	recordHeaders  []string
+	serviceName    string
+	serviceVersion string
+	provider       TracingProvider
+	otlpEndpoint   string
 
-	// Configuration maps and slices
-	excludePaths  map[string]bool
-	recordHeaders []string
+	// Parameter recording configuration
+	recordParamsList []string        // Whitelist of params to record (nil = all)
+	excludeParams    map[string]bool // Blacklist of params to exclude
+
+	// Lifecycle hooks
+	spanStartHook  SpanStartHook
+	spanFinishHook SpanFinishHook
 
 	// Tracing behavior settings
-	sampleRate   float64
-	recordParams bool
+	sampleRate float64
 
-	// Provider configuration
-	provider     TracingProvider
-	otlpEndpoint string
-	otlpInsecure bool
+	// Atomic types (must be 8-byte aligned)
+	isShuttingDown    atomic.Bool
+	samplingCounter   atomic.Uint64 // Fast sampling counter
+	samplingThreshold uint64        // Precomputed sampling threshold
 
-	// Shutdown coordination
-	isShuttingDown       atomic.Bool
-	customTracerProvider bool // If true, user provided their own tracer provider
+	// Small types and booleans at end
+	recordParams         bool
+	otlpInsecure         bool
+	enabled              bool
+	customTracerProvider bool
+
+	// String pool for reducing allocations
+	spanNamePool sync.Pool
 }
 
 // Option defines functional options for tracing configuration.
@@ -256,7 +294,8 @@ const MaxExcludedPaths = 1000
 // This is useful for health checks, metrics endpoints, etc.
 //
 // Maximum of 1000 paths can be excluded to prevent unbounded memory growth.
-// If more paths are provided, only the first 1000 will be excluded.
+// If more paths are provided, only the first 1000 will be excluded and a
+// warning will be logged if a logger is configured.
 //
 // Note: If you need to exclude more than 1000 paths, consider using a
 // pattern-based approach or implementing custom path filtering logic.
@@ -268,7 +307,12 @@ func WithExcludePaths(paths ...string) Option {
 	return func(c *Config) {
 		for i, path := range paths {
 			if i >= MaxExcludedPaths {
-				// Limit reached - skip remaining paths
+				// Limit reached - log warning and skip remaining paths
+				c.logWarn("Excluded paths limit reached",
+					"limit", MaxExcludedPaths,
+					"total_provided", len(paths),
+					"dropped", len(paths)-MaxExcludedPaths,
+				)
 				break
 			}
 			c.excludePaths[path] = true
@@ -322,6 +366,53 @@ func WithHeaders(headers ...string) Option {
 func WithDisableParams() Option {
 	return func(c *Config) {
 		c.recordParams = false
+	}
+}
+
+// WithRecordParams specifies which URL query parameters to record as span attributes.
+// Only parameters in this list will be recorded. This provides fine-grained control
+// over which parameters are traced.
+//
+// If this option is not used, all query parameters are recorded by default
+// (unless WithDisableParams is used).
+//
+// Example:
+//
+//	config := tracing.New(
+//	    tracing.WithRecordParams("user_id", "request_id", "page"),
+//	)
+func WithRecordParams(params ...string) Option {
+	return func(c *Config) {
+		if len(params) > 0 {
+			// Defensive copy to ensure immutability
+			c.recordParamsList = make([]string, len(params))
+			copy(c.recordParamsList, params)
+			c.recordParams = true
+		}
+	}
+}
+
+// WithExcludeParams specifies which URL query parameters to exclude from tracing.
+// This is useful for blacklisting sensitive parameters while recording all others.
+//
+// Parameters in this list will never be recorded, even if WithRecordParams includes them.
+// This option works in combination with WithRecordParams for fine-grained control.
+//
+// Example:
+//
+//	config := tracing.New(
+//	    tracing.WithExcludeParams("password", "token", "api_key", "secret"),
+//	)
+func WithExcludeParams(params ...string) Option {
+	return func(c *Config) {
+		if len(params) > 0 {
+			if c.excludeParams == nil {
+				c.excludeParams = make(map[string]bool, len(params))
+			}
+			for _, param := range params {
+				c.excludeParams[param] = true
+			}
+		}
 	}
 }
 
@@ -403,9 +494,59 @@ func WithOTLPInsecure(insecure bool) Option {
 // Example:
 //
 //	config := tracing.New(tracing.WithLogger(myLogger))
-func WithLogger(logger Logger) Option {
+func WithLogger(logger logging.Logger) Option {
 	return func(c *Config) {
 		c.logger = logger
+	}
+}
+
+// WithSpanStartHook sets a callback that is invoked when a request span is started.
+// The hook receives the context, span, and HTTP request, allowing custom attribute
+// injection, dynamic sampling decisions, or integration with APM tools.
+//
+// This is useful for:
+//   - Adding custom business logic attributes
+//   - Dynamic span configuration based on request
+//   - Integration with external monitoring systems
+//   - Request-specific tracing behavior
+//
+// Example:
+//
+//	hook := func(ctx context.Context, span trace.Span, req *http.Request) {
+//	    // Add tenant ID from request header
+//	    if tenantID := req.Header.Get("X-Tenant-ID"); tenantID != "" {
+//	        span.SetAttributes(attribute.String("tenant.id", tenantID))
+//	    }
+//	}
+//	config := tracing.New(tracing.WithSpanStartHook(hook))
+func WithSpanStartHook(hook SpanStartHook) Option {
+	return func(c *Config) {
+		c.spanStartHook = hook
+	}
+}
+
+// WithSpanFinishHook sets a callback that is invoked when a request span is finished.
+// The hook receives the span and HTTP status code, allowing custom metrics recording,
+// logging, or post-processing.
+//
+// This is useful for:
+//   - Recording custom metrics based on span data
+//   - Logging span information
+//   - Post-processing trace data
+//   - Integration with external systems
+//
+// Example:
+//
+//	hook := func(span trace.Span, statusCode int) {
+//	    // Record custom metrics
+//	    if statusCode >= 500 {
+//	        metrics.IncrementServerErrors()
+//	    }
+//	}
+//	config := tracing.New(tracing.WithSpanFinishHook(hook))
+func WithSpanFinishHook(hook SpanFinishHook) Option {
+	return func(c *Config) {
+		c.spanFinishHook = hook
 	}
 }
 
@@ -464,17 +605,27 @@ func New(opts ...Option) (*Config, error) {
 
 // newDefaultConfig creates a new tracing configuration with default values.
 func newDefaultConfig() *Config {
-	return &Config{
+	config := &Config{
 		enabled:        true,
 		serviceName:    DefaultServiceName,
 		serviceVersion: DefaultServiceVersion,
 		propagator:     otel.GetTextMapPropagator(),
 		excludePaths:   make(map[string]bool),
+		excludeParams:  make(map[string]bool),
 		sampleRate:     DefaultSampleRate,
 		recordParams:   true,
 		provider:       NoopProvider,
 		otlpInsecure:   false,
 	}
+
+	// Initialize string pool for reusable string builders
+	config.spanNamePool = sync.Pool{
+		New: func() interface{} {
+			return &strings.Builder{}
+		},
+	}
+
+	return config
 }
 
 // MustNew creates a new tracing configuration with the given options.
@@ -511,6 +662,19 @@ func (c *Config) validate() error {
 	// Validate sample rate
 	if c.sampleRate < 0.0 || c.sampleRate > 1.0 {
 		return fmt.Errorf("sample rate must be between 0.0 and 1.0, got %f", c.sampleRate)
+	}
+
+	// Precompute sampling threshold for fast integer-based sampling
+	if c.sampleRate > 0.0 && c.sampleRate < 1.0 {
+		// Use max uint64 value to avoid overflow
+		// Convert sample rate to threshold: 0.5 -> 0x7FFFFFFFFFFFFFFF
+		c.samplingThreshold = uint64(c.sampleRate * float64(^uint64(0)))
+	} else if c.sampleRate == 1.0 {
+		// 100% sampling - set threshold to max so all samples pass
+		c.samplingThreshold = ^uint64(0)
+	} else {
+		// 0% sampling - set threshold to 0 so no samples pass
+		c.samplingThreshold = 0
 	}
 
 	// Validate provider-specific settings
@@ -568,13 +732,13 @@ func (c *Config) IsEnabled() bool {
 	return c.enabled
 }
 
-// GetServiceName returns the service name.
-func (c *Config) GetServiceName() string {
+// ServiceName returns the service name.
+func (c *Config) ServiceName() string {
 	return c.serviceName
 }
 
-// GetServiceVersion returns the service version.
-func (c *Config) GetServiceVersion() string {
+// ServiceVersion returns the service version.
+func (c *Config) ServiceVersion() string {
 	return c.serviceVersion
 }
 
@@ -689,6 +853,11 @@ func (c *Config) initializeProvider() error {
 // buildAttribute creates an OpenTelemetry attribute from a key-value pair.
 // Supports string, int, int64, float64, and bool types natively.
 // Other types are converted to string using fmt.Sprintf.
+//
+// Performance Note: For hot paths where type is known at compile time,
+// call OpenTelemetry functions directly (attribute.String(), attribute.Int(), etc.)
+// to avoid interface boxing overhead. This function is for convenience when the
+// type is not known at compile time or when used in public APIs.
 func buildAttribute(key string, value interface{}) attribute.KeyValue {
 	switch v := value.(type) {
 	case string:
@@ -840,18 +1009,52 @@ func (c *Config) StartRequestSpan(ctx context.Context, req *http.Request, path s
 	// Extract trace context from headers
 	ctx = c.ExtractTraceContext(ctx, req.Header)
 
-	// Apply sampling rate (rand.Float64() is thread-safe in math/rand/v2)
-	if c.sampleRate < 1.0 && rand.Float64() > c.sampleRate {
-		// Don't sample this request - return non-recording span
-		return ctx, trace.SpanFromContext(ctx)
+	// Fast sampling decision using integer arithmetic instead of floating point RNG
+	if c.sampleRate < 1.0 {
+		if c.sampleRate == 0.0 {
+			// Don't sample - return non-recording span
+			c.logDebug("Request not sampled (0% sample rate)", "path", path, "method", req.Method)
+			return ctx, trace.SpanFromContext(ctx)
+		}
+		// Use atomic counter with multiplicative hash for better distribution
+		counter := c.samplingCounter.Add(1)
+		hash := counter * samplingMultiplier
+		if hash > c.samplingThreshold {
+			// Don't sample this request - return non-recording span
+			c.logDebug("Request not sampled (probabilistic)",
+				"path", path,
+				"method", req.Method,
+				"sample_rate", c.sampleRate,
+				"counter", counter,
+			)
+			return ctx, trace.SpanFromContext(ctx)
+		}
 	}
 
+	// Build span name efficiently using string pool
+	var spanName string
+	sb := c.spanNamePool.Get().(*strings.Builder)
+	sb.Reset()
+	sb.WriteString(req.Method)
+	sb.WriteByte(' ')
+	sb.WriteString(path)
+	spanName = sb.String()
+	c.spanNamePool.Put(sb)
+
 	// Start span
-	spanName := fmt.Sprintf("%s %s", req.Method, path)
 	ctx, span := c.tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindServer))
 
+	// Pre-allocate attributes slice with estimated capacity
+	// Only parse query params if we'll actually record them
+	estimatedCap := 9 + len(c.recordHeaders)
+	if c.recordParams && req.URL.RawQuery != "" {
+		// Rough estimate: assume 1-2 params per query on average
+		estimatedCap += 2
+	}
+	attrs := make([]attribute.KeyValue, 0, estimatedCap)
+
 	// Set standard attributes
-	span.SetAttributes(
+	attrs = append(attrs,
 		attribute.String("http.method", req.Method),
 		attribute.String("http.url", req.URL.String()),
 		attribute.String("http.scheme", req.URL.Scheme),
@@ -863,14 +1066,18 @@ func (c *Config) StartRequestSpan(ctx context.Context, req *http.Request, path s
 		attribute.Bool("rivaas.router.static_route", isStatic),
 	)
 
-	// Record URL parameters if enabled
-	if c.recordParams && len(req.URL.Query()) > 0 {
-		for key, values := range req.URL.Query() {
+	// Record URL parameters if enabled - parse only when needed
+	if c.recordParams && req.URL.RawQuery != "" {
+		queryParams := req.URL.Query()
+		for key, values := range queryParams {
 			if len(values) > 0 {
-				span.SetAttributes(attribute.StringSlice(
-					fmt.Sprintf("http.request.param.%s", key),
-					values,
-				))
+				// Check if this parameter should be recorded
+				if c.shouldRecordParam(key) {
+					attrs = append(attrs, attribute.StringSlice(
+						attrPrefixParam+key,
+						values,
+					))
+				}
 			}
 		}
 	}
@@ -878,11 +1085,19 @@ func (c *Config) StartRequestSpan(ctx context.Context, req *http.Request, path s
 	// Record specific headers if configured
 	for _, header := range c.recordHeaders {
 		if value := req.Header.Get(header); value != "" {
-			span.SetAttributes(attribute.String(
-				fmt.Sprintf("http.request.header.%s", strings.ToLower(header)),
+			attrs = append(attrs, attribute.String(
+				attrPrefixHeader+strings.ToLower(header),
 				value,
 			))
 		}
+	}
+
+	// Batch set all attributes in a single call
+	span.SetAttributes(attrs...)
+
+	// Invoke span start hook if configured
+	if c.spanStartHook != nil {
+		c.spanStartHook(ctx, span, req)
 	}
 
 	return ctx, span
@@ -904,7 +1119,39 @@ func (c *Config) FinishRequestSpan(span trace.Span, statusCode int) {
 		span.SetStatus(codes.Ok, "")
 	}
 
+	// Invoke span finish hook if configured (before ending span)
+	if c.spanFinishHook != nil {
+		c.spanFinishHook(span, statusCode)
+	}
+
 	span.End()
+}
+
+// shouldRecordParam determines if a query parameter should be recorded based on
+// the whitelist (recordParamsList) and blacklist (excludeParams) configuration.
+//
+// Logic:
+//   - If parameter is in excludeParams (blacklist), return false
+//   - If recordParamsList is set (whitelist), return true only if param is in the list
+//   - Otherwise, return true (default: record all params)
+func (c *Config) shouldRecordParam(param string) bool {
+	// Check blacklist first - highest priority
+	if c.excludeParams[param] {
+		return false
+	}
+
+	// If whitelist is configured, param must be in the list
+	if c.recordParamsList != nil {
+		for _, p := range c.recordParamsList {
+			if p == param {
+				return true
+			}
+		}
+		return false
+	}
+
+	// No whitelist configured - record all params (except blacklisted)
+	return true
 }
 
 // Context helpers for working with trace context
