@@ -36,6 +36,42 @@ func (g *Group) Use(middleware ...HandlerFunc) {
 	g.middleware = append(g.middleware, middleware...)
 }
 
+// Group creates a nested route group under the current group.
+// The new group's prefix will be the parent's prefix + the provided prefix.
+// Middleware from the parent group is inherited by the nested group.
+//
+// Example:
+//
+//	api := r.Group("/api")
+//	v1 := api.Group("/v1")  // Creates /api/v1 prefix
+//	v1.GET("/users", handler)  // Matches /api/v1/users
+func (g *Group) Group(prefix string, middleware ...HandlerFunc) *Group {
+	var fullPrefix string
+	if len(g.prefix) == 0 {
+		fullPrefix = prefix
+	} else if len(prefix) == 0 {
+		fullPrefix = g.prefix
+	} else {
+		// Optimize string concatenation
+		var sb strings.Builder
+		sb.Grow(len(g.prefix) + len(prefix))
+		sb.WriteString(g.prefix)
+		sb.WriteString(prefix)
+		fullPrefix = sb.String()
+	}
+
+	// Combine parent middleware with new middleware
+	allMiddleware := make([]HandlerFunc, 0, len(g.middleware)+len(middleware))
+	allMiddleware = append(allMiddleware, g.middleware...)
+	allMiddleware = append(allMiddleware, middleware...)
+
+	return &Group{
+		router:     g.router,
+		prefix:     fullPrefix,
+		middleware: allMiddleware,
+	}
+}
+
 // GET adds a GET route to the group with the group's prefix.
 // The final route path will be the group prefix + the provided path.
 //
@@ -83,7 +119,7 @@ func (g *Group) HEAD(path string, handlers ...HandlerFunc) *Route {
 func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *Route {
 	// Optimize string concatenation for common cases
 	var fullPath string
-	
+
 	// Fast path: handle empty strings without string builder
 	if len(g.prefix) == 0 {
 		fullPath = path

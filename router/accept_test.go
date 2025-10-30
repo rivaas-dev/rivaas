@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http/httptest"
+	"strconv"
 	"testing"
 )
 
@@ -399,5 +400,298 @@ func BenchmarkAcceptsEncodings(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = c.AcceptsEncodings(offers...)
+	}
+}
+
+// ============================================================================
+// Edge Cases Tests (merged from accept_edge_test.go)
+// ============================================================================
+
+// TestHeaderArena_Reset tests the reset method for arena recycling
+func TestHeaderArena_Reset(t *testing.T) {
+	arena := arenaPool.Get().(*headerArena)
+
+	// Simulate usage by setting used count and adding specs
+	arena.used = 5
+	for i := 0; i < 5; i++ {
+		arena.specs[i].value = "test"
+		arena.specs[i].quality = 900
+		arena.specs[i].params = make(map[string]string)
+		arena.specs[i].params["key"] = "value"
+	}
+
+	// Reset should clear used and specs
+	arena.reset()
+
+	if arena.used != 0 {
+		t.Errorf("reset should clear used, got %d", arena.used)
+	}
+
+	// Verify specs are cleared
+	for i := 0; i < 5; i++ {
+		if arena.specs[i].value != "" {
+			t.Error("spec value should be cleared")
+		}
+		if arena.specs[i].params != nil {
+			t.Error("spec params should be nil")
+		}
+		if arena.specs[i].quality != 0 {
+			t.Error("spec quality should be 0")
+		}
+	}
+
+	// Return to pool
+	arenaPool.Put(arena)
+}
+
+// TestHeaderArena_GetSpecs tests the getSpecs method
+func TestHeaderArena_GetSpecs(t *testing.T) {
+	r := New()
+
+	r.GET("/test", func(c *Context) {
+		// First call to Accepts triggers spec parsing
+		accepts := c.Accepts("application/json", "text/html")
+
+		if accepts == "" {
+			t.Error("should accept something")
+		}
+
+		// Second call should reuse cached specs via getSpecs
+		accepts2 := c.Accepts("text/html", "application/json")
+
+		if accepts2 == "" {
+			t.Error("second call should also work")
+		}
+
+		c.Status(200)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Accept", "application/json, text/html;q=0.9")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+}
+
+// ============================================================================
+// Q-Value Tests (merged from accept_qvalue_test.go)
+// ============================================================================
+
+func TestParseQFast(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected int
+	}{
+		// Valid q=1 variants
+		{"q=1", "1", 1000},
+		{"q=1.0", "1.0", 1000},
+		{"q=1.00", "1.00", 1000},
+		{"q=1.000", "1.000", 1000},
+
+		// Valid q=0 variants
+		{"q=0", "0", 0},
+		{"q=0.0", "0.0", 0},
+		{"q=0.00", "0.00", 0},
+		{"q=0.000", "0.000", 0},
+
+		// Common q-values
+		{"q=0.9", "0.9", 900},
+		{"q=0.8", "0.8", 800},
+		{"q=0.5", "0.5", 500},
+		{"q=0.1", "0.1", 100},
+
+		// Two decimal places
+		{"q=0.95", "0.95", 950},
+		{"q=0.85", "0.85", 850},
+		{"q=0.75", "0.75", 750},
+		{"q=0.50", "0.50", 500},
+		{"q=0.25", "0.25", 250},
+		{"q=0.10", "0.10", 100},
+		{"q=0.05", "0.05", 50},
+		{"q=0.01", "0.01", 10},
+
+		// Three decimal places
+		{"q=0.999", "0.999", 999},
+		{"q=0.500", "0.500", 500},
+		{"q=0.123", "0.123", 123},
+		{"q=0.001", "0.001", 1},
+
+		// Edge cases - invalid inputs
+		{"empty", "", -1},
+		{"too_long", "1.0000", -1},
+		{"invalid_start", "2", -1},
+		{"invalid_start_letter", "a", -1},
+		{"no_decimal", "10", -1},
+		{"invalid_after_decimal", "1.5", -1},
+		{"invalid_char", "0.a", -1},
+		{"missing_decimal", "01", -1},
+		{"greater_than_1", "1.1", -1},
+		{"negative", "-0.5", -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseQFast(tt.input)
+			if result != tt.expected {
+				t.Errorf("parseQFast(%q) = %d, want %d", tt.input, result, tt.expected)
+			}
+
+			// For valid inputs, verify it matches strconv.ParseFloat
+			if tt.expected >= 0 {
+				if f, err := strconv.ParseFloat(tt.input, 64); err == nil {
+					expectedFloat := float64(tt.expected) / 1000.0
+					if f != expectedFloat {
+						t.Errorf("parseQFast(%q) = %d (%.3f), but ParseFloat = %.3f",
+							tt.input, result, expectedFloat, f)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestParseQFastVsParseFloat verifies parseQFast matches ParseFloat for valid inputs
+func TestParseQFastVsParseFloat(t *testing.T) {
+	// Test a range of valid q-values
+	for i := 0; i <= 1000; i++ {
+		// Generate q-values: 0, 0.001, 0.002, ..., 0.999, 1.000
+		var input string
+		if i == 1000 {
+			input = "1"
+		} else {
+			input = "0." + strconv.Itoa(i + 1000)[1:] // Format as 0.XXX
+		}
+
+		fastResult := parseQFast(input)
+		if fastResult < 0 {
+			t.Errorf("parseQFast(%q) returned error %d", input, fastResult)
+			continue
+		}
+
+		floatResult, err := strconv.ParseFloat(input, 64)
+		if err != nil {
+			t.Errorf("ParseFloat(%q) failed: %v", input, err)
+			continue
+		}
+
+		expectedInt := int(floatResult * 1000)
+		if fastResult != expectedInt {
+			t.Errorf("parseQFast(%q) = %d, but ParseFloat*1000 = %d",
+				input, fastResult, expectedInt)
+		}
+	}
+}
+
+// TestParseQFastEdgeCases tests edge cases and malformed inputs
+func TestParseQFastEdgeCases(t *testing.T) {
+	invalidInputs := []string{
+		"",       // Empty
+		" ",      // Whitespace
+		"1.0.0",  // Double decimal
+		"0.9.8",  // Double decimal
+		".5",     // Missing leading zero
+		"0.",     // Trailing decimal
+		"1.",     // Trailing decimal
+		"00.5",   // Leading zero
+		"1.0000", // Too many decimals
+		"2.0",    // Greater than 1
+		"1.1",    // Greater than 1
+		"-1",     // Negative
+		"-0.5",   // Negative
+		"abc",    // Non-numeric
+		"0.abc",  // Non-numeric after decimal
+		"1.abc",  // Non-numeric after decimal
+		"0x1",    // Hex notation
+	}
+
+	for _, input := range invalidInputs {
+		t.Run("invalid_"+input, func(t *testing.T) {
+			result := parseQFast(input)
+			if result != -1 {
+				t.Errorf("parseQFast(%q) = %d, want -1 (invalid)", input, result)
+			}
+		})
+	}
+}
+
+// BenchmarkParseQFast benchmarks the fast q-value parser
+func BenchmarkParseQFast(b *testing.B) {
+	testCases := []struct {
+		name  string
+		input string
+	}{
+		{"q=1", "1"},
+		{"q=1.0", "1.0"},
+		{"q=0.9", "0.9"},
+		{"q=0.85", "0.85"},
+		{"q=0.001", "0.001"},
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = parseQFast(tc.input)
+			}
+		})
+	}
+}
+
+// BenchmarkParseQFastVsParseFloat compares parseQFast to strconv.ParseFloat
+func BenchmarkParseQFastVsParseFloat(b *testing.B) {
+	testCases := []struct {
+		name  string
+		input string
+	}{
+		{"q=1", "1"},
+		{"q=0.9", "0.9"},
+		{"q=0.85", "0.85"},
+	}
+
+	for _, tc := range testCases {
+		b.Run("fast_"+tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = parseQFast(tc.input)
+			}
+		})
+
+		b.Run("stdlib_"+tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_, _ = strconv.ParseFloat(tc.input, 64)
+			}
+		})
+	}
+}
+
+// BenchmarkAcceptParsingWithQValues benchmarks full Accept header parsing with q-values
+func BenchmarkAcceptParsingWithQValues(b *testing.B) {
+	headers := []string{
+		"text/html, application/json;q=0.9, */*;q=0.8",
+		"application/json;q=1.0, text/html;q=0.9, text/plain;q=0.8",
+		"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+	}
+
+	for _, header := range headers {
+		b.Run(header[:20], func(b *testing.B) {
+			arena := arenaPool.Get().(*headerArena)
+			defer func() {
+				arena.reset()
+				arenaPool.Put(arena)
+			}()
+
+			b.ResetTimer()
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				_ = parseAcceptFast(header, arena)
+				arena.used = 0 // Reset arena for next iteration
+			}
+		})
 	}
 }

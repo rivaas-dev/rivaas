@@ -203,6 +203,7 @@ func BasicAuth(opts ...BasicAuthOption) router.HandlerFunc {
 		if auth == "" {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
+			c.Abort()
 			return
 		}
 
@@ -211,6 +212,7 @@ func BasicAuth(opts ...BasicAuthOption) router.HandlerFunc {
 		if !strings.HasPrefix(auth, prefix) {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
+			c.Abort()
 			return
 		}
 
@@ -219,6 +221,7 @@ func BasicAuth(opts ...BasicAuthOption) router.HandlerFunc {
 		if err != nil {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
+			c.Abort()
 			return
 		}
 
@@ -228,6 +231,7 @@ func BasicAuth(opts ...BasicAuthOption) router.HandlerFunc {
 		if colonIndex == -1 {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
+			c.Abort()
 			return
 		}
 
@@ -254,6 +258,7 @@ func BasicAuth(opts ...BasicAuthOption) router.HandlerFunc {
 		if !authenticated {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
+			c.Abort()
 			return
 		}
 

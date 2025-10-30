@@ -262,3 +262,26 @@ func BenchmarkVersionedRoutingWithGroups(b *testing.B) {
 		r.ServeHTTP(w, req)
 	}
 }
+
+// BenchmarkFastQueryVersion benchmarks the zero-alloc query parser
+func BenchmarkFastQueryVersion(b *testing.B) {
+	queries := []struct {
+		name  string
+		query string
+		param string
+	}{
+		{"simple", "v=v1", "v"},
+		{"middle", "foo=bar&v=v2&baz=qux", "v"},
+		{"long_param", "version=v1&other=value", "version"},
+		{"end", "foo=bar&version=v3", "version"},
+	}
+
+	for _, q := range queries {
+		b.Run(q.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_, _ = fastQueryVersion(q.query, q.param)
+			}
+		})
+	}
+}

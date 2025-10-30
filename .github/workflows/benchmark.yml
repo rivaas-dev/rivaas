@@ -1,0 +1,181 @@
+name: Performance Benchmarks
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'router/**/*.go'
+      - 'router/go.mod'
+      - 'router/go.sum'
+      - '.github/workflows/benchmark.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'router/**/*.go'
+      - 'router/go.mod'
+      - 'router/go.sum'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for comparison
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: router/go.sum
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run benchmarks on current branch
+        working-directory: router
+        run: |
+          go test -bench=. -benchmem -benchtime=100000x -count=5 \
+            -run='^$' ./... > new.txt 2>&1 || true
+          cat new.txt
+
+      - name: Check out main branch for baseline
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main
+          git checkout origin/main
+
+      - name: Run benchmarks on main branch (baseline)
+        if: github.event_name == 'pull_request'
+        working-directory: router
+        run: |
+          go test -bench=. -benchmem -benchtime=100000x -count=5 \
+            -run='^$' ./... > old.txt 2>&1 || true
+          cat old.txt
+
+      - name: Compare benchmarks
+        if: github.event_name == 'pull_request'
+        id: benchstat
+        working-directory: router
+        run: |
+          echo "## Performance Comparison" > comparison.txt
+          echo "" >> comparison.txt
+          echo "Comparing current PR against main branch:" >> comparison.txt
+          echo "" >> comparison.txt
+          echo '```' >> comparison.txt
+          benchstat old.txt new.txt >> comparison.txt || true
+          echo '```' >> comparison.txt
+          
+          # Store for later use
+          cat comparison.txt > $GITHUB_STEP_SUMMARY
+          
+          # Check for significant regressions (>10% slower or >20% more allocations)
+          echo "Checking for performance regressions..."
+          if benchstat -threshold=0.1 old.txt new.txt 2>&1 | grep -E '\+[0-9]+\.[0-9]+%.*~'; then
+            echo "regression_found=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Performance regression detected!" >> comparison.txt
+          else
+            echo "regression_found=false" >> $GITHUB_OUTPUT
+            echo "✅ No significant performance regression detected." >> comparison.txt
+          fi
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs');
+            const comparison = fs.readFileSync('router/comparison.txt', 'utf8');
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Performance Comparison')
+            );
+            
+            const commentBody = `${comparison}\n\n---\n*Automated benchmark comparison by GitHub Actions*`;
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+      - name: Check for regression and fail if found
+        if: github.event_name == 'pull_request' && steps.benchstat.outputs.regression_found == 'true'
+        run: |
+          echo "❌ Performance regression detected!"
+          echo "Review the benchmark comparison above."
+          echo "If this regression is acceptable, add 'skip-benchmark-check' label to PR."
+          
+          # Check if PR has skip label
+          if curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+               "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels" \
+               | grep -q "skip-benchmark-check"; then
+            echo "⚠️ Regression detected but 'skip-benchmark-check' label found. Allowing to pass."
+            exit 0
+          else
+            exit 1
+          fi
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            router/old.txt
+            router/new.txt
+            router/comparison.txt
+          retention-days: 30
+
+      - name: Store baseline on main branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: router
+        run: |
+          mkdir -p .benchmarks
+          cp new.txt .benchmarks/baseline-$(date +%Y%m%d-%H%M%S).txt
+          # Keep only last 10 baselines
+          ls -t .benchmarks/baseline-*.txt | tail -n +11 | xargs -r rm
+          
+          # Create a "latest" symlink
+          ln -sf baseline-$(date +%Y%m%d-%H%M%S).txt .benchmarks/baseline-latest.txt
+
+      - name: Commit baseline updates
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: router
+        run: |
+          if [ -d .benchmarks ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add .benchmarks/
+            git commit -m "chore: update benchmark baseline [skip ci]" || echo "No changes to commit"
+            git push || echo "No changes to push"
+          fi
+

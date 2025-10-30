@@ -158,6 +158,7 @@ func Timeout(timeout time.Duration, opts ...TimeoutOption) router.HandlerFunc {
 
 		// Create a channel to signal completion
 		done := make(chan struct{})
+		timedOut := false
 
 		// Run the handler in a goroutine
 		go func() {
@@ -172,8 +173,16 @@ func Timeout(timeout time.Duration, opts ...TimeoutOption) router.HandlerFunc {
 		case <-ctx.Done():
 			// Request timed out or was cancelled
 			if ctx.Err() == context.DeadlineExceeded {
+				timedOut = true
 				cfg.errorHandler(c)
 			}
+		}
+
+		// CRITICAL: Wait for goroutine to fully complete to prevent race conditions
+		// If timeout occurred, the goroutine might still be running and accessing c.Request
+		// We must wait for it to finish before allowing the context to be returned to pool
+		if timedOut {
+			<-done
 		}
 	}
 }

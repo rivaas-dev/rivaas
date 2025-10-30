@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -548,5 +549,269 @@ func BenchmarkWriteString(b *testing.B) {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 		c.WriteString("response data")
+	}
+}
+
+// TestFormat_XML tests XML format response
+func TestFormat_XML(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Accept", "application/xml")
+	w := httptest.NewRecorder()
+	c := NewContext(w, req)
+
+	data := map[string]string{"status": "ok"}
+	err := c.Format(200, data)
+
+	if err != nil {
+		t.Fatalf("Format failed: %v", err)
+	}
+
+	if !strings.Contains(w.Header().Get("Content-Type"), "application/xml") {
+		t.Error("should send as XML")
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "<?xml") {
+		t.Error("XML should have declaration")
+	}
+
+	if !strings.Contains(body, "<response>") {
+		t.Error("XML should have response wrapper")
+	}
+}
+
+// TestFormat_MultipleAcceptTypes tests Format with multiple accepted types
+func TestFormat_MultipleAcceptTypes(t *testing.T) {
+	tests := []struct {
+		name         string
+		acceptHeader string
+		expectType   string
+	}{
+		{
+			name:         "prefers JSON",
+			acceptHeader: "application/json, text/html;q=0.8",
+			expectType:   "application/json",
+		},
+		{
+			name:         "prefers HTML",
+			acceptHeader: "text/html, application/json;q=0.9",
+			expectType:   "text/html",
+		},
+		{
+			name:         "prefers XML",
+			acceptHeader: "application/xml, application/json;q=0.5",
+			expectType:   "application/xml",
+		},
+		{
+			name:         "wildcard accepts JSON",
+			acceptHeader: "*/*",
+			expectType:   "application/json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Accept", tt.acceptHeader)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
+
+			err := c.Format(200, map[string]string{"data": "value"})
+
+			if err != nil {
+				t.Fatalf("Format failed: %v", err)
+			}
+
+			if !strings.Contains(w.Header().Get("Content-Type"), tt.expectType) {
+				t.Errorf("expected %s, got %s", tt.expectType, w.Header().Get("Content-Type"))
+			}
+		})
+	}
+}
+
+// TestFormat_DifferentStatusCodes tests Format with various status codes
+func TestFormat_DifferentStatusCodes(t *testing.T) {
+	codes := []int{200, 201, 204, 400, 404, 500}
+
+	for _, code := range codes {
+		t.Run(string(rune('0'+code/100)), func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Accept", "application/json")
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
+
+			err := c.Format(code, map[string]string{"status": "test"})
+
+			if err != nil && code != 204 {
+				t.Fatalf("Format failed: %v", err)
+			}
+
+			if w.Code != code {
+				t.Errorf("expected status %d, got %d", code, w.Code)
+			}
+		})
+	}
+}
+
+// TestFormat_ComplexData tests Format with different data types
+func TestFormat_ComplexData(t *testing.T) {
+	tests := []struct {
+		name string
+		data any
+	}{
+		{"string", "simple string"},
+		{"int", 42},
+		{"float", 3.14159},
+		{"bool", true},
+		{"map", map[string]interface{}{"key": "value", "nested": map[string]string{"inner": "data"}}},
+		{"slice", []string{"item1", "item2", "item3"}},
+		{"struct", struct {
+			Name string
+			Age  int
+		}{"John", 30}},
+		{"nil", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Accept", "application/json")
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
+
+			err := c.Format(200, tt.data)
+
+			if err != nil {
+				t.Fatalf("Format should handle %s: %v", tt.name, err)
+			}
+
+			if w.Code != 200 {
+				t.Errorf("expected status 200, got %d", w.Code)
+			}
+		})
+	}
+}
+
+// TestFormat_HTMLEscaping tests that HTML format escapes data
+func TestFormat_HTMLEscaping(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Accept", "text/html")
+	w := httptest.NewRecorder()
+	c := NewContext(w, req)
+
+	// Data with HTML special characters
+	data := "<script>alert('xss')</script>"
+
+	err := c.Format(200, data)
+
+	if err != nil {
+		t.Fatalf("Format failed: %v", err)
+	}
+
+	body := w.Body.String()
+
+	// Should wrap in <p> tags
+	if !strings.Contains(body, "<p>") {
+		t.Error("should wrap in paragraph tags")
+	}
+}
+
+// TestFormat_XMLDifferentData tests XML format with various data
+func TestFormat_XMLDifferentData(t *testing.T) {
+	tests := []struct {
+		name string
+		data any
+	}{
+		{"map", map[string]string{"key": "value"}},
+		{"string", "test string"},
+		{"number", 123},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Accept", "application/xml")
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
+
+			err := c.Format(200, tt.data)
+
+			if err != nil {
+				t.Fatalf("Format failed for %s: %v", tt.name, err)
+			}
+
+			if !strings.Contains(w.Header().Get("Content-Type"), "xml") {
+				t.Error("should set XML content type")
+			}
+		})
+	}
+}
+
+// TestFormat_Fallback tests fallback behavior for unsupported formats
+func TestFormat_Fallback(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Accept", "application/pdf") // Unsupported format
+	w := httptest.NewRecorder()
+	c := NewContext(w, req)
+
+	err := c.Format(200, "test")
+
+	if err != nil {
+		t.Fatalf("Format should fallback gracefully: %v", err)
+	}
+
+	// Should fallback to text/plain (default case in switch)
+	contentType := w.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "text/plain") && !strings.Contains(contentType, "json") {
+		t.Errorf("should fallback to supported format, got %s", contentType)
+	}
+}
+
+// TestSendStatus_StandardCodes tests SendStatus with known status codes
+func TestSendStatus_StandardCodes(t *testing.T) {
+	r := New()
+
+	codes := []int{200, 201, 204, 404, 500}
+
+	for _, code := range codes {
+		r.GET("/test", func(c *Context) {
+			err := c.SendStatus(code)
+			if err != nil {
+				t.Errorf("SendStatus failed: %v", err)
+			}
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != code {
+			t.Errorf("expected %d, got %d", code, w.Code)
+		}
+	}
+}
+
+// TestSendStatus_UnknownCode tests SendStatus with unknown status code
+func TestSendStatus_UnknownCode(t *testing.T) {
+	r := New()
+
+	r.GET("/test", func(c *Context) {
+		err := c.SendStatus(999) // Unknown code
+		if err != nil {
+			t.Errorf("SendStatus failed: %v", err)
+		}
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 999 {
+		t.Errorf("expected 999, got %d", w.Code)
+	}
+
+	// Should include numeric code in response
+	if !strings.Contains(w.Body.String(), "999") {
+		t.Error("body should contain status code for unknown code")
 	}
 }

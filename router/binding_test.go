@@ -2225,3 +2225,300 @@ func TestBindQuery_ComplexStruct(t *testing.T) {
 		t.Error("OptionalAge should be nil")
 	}
 }
+
+// TestWarmupBindingCache_MultipleTypes tests warming up cache with multiple struct types
+func TestWarmupBindingCache_MultipleTypes(t *testing.T) {
+	type User struct {
+		Name string `json:"name"`
+	}
+
+	type Product struct {
+		SKU string `json:"sku"`
+	}
+
+	// Warmup multiple types
+	WarmupBindingCache(User{}, Product{})
+
+	// Both should bind successfully
+	r := New()
+
+	r.POST("/user", func(c *Context) {
+		var user User
+		if err := c.BindJSON(&user); err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, user)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/user", strings.NewReader(`{"name":"Alice"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Error("User binding should work after warmup")
+	}
+}
+
+// TestBindBody_UnsupportedContentType tests BindBody with unsupported content type
+func TestBindBody_UnsupportedContentType(t *testing.T) {
+	r := New()
+
+	type Data struct {
+		Value string `json:"value"`
+	}
+
+	r.POST("/test", func(c *Context) {
+		var data Data
+		err := c.BindBody(&data)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": "unsupported"})
+			return
+		}
+
+		c.JSON(http.StatusOK, data)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(`value=test`))
+	req.Header.Set("Content-Type", "application/xml") // Unsupported
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	// Should return error for unsupported type
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for unsupported content type, got %d", w.Code)
+	}
+}
+
+// TestGetCookie_URLEscaping tests cookie value unescaping
+func TestGetCookie_URLEscaping(t *testing.T) {
+	r := New()
+
+	r.GET("/test", func(c *Context) {
+		value, err := c.GetCookie("data")
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": "cookie not found"})
+			return
+		}
+
+		// Should be unescaped
+		c.JSON(http.StatusOK, map[string]string{"value": value})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "data",
+		Value: url.QueryEscape("test value with spaces"),
+	})
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Error("should successfully get and unescape cookie")
+	}
+}
+
+// TestBindJSON_EdgeCases tests JSON binding edge cases
+func TestBindJSON_EdgeCases(t *testing.T) {
+	r := New()
+
+	type Data struct {
+		Value string `json:"value"`
+	}
+
+	r.POST("/test", func(c *Context) {
+		var data Data
+		err := c.BindJSON(&data)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
+			return
+		}
+
+		c.JSON(http.StatusOK, data)
+	})
+
+	// Test malformed JSON
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(`{invalid json`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Error("should return error for malformed JSON")
+	}
+
+	// Test empty body
+	req2 := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(``))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+
+	// Empty body should fail
+	if w2.Code != http.StatusBadRequest {
+		t.Error("should return error for empty JSON")
+	}
+}
+
+// TestConvertValue_AllTypes tests type conversion for all supported types
+func TestConvertValue_AllTypes(t *testing.T) {
+	r := New()
+
+	type AllTypes struct {
+		String  string  `form:"str"`
+		Int     int     `form:"int"`
+		Int8    int8    `form:"int8"`
+		Int16   int16   `form:"int16"`
+		Int32   int32   `form:"int32"`
+		Int64   int64   `form:"int64"`
+		Uint    uint    `form:"uint"`
+		Uint8   uint8   `form:"uint8"`
+		Uint16  uint16  `form:"uint16"`
+		Uint32  uint32  `form:"uint32"`
+		Uint64  uint64  `form:"uint64"`
+		Float32 float32 `form:"float32"`
+		Float64 float64 `form:"float64"`
+		Bool    bool    `form:"bool"`
+	}
+
+	r.POST("/test", func(c *Context) {
+		var data AllTypes
+		if err := c.BindForm(&data); err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+	})
+
+	form := url.Values{}
+	form.Set("str", "text")
+	form.Set("int", "42")
+	form.Set("int8", "8")
+	form.Set("int16", "16")
+	form.Set("int32", "32")
+	form.Set("int64", "64")
+	form.Set("uint", "42")
+	form.Set("uint8", "8")
+	form.Set("uint16", "16")
+	form.Set("uint32", "32")
+	form.Set("uint64", "64")
+	form.Set("float32", "3.14")
+	form.Set("float64", "2.718")
+	form.Set("bool", "true")
+
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("should bind all types successfully: %s", w.Body.String())
+	}
+}
+
+// TestSetMapField_ComplexKeys tests map field binding with complex bracket notation
+func TestSetMapField_ComplexKeys(t *testing.T) {
+	r := New()
+
+	type Data struct {
+		Config map[string]string `form:"config"`
+	}
+
+	r.POST("/test", func(c *Context) {
+		var data Data
+		if err := c.BindForm(&data); err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if data.Config == nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": "config is nil"})
+			return
+		}
+
+		c.JSON(http.StatusOK, map[string]int{"count": len(data.Config)})
+	})
+
+	form := url.Values{}
+	form.Set("config[key.with.dots]", "value1")
+	form.Set("config[key-with-dashes]", "value2")
+	form.Set("config[key_with_underscores]", "value3")
+	form.Set("config[123numeric]", "value4")
+
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("should handle complex map keys: %s", w.Body.String())
+	}
+}
+
+// TestSplitMediaType_EdgeCases tests splitMediaType with various inputs
+func TestSplitMediaType_EdgeCases(t *testing.T) {
+	r := New()
+
+	tests := []struct {
+		header string
+		offer  string
+	}{
+		{"application/json;charset=utf-8;boundary=xyz", "application/json"},
+		{"text/html;level=1", "text/html"},
+		{"image/png", "image/png"},
+		{"*/json", "application/json"},
+	}
+
+	for _, tt := range tests {
+		r.GET("/test", func(c *Context) {
+			result := c.Accepts(tt.offer)
+			c.String(http.StatusOK, "%s", result)
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Accept", tt.header)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		// Just verify no panic
+	}
+}
+
+// TestBindCookies_InvalidURLEncoding tests cookie binding with invalid URL encoding
+func TestBindCookies_InvalidURLEncoding(t *testing.T) {
+	r := New()
+
+	type CookieData struct {
+		Session string `cookie:"session"`
+		Token   string `cookie:"token"`
+	}
+
+	r.GET("/test", func(c *Context) {
+		var data CookieData
+		// Bind cookies - invalid encoding should be handled gracefully
+		err := c.BindCookies(&data)
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, data)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: "simple-value"}) // No encoding needed
+	req.AddCookie(&http.Cookie{Name: "token", Value: "%ZZ"})            // Invalid encoding
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	// Should handle gracefully (invalid encoding returns raw value)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}

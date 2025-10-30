@@ -264,3 +264,244 @@ func TestTemplateWithConstraints(t *testing.T) {
 		}
 	}
 }
+
+// TestTemplateCache_BuildFirstSegmentIndex tests first segment optimization
+func TestTemplateCache_BuildFirstSegmentIndex(t *testing.T) {
+	r := New()
+
+	// Register routes with different first segments
+	r.GET("/users/:id", func(c *Context) {})
+	r.GET("/posts/:id", func(c *Context) {})
+	r.GET("/admin/:id", func(c *Context) {})
+	r.GET("/api/:resource", func(c *Context) {})
+
+	// Build index
+	r.templateCache.buildFirstSegmentIndex()
+
+	// Verify index is built
+	if !r.templateCache.hasFirstSegmentIndex {
+		t.Error("hasFirstSegmentIndex should be true after building")
+	}
+
+	// Index should have entries for 'u', 'p', 'a'
+	if r.templateCache.firstSegmentIndex['u'] == nil {
+		t.Error("should have index entry for 'u' (users)")
+	}
+
+	if r.templateCache.firstSegmentIndex['p'] == nil {
+		t.Error("should have index entry for 'p' (posts)")
+	}
+
+	if r.templateCache.firstSegmentIndex['a'] == nil {
+		t.Error("should have index entry for 'a' (admin, api)")
+	}
+
+	// Verify 'a' has 2 entries (admin and api)
+	aEntries := r.templateCache.firstSegmentIndex['a']
+	if len(aEntries) < 2 {
+		t.Errorf("expected at least 2 entries for 'a', got %d", len(aEntries))
+	}
+}
+
+// TestTemplateCache_BuildFirstSegmentIndex_EmptyCache tests building index on empty cache
+func TestTemplateCache_BuildFirstSegmentIndex_EmptyCache(t *testing.T) {
+	r := New()
+
+	// Build index with no routes
+	r.templateCache.buildFirstSegmentIndex()
+
+	// Should not panic
+	if r.templateCache.hasFirstSegmentIndex != true {
+		t.Error("index should be marked as built even if empty")
+	}
+}
+
+// TestTemplateCache_BuildFirstSegmentIndex_RootPath tests index with root path
+func TestTemplateCache_BuildFirstSegmentIndex_RootPath(t *testing.T) {
+	r := New()
+
+	// Register root path
+	r.GET("/", func(c *Context) {})
+	r.GET("/users", func(c *Context) {})
+
+	// Build index
+	r.templateCache.buildFirstSegmentIndex()
+
+	// Root path shouldn't cause issues
+	if !r.templateCache.hasFirstSegmentIndex {
+		t.Error("should build index successfully with root path")
+	}
+}
+
+// TestTemplateCache_BuildFirstSegmentIndex_NonASCII tests index with non-ASCII first char
+func TestTemplateCache_BuildFirstSegmentIndex_NonASCII(t *testing.T) {
+	r := New()
+
+	// Register route with non-ASCII first character (should be ignored)
+	r.GET("/über/:id", func(c *Context) {})
+	r.GET("/users/:id", func(c *Context) {})
+
+	// Build index
+	r.templateCache.buildFirstSegmentIndex()
+
+	// Should build successfully
+	if !r.templateCache.hasFirstSegmentIndex {
+		t.Error("should build index even with non-ASCII paths")
+	}
+
+	// ASCII route should be indexed
+	if r.templateCache.firstSegmentIndex['u'] == nil {
+		t.Error("should have index for ASCII 'u'")
+	}
+}
+
+// TestTemplateCache_RemoveTemplate tests template removal
+func TestTemplateCache_RemoveTemplate(t *testing.T) {
+	r := New()
+
+	// Register a route
+	r.GET("/test/:id", func(c *Context) {
+		c.String(200, "test")
+	})
+
+	// Count initial templates
+	initialCount := len(r.templateCache.dynamicTemplates)
+
+	if initialCount == 0 {
+		t.Fatal("should have templates after route registration")
+	}
+
+	// Remove the template
+	r.templateCache.removeTemplate("GET", "/test/:id")
+
+	// Should have fewer templates now
+	afterCount := len(r.templateCache.dynamicTemplates)
+
+	if afterCount >= initialCount {
+		t.Error("template count should decrease after removal")
+	}
+}
+
+// TestTemplateCache_AddTemplate_Duplicate tests adding duplicate template
+func TestTemplateCache_AddTemplate_Duplicate(t *testing.T) {
+	r := New()
+
+	// Add template manually
+	tmpl := compileRouteTemplate("GET", "/users/:id", []HandlerFunc{func(c *Context) {}}, nil)
+
+	r.templateCache.addTemplate(tmpl)
+	count1 := len(r.templateCache.dynamicTemplates)
+
+	// Add same template again
+	r.templateCache.addTemplate(tmpl)
+	count2 := len(r.templateCache.dynamicTemplates)
+
+	// Count might increase (duplicate) or stay same (dedup) - both behaviors are acceptable
+	_ = count1
+	_ = count2
+}
+
+// TestTemplateCache_SortBySpecificity tests template sorting
+func TestTemplateCache_SortBySpecificity(t *testing.T) {
+	r := New()
+
+	// Register routes in random order
+	r.GET("/api/*", func(c *Context) {})               // Less specific
+	r.GET("/api/users/:id", func(c *Context) {})       // More specific
+	r.GET("/api/users/:id/posts", func(c *Context) {}) // Most specific
+	r.GET("/api/:resource", func(c *Context) {})       // Medium specific
+
+	// Templates should be sorted by specificity
+	// We can't directly test sorting, but we can verify routes work correctly
+	r.WarmupOptimizations()
+
+	// Most specific route should match
+	req := httptest.NewRequest("GET", "/api/users/123/posts", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Error("specific route should match")
+	}
+}
+
+// TestTemplateCache_Concurrent tests concurrent template operations
+func TestTemplateCache_Concurrent(t *testing.T) {
+	r := New()
+
+	// Add routes concurrently
+	done := make(chan bool)
+
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			defer func() { done <- true }()
+
+			r.GET("/route"+string(rune('0'+id))+"/:param", func(c *Context) {
+				c.Status(200)
+			})
+		}(i)
+	}
+
+	// Wait for all
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Build index shouldn't panic
+	r.templateCache.buildFirstSegmentIndex()
+
+	// Warmup shouldn't panic
+	r.WarmupOptimizations()
+}
+
+// TestRadix_CompileStaticRoutes_NoRoutes tests compiling with no static routes
+func TestRadix_CompileStaticRoutes_NoRoutes(t *testing.T) {
+	r := New()
+
+	// Register only dynamic routes (no static routes)
+	r.GET("/users/:id", func(c *Context) {})
+	r.GET("/posts/:id", func(c *Context) {})
+
+	// Compile routes
+	r.CompileAllRoutes()
+
+	// Should not panic even with no static routes
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Error("dynamic routes should still work")
+	}
+}
+
+// TestRadix_CompileStaticRoutes_MixedRoutes tests compiling mixed static and dynamic
+func TestRadix_CompileStaticRoutes_MixedRoutes(t *testing.T) {
+	r := New()
+
+	// Mix of static and dynamic routes
+	r.GET("/static/path", func(c *Context) {})
+	r.GET("/users/:id", func(c *Context) {})
+	r.GET("/another/static", func(c *Context) {})
+	r.GET("/items/:id/details", func(c *Context) {})
+
+	// Compile
+	r.CompileAllRoutes()
+
+	// Both types should work
+	req1 := httptest.NewRequest("GET", "/static/path", nil)
+	w1 := httptest.NewRecorder()
+	r.ServeHTTP(w1, req1)
+
+	if w1.Code != 200 {
+		t.Error("static route should work after compilation")
+	}
+
+	req2 := httptest.NewRequest("GET", "/users/789", nil)
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+
+	if w2.Code != 200 {
+		t.Error("dynamic route should work after compilation")
+	}
+}

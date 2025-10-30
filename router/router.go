@@ -54,10 +54,11 @@ import (
 	"unsafe"
 
 	"go.opentelemetry.io/otel/attribute"
+	"rivaas.dev/logging"
 )
 
-// RouterOption defines functional options for router configuration.
-type RouterOption func(*Router)
+// Option defines functional options for router configuration.
+type Option func(*Router)
 
 // responseWriter wraps http.ResponseWriter to capture status code and size.
 // It also prevents "superfluous response.WriteHeader call" errors
@@ -157,7 +158,7 @@ type Router struct {
 	contextPool *ContextPool    // Context pool with specialized pools
 	tracing     TracingRecorder // OpenTelemetry tracing configuration
 	metrics     MetricsRecorder // OpenTelemetry metrics configuration
-	logger      Logger          // Structured logger for security events and errors
+	logger      logging.Logger  // Structured logger for security events and errors
 
 	// Routing features
 	versioning   *VersioningConfig  // Route versioning configuration
@@ -191,7 +192,7 @@ type Router struct {
 //	r := router.New(router.WithTracing())
 //	r.GET("/api/users", getUserHandler)
 //	http.ListenAndServe(":8080", r)
-func New(opts ...RouterOption) *Router {
+func New(opts ...Option) *Router {
 	r := &Router{
 		bloomFilterSize:    1000, // Default bloom filter size
 		bloomHashFunctions: 3,    // Default number of hash functions
@@ -217,6 +218,18 @@ func New(opts ...RouterOption) *Router {
 	return r
 }
 
+// MustNew creates a new router instance or panics on configuration error.
+// This is a convenience wrapper around New for use in initialization where
+// errors should terminate the program.
+//
+// Example:
+//
+//	r := router.MustNew()
+//	r.GET("/health", healthHandler)
+func MustNew(opts ...Option) *Router {
+	return New(opts...)
+}
+
 // SetMetricsRecorder sets the metrics recorder for the router.
 // This method is used by external packages to integrate metrics functionality.
 func (r *Router) SetMetricsRecorder(recorder MetricsRecorder) {
@@ -238,7 +251,7 @@ func (r *Router) SetTracingRecorder(recorder TracingRecorder) {
 //	import "log/slog"
 //	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 //	router.SetLogger(logger)
-func (r *Router) SetLogger(logger Logger) {
+func (r *Router) SetLogger(logger logging.Logger) {
 	r.logger = logger
 }
 
@@ -250,7 +263,9 @@ func (r *Router) SetLogger(logger Logger) {
 //	import "log/slog"
 //	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 //	r := router.New(router.WithLogger(logger))
-func WithLogger(logger Logger) RouterOption {
+//
+// For more advanced logging configuration, see logging.WithLogging().
+func WithLogger(logger logging.Logger) Option {
 	return func(r *Router) {
 		r.logger = logger
 	}
@@ -266,7 +281,7 @@ func WithLogger(logger Logger) RouterOption {
 // Example:
 //
 //	r := router.New(router.WithBloomFilterSize(2000)) // For ~1000 routes
-func WithBloomFilterSize(size uint64) RouterOption {
+func WithBloomFilterSize(size uint64) Option {
 	return func(r *Router) {
 		if size > 0 {
 			r.bloomFilterSize = size
@@ -288,7 +303,7 @@ func WithBloomFilterSize(size uint64) RouterOption {
 // Example:
 //
 //	r := router.New(router.WithBloomFilterHashFunctions(4)) // Lower false positive rate
-func WithBloomFilterHashFunctions(numFuncs int) RouterOption {
+func WithBloomFilterHashFunctions(numFuncs int) Option {
 	return func(r *Router) {
 		// Clamp to reasonable range
 		if numFuncs < 1 {
@@ -315,7 +330,7 @@ func WithBloomFilterHashFunctions(numFuncs int) RouterOption {
 // Example:
 //
 //	r := router.New(router.WithCancellationCheck(false)) // Disable for max speed
-func WithCancellationCheck(enabled bool) RouterOption {
+func WithCancellationCheck(enabled bool) Option {
 	return func(r *Router) {
 		r.checkCancellation = enabled
 	}
@@ -332,7 +347,7 @@ func WithCancellationCheck(enabled bool) RouterOption {
 // Example:
 //
 //	r := router.New(router.WithTemplateRouting(true))  // Enabled by default
-func WithTemplateRouting(enabled bool) RouterOption {
+func WithTemplateRouting(enabled bool) Option {
 	return func(r *Router) {
 		r.useTemplates = enabled
 	}

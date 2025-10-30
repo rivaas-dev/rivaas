@@ -266,3 +266,182 @@ func TestVersionedRoutingWithCompilation(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "v1 static1", w.Body.String())
 }
+
+// ============================================================================
+// Fast Path Tests (merged from versioning_fast_test.go)
+// ============================================================================
+
+func TestFastQueryVersion(t *testing.T) {
+	tests := []struct {
+		name      string
+		rawQuery  string
+		param     string
+		wantValue string
+		wantFound bool
+	}{
+		// Basic cases
+		{"empty_query", "", "v", "", false},
+		{"empty_param", "v=v1", "", "", false},
+		{"simple_match", "v=v1", "v", "v1", true},
+		{"long_value", "version=v1.2.3", "version", "v1.2.3", true},
+
+		// Position variations
+		{"param_at_start", "v=v1", "v", "v1", true},
+		{"param_in_middle", "foo=bar&v=v2&baz=qux", "v", "v2", true},
+		{"param_at_end", "foo=bar&baz=qux&v=v3", "v", "v3", true},
+
+		// Boundary cases
+		{"param_not_at_boundary", "foobar=v1", "bar", "", false}, // "bar=" is not at boundary
+		{"similar_param_names", "fooversion=v1&version=v2", "version", "v2", true},
+		{"param_as_substring", "myv=wrong&v=correct", "v", "correct", true},
+
+		// Value extraction
+		{"value_until_ampersand", "v=v1&other=value", "v", "v1", true},
+		{"value_until_end", "other=value&v=v2", "v", "v2", true},
+		{"empty_value", "v=&other=value", "v", "", true}, // Empty value is valid
+		{"no_value", "v", "v", "", false},                // No "=" sign
+
+		// Multiple occurrences (should return first)
+		{"duplicate_params", "v=v1&foo=bar&v=v2", "v", "v1", true},
+
+		// Special characters in values
+		{"dash_in_value", "v=v1-beta", "v", "v1-beta", true},
+		{"dot_in_value", "v=1.0.0", "v", "1.0.0", true},
+		{"underscore_in_value", "v=v1_stable", "v", "v1_stable", true},
+
+		// Long parameter names
+		{"long_param_name", "api_version=v1", "api_version", "v1", true},
+		{"long_param_middle", "foo=bar&api_version=v2&baz=qux", "api_version", "v2", true},
+
+		// Edge cases
+		{"single_char_param", "a=1", "a", "1", true},
+		{"single_char_value", "version=1", "version", "1", true},
+		{"equals_no_value_at_end", "foo=bar&v=", "v", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotValue, gotFound := fastQueryVersion(tt.rawQuery, tt.param)
+			if gotValue != tt.wantValue {
+				t.Errorf("fastQueryVersion(%q, %q) value = %q, want %q",
+					tt.rawQuery, tt.param, gotValue, tt.wantValue)
+			}
+			if gotFound != tt.wantFound {
+				t.Errorf("fastQueryVersion(%q, %q) found = %v, want %v",
+					tt.rawQuery, tt.param, gotFound, tt.wantFound)
+			}
+		})
+	}
+}
+
+// TestFastQueryVersion_ZeroAlloc verifies zero allocations
+func TestFastQueryVersion_ZeroAlloc(t *testing.T) {
+	allocs := testing.AllocsPerRun(100, func() {
+		_, _ = fastQueryVersion("foo=bar&v=v1&baz=qux", "v")
+	})
+
+	if allocs != 0 {
+		t.Errorf("fastQueryVersion allocated %f times, want 0", allocs)
+	}
+}
+
+// TestFastHeaderVersion tests the fast header extraction
+func TestFastHeaderVersion(t *testing.T) {
+	tests := []struct {
+		name       string
+		headers    map[string][]string
+		headerName string
+		want       string
+	}{
+		{"found", map[string][]string{"API-Version": {"v1"}}, "API-Version", "v1"},
+		{"not_found", map[string][]string{"Other": {"value"}}, "API-Version", ""},
+		{"empty_header", map[string][]string{}, "API-Version", ""},
+		{"multiple_values", map[string][]string{"API-Version": {"v1", "v2"}}, "API-Version", "v1"},
+		{"empty_value", map[string][]string{"API-Version": {""}}, "API-Version", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := fastHeaderVersion(tt.headers, tt.headerName)
+			if got != tt.want {
+				t.Errorf("fastHeaderVersion() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestFastHeaderVersion_ZeroAlloc verifies zero allocations
+func TestFastHeaderVersion_ZeroAlloc(t *testing.T) {
+	headers := map[string][]string{"API-Version": {"v1"}}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = fastHeaderVersion(headers, "API-Version")
+	})
+
+	if allocs != 0 {
+		t.Errorf("fastHeaderVersion allocated %f times, want 0", allocs)
+	}
+}
+
+// TestDetectVersion_Integration tests version detection with fast paths
+func TestDetectVersion_Integration(t *testing.T) {
+	t.Run("query_fast_path", func(t *testing.T) {
+		r := New(WithVersioning(
+			WithQueryVersioning("v"),
+			WithDefaultVersion("v1"),
+		))
+
+		// Create request with query parameter
+		req := httptest.NewRequest("GET", "/test?v=v2", nil)
+
+		version := r.detectVersion(req)
+		if version != "v2" {
+			t.Errorf("detectVersion() = %q, want %q", version, "v2")
+		}
+	})
+
+	t.Run("query_with_validation", func(t *testing.T) {
+		r := New(WithVersioning(
+			WithQueryVersioning("version"),
+			WithValidVersions("v1", "v2", "v3"),
+			WithDefaultVersion("v1"),
+		))
+
+		req := httptest.NewRequest("GET", "/test?version=v2", nil)
+		version := r.detectVersion(req)
+		if version != "v2" {
+			t.Errorf("detectVersion() = %q, want %q", version, "v2")
+		}
+	})
+
+	t.Run("query_invalid_version", func(t *testing.T) {
+		r := New(WithVersioning(
+			WithQueryVersioning("v"),
+			WithValidVersions("v1", "v2"),
+			WithDefaultVersion("v1"),
+		))
+
+		req := httptest.NewRequest("GET", "/test?v=invalid", nil)
+		version := r.detectVersion(req)
+		if version != "v1" {
+			t.Errorf("detectVersion() = %q, want %q (default)", version, "v1")
+		}
+	})
+
+	t.Run("header_priority", func(t *testing.T) {
+		r := New(WithVersioning(
+			WithHeaderVersioning("API-Version"),
+			WithQueryVersioning("v"),
+			WithDefaultVersion("v1"),
+		))
+
+		req := httptest.NewRequest("GET", "/test?v=v3", nil)
+		req.Header.Set("API-Version", "v2")
+
+		// Header should take priority over query
+		version := r.detectVersion(req)
+		if version != "v2" {
+			t.Errorf("detectVersion() = %q, want %q (header priority)", version, "v2")
+		}
+	})
+}

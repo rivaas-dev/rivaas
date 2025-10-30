@@ -4,6 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/labstack/echo/v4"
+	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
 
 func BenchmarkRouter(b *testing.B) {
@@ -584,4 +589,309 @@ func BenchmarkBloomFilter(b *testing.B) {
 			}
 		}
 	})
+}
+
+// ============================================================================
+// Atomic Benchmarks (merged from atomic_bench_test.go)
+// ============================================================================
+
+func BenchmarkAtomicRouteRegistration(b *testing.B) {
+	r := New()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			path := "/benchmark" + string(rune('0'+i%10)) + "/" + string(rune('0'+i%100))
+			r.GET(path, func(c *Context) {
+				c.String(http.StatusOK, "OK")
+			})
+			i++
+		}
+	})
+}
+
+// BenchmarkAtomicRouteLookup benchmarks the performance of atomic route lookup
+func BenchmarkAtomicRouteLookup(b *testing.B) {
+	r := New()
+
+	// Register test routes
+	routes := []string{
+		"/",
+		"/users",
+		"/users/:id",
+		"/users/:id/posts",
+		"/users/:id/posts/:post_id",
+		"/posts",
+		"/posts/:id",
+		"/api/v1/users",
+		"/api/v1/users/:id",
+		"/api/v1/posts",
+		"/api/v1/posts/:id",
+	}
+
+	for _, route := range routes {
+		r.GET(route, func(c *Context) {
+			c.String(http.StatusOK, "OK")
+		})
+	}
+
+	// Test paths
+	testPaths := []string{
+		"/",
+		"/users",
+		"/users/123",
+		"/users/123/posts",
+		"/users/123/posts/456",
+		"/posts",
+		"/posts/123",
+		"/api/v1/users",
+		"/api/v1/users/123",
+		"/api/v1/posts",
+		"/api/v1/posts/123",
+	}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for _, path := range testPaths {
+				req := httptest.NewRequest("GET", path, nil)
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, req)
+			}
+		}
+	})
+}
+
+// BenchmarkConcurrentRegistrationAndLookup benchmarks concurrent route registration and lookup
+func BenchmarkConcurrentRegistrationAndLookup(b *testing.B) {
+	r := New()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			// Alternate between registration and lookup
+			if i%2 == 0 {
+				// Register a route
+				path := "/concurrent" + string(rune('0'+i%10)) + "/" + string(rune('0'+i%100))
+				r.GET(path, func(c *Context) {
+					c.String(http.StatusOK, "OK")
+				})
+			} else {
+				// Lookup a route
+				req := httptest.NewRequest("GET", "/", nil)
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, req)
+			}
+			i++
+		}
+	})
+}
+
+// ============================================================================
+// Router Comparison Benchmarks (merged from comparison_bench_test.go)
+// ============================================================================
+
+func BenchmarkRivaasRouter(b *testing.B) {
+	r := New()
+	r.GET("/", func(c *Context) {
+		c.String(http.StatusOK, "Hello")
+	})
+	r.GET("/users/:id", func(c *Context) {
+		c.String(http.StatusOK, "User: %s", c.Param("id"))
+	})
+	r.GET("/users/:id/posts/:post_id", func(c *Context) {
+		c.String(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
+	})
+
+	// Warm up all optimizations for performance
+	r.WarmupOptimizations()
+
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+
+	b.ResetTimer()
+	for b.Loop() {
+		r.ServeHTTP(w, req)
+	}
+}
+
+// BenchmarkStandardMux benchmarks Go's standard library mux
+func BenchmarkStandardMux(b *testing.B) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello"))
+	})
+	mux.HandleFunc("/users/123", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("User: 123"))
+	})
+	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("User: 123, Post: 456"))
+	})
+
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+
+	b.ResetTimer()
+	for b.Loop() {
+		mux.ServeHTTP(w, req)
+	}
+}
+
+// BenchmarkSimpleRouter benchmarks a simple map-based router
+func BenchmarkSimpleRouter(b *testing.B) {
+	routes := map[string]http.HandlerFunc{
+		"/": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Hello"))
+		},
+		"/users/123": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("User: 123"))
+		},
+		"/users/123/posts/456": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("User: 123, Post: 456"))
+		},
+	}
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if route, exists := routes[r.URL.Path]; exists {
+			route(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	}
+
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+
+	b.ResetTimer()
+	for b.Loop() {
+		handler(w, req)
+	}
+}
+
+// BenchmarkGinRouter benchmarks Gin router
+func BenchmarkGinRouter(b *testing.B) {
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "Hello")
+	})
+	r.GET("/users/:id", func(c *gin.Context) {
+		c.String(http.StatusOK, "User: %s", c.Param("id"))
+	})
+	r.GET("/users/:id/posts/:post_id", func(c *gin.Context) {
+		c.String(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
+	})
+
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+
+	b.ResetTimer()
+	for b.Loop() {
+		r.ServeHTTP(w, req)
+	}
+}
+
+// BenchmarkEchoRouter benchmarks Echo router
+func BenchmarkEchoRouter(b *testing.B) {
+	e := echo.New()
+	e.GET("/", func(c echo.Context) error {
+		return c.String(http.StatusOK, "Hello")
+	})
+	e.GET("/users/:id", func(c echo.Context) error {
+		return c.String(http.StatusOK, "User: "+c.Param("id"))
+	})
+	e.GET("/users/:id/posts/:post_id", func(c echo.Context) error {
+		return c.String(http.StatusOK, "User: "+c.Param("id")+", Post: "+c.Param("post_id"))
+	})
+
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+
+	b.ResetTimer()
+	for b.Loop() {
+		e.ServeHTTP(w, req)
+	}
+}
+
+// BenchmarkFasthttpRouter benchmarks fasthttp with basic routing
+// Note: This uses fasthttp's native RequestCtx which is more efficient than net/http
+// but makes direct comparison harder due to different APIs
+func BenchmarkFasthttpRouter(b *testing.B) {
+	// Create a simple fasthttp handler with basic path matching
+	handler := func(ctx *fasthttp.RequestCtx) {
+		path := string(ctx.Path())
+
+		switch path {
+		case "/":
+			ctx.SetStatusCode(fasthttp.StatusOK)
+			ctx.SetBodyString("Hello")
+		case "/users/123":
+			ctx.SetStatusCode(fasthttp.StatusOK)
+			ctx.SetBodyString("User: 123")
+		case "/users/123/posts/456":
+			ctx.SetStatusCode(fasthttp.StatusOK)
+			ctx.SetBodyString("User: 123, Post: 456")
+		default:
+			// For fair comparison, we handle dynamic routes
+			// This is a simplified version - real fasthttp apps would use a router
+			if len(path) > 7 && path[:7] == "/users/" {
+				ctx.SetStatusCode(fasthttp.StatusOK)
+				ctx.SetBodyString("User: 123")
+			} else {
+				ctx.SetStatusCode(fasthttp.StatusNotFound)
+			}
+		}
+	}
+
+	// Create fasthttp request context
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod("GET")
+	ctx.Request.SetRequestURI("/users/123")
+
+	b.ResetTimer()
+	for b.Loop() {
+		handler(&ctx)
+		ctx.Response.Reset()
+	}
+}
+
+// BenchmarkFasthttpRouterViaAdaptor benchmarks fasthttp via net/http adaptor
+// This provides a more apples-to-apples comparison with other frameworks
+func BenchmarkFasthttpRouterViaAdaptor(b *testing.B) {
+	// Create a simple net/http handler
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello"))
+	})
+	mux.HandleFunc("/users/123", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("User: 123"))
+	})
+	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("User: 123, Post: 456"))
+	})
+
+	// Wrap with fasthttp adaptor
+	fasthttpHandler := fasthttpadaptor.NewFastHTTPHandlerFunc(mux.ServeHTTP)
+
+	// Create fasthttp request context
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod("GET")
+	ctx.Request.SetRequestURI("/users/123")
+
+	b.ResetTimer()
+	for b.Loop() {
+		fasthttpHandler(&ctx)
+		ctx.Response.Reset()
+	}
 }

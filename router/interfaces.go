@@ -8,23 +8,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Logger interface for structured logging.
-// This interface is compatible with slog and other structured loggers.
-// The router uses this for security events, errors, and warnings.
-type Logger interface {
-	// Debug logs a debug message with structured attributes
-	Debug(msg string, args ...any)
-
-	// Info logs an informational message with structured attributes
-	Info(msg string, args ...any)
-
-	// Warn logs a warning message with structured attributes
-	Warn(msg string, args ...any)
-
-	// Error logs an error message with structured attributes
-	Error(msg string, args ...any)
-}
-
 // MetricsRecorder interface for recording metrics from external packages.
 // This interface allows the router to work with any metrics implementation
 // without tight coupling to specific packages.
