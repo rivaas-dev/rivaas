@@ -10,14 +10,11 @@ import (
 // Constants for middleware configuration
 const (
 	// Pool capacities for performance tuning
-	defaultAttrCapacity     = 32 // Pre-allocate for typical log entries
-	defaultResponseCapacity = 8  // Average response fields
+	defaultAttrCapacity = 32 // Pre-allocate for typical log entries
 
 	// HTTP status code ranges
 	statusOKStart    = 200
-	statusOKEnd      = 399
 	statusWarnStart  = 400
-	statusWarnEnd    = 499
 	statusErrorStart = 500
 )
 
