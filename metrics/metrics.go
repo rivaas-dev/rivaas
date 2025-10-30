@@ -16,8 +16,8 @@
 //
 // # Thread Safety
 //
-// All methods are thread-safe and use lock-free atomic operations for optimal
-// performance. Custom metrics are limited (default 1000) to prevent memory leaks
+// All methods are thread-safe. Custom metric creation uses lock-free atomic operations
+// for performance. Custom metrics are limited (default 1000) to prevent memory leaks
 // from unbounded metric creation.
 //
 // # Global State Warning
@@ -66,8 +66,10 @@ import (
 	"unsafe"
 
 	promclient "github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"rivaas.dev/logging"
 )
 
 // MetricsProvider represents the available metrics providers.
@@ -82,15 +84,6 @@ const (
 	StdoutProvider MetricsProvider = "stdout"
 )
 
-// Logger is an interface for structured logging.
-// Implement this interface to provide custom logging.
-type Logger interface {
-	Error(msg string, keysAndValues ...interface{})
-	Warn(msg string, keysAndValues ...interface{})
-	Info(msg string, keysAndValues ...interface{})
-	Debug(msg string, keysAndValues ...interface{})
-}
-
 // Config holds OpenTelemetry metrics configuration.
 // Fields are ordered by size (largest to smallest) for optimal memory alignment.
 type Config struct {
@@ -100,7 +93,7 @@ type Config struct {
 	prometheusHandler  http.Handler
 	prometheusRegistry *promclient.Registry // Custom Prometheus registry to avoid conflicts
 	metricsServer      *http.Server
-	logger             Logger // Structured logger for errors and warnings
+	logger             logging.Logger // Structured logger for errors and warnings
 
 	// Built-in HTTP metrics (interfaces, 8 bytes each)
 	requestDuration      metric.Float64Histogram
@@ -117,8 +110,9 @@ type Config struct {
 	casRetriesCounter    metric.Int64Counter
 
 	// Maps and slices
-	excludePaths  map[string]bool
-	recordHeaders []string
+	excludePaths       map[string]bool
+	recordHeaders      []string
+	recordHeadersLower []string // Pre-lowercased header names for performance
 
 	// Atomic custom metrics cache - lock-free operations (unsafe.Pointer = 8 bytes)
 	atomicCustomCounters   unsafe.Pointer // *map[string]metric.Int64Counter
@@ -142,6 +136,13 @@ type Config struct {
 	endpoint       string
 	metricsPort    string
 	metricsPath    string
+
+	// Pre-computed common attributes (performance optimization)
+	// These are computed once during initialization to avoid repeated allocations
+	serviceNameAttr    attribute.KeyValue
+	serviceVersionAttr attribute.KeyValue
+	staticRouteAttr    attribute.KeyValue
+	dynamicRouteAttr   attribute.KeyValue
 
 	// Mutex (typically 8-16 bytes depending on implementation)
 	serverMutex sync.Mutex // Protects metricsServer access
@@ -242,9 +243,15 @@ func WithExcludePaths(paths ...string) Option {
 }
 
 // WithHeaders records specific headers as metric attributes.
+// Headers are normalized to lowercase for efficient lookup.
 func WithHeaders(headers ...string) Option {
 	return func(c *Config) {
 		c.recordHeaders = headers
+		// Pre-compute lowercased header names for performance
+		c.recordHeadersLower = make([]string, len(headers))
+		for i, h := range headers {
+			c.recordHeadersLower[i] = strings.ToLower(h)
+		}
 	}
 }
 
@@ -296,7 +303,7 @@ func WithMaxCustomMetrics(max int) Option {
 }
 
 // WithLogger sets a custom logger for metrics errors and warnings.
-func WithLogger(logger Logger) Option {
+func WithLogger(logger logging.Logger) Option {
 	return func(c *Config) {
 		c.logger = logger
 	}
@@ -352,6 +359,7 @@ func newDefaultConfig() *Config {
 	}
 
 	config.initAtomicMaps()
+	config.initCommonAttributes()
 	return config
 }
 
@@ -364,6 +372,15 @@ func (c *Config) initAtomicMaps() {
 	atomic.StorePointer(&c.atomicCustomCounters, unsafe.Pointer(&initialCounters))
 	atomic.StorePointer(&c.atomicCustomHistograms, unsafe.Pointer(&initialHistograms))
 	atomic.StorePointer(&c.atomicCustomGauges, unsafe.Pointer(&initialGauges))
+}
+
+// initCommonAttributes pre-computes common attributes to avoid repeated allocations.
+// These attributes are used frequently in request metrics and should be created once.
+func (c *Config) initCommonAttributes() {
+	c.serviceNameAttr = attribute.String("service.name", c.serviceName)
+	c.serviceVersionAttr = attribute.String("service.version", c.serviceVersion)
+	c.staticRouteAttr = attribute.Bool("rivaas.router.static_route", true)
+	c.dynamicRouteAttr = attribute.Bool("rivaas.router.static_route", false)
 }
 
 // validate checks that the configuration is valid.
@@ -547,13 +564,13 @@ func (c *Config) IsEnabled() bool {
 	return c.enabled
 }
 
-// GetServiceName returns the service name.
-func (c *Config) GetServiceName() string {
+// ServiceName returns the service name.
+func (c *Config) ServiceName() string {
 	return c.serviceName
 }
 
-// GetServiceVersion returns the service version.
-func (c *Config) GetServiceVersion() string {
+// ServiceVersion returns the service version.
+func (c *Config) ServiceVersion() string {
 	return c.serviceVersion
 }
 

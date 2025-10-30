@@ -38,8 +38,8 @@ func TestMetricsConfig(t *testing.T) {
 	defer config.Shutdown(context.Background())
 
 	assert.True(t, config.IsEnabled())
-	assert.Equal(t, "test-service", config.GetServiceName())
-	assert.Equal(t, "v1.0.0", config.GetServiceVersion())
+	assert.Equal(t, "test-service", config.ServiceName())
+	assert.Equal(t, "v1.0.0", config.ServiceVersion())
 	assert.Equal(t, ":9091", config.GetServerAddress())
 	assert.Equal(t, PrometheusProvider, config.GetProvider())
 }

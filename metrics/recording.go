@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -62,8 +63,6 @@ func (e *MetricsUpdateError) Error() string {
 const (
 	// maxCASRetries is the maximum number of Compare-And-Swap retries before falling back to logging.
 	maxCASRetries = 100
-	// casBackoffThreshold is the retry count after which we start backing off.
-	casBackoffThreshold = 10
 )
 
 // validateMetricName validates that a metric name conforms to OpenTelemetry conventions.
@@ -98,19 +97,16 @@ type requestMetrics struct {
 }
 
 // StartRequest initializes metrics collection for a request.
+// Performance optimizations:
+//   - No context cancellation check (fast path, context is rarely cancelled at request start)
+//   - Build attributes directly without intermediate slice
+//   - Check for request size as first attribute (optimization for router integration)
 func (c *Config) StartRequest(ctx context.Context, path string, isStatic bool, attributes ...attribute.KeyValue) interface{} {
 	if !c.enabled {
 		return nil
 	}
 
-	// Check if context is cancelled
-	select {
-	case <-ctx.Done():
-		return nil
-	default:
-	}
-
-	// Check if path should be excluded
+	// Check if path should be excluded (fast path)
 	if c.excludePaths[path] {
 		return nil
 	}
@@ -119,32 +115,39 @@ func (c *Config) StartRequest(ctx context.Context, path string, isStatic bool, a
 		startTime: time.Now(),
 	}
 
-	// Build base attributes with pre-allocated capacity
-	baseAttrs := []attribute.KeyValue{
-		attribute.String("service.name", c.serviceName),
-		attribute.String("service.version", c.serviceVersion),
-		attribute.Bool("rivaas.router.static_route", isStatic),
+	// Build attributes directly with exact capacity (avoid intermediate allocations)
+	// Use pre-computed attributes for service name/version and static route flag
+	totalCap := 3 + len(attributes) // 3 base attrs + provided attrs
+	metrics.attributes = make([]attribute.KeyValue, 3, totalCap)
+	metrics.attributes[0] = c.serviceNameAttr
+	metrics.attributes[1] = c.serviceVersionAttr
+	if isStatic {
+		metrics.attributes[2] = c.staticRouteAttr
+	} else {
+		metrics.attributes[2] = c.dynamicRouteAttr
 	}
-
-	// Pre-allocate slice with exact capacity needed
-	metrics.attributes = make([]attribute.KeyValue, len(baseAttrs), len(baseAttrs)+len(attributes))
-	copy(metrics.attributes, baseAttrs)
 	metrics.attributes = append(metrics.attributes, attributes...)
 
 	// Increment active requests atomically
 	c.recordActiveRequestAtomically()
 	c.activeRequests.Add(ctx, 1, metric.WithAttributes(metrics.attributes...))
 
-	// Record request size if available
+	// OPTIMIZATION: If caller provides request size as first attribute (router convention),
+	// extract it without scanning all attributes. Falls back to full scan for compatibility.
 	if len(attributes) > 0 {
-		for _, attr := range attributes {
-			if attr.Key == "http.request.size" {
-				if attr.Value.Type() == attribute.INT64 {
+		if attributes[0].Key == "http.request.size" && attributes[0].Value.Type() == attribute.INT64 {
+			size := attributes[0].Value.AsInt64()
+			metrics.requestSize = size
+			c.requestSize.Record(ctx, size, metric.WithAttributes(metrics.attributes...))
+		} else {
+			// Fallback: scan all attributes for backward compatibility
+			for _, attr := range attributes {
+				if attr.Key == "http.request.size" && attr.Value.Type() == attribute.INT64 {
 					size := attr.Value.AsInt64()
 					metrics.requestSize = size
 					c.requestSize.Record(ctx, size, metric.WithAttributes(metrics.attributes...))
+					break
 				}
-				break
 			}
 		}
 	}
@@ -208,107 +211,71 @@ func getStatusClass(statusCode int) string {
 }
 
 // RecordMetric records a custom histogram metric with the given name and value.
-// This method is thread-safe and uses atomic operations for optimal performance.
-// Returns early if the context is cancelled or if the metric name is invalid.
+// Thread-safe through atomic operations in metric creation and caching.
+// Returns early if the metric name is invalid or creation fails.
+//
+// Performance: Validation only happens during metric creation (slow path).
+// Context cancellation is handled by the OpenTelemetry SDK internally.
 func (c *Config) RecordMetric(ctx context.Context, name string, value float64, attributes ...attribute.KeyValue) {
 	if !c.enabled {
 		return
 	}
 
-	// Validate metric name
-	if err := validateMetricName(name); err != nil {
-		c.recordCustomMetricFailureAtomically()
-		c.logError("Invalid metric name", "name", name, "error", err)
-		return
-	}
-
-	// Check if context is cancelled before proceeding
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-
-	// Get or create the histogram
+	// Fast path: Get or create histogram (validation happens inside for new metrics only)
 	histogram, err := c.getOrCreateHistogram(ctx, name)
 	if err != nil {
-		// Record failure and log error
 		c.recordCustomMetricFailureAtomically()
-		c.logError("Failed to create histogram metric", "name", name, "error", err)
+		c.logError("Failed to get or create histogram metric", "name", name, "error", err)
 		return
 	}
 
-	// Record the metric
+	// Record the metric (OTel SDK handles ctx.Done internally)
 	histogram.Record(ctx, value, metric.WithAttributes(attributes...))
 }
 
 // IncrementCounter increments a custom counter metric with the given name.
-// This method is thread-safe and uses atomic operations for optimal performance.
-// Returns early if the context is cancelled or if the metric name is invalid.
+// Thread-safe through atomic operations in metric creation and caching.
+// Returns early if the metric name is invalid or creation fails.
+//
+// Performance: Validation only happens during metric creation (slow path).
+// Context cancellation is handled by the OpenTelemetry SDK internally.
 func (c *Config) IncrementCounter(ctx context.Context, name string, attributes ...attribute.KeyValue) {
 	if !c.enabled {
 		return
 	}
 
-	// Validate metric name
-	if err := validateMetricName(name); err != nil {
-		c.recordCustomMetricFailureAtomically()
-		c.logError("Invalid metric name", "name", name, "error", err)
-		return
-	}
-
-	// Check if context is cancelled before proceeding
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-
-	// Get or create the counter
+	// Fast path: Get or create counter (validation happens inside for new metrics only)
 	counter, err := c.getOrCreateCounter(ctx, name)
 	if err != nil {
-		// Record failure and log error
 		c.recordCustomMetricFailureAtomically()
-		c.logError("Failed to create counter metric", "name", name, "error", err)
+		c.logError("Failed to get or create counter metric", "name", name, "error", err)
 		return
 	}
 
-	// Increment the counter
+	// Increment the counter (OTel SDK handles ctx.Done internally)
 	counter.Add(ctx, 1, metric.WithAttributes(attributes...))
 }
 
 // SetGauge sets a custom gauge metric with the given name and value.
-// This method is thread-safe and uses atomic operations for optimal performance.
-// Returns early if the context is cancelled or if the metric name is invalid.
+// Thread-safe through atomic operations in metric creation and caching.
+// Returns early if the metric name is invalid or creation fails.
+//
+// Performance: Validation only happens during metric creation (slow path).
+// Context cancellation is handled by the OpenTelemetry SDK internally.
 func (c *Config) SetGauge(ctx context.Context, name string, value float64, attributes ...attribute.KeyValue) {
 	if !c.enabled {
 		return
 	}
 
-	// Validate metric name
-	if err := validateMetricName(name); err != nil {
-		c.recordCustomMetricFailureAtomically()
-		c.logError("Invalid metric name", "name", name, "error", err)
-		return
-	}
-
-	// Check if context is cancelled before proceeding
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-
-	// Get or create the gauge
+	// Fast path: Get or create gauge (validation happens inside for new metrics only)
 	gauge, err := c.getOrCreateGauge(ctx, name)
 	if err != nil {
-		// Record failure and log error
 		c.recordCustomMetricFailureAtomically()
-		c.logError("Failed to create gauge metric", "name", name, "error", err)
+		c.logError("Failed to get or create gauge metric", "name", name, "error", err)
 		return
 	}
 
-	// Set the gauge value
+	// Set the gauge value (OTel SDK handles ctx.Done internally)
 	gauge.Record(ctx, value, metric.WithAttributes(attributes...))
 }
 
@@ -318,11 +285,12 @@ func (c *Config) RecordRouteRegistration(ctx context.Context, method, path strin
 		return
 	}
 
+	// Use pre-computed service attributes to avoid allocations
 	attributes := []attribute.KeyValue{
 		attribute.String("http.method", method),
 		attribute.String("http.route", path),
-		attribute.String("service.name", c.serviceName),
-		attribute.String("service.version", c.serviceVersion),
+		c.serviceNameAttr,
+		c.serviceVersionAttr,
 	}
 
 	c.routeCount.Add(ctx, 1, metric.WithAttributes(attributes...))
@@ -354,11 +322,11 @@ func (c *Config) RecordConstraintFailure(ctx context.Context, constraint string,
 		return
 	}
 
-	attrs := []attribute.KeyValue{
-		attribute.String("constraint.type", constraint),
-		attribute.String("service.name", c.serviceName),
-		attribute.String("service.version", c.serviceVersion),
-	}
+	// Use pre-computed service attributes to avoid allocations
+	attrs := make([]attribute.KeyValue, 3, 3+len(attributes))
+	attrs[0] = attribute.String("constraint.type", constraint)
+	attrs[1] = c.serviceNameAttr
+	attrs[2] = c.serviceVersionAttr
 	attrs = append(attrs, attributes...)
 
 	c.constraintFailures.Add(ctx, 1, metric.WithAttributes(attrs...))
@@ -553,8 +521,8 @@ func (c *Config) getAtomicCustomGauges() map[string]metric.Float64Gauge {
 //   - Limited retries prevent infinite loops under extreme contention
 //   - CAS retry attempts are tracked via router_metrics_cas_retries_total for observability
 //
-// Monitoring: Watch router_metrics_cas_retries_total. Sustained rates >1000/sec may indicate
-// high contention. In such cases, consider reducing metric cardinality or pre-creating metrics.
+// Monitoring: Watch router_metrics_cas_retries_total. Sustained high rates may indicate
+// contention. In such cases, consider reducing metric cardinality or pre-creating metrics.
 //
 // TODO: For workloads with extreme contention, consider adding a WithMutexBasedMetrics() option
 // that uses sync.RWMutex instead of this lock-free CAS approach. This would trade latency for
@@ -572,9 +540,22 @@ func (c *Config) updateAtomicCustomCounters(updater func(map[string]metric.Int64
 			}
 			return nil
 		}
-		// CAS failed, another goroutine modified the map, retry with backoff
-		if attempt > casBackoffThreshold {
-			time.Sleep(time.Microsecond * time.Duration(attempt-casBackoffThreshold))
+
+		// CAS failed, apply graduated backoff strategy
+		switch {
+		case attempt < 3:
+			// Low contention: just yield CPU (zero cost)
+			runtime.Gosched()
+		case attempt < 10:
+			// Moderate contention: short sleep
+			time.Sleep(time.Microsecond)
+		default:
+			// High contention: exponential backoff with cap
+			backoff := time.Microsecond * time.Duration(1<<uint(attempt-10))
+			if backoff > time.Millisecond {
+				backoff = time.Millisecond // Cap at 1ms
+			}
+			time.Sleep(backoff)
 		}
 	}
 	c.logWarn("Failed to update custom counters after max retries", "maxRetries", maxCASRetries)
@@ -596,9 +577,22 @@ func (c *Config) updateAtomicCustomHistograms(updater func(map[string]metric.Flo
 			}
 			return nil
 		}
-		// CAS failed, another goroutine modified the map, retry with backoff
-		if attempt > casBackoffThreshold {
-			time.Sleep(time.Microsecond * time.Duration(attempt-casBackoffThreshold))
+
+		// CAS failed, apply graduated backoff strategy
+		switch {
+		case attempt < 3:
+			// Low contention: just yield CPU (zero cost)
+			runtime.Gosched()
+		case attempt < 10:
+			// Moderate contention: short sleep
+			time.Sleep(time.Microsecond)
+		default:
+			// High contention: exponential backoff with cap
+			backoff := time.Microsecond * time.Duration(1<<uint(attempt-10))
+			if backoff > time.Millisecond {
+				backoff = time.Millisecond // Cap at 1ms
+			}
+			time.Sleep(backoff)
 		}
 	}
 	c.logWarn("Failed to update custom histograms after max retries", "maxRetries", maxCASRetries)
@@ -620,9 +614,22 @@ func (c *Config) updateAtomicCustomGauges(updater func(map[string]metric.Float64
 			}
 			return nil
 		}
-		// CAS failed, another goroutine modified the map, retry with backoff
-		if attempt > casBackoffThreshold {
-			time.Sleep(time.Microsecond * time.Duration(attempt-casBackoffThreshold))
+
+		// CAS failed, apply graduated backoff strategy
+		switch {
+		case attempt < 3:
+			// Low contention: just yield CPU (zero cost)
+			runtime.Gosched()
+		case attempt < 10:
+			// Moderate contention: short sleep
+			time.Sleep(time.Microsecond)
+		default:
+			// High contention: exponential backoff with cap
+			backoff := time.Microsecond * time.Duration(1<<uint(attempt-10))
+			if backoff > time.Millisecond {
+				backoff = time.Millisecond // Cap at 1ms
+			}
+			time.Sleep(backoff)
 		}
 	}
 	c.logWarn("Failed to update custom gauges after max retries", "maxRetries", maxCASRetries)
@@ -632,14 +639,20 @@ func (c *Config) updateAtomicCustomGauges(updater func(map[string]metric.Float64
 // getOrCreateCounter gets or creates a custom counter metric.
 // This function uses atomic operations to ensure thread-safety without locks.
 // Performance: Uses double-checked locking pattern to avoid unnecessary metric creation.
+// Validation only happens for new metrics (slow path), not for cached metrics.
 func (c *Config) getOrCreateCounter(ctx context.Context, name string) (metric.Int64Counter, error) {
-	// First, check if counter already exists (fast path, no allocation)
+	// First, check if counter already exists (fast path, no allocation, no validation)
 	counters := c.getAtomicCustomCounters()
 	if counter, exists := counters[name]; exists {
 		return counter, nil
 	}
 
-	// Check if context is cancelled
+	// Validate metric name only when creating new metric (slow path)
+	if err := validateMetricName(name); err != nil {
+		return nil, err
+	}
+
+	// Check if context is cancelled before expensive operations
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -724,14 +737,20 @@ func (c *Config) getOrCreateCounter(ctx context.Context, name string) (metric.In
 // getOrCreateHistogram gets or creates a custom histogram metric.
 // This function uses atomic operations to ensure thread-safety without locks.
 // Performance: Uses double-checked locking pattern to avoid unnecessary metric creation.
+// Validation only happens for new metrics (slow path), not for cached metrics.
 func (c *Config) getOrCreateHistogram(ctx context.Context, name string) (metric.Float64Histogram, error) {
-	// First, check if histogram already exists (fast path, no allocation)
+	// First, check if histogram already exists (fast path, no allocation, no validation)
 	histograms := c.getAtomicCustomHistograms()
 	if histogram, exists := histograms[name]; exists {
 		return histogram, nil
 	}
 
-	// Check if context is cancelled
+	// Validate metric name only when creating new metric (slow path)
+	if err := validateMetricName(name); err != nil {
+		return nil, err
+	}
+
+	// Check if context is cancelled before expensive operations
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -816,14 +835,20 @@ func (c *Config) getOrCreateHistogram(ctx context.Context, name string) (metric.
 // getOrCreateGauge gets or creates a custom gauge metric.
 // This function uses atomic operations to ensure thread-safety without locks.
 // Performance: Uses double-checked locking pattern to avoid unnecessary metric creation.
+// Validation only happens for new metrics (slow path), not for cached metrics.
 func (c *Config) getOrCreateGauge(ctx context.Context, name string) (metric.Float64Gauge, error) {
-	// First, check if gauge already exists (fast path, no allocation)
+	// First, check if gauge already exists (fast path, no allocation, no validation)
 	gauges := c.getAtomicCustomGauges()
 	if gauge, exists := gauges[name]; exists {
 		return gauge, nil
 	}
 
-	// Check if context is cancelled
+	// Validate metric name only when creating new metric (slow path)
+	if err := validateMetricName(name); err != nil {
+		return nil, err
+	}
+
+	// Check if context is cancelled before expensive operations
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()

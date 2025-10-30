@@ -2,9 +2,7 @@ package metrics
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -96,28 +94,33 @@ func Middleware(config *Config) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Build attributes
-			attributes := []attribute.KeyValue{
-				attribute.String("http.method", r.Method),
-				attribute.String("http.url", r.URL.String()),
-				attribute.String("http.scheme", r.URL.Scheme),
-				attribute.String("http.host", r.Host),
-				attribute.String("http.route", r.URL.Path),
-				attribute.String("http.user_agent", r.UserAgent()),
+			// Pre-allocate attributes slice with estimated capacity to avoid reallocations
+			estimatedCap := 6 // base attributes
+			if r.ContentLength > 0 {
+				estimatedCap++
 			}
+			estimatedCap += len(config.recordHeaders)
 
-			// Record request size if available
+			// Build base attributes
+			attributes := make([]attribute.KeyValue, 6, estimatedCap)
+			attributes[0] = attribute.String("http.method", r.Method)
+			attributes[1] = attribute.String("http.url", r.URL.String())
+			attributes[2] = attribute.String("http.scheme", r.URL.Scheme)
+			attributes[3] = attribute.String("http.host", r.Host)
+			attributes[4] = attribute.String("http.route", r.URL.Path)
+			attributes[5] = attribute.String("http.user_agent", r.UserAgent())
+
+			// Record request size if available (uses pre-allocated capacity)
 			if r.ContentLength > 0 {
 				attributes = append(attributes, attribute.Int64("http.request.size", r.ContentLength))
 			}
 
-			// Record specific headers if configured
-			for _, header := range config.recordHeaders {
+			// Record specific headers if configured (uses pre-allocated capacity and pre-lowercased names)
+			for i, header := range config.recordHeaders {
 				if value := r.Header.Get(header); value != "" {
-					attributes = append(attributes, attribute.String(
-						fmt.Sprintf("http.request.header.%s", strings.ToLower(header)),
-						value,
-					))
+					// Use pre-computed lowercase header name
+					attrKey := "http.request.header." + config.recordHeadersLower[i]
+					attributes = append(attributes, attribute.String(attrKey, value))
 				}
 			}
 

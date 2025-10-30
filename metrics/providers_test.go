@@ -161,7 +161,7 @@ func TestEnvironmentVariables(t *testing.T) {
 			WithServerDisabled(),
 		)
 		require.NoError(t, err)
-		assert.Equal(t, "env-service", config.GetServiceName())
+		assert.Equal(t, "env-service", config.ServiceName())
 
 		config.Shutdown(context.Background())
 	})
@@ -177,7 +177,7 @@ func TestEnvironmentVariables(t *testing.T) {
 			WithServerDisabled(),
 		)
 		require.NoError(t, err)
-		assert.Equal(t, "v2.0.0", config.GetServiceVersion())
+		assert.Equal(t, "v2.0.0", config.ServiceVersion())
 
 		config.Shutdown(context.Background())
 	})
