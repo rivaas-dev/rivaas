@@ -141,6 +141,9 @@ type Config struct {
 	logger         atomic.Pointer[slog.Logger] // Lock-free logger access
 	mu             sync.Mutex                  // Only for initialization, not hot path
 	isShuttingDown atomic.Bool                 // Use atomic for fast shutdown check
+
+	// Global registration control
+	registerGlobal bool // If true, sets slog.SetDefault()
 }
 
 // Option is a functional option for configuring the logger.
@@ -157,17 +160,18 @@ func defaultConfig() *Config {
 		environment:    "development",
 		addSource:      false,
 		debugMode:      false,
+		registerGlobal: false, // Default: no global registration
 	}
 }
 
 // New creates a new logging configuration.
 //
-// IMPORTANT: This function sets the global slog default logger via slog.SetDefault().
-// Only one logging configuration should be active per process. Creating multiple
-// configurations will cause them to overwrite each other's global logger.
+// By default, this function does NOT set the global slog default logger.
+// Use WithGlobalLogger() if you want to register this logger as the global default.
 //
-// For most applications, create a single logging configuration at startup and
-// reuse it throughout the application lifecycle.
+// This allows multiple logging configurations to coexist in the same process,
+// and makes it easier to integrate Rivaas into larger binaries that already
+// manage their own global logger.
 func New(opts ...Option) (*Config, error) {
 	cfg := defaultConfig()
 	cfg.readFromEnv()
@@ -302,7 +306,9 @@ func (c *Config) initializeHandler() error {
 			return ErrNilLogger
 		}
 		c.logger.Store(c.customLogger)
-		slog.SetDefault(c.customLogger)
+		if c.registerGlobal {
+			slog.SetDefault(c.customLogger)
+		}
 		return nil
 	}
 
@@ -326,7 +332,9 @@ func (c *Config) initializeHandler() error {
 
 	newLogger := slog.New(handler)
 	c.logger.Store(newLogger)
-	slog.SetDefault(newLogger)
+	if c.registerGlobal {
+		slog.SetDefault(newLogger)
+	}
 	return nil
 }
 
@@ -757,6 +765,22 @@ func WithCustomLogger(l *slog.Logger) Option {
 	return func(c *Config) {
 		c.customLogger = l
 		c.useCustom = true
+	}
+}
+
+// WithGlobalLogger registers this logger as the global slog default logger.
+// By default, loggers are not registered globally to allow multiple logger
+// instances to coexist in the same process.
+//
+// Example:
+//
+//	logger := logging.New(
+//	    logging.WithJSONHandler(),
+//	    logging.WithGlobalLogger(), // Register as global default
+//	)
+func WithGlobalLogger() Option {
+	return func(c *Config) {
+		c.registerGlobal = true
 	}
 }
 

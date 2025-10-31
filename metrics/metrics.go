@@ -158,14 +158,15 @@ type Config struct {
 	autoStartServer     bool
 	strictPort          bool // If true, fail instead of finding alternative port
 	customMeterProvider bool // If true, user provided their own meter provider
+	registerGlobal      bool // If true, sets otel.SetMeterProvider()
 }
 
 // Option defines functional options for metrics configuration.
 type Option func(*Config)
 
 // WithMeterProvider allows you to provide a custom OpenTelemetry MeterProvider.
-// When using this option, the package will NOT set the global otel.SetMeterProvider(),
-// giving you full control over the meter provider lifecycle and avoiding global state.
+// When using this option, the package will NOT set the global otel.SetMeterProvider()
+// by default. Use WithGlobalMeterProvider() if you want global registration.
 //
 // This is useful when:
 //   - You want to manage the meter provider lifecycle yourself
@@ -187,6 +188,24 @@ func WithMeterProvider(provider metric.MeterProvider) Option {
 	return func(c *Config) {
 		c.meterProvider = provider
 		c.customMeterProvider = true
+		// Note: registerGlobal stays false unless explicitly set
+	}
+}
+
+// WithGlobalMeterProvider registers the meter provider as the global
+// OpenTelemetry meter provider via otel.SetMeterProvider().
+// By default, meter providers are not registered globally to allow multiple
+// metrics configurations to coexist in the same process.
+//
+// Example:
+//
+//	config := metrics.New(
+//	    metrics.WithProvider(metrics.PrometheusProvider),
+//	    metrics.WithGlobalMeterProvider(), // Register as global default
+//	)
+func WithGlobalMeterProvider() Option {
+	return func(c *Config) {
+		c.registerGlobal = true
 	}
 }
 
@@ -313,13 +332,12 @@ func WithLogger(logger logging.Logger) Option {
 // Returns an error if the metrics provider fails to initialize.
 // For a version that panics on error, use MustNew.
 //
-// IMPORTANT: This function sets the global OpenTelemetry meter provider via otel.SetMeterProvider.
-// Creating multiple metrics configurations in the same process will cause them to overwrite each other's
-// global meter provider. This is a limitation of the OpenTelemetry Go SDK. If you need multiple independent
-// metrics configurations, consider running them in separate processes or using separate registries.
+// By default, this function does NOT set the global OpenTelemetry meter provider.
+// Use WithGlobalMeterProvider() if you want to register the meter provider as the global default.
 //
-// For most applications, you should create a single metrics configuration at startup and reuse it
-// throughout the application lifecycle.
+// This allows multiple metrics configurations to coexist in the same process,
+// and makes it easier to integrate Rivaas into larger binaries that already
+// manage their own global meter provider.
 func New(opts ...Option) (*Config, error) {
 	config := newDefaultConfig()
 	config.readFromEnv()
@@ -355,7 +373,8 @@ func newDefaultConfig() *Config {
 		metricsPort:      ":9090",
 		metricsPath:      "/metrics",
 		autoStartServer:  true,
-		maxCustomMetrics: 1000, // Limit to prevent memory leaks
+		maxCustomMetrics: 1000,  // Limit to prevent memory leaks
+		registerGlobal:   false, // Default: no global registration
 	}
 
 	config.initAtomicMaps()

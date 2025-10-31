@@ -66,10 +66,13 @@ func (c *Config) initPrometheusProvider() error {
 		promhttp.HandlerOpts{},
 	)
 
-	// Set global meter provider
-	// WARNING: This overwrites any previously set global meter provider
-	c.logDebug("Setting global OpenTelemetry meter provider", "provider", "prometheus")
-	otel.SetMeterProvider(c.meterProvider)
+	// Set global meter provider only if requested
+	if c.registerGlobal {
+		c.logDebug("Setting global OpenTelemetry meter provider", "provider", "prometheus")
+		otel.SetMeterProvider(c.meterProvider)
+	} else {
+		c.logDebug("Skipping global meter provider registration", "provider", "prometheus")
+	}
 
 	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
 
@@ -128,10 +131,13 @@ func (c *Config) initOTLPProvider() error {
 		sdkmetric.WithReader(reader),
 	)
 
-	// Set global meter provider
-	// WARNING: This overwrites any previously set global meter provider
-	c.logDebug("Setting global OpenTelemetry meter provider", "provider", "otlp")
-	otel.SetMeterProvider(c.meterProvider)
+	// Set global meter provider only if requested
+	if c.registerGlobal {
+		c.logDebug("Setting global OpenTelemetry meter provider", "provider", "otlp")
+		otel.SetMeterProvider(c.meterProvider)
+	} else {
+		c.logDebug("Skipping global meter provider registration", "provider", "otlp")
+	}
 
 	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
 	return c.initializeMetrics()
@@ -153,10 +159,13 @@ func (c *Config) initStdoutProvider() error {
 		sdkmetric.WithReader(reader),
 	)
 
-	// Set global meter provider
-	// WARNING: This overwrites any previously set global meter provider
-	c.logDebug("Setting global OpenTelemetry meter provider", "provider", "stdout")
-	otel.SetMeterProvider(c.meterProvider)
+	// Set global meter provider only if requested
+	if c.registerGlobal {
+		c.logDebug("Setting global OpenTelemetry meter provider", "provider", "stdout")
+		otel.SetMeterProvider(c.meterProvider)
+	} else {
+		c.logDebug("Skipping global meter provider registration", "provider", "stdout")
+	}
 
 	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
 	return c.initializeMetrics()

@@ -200,6 +200,7 @@ type Config struct {
 	otlpInsecure         bool
 	enabled              bool
 	customTracerProvider bool
+	registerGlobal       bool // If true, sets otel.SetTracerProvider()
 
 	// String pool for reducing allocations
 	spanNamePool sync.Pool
@@ -210,8 +211,8 @@ type Config struct {
 type Option func(*Config)
 
 // WithTracerProvider allows you to provide a custom OpenTelemetry TracerProvider.
-// When using this option, the package will NOT set the global otel.SetTracerProvider(),
-// giving you full control over the tracer provider lifecycle and avoiding global state.
+// When using this option, the package will NOT set the global otel.SetTracerProvider()
+// by default. Use WithGlobalTracerProvider() if you want global registration.
 //
 // This is useful when:
 //   - You want to manage the tracer provider lifecycle yourself
@@ -237,6 +238,24 @@ func WithTracerProvider(provider *sdktrace.TracerProvider) Option {
 	return func(c *Config) {
 		c.tracerProvider = provider
 		c.customTracerProvider = true
+		// Note: registerGlobal stays false unless explicitly set
+	}
+}
+
+// WithGlobalTracerProvider registers the tracer provider as the global
+// OpenTelemetry tracer provider via otel.SetTracerProvider().
+// By default, tracer providers are not registered globally to allow multiple
+// tracing configurations to coexist in the same process.
+//
+// Example:
+//
+//	config := tracing.New(
+//	    tracing.WithProvider(tracing.OTLPProvider),
+//	    tracing.WithGlobalTracerProvider(), // Register as global default
+//	)
+func WithGlobalTracerProvider() Option {
+	return func(c *Config) {
+		c.registerGlobal = true
 	}
 }
 
@@ -554,13 +573,12 @@ func WithSpanFinishHook(hook SpanFinishHook) Option {
 // Returns an error if the tracing provider fails to initialize.
 // For a version that panics on error, use MustNew.
 //
-// IMPORTANT: This function sets the global OpenTelemetry tracer provider via otel.SetTracerProvider.
-// Creating multiple tracing configurations in the same process will cause them to overwrite each other's
-// global tracer provider. This is a limitation of the OpenTelemetry Go SDK. If you need multiple independent
-// tracing configurations, consider running them in separate processes.
+// By default, this function does NOT set the global OpenTelemetry tracer provider.
+// Use WithGlobalTracerProvider() if you want to register the tracer provider as the global default.
 //
-// For most applications, you should create a single tracing configuration at startup and reuse it
-// throughout the application lifecycle.
+// This allows multiple tracing configurations to coexist in the same process,
+// and makes it easier to integrate Rivaas into larger binaries that already
+// manage their own global tracer provider.
 //
 // Default configuration:
 //   - Service name: DefaultServiceName ("rivaas-service")

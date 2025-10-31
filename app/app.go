@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -55,24 +56,34 @@ type config struct {
 	logging        *loggingConfig
 	server         *serverConfig
 	middleware     *middlewareConfig
+	router         *routerConfig
 }
 
 // metricsConfig holds metrics configuration.
 type metricsConfig struct {
-	enabled bool
-	options []metrics.Option
+	enabled       bool
+	options       []metrics.Option
+	config        *metrics.Config // Pre-initialized config
+	usePrebuilt   bool            // Whether to use prebuilt config
+	needsMetadata bool            // Whether metadata should be injected at assembly time
 }
 
 // tracingConfig holds tracing configuration.
 type tracingConfig struct {
-	enabled bool
-	options []tracing.Option
+	enabled       bool
+	options       []tracing.Option
+	config        *tracing.Config // Pre-initialized config
+	usePrebuilt   bool            // Whether to use prebuilt config
+	needsMetadata bool            // Whether metadata should be injected at assembly time
 }
 
 // loggingConfig holds logging configuration.
 type loggingConfig struct {
-	enabled bool
-	options []logging.Option
+	enabled       bool
+	options       []logging.Option
+	config        *logging.Config // Pre-initialized config
+	usePrebuilt   bool            // Whether to use prebuilt config
+	needsMetadata bool            // Whether metadata should be injected at assembly time
 }
 
 // serverConfig holds server configuration.
@@ -89,6 +100,11 @@ type serverConfig struct {
 type middlewareConfig struct {
 	includeLogger   bool
 	includeRecovery bool
+}
+
+// routerConfig holds router configuration options.
+type routerConfig struct {
+	options []router.Option
 }
 
 // ServerConfig is the public server configuration struct used by functional options.
@@ -157,28 +173,26 @@ func WithLogging(opts ...logging.Option) Option {
 }
 
 // WithObservability enables metrics, tracing, and logging with default options.
+// Metadata (service name, version, environment) is injected at assembly time,
+// making option order irrelevant.
 func WithObservability() Option {
 	return func(c *config) {
 		c.metrics = &metricsConfig{
-			enabled: true,
-			options: []metrics.Option{
-				metrics.WithServiceName(c.serviceName),
-				metrics.WithServiceVersion(c.serviceVersion),
-			},
+			enabled:       true,
+			options:       []metrics.Option{},
+			needsMetadata: true,
 		}
 		c.tracing = &tracingConfig{
-			enabled: true,
-			options: []tracing.Option{
-				tracing.WithServiceName(c.serviceName),
-				tracing.WithServiceVersion(c.serviceVersion),
-			},
+			enabled:       true,
+			options:       []tracing.Option{},
+			needsMetadata: true,
 		}
 		c.logging = &loggingConfig{
 			enabled: true,
 			options: []logging.Option{
 				logging.WithJSONHandler(),
-				logging.WithServiceInfo(c.serviceName, c.serviceVersion, c.environment),
 			},
+			needsMetadata: true,
 		}
 	}
 }
@@ -243,6 +257,101 @@ func WithMiddleware(includeLogger, includeRecovery bool) Option {
 	}
 }
 
+// WithRouterOptions passes router options through to the underlying router.
+// This allows fine-tuning router performance settings like Bloom filter sizing,
+// cancellation checks, template routing, and versioning configuration.
+//
+// Example:
+//
+//	app := app.New(
+//	    app.WithServiceName("my-service"),
+//	    app.WithRouterOptions(
+//	        router.WithBloomFilterSize(2000),
+//	        router.WithCancellationCheck(false),
+//	        router.WithTemplateRouting(true),
+//	        router.WithVersioning(),
+//	    ),
+//	)
+//
+// Multiple calls to WithRouterOptions are supported and will accumulate options.
+func WithRouterOptions(opts ...router.Option) Option {
+	return func(c *config) {
+		if c.router == nil {
+			c.router = &routerConfig{}
+		}
+		c.router.options = append(c.router.options, opts...)
+	}
+}
+
+// WithLoggingConfig uses a pre-initialized logging configuration instead of
+// creating a new one. This allows you to manage the logger lifecycle yourself
+// and avoid global state registration conflicts.
+//
+// Example:
+//
+//	logger := logging.MustNew(logging.WithJSONHandler())
+//	app := app.New(
+//	    app.WithLoggingConfig(logger),
+//	)
+func WithLoggingConfig(logCfg *logging.Config) Option {
+	return func(c *config) {
+		if logCfg == nil {
+			return
+		}
+		c.logging = &loggingConfig{
+			enabled:     true,
+			config:      logCfg,
+			usePrebuilt: true,
+		}
+	}
+}
+
+// WithMetricsConfig uses a pre-initialized metrics configuration instead of
+// creating a new one. This allows you to manage the metrics lifecycle yourself
+// and avoid global state registration conflicts.
+//
+// Example:
+//
+//	metricsConfig := metrics.MustNew(metrics.WithProvider(metrics.PrometheusProvider))
+//	app := app.New(
+//	    app.WithMetricsConfig(metricsConfig),
+//	)
+func WithMetricsConfig(metricsCfg *metrics.Config) Option {
+	return func(c *config) {
+		if metricsCfg == nil {
+			return
+		}
+		c.metrics = &metricsConfig{
+			enabled:     true,
+			config:      metricsCfg,
+			usePrebuilt: true,
+		}
+	}
+}
+
+// WithTracingConfig uses a pre-initialized tracing configuration instead of
+// creating a new one. This allows you to manage the tracing lifecycle yourself
+// and avoid global state registration conflicts.
+//
+// Example:
+//
+//	tracingConfig := tracing.MustNew(tracing.WithProvider(tracing.OTLPProvider))
+//	app := app.New(
+//	    app.WithTracingConfig(tracingConfig),
+//	)
+func WithTracingConfig(tracingCfg *tracing.Config) Option {
+	return func(c *config) {
+		if tracingCfg == nil {
+			return
+		}
+		c.tracing = &tracingConfig{
+			enabled:     true,
+			config:      tracingCfg,
+			usePrebuilt: true,
+		}
+	}
+}
+
 // validate checks if the configuration is valid.
 func (c *config) validate() error {
 	if c.serviceName == "" {
@@ -285,6 +394,31 @@ func (c *config) validate() error {
 	return nil
 }
 
+// injectObservabilityMetadata injects service metadata into observability configs
+// that were marked as needing metadata injection. This allows option order to be
+// irrelevant when using WithObservability().
+func injectObservabilityMetadata(cfg *config) {
+	if cfg.metrics != nil && cfg.metrics.enabled && cfg.metrics.needsMetadata && !cfg.metrics.usePrebuilt {
+		cfg.metrics.options = append(cfg.metrics.options,
+			metrics.WithServiceName(cfg.serviceName),
+			metrics.WithServiceVersion(cfg.serviceVersion),
+		)
+	}
+
+	if cfg.tracing != nil && cfg.tracing.enabled && cfg.tracing.needsMetadata && !cfg.tracing.usePrebuilt {
+		cfg.tracing.options = append(cfg.tracing.options,
+			tracing.WithServiceName(cfg.serviceName),
+			tracing.WithServiceVersion(cfg.serviceVersion),
+		)
+	}
+
+	if cfg.logging != nil && cfg.logging.enabled && cfg.logging.needsMetadata && !cfg.logging.usePrebuilt {
+		cfg.logging.options = append(cfg.logging.options,
+			logging.WithServiceInfo(cfg.serviceName, cfg.serviceVersion, cfg.environment),
+		)
+	}
+}
+
 // defaultConfig returns a configuration with sensible defaults.
 func defaultConfig() *config {
 	return &config{
@@ -317,6 +451,10 @@ func New(opts ...Option) (*App, error) {
 		opt(cfg)
 	}
 
+	// Inject metadata into observability configs that need it
+	// This must happen after all options are applied so option order doesn't matter
+	injectObservabilityMetadata(cfg)
+
 	// Set middleware defaults based on environment if not explicitly configured
 	if cfg.environment == EnvironmentDevelopment && !cfg.middleware.includeLogger {
 		cfg.middleware.includeLogger = true
@@ -327,8 +465,12 @@ func New(opts ...Option) (*App, error) {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	// Create router
-	r := router.New()
+	// Create router with options if provided
+	var routerOpts []router.Option
+	if cfg.router != nil {
+		routerOpts = cfg.router.options
+	}
+	r := router.New(routerOpts...)
 
 	// Create app
 	app := &App{
@@ -338,30 +480,51 @@ func New(opts ...Option) (*App, error) {
 
 	// Initialize observability
 	if cfg.logging != nil && cfg.logging.enabled {
-		loggingConfig, err := logging.New(cfg.logging.options...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize logging: %w", err)
+		if cfg.logging.usePrebuilt {
+			// Use pre-provided logging config
+			app.logging = cfg.logging.config
+			r.SetLogger(app.logging)
+		} else {
+			// Initialize new logging config
+			loggingConfig, err := logging.New(cfg.logging.options...)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize logging: %w", err)
+			}
+			app.logging = loggingConfig
+			r.SetLogger(app.logging)
 		}
-		app.logging = loggingConfig
-		r.SetLogger(app.logging)
 	}
 
 	if cfg.metrics != nil && cfg.metrics.enabled {
-		metricsConfig, err := metrics.New(cfg.metrics.options...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize metrics: %w", err)
+		if cfg.metrics.usePrebuilt {
+			// Use pre-provided metrics config
+			app.metrics = cfg.metrics.config
+			r.SetMetricsRecorder(app.metrics)
+		} else {
+			// Initialize new metrics config
+			metricsConfig, err := metrics.New(cfg.metrics.options...)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize metrics: %w", err)
+			}
+			app.metrics = metricsConfig
+			r.SetMetricsRecorder(app.metrics)
 		}
-		app.metrics = metricsConfig
-		r.SetMetricsRecorder(app.metrics)
 	}
 
 	if cfg.tracing != nil && cfg.tracing.enabled {
-		tracingConfig, err := tracing.New(cfg.tracing.options...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize tracing: %w", err)
+		if cfg.tracing.usePrebuilt {
+			// Use pre-provided tracing config
+			app.tracing = cfg.tracing.config
+			r.SetTracingRecorder(app.tracing)
+		} else {
+			// Initialize new tracing config
+			tracingConfig, err := tracing.New(cfg.tracing.options...)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize tracing: %w", err)
+			}
+			app.tracing = tracingConfig
+			r.SetTracingRecorder(app.tracing)
 		}
-		app.tracing = tracingConfig
-		r.SetTracingRecorder(app.tracing)
 	}
 
 	// Add default middleware based on configuration
@@ -447,6 +610,125 @@ func (a *App) Static(prefix, root string) {
 	a.router.Static(prefix, root)
 }
 
+// serverStartFunc defines the function type for starting a server.
+type serverStartFunc func() error
+
+// logLifecycleEvent logs a lifecycle event using structured logging if available,
+// otherwise falls back to the standard library log package.
+func (a *App) logLifecycleEvent(level slog.Level, msg string, args ...any) {
+	if a.logging != nil {
+		logger := a.logging.Logger()
+		if logger.Enabled(context.Background(), level) {
+			logger.Log(context.Background(), level, msg, args...)
+		}
+	} else {
+		// Fall back to stdlib log for backwards compatibility
+		if len(args) == 0 {
+			log.Println(msg)
+		} else {
+			// Format key-value pairs for stdlib log
+			logMsg := msg
+			for i := 0; i < len(args)-1; i += 2 {
+				if key, ok := args[i].(string); ok {
+					logMsg += fmt.Sprintf(" %s=%v", key, args[i+1])
+				}
+			}
+			log.Println(logMsg)
+		}
+	}
+}
+
+// logStartupInfo logs startup information including address, environment, and observability status.
+func (a *App) logStartupInfo(addr, protocol string) {
+	attrs := []any{
+		"address", addr,
+		"environment", a.config.environment,
+		"protocol", protocol,
+	}
+
+	if a.metrics != nil {
+		attrs = append(attrs, "metrics_enabled", true, "metrics_address", a.metrics.GetServerAddress())
+	}
+
+	a.logLifecycleEvent(slog.LevelInfo, "server starting", attrs...)
+
+	if a.tracing != nil {
+		a.logLifecycleEvent(slog.LevelInfo, "tracing enabled")
+	}
+}
+
+// printRoutesIfDev prints registered routes if in development mode.
+func (a *App) printRoutesIfDev() {
+	if a.config.environment == EnvironmentDevelopment {
+		if a.logging != nil {
+			logger := a.logging.Logger()
+			logger.Info("registered routes", "routes_header", "\n📋 Registered Routes:")
+		} else {
+			log.Println("\n📋 Registered Routes:")
+		}
+		a.router.PrintRoutes()
+		log.Println()
+	}
+}
+
+// shutdownObservability gracefully shuts down all enabled observability components.
+func (a *App) shutdownObservability(ctx context.Context) {
+	// Shutdown metrics if running
+	if a.metrics != nil {
+		if err := a.metrics.Shutdown(ctx); err != nil {
+			a.logLifecycleEvent(slog.LevelWarn, "metrics shutdown failed", "error", err)
+		}
+	}
+
+	// Shutdown tracing if running
+	if a.tracing != nil {
+		if err := a.tracing.Shutdown(ctx); err != nil {
+			a.logLifecycleEvent(slog.LevelWarn, "tracing shutdown failed", "error", err)
+		}
+	}
+}
+
+// runServer handles the common lifecycle logic for starting and shutting down an HTTP server.
+// It accepts an http.Server and a startFunc (either ListenAndServe or ListenAndServeTLS).
+func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol string) error {
+	// Start server in a goroutine
+	serverErr := make(chan error, 1)
+	go func() {
+		a.logStartupInfo(server.Addr, protocol)
+		a.printRoutesIfDev()
+
+		if err := startFunc(); err != nil && err != http.ErrServerClosed {
+			serverErr <- fmt.Errorf("%s server failed to start: %w", protocol, err)
+		}
+	}()
+
+	// Wait for interrupt signal or server error
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-serverErr:
+		return err
+	case <-quit:
+		a.logLifecycleEvent(slog.LevelInfo, "server shutting down", "protocol", protocol)
+	}
+
+	// Create a deadline for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), a.config.server.shutdownTimeout)
+	defer cancel()
+
+	// Shutdown the server
+	if err := server.Shutdown(ctx); err != nil {
+		return fmt.Errorf("%s server forced to shutdown: %w", protocol, err)
+	}
+
+	// Shutdown observability components (metrics and tracing)
+	a.shutdownObservability(ctx)
+
+	a.logLifecycleEvent(slog.LevelInfo, "server exited", "protocol", protocol)
+	return nil
+}
+
 // Run starts the HTTP server with graceful shutdown.
 func (a *App) Run(addr string) error {
 	server := &http.Server{
@@ -459,58 +741,7 @@ func (a *App) Run(addr string) error {
 		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
 	}
 
-	// Start server in a goroutine
-	serverErr := make(chan error, 1)
-	go func() {
-		log.Printf("🚀 Server starting on %s (environment: %s)", addr, a.config.environment)
-		if a.metrics != nil {
-			log.Printf("📊 Metrics enabled: %s", a.metrics.GetServerAddress())
-		}
-		if a.tracing != nil {
-			log.Printf("🔍 Tracing enabled")
-		}
-
-		// Print routes in development mode
-		if a.config.environment == EnvironmentDevelopment {
-			log.Println("\n📋 Registered Routes:")
-			a.router.PrintRoutes()
-			log.Println()
-		}
-
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErr <- fmt.Errorf("server failed to start: %w", err)
-		}
-	}()
-
-	// Wait for interrupt signal or server error
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case err := <-serverErr:
-		return err
-	case <-quit:
-		log.Println("🛑 Server shutting down...")
-	}
-
-	// Create a deadline for shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), a.config.server.shutdownTimeout)
-	defer cancel()
-
-	// Shutdown the server
-	if err := server.Shutdown(ctx); err != nil {
-		return fmt.Errorf("server forced to shutdown: %w", err)
-	}
-
-	// Shutdown metrics if running
-	if a.metrics != nil {
-		if err := a.metrics.Shutdown(ctx); err != nil {
-			log.Printf("Failed to shutdown metrics: %v", err)
-		}
-	}
-
-	log.Println("✅ Server exited")
-	return nil
+	return a.runServer(server, server.ListenAndServe, "HTTP")
 }
 
 // RunTLS starts the HTTPS server with graceful shutdown.
@@ -525,58 +756,9 @@ func (a *App) RunTLS(addr, certFile, keyFile string) error {
 		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
 	}
 
-	// Start server in a goroutine
-	serverErr := make(chan error, 1)
-	go func() {
-		log.Printf("🚀 HTTPS server starting on %s (environment: %s)", addr, a.config.environment)
-		if a.metrics != nil {
-			log.Printf("📊 Metrics enabled: %s", a.metrics.GetServerAddress())
-		}
-		if a.tracing != nil {
-			log.Printf("🔍 Tracing enabled")
-		}
-
-		// Print routes in development mode
-		if a.config.environment == EnvironmentDevelopment {
-			log.Println("\n📋 Registered Routes:")
-			a.router.PrintRoutes()
-			log.Println()
-		}
-
-		if err := server.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
-			serverErr <- fmt.Errorf("HTTPS server failed to start: %w", err)
-		}
-	}()
-
-	// Wait for interrupt signal or server error
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case err := <-serverErr:
-		return err
-	case <-quit:
-		log.Println("🛑 HTTPS server shutting down...")
-	}
-
-	// Create a deadline for shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), a.config.server.shutdownTimeout)
-	defer cancel()
-
-	// Shutdown the server
-	if err := server.Shutdown(ctx); err != nil {
-		return fmt.Errorf("HTTPS server forced to shutdown: %w", err)
-	}
-
-	// Shutdown metrics if running
-	if a.metrics != nil {
-		if err := a.metrics.Shutdown(ctx); err != nil {
-			log.Printf("Failed to shutdown metrics: %v", err)
-		}
-	}
-
-	log.Println("✅ HTTPS server exited")
-	return nil
+	return a.runServer(server, func() error {
+		return server.ListenAndServeTLS(certFile, keyFile)
+	}, "HTTPS")
 }
 
 // GetMetricsHandler returns the metrics HTTP handler if metrics are enabled.
