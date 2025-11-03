@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -258,9 +259,7 @@ func (c *Context) BindParams(out any) error {
 	}
 
 	// Copy from map (fallback for >8 params)
-	for k, v := range c.Params {
-		allParams[k] = v
-	}
+	maps.Copy(allParams, c.Params)
 
 	return bind(out, &paramsGetter{allParams}, "params")
 }
@@ -917,8 +916,9 @@ func parseTime(value string) (time.Time, error) {
 //	→ map[string]string{"db.host": "localhost", "db.port": "5432"}
 func setMapField(field reflect.Value, getter valueGetter, prefix string, fieldType reflect.Type) error {
 	mapType := fieldType
-	if mapType.Kind() == reflect.Ptr {
-		mapType = mapType.Elem()
+	isPtr := mapType.Kind() == reflect.Ptr
+	if isPtr {
+		mapType = mapType.Elem() // Extract element type from pointer
 	}
 
 	// Only support map[string]T
@@ -926,9 +926,20 @@ func setMapField(field reflect.Value, getter valueGetter, prefix string, fieldTy
 		return fmt.Errorf("only map[string]T is supported, got %v", mapType)
 	}
 
-	// Create map if needed
-	if field.IsNil() {
-		field.Set(reflect.MakeMap(mapType))
+	// Get the actual map value (dereference if pointer)
+	mapField := field
+	if isPtr {
+		if field.IsNil() {
+			ptr := reflect.New(mapType)
+			ptr.Elem().Set(reflect.MakeMap(mapType))
+			field.Set(ptr)
+		}
+		mapField = field.Elem()
+	} else {
+		// Create map if needed
+		if mapField.IsNil() {
+			mapField.Set(reflect.MakeMap(mapType))
+		}
 	}
 
 	prefixDot := prefix + "."
@@ -966,7 +977,7 @@ func setMapField(field reflect.Value, getter valueGetter, prefix string, fieldTy
 				return fmt.Errorf("key %q: %w", mapKey, err)
 			}
 
-			field.SetMapIndex(reflect.ValueOf(mapKey), convertedValue)
+			mapField.SetMapIndex(reflect.ValueOf(mapKey), convertedValue)
 		}
 	}
 
@@ -995,7 +1006,7 @@ func setMapField(field reflect.Value, getter valueGetter, prefix string, fieldTy
 				return fmt.Errorf("key %q: %w", mapKey, err)
 			}
 
-			field.SetMapIndex(reflect.ValueOf(mapKey), convertedValue)
+			mapField.SetMapIndex(reflect.ValueOf(mapKey), convertedValue)
 		}
 	}
 

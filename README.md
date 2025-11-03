@@ -53,7 +53,9 @@ func main() {
     // Create app with observability
     app := app.New(
         app.WithServiceName("my-api"),
-        app.WithObservability(), // Enables metrics + tracing
+        app.WithMetrics(),
+        app.WithTracing(),
+        app.WithLogging(),
     )
 
     // Register routes
@@ -150,11 +152,21 @@ app := app.New(
     app.WithServiceName("my-api"),
     app.WithVersion("v1.0.0"),
     app.WithEnvironment("production"),
-    app.WithObservability(), // Enables logging, metrics, and tracing
-    app.WithServerConfig(&app.ServerConfig{
-        ReadTimeout:  15 * time.Second,
-        WriteTimeout: 15 * time.Second,
-    }),
+    app.WithMetrics(
+        metrics.WithProvider(metrics.PrometheusProvider),
+        metrics.WithPort(":9090"),
+    ),
+    app.WithTracing(
+        tracing.WithSampleRate(0.1),
+        tracing.WithExcludePaths("/health"),
+    ),
+    app.WithLogging(
+        logging.WithJSONHandler(),
+    ),
+    app.WithServerConfig(
+        app.WithReadTimeout(15 * time.Second),
+        app.WithWriteTimeout(15 * time.Second),
+    ),
 )
 
 // Logging configuration
@@ -323,7 +335,11 @@ import (
 )
 
 func main() {
-    app := app.New(app.WithObservability())
+    app := app.New(
+        app.WithMetrics(),
+        app.WithTracing(),
+        app.WithLogging(),
+    )
 
     app.GET("/users/:id", func(c *router.Context) {
         userID := c.Param("id")
@@ -359,7 +375,11 @@ import (
 func main() {
     db, _ := sql.Open("postgres", "postgres://...")
     
-    app := app.New(app.WithObservability())
+    app := app.New(
+        app.WithMetrics(),
+        app.WithTracing(),
+        app.WithLogging(),
+    )
 
     app.GET("/users/:id", func(c *router.Context) {
         userID := c.Param("id")

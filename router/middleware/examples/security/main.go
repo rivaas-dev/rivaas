@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"net/http"
+	"os"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware"
+	"rivaas.dev/router/middleware/security"
 )
 
 func main() {
@@ -25,25 +25,44 @@ func main() {
 	// Example 4: Development vs Production
 	environmentExample(r)
 
-	fmt.Println("Server starting on :8080")
-	fmt.Println("Try these endpoints:")
-	fmt.Println("  - GET /basic - Basic security headers")
-	fmt.Println("  - GET /webapp - Web app with custom CSP")
-	fmt.Println("  - GET /api/data - API with strict security")
-	fmt.Println("  - GET /dev - Development security (relaxed)")
-	fmt.Println("  - GET /prod - Production security (strict)")
-	fmt.Println("")
-	fmt.Println("Check headers with: curl -I http://localhost:8080/basic")
+	// Example 5: All available options (reference)
+	allOptionsExample(r)
 
-	if err := http.ListenAndServe(":8080", r); err != nil {
-		log.Fatal(err)
-	}
+	// Example 6: CSP builder pattern
+	cspBuilderExample(r)
+
+	// Create a logger with clean, colorful output
+	logger := log.NewWithOptions(os.Stderr, log.Options{
+		ReportTimestamp: false,
+		ReportCaller:    false,
+	})
+
+	logger.Info("🚀 Server starting on http://localhost:8080")
+	logger.Print("")
+	logger.Print("📝 Available endpoints:")
+	logger.Print("  GET /basic      - Basic security headers")
+	logger.Print("  GET /webapp     - Web app with custom CSP")
+	logger.Print("  GET /api/data   - API with strict security")
+	logger.Print("  GET /dev        - Development security (relaxed)")
+	logger.Print("  GET /prod       - Production security (strict)")
+	logger.Print("  GET /all        - All available options")
+	logger.Print("  GET /builder    - CSP builder pattern")
+	logger.Print("")
+	logger.Print("📋 Example commands:")
+	logger.Print("  curl -I http://localhost:8080/basic")
+	logger.Print("  curl -I http://localhost:8080/webapp")
+	logger.Print("  curl -I http://localhost:8080/api/data")
+	logger.Print("")
+	logger.Print("💡 Tip: Check /all and /builder endpoints for advanced patterns")
+	logger.Print("")
+
+	logger.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Basic security with secure defaults
 func basicExample(r *router.Router) {
 	// Use default secure headers
-	r.Use(middleware.Security())
+	r.Use(security.New())
 
 	r.GET("/basic", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
@@ -58,9 +77,9 @@ func webAppExample(r *router.Router) {
 	webapp := r.Group("/webapp")
 
 	// Web app with custom Content Security Policy
-	webapp.Use(middleware.Security(
-		middleware.WithFrameOptions("SAMEORIGIN"), // Allow embedding in same origin
-		middleware.WithContentSecurityPolicy(
+	webapp.Use(security.New(
+		security.WithFrameOptions("SAMEORIGIN"), // Allow embedding in same origin
+		security.WithContentSecurityPolicy(
 			// Allow scripts and styles from self and CDN
 			"default-src 'self'; "+
 				"script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; "+
@@ -69,8 +88,8 @@ func webAppExample(r *router.Router) {
 				"img-src 'self' data: https:; "+
 				"connect-src 'self' https://api.example.com",
 		),
-		middleware.WithReferrerPolicy("strict-origin-when-cross-origin"),
-		middleware.WithPermissionsPolicy(
+		security.WithReferrerPolicy("strict-origin-when-cross-origin"),
+		security.WithPermissionsPolicy(
 			// Restrict powerful browser features
 			"geolocation=(), microphone=(), camera=(), payment=()",
 		),
@@ -98,12 +117,12 @@ func apiExample(r *router.Router) {
 	api := r.Group("/api")
 
 	// API with strict security
-	api.Use(middleware.Security(
-		middleware.WithFrameOptions("DENY"), // APIs don't need to be framed
-		middleware.WithContentTypeNosniff(true),
-		middleware.WithContentSecurityPolicy("default-src 'none'"), // APIs don't need CSP for rendering
-		middleware.WithReferrerPolicy("no-referrer"),               // Don't leak referrer in API calls
-		middleware.WithHSTS(63072000, true, false),                 // 2 years HSTS
+	api.Use(security.New(
+		security.WithFrameOptions("DENY"), // APIs don't need to be framed
+		security.WithContentTypeNosniff(true),
+		security.WithContentSecurityPolicy("default-src 'none'"), // APIs don't need CSP for rendering
+		security.WithReferrerPolicy("no-referrer"),               // Don't leak referrer in API calls
+		security.WithHSTS(63072000, true, false),                 // 2 years HSTS
 	))
 
 	api.GET("/data", func(c *router.Context) {
@@ -121,7 +140,11 @@ func apiExample(r *router.Router) {
 func environmentExample(r *router.Router) {
 	// Development security (relaxed for easier development)
 	dev := r.Group("/dev")
-	dev.Use(middleware.DevelopmentSecurity())
+	dev.Use(security.New(
+		security.WithFrameOptions("SAMEORIGIN"),
+		security.WithContentSecurityPolicy("default-src 'self' 'unsafe-inline' 'unsafe-eval'"),
+		security.WithHSTS(0, false, false), // Disable HSTS in development
+	))
 
 	dev.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
@@ -133,14 +156,14 @@ func environmentExample(r *router.Router) {
 
 	// Production security (strict)
 	prod := r.Group("/prod")
-	prod.Use(middleware.Security(
-		middleware.WithFrameOptions("DENY"),
-		middleware.WithContentSecurityPolicy(
+	prod.Use(security.New(
+		security.WithFrameOptions("DENY"),
+		security.WithContentSecurityPolicy(
 			"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'",
 		),
-		middleware.WithHSTS(63072000, true, true), // 2 years, subdomains, preload
-		middleware.WithReferrerPolicy("strict-origin-when-cross-origin"),
-		middleware.WithPermissionsPolicy("geolocation=(), microphone=(), camera=()"),
+		security.WithHSTS(63072000, true, true), // 2 years, subdomains, preload
+		security.WithReferrerPolicy("strict-origin-when-cross-origin"),
+		security.WithPermissionsPolicy("geolocation=(), microphone=(), camera=()"),
 	))
 
 	prod.GET("", func(c *router.Context) {
@@ -151,29 +174,38 @@ func environmentExample(r *router.Router) {
 	})
 }
 
-// Example showing all available options
-func allOptionsExample() *router.Router {
-	r := router.New()
+// Example 5: All available options (reference)
+func allOptionsExample(r *router.Router) {
+	all := r.Group("/all")
 
-	r.Use(middleware.Security(
+	// Demonstrates all available security options:
+	//   - X-Frame-Options (DENY/SAMEORIGIN)
+	//   - X-Content-Type-Options (MIME-sniffing protection)
+	//   - X-XSS-Protection (legacy browser support)
+	//   - HSTS (HTTP Strict Transport Security)
+	//   - Content-Security-Policy (comprehensive CSP)
+	//   - Referrer-Policy
+	//   - Permissions-Policy (browser feature control)
+	//   - Custom security headers
+	all.Use(security.New(
 		// X-Frame-Options: Controls if page can be embedded in iframe
-		middleware.WithFrameOptions("DENY"), // or "SAMEORIGIN"
+		security.WithFrameOptions("DENY"), // or "SAMEORIGIN"
 
 		// X-Content-Type-Options: Prevents MIME-sniffing
-		middleware.WithContentTypeNosniff(true),
+		security.WithContentTypeNosniff(true),
 
 		// X-XSS-Protection: XSS filter (deprecated but still useful for old browsers)
-		middleware.WithXSSProtection("1; mode=block"),
+		security.WithXSSProtection("1; mode=block"),
 
 		// HSTS: Force HTTPS for specified duration
-		middleware.WithHSTS(
+		security.WithHSTS(
 			63072000, // 2 years in seconds
 			true,     // includeSubDomains
 			true,     // preload (for HSTS preload list)
 		),
 
 		// Content-Security-Policy: Comprehensive security policy
-		middleware.WithContentSecurityPolicy(
+		security.WithContentSecurityPolicy(
 			"default-src 'self'; "+
 				"script-src 'self' https://trusted-cdn.com; "+
 				"style-src 'self' 'unsafe-inline'; "+
@@ -186,25 +218,24 @@ func allOptionsExample() *router.Router {
 		),
 
 		// Referrer-Policy: Control referrer information
-		middleware.WithReferrerPolicy("strict-origin-when-cross-origin"),
+		security.WithReferrerPolicy("strict-origin-when-cross-origin"),
 
 		// Permissions-Policy: Control browser features
-		middleware.WithPermissionsPolicy(
+		security.WithPermissionsPolicy(
 			"geolocation=(), microphone=(), camera=(), payment=(), usb=()",
 		),
 
 		// Custom security headers
-		middleware.WithCustomHeader("X-Custom-Security", "enabled"),
-		middleware.WithCustomHeader("X-API-Version", "v1"),
+		security.WithCustomHeader("X-Custom-Security", "enabled"),
+		security.WithCustomHeader("X-API-Version", "v1"),
 	))
 
-	r.GET("/", func(c *router.Context) {
+	all.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
 			"message": "All security options enabled",
+			"note":    "Check response headers to see all options",
 		})
 	})
-
-	return r
 }
 
 // CSP Builder helper (in a real app, you might want this)
@@ -246,8 +277,9 @@ func (b *CSPBuilder) Build() string {
 	return strings.Join(parts, "; ")
 }
 
-func cspBuilderExample() {
-	r := router.New()
+// Example 6: CSP builder pattern
+func cspBuilderExample(r *router.Router) {
+	builder := r.Group("/builder")
 
 	// Use CSP builder for cleaner configuration
 	csp := NewCSPBuilder().
@@ -257,11 +289,15 @@ func cspBuilderExample() {
 		ImgSrc("'self'", "data:", "https:").
 		Build()
 
-	r.Use(middleware.Security(
-		middleware.WithContentSecurityPolicy(csp),
+	builder.Use(security.New(
+		security.WithContentSecurityPolicy(csp),
 	))
 
-	r.GET("/", func(c *router.Context) {
-		c.String(http.StatusOK, "CSP configured with builder pattern")
+	builder.GET("", func(c *router.Context) {
+		c.JSON(http.StatusOK, map[string]any{
+			"message": "CSP configured with builder pattern",
+			"csp":     csp,
+			"note":    "Check response headers for Content-Security-Policy",
+		})
 	})
 }

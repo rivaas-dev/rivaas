@@ -45,7 +45,7 @@ func BenchmarkRouter(b *testing.B) {
 	}
 
 	// Warm up all optimizations for performance
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Test paths
 	testPaths := []string{
@@ -282,7 +282,7 @@ func BenchmarkStaticRoutes(b *testing.B) {
 	}
 
 	// Warm up all optimizations for performance
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Test paths
 	testPaths := []string{
@@ -354,7 +354,7 @@ func BenchmarkContextPool(b *testing.B) {
 	}
 
 	// Warm up all optimizations for performance
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Test paths with different parameter counts
 	testPaths := []string{
@@ -432,7 +432,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	}
 
 	// Warm up all optimizations for performance
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Test paths
 	testPaths := []string{
@@ -533,7 +533,7 @@ func BenchmarkBloomFilter(b *testing.B) {
 	}
 
 	// Warm up all optimizations for performance
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Test paths (mix of existing and non-existing routes)
 	testPaths := []string{
@@ -706,7 +706,7 @@ func BenchmarkRivaasRouter(b *testing.B) {
 	})
 
 	// Warm up all optimizations for performance
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	req := httptest.NewRequest("GET", "/users/123", nil)
 	w := httptest.NewRecorder()

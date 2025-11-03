@@ -31,12 +31,23 @@ type Route struct {
 	finalized   bool // Prevents duplicate route registration
 }
 
-// RouteInfo contains information about a registered route for introspection.
-// This is used for debugging, documentation generation, and monitoring.
+// RouteInfo contains comprehensive information about a registered route for introspection.
+// This is used for debugging, documentation generation, API documentation, and monitoring.
+//
+// Enhanced fields provide deep insights into route configuration:
+//   - Middleware: Full middleware chain for this route
+//   - Constraints: Parameter validation rules
+//   - IsStatic: Performance characteristics
+//   - Version: API versioning information
 type RouteInfo struct {
-	Method      string // HTTP method (GET, POST, etc.)
-	Path        string // Route path pattern (/users/:id)
-	HandlerName string // Name of the handler function
+	Method      string            // HTTP method (GET, POST, etc.)
+	Path        string            // Route path pattern (/users/:id)
+	HandlerName string            // Name of the handler function
+	Middleware  []string          // Middleware chain names (in execution order)
+	Constraints map[string]string // Parameter constraints (param -> regex pattern)
+	IsStatic    bool              // True if route has no dynamic parameters
+	Version     string            // API version (e.g., "v1", "v2"), empty if not versioned
+	ParamCount  int               // Number of URL parameters in this route
 }
 
 // atomicRouteTree represents a lock-free route tree with atomic operations.
@@ -161,17 +172,38 @@ func (r *Router) HEAD(path string, handlers ...HandlerFunc) *Route {
 // Returns a Route object that can be used to add constraints and metadata.
 // This method is now lock-free and uses atomic operations for thread safety.
 func (r *Router) addRouteWithConstraints(method, path string, handlers []HandlerFunc) *Route {
-	// Store route info for introspection (protected by separate mutex for low-frequency access)
+	// Analyze route for introspection
 	handlerName := "anonymous"
 	if len(handlers) > 0 {
 		handlerName = getHandlerName(handlers[len(handlers)-1])
 	}
 
+	// Extract middleware names (all handlers except the last one)
+	var middlewareNames []string
+	if len(handlers) > 1 {
+		middlewareNames = make([]string, 0, len(handlers)-1)
+		for i := 0; i < len(handlers)-1; i++ {
+			middlewareNames = append(middlewareNames, getHandlerName(handlers[i]))
+		}
+	}
+
+	// Count parameters in path
+	paramCount := strings.Count(path, ":")
+
+	// Check if route is static (no parameters)
+	isStatic := !strings.Contains(path, ":") && !strings.HasSuffix(path, "*")
+
+	// Store route info for introspection (protected by separate mutex for low-frequency access)
 	r.routeTree.routesMutex.Lock()
 	r.routeTree.routes = append(r.routeTree.routes, RouteInfo{
 		Method:      method,
 		Path:        path,
 		HandlerName: handlerName,
+		Middleware:  middlewareNames,
+		Constraints: make(map[string]string), // Will be populated when constraints are added
+		IsStatic:    isStatic,
+		Version:     "", // Will be set for version-specific routes
+		ParamCount:  paramCount,
 	})
 	r.routeTree.routesMutex.Unlock()
 
@@ -227,51 +259,26 @@ func (r *Router) Routes() []RouteInfo {
 	return routes
 }
 
-// PrintRoutes prints all registered routes to stdout in a formatted table.
-// This is useful for development and debugging to see all available routes.
+// ContextPool returns the router's context pool for statistics and monitoring.
+// This allows external code to access pool statistics and control pool behavior.
 //
-// Example output:
+// Use cases:
+//   - Monitoring: Track pool effectiveness and hit rates
+//   - Diagnostics: Identify potential context leaks
+//   - Performance tuning: Understand parameter distribution patterns
+//   - Testing: Reset statistics for benchmarking
 //
-//	Method  Path              Handler
-//	------  ----              -------
-//	GET     /                 homeHandler
-//	GET     /users/:id        getUserHandler
-//	POST    /users            createUserHandler
-func (r *Router) PrintRoutes() {
-	routes := r.Routes()
-	if len(routes) == 0 {
-		fmt.Println("No routes registered")
-		return
-	}
-
-	// Calculate column widths
-	maxMethod := 6  // "Method"
-	maxPath := 4    // "Path"
-	maxHandler := 7 // "Handler"
-
-	for _, route := range routes {
-		if len(route.Method) > maxMethod {
-			maxMethod = len(route.Method)
-		}
-		if len(route.Path) > maxPath {
-			maxPath = len(route.Path)
-		}
-		if len(route.HandlerName) > maxHandler {
-			maxHandler = len(route.HandlerName)
-		}
-	}
-
-	// Print header
-	fmt.Printf("%-*s  %-*s  %s\n", maxMethod, "Method", maxPath, "Path", "Handler")
-	fmt.Printf("%s  %s  %s\n",
-		strings.Repeat("-", maxMethod),
-		strings.Repeat("-", maxPath),
-		strings.Repeat("-", maxHandler))
-
-	// Print routes
-	for _, route := range routes {
-		fmt.Printf("%-*s  %-*s  %s\n", maxMethod, route.Method, maxPath, route.Path, route.HandlerName)
-	}
+// Example:
+//
+//	stats := router.ContextPool().Stats()
+//	log.Printf("Pool hit rate: %.2f%%", stats.HitRate*100)
+//
+//	// Reset statistics for benchmarking
+//	router.ContextPool().ResetStats()
+//
+// Note: This returns the actual pool instance, so modifications affect router behavior.
+func (r *Router) ContextPool() *ContextPool {
+	return r.contextPool
 }
 
 // finalizeRoute adds the route to the radix tree with its current constraints.
@@ -304,7 +311,7 @@ func (route *Route) finalizeRoute() {
 		route.router.templateCache.addTemplate(tmpl)
 	}
 
-	// Routes will be compiled during WarmupOptimizations() call
+	// Routes will be compiled during Warmup() call
 	// No automatic compilation to avoid deadlocks
 }
 
@@ -338,6 +345,20 @@ func (route *Route) Where(param, pattern string) *Route {
 		Param:   param,
 		Pattern: regex,
 	})
+
+	// Update RouteInfo with constraint for introspection
+	route.router.routeTree.routesMutex.Lock()
+	for i := range route.router.routeTree.routes {
+		info := &route.router.routeTree.routes[i]
+		if info.Method == route.method && info.Path == route.path {
+			if info.Constraints == nil {
+				info.Constraints = make(map[string]string)
+			}
+			info.Constraints[param] = pattern
+			break
+		}
+	}
+	route.router.routeTree.routesMutex.Unlock()
 
 	// Reset finalized flag and re-add the route to the tree with updated constraints
 	route.finalized = false
@@ -411,6 +432,14 @@ func getHandlerName(handler HandlerFunc) string {
 
 	// Extract just filename from full path
 	fileName := filepath.Base(file)
+
+	// Check if this is an anonymous function (pattern: *.func[number])
+	// Example: "main.main.func1" -> "anonymous#1"
+	if idx := strings.Index(fullName, ".func"); idx >= 0 {
+		// Extract the function number (func1 -> #1, func2 -> #2)
+		funcNum := fullName[idx+5:] // Skip ".func" to get the number
+		return fmt.Sprintf("anonymous#%s (%s:%d)", funcNum, fileName, line)
+	}
 
 	// Add file location for better debugging
 	return fmt.Sprintf("%s (%s:%d)", fullName, fileName, line)

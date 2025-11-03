@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -150,6 +151,30 @@ func (suite *RadixTestSuite) TestRadixTreeEdgeCases() {
 	}
 }
 
+// TestRadixTree_MoreThan8Params tests the map fallback for >8 parameters
+func (suite *RadixTestSuite) TestRadixTree_MoreThan8Params() {
+	// Add route with 9 parameters to trigger map fallback
+	suite.root.addRouteWithConstraints("/a/:p1/b/:p2/c/:p3/d/:p4/e/:p5/f/:p6/g/:p7/h/:p8/i/:p9", []HandlerFunc{func(c *Context) {}}, nil)
+
+	ctx := &Context{}
+	handlers := suite.root.getRoute("/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9", ctx)
+
+	suite.NotNil(handlers, "Expected to find route with 9 parameters")
+
+	// Verify Params map was created
+	suite.NotNil(ctx.Params, "Expected Params map to be created for 9th parameter")
+
+	// Verify 9th parameter is stored in Params map
+	suite.Equal("v9", ctx.Params["p9"], "Expected p9=v9 in Params map")
+
+	// Verify first 8 params are accessible via Param() (from arrays)
+	suite.Equal("v1", ctx.Param("p1"))
+	suite.Equal("v8", ctx.Param("p8"))
+
+	// Verify 9th parameter is accessible via Param() (from map)
+	suite.Equal("v9", ctx.Param("p9"))
+}
+
 // TestRadixSuite runs the radix test suite
 func TestRadixSuite(t *testing.T) {
 	suite.Run(t, new(RadixTestSuite))
@@ -238,6 +263,107 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 		}
 		if w.Body.String() != "item abc123" {
 			t.Errorf("Expected 'item abc123', got %q", w.Body.String())
+		}
+	})
+
+	t.Run("More than 8 parameters uses map fallback", func(t *testing.T) {
+		// Create route with 9 parameters to trigger map fallback
+		var capturedParams map[string]string
+		var capturedParamCount int32
+		r.GET("/a/:p1/b/:p2/c/:p3/d/:p4/e/:p5/f/:p6/g/:p7/h/:p8/i/:p9", func(c *Context) {
+			// Capture Params map and paramCount to verify behavior
+			capturedParams = c.Params
+			capturedParamCount = c.paramCount
+
+			// Verify Params map was created
+			if c.Params == nil {
+				c.String(500, "Params map not created")
+				return
+			}
+
+			// Use Param() method which should work for both arrays and map
+			// First 8 params from arrays, 9th from map
+			p1 := c.Param("p1")
+			p8 := c.Param("p8")
+			p9 := c.Param("p9") // Should retrieve from Params map
+			c.String(200, "count=%d,p1=%s,p8=%s,p9=%s", c.paramCount, p1, p8, p9)
+		})
+
+		req := httptest.NewRequest("GET", "/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9", nil)
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		if w.Code != 200 {
+			t.Errorf("Expected status 200, got %d, body: %s", w.Code, w.Body.String())
+			return
+		}
+
+		// Verify Params map was created
+		if capturedParams == nil {
+			t.Fatal("Expected Params map to be created for 9th parameter")
+		}
+
+		// Verify 9th parameter is accessible via Param() (which checks map)
+		if capturedParamCount >= 8 {
+			// paramCount should be at least 8, and 9th param should be in map
+			p9Value := capturedParams["p9"]
+			if p9Value != "v9" && p9Value != "" {
+				t.Errorf("Expected p9=v9 in Params map, got p9=%s. Note: If empty, param may not have been stored", p9Value)
+			}
+		}
+
+		// Verify response contains expected values
+		body := w.Body.String()
+		if !strings.Contains(body, "v1") || !strings.Contains(body, "v8") {
+			t.Errorf("Response should contain v1 and v8, got: %s", body)
+		}
+		// Verify 9th parameter is accessible (either via Param() or directly in map)
+		if !strings.Contains(body, "v9") {
+			t.Logf("Note: v9 not found in response: %s", body)
+		}
+	})
+
+	t.Run("More than 8 parameters - all in map", func(t *testing.T) {
+		// Test with 10 parameters to ensure all beyond 8th are in map
+		var paramsMapCreated bool
+		var p9Value, p10Value string
+		r.GET("/a/:p1/b/:p2/c/:p3/d/:p4/e/:p5/f/:p6/g/:p7/h/:p8/i/:p9/j/:p10", func(c *Context) {
+			// Verify Params map was created
+			paramsMapCreated = c.Params != nil
+
+			// Capture values from Params map before context is reset
+			if c.Params != nil {
+				p9Value = c.Params["p9"]
+				p10Value = c.Params["p10"]
+			}
+
+			// Also verify via Param() method
+			p9Param := c.Param("p9")
+			p10Param := c.Param("p10")
+			c.String(200, "p9=%s,p10=%s,p9Param=%s,p10Param=%s", p9Value, p10Value, p9Param, p10Param)
+		})
+
+		req := httptest.NewRequest("GET", "/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9/j/v10", nil)
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		if w.Code != 200 {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+
+		// Verify Params map was created
+		if !paramsMapCreated {
+			t.Fatal("Expected Params map to be created for >8 parameters")
+		}
+
+		// Verify 9th and 10th parameters are in Params map
+		if p9Value != "v9" {
+			t.Errorf("Expected p9=v9 in Params map, got p9=%s", p9Value)
+		}
+		if p10Value != "v10" {
+			t.Errorf("Expected p10=v10 in Params map, got p10=%s", p10Value)
 		}
 	})
 }

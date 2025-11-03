@@ -1,0 +1,67 @@
+package handlers
+
+import "time"
+
+// CreateUserRequest represents a user creation request.
+type CreateUserRequest struct {
+	Name  string `json:"name" form:"name"`
+	Email string `json:"email" form:"email"`
+	Age   int    `json:"age" form:"age"`
+}
+
+// UserPathParams represents user-related path parameters.
+type UserPathParams struct {
+	ID int `params:"id"`
+}
+
+// UserResponse represents a user response.
+type UserResponse struct {
+	ID        int       `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CreateOrderRequest represents an order creation request.
+type CreateOrderRequest struct {
+	UserID        int               `json:"user_id" form:"user_id"`
+	Items         []OrderItem       `json:"items" form:"items"`
+	Currency      string            `json:"currency" form:"currency" enum:"USD,EUR,GBP" default:"USD"`
+	PaymentMethod string            `json:"payment_method" form:"payment_method" enum:"card,paypal,bank_transfer" default:"card"`
+	Metadata      map[string]string `json:"metadata,omitempty" form:"metadata"`
+}
+
+// OrderItem represents an item in an order.
+type OrderItem struct {
+	ProductID int     `json:"product_id" form:"product_id"`
+	Quantity  int     `json:"quantity" form:"quantity"`
+	Price     float64 `json:"price" form:"price"`
+}
+
+// OrderResponse represents an order response.
+type OrderResponse struct {
+	OrderID        string            `json:"order_id"`
+	UserID         int               `json:"user_id"`
+	Items          []OrderItem       `json:"items"`
+	TotalAmount    float64           `json:"total_amount"`
+	Currency       string            `json:"currency"`
+	Status         string            `json:"status"`
+	CreatedAt      time.Time         `json:"created_at"`
+	ProcessingTime float64           `json:"processing_time,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+}
+
+// SearchParams represents search query parameters.
+type SearchParams struct {
+	Query    string   `query:"q"`
+	Page     int      `query:"page" default:"1"`
+	PageSize int      `query:"page_size" default:"10"`
+	Tags     []string `query:"tags"`
+	Active   *bool    `query:"active"`
+	SortBy   string   `query:"sort_by" enum:"name,date,price" default:"name"`
+}
+
+// ProductPathParams represents product-related path parameters.
+type ProductPathParams struct {
+	ID string `params:"id"`
+}

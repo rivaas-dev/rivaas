@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
+	charmlog "github.com/charmbracelet/log"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware"
+	"rivaas.dev/router/middleware/recovery"
 )
 
 func main() {
@@ -25,23 +27,40 @@ func main() {
 	// Example 4: Advanced configuration
 	advancedExample(r)
 
-	fmt.Println("Server starting on :8080")
-	fmt.Println("Try these endpoints:")
-	fmt.Println("  - GET /basic-panic - Basic panic recovery")
-	fmt.Println("  - GET /custom-panic - Custom recovery handler")
-	fmt.Println("  - GET /logged-panic - Custom logger")
-	fmt.Println("  - GET /advanced-panic - Advanced configuration")
-	fmt.Println("  - GET /safe - No panic, normal response")
+	// Example 5: Production-ready setup (reference implementation)
+	productionExample(r)
 
-	if err := http.ListenAndServe(":8080", r); err != nil {
-		log.Fatal(err)
-	}
+	// Create a logger with clean, colorful output
+	logger := charmlog.NewWithOptions(os.Stderr, charmlog.Options{
+		ReportTimestamp: false,
+		ReportCaller:    false,
+	})
+
+	logger.Info("🚀 Server starting on http://localhost:8080")
+	logger.Print("")
+	logger.Print("📝 Available endpoints:")
+	logger.Print("  GET /basic-panic             - Basic panic recovery")
+	logger.Print("  GET /api/custom-panic         - Custom recovery handler")
+	logger.Print("  GET /logged/logged-panic      - Custom logger")
+	logger.Print("  GET /advanced/advanced-panic  - Advanced configuration")
+	logger.Print("  GET /production/panic         - Production-ready setup")
+	logger.Print("  GET /safe                    - No panic, normal response")
+	logger.Print("")
+	logger.Print("📋 Example commands:")
+	logger.Print("  curl http://localhost:8080/basic-panic")
+	logger.Print("  curl http://localhost:8080/api/custom-panic")
+	logger.Print("  curl http://localhost:8080/safe")
+	logger.Print("")
+	logger.Print("💡 Tip: The /production endpoint shows a production-ready configuration")
+	logger.Print("")
+
+	logger.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Basic recovery with default settings
 func basicExample(r *router.Router) {
 	// Use default recovery middleware
-	r.Use(middleware.Recovery())
+	r.Use(recovery.New())
 
 	r.GET("/basic-panic", func(c *router.Context) {
 		// This will panic and be recovered
@@ -60,8 +79,8 @@ func customHandlerExample(r *router.Router) {
 	api := r.Group("/api")
 
 	// Recovery with custom handler that includes request ID
-	api.Use(middleware.Recovery(
-		middleware.WithRecoveryHandler(func(c *router.Context, err any) {
+	api.Use(recovery.New(
+		recovery.WithHandler(func(c *router.Context, err any) {
 			// Send custom error response
 			c.JSON(http.StatusInternalServerError, map[string]any{
 				"error":   "Internal server error",
@@ -85,8 +104,8 @@ func customLoggerExample(r *router.Router) {
 	logged := r.Group("/logged")
 
 	// Recovery with custom structured logger
-	logged.Use(middleware.Recovery(
-		middleware.WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
+	logged.Use(recovery.New(
+		recovery.WithLogger(func(c *router.Context, err any, stack []byte) {
 			// Structured logging (you could use your own logger here)
 			log.Printf(`{"level":"error","type":"panic_recovered","error":%q,"path":"%s","method":"%s","client_ip":"%s","timestamp":"%s","stack":"%s"}`,
 				fmt.Sprint(err),
@@ -97,7 +116,7 @@ func customLoggerExample(r *router.Router) {
 				string(stack),
 			)
 		}),
-		middleware.WithStackTrace(true),
+		recovery.WithStackTrace(true),
 	))
 
 	logged.GET("/logged-panic", func(c *router.Context) {
@@ -110,20 +129,20 @@ func advancedExample(r *router.Router) {
 	advanced := r.Group("/advanced")
 
 	// Recovery with multiple options
-	advanced.Use(middleware.Recovery(
+	advanced.Use(recovery.New(
 		// Enable stack traces
-		middleware.WithStackTrace(true),
+		recovery.WithStackTrace(true),
 
 		// Set custom stack size (8KB)
-		middleware.WithStackSize(8<<10),
+		recovery.WithStackSize(8<<10),
 
 		// Custom logger
-		middleware.WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
+		recovery.WithLogger(func(c *router.Context, err any, stack []byte) {
 			log.Printf("[PANIC RECOVERED] Error: %v, Path: %s", err, c.Request.URL.Path)
 		}),
 
 		// Custom handler with different responses based on error type
-		middleware.WithRecoveryHandler(func(c *router.Context, err any) {
+		recovery.WithHandler(func(c *router.Context, err any) {
 			// Different responses based on panic type
 			switch e := err.(type) {
 			case string:
@@ -163,17 +182,17 @@ func advancedExample(r *router.Router) {
 	})
 }
 
-// Example of production-ready setup
-func productionExample() *router.Router {
-	r := router.New()
+// Example 5: Production-ready setup
+func productionExample(r *router.Router) {
+	prod := r.Group("/production")
 
 	// Production-ready recovery middleware
-	r.Use(middleware.Recovery(
+	prod.Use(recovery.New(
 		// Capture stack traces
-		middleware.WithStackTrace(true),
+		recovery.WithStackTrace(true),
 
 		// Custom logger (integrate with your logging system)
-		middleware.WithRecoveryLogger(func(c *router.Context, err any, stack []byte) {
+		recovery.WithLogger(func(c *router.Context, err any, stack []byte) {
 			// Send to your logging system (e.g., Sentry, DataDog, etc.)
 			log.Printf("[PRODUCTION PANIC] Error: %v, Path: %s, Method: %s, IP: %s",
 				err,
@@ -184,7 +203,7 @@ func productionExample() *router.Router {
 		}),
 
 		// Clean error response for clients
-		middleware.WithRecoveryHandler(func(c *router.Context, err any) {
+		recovery.WithHandler(func(c *router.Context, err any) {
 			c.JSON(http.StatusInternalServerError, map[string]any{
 				"error":   "Internal server error",
 				"message": "We're sorry, something went wrong. Please try again later.",
@@ -193,5 +212,7 @@ func productionExample() *router.Router {
 		}),
 	))
 
-	return r
+	prod.GET("/panic", func(c *router.Context) {
+		panic("Production recovery example - this will be handled gracefully")
+	})
 }

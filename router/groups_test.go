@@ -721,3 +721,41 @@ func TestGroup_WithMiddlewareInheritance(t *testing.T) {
 		t.Errorf("wrong execution order: %v", order)
 	}
 }
+
+// TestGroup_EmptyPrefixOnNestedGroup tests creating a nested group with empty prefix
+// when parent has a prefix. This covers the case where fullPrefix = g.prefix.
+func TestGroup_EmptyPrefixOnNestedGroup(t *testing.T) {
+	r := New()
+
+	// Parent group with prefix
+	api := r.Group("/api")
+
+	// Nested group with empty prefix - should inherit parent's prefix
+	nested := api.Group("")
+
+	nested.GET("/users", func(c *Context) {
+		c.JSON(http.StatusOK, map[string]string{"path": "users"})
+	})
+
+	// Route should match with parent's prefix
+	req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	// Test that routes added to nested group work correctly
+	nested.POST("/posts", func(c *Context) {
+		c.JSON(http.StatusCreated, map[string]string{"path": "posts"})
+	})
+
+	req = httptest.NewRequest(http.MethodPost, "/api/posts", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", w.Code)
+	}
+}

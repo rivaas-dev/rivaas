@@ -33,7 +33,7 @@ func TestIntegration_ConcurrentRouteRegistration(t *testing.T) {
 	wg.Wait()
 
 	// Warmup should not panic
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Routes should work
 	req := httptest.NewRequest(http.MethodGet, "/route0", nil)
@@ -57,7 +57,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]int64{"count": requestCount.Load()})
 	})
 
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	var wg sync.WaitGroup
 	concurrency := 100
@@ -92,7 +92,7 @@ func TestIntegration_MemoryLeakDetection(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Run many requests
 	for i := 0; i < 10000; i++ {
@@ -267,7 +267,7 @@ func TestIntegration_RouterWithAllFeatures(t *testing.T) {
 	})
 
 	// Warmup
-	rVersioned.WarmupOptimizations()
+	rVersioned.Warmup()
 
 	// Test v1
 	req1 := httptest.NewRequest(http.MethodGet, "/users/123", nil)
@@ -303,7 +303,7 @@ func TestIntegration_LargeNumberOfRoutes(t *testing.T) {
 	}
 
 	// Warmup
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Test a route
 	req := httptest.NewRequest(http.MethodGet, "/route0/a", nil)
@@ -349,7 +349,7 @@ func TestIntegration_MixedStaticAndDynamic(t *testing.T) {
 		c.String(http.StatusOK, "file")
 	})
 
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Test all route types
 	tests := []struct {
@@ -517,7 +517,7 @@ func TestIntegration_HighLoadStressTest(t *testing.T) {
 		})
 	}
 
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// High concurrent load
 	var wg sync.WaitGroup

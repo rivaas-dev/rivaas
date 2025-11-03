@@ -22,7 +22,7 @@ func BenchmarkTemplateStatic(b *testing.B) {
 	})
 
 	// Warmup to compile templates
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	req := httptest.NewRequest("GET", "/api/users", nil)
 	w := httptest.NewRecorder()
@@ -48,7 +48,7 @@ func BenchmarkTemplateDynamic(b *testing.B) {
 	})
 
 	// Warmup to compile templates
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	req := httptest.NewRequest("GET", "/api/users/123/posts/456", nil)
 	w := httptest.NewRecorder()
@@ -71,7 +71,7 @@ func BenchmarkTemplateWithConstraints(b *testing.B) {
 	}).Where("id", `^\d+$`)
 
 	// Warmup to compile templates
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	req := httptest.NewRequest("GET", "/api/users/123", nil)
 	w := httptest.NewRecorder()
@@ -93,7 +93,7 @@ func BenchmarkTemplateVsTree(b *testing.B) {
 			_ = c.JSON(200, map[string]string{"status": "ok"})
 		})
 
-		r.WarmupOptimizations()
+		r.Warmup()
 
 		req := httptest.NewRequest("GET", "/api/users/123/posts/456/comments/789", nil)
 		w := httptest.NewRecorder()
@@ -113,7 +113,7 @@ func BenchmarkTemplateVsTree(b *testing.B) {
 			_ = c.JSON(200, map[string]string{"status": "ok"})
 		})
 
-		r.WarmupOptimizations()
+		r.Warmup()
 
 		req := httptest.NewRequest("GET", "/api/users/123/posts/456/comments/789", nil)
 		w := httptest.NewRecorder()
@@ -413,7 +413,7 @@ func TestTemplateCache_SortBySpecificity(t *testing.T) {
 
 	// Templates should be sorted by specificity
 	// We can't directly test sorting, but we can verify routes work correctly
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Most specific route should match
 	req := httptest.NewRequest("GET", "/api/users/123/posts", nil)
@@ -451,7 +451,7 @@ func TestTemplateCache_Concurrent(t *testing.T) {
 	r.templateCache.buildFirstSegmentIndex()
 
 	// Warmup shouldn't panic
-	r.WarmupOptimizations()
+	r.Warmup()
 }
 
 // TestRadix_CompileStaticRoutes_NoRoutes tests compiling with no static routes

@@ -3,18 +3,25 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
+	"github.com/common-nighthawk/go-figure"
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware"
+	"rivaas.dev/router/middleware/logger"
+	"rivaas.dev/router/middleware/recovery"
 	"rivaas.dev/tracing"
 )
 
@@ -61,29 +68,26 @@ type config struct {
 
 // metricsConfig holds metrics configuration.
 type metricsConfig struct {
-	enabled       bool
-	options       []metrics.Option
-	config        *metrics.Config // Pre-initialized config
-	usePrebuilt   bool            // Whether to use prebuilt config
-	needsMetadata bool            // Whether metadata should be injected at assembly time
+	enabled     bool
+	options     []metrics.Option
+	config      *metrics.Config // Pre-initialized config
+	usePrebuilt bool            // Whether to use prebuilt config
 }
 
 // tracingConfig holds tracing configuration.
 type tracingConfig struct {
-	enabled       bool
-	options       []tracing.Option
-	config        *tracing.Config // Pre-initialized config
-	usePrebuilt   bool            // Whether to use prebuilt config
-	needsMetadata bool            // Whether metadata should be injected at assembly time
+	enabled     bool
+	options     []tracing.Option
+	config      *tracing.Config // Pre-initialized config
+	usePrebuilt bool            // Whether to use prebuilt config
 }
 
 // loggingConfig holds logging configuration.
 type loggingConfig struct {
-	enabled       bool
-	options       []logging.Option
-	config        *logging.Config // Pre-initialized config
-	usePrebuilt   bool            // Whether to use prebuilt config
-	needsMetadata bool            // Whether metadata should be injected at assembly time
+	enabled     bool
+	options     []logging.Option
+	config      *logging.Config // Pre-initialized config
+	usePrebuilt bool            // Whether to use prebuilt config
 }
 
 // serverConfig holds server configuration.
@@ -98,23 +102,13 @@ type serverConfig struct {
 
 // middlewareConfig holds middleware configuration.
 type middlewareConfig struct {
-	includeLogger   bool
-	includeRecovery bool
+	functions     []router.HandlerFunc
+	explicitlySet bool // Tracks if WithMiddleware was called
 }
 
 // routerConfig holds router configuration options.
 type routerConfig struct {
 	options []router.Option
-}
-
-// ServerConfig is the public server configuration struct used by functional options.
-type ServerConfig struct {
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-	IdleTimeout       time.Duration
-	ReadHeaderTimeout time.Duration
-	MaxHeaderBytes    int
-	ShutdownTimeout   time.Duration
 }
 
 // Option defines functional options for app configuration.
@@ -172,88 +166,82 @@ func WithLogging(opts ...logging.Option) Option {
 	}
 }
 
-// WithObservability enables metrics, tracing, and logging with default options.
-// Metadata (service name, version, environment) is injected at assembly time,
-// making option order irrelevant.
-func WithObservability() Option {
+// ServerOption configures server settings.
+type ServerOption func(*serverConfig)
+
+// WithReadTimeout sets the server read timeout.
+func WithReadTimeout(d time.Duration) ServerOption {
+	return func(sc *serverConfig) {
+		sc.readTimeout = d
+	}
+}
+
+// WithWriteTimeout sets the server write timeout.
+func WithWriteTimeout(d time.Duration) ServerOption {
+	return func(sc *serverConfig) {
+		sc.writeTimeout = d
+	}
+}
+
+// WithIdleTimeout sets the server idle timeout.
+func WithIdleTimeout(d time.Duration) ServerOption {
+	return func(sc *serverConfig) {
+		sc.idleTimeout = d
+	}
+}
+
+// WithReadHeaderTimeout sets the server read header timeout.
+func WithReadHeaderTimeout(d time.Duration) ServerOption {
+	return func(sc *serverConfig) {
+		sc.readHeaderTimeout = d
+	}
+}
+
+// WithMaxHeaderBytes sets the maximum size of request headers.
+func WithMaxHeaderBytes(n int) ServerOption {
+	return func(sc *serverConfig) {
+		sc.maxHeaderBytes = n
+	}
+}
+
+// WithShutdownTimeout sets the graceful shutdown timeout.
+func WithShutdownTimeout(d time.Duration) ServerOption {
+	return func(sc *serverConfig) {
+		sc.shutdownTimeout = d
+	}
+}
+
+// WithServerConfig configures server settings using functional options.
+// Defaults are already set in defaultConfig(), so options are applied in place.
+func WithServerConfig(opts ...ServerOption) Option {
 	return func(c *config) {
-		c.metrics = &metricsConfig{
-			enabled:       true,
-			options:       []metrics.Option{},
-			needsMetadata: true,
-		}
-		c.tracing = &tracingConfig{
-			enabled:       true,
-			options:       []tracing.Option{},
-			needsMetadata: true,
-		}
-		c.logging = &loggingConfig{
-			enabled: true,
-			options: []logging.Option{
-				logging.WithJSONHandler(),
-			},
-			needsMetadata: true,
+		// Apply options to the existing server config (which already has defaults)
+		for _, opt := range opts {
+			opt(c.server)
 		}
 	}
 }
 
-// WithServerConfig sets server configuration.
-// Any fields not set (zero values) will use the default values.
-func WithServerConfig(serverCfg *ServerConfig) Option {
+// WithMiddleware adds middleware during app initialization.
+// Middleware provided here will be added before any middleware added via Use().
+// Multiple calls to WithMiddleware are supported and will accumulate.
+//
+// Example:
+//
+//	app.New(
+//	    app.WithServiceName("my-service"),
+//	    app.WithMiddleware(
+//	        middleware.Logger(),
+//	        middleware.Recovery(),
+//	    ),
+//	)
+func WithMiddleware(middlewares ...router.HandlerFunc) Option {
 	return func(c *config) {
-		if serverCfg == nil {
-			return
+		if c.middleware == nil {
+			c.middleware = &middlewareConfig{}
 		}
-
-		// Use provided values, or fall back to defaults for zero values
-		readTimeout := serverCfg.ReadTimeout
-		if readTimeout == 0 {
-			readTimeout = c.server.readTimeout
-		}
-
-		writeTimeout := serverCfg.WriteTimeout
-		if writeTimeout == 0 {
-			writeTimeout = c.server.writeTimeout
-		}
-
-		idleTimeout := serverCfg.IdleTimeout
-		if idleTimeout == 0 {
-			idleTimeout = c.server.idleTimeout
-		}
-
-		readHeaderTimeout := serverCfg.ReadHeaderTimeout
-		if readHeaderTimeout == 0 {
-			readHeaderTimeout = c.server.readHeaderTimeout
-		}
-
-		maxHeaderBytes := serverCfg.MaxHeaderBytes
-		if maxHeaderBytes == 0 {
-			maxHeaderBytes = c.server.maxHeaderBytes
-		}
-
-		shutdownTimeout := serverCfg.ShutdownTimeout
-		if shutdownTimeout == 0 {
-			shutdownTimeout = c.server.shutdownTimeout
-		}
-
-		c.server = &serverConfig{
-			readTimeout:       readTimeout,
-			writeTimeout:      writeTimeout,
-			idleTimeout:       idleTimeout,
-			readHeaderTimeout: readHeaderTimeout,
-			maxHeaderBytes:    maxHeaderBytes,
-			shutdownTimeout:   shutdownTimeout,
-		}
-	}
-}
-
-// WithMiddleware configures which default middleware to include.
-// By default, development mode includes logger, production includes neither.
-// Both include recovery middleware unless explicitly disabled.
-func WithMiddleware(includeLogger, includeRecovery bool) Option {
-	return func(c *config) {
-		c.middleware.includeLogger = includeLogger
-		c.middleware.includeRecovery = includeRecovery
+		c.middleware.explicitlySet = true
+		c.middleware.functions = append(c.middleware.functions, middlewares...)
 	}
 }
 
@@ -394,31 +382,6 @@ func (c *config) validate() error {
 	return nil
 }
 
-// injectObservabilityMetadata injects service metadata into observability configs
-// that were marked as needing metadata injection. This allows option order to be
-// irrelevant when using WithObservability().
-func injectObservabilityMetadata(cfg *config) {
-	if cfg.metrics != nil && cfg.metrics.enabled && cfg.metrics.needsMetadata && !cfg.metrics.usePrebuilt {
-		cfg.metrics.options = append(cfg.metrics.options,
-			metrics.WithServiceName(cfg.serviceName),
-			metrics.WithServiceVersion(cfg.serviceVersion),
-		)
-	}
-
-	if cfg.tracing != nil && cfg.tracing.enabled && cfg.tracing.needsMetadata && !cfg.tracing.usePrebuilt {
-		cfg.tracing.options = append(cfg.tracing.options,
-			tracing.WithServiceName(cfg.serviceName),
-			tracing.WithServiceVersion(cfg.serviceVersion),
-		)
-	}
-
-	if cfg.logging != nil && cfg.logging.enabled && cfg.logging.needsMetadata && !cfg.logging.usePrebuilt {
-		cfg.logging.options = append(cfg.logging.options,
-			logging.WithServiceInfo(cfg.serviceName, cfg.serviceVersion, cfg.environment),
-		)
-	}
-}
-
 // defaultConfig returns a configuration with sensible defaults.
 func defaultConfig() *config {
 	return &config{
@@ -434,8 +397,7 @@ func defaultConfig() *config {
 			shutdownTimeout:   DefaultShutdownTimeout,
 		},
 		middleware: &middlewareConfig{
-			includeLogger:   false, // Set based on environment in New()
-			includeRecovery: true,
+			functions: []router.HandlerFunc{},
 		},
 	}
 }
@@ -451,13 +413,17 @@ func New(opts ...Option) (*App, error) {
 		opt(cfg)
 	}
 
-	// Inject metadata into observability configs that need it
-	// This must happen after all options are applied so option order doesn't matter
-	injectObservabilityMetadata(cfg)
+	// Set default middleware based on environment if none explicitly provided
+	// Defaults are only applied if WithMiddleware() was never called.
+	// If WithMiddleware() is called (even with empty args), no defaults are added.
+	if !cfg.middleware.explicitlySet {
+		// Always include recovery middleware by default
+		cfg.middleware.functions = append(cfg.middleware.functions, recovery.New())
 
-	// Set middleware defaults based on environment if not explicitly configured
-	if cfg.environment == EnvironmentDevelopment && !cfg.middleware.includeLogger {
-		cfg.middleware.includeLogger = true
+		// Include logger in development mode by default
+		if cfg.environment == EnvironmentDevelopment {
+			cfg.middleware.functions = append(cfg.middleware.functions, logger.New())
+		}
 	}
 
 	// Validate configuration
@@ -527,12 +493,9 @@ func New(opts ...Option) (*App, error) {
 		}
 	}
 
-	// Add default middleware based on configuration
-	if cfg.middleware.includeLogger {
-		app.Use(middleware.Logger())
-	}
-	if cfg.middleware.includeRecovery {
-		app.Use(middleware.Recovery())
+	// Add middleware from configuration
+	if len(cfg.middleware.functions) > 0 {
+		app.Use(cfg.middleware.functions...)
 	}
 
 	return app, nil
@@ -545,7 +508,9 @@ func New(opts ...Option) (*App, error) {
 //
 //	app := app.MustNew(
 //	    app.WithServiceName("my-service"),
-//	    app.WithObservability(),
+//	    app.WithMetrics(),
+//	    app.WithTracing(),
+//	    app.WithLogging(),
 //	)
 func MustNew(opts ...Option) *App {
 	app, err := New(opts...)
@@ -610,6 +575,65 @@ func (a *App) Static(prefix, root string) {
 	a.router.Static(prefix, root)
 }
 
+// Any registers a route that matches all HTTP methods.
+// Useful for catch-all endpoints like health checks or proxies.
+//
+// Note: This registers 7 separate routes internally (GET, POST, PUT, DELETE,
+// PATCH, HEAD, OPTIONS). For endpoints that only need specific methods,
+// use individual method registrations (GET, POST, etc.) for better performance.
+//
+// Example:
+//
+//	app.Any("/health", healthCheckHandler)
+//	app.Any("/webhook/*", webhookProxyHandler)
+func (a *App) Any(path string, handler router.HandlerFunc) {
+	// Register the handler for all standard HTTP methods
+	a.router.GET(path, handler)
+	a.router.POST(path, handler)
+	a.router.PUT(path, handler)
+	a.router.DELETE(path, handler)
+	a.router.PATCH(path, handler)
+	a.router.HEAD(path, handler)
+	a.router.OPTIONS(path, handler)
+}
+
+// File serves a single file at the given path.
+// Common use case: serving favicon.ico, robots.txt, etc.
+//
+// Example:
+//
+//	app.File("/favicon.ico", "./static/favicon.ico")
+//	app.File("/robots.txt", "./static/robots.txt")
+func (a *App) File(path, filepath string) {
+	a.router.StaticFile(path, filepath)
+}
+
+// StaticFS serves files from the given filesystem.
+// Particularly useful with Go's embed.FS for embedding static assets.
+//
+// Example:
+//
+//	//go:embed static
+//	var staticFiles embed.FS
+//	app.StaticFS("/static", http.FS(staticFiles))
+func (a *App) StaticFS(prefix string, fs http.FileSystem) {
+	a.router.StaticFS(prefix, fs)
+}
+
+// NoRoute sets the handler for requests that don't match any registered routes.
+// This allows you to customize 404 error responses instead of using the default http.NotFound.
+//
+// Example:
+//
+//	app.NoRoute(func(c *router.Context) {
+//	    c.JSON(404, map[string]string{"error": "route not found"})
+//	})
+//
+// Setting handler to nil will restore the default http.NotFound behavior.
+func (a *App) NoRoute(handler router.HandlerFunc) {
+	a.router.NoRoute(handler)
+}
+
 // serverStartFunc defines the function type for starting a server.
 type serverStartFunc func() error
 
@@ -657,18 +681,231 @@ func (a *App) logStartupInfo(addr, protocol string) {
 	}
 }
 
-// printRoutesIfDev prints registered routes if in development mode.
-func (a *App) printRoutesIfDev() {
-	if a.config.environment == EnvironmentDevelopment {
-		if a.logging != nil {
-			logger := a.logging.Logger()
-			logger.Info("registered routes", "routes_header", "\n📋 Registered Routes:")
-		} else {
-			log.Println("\n📋 Registered Routes:")
-		}
-		a.router.PrintRoutes()
-		log.Println()
+// getColorWriter returns a colorprofile.Writer configured for the app's environment.
+// In production mode, ANSI colors are stripped. In development, colors are
+// automatically downsampled based on terminal capabilities.
+func (a *App) getColorWriter(w io.Writer) *colorprofile.Writer {
+	cpw := colorprofile.NewWriter(w, os.Environ())
+	// In production, explicitly strip all ANSI sequences
+	if a.config.environment == EnvironmentProduction {
+		cpw.Profile = colorprofile.NoTTY
 	}
+	return cpw
+}
+
+// printStartupBanner prints an eye-catching ASCII art startup banner with service information.
+// The banner displays dynamically generated ASCII art of the service name along with version, environment, address, and routes.
+func (a *App) printStartupBanner(addr string) {
+	w := a.getColorWriter(os.Stdout)
+
+	// Generate ASCII art from service name using go-figure
+	// Using "standard" font as default (can be customized), strict mode disabled for safety
+	myFigure := figure.NewFigure(a.config.serviceName, "", false)
+	asciiLines := myFigure.Slicify()
+
+	// Apply gradient color effect based on environment
+	var gradientColors []string
+	if a.config.environment == EnvironmentDevelopment {
+		gradientColors = []string{"12", "14", "10", "11"} // Blue, Cyan, Green, Yellow
+	} else {
+		gradientColors = []string{"10", "11"} // Green, Yellow
+	}
+
+	// Create styled ASCII art with gradient effect
+	var styledArt strings.Builder
+	for _, line := range asciiLines {
+		if strings.TrimSpace(line) == "" {
+			styledArt.WriteString("\n")
+			continue
+		}
+		for i, char := range line {
+			colorIndex := i % len(gradientColors)
+			color := gradientColors[colorIndex]
+			style := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(color)).
+				Bold(true)
+			styledArt.WriteString(style.Render(string(char)))
+		}
+		styledArt.WriteString("\n")
+	}
+
+	// Create a compact info box with vertical layout
+	labelStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Width(12).
+		Align(lipgloss.Right)
+
+	valueStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("15")).
+		Bold(true)
+
+	// Normalize address display: ":8080" -> "0.0.0.0:8080"
+	displayAddr := addr
+	if strings.HasPrefix(addr, ":") {
+		displayAddr = "0.0.0.0" + addr
+	}
+
+	versionLabel := labelStyle.Render("Version:")
+	versionValue := valueStyle.Foreground(lipgloss.Color("14")).Render(a.config.serviceVersion)
+	envLabel := labelStyle.Render("Environment:")
+	envValue := valueStyle.Foreground(lipgloss.Color("11")).Render(a.config.environment)
+	addrLabel := labelStyle.Render("Address:")
+	addrValue := valueStyle.Foreground(lipgloss.Color("10")).Render(displayAddr)
+
+	// Build info box content
+	infoLines := []string{
+		versionLabel + "  " + versionValue,
+		envLabel + "  " + envValue,
+		addrLabel + "  " + addrValue,
+	}
+
+	// Always show observability info with status
+	metricsLabel := labelStyle.Render("Metrics:")
+	var metricsValue string
+	if a.metrics != nil {
+		metricsAddr := a.metrics.GetServerAddress()
+		// Normalize metrics address: ":9090" -> "0.0.0.0:9090"
+		if strings.HasPrefix(metricsAddr, ":") {
+			metricsAddr = "0.0.0.0" + metricsAddr
+		}
+		metricsValue = valueStyle.Foreground(lipgloss.Color("13")).Render(metricsAddr)
+	} else {
+		metricsValue = valueStyle.Foreground(lipgloss.Color("240")).Render("Disabled")
+	}
+	infoLines = append(infoLines, metricsLabel+"  "+metricsValue)
+
+	tracingLabel := labelStyle.Render("Tracing:")
+	var tracingValue string
+	if a.tracing != nil {
+		tracingValue = valueStyle.Foreground(lipgloss.Color("12")).Render("Enabled")
+	} else {
+		tracingValue = valueStyle.Foreground(lipgloss.Color("240")).Render("Disabled")
+	}
+	infoLines = append(infoLines, tracingLabel+"  "+tracingValue)
+
+	// Create compact info box
+	infoContent := strings.Join(infoLines, "\n")
+
+	fmt.Fprintln(w)
+	fmt.Fprint(w, styledArt.String())
+	fmt.Fprintln(w)
+	fmt.Fprint(w, infoContent)
+	fmt.Fprintln(w)
+
+	// Add routes section (only in development mode)
+	if a.config.environment == EnvironmentDevelopment {
+		routes := a.router.Routes()
+		if len(routes) > 0 {
+			fmt.Fprintln(w)
+			a.renderRoutesTable(w, 80)
+		}
+	}
+
+	fmt.Fprintln(w)
+}
+
+// renderRoutesTable renders the routes table to the given writer.
+// This is an internal helper method used by both PrintRoutes and the startup banner.
+// width specifies the table width (80 for banner, 120 for standalone).
+func (a *App) renderRoutesTable(w io.Writer, width int) {
+	routes := a.router.Routes()
+	if len(routes) == 0 {
+		return
+	}
+
+	// Define styles for different HTTP methods
+	methodStyles := map[string]lipgloss.Style{
+		"GET":     lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true), // Green
+		"POST":    lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // Blue
+		"PUT":     lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true), // Yellow
+		"DELETE":  lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true),  // Red
+		"PATCH":   lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true), // Magenta
+		"HEAD":    lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true), // Cyan
+		"OPTIONS": lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),  // Gray
+	}
+
+	// Build table rows
+	rows := make([][]string, 0, len(routes))
+	for _, route := range routes {
+		method := route.Method
+		if style, ok := methodStyles[method]; ok {
+			method = style.Render(method)
+		}
+		rows = append(rows, []string{
+			method,
+			route.Path,
+			route.HandlerName,
+		})
+	}
+
+	// Determine if we should use colors (only in development, Writer checks terminal)
+	useColors := a.config.environment == EnvironmentDevelopment
+
+	// Create table with lipgloss/table
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(func() lipgloss.Style {
+			if useColors {
+				return lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Gray border
+			}
+			return lipgloss.NewStyle() // No color for border
+		}()).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := lipgloss.NewStyle().
+				Align(lipgloss.Left).
+				Padding(0, 1)
+
+			// Header row styling
+			if row == 0 && useColors {
+				style = style.
+					Bold(true).
+					Foreground(lipgloss.Color("230")) // Light yellow/white
+			}
+
+			return style
+		}).
+		Headers("Method", "Path", "Handler").
+		Rows(rows...).
+		Width(width)
+
+	// Write to writer
+	fmt.Fprintln(w, t.Render())
+}
+
+// PrintRoutes prints all registered routes to stdout in a formatted table.
+// This is useful for development and debugging to see all available routes.
+//
+// Uses lipgloss/table for beautiful terminal output with color-coded HTTP methods
+// and proper table formatting. A colorprofile.Writer automatically downsamples
+// ANSI colors to match the terminal's capabilities (TrueColor → ANSI256 → ANSI).
+// If output is not a TTY, ANSI sequences are stripped entirely. This respects
+// the NO_COLOR environment variable and handles all terminal capability detection
+// automatically.
+//
+// Colors are only enabled in development mode.
+//
+// Example output:
+//
+//	┌────────┬──────────────────┬──────────────────┐
+//	│ Method │ Path             │ Handler          │
+//	├────────┼──────────────────┼──────────────────┤
+//	│ GET    │ /                │ handler          │
+//	│ GET    │ /users/:id       │ handler          │
+//	│ POST   │ /users           │ handler          │
+//	└────────┴──────────────────┴──────────────────┘
+func (a *App) PrintRoutes() {
+	routes := a.router.Routes()
+	if len(routes) == 0 {
+		fmt.Println("No routes registered")
+		return
+	}
+
+	// Create a writer that automatically downsamples colors based on terminal capabilities
+	// Uses helper method that handles production mode (strips ANSI) and development mode (auto-detects)
+	w := a.getColorWriter(os.Stdout)
+
+	// Use internal helper with wider table for standalone use
+	a.renderRoutesTable(w, 120)
 }
 
 // shutdownObservability gracefully shuts down all enabled observability components.
@@ -694,8 +931,9 @@ func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol
 	// Start server in a goroutine
 	serverErr := make(chan error, 1)
 	go func() {
+		a.printStartupBanner(server.Addr)
 		a.logStartupInfo(server.Addr, protocol)
-		a.printRoutesIfDev()
+		// Routes are now displayed as part of the startup banner
 
 		if err := startFunc(); err != nil && err != http.ErrServerClosed {
 			serverErr <- fmt.Errorf("%s server failed to start: %w", protocol, err)

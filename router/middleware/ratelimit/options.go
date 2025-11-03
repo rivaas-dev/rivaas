@@ -1,0 +1,92 @@
+package ratelimit
+
+import (
+	"time"
+
+	"rivaas.dev/router"
+)
+
+// WithRequestsPerSecond sets the number of requests allowed per second.
+// Default: 100 requests/second
+//
+// Example:
+//
+//	ratelimit.New(ratelimit.WithRequestsPerSecond(50))
+func WithRequestsPerSecond(rps int) Option {
+	return func(cfg *config) {
+		if rps > 0 {
+			cfg.requestsPerSecond = rps
+		}
+	}
+}
+
+// WithBurst sets the maximum burst size.
+// Burst allows clients to make multiple requests instantly up to this limit.
+// Default: 20 requests
+//
+// Example:
+//
+//	ratelimit.New(ratelimit.WithBurst(10))
+func WithBurst(burst int) Option {
+	return func(cfg *config) {
+		if burst > 0 {
+			cfg.burst = burst
+		}
+	}
+}
+
+// WithKeyFunc sets a custom function to extract the rate limit key from requests.
+// Common use cases:
+//   - Per-IP limiting: Use client IP (default)
+//   - Per-user limiting: Use user ID from authentication
+//   - Per-API key limiting: Use API key from header
+//
+// Example:
+//
+//	ratelimit.New(
+//	    ratelimit.WithKeyFunc(func(c *router.Context) string {
+//	        // Rate limit by user ID from auth token
+//	        return c.Request.Header.Get("X-User-ID")
+//	    }),
+//	)
+func WithKeyFunc(fn func(*router.Context) string) Option {
+	return func(cfg *config) {
+		cfg.keyFunc = fn
+	}
+}
+
+// WithHandler sets a custom handler for when rate limit is exceeded.
+// Default: Returns 429 Too Many Requests with JSON error
+//
+// Example:
+//
+//	ratelimit.New(
+//	    ratelimit.WithHandler(func(c *router.Context) {
+//	        c.String(429, "Slow down! Try again in a minute.")
+//	    }),
+//	)
+func WithHandler(fn func(*router.Context)) Option {
+	return func(cfg *config) {
+		cfg.onLimitExceeded = fn
+	}
+}
+
+// WithCleanupInterval sets how often to clean up expired limiters.
+// Default: 1 minute
+func WithCleanupInterval(interval time.Duration) Option {
+	return func(cfg *config) {
+		if interval > 0 {
+			cfg.cleanupInterval = interval
+		}
+	}
+}
+
+// WithLimiterTTL sets how long to keep inactive limiters before cleanup.
+// Default: 5 minutes
+func WithLimiterTTL(ttl time.Duration) Option {
+	return func(cfg *config) {
+		if ttl > 0 {
+			cfg.limiterTTL = ttl
+		}
+	}
+}

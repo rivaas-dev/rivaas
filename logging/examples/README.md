@@ -84,7 +84,9 @@ r := router.New(
 
 ```go
 app := app.New(
-    app.WithObservability(), // Includes logging
+    app.WithLogging(
+        logging.WithJSONHandler(),
+    ),
 )
 ```
 

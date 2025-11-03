@@ -308,7 +308,7 @@ func TestCompileOptimizations(t *testing.T) {
 	})
 
 	// Trigger compilation
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Test that compiled routes work
 	req := httptest.NewRequest("GET", "/home", nil)
@@ -1487,7 +1487,7 @@ func TestWithBloomFilterHashFunctions_EdgeCases(t *testing.T) {
 			r.GET("/test", func(c *Context) {
 				c.Status(http.StatusOK)
 			})
-			r.WarmupOptimizations()
+			r.Warmup()
 
 			// Verify routing works
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)

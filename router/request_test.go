@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -344,6 +345,39 @@ func TestClientIPs(t *testing.T) {
 			t.Errorf("IPs not trimmed correctly: %v", ips)
 		}
 	})
+
+	t.Run("RemoteAddr without port format", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+		// Set RemoteAddr to format that SplitHostPort cannot parse (no port)
+		// This tests the fallback behavior when RemoteAddr cannot be split
+		req.RemoteAddr = "192.168.1.1"
+		w := httptest.NewRecorder()
+		c := NewContext(w, req)
+
+		ips := c.ClientIPs()
+		if len(ips) != 1 {
+			t.Fatalf("Expected 1 IP, got %d", len(ips))
+		}
+		if ips[0] != "192.168.1.1" {
+			t.Errorf("IP = %v, want 192.168.1.1 (raw RemoteAddr)", ips[0])
+		}
+	})
+
+	t.Run("RemoteAddr with invalid format", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+		// Set RemoteAddr to invalid format that SplitHostPort cannot parse
+		req.RemoteAddr = "invalid-address-format"
+		w := httptest.NewRecorder()
+		c := NewContext(w, req)
+
+		ips := c.ClientIPs()
+		if len(ips) != 1 {
+			t.Fatalf("Expected 1 IP, got %d", len(ips))
+		}
+		if ips[0] != "invalid-address-format" {
+			t.Errorf("IP = %v, want invalid-address-format (raw RemoteAddr)", ips[0])
+		}
+	})
 }
 
 // Test IsLocalhost
@@ -612,6 +646,66 @@ func TestFormFile(t *testing.T) {
 		_, err := c.FormFile("nonexistent")
 		if err == nil {
 			t.Error("Expected error for nonexistent file")
+		}
+	})
+
+	t.Run("failed to parse multipart form", func(t *testing.T) {
+		// Create request with multipart Content-Type but malformed body
+		// This tests error handling when ParseMultipartForm fails
+		req := httptest.NewRequest("POST", "/upload", bytes.NewBufferString("malformed multipart data"))
+		req.Header.Set("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW")
+		w := httptest.NewRecorder()
+		c := NewContext(w, req)
+
+		_, err := c.FormFile("document")
+		if err == nil {
+			t.Fatal("Expected error when parsing malformed multipart form")
+		}
+		if !strings.Contains(err.Error(), "failed to parse multipart form") {
+			t.Errorf("Expected error about parsing multipart form, got: %v", err)
+		}
+	})
+
+	t.Run("file not found after manipulation", func(t *testing.T) {
+		// Test error handling when MultipartForm.File[key] is manipulated
+		// after parsing. This tests defensive error handling.
+		// Create multipart form with a file
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		fileWriter, err := writer.CreateFormFile("target", "data.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fileWriter.Write([]byte("content"))
+		writer.Close()
+
+		req := httptest.NewRequest("POST", "/upload", bytes.NewReader(body.Bytes()))
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		w := httptest.NewRecorder()
+		c := NewContext(w, req)
+
+		// Parse the form - this populates MultipartForm.File["target"]
+		if err := req.ParseMultipartForm(32 << 20); err != nil {
+			t.Fatalf("Failed to parse: %v", err)
+		}
+
+		// Verify setup
+		if req.MultipartForm == nil || req.MultipartForm.File["target"] == nil {
+			t.Fatal("Test setup failed: file should exist")
+		}
+
+		// Manipulate state: clear the file entry
+		// This simulates an edge case where the file map is modified
+		req.MultipartForm.File["target"] = []*multipart.FileHeader{} // empty, not nil
+
+		// FormFile should return an error when the file entry is empty
+		_, err = c.FormFile("target")
+		if err == nil {
+			t.Fatal("Expected error when file entry is cleared")
+		}
+		// Error should indicate the file is not found
+		if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "no such file") {
+			t.Errorf("Expected 'not found' or 'no such file' error, got: %v", err)
 		}
 	})
 }

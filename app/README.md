@@ -89,11 +89,13 @@ func main() {
         app.WithServiceName("my-api"),
         app.WithVersion("v1.0.0"),
         app.WithEnvironment("production"),
-        app.WithObservability(), // Enables both metrics and tracing
-        app.WithServerConfig(&app.ServerConfig{
-            ReadTimeout:  15 * time.Second,
-            WriteTimeout: 15 * time.Second,
-        }),
+        app.WithMetrics(),
+        app.WithTracing(),
+        app.WithLogging(),
+        app.WithServerConfig(
+            app.WithReadTimeout(15 * time.Second),
+            app.WithWriteTimeout(15 * time.Second),
+        ),
     )
     if err != nil {
         log.Fatalf("Failed to create app: %v", err)
@@ -154,10 +156,7 @@ app.WithEnvironment("production") // or "development"
 ### Observability
 
 ```go
-// Enable both metrics and tracing with defaults
-app.WithObservability()
-
-// Or configure individually
+// Configure individually
 app.WithMetrics(
     metrics.WithProvider(metrics.PrometheusProvider),
     metrics.WithPort(":9090"),
@@ -166,6 +165,10 @@ app.WithMetrics(
 app.WithTracing(
     tracing.WithSampleRate(0.1),
     tracing.WithExcludePaths("/health"),
+)
+
+app.WithLogging(
+    logging.WithJSONHandler(),
 )
 ```
 
@@ -191,7 +194,11 @@ if err != nil {
 defer tp.Shutdown(context.Background())
 
 // Now create app - traces will actually work!
-app, _ := app.New(app.WithObservability())
+app, _ := app.New(
+    app.WithMetrics(),
+    app.WithTracing(),
+    app.WithLogging(),
+)
 ```
 
 **Just run it:**
@@ -218,28 +225,28 @@ ENVIRONMENT=production OTLP_ENDPOINT=jaeger:4317 go run main.go
 
 ### Server Configuration
 
-Configure server timeouts and limits:
+Configure server timeouts and limits using functional options:
 
 ```go
-app.WithServerConfig(&app.ServerConfig{
-    ReadTimeout:       10 * time.Second,
-    WriteTimeout:      10 * time.Second,
-    IdleTimeout:       60 * time.Second,
-    ReadHeaderTimeout: 2 * time.Second,
-    MaxHeaderBytes:    1 << 20, // 1MB
-    ShutdownTimeout:   30 * time.Second, // Graceful shutdown timeout
-})
+app.WithServerConfig(
+    app.WithReadTimeout(10 * time.Second),
+    app.WithWriteTimeout(10 * time.Second),
+    app.WithIdleTimeout(60 * time.Second),
+    app.WithReadHeaderTimeout(2 * time.Second),
+    app.WithMaxHeaderBytes(1 << 20), // 1MB
+    app.WithShutdownTimeout(30 * time.Second), // Graceful shutdown timeout
+)
 ```
 
 **Partial Configuration:** You can set only the fields you need. Unset fields will use their default values:
 
 ```go
 // Only override read and write timeouts
-app.WithServerConfig(&app.ServerConfig{
-    ReadTimeout:  15 * time.Second,
-    WriteTimeout: 15 * time.Second,
+app.WithServerConfig(
+    app.WithReadTimeout(15 * time.Second),
+    app.WithWriteTimeout(15 * time.Second),
     // Other fields (IdleTimeout, etc.) will use defaults
-})
+)
 ```
 
 **Default Values:**
@@ -253,23 +260,40 @@ app.WithServerConfig(&app.ServerConfig{
 
 ### Middleware Configuration
 
-Control which default middleware is included:
+Add middleware during initialization or after app creation:
 
 ```go
-// Include logger and recovery (useful for development)
-app.WithMiddleware(true, true)
+// Option 1: Add middleware during initialization
+a, err := app.New(
+    app.WithServiceName("my-service"),
+    app.WithMiddleware(
+        middleware.Logger(),
+        middleware.Recovery(),
+        middleware.RequestID(),
+    ),
+)
 
-// Disable logger in production (you may use custom logging)
-app.WithMiddleware(false, true)
+// Option 2: Add middleware after creation (more flexible)
+a, err := app.New(
+    app.WithServiceName("my-service"),
+)
+a.Use(middleware.Logger())
+a.Use(middleware.Recovery())
+a.Use(middleware.RequestID())
 
-// Disable all default middleware
-app.WithMiddleware(false, false)
+// Option 3: Mix both approaches
+a, err := app.New(
+    app.WithServiceName("my-service"),
+    app.WithMiddleware(middleware.Recovery()), // Core middleware
+)
+a.Use(middleware.Logger())  // Additional middleware
 ```
 
-By default:
+**Default Behavior:**
 
-- **Development mode**: Includes logger and recovery middleware
-- **Production mode**: Includes only recovery middleware
+- **Development mode**: Automatically includes `Recovery()` and `Logger()` middleware
+- **Production mode**: Automatically includes only `Recovery()` middleware
+- **To disable defaults**: Call `app.WithMiddleware()` with no arguments (empty) to opt out of defaults
 
 ## Built-in Middleware
 
@@ -411,6 +435,15 @@ app.RunTLS(":8443", "cert.pem", "key.pem")
 
 The app automatically handles graceful shutdown on SIGINT or SIGTERM signals.
 
+**Architecture:** HTTP and HTTPS servers share the same lifecycle implementation through `runServer`, which provides:
+
+- **Unified telemetry**: Startup/shutdown events are logged through the configured slog logger with protocol identification
+- **Consistent shutdown**: Both protocols use the same graceful shutdown timeout and signal handling
+- **Observability teardown**: Metrics and tracing components are shut down in the correct order after the server stops accepting connections
+- **Protocol abstraction**: The design uses a function parameter (`serverStartFunc`) to abstract the difference between `ListenAndServe` and `ListenAndServeTLS`, ensuring identical behavior for both protocols
+
+This design ensures that HTTP and HTTPS deployments have identical lifecycle behavior, making it safe to switch protocols without changing shutdown logic.
+
 ## Accessing Underlying Components
 
 ### Router
@@ -530,7 +563,9 @@ r := router.New(
 import "rivass.dev/app"
 
 a, err := app.New(
-    app.WithObservability(),
+    app.WithMetrics(),
+    app.WithTracing(),
+    app.WithLogging(),
 )
 if err != nil {
     log.Fatalf("Failed to create app: %v", err)

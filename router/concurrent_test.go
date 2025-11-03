@@ -283,8 +283,8 @@ func (suite *ConcurrentTestSuite) TestConcurrentParameterExtraction() {
 	wg.Wait()
 }
 
-// TestConcurrentWarmupOptimizations tests warmup under concurrent load
-func (suite *ConcurrentTestSuite) TestConcurrentWarmupOptimizations() {
+// TestConcurrentWarmup tests warmup under concurrent load
+func (suite *ConcurrentTestSuite) TestConcurrentWarmup() {
 	r := New()
 
 	// Register many routes
@@ -297,7 +297,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentWarmupOptimizations() {
 
 	// Warmup should only be called once, not concurrently
 	// Testing that it doesn't break when called after concurrent registration
-	r.WarmupOptimizations()
+	r.Warmup()
 
 	// Verify routes still work
 	req := httptest.NewRequest("GET", "/route-42", nil)

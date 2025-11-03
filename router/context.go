@@ -195,6 +195,11 @@ func (c *Context) IsAborted() bool {
 //	postID := c.Param("post_id")
 //
 // Returns an empty string if the parameter doesn't exist.
+//
+// Compiler hint: This is a hot path function that should be inlined for performance.
+// The small size and frequent usage make it an ideal candidate for inlining.
+//
+//go:inline
 func (c *Context) Param(key string) string {
 	// Fast array lookup first (zero allocations for ≤8 params)
 	for i := int32(0); i < c.paramCount; i++ {

@@ -1,0 +1,51 @@
+package handlers
+
+import (
+	"net/http"
+	"time"
+
+	"rivaas.dev/router"
+)
+
+// Search performs a search with advanced query binding.
+func Search(c *router.Context) {
+	var params SearchParams
+	if err := c.BindQuery(&params); err != nil {
+		HandleError(c, WrapError(ErrInvalidInput, "%v", err))
+		return
+	}
+
+	// Apply defaults if not provided
+	if params.Page == 0 {
+		params.Page = 1
+	}
+	if params.PageSize == 0 {
+		params.PageSize = 10
+	}
+	if params.SortBy == "" {
+		params.SortBy = "name"
+	}
+
+	c.SetSpanAttribute("search.query", params.Query)
+	c.SetSpanAttribute("search.page", params.Page)
+	c.SetSpanAttribute("search.page_size", params.PageSize)
+	c.SetSpanAttribute("search.sort_by", params.SortBy)
+	if params.Active != nil {
+		c.SetSpanAttribute("search.active", *params.Active)
+	}
+	c.AddSpanEvent("search_executed")
+
+	// Simulate search
+	time.Sleep(25 * time.Millisecond)
+
+	c.JSON(http.StatusOK, map[string]any{
+		"query":     params.Query,
+		"page":      params.Page,
+		"page_size": params.PageSize,
+		"tags":      params.Tags,
+		"active":    params.Active,
+		"sort_by":   params.SortBy,
+		"results":   []string{"result1", "result2", "result3"},
+		"total":     3,
+	})
+}

@@ -389,8 +389,8 @@ func TestContext_IsAborted(t *testing.T) {
 	}
 }
 
-// TestContextPool_GetContext_ParameterCounts tests pool with different parameter counts
-func TestContextPool_GetContext_ParameterCounts(t *testing.T) {
+// TestContextPool_Get_ParameterCounts tests pool with different parameter counts
+func TestContextPool_Get_ParameterCounts(t *testing.T) {
 	r := New()
 	pool := r.contextPool
 
@@ -399,25 +399,25 @@ func TestContextPool_GetContext_ParameterCounts(t *testing.T) {
 
 	for _, count := range paramCounts {
 		t.Run(string(rune('0'+count)), func(t *testing.T) {
-			ctx := pool.GetContext(count)
+			ctx := pool.Get(count)
 
 			if ctx == nil {
-				t.Errorf("GetContext(%d) should not return nil", count)
+				t.Errorf("Get(%d) should not return nil", count)
 			}
 
 			// Return to pool
-			pool.PutContext(ctx)
+			pool.Put(ctx)
 		})
 	}
 }
 
-// TestContextPool_PutContext_Reuse tests that contexts are properly reused
-func TestContextPool_PutContext_Reuse(t *testing.T) {
+// TestContextPool_Put_Reuse tests that contexts are properly reused
+func TestContextPool_Put_Reuse(t *testing.T) {
 	r := New()
 	pool := r.contextPool
 
 	// Get a context
-	ctx1 := pool.GetContext(0)
+	ctx1 := pool.Get(0)
 
 	// Modify it to track reuse (use valid value within array bounds)
 	ctx1.paramCount = 2
@@ -425,10 +425,10 @@ func TestContextPool_PutContext_Reuse(t *testing.T) {
 	ctx1.paramValues[0] = "value"
 
 	// Return it
-	pool.PutContext(ctx1)
+	pool.Put(ctx1)
 
 	// Get another context - might be the same one (reused)
-	ctx2 := pool.GetContext(0)
+	ctx2 := pool.Get(0)
 
 	// After reset, should be cleared
 	if ctx2.paramCount != 0 {
@@ -439,22 +439,22 @@ func TestContextPool_PutContext_Reuse(t *testing.T) {
 		t.Error("param keys should be cleared")
 	}
 
-	pool.PutContext(ctx2)
+	pool.Put(ctx2)
 }
 
-// TestContextPool_WarmupPools tests pool warmup
-func TestContextPool_WarmupPools(t *testing.T) {
+// TestContextPool_Warmup tests pool warmup
+func TestContextPool_Warmup(t *testing.T) {
 	r := New()
 
 	// Warmup should not panic
-	r.contextPool.WarmupPools()
+	r.contextPool.Warmup()
 
 	// After warmup, pools should work normally
-	ctx := r.contextPool.GetContext(4)
+	ctx := r.contextPool.Get(4)
 	if ctx == nil {
 		t.Error("context pool should work after warmup")
 	}
-	r.contextPool.PutContext(ctx)
+	r.contextPool.Put(ctx)
 }
 
 // TestContextPool_ConcurrentAccess tests concurrent pool access
@@ -465,22 +465,22 @@ func TestContextPool_ConcurrentAccess(t *testing.T) {
 	// Run concurrent gets and puts
 	done := make(chan bool)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
 			defer func() { done <- true }()
 
-			for j := 0; j < 100; j++ {
-				ctx := pool.GetContext(j % 9)
+			for j := range 100 {
+				ctx := pool.Get(j % 9)
 				if ctx == nil {
-					t.Error("GetContext should not return nil")
+					t.Error("Get should not return nil")
 				}
-				pool.PutContext(ctx)
+				pool.Put(ctx)
 			}
 		}()
 	}
 
 	// Wait for all goroutines
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 }
@@ -622,27 +622,27 @@ func TestContextPool_GetPut_DifferentSizes(t *testing.T) {
 	pool := r.contextPool
 
 	// Test with 0 params (uses general pool)
-	ctx0 := pool.GetContext(0)
+	ctx0 := pool.Get(0)
 	if ctx0 == nil {
-		t.Error("GetContext(0) returned nil")
+		t.Error("Get(0) returned nil")
 	}
-	pool.PutContext(ctx0)
+	pool.Put(ctx0)
 
 	// Test with exact pool sizes (1, 2, 4, 8)
 	for _, size := range []int{1, 2, 4, 8} {
-		ctx := pool.GetContext(size)
+		ctx := pool.Get(size)
 		if ctx == nil {
-			t.Errorf("GetContext(%d) returned nil", size)
+			t.Errorf("Get(%d) returned nil", size)
 		}
-		pool.PutContext(ctx)
+		pool.Put(ctx)
 	}
 
 	// Test with size > 8 (uses general pool)
-	ctx16 := pool.GetContext(16)
+	ctx16 := pool.Get(16)
 	if ctx16 == nil {
-		t.Error("GetContext(16) returned nil")
+		t.Error("Get(16) returned nil")
 	}
-	pool.PutContext(ctx16)
+	pool.Put(ctx16)
 }
 
 // TestContext_Abort_Multiple tests calling Abort multiple times
@@ -826,16 +826,16 @@ func TestContextPool_WarmupMultipleTimes(t *testing.T) {
 	r := New()
 
 	// Warmup multiple times should not panic or cause issues
-	r.contextPool.WarmupPools()
-	r.contextPool.WarmupPools()
-	r.contextPool.WarmupPools()
+	r.contextPool.Warmup()
+	r.contextPool.Warmup()
+	r.contextPool.Warmup()
 
 	// Pool should still work
-	ctx := r.contextPool.GetContext(2)
+	ctx := r.contextPool.Get(2)
 	if ctx == nil {
 		t.Error("pool should work after multiple warmups")
 	}
-	r.contextPool.PutContext(ctx)
+	r.contextPool.Put(ctx)
 }
 
 // TestContext_Next_WithAbortAndCancellation tests Abort takes precedence
@@ -894,26 +894,128 @@ func TestContext_Abort_InHandler(t *testing.T) {
 	}
 }
 
-// TestContextPool_PutContext_AllPools tests returning to all pool sizes
-func TestContextPool_PutContext_AllPools(t *testing.T) {
+// TestContextPool_Put_AllPools tests returning to all pool sizes
+func TestContextPool_Put_AllPools(t *testing.T) {
 	r := New()
 	pool := r.contextPool
 
 	// Test small pool (paramCount <= 4)
-	ctx1 := pool.GetContext(2)
+	ctx1 := pool.Get(2)
 	ctx1.paramCount = 3
-	pool.PutContext(ctx1) // Should go to small pool
+	pool.Put(ctx1) // Should go to small pool
 
 	// Test medium pool (paramCount <= 8)
-	ctx2 := pool.GetContext(6)
+	ctx2 := pool.Get(6)
 	ctx2.paramCount = 6
-	pool.PutContext(ctx2) // Should go to medium pool
+	pool.Put(ctx2) // Should go to medium pool
 
 	// Test large pool (paramCount > 8)
-	ctx3 := pool.GetContext(10)
+	ctx3 := pool.Get(10)
 	ctx3.paramCount = 10
-	pool.PutContext(ctx3) // Should go to large pool
+	pool.Put(ctx3) // Should go to large pool
 
 	// Verify all contexts were returned successfully
 	// (no panic means success)
+}
+
+// TestContextPool_Put_BoundaryCases tests Put boundary cases for medium and large pools
+func TestContextPool_Put_BoundaryCases(t *testing.T) {
+	r := New()
+	pool := r.contextPool
+
+	t.Run("medium pool lower boundary", func(t *testing.T) {
+		// Test paramCount = 5 (enters medium pool)
+		ctx := pool.Get(5)
+		ctx.paramCount = 5
+		pool.Put(ctx) // Should go to medium pool
+		// Verify by getting another context with same paramCount - should reuse from medium pool
+		ctx2 := pool.Get(5)
+		if ctx2 == nil {
+			t.Fatal("Get(5) should not return nil")
+		}
+		pool.Put(ctx2)
+	})
+
+	t.Run("medium pool upper boundary", func(t *testing.T) {
+		// Test paramCount = 8 (still medium pool)
+		ctx := pool.Get(8)
+		ctx.paramCount = 8
+		pool.Put(ctx) // Should go to medium pool
+		// Verify by getting another context with same paramCount - should reuse from medium pool
+		ctx2 := pool.Get(8)
+		if ctx2 == nil {
+			t.Fatal("Get(8) should not return nil")
+		}
+		pool.Put(ctx2)
+	})
+
+	t.Run("medium pool middle values", func(t *testing.T) {
+		// Test paramCount = 6 and 7 (medium pool)
+		for _, count := range []int{6, 7} {
+			ctx := pool.Get(count)
+			ctx.paramCount = int32(count)
+			pool.Put(ctx) // Should go to medium pool
+			ctx2 := pool.Get(count)
+			if ctx2 == nil {
+				t.Fatalf("Get(%d) should not return nil", count)
+			}
+			pool.Put(ctx2)
+		}
+	})
+
+	t.Run("large pool lower boundary", func(t *testing.T) {
+		// Test paramCount = 9 (enters large pool)
+		ctx := pool.Get(9)
+		ctx.paramCount = int32(9)
+		pool.Put(ctx) // Should go to large pool
+		// Verify by getting another context with same paramCount - should reuse from large pool
+		ctx2 := pool.Get(9)
+		if ctx2 == nil {
+			t.Fatal("Get(9) should not return nil")
+		}
+		pool.Put(ctx2)
+	})
+
+	t.Run("large pool higher values", func(t *testing.T) {
+		// Test paramCount > 9 (large pool)
+		for _, count := range []int{10, 15, 20} {
+			ctx := pool.Get(count)
+			ctx.paramCount = int32(count)
+			pool.Put(ctx) // Should go to large pool
+			ctx2 := pool.Get(count)
+			if ctx2 == nil {
+				t.Fatalf("Get(%d) should not return nil", count)
+			}
+			pool.Put(ctx2)
+		}
+	})
+}
+
+// TestContextPool_WarmupPool_New tests the warmupPool.New function
+func TestContextPool_WarmupPool_New(t *testing.T) {
+	r := New()
+	pool := r.contextPool
+
+	// Access warmupPool directly (same package, so unexported fields are accessible)
+	// Call Get() when pool is empty to trigger New function
+	// This should create a new slice with capacity 10
+	result := pool.warmupPool.Get()
+	slice, ok := result.([]*Context)
+	if !ok {
+		t.Fatalf("Expected []*Context, got %T", result)
+	}
+
+	// Verify the slice properties
+	if slice == nil {
+		t.Error("Expected non-nil slice")
+	}
+	if len(slice) != 0 {
+		t.Errorf("Expected empty slice, got length %d", len(slice))
+	}
+	if cap(slice) != 10 {
+		t.Errorf("Expected capacity 10, got %d", cap(slice))
+	}
+
+	// Put it back
+	pool.warmupPool.Put(slice)
 }

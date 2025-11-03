@@ -42,6 +42,20 @@ type RouteTemplate struct {
 	hasConstraints bool // True if route has parameter constraints
 }
 
+const (
+	// minTemplatesForIndexing is the minimum number of dynamic templates required
+	// before building the first-segment index for faster filtering.
+	// Below this threshold, the overhead of maintaining the index outweighs the benefits.
+	//
+	// Rationale:
+	//   - With ≤10 templates: Linear scan is ~50-100ns (acceptable)
+	//   - Index build cost: ~200ns + memory overhead
+	//   - Index lookup benefit: ~30% faster when >10 templates
+	//
+	// This threshold ensures we only build the index when it provides a clear advantage.
+	minTemplatesForIndexing = 10
+)
+
 // TemplateCache manages compiled route templates for fast lookup.
 // Uses a three-tier strategy:
 //  1. Static routes: Hash table with O(1) complexity
@@ -426,11 +440,11 @@ func (tc *TemplateCache) lookupStatic(method, path string) *RouteTemplate {
 
 // matchDynamic attempts to match path against dynamic templates.
 // Uses first-segment index for faster filtering.
-func (tc *TemplateCache) matchDynamic(path string, ctx *Context) *RouteTemplate {
+func (tc *TemplateCache) matchDynamic(method, path string, ctx *Context) *RouteTemplate {
 	tc.mu.RLock()
 
 	// Build first-segment index if not exists (lazy initialization)
-	if !tc.hasFirstSegmentIndex && len(tc.dynamicTemplates) > 10 {
+	if !tc.hasFirstSegmentIndex && len(tc.dynamicTemplates) > minTemplatesForIndexing {
 		// Only build index if we have enough templates to benefit
 		tc.mu.RUnlock()
 		tc.buildFirstSegmentIndex()
@@ -445,7 +459,8 @@ func (tc *TemplateCache) matchDynamic(path string, ctx *Context) *RouteTemplate 
 			// ASCII fast path - check jump table
 			candidates := tc.firstSegmentIndex[firstChar]
 			for _, tmpl := range candidates {
-				if tmpl.matchAndExtract(path, ctx) {
+				// Check method before matching path
+				if tmpl.method == method && tmpl.matchAndExtract(path, ctx) {
 					tc.mu.RUnlock()
 					return tmpl
 				}
@@ -457,7 +472,8 @@ func (tc *TemplateCache) matchDynamic(path string, ctx *Context) *RouteTemplate 
 
 	// Fallback: Try each template in order (sorted by specificity)
 	for _, tmpl := range tc.dynamicTemplates {
-		if tmpl.matchAndExtract(path, ctx) {
+		// Check method before matching path
+		if tmpl.method == method && tmpl.matchAndExtract(path, ctx) {
 			tc.mu.RUnlock()
 			return tmpl
 		}

@@ -2187,8 +2187,7 @@ Creates a new route group with the specified prefix and optional middleware.
 
 #### Route Introspection
 
-- `(*Router) Routes() []RouteInfo` - Get all registered routes
-- `(*Router) PrintRoutes()` - Print formatted route table
+- `(*Router) Routes() []RouteInfo` - Get all registered routes for introspection
 
 ### Route Constraints
 
@@ -2313,17 +2312,14 @@ for _, route := range routes {
     fmt.Printf("%s %s -> %s\n", route.Method, route.Path, route.HandlerName)
 }
 
-// Print formatted route table
-r.PrintRoutes()
-```
-
-Output:
-
-```text
-Method  Path       Handler
-------  ----       -------
-GET     /users/:id getUserHandler
-POST    /users     createUserHandler
+// For formatted route table output, use the app package:
+// app.PrintRoutes() (automatically called in development mode)
+// Or implement custom formatting:
+fmt.Printf("%-6s %-20s %s\n", "Method", "Path", "Handler")
+fmt.Println(strings.Repeat("-", 50))
+for _, route := range routes {
+    fmt.Printf("%-6s %-20s %s\n", route.Method, route.Path, route.HandlerName)
+}
 ```
 
 ### Request/Response Helpers

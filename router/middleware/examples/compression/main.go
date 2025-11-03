@@ -1,14 +1,30 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package main provides examples of using the Compression middleware.
 package main
 
 import (
 	"compress/gzip"
 	"fmt"
-	"log"
 	"net/http"
+	"os"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware"
+	"rivaas.dev/router/middleware/compression"
 )
 
 func main() {
@@ -26,20 +42,35 @@ func main() {
 	// Example 4: Production-ready configuration
 	productionExample(r)
 
-	fmt.Println("Server starting on :8080")
-	fmt.Println("Try these endpoints:")
-	fmt.Println("  - GET /basic - Basic compression")
-	fmt.Println("  - GET /fast - Fast compression (best speed)")
-	fmt.Println("  - GET /best - Best compression (smallest size)")
-	fmt.Println("  - GET /large - Large response (shows compression benefits)")
-	fmt.Println("  - GET /image.jpg - Excluded by extension")
-	fmt.Println("  - GET /metrics - Excluded path")
-	fmt.Println("")
-	fmt.Println("Test with: curl -H 'Accept-Encoding: gzip' http://localhost:8080/basic -i")
+	// Example 5: Compression ratio demonstration
+	compressionRatioExample(r)
 
-	if err := http.ListenAndServe(":8080", r); err != nil {
-		log.Fatal(err)
-	}
+	// Create a logger with clean, colorful output
+	logger := log.NewWithOptions(os.Stderr, log.Options{
+		ReportTimestamp: false,
+		ReportCaller:    false,
+	})
+
+	logger.Info("🚀 Server starting on http://localhost:8080")
+	logger.Print("")
+	logger.Print("📝 Available endpoints:")
+	logger.Print("  GET /basic        - Basic compression")
+	logger.Print("  GET /fast         - Fast compression (best speed)")
+	logger.Print("  GET /best         - Best compression (smallest size)")
+	logger.Print("  GET /large        - Large response (shows compression benefits)")
+	logger.Print("  GET /image.jpg    - Excluded by extension")
+	logger.Print("  GET /metrics      - Excluded path")
+	logger.Print("  GET /ratio        - Compression ratio demo")
+	logger.Print("  GET /api/users    - Production configuration")
+	logger.Print("")
+	logger.Print("📋 Example commands:")
+	logger.Print("  curl -H 'Accept-Encoding: gzip' http://localhost:8080/basic -i")
+	logger.Print("  curl -H 'Accept-Encoding: gzip' http://localhost:8080/ratio --compressed -w '\\nSize: %{size_download} bytes\\n'")
+	logger.Print("")
+	logger.Print("💡 Tip: Use --compressed flag to auto-decompress responses")
+	logger.Print("")
+
+	logger.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Basic compression with defaults
@@ -47,7 +78,7 @@ func basicExample(r *router.Router) {
 	basic := r.Group("/basic")
 
 	// Use default compression settings
-	basic.Use(middleware.Compression())
+	basic.Use(compression.New())
 
 	basic.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]any{
@@ -62,8 +93,8 @@ func basicExample(r *router.Router) {
 func customLevelExample(r *router.Router) {
 	// Best speed (level 1)
 	fast := r.Group("/fast")
-	fast.Use(middleware.Compression(
-		middleware.WithCompressionLevel(gzip.BestSpeed),
+	fast.Use(compression.New(
+		compression.WithLevel(gzip.BestSpeed),
 	))
 	fast.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]any{
@@ -74,8 +105,8 @@ func customLevelExample(r *router.Router) {
 
 	// Best compression (level 9)
 	best := r.Group("/best")
-	best.Use(middleware.Compression(
-		middleware.WithCompressionLevel(gzip.BestCompression),
+	best.Use(compression.New(
+		compression.WithLevel(gzip.BestCompression),
 	))
 	best.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]any{
@@ -101,18 +132,18 @@ func customLevelExample(r *router.Router) {
 
 // Example 3: Exclude certain paths and file types
 func excludeExample(r *router.Router) {
-	r.Use(middleware.Compression(
+	r.Use(compression.New(
 		// Don't compress already compressed formats
-		middleware.WithExcludeExtensions([]string{".jpg", ".png", ".gif", ".zip", ".gz"}),
+		compression.WithExcludeExtensions(".jpg", ".png", ".gif", ".zip", ".gz"),
 
 		// Don't compress metrics endpoint (often scraped by tools)
-		middleware.WithExcludePaths([]string{"/metrics"}),
+		compression.WithExcludePaths("/metrics"),
 
 		// Don't compress certain content types
-		middleware.WithExcludeContentTypes([]string{"image/jpeg", "image/png", "application/zip"}),
+		compression.WithExcludeContentTypes("image/jpeg", "image/png", "application/zip"),
 
 		// Only compress responses larger than 2KB
-		middleware.WithMinSize(2048),
+		compression.WithMinSize(2048),
 	))
 
 	r.GET("/image.jpg", func(c *router.Context) {
@@ -130,38 +161,38 @@ func productionExample(r *router.Router) {
 	api := r.Group("/api")
 
 	// Production compression settings
-	api.Use(middleware.Compression(
+	api.Use(compression.New(
 		// Use default compression (good balance of speed vs size)
-		middleware.WithCompressionLevel(gzip.DefaultCompression),
+		compression.WithLevel(gzip.DefaultCompression),
 
 		// Only compress responses >= 1KB
-		middleware.WithMinSize(1024),
+		compression.WithMinSize(1024),
 
 		// Exclude pre-compressed formats
-		middleware.WithExcludeExtensions([]string{
+		compression.WithExcludeExtensions(
 			".jpg", ".jpeg", ".png", ".gif", ".webp", // Images
 			".zip", ".gz", ".br", // Archives
 			".mp4", ".avi", ".mov", // Videos
 			".mp3", ".wav", ".ogg", // Audio
 			".woff", ".woff2", // Fonts
-		}),
+		),
 
 		// Exclude content types that don't benefit from compression
-		middleware.WithExcludeContentTypes([]string{
+		compression.WithExcludeContentTypes(
 			"image/",
 			"video/",
 			"audio/",
 			"application/zip",
 			"application/x-gzip",
-		}),
+		),
 
 		// Exclude monitoring endpoints
-		middleware.WithExcludePaths([]string{
+		compression.WithExcludePaths(
 			"/health",
 			"/metrics",
 			"/readiness",
 			"/liveness",
-		}),
+		),
 	))
 
 	api.GET("/users", func(c *router.Context) {
@@ -178,10 +209,9 @@ func productionExample(r *router.Router) {
 	})
 }
 
-// Example showing compression ratio
-func compressionRatioExample() {
-	r := router.New()
-	r.Use(middleware.Compression())
+// Example 5: Compression ratio demonstration
+func compressionRatioExample(r *router.Router) {
+	r.Use(compression.New())
 
 	r.GET("/ratio", func(c *router.Context) {
 		// Large repetitive data compresses very well
@@ -192,6 +222,4 @@ func compressionRatioExample() {
 		}
 		c.JSON(http.StatusOK, data)
 	})
-
-	fmt.Println("Try: curl -H 'Accept-Encoding: gzip' http://localhost:8080/ratio --compressed -w '\\nSize: %{size_download} bytes\\n'")
 }

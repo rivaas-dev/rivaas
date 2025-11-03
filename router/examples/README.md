@@ -1,6 +1,10 @@
 # Rivaas Router Examples
 
-This directory contains practical examples demonstrating the features and capabilities of the Rivaas router.
+Pure router and middleware feature demonstrations.
+
+**No domain logic here** - these examples focus solely on router/middleware capabilities.
+
+For complete, production-ready applications with business logic, see `app/examples/`.
 
 ## 📚 Examples Overview
 
@@ -32,88 +36,88 @@ curl http://localhost:8080/users/123
 
 ---
 
-### 3. [Middleware](./03-middleware/)
+### 3. [Complete REST API](./03-complete-rest-api/)
 
-Common middleware patterns including auth, logging, recovery, and CORS.
-
-```bash
-cd 03-middleware && go run main.go
-curl -H "Authorization: Bearer token123" http://localhost:8080/api/profile
-```
-
-**Learn:** Global middleware, group middleware, middleware chaining, authentication, CORS
-
----
-
-### 4. [REST API](./04-rest-api/)
-
-Complete CRUD REST API with in-memory storage.
+Production-ready CRUD API with validation and error handling.
 
 ```bash
-cd 04-rest-api && go run main.go
+cd 03-complete-rest-api && go run main.go
 curl http://localhost:8080/api/v1/users
 curl -X POST http://localhost:8080/api/v1/users -H 'Content-Type: application/json' \
   -d '{"name":"Alice","email":"alice@example.com"}'
 ```
 
-**Learn:** Full CRUD operations, request/response handling, error handling, JSON parsing
+**Learn:**
+
+- Request binding (BindBody, BindQuery, BindParams)
+- Structured error responses with proper HTTP codes
+- Input validation patterns
+- Business logic separation
+- Nested resources (users/:id/posts)
 
 ---
 
-### 5. [Advanced](./05-advanced/)
+### 4. [Middleware Stack](./04-middleware-stack/)
 
-Advanced features: route constraints, helpers, static files, introspection.
+Complete middleware guide for production.
 
 ```bash
-cd 05-advanced && go run main.go
-curl http://localhost:8080/users/123           # ✓ Valid (numeric)
-curl http://localhost:8080/users/abc           # ✗ Invalid (not numeric)
+cd 04-middleware-stack && go run main.go
+curl http://localhost:8080/api/data
+curl -H 'Authorization: Bearer token123' http://localhost:8080/protected/secret
 ```
 
-**Learn:** Route validation, constraints (UUID, numeric, alpha), static files, cookie handling, introspection
+**Learn:**
+
+- Common middleware (auth, logging, recovery, CORS)
+- Middleware patterns (global, group, per-route, conditional)
+- Custom middleware creation with configuration
+- Middleware ordering and composition
+- Rate limiting, request tracking, validation
 
 ---
 
-### 6. [Advanced Routing](./06-advanced-routing/)
+### 5. [Advanced Routing](./05-advanced-routing/)
 
-Advanced routing features: versioning and wildcards.
+Advanced features for mature APIs.
 
 ```bash
-cd 06-advanced-routing && go run main.go
+cd 05-advanced-routing && go run main.go
+curl http://localhost:8080/users/123           # ✓ Valid (numeric)
+curl http://localhost:8080/users/abc           # ✗ Invalid (not numeric)
 curl -H "API-Version: v1" http://localhost:8080/users
 curl http://localhost:8080/files/static/image.jpg
 ```
 
-**Learn:** API versioning (header/query), version-specific groups, wildcard routes, efficient routing
+**Learn:**
+
+- Route constraints (UUID, numeric, alpha, regex)
+- API versioning (header/query-based)
+- Proper HTTP method semantics (GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS)
+- Wildcard routes for file serving
+- Route introspection
 
 ---
 
-### 7. [Content Negotiation](./07-content-negotiation/)
+### 6. [Content and Rendering](./06-content-and-rendering/)
 
-HTTP content negotiation for flexible API responses.
+Request handling and response rendering.
 
 ```bash
-cd 07-content-negotiation && go run main.go
+cd 06-content-and-rendering && go run main.go
 curl -H "Accept: application/json" http://localhost:8080/api/user
-curl -H "Accept-Language: fr" http://localhost:8080/api/greeting
+curl http://localhost:8080/json/pure
+curl http://localhost:8080/benchmark?format=pure
 ```
 
-**Learn:** Accept header parsing, format negotiation (JSON/XML/HTML), language/encoding/charset negotiation
+**Learn:**
 
----
-
-### 8. [Request Binding](./08-binding/)
-
-Automatic request data binding to structs.
-
-```bash
-cd 08-binding && go run main.go
-curl -X POST http://localhost:8080/api/users -H "Content-Type: application/json" \
-  -d '{"name":"Alice","email":"alice@example.com","age":25}'
-curl "http://localhost:8080/api/search?q=golang&page=2&tags=web&tags=api"
-```
-
-**Learn:** BindBody, BindQuery, BindParams, BindCookies, BindHeaders, type conversion, slices, pointers
+- Content negotiation (Accept headers for JSON/XML/HTML)
+- Rendering methods (JSON, PureJSON, YAML, etc.)
+- Performance comparisons (PureJSON 35% faster, Data 98% faster)
+- Context helpers (Query, Param, Header, Cookie, ClientIP)
+- Streaming responses with DataFromReader
+- JSONP for legacy support
 
 ---
 
@@ -138,14 +142,20 @@ curl "http://localhost:8080/api/search?q=golang&page=2&tags=web&tags=api"
 
 ### Progressive Learning
 
+#### Core Routing (Start Here)
+
 1. Start with **01-hello-world** to understand the basics
 2. Move to **02-routing** to learn about routes and parameters
-3. Explore **03-middleware** for request processing
-4. Build a **04-rest-api** to see everything together
-5. Learn **05-advanced** features for constraints and helpers
-6. Master **06-advanced-routing** for versioning and wildcards
-7. Implement **07-content-negotiation** for flexible API responses
-8. Use **08-binding** for automatic request data parsing
+
+#### Practical Application
+
+1. Build **03-complete-rest-api** for production-ready CRUD patterns
+2. Study **04-middleware-stack** for complete middleware guide
+
+#### Advanced Features
+
+1. Master **05-advanced-routing** for versioning, constraints, and HTTP methods
+2. Explore **06-content-and-rendering** for flexible response handling
 
 ## 🔧 Common Patterns
 
@@ -192,8 +202,8 @@ r.Use(logger, recovery)
 // Group-specific
 api.Use(authMiddleware)
 
-// Per-route
-r.GET("/admin", handler).Use(adminMiddleware)
+// Per-route (pass middleware as arguments)
+r.GET("/admin", adminMiddleware, handler)
 ```
 
 ### Route Constraints
@@ -237,6 +247,56 @@ func fileHandler(c *router.Context) {
 }
 ```
 
+### Request Binding
+
+```go
+// Bind request body
+type CreateUserRequest struct {
+    Name  string `json:"name"`
+    Email string `json:"email"`
+}
+
+var req CreateUserRequest
+if err := c.BindBody(&req); err != nil {
+    c.JSON(http.StatusBadRequest, errorResponse)
+    return
+}
+
+// Bind query parameters
+type ListParams struct {
+    Page     int `query:"page"`
+    PageSize int `query:"page_size"`
+}
+
+var params ListParams
+c.BindQuery(&params)
+
+// Bind path parameters
+type PathParams struct {
+    ID int `params:"id"`
+}
+
+var params PathParams
+c.BindParams(&params)
+```
+
+### Structured Error Responses
+
+```go
+type APIError struct {
+    Code    string `json:"code"`
+    Message string `json:"message"`
+    Details any    `json:"details,omitempty"`
+    Path    string `json:"path,omitempty"`
+}
+
+c.JSON(http.StatusNotFound, APIError{
+    Code:    "USER_NOT_FOUND",
+    Message: "User not found",
+    Path:    c.Request.URL.Path,
+})
+```
+
 ## 🧪 Testing Examples
 
 Each example includes curl commands in its output. Generally:
@@ -249,6 +309,24 @@ go run main.go
 curl http://localhost:8080/
 ```
 
+## 🎯 What's Here vs. What's in `app/`
+
+### Use `router/examples` to learn
+
+- ✅ How routing works
+- ✅ How to use middleware
+- ✅ Router features and APIs
+- ✅ Request/response handling
+- ✅ Pure router capabilities
+
+### Use `app/examples` for
+
+- ❌ Complete applications
+- ❌ Database integration
+- ❌ Authentication patterns
+- ❌ Business logic
+- ❌ Production deployments
+
 ## 📝 Building Your Own
 
 1. **Copy a similar example** as a starting point
@@ -257,6 +335,8 @@ curl http://localhost:8080/
 4. **Add validation** with route constraints
 5. **Use versioning** for API evolution
 6. **Implement wildcards** for flexible routing
+7. **Handle errors** with structured responses
+8. **Build custom middleware** for your needs
 
 ## 🤝 Need Help?
 
@@ -266,4 +346,20 @@ curl http://localhost:8080/
 
 ## 📄 License
 
-All examples are provided under the same license as the Rivaas project.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](../../LICENSE) file for details.
+
+```text
+Copyright 2025 The Rivaas Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```

@@ -326,19 +326,24 @@ func TestExtendedSuite(t *testing.T) {
 	suite.Run(t, new(ExtendedTestSuite))
 }
 
-// TestPrintRoutes tests the PrintRoutes utility function
-func TestPrintRoutes(t *testing.T) {
+// TestRoutes tests the Routes introspection function
+func TestRoutes(t *testing.T) {
 	r := New()
 
 	r.GET("/users", func(c *Context) {})
 	r.POST("/users", func(c *Context) {})
 	r.GET("/users/:id", func(c *Context) {})
 
-	// This should not panic
-	r.PrintRoutes()
-
 	routes := r.Routes()
 	if len(routes) != 3 {
 		t.Errorf("Expected 3 routes, got %d", len(routes))
+	}
+
+	// Verify routes are sorted correctly
+	expectedMethods := []string{"GET", "GET", "POST"}
+	for i, route := range routes {
+		if route.Method != expectedMethods[i] {
+			t.Errorf("Route %d: expected method %s, got %s", i, expectedMethods[i], route.Method)
+		}
 	}
 }

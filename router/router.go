@@ -48,6 +48,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -173,7 +174,29 @@ type Router struct {
 	// Template-based routing
 	templateCache *TemplateCache // Pre-compiled route templates for fast matching
 	useTemplates  bool           // Enable template-based routing (default: true)
+
+	// Custom 404 handler
+	noRouteHandler HandlerFunc  // Custom handler for unmatched routes (nil means use http.NotFound)
+	noRouteMutex   sync.RWMutex // Protects noRouteHandler (rarely written, frequently read)
 }
+
+const (
+	// defaultBloomFilterSize is the default size of bloom filters for compiled routes.
+	// This value balances false positives (~1%) and memory usage (125 bytes).
+	// Formula: For optimal performance with ~1000 static routes:
+	//   - Bits needed: m = -n*ln(p) / (ln(2)^2) ≈ 1000 bits for p=0.01
+	//   - Memory: 1000 bits ≈ 125 bytes
+	defaultBloomFilterSize = 1000
+
+	// defaultBloomHashFunctions is the default number of hash functions for bloom filters.
+	// Optimal value calculated using formula: k = (m/n) * ln(2)
+	// For m=1000 bits and n~100 items: k = (1000/100) * 0.693 ≈ 7
+	// However, 3 hash functions provide good balance between:
+	//   - False positive rate (~5% for typical route counts)
+	//   - Computational overhead (3 hashes vs 7 hashes = 2.3x faster)
+	//   - Practical performance (bloom filter is a pre-filter, not exact lookup)
+	defaultBloomHashFunctions = 3
+)
 
 // New creates a new router instance with optional configuration.
 // It initializes the radix trees for HTTP methods and sets up context pooling
@@ -194,8 +217,8 @@ type Router struct {
 //	http.ListenAndServe(":8080", r)
 func New(opts ...Option) *Router {
 	r := &Router{
-		bloomFilterSize:    1000, // Default bloom filter size
-		bloomHashFunctions: 3,    // Default number of hash functions
+		bloomFilterSize:    defaultBloomFilterSize,
+		bloomHashFunctions: defaultBloomHashFunctions,
 		checkCancellation:  true, // Enable cancellation checks by default
 		useTemplates:       true, // Enable template-based routing by default
 	}
@@ -253,6 +276,58 @@ func (r *Router) SetTracingRecorder(recorder TracingRecorder) {
 //	router.SetLogger(logger)
 func (r *Router) SetLogger(logger logging.Logger) {
 	r.logger = logger
+}
+
+// NoRoute sets a custom handler for requests that don't match any registered routes.
+// This allows you to customize 404 error responses instead of using the default http.NotFound.
+//
+// The handler receives a Context that can be used to send custom JSON responses,
+// redirect to another page, or perform any other action.
+//
+// Example:
+//
+//	r.NoRoute(func(c *Context) {
+//	    c.JSON(404, map[string]string{"error": "route not found"})
+//	})
+//
+// Setting handler to nil will restore the default http.NotFound behavior.
+func (r *Router) NoRoute(handler HandlerFunc) {
+	r.noRouteMutex.Lock()
+	defer r.noRouteMutex.Unlock()
+	r.noRouteHandler = handler
+}
+
+// handleNotFound handles unmatched routes by either calling the custom NoRoute handler
+// or falling back to http.NotFound if no custom handler is set.
+func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
+	r.noRouteMutex.RLock()
+	handler := r.noRouteHandler
+	r.noRouteMutex.RUnlock()
+
+	if handler != nil {
+		// Create a context for the custom handler
+		c := getContextFromGlobalPool()
+		c.Request = req
+		c.Response = w
+		c.index = -1
+		c.paramCount = 0
+		c.router = r
+
+		// Set version if versioning is enabled
+		if r.versioning != nil {
+			c.version = r.detectVersion(req)
+		}
+
+		// Execute the custom handler
+		handler(c)
+
+		// Reset and return to pool
+		c.reset()
+		globalContextPool.Put(c)
+	} else {
+		// Use default behavior
+		http.NotFound(w, req)
+	}
 }
 
 // WithLogger returns a RouterOption that sets the logger.
@@ -506,10 +581,10 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// Try dynamic templates (pre-compiled patterns)
-		ctx := globalContextPool.Get().(*Context)
+		ctx := getContextFromGlobalPool()
 		ctx.paramCount = 0 // Reset for template matching
 
-		if tmpl := r.templateCache.matchDynamic(path, ctx); tmpl != nil {
+		if tmpl := r.templateCache.matchDynamic(req.Method, path, ctx); tmpl != nil {
 			// Template matched! Serve with pre-extracted parameters
 			r.serveTemplateWithParams(w, req, tmpl, ctx, path, shouldTrace, shouldMeasure)
 			return
@@ -527,18 +602,55 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if hasVersioning {
 		version = r.detectVersion(req) // Called once, reused below
-		if tree := r.getVersionTree(version, req.Method); tree != nil {
-			r.serveVersionedRequest(w, req, tree, path, version, shouldTrace, shouldMeasure)
+
+		// If path-based versioning is enabled, strip the detected version from path
+		// This must happen even if we fall back to default version (for invalid path versions)
+		var matchPath string
+		if r.versioning != nil && r.versioning.PathEnabled {
+			// Detect what version segment is actually in the path (before validation/default)
+			// This allows us to strip invalid versions like "/v99/" even when using default "v1"
+			var detectedSegment string
+			if segment, ok := fastPathVersion(path, r.versioning.PathPrefix); ok && segment != "" {
+				detectedSegment = segment
+				// Try with "v" prefix if applicable
+				if strings.HasSuffix(r.versioning.PathPrefix, "v") {
+					detectedSegment = "v" + segment
+				}
+			}
+			// Strip using detected segment if it was found in path, otherwise use final version
+			if detectedSegment != "" {
+				matchPath = r.stripPathVersion(path, detectedSegment)
+			} else {
+				matchPath = r.stripPathVersion(path, version)
+			}
+		} else {
+			matchPath = path
+		}
+
+		tree := r.getVersionTree(version, req.Method)
+		// If detected version's tree doesn't exist, try default version (for invalid path versions)
+		if tree == nil && r.versioning != nil && version != r.versioning.DefaultVersion {
+			tree = r.getVersionTree(r.versioning.DefaultVersion, req.Method)
+			if tree != nil {
+				version = r.versioning.DefaultVersion // Use default version for routing
+			}
+		}
+
+		if tree != nil {
+			// Strip version from path when path-based versioning is enabled
+			// This ensures routes registered without version prefix can match
+			r.serveVersionedRequest(w, req, tree, matchPath, version, shouldTrace, shouldMeasure)
 			return
 		}
-		// If no version-specific route found, continue with standard routing
+		// If no version-specific route found, continue with standard routing using stripped path
 		// but pass version to context for handlers to access
+		path = matchPath // Update path for standard routing fallback
 	}
 
 	// Fallback to standard routing (tree traversal)
 	tree := r.getTreeForMethodDirect(req.Method)
 	if tree == nil {
-		http.NotFound(w, req)
+		r.handleNotFound(w, req)
 		return
 	}
 
@@ -562,7 +674,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				// No metrics or tracing, use original response writer for zero allocations
 				// Direct execution without wrapper for performance
 				// Use global context pool to avoid allocations
-				ctx := globalContextPool.Get().(*Context)
+				ctx := getContextFromGlobalPool()
 				ctx.initForRequest(req, w, handlers, r)
 
 				// Use cached version from earlier detection
@@ -581,7 +693,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Dynamic route with parameters - use global context pool for zero allocations
-	c := globalContextPool.Get().(*Context)
+	c := getContextFromGlobalPool()
 	c.Request = req
 	c.Response = w
 	c.index = -1
@@ -601,7 +713,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Find the route and extract parameters
 	handlers := tree.getRoute(path, c)
 	if handlers == nil {
-		http.NotFound(w, req)
+		r.handleNotFound(w, req)
 		return
 	}
 
@@ -653,7 +765,7 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	}
 
 	// Fallback to dynamic routing
-	c := globalContextPool.Get().(*Context)
+	c := getContextFromGlobalPool()
 	c.Request = req
 	c.Response = w
 	c.index = -1
@@ -668,7 +780,7 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	// Find the route and extract parameters
 	handlers := tree.getRoute(path, c)
 	if handlers == nil {
-		http.NotFound(w, req)
+		r.handleNotFound(w, req)
 		return
 	}
 
@@ -677,6 +789,12 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 
 // serveVersionedHandlers executes handlers with version information
 func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, version string, shouldTrace, shouldMeasure bool) {
+	// Add deprecation headers if version is deprecated (RFC 8594)
+	// This is called before handler execution to ensure headers are set early
+	if r.versioning != nil {
+		r.versioning.setDeprecationHeaders(w, version)
+	}
+
 	if shouldTrace && shouldMeasure {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
@@ -693,7 +811,7 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 		// No metrics or tracing, use original response writer for zero allocations
 		// Direct execution without wrapper for performance
 		// Use global context pool to avoid allocations
-		ctx := globalContextPool.Get().(*Context)
+		ctx := getContextFromGlobalPool()
 		ctx.Request = req
 		ctx.Response = w
 		ctx.index = -1
@@ -759,7 +877,7 @@ func (r *Router) CompileAllRoutes() {
 	}
 }
 
-// WarmupOptimizations pre-compiles routes and warms up context pools for performance.
+// Warmup pre-compiles routes and warms up context pools for performance.
 // This should be called after all routes are registered and before serving requests.
 //
 // Warmup phases:
@@ -772,7 +890,7 @@ func (r *Router) CompileAllRoutes() {
 // - Pre-allocates memory to reduce GC pressure during traffic
 // - Compiles optimized lookup structures
 // - Typical warmup time: 1-5ms for 100-1000 routes
-func (r *Router) WarmupOptimizations() {
+func (r *Router) Warmup() {
 	// Phase 1: Compile all standard (non-versioned) routes
 	r.CompileAllRoutes()
 
@@ -782,7 +900,7 @@ func (r *Router) WarmupOptimizations() {
 	}
 
 	// Phase 3: Warm up context pools
-	r.contextPool.WarmupPools()
+	r.contextPool.Warmup()
 }
 
 // compileVersionRoutes compiles static routes for all version-specific trees
@@ -840,7 +958,7 @@ func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.
 	metricsData := r.metrics.StartRequest(ctx, path, isStatic)
 
 	// Get context from pool
-	c := r.contextPool.GetContext(0)
+	c := r.contextPool.Get(0)
 	c.initForRequest(req, rw, handlers, r)
 	c.span = span
 	c.traceCtx = ctx
@@ -860,7 +978,7 @@ func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.
 	r.tracing.FinishSpan(span, rw.StatusCode())
 
 	// Return context to pool
-	r.contextPool.PutContext(c)
+	r.contextPool.Put(c)
 }
 
 // serveStaticWithTracing serves a static request with only tracing enabled.
@@ -870,7 +988,7 @@ func (r *Router) serveStaticWithTracing(rw *responseWriter, req *http.Request, h
 	req = req.WithContext(ctx)
 
 	// Get context from pool
-	c := r.contextPool.GetContext(0)
+	c := r.contextPool.Get(0)
 	c.initForRequest(req, rw, handlers, r)
 	c.span = span
 	c.traceCtx = ctx
@@ -887,7 +1005,7 @@ func (r *Router) serveStaticWithTracing(rw *responseWriter, req *http.Request, h
 	r.tracing.FinishSpan(span, rw.StatusCode())
 
 	// Return context to pool
-	r.contextPool.PutContext(c)
+	r.contextPool.Put(c)
 }
 
 // serveStaticWithMetrics serves a static request with only metrics enabled.
@@ -899,7 +1017,7 @@ func (r *Router) serveStaticWithMetrics(rw *responseWriter, req *http.Request, h
 	metricsData := r.metrics.StartRequest(ctx, path, isStatic)
 
 	// Get context from pool
-	c := r.contextPool.GetContext(0)
+	c := r.contextPool.Get(0)
 	c.initForRequest(req, rw, handlers, r)
 
 	// Set version if versioning is enabled
@@ -914,7 +1032,7 @@ func (r *Router) serveStaticWithMetrics(rw *responseWriter, req *http.Request, h
 	r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
 
 	// Return context to pool
-	r.contextPool.PutContext(c)
+	r.contextPool.Put(c)
 }
 
 // serveDynamicWithTracingAndMetrics serves a dynamic request with both tracing and metrics enabled.
@@ -1006,7 +1124,7 @@ func (r *Router) serveTemplate(w http.ResponseWriter, req *http.Request, tmpl *R
 		r.serveStaticWithMetrics(rw, req, tmpl.handlers, path, true)
 	} else {
 		// Fast path: no metrics or tracing
-		ctx := globalContextPool.Get().(*Context)
+		ctx := getContextFromGlobalPool()
 		ctx.initForRequest(req, w, tmpl.handlers, r)
 
 		// NOTE: Version will be set lazily on first access via ctx.Version()
