@@ -1000,10 +1000,11 @@ func TestContextPool_WarmupPool_New(t *testing.T) {
 	// Call Get() when pool is empty to trigger New function
 	// This should create a new slice with capacity 10
 	result := pool.warmupPool.Get()
-	slice, ok := result.([]*Context)
+	slicePtr, ok := result.(*[]*Context)
 	if !ok {
-		t.Fatalf("Expected []*Context, got %T", result)
+		t.Fatalf("Expected *[]*Context, got %T", result)
 	}
+	slice := *slicePtr
 
 	// Verify the slice properties
 	if slice == nil {
@@ -1016,6 +1017,6 @@ func TestContextPool_WarmupPool_New(t *testing.T) {
 		t.Errorf("Expected capacity 10, got %d", cap(slice))
 	}
 
-	// Put it back
-	pool.warmupPool.Put(slice)
+	// Put it back (use pointer to avoid allocations)
+	pool.warmupPool.Put(slicePtr)
 }

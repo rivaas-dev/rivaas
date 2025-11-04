@@ -6,5 +6,6 @@ use (
 	./logging
 	./metrics
 	./router
+	./router/benchmarks
 	./tracing
 )

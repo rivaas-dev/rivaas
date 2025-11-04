@@ -14,7 +14,7 @@ A high-level, batteries-included web framework built on top of the Rivaas router
 
 ## When to Use
 
-### Use `app` Package When:
+### Use `app` Package When
 
 - **Building a complete web application** - Need a full-featured framework with batteries included
 - **Want integrated observability** - Metrics and tracing configured out of the box
@@ -22,7 +22,7 @@ A high-level, batteries-included web framework built on top of the Rivaas router
 - **Building a REST API** - Pre-configured with common middleware and patterns
 - **Prefer convention over configuration** - Opinionated defaults that work well together
 
-### Use `router` Package Directly When:
+### Use `router` Package Directly When
 
 - **Building a library or framework** - Need full control over the routing layer
 - **Have custom observability setup** - Already using specific metrics/tracing solutions
@@ -172,11 +172,12 @@ app.WithLogging(
 )
 ```
 
-**Important: Tracing Requires OpenTelemetry Setup**
+### Important: Tracing Requires OpenTelemetry Setup
 
 When you see "🔍 Tracing enabled" in the logs, it means tracing *configuration* is enabled, but **traces won't actually be generated or exported** until you set up an OpenTelemetry tracer provider.
 
 The `trace_id` will be empty and no traces will appear in stdout because:
+
 - By default, OpenTelemetry uses a **no-op tracer provider**
 - You must explicitly configure a tracer provider with an exporter
 - This must be done **before** creating the app
@@ -202,11 +203,13 @@ app, _ := app.New(
 ```
 
 **Just run it:**
+
 ```bash
 go run main.go  # No build tags needed!
 ```
 
 **Switch exporters:**
+
 ```bash
 # Development: stdout tracing
 ENVIRONMENT=development go run main.go
@@ -216,6 +219,7 @@ ENVIRONMENT=production OTLP_ENDPOINT=jaeger:4317 go run main.go
 ```
 
 **See:** `examples/02-full-featured/` for a complete production-ready example with:
+
 - Multi-exporter tracing (stdout/OTLP/noop)
 - Environment-based configuration
 - Full middleware stack
@@ -532,6 +536,7 @@ ENVIRONMENT=production OTLP_ENDPOINT=localhost:4317 go run main.go
 ```
 
 **Shows:**
+
 - Multi-exporter tracing (stdout/OTLP/noop)
 - Environment-based configuration  
 - Full middleware stack
@@ -574,6 +579,7 @@ if err != nil {
 ```
 
 **Key Differences:**
+
 - `New()` now returns `(*App, error)` for better error handling
 - Configuration is validated immediately
 - Invalid configurations are caught at startup, not runtime

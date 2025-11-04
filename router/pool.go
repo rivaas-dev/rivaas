@@ -126,7 +126,8 @@ func NewContextPool(router *Router) *ContextPool {
 	// Warm-up pool for high-traffic scenarios
 	cp.warmupPool = sync.Pool{
 		New: func() any {
-			return make([]*Context, 0, 10) // Pool of contexts
+			slice := make([]*Context, 0, 10) // Pool of contexts
+			return &slice                    // Return pointer to avoid allocations
 		},
 	}
 
