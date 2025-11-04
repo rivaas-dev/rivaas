@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+	"github.com/gofiber/fiber/v2"
+	fiberadaptor "github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/labstack/echo/v4"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
@@ -713,6 +716,9 @@ func BenchmarkRivaasRouter(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
+		w.Body.Reset()
+		w.Code = 0
+		w.Flushed = false
 		r.ServeHTTP(w, req)
 	}
 }
@@ -738,6 +744,9 @@ func BenchmarkStandardMux(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
+		w.Body.Reset()
+		w.Code = 0
+		w.Flushed = false
 		mux.ServeHTTP(w, req)
 	}
 }
@@ -772,6 +781,9 @@ func BenchmarkSimpleRouter(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
+		w.Body.Reset()
+		w.Code = 0
+		w.Flushed = false
 		handler(w, req)
 	}
 }
@@ -795,6 +807,9 @@ func BenchmarkGinRouter(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
+		w.Body.Reset()
+		w.Code = 0
+		w.Flushed = false
 		r.ServeHTTP(w, req)
 	}
 }
@@ -817,6 +832,9 @@ func BenchmarkEchoRouter(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
+		w.Body.Reset()
+		w.Code = 0
+		w.Flushed = false
 		e.ServeHTTP(w, req)
 	}
 }
@@ -893,5 +911,66 @@ func BenchmarkFasthttpRouterViaAdaptor(b *testing.B) {
 	for b.Loop() {
 		fasthttpHandler(&ctx)
 		ctx.Response.Reset()
+	}
+}
+
+// BenchmarkChiRouter benchmarks Chi router
+func BenchmarkChiRouter(b *testing.B) {
+	r := chi.NewRouter()
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello"))
+	})
+	r.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("User: " + id))
+	})
+	r.Get("/users/{id}/posts/{post_id}", func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		postID := chi.URLParam(r, "post_id")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("User: " + id + ", Post: " + postID))
+	})
+
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+
+	b.ResetTimer()
+	for b.Loop() {
+		w.Body.Reset()
+		w.Code = 0
+		w.Flushed = false
+		r.ServeHTTP(w, req)
+	}
+}
+
+// BenchmarkFiberRouter benchmarks Fiber router
+func BenchmarkFiberRouter(b *testing.B) {
+	app := fiber.New(fiber.Config{
+		DisableStartupMessage: true,
+	})
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Hello")
+	})
+	app.Get("/users/:id", func(c *fiber.Ctx) error {
+		return c.SendString("User: " + c.Params("id"))
+	})
+	app.Get("/users/:id/posts/:post_id", func(c *fiber.Ctx) error {
+		return c.SendString("User: " + c.Params("id") + ", Post: " + c.Params("post_id"))
+	})
+
+	// Convert Fiber app to http.HandlerFunc for httptest compatibility
+	handler := fiberadaptor.FiberApp(app)
+
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+
+	b.ResetTimer()
+	for b.Loop() {
+		w.Body.Reset()
+		w.Code = 0
+		w.Flushed = false
+		handler(w, req)
 	}
 }

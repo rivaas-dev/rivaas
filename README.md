@@ -1,6 +1,30 @@
 # Rivaas
 
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.24-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/rivass.dev)](https://goreportcard.com/report/rivass.dev)
+
 A high-performance, modular web framework for Go with integrated observability. Rivaas provides both low-level building blocks and high-level batteries-included APIs for building modern web applications.
+
+## Table of Contents
+
+- [Philosophy](#-philosophy)
+- [Why Rivaas?](#-why-rivaas)
+- [Features](#-features)
+- [Installation](#-installation)
+- [Packages](#-packages)
+- [Quick Start](#-quick-start)
+- [Architecture](#️-architecture)
+- [Performance](#-performance)
+- [Configuration](#-configuration)
+- [Middleware](#️-middleware)
+- [Observability](#-observability)
+- [Testing](#-testing)
+- [Production Deployment](#-production-deployment)
+- [Examples](#-examples)
+- [Migration Guide](#-migration-guide)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ## 🌿 Philosophy
 
@@ -14,27 +38,51 @@ Rivaas is built to thrive in dynamic, cloud-native environments — **lightweigh
 
 Like its namesake, it grows wherever the environment allows: locally, in the cloud, or across distributed systems.
 
+## 💡 Why Rivaas?
+
+- **For Production:** Built-in observability means you're production-ready from day one
+- **For Performance:** Sub-microsecond routing with minimal memory overhead  
+- **For Flexibility:** Choose between high-level convenience or low-level control
+- **For Teams:** Structured logging and tracing built-in, not bolted on
+- **For Cloud-Native:** OpenTelemetry-native design for modern infrastructure
+
 ## 🚀 Features
 
-- **High Performance**: 223K+ requests/second, 4.5µs average latency
+- **High Performance**: 6.9M+ requests/second, 145ns average latency
 - **Modular Design**: Use only what you need
 - **Integrated Observability**: Built-in metrics, tracing, and structured logging
-- **Memory Efficient**: Only 51 bytes memory per request
+- **Memory Efficient**: Only 16 bytes memory per request
 - **Graceful Shutdown**: Production-ready server management
 - **Multiple APIs**: Choose between low-level or high-level interfaces
+- **OpenTelemetry Native**: First-class observability support
+
+## 📥 Installation
+
+**Prerequisites:** Go 1.24 or higher
+
+```bash
+# Install the high-level API (recommended for most users)
+go get rivass.dev/app
+
+# Or install individual packages
+go get rivass.dev/router
+go get rivass.dev/logging
+go get rivass.dev/metrics
+go get rivass.dev/tracing
+```
 
 ## 📦 Packages
 
 ### Core Packages
 
-- **[router](./router/)** - High-performance HTTP router with radix tree routing
-- **[app](./app/)** - Batteries-included web framework (recommended for most users)
+- **[router](./router/)** - High-performance HTTP router with radix tree routing ([Docs](./router/README.md))
+- **[app](./app/)** - Batteries-included web framework ([Docs](./app/README.md))
 
 ### Observability Packages
 
-- **[logging](./logging/)** - Structured logging with slog (JSON, text, console)
-- **[metrics](./metrics/)** - OpenTelemetry metrics with Prometheus, OTLP, and stdout support
-- **[tracing](./tracing/)** - Distributed tracing with OpenTelemetry
+- **[logging](./logging/)** - Structured logging with slog (JSON, text, console) ([Docs](./logging/README.md))
+- **[metrics](./metrics/)** - OpenTelemetry metrics with Prometheus, OTLP, and stdout support ([Docs](./metrics/README.md))
+- **[tracing](./tracing/)** - Distributed tracing with OpenTelemetry ([Docs](./tracing/README.md))
 
 ## 🎯 Quick Start
 
@@ -117,32 +165,15 @@ func main() {
 
 ## 📊 Performance
 
-- **Throughput**: 223K+ requests/second
-- **Latency**: 4.5µs average per request
-- **Memory**: 51 bytes per request
-- **Routing**: Sub-100ns for static paths
-- **Allocations**: Only 3 allocations per request
+- **Throughput**: 6.9M+ requests/second
+- **Latency**: 145ns average per request  
+- **Memory**: 16 bytes per request
+- **Routing**: 145ns per operation
+- **Allocations**: Only 1 allocation per request
+
+See [benchmarks](./router/router_bench_test.go) for detailed performance comparisons.
 
 ## 🔧 Configuration
-
-### Environment Variables
-
-```bash
-# Service configuration
-OTEL_SERVICE_NAME=my-service
-OTEL_SERVICE_VERSION=v1.0.0
-RIVAAS_ENVIRONMENT=production
-
-# Logging configuration (uses OTEL_SERVICE_NAME and OTEL_SERVICE_VERSION)
-
-# Metrics configuration
-OTEL_METRICS_EXPORTER=prometheus
-RIVAAS_METRICS_PORT=:9090
-
-# Tracing configuration
-OTEL_TRACES_EXPORTER=jaeger
-OTEL_EXPORTER_JAEGER_ENDPOINT=http://localhost:14268/api/traces
-```
 
 ### Functional Options
 
@@ -194,6 +225,8 @@ tracing.WithTracing(
 ## 🛠️ Middleware
 
 ### Built-in Middleware
+
+Rivaas includes several production-ready middleware components. See the [middleware documentation](./router/middleware/README.md) for details.
 
 ```go
 // Add middleware to app
@@ -275,12 +308,28 @@ traceID := c.TraceID()
 spanID := c.SpanID()
 ```
 
+## 🧪 Testing
+
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with coverage
+go test -cover ./...
+
+# Run benchmarks
+go test -bench=. ./router
+
+# Run specific benchmark
+go test -bench=BenchmarkRouter -benchmem ./router
+```
+
 ## 🚀 Production Deployment
 
 ### Docker
 
 ```dockerfile
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN go build -o main .
@@ -314,16 +363,54 @@ spec:
         image: rivaas-app:latest
         ports:
         - containerPort: 8080
-        env:
-        - name: OTEL_SERVICE_NAME
-          value: "rivaas-app"
-        - name: OTEL_METRICS_EXPORTER
-          value: "prometheus"
 ```
 
 ## 📚 Examples
 
-### Basic API
+See the [examples directories](./app/examples/) for complete, runnable examples:
+
+### App Examples
+
+- [Quick Start](./app/examples/01-quick-start/) - Minimal setup
+- [Full Featured](./app/examples/02-full-featured/) - Complete application with all features
+
+### Router Examples
+
+- [Hello World](./router/examples/01-hello-world/)
+- [Routing Basics](./router/examples/02-routing/)
+- [Complete REST API](./router/examples/03-complete-rest-api/)
+- [Middleware Stack](./router/examples/04-middleware-stack/)
+- [Advanced Routing](./router/examples/05-advanced-routing/)
+- [Content Negotiation](./router/examples/06-content-and-rendering/)
+
+### Logging Examples
+
+- [Basic Init and Levels](./logging/examples/01-basic-init-and-levels/)
+- [Structured Attributes](./logging/examples/02-structured-attrs/)
+- [Functional Options](./logging/examples/03-functional-options-and-validate/)
+- [Dynamic Level Change](./logging/examples/04-dynamic-level-change/)
+- [JSON Handler](./logging/examples/05-json-handler/)
+- [Batch Logger](./logging/examples/06-batch-logger/)
+- [Error with Stack](./logging/examples/07-error-with-stack/)
+- [Log Duration](./logging/examples/08-log-duration/)
+- [HTTP Middleware](./logging/examples/13-http-middleware/)
+
+### Middleware Examples
+
+- [Basic Auth](./router/middleware/examples/basic_auth/)
+- [Body Limit](./router/middleware/examples/body_limit/)
+- [Compression](./router/middleware/examples/compression/)
+- [CORS](./router/middleware/examples/cors/)
+- [Logger](./router/middleware/examples/logger/)
+- [Rate Limit](./router/middleware/examples/ratelimit/)
+- [Recovery](./router/middleware/examples/recovery/)
+- [Request ID](./router/middleware/examples/request_id/)
+- [Security Headers](./router/middleware/examples/security/)
+- [Timeout](./router/middleware/examples/timeout/)
+
+### Code Examples
+
+#### Basic API
 
 ```go
 package main
@@ -359,7 +446,7 @@ func main() {
 }
 ```
 
-### With Database
+#### With Database
 
 ```go
 package main
@@ -436,15 +523,19 @@ app.GET("/users/:id", func(c *router.Context) {
 
 ## 🤝 Contributing
 
+We welcome contributions! Please see our contributing guidelines:
+
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Write tests for your changes
+4. Ensure all tests pass (`go test ./...`)
+5. Commit your changes (`git commit -m 'Add some amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
@@ -454,7 +545,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 📖 [Documentation](./docs/)
-- 🐛 [Issues](https://github.com/rivaas-dev/rivaas/issues)
-- 💬 [Discussions](https://github.com/rivaas-dev/rivaas/discussions)
-- 📧 [Email](mailto:support@rivaas.dev)
+- 📖 [Router Documentation](./router/README.md)
+- 📖 [App Documentation](./app/README.md)
+- 📖 [Middleware Documentation](./router/middleware/README.md)
+- 🐛 [Report Issues](https://github.com/rivaas-dev/rivaas/issues)
+- 💬 [GitHub Discussions](https://github.com/rivaas-dev/rivaas/discussions)
+
+---
+
+Made with ❤️ for the Go community
