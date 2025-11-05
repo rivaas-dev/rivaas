@@ -10,7 +10,9 @@ import (
 	"rivaas.dev/app"
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware"
+	"rivaas.dev/router/middleware/cors"
+	"rivaas.dev/router/middleware/requestid"
+	"rivaas.dev/router/middleware/timeout"
 	"rivaas.dev/tracing"
 
 	"example.com/full-featured/handlers"
@@ -83,9 +85,9 @@ func main() {
 		log.Fatalf("Failed to create app: %v", err)
 	}
 
-	a.Use(middleware.RequestID())
-	a.Use(middleware.CORS(middleware.WithAllowAllOrigins(true)))
-	a.Use(middleware.Timeout(30 * time.Second))
+	a.Use(requestid.New())
+	a.Use(cors.New(cors.WithAllowAllOrigins(true)))
+	a.Use(timeout.New(30 * time.Second))
 
 	// Root endpoint
 	a.GET("/", func(c *router.Context) {

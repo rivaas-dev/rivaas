@@ -5,10 +5,13 @@ package router
 // to Go structs using reflection and struct tags.
 
 import (
+	"bytes"
+	"context"
 	"encoding"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net"
 	"net/http"
@@ -20,6 +23,13 @@ import (
 	"sync"
 	"time"
 )
+
+// bindingMetadata holds per-request binding state.
+type bindingMetadata struct {
+	bodyRead bool        // Whether the body has been read
+	rawBody  []byte      // Cached raw body bytes
+	presence PresenceMap // Tracks which fields are present in the request
+}
 
 // BindError represents a binding error with detailed context about what failed.
 type BindError struct {
@@ -134,6 +144,9 @@ func WarmupBindingCache(types ...any) {
 //	    c.JSON(400, map[string]string{"error": err.Error()})
 //	    return
 //	}
+//
+// BindBody binds the request body to a struct based on the Content-Type header.
+// Supports JSON, form data, and merge-patch/json-patch content types.
 func (c *Context) BindBody(out any) error {
 	contentType := c.Request.Header.Get("Content-Type")
 
@@ -144,7 +157,7 @@ func (c *Context) BindBody(out any) error {
 	contentType = strings.TrimSpace(strings.ToLower(contentType))
 
 	switch contentType {
-	case "application/json", "":
+	case "application/json", "application/merge-patch+json", "application/json-patch+json", "":
 		// Default to JSON if no content type specified
 		return c.BindJSON(out)
 	case "application/x-www-form-urlencoded":
@@ -158,6 +171,12 @@ func (c *Context) BindBody(out any) error {
 
 // BindJSON binds JSON request body to a struct.
 // Uses the standard encoding/json package with json struct tags.
+//
+// This method:
+//   - Reads the body once and caches it for reuse
+//   - Refills Request.Body for downstream middleware
+//   - Tracks field presence for partial validation
+//   - Stores raw JSON in context for schema validation optimization
 //
 // Example:
 //
@@ -175,12 +194,134 @@ func (c *Context) BindJSON(out any) error {
 		return errors.New("request body is nil")
 	}
 
-	decoder := json.NewDecoder(c.Request.Body)
-	if err := decoder.Decode(out); err != nil {
-		return fmt.Errorf("failed to decode JSON: %w", err)
+	if c.bindingMeta == nil {
+		c.bindingMeta = &bindingMetadata{
+			presence: make(PresenceMap),
+		}
+	}
+
+	if !c.bindingMeta.bodyRead {
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read body: %w", err)
+		}
+		c.bindingMeta.rawBody = body
+		c.bindingMeta.bodyRead = true
+
+		// Refill for downstream middleware
+		c.Request.Body = io.NopCloser(bytes.NewReader(body))
+
+		// Track presence
+		var raw map[string]any
+		if err := json.Unmarshal(body, &raw); err == nil {
+			markPresence(raw, "", c.bindingMeta.presence)
+		}
+
+		// Store raw JSON in context for schema validation optimization
+		c.Request = c.Request.WithContext(
+			context.WithValue(c.Request.Context(), contextKeyRawJSON, body),
+		)
+	}
+
+	// Unmarshal
+	if err := json.Unmarshal(c.bindingMeta.rawBody, out); err != nil {
+		return fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
 	return nil
+}
+
+// BindJSONStrict binds JSON request body with unknown field rejection.
+// This is useful for catching typos and API drift early.
+//
+// Example:
+//
+//	var user User
+//	if err := c.BindJSONStrict(&user); err != nil {
+//	    // Returns error if JSON contains unknown fields
+//	    return err
+//	}
+func (c *Context) BindJSONStrict(out any) error {
+	if c.Request.Body == nil {
+		return errors.New("request body is nil")
+	}
+
+	if c.bindingMeta == nil {
+		c.bindingMeta = &bindingMetadata{
+			presence: make(PresenceMap),
+		}
+	}
+
+	if !c.bindingMeta.bodyRead {
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read body: %w", err)
+		}
+		c.bindingMeta.rawBody = body
+		c.bindingMeta.bodyRead = true
+
+		c.Request.Body = io.NopCloser(bytes.NewReader(body))
+
+		var raw map[string]any
+		if err := json.Unmarshal(body, &raw); err == nil {
+			markPresence(raw, "", c.bindingMeta.presence)
+		}
+
+		c.Request = c.Request.WithContext(
+			context.WithValue(c.Request.Context(), contextKeyRawJSON, body),
+		)
+	}
+
+	// Decode with DisallowUnknownFields
+	dec := json.NewDecoder(bytes.NewReader(c.bindingMeta.rawBody))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(out); err != nil {
+		return newValidationError("", "json.unknown_field", err.Error(), nil)
+	}
+
+	return nil
+}
+
+// markPresence recursively populates PresenceMap with normalized dot paths.
+// Handles nested objects and arrays with indices.
+func markPresence(m map[string]any, prefix string, pm PresenceMap) {
+	for k, v := range m {
+		path := k
+		if prefix != "" {
+			path = prefix + "." + k
+		}
+		pm[path] = true
+
+		if nested, ok := v.(map[string]any); ok {
+			markPresence(nested, path, pm)
+		}
+
+		if arr, ok := v.([]any); ok {
+			for i, item := range arr {
+				itemPath := path + "." + strconv.Itoa(i)
+				pm[itemPath] = true
+				if nestedMap, ok := item.(map[string]any); ok {
+					markPresence(nestedMap, itemPath, pm)
+				}
+			}
+		}
+	}
+}
+
+// Presence returns the presence map for the current request.
+// Returns nil if no binding has occurred yet.
+func (c *Context) Presence() PresenceMap {
+	if c.bindingMeta == nil {
+		return nil
+	}
+	return c.bindingMeta.presence
+}
+
+// ResetBinding resets the binding metadata for this context.
+// Useful for testing or when you need to rebind a request.
+func (c *Context) ResetBinding() {
+	c.bindingMeta = nil
 }
 
 // BindForm binds form data to a struct.

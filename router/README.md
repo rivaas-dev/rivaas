@@ -10,6 +10,7 @@ A high-performance HTTP router for Go, designed for cloud-native applications wi
 - [Features](#features)
   - [Core Routing & Request Handling](#core-routing-request-handling)
   - [Request Binding](#request-binding-new-industry-leading)
+  - [Request Validation](#request-validation---industry-leading)
   - [Content Negotiation](#content-negotiation-rfc-7231-compliant)
   - [API Versioning](#api-versioning-built-in)
   - [Middleware](#middleware-built-in)
@@ -17,6 +18,19 @@ A high-performance HTTP router for Go, designed for cloud-native applications wi
   - [Performance Optimizations](#performance-optimizations)
   - [Security Features](#security-features)
   - [Developer Experience](#developer-experience)
+- [Validation Guide](#validation-guide)
+  - [Strategy Selection](#strategy-selection)
+  - [Interface Validation](#interface-validation)
+  - [Tag Validation](#tag-validation)
+  - [JSON Schema Validation](#json-schema-validation)
+  - [Handler Integration](#handler-integration)
+  - [Partial Validation (PATCH)](#partial-validation-patch)
+  - [Validation Options](#validation-options)
+  - [Validation Error Handling](#validation-error-handling)
+  - [Validation Performance Characteristics](#validation-performance-characteristics)
+  - [Common Patterns](#common-patterns)
+  - [Validation Best Practices](#validation-best-practices)
+  - [Validation Thread Safety](#validation-thread-safety)
 - [Migration Guide](#migration-guide)
 - [Troubleshooting](#troubleshooting)
 - [Installation](#installation)
@@ -89,6 +103,371 @@ Automatically bind request data to structs with **the most comprehensive type su
 - Built-in enum validation
 - Default values in struct tags
 - Quoted bracket keys for special characters
+
+### Request Validation - Industry-Leading
+
+Comprehensive validation with multiple strategies and zero configuration:
+
+**Validation Strategies**:
+
+- **Interface Validation** - Custom `Validate()` or `ValidateContext()` methods
+- **Tag Validation** - go-playground/validator struct tags  
+- **JSON Schema** - JSON Schema validation
+- **Auto Detection** - Automatically selects best strategy
+
+**Methods**:
+
+- `Validate()` - Standalone validation with options
+- `BindAndValidate()` - Bind + validate in one call
+- `MustBindAndValidate()` - Bind + validate with auto error response
+- `BindAndValidateStrict()` - Strict mode with unknown field rejection
+
+**Key Features**:
+
+- **Multiple strategies** - Use tags, custom methods, or JSON Schema
+- **Partial validation** - PATCH request support (validate only present fields)
+- **Structured errors** - Machine-readable error codes and field paths
+- **Context-aware** - Request-scoped validation rules
+- **Performance optimized** - Cached reflection, LRU schema cache
+- **Configurable limits** - Prevent DoS with field/error limits
+- **Sensitive data redaction** - Hide passwords/tokens in errors
+
+## Validation Guide
+
+### Strategy Selection
+
+**When to use each validation strategy:**
+
+```text
+Need complex business logic or request-scoped rules?
+├─ Yes → Use Validator/ValidatorWithContext interface
+└─ No  → Continue ↓
+
+Validating against external/shared schema?
+├─ Yes → Use JSON Schema (JSONSchemaProvider)
+└─ No  → Continue ↓
+
+Simple field constraints (required, min, max, format)?
+├─ Yes → Use struct tags (go-playground/validator)
+└─ No  → Use ValidationAuto (default - tries all)
+```
+
+### Interface Validation
+
+Implement custom business logic with full control:
+
+```go
+// Basic validation
+type TransferRequest struct {
+    FromAccount string  `json:"from_account"`
+    ToAccount   string  `json:"to_account"`
+    Amount      float64 `json:"amount"`
+}
+
+func (t *TransferRequest) Validate() error {
+    if t.FromAccount == t.ToAccount {
+        return errors.New("cannot transfer to same account")
+    }
+    if t.Amount > 10000 {
+        return errors.New("amount exceeds daily limit")
+    }
+    return nil
+}
+
+// Context-aware validation
+type CreatePostRequest struct {
+    Title string   `json:"title"`
+    Tags  []string `json:"tags"`
+}
+
+func (p *CreatePostRequest) ValidateContext(ctx context.Context) error {
+    // Get user tier from context
+    tier := ctx.Value("user_tier")
+    if tier == "free" && len(p.Tags) > 3 {
+        return errors.New("free users can only use 3 tags")
+    }
+    return nil
+}
+```
+
+### Tag Validation
+
+Declarative validation using struct tags:
+
+```go
+type CreateUserRequest struct {
+    Email    string `json:"email" validate:"required,email"`
+    Username string `json:"username" validate:"required,min=3,max=20"`
+    Age      int    `json:"age" validate:"required,min=18,max=120"`
+}
+
+// Built-in tags: required, email, url, min, max, oneof, etc.
+// Custom tags can be registered at startup
+```
+
+**Register custom tags:**
+
+```go
+func init() {
+    router.RegisterTag("custom_tag", func(fl validator.FieldLevel) bool {
+        return fl.Field().String() == "valid"
+    })
+}
+```
+
+### JSON Schema Validation
+
+Use JSON Schema for contract-based validation:
+
+```go
+type ProductRequest struct {
+    Name  string  `json:"name"`
+    Price float64 `json:"price"`
+    SKU   string  `json:"sku"`
+}
+
+func (p *ProductRequest) JSONSchema() (id string, schema string) {
+    return "product-v1", `{
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "minLength": 3},
+            "price": {"type": "number", "minimum": 0},
+            "sku": {"type": "string", "pattern": "^[A-Z]{3}-[0-9]{6}$"}
+        },
+        "required": ["name", "price", "sku"]
+    }`
+}
+```
+
+### Handler Integration
+
+**Basic usage:**
+
+```go
+func createUser(c *router.Context) {
+    var req CreateUserRequest
+    if !c.MustBindAndValidate(&req) {
+        return // Error response already sent
+    }
+    // Use validated req
+}
+```
+
+**With options:**
+
+```go
+func updateUser(c *router.Context) {
+    var req UpdateUserRequest
+    if !c.MustBindAndValidate(&req, 
+        router.WithPartial(true),      // Only validate provided fields
+        router.WithMaxErrors(5),        // Limit error count
+        router.WithRedactor(redactFunc), // Hide sensitive data
+    ) {
+        return
+    }
+    // Update only provided fields
+}
+```
+
+**Custom error handling:**
+
+```go
+func createProduct(c *router.Context) {
+    var req ProductRequest
+    err := c.BindAndValidate(&req)
+    if err != nil {
+        if verrs, ok := err.(router.ValidationErrors); ok {
+            // Access structured errors
+            for _, e := range verrs.Errors {
+                log.Error("validation", 
+                    "path", e.Path, 
+                    "code", e.Code,
+                    "message", e.Message,
+                )
+            }
+        }
+        c.ValidationError(err, 400)
+        return
+    }
+}
+```
+
+### Partial Validation (PATCH)
+
+Validate only fields that were provided in the request:
+
+```go
+type UpdateUserRequest struct {
+    Email    *string `json:"email,omitempty" validate:"omitempty,email"`
+    Username *string `json:"username,omitempty" validate:"omitempty,min=3"`
+    Bio      *string `json:"bio,omitempty" validate:"omitempty,max=500"`
+}
+
+func updateUser(c *router.Context) {
+    var req UpdateUserRequest
+    // Automatically uses presence tracking + partial mode
+    if !c.MustBindAndValidate(&req, router.WithPartial(true)) {
+        return
+    }
+    // Only non-nil fields were validated and provided
+}
+```
+
+### Validation Options
+
+**Strategy control:**
+
+```go
+// Force specific strategy
+router.Validate(&req, router.WithStrategy(router.ValidationTags))
+
+// Run all strategies
+router.Validate(&req, router.WithRunAll(true))
+```
+
+**Error limits:**
+
+```go
+// Limit errors returned
+router.Validate(&req, 
+    router.WithMaxErrors(10),    // Max 10 errors
+    router.WithMaxFields(1000),  // Max 1000 fields in partial mode
+)
+```
+
+**Sensitive data protection:**
+
+```go
+// Redact sensitive fields in error messages
+router.Validate(&req, router.WithRedactor(func(path string) bool {
+    return strings.Contains(path, "password") || 
+           strings.Contains(path, "token")
+}))
+```
+
+**Custom validation:**
+
+```go
+// Add custom validation before other strategies
+router.Validate(&req, router.WithCustomValidator(func(v any) error {
+    req := v.(*UserRequest)
+    if req.Age < 18 {
+        return errors.New("must be 18 or older")
+    }
+    return nil
+}))
+```
+
+### Validation Error Handling
+
+**Structured errors:**
+
+```go
+type ValidationErrors struct {
+    Errors    []FieldError `json:"errors"`
+    Truncated bool         `json:"truncated,omitempty"`
+}
+
+type FieldError struct {
+    Path    string         `json:"path"`    // "email", "items.0.name"
+    Code    string         `json:"code"`    // "tag.required", "schema.type"
+    Message string         `json:"message"` // Human-readable
+    Meta    map[string]any `json:"meta"`    // Additional context
+}
+```
+
+**Error codes:**
+
+- `tag.*` - Tag validation errors (e.g., `tag.required`, `tag.email`)
+- `schema.*` - JSON Schema errors (e.g., `schema.type`, `schema.required`)
+- `validation_error` - Generic validation error
+
+**Check error codes:**
+
+```go
+if verrs.HasCode("tag.required") {
+    // Handle missing required field
+}
+```
+
+### Validation Performance Characteristics
+
+**Optimizations:**
+
+- Type interface checks cached (avoids reflection overhead)
+- Field maps cached per struct type
+- JSON Schema compiled and cached with LRU eviction
+- Partial validation only processes leaf fields
+
+**Complexity:**
+
+- Interface validation: O(1) + custom logic
+- Tag validation: O(n) fields
+- JSON Schema: O(n) data size + schema compilation (cached)
+
+**Memory:**
+
+- Validation: Minimal overhead (cached type info)
+- Schema cache: ~2-10KB per schema (configurable max)
+- Field maps: ~24 bytes per struct field
+
+### Common Patterns
+
+**Progressive validation:**
+
+```go
+// Start with tags, add custom logic for complex rules
+type User struct {
+    Email string `json:"email" validate:"required,email"`
+    Age   int    `json:"age" validate:"min=18"`
+}
+
+func (u *User) Validate() error {
+    // Tag validation runs first (automatic)
+    // Then custom business rules
+    if u.Age < 21 && strings.Contains(u.Email, "@bar.com") {
+        return errors.New("must be 21+ for bar.com emails")
+    }
+    return nil
+}
+```
+
+**Type-safe binding:**
+
+```go
+// Generic helper for compile-time safety
+req, ok := router.BindAndValidateInto[CreateUserRequest](c)
+if !ok {
+    return
+}
+// req is typed CreateUserRequest
+```
+
+### Validation Best Practices
+
+**✅ Do:**
+
+- Register custom tags in `init()` before first validation
+- Use `WithPartial(true)` for PATCH endpoints
+- Limit errors with `WithMaxErrors()` in production
+- Check `ValidationErrors` type for structured handling
+- Use pointer fields (`*string`) for optional PATCH fields
+- Redact sensitive data in error messages
+
+**❌ Don't:**
+
+- Register tags after first validation (will fail)
+- Ignore error codes - use structured error handling
+- Return sensitive data in custom validator errors
+- Use partial validation without presence tracking
+- Store contexts beyond request lifecycle
+
+### Validation Thread Safety
+
+- All validation functions are concurrent-safe
+- `RegisterTag()` must be called before first validation
+- Custom validators must be thread-safe
+- Schema cache uses RWMutex for concurrent access
 
 ### Response Rendering - Complete API Support
 

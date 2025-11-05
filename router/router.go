@@ -603,9 +603,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if hasVersioning {
 		version = r.detectVersion(req) // Called once, reused below
 
-		// If path-based versioning is enabled, strip the detected version from path
-		// This must happen even if we fall back to default version (for invalid path versions)
+		// If path-based versioning is enabled, check if version is in path
 		var matchPath string
+		var hasVersionInPath bool
 		if r.versioning != nil && r.versioning.PathEnabled {
 			// Detect what version segment is actually in the path (before validation/default)
 			// This allows us to strip invalid versions like "/v99/" even when using default "v1"
@@ -616,34 +616,46 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				if strings.HasSuffix(r.versioning.PathPrefix, "v") {
 					detectedSegment = "v" + segment
 				}
+				hasVersionInPath = true
 			}
-			// Strip using detected segment if it was found in path, otherwise use final version
+			// Only strip version if it was actually found in the path
 			if detectedSegment != "" {
 				matchPath = r.stripPathVersion(path, detectedSegment)
 			} else {
-				matchPath = r.stripPathVersion(path, version)
+				matchPath = path
 			}
 		} else {
 			matchPath = path
 		}
 
-		tree := r.getVersionTree(version, req.Method)
-		// If detected version's tree doesn't exist, try default version (for invalid path versions)
-		if tree == nil && r.versioning != nil && version != r.versioning.DefaultVersion {
-			tree = r.getVersionTree(r.versioning.DefaultVersion, req.Method)
+		// Use version-specific routing if:
+		// 1. Path-based versioning is not enabled (header/query versioning), OR
+		// 2. A version segment was detected in the path, OR
+		// 3. Path-based versioning is enabled with a default version (fallback to default)
+		shouldUseVersionTree := !r.versioning.PathEnabled || hasVersionInPath || (r.versioning.PathEnabled && r.versioning.DefaultVersion != "")
+
+		if shouldUseVersionTree {
+			tree := r.getVersionTree(version, req.Method)
+			// If detected version's tree doesn't exist, try default version (for invalid path versions)
+			if tree == nil && r.versioning != nil && version != r.versioning.DefaultVersion {
+				tree = r.getVersionTree(r.versioning.DefaultVersion, req.Method)
+				if tree != nil {
+					version = r.versioning.DefaultVersion // Use default version for routing
+				}
+			}
+
 			if tree != nil {
-				version = r.versioning.DefaultVersion // Use default version for routing
+				// Strip version from path when path-based versioning is enabled
+				// This ensures routes registered without version prefix can match
+				r.serveVersionedRequest(w, req, tree, matchPath, version, shouldTrace, shouldMeasure)
+				return
 			}
 		}
-
-		if tree != nil {
-			// Strip version from path when path-based versioning is enabled
-			// This ensures routes registered without version prefix can match
-			r.serveVersionedRequest(w, req, tree, matchPath, version, shouldTrace, shouldMeasure)
-			return
+		// If no version-specific route found or version not in path, continue with standard routing
+		// Use original path for standard routing when version wasn't in path
+		if !hasVersionInPath {
+			matchPath = path
 		}
-		// If no version-specific route found, continue with standard routing using stripped path
-		// but pass version to context for handlers to access
 		path = matchPath // Update path for standard routing fallback
 	}
 
@@ -772,6 +784,12 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	c.paramCount = 0
 	c.router = r
 	c.version = version
+
+	// Set metrics recorder for handler access to custom metrics
+	if r.metrics != nil {
+		c.metricsRecorder = r.metrics
+	}
+
 	defer func() {
 		c.reset()
 		globalContextPool.Put(c)
@@ -784,7 +802,64 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 		return
 	}
 
-	r.serveVersionedHandlers(w, req, handlers, version, shouldTrace, shouldMeasure)
+	// Add deprecation headers if version is deprecated (RFC 8594)
+	if r.versioning != nil {
+		r.versioning.setDeprecationHeaders(w, version)
+	}
+
+	// Execute handlers with the context that has extracted parameters
+	c.handlers = handlers
+
+	if shouldTrace && shouldMeasure {
+		// Wrap response writer and set up tracing
+		rw := &responseWriter{ResponseWriter: w}
+		ctx, span := r.tracing.StartSpan(req.Context(), req.Method+" "+path)
+		c.Request = req.WithContext(ctx)
+		c.Response = rw
+		c.span = span
+		c.traceCtx = ctx
+
+		// Start metrics
+		metricsData := r.metrics.StartRequest(ctx, path, false)
+
+		// Execute
+		c.Next()
+
+		// Finish metrics and tracing
+		r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
+		r.tracing.FinishSpan(span, rw.StatusCode())
+	} else if shouldTrace {
+		// Wrap response writer and set up tracing
+		rw := &responseWriter{ResponseWriter: w}
+		ctx, span := r.tracing.StartSpan(req.Context(), req.Method+" "+path)
+		c.Request = req.WithContext(ctx)
+		c.Response = rw
+		c.span = span
+		c.traceCtx = ctx
+
+		// Execute
+		c.Next()
+
+		// Finish tracing
+		r.tracing.FinishSpan(span, rw.StatusCode())
+	} else if shouldMeasure {
+		// Wrap response writer and set up metrics
+		rw := &responseWriter{ResponseWriter: w}
+		ctx := req.Context()
+		c.Response = rw
+
+		// Start metrics
+		metricsData := r.metrics.StartRequest(ctx, path, false)
+
+		// Execute
+		c.Next()
+
+		// Finish metrics
+		r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
+	} else {
+		// No metrics or tracing, execute directly
+		c.Next()
+	}
 }
 
 // serveVersionedHandlers executes handlers with version information
@@ -818,6 +893,11 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 		ctx.paramCount = 0
 		ctx.router = r
 		ctx.version = version
+
+		// Set metrics recorder for handler access to custom metrics
+		if r.metrics != nil {
+			ctx.metricsRecorder = r.metrics
+		}
 
 		ctx.handlers = handlers
 		ctx.Next()

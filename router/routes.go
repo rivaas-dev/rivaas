@@ -326,7 +326,10 @@ func (route *Route) finalizeRoute() {
 	route.finalized = true
 
 	// Combine global middleware with route handlers
-	allHandlers := append(route.router.middleware, route.handlers...)
+	// IMPORTANT: Create a new slice to avoid aliasing bugs with append
+	allHandlers := make([]HandlerFunc, 0, len(route.router.middleware)+len(route.handlers))
+	allHandlers = append(allHandlers, route.router.middleware...)
+	allHandlers = append(allHandlers, route.handlers...)
 
 	// Use efficient route addition that minimizes allocations
 	route.router.addRouteToTree(route.method, route.path, allHandlers, route.constraints)

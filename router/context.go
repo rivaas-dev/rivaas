@@ -67,6 +67,9 @@ type Context struct {
 	cachedAcceptSpecs  []acceptSpec // Parsed Accept header specs
 	cachedArena        *headerArena // Arena allocator for spec buffers (pooled)
 
+	// Binding metadata (per-request)
+	bindingMeta *bindingMetadata // Cached body, presence tracking, etc.
+
 	// Abort flag to stop handler chain execution
 	aborted bool // Set to true when Abort() is called
 }
@@ -1095,6 +1098,9 @@ func (c *Context) reset() {
 		c.cachedArena = nil
 	}
 
+	// Clear binding metadata cache
+	c.bindingMeta = nil
+
 	// Clear parameter arrays efficiently - only clear used slots
 	// Optimization: Skip if no parameters were used (common case for static routes)
 	if c.paramCount > 0 {
@@ -1141,6 +1147,11 @@ func (c *Context) initForRequest(req *http.Request, w http.ResponseWriter, handl
 	c.router = router
 	c.index = -1
 	c.paramCount = 0
+
+	// Set metrics recorder for handler access to custom metrics
+	if router.metrics != nil {
+		c.metricsRecorder = router.metrics
+	}
 }
 
 // initForRequestWithParams initializes context WITHOUT resetting parameters.
@@ -1152,6 +1163,11 @@ func (c *Context) initForRequestWithParams(req *http.Request, w http.ResponseWri
 	c.router = router
 	c.index = -1
 	// Note: paramCount and param arrays NOT reset - already populated by template
+
+	// Set metrics recorder for handler access to custom metrics
+	if router.metrics != nil {
+		c.metricsRecorder = router.metrics
+	}
 }
 
 // unsafeStringToBytes converts a string to a byte slice without allocation.
