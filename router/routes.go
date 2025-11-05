@@ -59,18 +59,28 @@ type RouteInfo struct {
 //   - Uses unsafe.Pointer for lock-free concurrent access
 //   - Copy-on-write ensures readers never see partial updates
 //
+// FIELD ORDER REQUIREMENTS:
+//   - `trees` MUST be the first field (offset 0) to guarantee 8-byte alignment
+//   - `version` MUST follow immediately after for 8-byte alignment
+//   - DO NOT reorder these fields or insert fields between them
+//   - Atomic operations on uint64/unsafe.Pointer require 8-byte alignment
+//
 // Platform Support:
 //   - amd64: ✓ Fully supported
 //   - arm64: ✓ Fully supported
 //   - 386:   ✗ Not supported (32-bit)
 //   - arm:   ✗ Not supported (32-bit)
+//
+// Alignment is verified at runtime in init() - the program will panic if misaligned.
 type atomicRouteTree struct {
 	// trees is an atomic pointer to the current route tree map
 	// This allows lock-free reads and atomic updates during route registration
 	// WARNING: Must only be accessed via atomic operations (Load/Store/CompareAndSwap)
+	// CRITICAL: Must be first field for 8-byte alignment (verified in init())
 	trees unsafe.Pointer // *map[string]*node
 
 	// version is incremented on each tree update for optimistic concurrency control
+	// CRITICAL: Must immediately follow trees for 8-byte alignment (verified in init())
 	version uint64
 
 	// routes is protected by a separate mutex for introspection (low-frequency access)
@@ -83,6 +93,28 @@ func init() {
 	// This ensures the router only runs on supported 64-bit architectures
 	if unsafe.Sizeof(unsafe.Pointer(nil)) != 8 {
 		panic("router: requires 64-bit architecture for atomic pointer operations (unsafe.Pointer must be 8 bytes)")
+	}
+
+	// Verify atomic field alignment at runtime
+	// On 64-bit systems, atomic operations on uint64 and unsafe.Pointer require 8-byte alignment.
+	// The Go compiler guarantees this for the first field and for fields following 8-byte aligned fields.
+	// This check ensures our struct layout remains correct even if refactored.
+	var tree atomicRouteTree
+	treesOffset := unsafe.Offsetof(tree.trees)
+	versionOffset := unsafe.Offsetof(tree.version)
+
+	if treesOffset != 0 {
+		panic("router: atomicRouteTree.trees must be first field for proper atomic alignment")
+	}
+	if versionOffset%8 != 0 {
+		panic("router: atomicRouteTree.version is not 8-byte aligned (misaligned atomic operations will panic on some architectures)")
+	}
+
+	// Verify atomicVersionTrees alignment
+	var vt atomicVersionTrees
+	vtTreesOffset := unsafe.Offsetof(vt.trees)
+	if vtTreesOffset != 0 {
+		panic("router: atomicVersionTrees.trees must be first field for proper atomic alignment")
 	}
 }
 

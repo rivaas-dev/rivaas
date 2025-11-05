@@ -151,8 +151,17 @@ func WithCustomVersionDetector(detector func(*http.Request) string) VersioningOp
 	}
 }
 
-// atomicVersionTrees represents lock-free version-specific route trees
+// atomicVersionTrees represents lock-free version-specific route trees.
+//
+// FIELD ORDER REQUIREMENTS:
+//   - `trees` MUST be the first (and only) field for 8-byte alignment
+//   - Atomic operations on unsafe.Pointer require 8-byte alignment
+//   - DO NOT add fields before `trees`
+//
+// Alignment is verified at runtime in routes.go init() - the program will panic if misaligned.
 type atomicVersionTrees struct {
+	// trees is an atomic pointer to version-specific route trees
+	// CRITICAL: Must be first field for 8-byte alignment (verified in init())
 	trees unsafe.Pointer // *map[string]map[string]*node (version -> method -> tree)
 }
 

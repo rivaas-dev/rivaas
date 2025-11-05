@@ -110,43 +110,15 @@ func (bf *bloomFilter) Add(data []byte) {
 }
 
 // Test checks if an element might be in the bloom filter - zero allocations
+//
+// Uses early-exit loop for optimal performance on miss cases (common in routing).
+// Bloom filters are most valuable when they can quickly reject non-existent routes,
+// so early exit on first failed bit check is critical for performance.
 func (bf *bloomFilter) Test(data []byte) bool {
-	// Unroll first iteration for common case (3 hash functions)
-	// This avoids loop overhead for the most common scenario
-	if len(bf.seeds) >= 3 {
-		// Hash 1
-		pos0 := bf.hashWithSeed(data, bf.seeds[0])
-		if bf.bits[pos0/64]&(1<<(pos0%64)) == 0 {
-			return false // Early exit - definitely not present
-		}
-
-		// Hash 2
-		pos1 := bf.hashWithSeed(data, bf.seeds[1])
-		if bf.bits[pos1/64]&(1<<(pos1%64)) == 0 {
-			return false
-		}
-
-		// Hash 3
-		pos2 := bf.hashWithSeed(data, bf.seeds[2])
-		if bf.bits[pos2/64]&(1<<(pos2%64)) == 0 {
-			return false
-		}
-
-		// Check remaining hashes if any
-		for i := 3; i < len(bf.seeds); i++ {
-			pos := bf.hashWithSeed(data, bf.seeds[i])
-			if bf.bits[pos/64]&(1<<(pos%64)) == 0 {
-				return false
-			}
-		}
-		return true
-	}
-
-	// Fallback for non-standard hash count
 	for _, seed := range bf.seeds {
 		pos := bf.hashWithSeed(data, seed)
 		if bf.bits[pos/64]&(1<<(pos%64)) == 0 {
-			return false
+			return false // Early exit - definitely not present
 		}
 	}
 	return true

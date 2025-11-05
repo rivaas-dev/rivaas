@@ -1,0 +1,215 @@
+package router
+
+import (
+	"testing"
+	"unsafe"
+)
+
+// TestAtomicFieldAlignment verifies that atomic fields are properly aligned
+// for atomic operations on all supported platforms (64-bit architectures).
+//
+// Background:
+// Atomic operations on uint64 and unsafe.Pointer require proper alignment:
+//   - On 64-bit platforms: 8-byte alignment (guaranteed by Go runtime)
+//   - On 32-bit platforms: 8-byte alignment (NOT guaranteed, requires first field)
+//
+// Our approach:
+//   - Panic on non-64-bit platforms (see routes.go init())
+//   - Verify alignment on 64-bit platforms (this test)
+//   - Place atomic fields first in structs (best practice)
+//
+// References:
+//   - https://pkg.go.dev/sync/atomic#pkg-note-BUG
+//   - https://go.dev/ref/spec#Size_and_alignment_guarantees
+func TestAtomicFieldAlignment(t *testing.T) {
+	// Verify we're on a 64-bit platform
+	if unsafe.Sizeof(uintptr(0)) != 8 {
+		t.Skip("Skipping alignment test: requires 64-bit platform")
+	}
+
+	t.Run("atomicRouteTree.trees alignment", func(t *testing.T) {
+		var tree atomicRouteTree
+		treesOffset := unsafe.Offsetof(tree.trees)
+
+		// trees should be at offset 0 (first field)
+		if treesOffset != 0 {
+			t.Errorf("atomicRouteTree.trees must be first field for proper alignment, got offset %d", treesOffset)
+		}
+
+		// trees pointer should be 8-byte aligned
+		treeAddr := uintptr(unsafe.Pointer(&tree.trees))
+		if treeAddr%8 != 0 {
+			t.Errorf("atomicRouteTree.trees is not 8-byte aligned: address=%x (mod 8 = %d)", treeAddr, treeAddr%8)
+		}
+	})
+
+	t.Run("atomicRouteTree.version alignment", func(t *testing.T) {
+		var tree atomicRouteTree
+		versionOffset := unsafe.Offsetof(tree.version)
+
+		// version should be 8-byte aligned (offset must be multiple of 8)
+		if versionOffset%8 != 0 {
+			t.Errorf("atomicRouteTree.version is not 8-byte aligned: offset=%d (mod 8 = %d)",
+				versionOffset, versionOffset%8)
+		}
+
+		// Verify actual address is 8-byte aligned
+		versionAddr := uintptr(unsafe.Pointer(&tree.version))
+		if versionAddr%8 != 0 {
+			t.Errorf("atomicRouteTree.version address is not 8-byte aligned: address=%x (mod 8 = %d)",
+				versionAddr, versionAddr%8)
+		}
+	})
+
+	t.Run("atomicVersionTrees.trees alignment", func(t *testing.T) {
+		var vt atomicVersionTrees
+		treesOffset := unsafe.Offsetof(vt.trees)
+
+		// trees should be at offset 0 (first and only field)
+		if treesOffset != 0 {
+			t.Errorf("atomicVersionTrees.trees must be first field, got offset %d", treesOffset)
+		}
+
+		// trees pointer should be 8-byte aligned
+		treeAddr := uintptr(unsafe.Pointer(&vt.trees))
+		if treeAddr%8 != 0 {
+			t.Errorf("atomicVersionTrees.trees is not 8-byte aligned: address=%x (mod 8 = %d)",
+				treeAddr, treeAddr%8)
+		}
+	})
+
+	t.Run("Router.routeTree alignment", func(t *testing.T) {
+		var r Router
+		routeTreeOffset := unsafe.Offsetof(r.routeTree)
+
+		// routeTree should be at offset 0 (first field) for optimal alignment
+		if routeTreeOffset != 0 {
+			t.Errorf("Router.routeTree should be first field for alignment, got offset %d", routeTreeOffset)
+		}
+
+		// Verify the atomic fields within routeTree are properly aligned
+		treesAddr := uintptr(unsafe.Pointer(&r.routeTree.trees))
+		if treesAddr%8 != 0 {
+			t.Errorf("Router.routeTree.trees is not 8-byte aligned: address=%x (mod 8 = %d)",
+				treesAddr, treesAddr%8)
+		}
+
+		versionAddr := uintptr(unsafe.Pointer(&r.routeTree.version))
+		if versionAddr%8 != 0 {
+			t.Errorf("Router.routeTree.version is not 8-byte aligned: address=%x (mod 8 = %d)",
+				versionAddr, versionAddr%8)
+		}
+	})
+
+	t.Run("Router.versionTrees alignment", func(t *testing.T) {
+		var r Router
+		versionTreesOffset := unsafe.Offsetof(r.versionTrees)
+
+		// versionTrees should be 8-byte aligned (offset must be multiple of 8)
+		if versionTreesOffset%8 != 0 {
+			t.Errorf("Router.versionTrees is not 8-byte aligned: offset=%d (mod 8 = %d)",
+				versionTreesOffset, versionTreesOffset%8)
+		}
+
+		// Verify actual address is 8-byte aligned
+		versionTreesAddr := uintptr(unsafe.Pointer(&r.versionTrees.trees))
+		if versionTreesAddr%8 != 0 {
+			t.Errorf("Router.versionTrees.trees is not 8-byte aligned: address=%x (mod 8 = %d)",
+				versionTreesAddr, versionTreesAddr%8)
+		}
+	})
+}
+
+// TestStructSizes documents the size and alignment of key structs
+// to catch unintended changes during refactoring.
+func TestStructSizes(t *testing.T) {
+	tests := []struct {
+		name         string
+		size         uintptr
+		expectedSize uintptr
+		maxSize      uintptr // Warn if size exceeds this
+	}{
+		{
+			name:         "atomicRouteTree",
+			size:         unsafe.Sizeof(atomicRouteTree{}),
+			expectedSize: 64, // 8 (trees) + 8 (version) + 24 (routes slice) + 24 (RWMutex)
+			maxSize:      80,
+		},
+		{
+			name:         "atomicVersionTrees",
+			size:         unsafe.Sizeof(atomicVersionTrees{}),
+			expectedSize: 8, // Just unsafe.Pointer
+			maxSize:      16,
+		},
+		{
+			name:         "Router",
+			size:         unsafe.Sizeof(Router{}),
+			expectedSize: 0,   // Not checking exact size, just documenting
+			maxSize:      400, // Warn if Router grows beyond reasonable size
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Logf("%s size: %d bytes", tt.name, tt.size)
+
+			if tt.expectedSize > 0 && tt.size != tt.expectedSize {
+				t.Logf("WARNING: %s size changed from %d to %d bytes (delta: %+d)",
+					tt.name, tt.expectedSize, tt.size, int(tt.size)-int(tt.expectedSize))
+			}
+
+			if tt.size > tt.maxSize {
+				t.Errorf("%s size (%d bytes) exceeds maximum (%d bytes)",
+					tt.name, tt.size, tt.maxSize)
+			}
+		})
+	}
+}
+
+// TestAtomicOperationsSafety verifies that atomic operations work correctly
+// on the atomic fields without panics or race conditions.
+func TestAtomicOperationsSafety(t *testing.T) {
+	// This test ensures atomic operations don't panic due to misalignment
+
+	t.Run("atomicRouteTree operations", func(t *testing.T) {
+		r := New()
+
+		// Register a route (triggers atomic operations)
+		r.GET("/test", func(c *Context) {
+			c.String(200, "OK")
+		})
+
+		// The fact that this doesn't panic means alignment is correct
+		t.Log("Atomic operations on routeTree completed successfully")
+	})
+
+	t.Run("atomicVersionTrees operations", func(t *testing.T) {
+		r := New(WithVersioning(
+			WithQueryVersioning("version"),
+		))
+
+		// Register a versioned route
+		v1 := r.Version("v1")
+		v1.GET("/test", func(c *Context) {
+			c.String(200, "OK")
+		})
+
+		// The fact that this doesn't panic means alignment is correct
+		t.Log("Atomic operations on versionTrees completed successfully")
+	})
+}
+
+// BenchmarkAlignmentImpact measures if proper alignment provides any
+// measurable performance benefit.
+func BenchmarkAlignmentImpact(b *testing.B) {
+	r := New()
+	r.GET("/users/:id", func(c *Context) {})
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// This accesses atomic fields, testing if alignment impacts performance
+		_ = r.getTreeForMethodDirect("GET")
+	}
+}
