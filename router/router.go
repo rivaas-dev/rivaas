@@ -860,7 +860,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if r.useTemplates && r.templateCache != nil {
 		// Try static route table first (method+path hash lookup)
 		if tmpl := r.templateCache.lookupStatic(req.Method, path); tmpl != nil {
-			r.serveTemplate(w, req, tmpl, path, shouldTrace, shouldMeasure)
+			r.serveTemplate(w, req, tmpl, shouldTrace, shouldMeasure)
 			return
 		}
 
@@ -870,7 +870,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 		if tmpl := r.templateCache.matchDynamic(req.Method, path, ctx); tmpl != nil {
 			// Template matched! Serve with pre-extracted parameters
-			r.serveTemplateWithParams(w, req, tmpl, ctx, path, shouldTrace, shouldMeasure)
+			r.serveTemplateWithParams(w, req, tmpl, ctx, shouldTrace, shouldMeasure)
 			return
 		}
 
@@ -1551,7 +1551,7 @@ func (r *Router) serveDynamicWithMetrics(c *Context, handlers []HandlerFunc, rou
 
 // serveTemplate serves a request using a pre-compiled template (static route).
 // This is the fastest path: O(1) hash lookup, zero parameter extraction.
-func (r *Router) serveTemplate(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, path string, shouldTrace, shouldMeasure bool) {
+func (r *Router) serveTemplate(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, shouldTrace, shouldMeasure bool) {
 	routeTemplate := tmpl.pattern // Use template pattern, not raw path
 	isStatic := tmpl.isStatic
 
@@ -1581,7 +1581,7 @@ func (r *Router) serveTemplate(w http.ResponseWriter, req *http.Request, tmpl *R
 
 // serveTemplateWithParams serves a request using a template with pre-extracted parameters.
 // The context already has parameters populated by the template matching.
-func (r *Router) serveTemplateWithParams(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, ctx *Context, path string, shouldTrace, shouldMeasure bool) {
+func (r *Router) serveTemplateWithParams(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, ctx *Context, shouldTrace, shouldMeasure bool) {
 	// Store the route template for metrics/tracing
 	routeTemplate := tmpl.pattern // Use template pattern, not raw path
 	ctx.routeTemplate = routeTemplate

@@ -1,6 +1,6 @@
 # Rivaas
 
-[![Go Version](https://img.shields.io/badge/go-%3E%3D1.24-blue)](https://golang.org/dl/)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/rivass.dev)](https://goreportcard.com/report/rivass.dev)
 
@@ -13,6 +13,7 @@ A high-performance, modular web framework for Go with integrated observability. 
 - [Features](#-features)
 - [Installation](#-installation)
 - [Packages](#-packages)
+- [Repository Structure](#️-repository-structure)
 - [Quick Start](#-quick-start)
 - [Architecture](#️-architecture)
 - [Performance](#-performance)
@@ -58,7 +59,7 @@ Like its namesake, it grows wherever the environment allows: locally, in the clo
 
 ## 📥 Installation
 
-**Prerequisites:** Go 1.24 or higher
+**Prerequisites:** Go 1.25 or higher
 
 ```bash
 # Install the high-level API (recommended for most users)
@@ -83,6 +84,46 @@ go get rivass.dev/tracing
 - **[logging](./logging/)** - Structured logging with slog (JSON, text, console) ([Docs](./logging/README.md))
 - **[metrics](./metrics/)** - OpenTelemetry metrics with Prometheus, OTLP, and stdout support ([Docs](./metrics/README.md))
 - **[tracing](./tracing/)** - Distributed tracing with OpenTelemetry ([Docs](./tracing/README.md))
+
+## 🏗️ Repository Structure
+
+This is a **multi-module repository**. Each package is a separate Go module with its own `go.mod` file and can be versioned independently.
+
+### Module Organization
+
+```text
+rivaas/
+├── app/          → rivaas.dev/app       (batteries-included framework)
+├── router/       → rivaas.dev/router    (HTTP router)
+├── logging/      → rivaas.dev/logging   (structured logging)
+├── metrics/      → rivaas.dev/metrics   (metrics collection)
+├── tracing/      → rivaas.dev/tracing   (distributed tracing)
+└── go.work       (workspace for local development)
+```
+
+### Version Tags
+
+Each module is versioned independently using the pattern: `<module-dir>/<version>`
+
+Examples:
+
+- `router/v0.1.0` - Router version 0.1.0
+- `app/v1.0.0` - App version 1.0.0
+- `logging/v0.2.3` - Logging version 0.2.3
+
+### Local Development
+
+For local development with all modules together, use the workspace:
+
+```bash
+# Clone the repository
+git clone https://github.com/rivaas-dev/rivaas.git
+cd rivaas
+
+# The go.work file automatically configures all modules
+# No additional setup needed - just run:
+go test ./...
+```
 
 ## 🎯 Quick Start
 
@@ -329,7 +370,7 @@ go test -bench=BenchmarkRouter -benchmem ./router
 ### Docker
 
 ```dockerfile
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN go build -o main .
