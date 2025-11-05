@@ -4,9 +4,11 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/andybalholm/brotli"
 	"rivaas.dev/router"
 )
 
@@ -15,11 +17,21 @@ type Option func(*config)
 
 // config holds the configuration for the compression middleware.
 type config struct {
-	// level is the compression level (0-9, where 0=no compression, 9=best compression)
-	level int
+	// gzipLevel is the gzip compression level (0-9, where 0=no compression, 9=best compression)
+	gzipLevel int
+
+	// brotliLevel is the Brotli compression level (0-11)
+	// For dynamic content (JSON/text), use 4-5. Higher levels are CPU-expensive.
+	brotliLevel int
 
 	// minSize is the minimum response size to compress (in bytes)
 	minSize int
+
+	// enableGzip enables gzip compression
+	enableGzip bool
+
+	// enableBrotli enables Brotli compression
+	enableBrotli bool
 
 	// excludePaths are paths that should not be compressed
 	excludePaths map[string]bool
@@ -34,85 +46,241 @@ type config struct {
 // defaultConfig returns the default configuration for compression middleware.
 func defaultConfig() *config {
 	return &config{
-		level:               gzip.DefaultCompression,
-		minSize:             1024, // 1KB
+		gzipLevel:           gzip.DefaultCompression,
+		brotliLevel:         4, // Conservative for dynamic content
+		minSize:             0, // 0 = no threshold, compress all supported responses
+		enableGzip:          true,
+		enableBrotli:        true,
 		excludePaths:        make(map[string]bool),
 		excludeExtensions:   make(map[string]bool),
 		excludeContentTypes: make(map[string]bool),
 	}
 }
 
-// gzipWriter wraps the response writer to compress the response body.
-type gzipWriter struct {
+// compressWriter wraps the response writer to compress the response body.
+// It buffers data up to the threshold before deciding whether to compress.
+type compressWriter struct {
 	http.ResponseWriter
-	writer              *gzip.Writer
+	writer              io.WriteCloser
 	pool                *sync.Pool
+	encoding            string
 	excludeContentTypes map[string]bool
-	shouldCompress      bool
-	headerWritten       bool
+	threshold           int
+
+	buffer      []byte // Buffer for threshold check
+	bufferUsed  int
+	headersSent bool
+	statusCode  int
+	decided     bool
+	compress    bool
 }
 
-// Write compresses data before writing to the underlying response writer.
-func (gw *gzipWriter) Write(data []byte) (int, error) {
-	// Check on first write if we should actually compress
-	if !gw.headerWritten {
-		gw.checkShouldCompress()
-		gw.headerWritten = true
+// Write buffers data and decides on compression based on threshold.
+func (cw *compressWriter) Write(data []byte) (int, error) {
+	// If already decided, write directly
+	if cw.decided {
+		if cw.compress {
+			return cw.writer.Write(data)
+		}
+		return cw.ResponseWriter.Write(data)
 	}
 
-	if !gw.shouldCompress {
-		return gw.ResponseWriter.Write(data)
+	// If threshold is 0, compress immediately without buffering
+	if cw.threshold == 0 {
+		cw.decided = true
+		cw.compress = true
+		cw.initCompression()
+		return cw.writer.Write(data)
 	}
 
-	return gw.writer.Write(data)
-}
-
-// WriteHeader checks content type and decides whether to compress.
-func (gw *gzipWriter) WriteHeader(code int) {
-	gw.checkShouldCompress()
-	gw.headerWritten = true
-
-	if gw.shouldCompress {
-		gw.ResponseWriter.Header().Del("Content-Length")
-		gw.ResponseWriter.Header().Set("Content-Encoding", "gzip")
+	// Buffer until we hit threshold
+	space := cap(cw.buffer) - len(cw.buffer)
+	if space > 0 {
+		toCopy := space
+		if toCopy > len(data) {
+			toCopy = len(data)
+		}
+		cw.buffer = append(cw.buffer, data[:toCopy]...)
+		cw.bufferUsed += toCopy
+		data = data[toCopy:]
 	}
 
-	gw.ResponseWriter.WriteHeader(code)
-}
+	// Decision time
+	if cw.bufferUsed >= cw.threshold || len(data) > 0 {
+		cw.decided = true
 
-// checkShouldCompress determines if the response should be compressed based on content type.
-func (gw *gzipWriter) checkShouldCompress() {
-	if gw.headerWritten {
-		return
-	}
+		if cw.bufferUsed >= cw.threshold {
+			// Compress
+			cw.compress = true
+			cw.initCompression()
 
-	// Check content type exclusions
-	contentType := gw.ResponseWriter.Header().Get("Content-Type")
-	if contentType != "" {
-		for excludedType := range gw.excludeContentTypes {
-			if strings.Contains(contentType, excludedType) {
-				gw.shouldCompress = false
-				return
+			// Write buffered data
+			totalWritten := 0
+			if cw.bufferUsed > 0 {
+				n, err := cw.writer.Write(cw.buffer)
+				totalWritten += n
+				if err != nil {
+					return totalWritten, err
+				}
 			}
+
+			// Write remaining data
+			if len(data) > 0 {
+				n, err := cw.writer.Write(data)
+				totalWritten += n
+				return totalWritten, err
+			}
+			return totalWritten, nil
+		} else {
+			// Don't compress - too small
+			cw.compress = false
+			if !cw.headersSent {
+				cw.ResponseWriter.WriteHeader(cw.statusCode)
+			}
+
+			written := 0
+			if cw.bufferUsed > 0 {
+				n, err := cw.ResponseWriter.Write(cw.buffer)
+				written += n
+				if err != nil {
+					return written, err
+				}
+			}
+
+			if len(data) > 0 {
+				n, err := cw.ResponseWriter.Write(data)
+				written += n
+				return written, err
+			}
+			return written, nil
 		}
 	}
 
-	gw.shouldCompress = true
+	return len(data), nil
 }
 
-// Close flushes and closes the gzip writer if compression is active.
-func (gw *gzipWriter) Close() error {
-	if !gw.shouldCompress {
+// WriteHeader captures the status code and checks if compression should be skipped.
+func (cw *compressWriter) WriteHeader(code int) {
+	if cw.headersSent {
+		return
+	}
+
+	cw.statusCode = code
+
+	// Don't compress these status codes
+	if shouldSkipStatus(code) {
+		cw.compress = false
+		cw.decided = true
+		cw.ResponseWriter.WriteHeader(code)
+		cw.headersSent = true
+		return
+	}
+
+	// Check content type
+	contentType := cw.ResponseWriter.Header().Get("Content-Type")
+	if shouldSkipContentType(contentType, cw.excludeContentTypes) {
+		cw.compress = false
+		cw.decided = true
+		cw.ResponseWriter.WriteHeader(code)
+		cw.headersSent = true
+		return
+	}
+
+	// Don't call underlying WriteHeader yet - wait for decision
+	// We'll call it when we decide or when first write happens
+	// Note: headersSent remains false until we actually send headers
+}
+
+// initCompression initializes the compression writer and sets headers.
+func (cw *compressWriter) initCompression() {
+	// Set headers
+	cw.ResponseWriter.Header().Del("Content-Length")
+	cw.ResponseWriter.Header().Set("Content-Encoding", cw.encoding)
+	cw.ResponseWriter.Header().Set("Vary", "Accept-Encoding")
+
+	if !cw.headersSent {
+		cw.ResponseWriter.WriteHeader(cw.statusCode)
+		cw.headersSent = true
+	}
+
+	// Get writer from pool
+	switch cw.encoding {
+	case "br":
+		w := cw.pool.Get().(*brotli.Writer)
+		w.Reset(cw.ResponseWriter)
+		cw.writer = w
+	case "gzip":
+		w := cw.pool.Get().(*gzip.Writer)
+		w.Reset(cw.ResponseWriter)
+		cw.writer = w
+	}
+}
+
+// Close finalizes compression and returns writers to pools.
+func (cw *compressWriter) Close() error {
+	if !cw.decided {
+		// Small response that never exceeded threshold
+		cw.decided = true
+		cw.compress = false
+		if cw.bufferUsed > 0 {
+			if !cw.headersSent {
+				cw.ResponseWriter.WriteHeader(cw.statusCode)
+			}
+			cw.ResponseWriter.Write(cw.buffer)
+		}
 		return nil
 	}
 
-	err := gw.writer.Close()
-	gw.pool.Put(gw.writer)
-	return err
+	if cw.compress && cw.writer != nil {
+		err := cw.writer.Close()
+		// Reset before returning to pool to reduce holding references
+		switch w := cw.writer.(type) {
+		case *brotli.Writer:
+			w.Reset(nil)
+		case *gzip.Writer:
+			w.Reset(nil)
+		}
+		cw.pool.Put(cw.writer)
+		return err
+	}
+
+	return nil
+}
+
+// shouldSkipStatus returns true if the status code should not be compressed.
+func shouldSkipStatus(code int) bool {
+	return code == http.StatusNoContent ||
+		code == http.StatusNotModified ||
+		code == http.StatusPartialContent
+}
+
+// shouldSkipContentType returns true if the content type should not be compressed.
+func shouldSkipContentType(ct string, excludes map[string]bool) bool {
+	if ct == "" {
+		return false
+	}
+
+	// Always skip these
+	ctLower := strings.ToLower(ct)
+	if strings.Contains(ctLower, "text/event-stream") ||
+		strings.Contains(ctLower, "application/grpc") ||
+		strings.Contains(ctLower, "application/octet-stream") {
+		return true
+	}
+
+	// Check user exclusions
+	for excluded := range excludes {
+		if strings.Contains(ctLower, strings.ToLower(excluded)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // gzipWriterPool is a sync.Pool for reusing gzip writers.
 var gzipWriterPools = make(map[int]*sync.Pool)
+var brotliWriterPools = make(map[int]*sync.Pool)
 var poolsMutex sync.RWMutex
 
 // getGzipWriterPool returns a pool for the specified compression level.
@@ -143,25 +311,119 @@ func getGzipWriterPool(level int) *sync.Pool {
 	return pool
 }
 
-// New returns a middleware that compresses HTTP responses using gzip.
-// It automatically detects if the client supports gzip and compresses accordingly.
+// getBrotliWriterPool returns a pool for the specified Brotli compression level.
+func getBrotliWriterPool(level int) *sync.Pool {
+	poolsMutex.RLock()
+	pool, exists := brotliWriterPools[level]
+	poolsMutex.RUnlock()
+
+	if exists {
+		return pool
+	}
+
+	poolsMutex.Lock()
+	defer poolsMutex.Unlock()
+
+	// Double-check after acquiring write lock
+	if pool, exists := brotliWriterPools[level]; exists {
+		return pool
+	}
+
+	pool = &sync.Pool{
+		New: func() any {
+			return brotli.NewWriterLevel(io.Discard, level)
+		},
+	}
+	brotliWriterPools[level] = pool
+	return pool
+}
+
+// chooseEncoding selects the best encoding based on Accept-Encoding header.
+// Respects q-values and prefers Brotli over gzip if both are available.
+func chooseEncoding(acceptEncoding string, cfg *config) string {
+	if acceptEncoding == "" {
+		return ""
+	}
+
+	ae := strings.ToLower(acceptEncoding)
+
+	brQ := parseQValue(ae, "br")
+	gzipQ := parseQValue(ae, "gzip")
+
+	// Explicit q=0 means not acceptable
+	if brQ == 0 && gzipQ == 0 {
+		return ""
+	}
+
+	// Prefer Brotli if enabled and quality is equal or better
+	if cfg.enableBrotli && brQ > 0 && brQ >= gzipQ {
+		return "br"
+	}
+
+	if cfg.enableGzip && gzipQ > 0 {
+		return "gzip"
+	}
+
+	return ""
+}
+
+// parseQValue returns -1 if not present, 0 if q=0, or the parsed quality value.
+func parseQValue(accept, encoding string) float64 {
+	idx := strings.Index(accept, encoding)
+	if idx < 0 {
+		return -1
+	}
+
+	qIdx := strings.Index(accept[idx:], "q=")
+	if qIdx < 0 {
+		return 1.0
+	}
+
+	qStart := idx + qIdx + 2
+	end := strings.IndexAny(accept[qStart:], ",;")
+	if end < 0 {
+		end = len(accept) - qStart
+	}
+
+	qStr := strings.TrimSpace(accept[qStart : qStart+end])
+	q, err := strconv.ParseFloat(qStr, 64)
+	if err != nil {
+		return 1.0
+	}
+
+	return q
+}
+
+// New returns a middleware that compresses HTTP responses using gzip and/or Brotli.
+// It automatically detects client support and selects the best encoding based on
+// Accept-Encoding header with q-value negotiation.
 //
 // Features:
-//   - Automatic gzip compression for supported clients
-//   - Configurable compression level
-//   - Minimum size threshold to avoid compressing small responses
+//   - Automatic gzip and Brotli compression with quality-value negotiation
+//   - Configurable compression levels for both algorithms
+//   - Minimum size threshold with buffering to avoid compressing small responses
 //   - Path and content-type exclusions
 //   - Writer pooling for reduced allocations
+//   - Skips compression for 204, 304, 206, SSE, and gRPC
+//   - Sets Vary: Accept-Encoding header
+//   - Respects existing Content-Encoding headers (proxying)
 //
 // Basic usage:
 //
 //	r := router.New()
 //	r.Use(compression.New())
 //
-// With custom compression level:
+// With custom compression levels:
 //
 //	r.Use(compression.New(
-//	    compression.WithLevel(gzip.BestCompression),
+//	    compression.WithGzipLevel(gzip.BestCompression),
+//	    compression.WithBrotliLevel(5),
+//	))
+//
+// Disable Brotli (gzip only):
+//
+//	r.Use(compression.New(
+//	    compression.WithBrotliDisabled(),
 //	))
 //
 // Exclude certain paths:
@@ -177,9 +439,10 @@ func getGzipWriterPool(level int) *sync.Pool {
 //	    compression.WithExcludeContentTypes("image/jpeg", "image/png"),
 //	))
 //
-// Performance: This middleware uses sync.Pool to reuse gzip writers,
+// Performance: This middleware uses sync.Pool to reuse compression writers,
 // minimizing allocations. Compression adds ~100-500µs per request depending
-// on response size and compression level.
+// on response size and compression level. Brotli at level 4-5 is recommended
+// for dynamic content (JSON/text) to balance compression ratio and CPU usage.
 func New(opts ...Option) router.HandlerFunc {
 	// Apply options to default config
 	cfg := defaultConfig()
@@ -187,17 +450,14 @@ func New(opts ...Option) router.HandlerFunc {
 		opt(cfg)
 	}
 
-	// Get the writer pool for this compression level
-	pool := getGzipWriterPool(cfg.level)
-
 	return func(c *router.Context) {
-		// Check if path should be excluded
+		// Early exit: path excluded
 		if cfg.excludePaths[c.Request.URL.Path] {
 			c.Next()
 			return
 		}
 
-		// Check file extension exclusions
+		// Early exit: extension excluded
 		path := c.Request.URL.Path
 		for ext := range cfg.excludeExtensions {
 			if strings.HasSuffix(path, ext) {
@@ -206,39 +466,58 @@ func New(opts ...Option) router.HandlerFunc {
 			}
 		}
 
-		// Check if client supports gzip
-		if !strings.Contains(c.Request.Header.Get("Accept-Encoding"), "gzip") {
+		// Early exit: already compressed
+		if c.Response.Header().Get("Content-Encoding") != "" {
 			c.Next()
 			return
 		}
 
-		// Get gzip writer from pool
-		gz := pool.Get().(*gzip.Writer)
-		defer func() {
-			gz.Close()
-			pool.Put(gz)
-		}()
-
-		// Reset gzip writer to write to our response
-		gz.Reset(c.Response)
-
-		// Create wrapped response writer
-		gzw := &gzipWriter{
-			ResponseWriter:      c.Response,
-			writer:              gz,
-			pool:                pool,
-			excludeContentTypes: cfg.excludeContentTypes,
-			shouldCompress:      false,
-			headerWritten:       false,
+		// Early exit: no client support
+		encoding := chooseEncoding(c.Request.Header.Get("Accept-Encoding"), cfg)
+		if encoding == "" {
+			c.Next()
+			return
 		}
 
-		// Replace response writer
-		c.Response = gzw
+		// Get appropriate pool
+		var pool *sync.Pool
+		switch encoding {
+		case "br":
+			pool = getBrotliWriterPool(cfg.brotliLevel)
+		case "gzip":
+			pool = getGzipWriterPool(cfg.gzipLevel)
+		default:
+			c.Next()
+			return
+		}
 
-		// Process request
+		// Wrap response writer
+		// Only allocate buffer if threshold is set (> 0)
+		var buf []byte
+		if cfg.minSize > 0 {
+			buf = make([]byte, 0, cfg.minSize)
+		}
+		cw := &compressWriter{
+			ResponseWriter:      c.Response,
+			encoding:            encoding,
+			excludeContentTypes: cfg.excludeContentTypes,
+			threshold:           cfg.minSize,
+			buffer:              buf,
+			pool:                pool,
+		}
+
+		originalWriter := c.Response
+		c.Response = cw
+
 		c.Next()
 
-		// Close gzip writer if compression was used
-		gzw.Close()
+		// Finalize
+		if err := cw.Close(); err != nil {
+			if logger := c.Logger(); logger != nil {
+				logger.Error("compression finalization failed", "error", err)
+			}
+		}
+
+		c.Response = originalWriter
 	}
 }

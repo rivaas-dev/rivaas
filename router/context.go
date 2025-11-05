@@ -4,17 +4,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
+	"time"
 	"unsafe"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 	"rivaas.dev/logging"
+	"rivaas.dev/router/middleware"
 )
 
 // Context represents the context of the current HTTP request with optimizations
@@ -61,6 +67,7 @@ type Context struct {
 	metricsRecorder ContextMetricsRecorder // Metrics recorder for this context
 	tracingRecorder ContextTracingRecorder // Tracing recorder for this context
 	version         string                 // Current API version (e.g., "v1", "v2")
+	routeTemplate   string                 // Matched route template (e.g., "/users/:id" or "_not_found")
 
 	// Header parsing cache (per-request)
 	cachedAcceptHeader string       // Cached Accept header value
@@ -955,6 +962,229 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 	return nil
 }
 
+// ProblemDetail writes an RFC 9457 Problem Details response.
+// Automatically negotiates content type, injects observability metadata,
+// and sets appropriate headers.
+//
+// RFC 9457 alignment:
+//   - Prefers application/problem+json content type
+//   - Adds Link header for non-blank types
+//   - Enforces 4xx/5xx status codes
+//   - Auto-injects trace_id and request_id for correlation
+//
+// Example:
+//
+//	problem := router.NewProblemDetail(404, "User Not Found").
+//		WithType(router.ProblemTypeNotFound).
+//		WithDetail("User with ID 12345 does not exist").
+//		WithExtension("user_id", "12345")
+//	return c.ProblemDetail(problem)
+func (c *Context) ProblemDetail(p *ProblemDetail) error {
+	if p == nil {
+		return fmt.Errorf("ProblemDetail called with nil problem")
+	}
+
+	// RFC 9457: Set defaults
+	if p.Type == "" {
+		p.Type = ProblemTypeBlank
+	}
+	if p.Title == "" {
+		if txt := http.StatusText(p.Status); txt != "" {
+			p.Title = txt
+		} else {
+			p.Title = "Error"
+		}
+	}
+
+	// RFC 9457: Problems are for errors (4xx/5xx), not success
+	if p.Status < 400 || p.Status >= 600 {
+		c.LogWarn("invalid problem status",
+			"status", p.Status,
+			"path", c.Request.URL.Path,
+		)
+		p.Status = http.StatusInternalServerError
+	}
+
+	// Auto-inject observability metadata (safe - checks for duplicates)
+	if p.Extensions == nil {
+		p.Extensions = make(map[string]any, 2)
+	}
+
+	// OpenTelemetry trace ID
+	if tid := c.TraceID(); tid != "" {
+		if _, exists := p.Extensions["trace_id"]; !exists {
+			p.Extensions["trace_id"] = tid
+		}
+	}
+
+	// Request ID from middleware (type-safe)
+	if v := c.Request.Context().Value(middleware.RequestIDKey); v != nil {
+		if rid, ok := v.(string); ok && rid != "" {
+			if _, exists := p.Extensions["request_id"]; !exists {
+				p.Extensions["request_id"] = rid
+			}
+		}
+	}
+
+	// RFC 9457: Link header for problem type documentation
+	if p.Type != "" && p.Type != ProblemTypeBlank {
+		c.AppendHeader("Link", fmt.Sprintf("<%s>; rel=\"describedby\"", p.Type))
+	}
+
+	// Mark span on 5xx errors (server errors indicate problems worth investigating)
+	// Note: OTel doesn't expose span.Status() for reading, so we can't check
+	// if error was already set. Setting codes.Error multiple times is harmless.
+	if p.Status >= 500 && c.span != nil && c.span.SpanContext().IsValid() {
+		// Set error status (safe to call multiple times)
+		c.span.SetStatus(codes.Error, http.StatusText(p.Status))
+
+		// Add problem detail attributes
+		c.span.SetAttributes(
+			attribute.String("http.problem.type", p.Type),
+			attribute.Int("http.problem.status", p.Status),
+		)
+
+		// Add error_id if present
+		if errorID, ok := p.Extensions["error_id"].(string); ok && errorID != "" {
+			c.span.SetAttributes(attribute.String("error_id", errorID))
+		}
+
+		// Record error if we have an underlying cause (via WithCause)
+		if p.cause != nil {
+			c.span.RecordError(p.cause)
+		}
+
+		// NOTE: exception.escaped is NOT set here - that's only for panics
+	}
+
+	// Content negotiation (RFC 9457 prefers application/problem+json)
+	offer := c.Accepts("application/problem+json", "application/json", "text/plain")
+
+	switch offer {
+	case "text/plain":
+		// Minimal text representation for curl/simple clients
+		c.Header("Content-Type", "text/plain; charset=utf-8")
+		if rw, ok := c.Response.(*responseWriter); !ok || !rw.Written() {
+			c.Response.WriteHeader(p.Status)
+		}
+
+		// Simple format: Title + Detail (no sensitive internals)
+		text := p.Title
+		if p.Detail != "" {
+			text += ": " + p.Detail
+		}
+		text += "\n"
+
+		_, err := io.WriteString(c.Response, text)
+		return err
+
+	default:
+		// JSON responses (application/problem+json or application/json)
+		ct := MediaTypeProblemJSON
+		if offer == "application/json" {
+			ct = "application/json; charset=utf-8"
+		}
+
+		// Use pooled buffer to reduce allocations
+		buf := bufferPool.Get().(*bytes.Buffer)
+		buf.Reset()
+		defer bufferPool.Put(buf)
+
+		enc := json.NewEncoder(buf)
+		if err := enc.Encode(p); err != nil {
+			return fmt.Errorf("ProblemDetail encoding failed: %w", err)
+		}
+
+		c.Header("Content-Type", ct)
+		if rw, ok := c.Response.(*responseWriter); !ok || !rw.Written() {
+			c.Response.WriteHeader(p.Status)
+		}
+
+		_, err := c.Response.Write(buf.Bytes())
+		return err
+	}
+}
+
+// Problem is a convenience to build and write a problem in one call.
+// Useful for simple error cases without needing the builder pattern.
+//
+// Example:
+//
+//	return c.Problem(404, router.ProblemTypeNotFound, "User Not Found",
+//		"User with the given ID does not exist",
+//		map[string]any{"user_id": userID})
+func (c *Context) Problem(status int, typeURI, title, detail string, ext map[string]any) error {
+	p := NewProblemDetail(status, title).
+		WithType(typeURI).
+		WithDetail(detail).
+		WithInstance(c.Request.URL.Path)
+
+	if len(ext) > 0 {
+		p.WithExtensions(ext)
+	}
+
+	return c.ProblemDetail(p)
+}
+
+// NotFoundProblem sends a 404 Not Found problem response.
+// This is the standard RFC 9457 response for unmatched routes.
+//
+// Example:
+//
+//	return c.NotFoundProblem()
+func (c *Context) NotFoundProblem() error {
+	return c.ProblemDetail(
+		NewProblemDetail(http.StatusNotFound, "Not Found").
+			WithType(ProblemTypeNotFound).
+			WithInstance(c.Request.URL.Path),
+	)
+}
+
+// MethodNotAllowedProblem sends a 405 Method Not Allowed problem response.
+// This includes the required Allow header and lists allowed methods in the response.
+//
+// RFC 7231 requires the Allow header to be set for 405 responses.
+//
+// Example:
+//
+//	allowed := []string{"GET", "POST"}
+//	return c.MethodNotAllowedProblem(allowed)
+func (c *Context) MethodNotAllowedProblem(allowed []string) error {
+	// Sort for deterministic output
+	sort.Strings(allowed)
+
+	// RFC 7231: Must set Allow header
+	c.Header("Allow", strings.Join(allowed, ", "))
+
+	return c.ProblemDetail(
+		NewProblemDetail(http.StatusMethodNotAllowed, "Method Not Allowed").
+			WithType(ProblemTypeMethodNotAllowed).
+			WithDetail(fmt.Sprintf("The %s method is not allowed for this resource.", c.Request.Method)).
+			WithInstance(c.Request.URL.Path).
+			WithExtension("allowed_methods", allowed),
+	)
+}
+
+// UnauthorizedProblem sends a 401 Unauthorized problem response.
+func (c *Context) UnauthorizedProblem(detail string) error {
+	return c.Problem(http.StatusUnauthorized, ProblemTypeUnauthorized, "Unauthorized", detail, nil)
+}
+
+// ForbiddenProblem sends a 403 Forbidden problem response.
+func (c *Context) ForbiddenProblem(detail string) error {
+	return c.Problem(http.StatusForbidden, ProblemTypeForbidden, "Forbidden", detail, nil)
+}
+
+// ConflictProblem sends a 409 Conflict problem response.
+func (c *Context) ConflictProblem(detail string) error {
+	return c.Problem(http.StatusConflict, ProblemTypeConflict, "Conflict", detail, nil)
+}
+
+// InternalProblem sends a 500 Internal Server Error problem response.
+func (c *Context) InternalProblem(detail string) error {
+	return c.Problem(http.StatusInternalServerError, ProblemTypeInternal, "Internal Server Error", detail, nil)
+}
+
 // RecordMetric records a custom histogram metric by delegating to the metrics recorder.
 // Thread-safety depends on the underlying metrics recorder implementation.
 func (c *Context) RecordMetric(name string, value float64, attributes ...attribute.KeyValue) {
@@ -1027,6 +1257,18 @@ func (c *Context) TraceContext() context.Context {
 	return context.Background()
 }
 
+// Span returns the OpenTelemetry span for this request, if tracing is enabled.
+// Returns nil if tracing is not enabled or no span exists.
+func (c *Context) Span() trace.Span {
+	return c.span
+}
+
+// RouteTemplate returns the matched route template (e.g., "/users/:id").
+// Returns empty string if template is not available.
+func (c *Context) RouteTemplate() string {
+	return c.routeTemplate
+}
+
 // Logger returns the router's logger if available.
 // Returns nil if no logger is configured.
 //
@@ -1072,6 +1314,462 @@ func (c *Context) LogError(msg string, args ...any) {
 	if logger := c.Logger(); logger != nil {
 		logger.Error(msg, args...)
 	}
+}
+
+// SetETag sets an ETag header for the response.
+// Supports both strong (default) and weak ETags per RFC 7232.
+//
+// Example:
+//
+//	c.SetETag("abc123", false)  // Strong ETag: "abc123"
+//	c.SetETag("abc123", true)   // Weak ETag: W/"abc123"
+func (c *Context) SetETag(etag string, weak bool) {
+	if etag == "" {
+		return
+	}
+	if weak {
+		c.Header("ETag", `W/`+`"`+etag+`"`)
+	} else {
+		c.Header("ETag", `"`+etag+`"`)
+	}
+}
+
+// normalizeETag removes quotes and W/ prefix from ETag for comparison.
+func normalizeETag(tag string) string {
+	tag = strings.TrimSpace(tag)
+	tag = strings.TrimPrefix(tag, "W/")
+	return strings.Trim(tag, `"`)
+}
+
+// IfNoneMatch checks the If-None-Match header and returns 304 Not Modified if the ETag matches.
+// Per RFC 7232, If-None-Match takes precedence over If-Modified-Since.
+// Returns true if a 304 was written (client cache is fresh).
+//
+// Example:
+//
+//	if c.IfNoneMatch(etag) {
+//		return // 304 already sent
+//	}
+//	c.SetETag(etag, false)
+//	c.JSON(200, data)
+func (c *Context) IfNoneMatch(etag string) bool {
+	if etag == "" {
+		return false
+	}
+	inm := c.Request.Header.Get("If-None-Match")
+	if inm == "" {
+		return false
+	}
+
+	normalizedETag := normalizeETag(etag)
+	for _, tag := range strings.Split(inm, ",") {
+		tag = strings.TrimSpace(tag)
+		if tag == "*" {
+			// Match any ETag
+			c.SetETag(etag, false)
+			c.Response.WriteHeader(http.StatusNotModified)
+			return true
+		}
+		normalizedTag := normalizeETag(tag)
+		if normalizedTag == normalizedETag {
+			// Match found - check if it was weak
+			weak := strings.HasPrefix(tag, "W/")
+			c.SetETag(etag, weak)
+			c.Response.WriteHeader(http.StatusNotModified)
+			return true
+		}
+	}
+	return false
+}
+
+// IfModifiedSince checks the If-Modified-Since header and returns 304 Not Modified if the resource hasn't changed.
+// Returns true if a 304 was written (client cache is fresh).
+//
+// Example:
+//
+//	if c.IfModifiedSince(lastModified) {
+//		return // 304 already sent
+//	}
+//	c.Header("Last-Modified", lastModified.UTC().Format(http.TimeFormat))
+//	c.JSON(200, data)
+func (c *Context) IfModifiedSince(modTime time.Time) bool {
+	if modTime.IsZero() {
+		return false
+	}
+	ims := c.Request.Header.Get("If-Modified-Since")
+	if ims == "" {
+		return false
+	}
+	t, err := http.ParseTime(ims)
+	if err != nil {
+		return false
+	}
+	// Not modified if server time <= client time
+	if !modTime.After(t) {
+		c.Header("Last-Modified", modTime.UTC().Format(http.TimeFormat))
+		c.Response.WriteHeader(http.StatusNotModified)
+		return true
+	}
+	return false
+}
+
+// Fresh checks both If-None-Match (priority) and If-Modified-Since headers.
+// Returns true if a 304 was written (client cache is fresh).
+// Per RFC 7232, If-None-Match takes precedence.
+//
+// Example:
+//
+//	if c.Fresh(etag, lastModified) {
+//		return // 304 already sent
+//	}
+//	c.SetETag(etag, false)
+//	c.Header("Last-Modified", lastModified.UTC().Format(http.TimeFormat))
+//	c.JSON(200, data)
+func (c *Context) Fresh(etag string, modTime time.Time) bool {
+	// If-None-Match takes precedence per RFC 7232
+	if c.IfNoneMatch(etag) {
+		return true
+	}
+	return c.IfModifiedSince(modTime)
+}
+
+// SetCacheHeaders sets ETag, Last-Modified, and Cache-Control headers.
+// Convenience method for setting all cache-related headers at once.
+//
+// Example:
+//
+//	c.SetCacheHeaders(etag, lastModified, 300) // 5 minute cache
+func (c *Context) SetCacheHeaders(etag string, modTime time.Time, maxAge int) {
+	if etag != "" {
+		c.SetETag(etag, false)
+	}
+	if !modTime.IsZero() {
+		c.Header("Last-Modified", modTime.UTC().Format(http.TimeFormat))
+	}
+	if maxAge > 0 {
+		c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
+	}
+}
+
+// IfMatch checks the If-Match header for optimistic locking (PUT/PATCH).
+// Returns false if precondition failed (412 already sent).
+//
+// Example:
+//
+//	if !c.IfMatch(currentETag) {
+//		return // 412 already sent
+//	}
+//	// Update resource...
+func (c *Context) IfMatch(etag string) bool {
+	if etag == "" {
+		return true // No precondition
+	}
+	im := c.Request.Header.Get("If-Match")
+	if im == "" {
+		return true // No precondition
+	}
+
+	normalizedETag := normalizeETag(etag)
+	for _, tag := range strings.Split(im, ",") {
+		tag = strings.TrimSpace(tag)
+		if tag == "*" {
+			return true // Match any
+		}
+		normalizedTag := normalizeETag(tag)
+		if normalizedTag == normalizedETag {
+			return true // Match found
+		}
+	}
+
+	// Precondition failed
+	_ = c.ProblemDetail(
+		NewProblemDetail(http.StatusPreconditionFailed, "Precondition Failed").
+			WithType(ProblemTypePreconditionFailed).
+			WithDetail("The resource has been modified since your last request.").
+			WithExtension("current_etag", etag),
+	)
+	return false
+}
+
+// BindOptions configures strict JSON binding behavior.
+type BindOptions struct {
+	MaxBytes   int64 // Maximum request body size (0 = no limit)
+	DepthLimit int   // Maximum JSON nesting depth (0 = no limit)
+}
+
+// RequireContentType checks if the request Content-Type matches one of the allowed types.
+// Returns false and sends a 415 Unsupported Media Type problem if no match.
+// Supports suffix matching for patterns like "application/*+json".
+//
+// Example:
+//
+//	if !c.RequireContentType("application/json") {
+//		return // 415 already sent
+//	}
+func (c *Context) RequireContentType(allowed ...string) bool {
+	ct := c.Request.Header.Get("Content-Type")
+
+	// Only require Content-Type for methods that have bodies
+	if ct == "" {
+		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" {
+			return c.unsupportedMediaTypeProblem("", allowed)
+		}
+		return true // GET/DELETE don't need Content-Type
+	}
+
+	mediaType, params, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return c.unsupportedMediaTypeProblem(ct, allowed)
+	}
+
+	// For JSON, charset must be utf-8 if specified
+	if strings.HasSuffix(mediaType, "json") {
+		if charset, ok := params["charset"]; ok {
+			if !strings.EqualFold(charset, "utf-8") {
+				return c.unsupportedMediaTypeProblem(ct, allowed)
+			}
+		}
+	}
+
+	// Check for exact or suffix match
+	for _, a := range allowed {
+		if a == mediaType {
+			return true
+		}
+		// Handle application/*+json pattern
+		if strings.HasSuffix(a, "/*+json") && strings.HasSuffix(mediaType, "+json") {
+			return true
+		}
+	}
+
+	return c.unsupportedMediaTypeProblem(mediaType, allowed)
+}
+
+// unsupportedMediaTypeProblem sends a 415 Unsupported Media Type problem.
+func (c *Context) unsupportedMediaTypeProblem(received string, allowed []string) bool {
+	_ = c.ProblemDetail(
+		NewProblemDetail(http.StatusUnsupportedMediaType, "Unsupported Media Type").
+			WithType(ProblemTypeUnsupportedMediaType).
+			WithDetail("This endpoint only accepts specific media types.").
+			WithExtension("received", received).
+			WithExtension("supported_types", allowed),
+	)
+	return false
+}
+
+// RequireContentTypeJSON checks if the request Content-Type is JSON.
+// Returns false and sends a 415 problem if not JSON.
+//
+// Example:
+//
+//	if !c.RequireContentTypeJSON() {
+//		return // 415 already sent
+//	}
+func (c *Context) RequireContentTypeJSON() bool {
+	return c.RequireContentType("application/json", "application/*+json")
+}
+
+// writeJSONDecodeProblem converts JSON decode errors to RFC 9457 problems.
+func (c *Context) writeJSONDecodeProblem(err error) error {
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return c.ProblemDetail(
+			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
+				WithType(ProblemTypeMalformedJSON).
+				WithDetail("Unexpected end of JSON input."),
+		)
+
+	case errors.As(err, new(*json.SyntaxError)):
+		return c.ProblemDetail(
+			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
+				WithType(ProblemTypeMalformedJSON).
+				WithDetail(err.Error()),
+		)
+
+	case errors.As(err, new(*json.UnmarshalTypeError)):
+		ute := err.(*json.UnmarshalTypeError)
+		// Valid JSON, wrong types -> 422
+		return c.ProblemDetail(
+			NewProblemDetail(http.StatusUnprocessableEntity, "Unprocessable Entity").
+				WithType(ProblemTypeValidation).
+				WithDetail(fmt.Sprintf("Invalid type for field %q: expected %s.", ute.Field, ute.Type)).
+				WithExtension("field", ute.Field).
+				WithExtension("expected_type", ute.Type.String()),
+		)
+
+	default:
+		errStr := err.Error()
+		// Unknown field string from DisallowUnknownFields()
+		if strings.HasPrefix(errStr, "json: unknown field ") {
+			field := strings.Trim(strings.TrimPrefix(errStr, "json: unknown field "), `"`)
+			return c.ProblemDetail(
+				NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
+					WithType(ProblemTypeMalformedJSON).
+					WithDetail(fmt.Sprintf("Unknown field %q.", field)).
+					WithExtension("unknown_field", field),
+			)
+		}
+
+		// Too large body (http.MaxBytesReader returns this error)
+		if strings.Contains(errStr, "request body too large") || strings.Contains(errStr, "http: request body too large") {
+			return c.ProblemDetail(
+				NewProblemDetail(http.StatusRequestEntityTooLarge, "Payload Too Large").
+					WithType(ProblemTypeTooLarge).
+					WithDetail("Request body exceeds the maximum allowed size."),
+			)
+		}
+
+		// Fallback
+		return c.ProblemDetail(
+			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
+				WithType(ProblemTypeMalformedJSON).
+				WithDetail(err.Error()),
+		)
+	}
+}
+
+// BindStrict binds JSON with strict validation and size limits.
+// Returns an error (already written as RFC 9457 problem) if binding fails.
+//
+// Features:
+//   - Rejects unknown fields (catches typos)
+//   - Enforces size limits
+//   - Distinguishes 400 (malformed) vs 422 (type errors)
+//
+// Example:
+//
+//	var req CreateUserRequest
+//	if err := c.BindStrict(&req, router.BindOptions{MaxBytes: 1 << 20}); err != nil {
+//		return // Error already written
+//	}
+func (c *Context) BindStrict(dst any, opt BindOptions) error {
+	// 1) Content-Type check
+	if !c.RequireContentTypeJSON() {
+		return fmt.Errorf("content type not allowed")
+	}
+
+	// 2) Size cap
+	if opt.MaxBytes > 0 {
+		c.Request.Body = http.MaxBytesReader(c.Response, c.Request.Body, opt.MaxBytes)
+	}
+
+	dec := json.NewDecoder(c.Request.Body)
+	dec.DisallowUnknownFields()
+	dec.UseNumber()
+
+	// 3) Decode exactly one JSON value
+	if err := dec.Decode(dst); err != nil {
+		return c.writeJSONDecodeProblem(err)
+	}
+
+	// 4) No trailing data
+	if dec.More() {
+		return c.ProblemDetail(
+			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
+				WithType(ProblemTypeMalformedJSON).
+				WithDetail("Request body must contain a single JSON value."),
+		)
+	}
+
+	return nil
+}
+
+// StreamJSONArray streams a JSON array, processing each item individually.
+// Useful for large arrays that shouldn't be loaded entirely into memory.
+//
+// This is a generic function (not a method) due to Go's type parameter limitations.
+//
+// Example:
+//
+//	err := router.StreamJSONArray(c, func(item User) error {
+//		// Process each user
+//		return processUser(item)
+//	}, 10000) // Max 10k items
+func StreamJSONArray[T any](c *Context, each func(T) error, maxItems int) error {
+	if !c.RequireContentTypeJSON() {
+		return fmt.Errorf("content type not allowed")
+	}
+
+	dec := json.NewDecoder(c.Request.Body)
+	dec.DisallowUnknownFields()
+	dec.UseNumber()
+
+	// Expect '['
+	tok, err := dec.Token()
+	if err != nil {
+		return c.writeJSONDecodeProblem(err)
+	}
+	if delim, ok := tok.(json.Delim); !ok || delim != '[' {
+		return c.ProblemDetail(
+			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
+				WithType(ProblemTypeMalformedJSON).
+				WithDetail("Expected a JSON array."),
+		)
+	}
+
+	count := 0
+	for dec.More() {
+		count++
+		if maxItems > 0 && count > maxItems {
+			return c.ProblemDetail(
+				NewProblemDetail(http.StatusBadRequest, "Too Many Items").
+					WithType(ProblemTypeTooLarge).
+					WithDetail(fmt.Sprintf("Array exceeds maximum of %d items", maxItems)),
+			)
+		}
+
+		var v T
+		if err := dec.Decode(&v); err != nil {
+			return c.writeJSONDecodeProblem(err)
+		}
+
+		if err := each(v); err != nil {
+			return err
+		}
+	}
+
+	// Read closing ']'
+	if _, err := dec.Token(); err != nil {
+		return c.writeJSONDecodeProblem(err)
+	}
+
+	return nil
+}
+
+// StreamNDJSON streams NDJSON (newline-delimited JSON) objects.
+// Each line is a separate JSON object, useful for bulk operations.
+//
+// This is a generic function (not a method) due to Go's type parameter limitations.
+//
+// Example:
+//
+//	err := router.StreamNDJSON(c, func(item User) error {
+//		return processUser(item)
+//	})
+func StreamNDJSON[T any](c *Context, each func(T) error) error {
+	if !c.RequireContentType("application/x-ndjson") {
+		return fmt.Errorf("content type not allowed")
+	}
+
+	dec := json.NewDecoder(c.Request.Body)
+	dec.DisallowUnknownFields()
+	dec.UseNumber()
+
+	for {
+		var v T
+		if err := dec.Decode(&v); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return c.writeJSONDecodeProblem(err)
+		}
+
+		if err := each(v); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // reset resets the context to its initial state for reuse.
@@ -1135,6 +1833,11 @@ func (c *Context) reset() {
 	if c.Params != nil {
 		clear(c.Params)
 	}
+
+	// Reset observability fields
+	c.version = ""
+	c.routeTemplate = ""
+	c.aborted = false
 }
 
 // initForRequest initializes the context for a new request.

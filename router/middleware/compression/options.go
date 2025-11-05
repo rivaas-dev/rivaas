@@ -1,15 +1,71 @@
 package compression
 
-// WithLevel sets the gzip compression level.
+// WithLevel sets the gzip compression level (deprecated, use WithGzipLevel).
 // Valid values: 0 (no compression) to 9 (best compression).
 // Default: gzip.DefaultCompression (-1, which is typically level 6)
 //
 // Example:
 //
 //	compression.New(compression.WithLevel(gzip.BestCompression))
+//
+// Deprecated: Use WithGzipLevel instead.
 func WithLevel(level int) Option {
 	return func(cfg *config) {
-		cfg.level = level
+		cfg.gzipLevel = level
+	}
+}
+
+// WithGzipLevel sets the gzip compression level.
+// Valid values: 0 (no compression) to 9 (best compression).
+// Default: gzip.DefaultCompression (-1, which is typically level 6)
+//
+// Example:
+//
+//	compression.New(compression.WithGzipLevel(gzip.BestCompression))
+func WithGzipLevel(level int) Option {
+	return func(cfg *config) {
+		cfg.gzipLevel = level
+	}
+}
+
+// WithBrotliLevel sets the Brotli compression level.
+// Valid values: 0 (no compression) to 11 (best compression).
+// For dynamic content (JSON/text), use 4-5. Higher levels are CPU-expensive.
+// Default: 4 (conservative for dynamic content)
+//
+// Example:
+//
+//	compression.New(compression.WithBrotliLevel(5))
+func WithBrotliLevel(level int) Option {
+	return func(cfg *config) {
+		if level < 0 {
+			level = 0
+		} else if level > 11 {
+			level = 11
+		}
+		cfg.brotliLevel = level
+	}
+}
+
+// WithBrotliDisabled disables Brotli compression (gzip only).
+//
+// Example:
+//
+//	compression.New(compression.WithBrotliDisabled())
+func WithBrotliDisabled() Option {
+	return func(cfg *config) {
+		cfg.enableBrotli = false
+	}
+}
+
+// WithGzipDisabled disables gzip compression (Brotli only).
+//
+// Example:
+//
+//	compression.New(compression.WithGzipDisabled())
+func WithGzipDisabled() Option {
+	return func(cfg *config) {
+		cfg.enableGzip = false
 	}
 }
 

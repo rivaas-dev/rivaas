@@ -54,7 +54,12 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"rivaas.dev/logging"
 )
 
@@ -178,6 +183,18 @@ type Router struct {
 	// Custom 404 handler
 	noRouteHandler HandlerFunc  // Custom handler for unmatched routes (nil means use http.NotFound)
 	noRouteMutex   sync.RWMutex // Protects noRouteHandler (rarely written, frequently read)
+
+	// HTTP/2 Cleartext (H2C) support
+	enableH2C      bool            // Enable HTTP/2 cleartext support (dev/behind LB only)
+	serverTimeouts *serverTimeouts // HTTP server timeout configuration
+}
+
+// serverTimeouts holds HTTP server timeout configuration.
+type serverTimeouts struct {
+	readHeader time.Duration
+	read       time.Duration
+	write      time.Duration
+	idle       time.Duration
 }
 
 const (
@@ -297,9 +314,195 @@ func (r *Router) NoRoute(handler HandlerFunc) {
 	r.noRouteHandler = handler
 }
 
+// getAllowedMethodsForPath checks all method trees to find which methods have routes for the given path.
+// Returns a list of allowed HTTP methods, or empty slice if path doesn't match any route.
+func (r *Router) getAllowedMethodsForPath(path string) []string {
+	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
+	if treesPtr == nil {
+		return nil
+	}
+	trees := (*map[string]*node)(treesPtr)
+	if trees == nil {
+		return nil
+	}
+
+	var allowed []string
+	// Standard HTTP methods to check
+	standardMethods := []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+
+	// Create a temporary context for path matching
+	c := getContextFromGlobalPool()
+	defer func() {
+		c.reset()
+		globalContextPool.Put(c)
+	}()
+
+	for _, method := range standardMethods {
+		if tree, exists := (*trees)[method]; exists && tree != nil {
+			// Try to match the path in this method's tree
+			if handlers := tree.getRoute(path, c); handlers != nil {
+				allowed = append(allowed, method)
+			}
+			// Also check compiled routes if they exist
+			if tree.compiled != nil {
+				if handlers := tree.compiled.getRoute(path); handlers != nil {
+					// Avoid duplicates
+					found := false
+					for _, m := range allowed {
+						if m == method {
+							found = true
+							break
+						}
+					}
+					if !found {
+						allowed = append(allowed, method)
+					}
+				}
+			}
+		}
+	}
+
+	return allowed
+}
+
+// extractClientIP extracts the real client IP from request, respecting proxy headers.
+// TODO: Only trust X-Forwarded-For when RemoteAddr is in configured proxy CIDR.
+func extractClientIP(req *http.Request) string {
+	// Check X-Forwarded-For if behind trusted proxy
+	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
+		// Take first IP from chain (leftmost = original client)
+		if idx := strings.Index(xff, ","); idx > 0 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
+	}
+
+	// Fallback to RemoteAddr, but strip port
+	if addr := req.RemoteAddr; addr != "" {
+		// Strip port (RemoteAddr includes ":port")
+		if idx := strings.LastIndex(addr, ":"); idx > 0 {
+			return addr[:idx]
+		}
+		return addr
+	}
+
+	return ""
+}
+
+// detectScheme determines http vs https, respecting proxy headers.
+// TODO: Formalize proxy trust policy and consider RFC 7239 Forwarded header.
+func detectScheme(req *http.Request) string {
+	// Direct TLS connection
+	if req.TLS != nil {
+		return "https"
+	}
+
+	// Honor X-Forwarded-Proto from trusted proxy
+	// TODO: Only trust when RemoteAddr is in configured proxy CIDR
+	if proto := req.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+
+	// TODO: Parse RFC 7239 Forwarded header:
+	// Forwarded: for=192.0.2.60;proto=https;by=203.0.113.43
+
+	return "http"
+}
+
+// setStandardSpanAttributes uses OpenTelemetry semantic conventions.
+func setStandardSpanAttributes(span trace.Span, req *http.Request, routeTemplate string) {
+	if span == nil {
+		return
+	}
+
+	// Detect scheme (req.URL.Scheme is empty server-side)
+	scheme := detectScheme(req)
+
+	// Use semconv constants (fewer typos, future-safe)
+	attrs := []attribute.KeyValue{
+		attribute.String("http.request.method", req.Method),
+		attribute.String("http.route", routeTemplate),           // /users/:id or _unmatched
+		attribute.String("url.path", req.URL.Path),              // /users/123
+		attribute.String("url.scheme", scheme),                  // http or https
+		attribute.String("network.protocol.version", req.Proto), // HTTP/1.1, HTTP/2
+		attribute.String("user_agent.original", req.UserAgent()),
+	}
+
+	// Client address
+	if clientIP := extractClientIP(req); clientIP != "" {
+		attrs = append(attrs, attribute.String("client.address", clientIP))
+	}
+
+	// Server details
+	if req.Host != "" {
+		attrs = append(attrs, attribute.String("server.address", req.Host))
+	}
+
+	span.SetAttributes(attrs...)
+}
+
+// finalizeSpanAttributes adds response attributes before span ends.
+func finalizeSpanAttributes(span trace.Span, statusCode int, responseSize int64) {
+	if span == nil {
+		return
+	}
+
+	span.SetAttributes(
+		attribute.Int("http.response.status_code", statusCode),
+		attribute.Int64("http.response.body.size", responseSize),
+	)
+
+	// Set span status based on HTTP status
+	// 4xx = client errors (not span errors)
+	// 5xx = server errors (span errors)
+	if statusCode >= 500 {
+		span.SetStatus(codes.Error, http.StatusText(statusCode))
+	} else {
+		span.SetStatus(codes.Ok, "")
+	}
+}
+
+// handleMethodNotAllowed handles requests where the path matches but the method doesn't.
+// Sends an RFC 9457 405 Method Not Allowed problem response with Allow header.
+func (r *Router) handleMethodNotAllowed(w http.ResponseWriter, req *http.Request, allowed []string) {
+	c := getContextFromGlobalPool()
+	c.Request = req
+	c.Response = w
+	c.index = -1
+	c.paramCount = 0
+	c.router = r
+
+	// Set version if versioning is enabled
+	if r.versioning != nil {
+		c.version = r.detectVersion(req)
+	}
+
+	// Set route template: if we matched a node but wrong method, try to determine template
+	// Otherwise use sentinel to avoid cardinality explosion
+	// TODO: In future, track matched pattern during routing attempt
+	c.routeTemplate = "_method_not_allowed"
+
+	// Send RFC 9457 problem (MethodNotAllowedProblem already sets Allow header)
+	_ = c.MethodNotAllowedProblem(allowed)
+
+	// Reset and return to pool
+	c.reset()
+	globalContextPool.Put(c)
+}
+
 // handleNotFound handles unmatched routes by either calling the custom NoRoute handler
-// or falling back to http.NotFound if no custom handler is set.
+// or using RFC 9457 problem details by default.
+// It also checks if the path exists for other methods (405) vs doesn't exist at all (404).
 func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
+	// First check if this path exists for any other method (405)
+	allowed := r.getAllowedMethodsForPath(req.URL.Path)
+	if len(allowed) > 0 {
+		// Path exists but method doesn't - return 405
+		r.handleMethodNotAllowed(w, req, allowed)
+		return
+	}
+
+	// Path doesn't exist for any method - check for custom handler
 	r.noRouteMutex.RLock()
 	handler := r.noRouteHandler
 	r.noRouteMutex.RUnlock()
@@ -318,6 +521,9 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 			c.version = r.detectVersion(req)
 		}
 
+		// Set route template for metrics/tracing
+		c.routeTemplate = "_not_found"
+
 		// Execute the custom handler
 		handler(c)
 
@@ -325,8 +531,25 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 		c.reset()
 		globalContextPool.Put(c)
 	} else {
-		// Use default behavior
-		http.NotFound(w, req)
+		// Default: Use RFC 9457 problem details
+		c := getContextFromGlobalPool()
+		c.Request = req
+		c.Response = w
+		c.index = -1
+		c.paramCount = 0
+		c.router = r
+
+		// Set route template for metrics/tracing (sentinel, not raw path)
+		c.routeTemplate = "_not_found"
+
+		if r.versioning != nil {
+			c.version = r.detectVersion(req)
+		}
+
+		_ = c.NotFoundProblem()
+
+		c.reset()
+		globalContextPool.Put(c)
 	}
 }
 
@@ -343,6 +566,67 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 func WithLogger(logger logging.Logger) Option {
 	return func(r *Router) {
 		r.logger = logger
+	}
+}
+
+// WithH2C enables HTTP/2 Cleartext support.
+//
+// ⚠️ SECURITY WARNING: Only use in development or behind a trusted load balancer.
+// DO NOT enable on public-facing servers without TLS.
+//
+// Common deployment patterns:
+//   - Dev/local testing: Enable h2c for direct HTTP/2 testing
+//   - Behind Envoy/Caddy: LB speaks h2c to app (configure LB accordingly)
+//   - Behind Nginx: Typically uses HTTP/1.1 upstream (h2c not needed)
+//
+// Requires: golang.org/x/net/http2/h2c
+//
+// Example:
+//
+//	r := router.New(router.WithH2C(true))
+//	r.Serve(":8080")
+func WithH2C(enable bool) Option {
+	return func(r *Router) {
+		r.enableH2C = enable
+	}
+}
+
+// WithServerTimeouts configures HTTP server timeouts.
+// These are critical for preventing slowloris attacks and resource exhaustion.
+//
+// Defaults (if not set):
+//
+//	ReadHeaderTimeout: 5s  - Time to read request headers
+//	ReadTimeout:       15s - Time to read entire request
+//	WriteTimeout:      30s - Time to write response
+//	IdleTimeout:       60s - Keep-alive idle time
+//
+// Example:
+//
+//	r := router.New(router.WithServerTimeouts(
+//	    10*time.Second,  // ReadHeaderTimeout
+//	    30*time.Second,  // ReadTimeout
+//	    60*time.Second,  // WriteTimeout
+//	    120*time.Second, // IdleTimeout
+//	))
+func WithServerTimeouts(readHeader, read, write, idle time.Duration) Option {
+	return func(r *Router) {
+		r.serverTimeouts = &serverTimeouts{
+			readHeader: readHeader,
+			read:       read,
+			write:      write,
+			idle:       idle,
+		}
+	}
+}
+
+// defaultServerTimeouts returns default timeout configuration.
+func defaultServerTimeouts() *serverTimeouts {
+	return &serverTimeouts{
+		readHeader: 5 * time.Second,
+		read:       15 * time.Second,
+		write:      30 * time.Second,
+		idle:       60 * time.Second,
 	}
 }
 
@@ -807,23 +1091,36 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 		r.versioning.setDeprecationHeaders(w, version)
 	}
 
+	// Set route template if not already set (fallback to sentinel for tree-based routes)
+	// TODO: Track matched pattern during tree.getRoute() for better template accuracy
+	if c.routeTemplate == "" {
+		c.routeTemplate = "_unmatched"
+	}
+
 	// Execute handlers with the context that has extracted parameters
 	c.handlers = handlers
 
 	if shouldTrace && shouldMeasure {
 		// Wrap response writer and set up tracing
 		rw := &responseWriter{ResponseWriter: w}
-		ctx, span := r.tracing.StartSpan(req.Context(), req.Method+" "+path)
+		spanName := req.Method + " " + c.routeTemplate
+		ctx, span := r.tracing.StartSpan(req.Context(), spanName)
 		c.Request = req.WithContext(ctx)
 		c.Response = rw
 		c.span = span
 		c.traceCtx = ctx
 
-		// Start metrics
-		metricsData := r.metrics.StartRequest(ctx, path, false)
+		// Set standard span attributes using semconv
+		setStandardSpanAttributes(span, req, c.routeTemplate)
+
+		// Start metrics (use route template, not raw path)
+		metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
 
 		// Execute
 		c.Next()
+
+		// Finalize span attributes with response info
+		finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
 
 		// Finish metrics and tracing
 		r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
@@ -831,14 +1128,21 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	} else if shouldTrace {
 		// Wrap response writer and set up tracing
 		rw := &responseWriter{ResponseWriter: w}
-		ctx, span := r.tracing.StartSpan(req.Context(), req.Method+" "+path)
+		spanName := req.Method + " " + c.routeTemplate
+		ctx, span := r.tracing.StartSpan(req.Context(), spanName)
 		c.Request = req.WithContext(ctx)
 		c.Response = rw
 		c.span = span
 		c.traceCtx = ctx
 
+		// Set standard span attributes using semconv
+		setStandardSpanAttributes(span, req, c.routeTemplate)
+
 		// Execute
 		c.Next()
+
+		// Finalize span attributes with response info
+		finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
 
 		// Finish tracing
 		r.tracing.FinishSpan(span, rw.StatusCode())
@@ -848,8 +1152,8 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 		ctx := req.Context()
 		c.Response = rw
 
-		// Start metrics
-		metricsData := r.metrics.StartRequest(ctx, path, false)
+		// Start metrics (use route template, not raw path)
+		metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
 
 		// Execute
 		c.Next()
@@ -1029,19 +1333,24 @@ func (r *Router) recordRouteRegistration(method, path string) {
 }
 
 // serveStaticWithTracingAndMetrics serves a static request with both tracing and metrics enabled.
-func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, path string, isStatic bool) {
-	// Start tracing
-	ctx, span := r.tracing.StartSpan(req.Context(), req.Method+" "+path)
+func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate string, isStatic bool) {
+	// Start tracing with route template in name
+	spanName := req.Method + " " + routeTemplate
+	ctx, span := r.tracing.StartSpan(req.Context(), spanName)
 	req = req.WithContext(ctx)
 
-	// Start metrics with trace context
-	metricsData := r.metrics.StartRequest(ctx, path, isStatic)
+	// Set standard span attributes using semconv
+	setStandardSpanAttributes(span, req, routeTemplate)
+
+	// Start metrics with trace context (use route template, not raw path)
+	metricsData := r.metrics.StartRequest(ctx, routeTemplate, isStatic)
 
 	// Get context from pool
 	c := r.contextPool.Get(0)
 	c.initForRequest(req, rw, handlers, r)
 	c.span = span
 	c.traceCtx = ctx
+	c.routeTemplate = routeTemplate // Store for access
 
 	// Set version if versioning is enabled
 	if r.versioning != nil {
@@ -1050,6 +1359,9 @@ func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.
 
 	// Execute handlers
 	c.Next()
+
+	// Finalize span attributes with response info
+	finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
 
 	// Finish metrics with trace context
 	r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
@@ -1062,16 +1374,21 @@ func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.
 }
 
 // serveStaticWithTracing serves a static request with only tracing enabled.
-func (r *Router) serveStaticWithTracing(rw *responseWriter, req *http.Request, handlers []HandlerFunc, path string) {
-	// Start tracing
-	ctx, span := r.tracing.StartSpan(req.Context(), req.Method+" "+path)
+func (r *Router) serveStaticWithTracing(rw *responseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate string) {
+	// Start tracing with route template in name
+	spanName := req.Method + " " + routeTemplate
+	ctx, span := r.tracing.StartSpan(req.Context(), spanName)
 	req = req.WithContext(ctx)
+
+	// Set standard span attributes using semconv
+	setStandardSpanAttributes(span, req, routeTemplate)
 
 	// Get context from pool
 	c := r.contextPool.Get(0)
 	c.initForRequest(req, rw, handlers, r)
 	c.span = span
 	c.traceCtx = ctx
+	c.routeTemplate = routeTemplate // Store for access
 
 	// Set version if versioning is enabled
 	if r.versioning != nil {
@@ -1081,6 +1398,9 @@ func (r *Router) serveStaticWithTracing(rw *responseWriter, req *http.Request, h
 	// Execute handlers
 	c.Next()
 
+	// Finalize span attributes with response info
+	finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
+
 	// Finish tracing
 	r.tracing.FinishSpan(span, rw.StatusCode())
 
@@ -1089,16 +1409,17 @@ func (r *Router) serveStaticWithTracing(rw *responseWriter, req *http.Request, h
 }
 
 // serveStaticWithMetrics serves a static request with only metrics enabled.
-func (r *Router) serveStaticWithMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, path string, isStatic bool) {
+func (r *Router) serveStaticWithMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate string, isStatic bool) {
 	// Get request context
 	ctx := req.Context()
 
-	// Start metrics with request context
-	metricsData := r.metrics.StartRequest(ctx, path, isStatic)
+	// Start metrics with request context (use route template, not raw path)
+	metricsData := r.metrics.StartRequest(ctx, routeTemplate, isStatic)
 
 	// Get context from pool
 	c := r.contextPool.Get(0)
 	c.initForRequest(req, rw, handlers, r)
+	c.routeTemplate = routeTemplate // Store for access
 
 	// Set version if versioning is enabled
 	if r.versioning != nil {
@@ -1116,15 +1437,27 @@ func (r *Router) serveStaticWithMetrics(rw *responseWriter, req *http.Request, h
 }
 
 // serveDynamicWithTracingAndMetrics serves a dynamic request with both tracing and metrics enabled.
-func (r *Router) serveDynamicWithTracingAndMetrics(c *Context, handlers []HandlerFunc, path string) {
-	// Start tracing
-	ctx, span := r.tracing.StartSpan(c.Request.Context(), c.Request.Method+" "+path)
+func (r *Router) serveDynamicWithTracingAndMetrics(c *Context, handlers []HandlerFunc, routeTemplate string) {
+	// Ensure routeTemplate is set (fallback to sentinel if not set)
+	if c.routeTemplate == "" {
+		c.routeTemplate = routeTemplate
+		if c.routeTemplate == "" {
+			c.routeTemplate = "_unmatched"
+		}
+	}
+
+	// Start tracing with route template in name
+	spanName := c.Request.Method + " " + c.routeTemplate
+	ctx, span := r.tracing.StartSpan(c.Request.Context(), spanName)
 	c.Request = c.Request.WithContext(ctx)
 	c.span = span
 	c.traceCtx = ctx
 
-	// Start metrics with trace context
-	metricsData := r.metrics.StartRequest(ctx, path, false)
+	// Set standard span attributes using semconv
+	setStandardSpanAttributes(span, c.Request, c.routeTemplate)
+
+	// Start metrics with trace context (use route template, not raw path)
+	metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
 
 	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
 	// For non-versioned routes, version will be set lazily on first access via ctx.Version()
@@ -1136,6 +1469,9 @@ func (r *Router) serveDynamicWithTracingAndMetrics(c *Context, handlers []Handle
 
 	// Get response writer status
 	rw := c.Response.(*responseWriter)
+
+	// Finalize span attributes with response info
+	finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
 
 	// Finish metrics with trace context
 	r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
@@ -1145,12 +1481,24 @@ func (r *Router) serveDynamicWithTracingAndMetrics(c *Context, handlers []Handle
 }
 
 // serveDynamicWithTracing serves a dynamic request with only tracing enabled.
-func (r *Router) serveDynamicWithTracing(c *Context, handlers []HandlerFunc, path string) {
-	// Start tracing
-	ctx, span := r.tracing.StartSpan(c.Request.Context(), c.Request.Method+" "+path)
+func (r *Router) serveDynamicWithTracing(c *Context, handlers []HandlerFunc, routeTemplate string) {
+	// Ensure routeTemplate is set (fallback to sentinel if not set)
+	if c.routeTemplate == "" {
+		c.routeTemplate = routeTemplate
+		if c.routeTemplate == "" {
+			c.routeTemplate = "_unmatched"
+		}
+	}
+
+	// Start tracing with route template in name
+	spanName := c.Request.Method + " " + c.routeTemplate
+	ctx, span := r.tracing.StartSpan(c.Request.Context(), spanName)
 	c.Request = c.Request.WithContext(ctx)
 	c.span = span
 	c.traceCtx = ctx
+
+	// Set standard span attributes using semconv
+	setStandardSpanAttributes(span, c.Request, c.routeTemplate)
 
 	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
 	// For non-versioned routes, version will be set lazily on first access via ctx.Version()
@@ -1163,17 +1511,28 @@ func (r *Router) serveDynamicWithTracing(c *Context, handlers []HandlerFunc, pat
 	// Get response writer status
 	rw := c.Response.(*responseWriter)
 
+	// Finalize span attributes with response info
+	finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
+
 	// Finish tracing
 	r.tracing.FinishSpan(span, rw.StatusCode())
 }
 
 // serveDynamicWithMetrics serves a dynamic request with only metrics enabled.
-func (r *Router) serveDynamicWithMetrics(c *Context, handlers []HandlerFunc, path string) {
+func (r *Router) serveDynamicWithMetrics(c *Context, handlers []HandlerFunc, routeTemplate string) {
+	// Ensure routeTemplate is set (fallback to sentinel if not set)
+	if c.routeTemplate == "" {
+		c.routeTemplate = routeTemplate
+		if c.routeTemplate == "" {
+			c.routeTemplate = "_unmatched"
+		}
+	}
+
 	// Get request context
 	ctx := c.Request.Context()
 
-	// Start metrics with request context
-	metricsData := r.metrics.StartRequest(ctx, path, false)
+	// Start metrics with request context (use route template, not raw path)
+	metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
 
 	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
 	// For non-versioned routes, version will be set lazily on first access via ctx.Version()
@@ -1193,19 +1552,23 @@ func (r *Router) serveDynamicWithMetrics(c *Context, handlers []HandlerFunc, pat
 // serveTemplate serves a request using a pre-compiled template (static route).
 // This is the fastest path: O(1) hash lookup, zero parameter extraction.
 func (r *Router) serveTemplate(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, path string, shouldTrace, shouldMeasure bool) {
+	routeTemplate := tmpl.pattern // Use template pattern, not raw path
+	isStatic := tmpl.isStatic
+
 	if shouldTrace && shouldMeasure {
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithTracingAndMetrics(rw, req, tmpl.handlers, path, true)
+		r.serveStaticWithTracingAndMetrics(rw, req, tmpl.handlers, routeTemplate, isStatic)
 	} else if shouldTrace {
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithTracing(rw, req, tmpl.handlers, path)
+		r.serveStaticWithTracing(rw, req, tmpl.handlers, routeTemplate)
 	} else if shouldMeasure {
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithMetrics(rw, req, tmpl.handlers, path, true)
+		r.serveStaticWithMetrics(rw, req, tmpl.handlers, routeTemplate, isStatic)
 	} else {
 		// Fast path: no metrics or tracing
 		ctx := getContextFromGlobalPool()
 		ctx.initForRequest(req, w, tmpl.handlers, r)
+		ctx.routeTemplate = routeTemplate // Set template for access
 
 		// NOTE: Version will be set lazily on first access via ctx.Version()
 		// to avoid overhead on template fast path
@@ -1219,6 +1582,10 @@ func (r *Router) serveTemplate(w http.ResponseWriter, req *http.Request, tmpl *R
 // serveTemplateWithParams serves a request using a template with pre-extracted parameters.
 // The context already has parameters populated by the template matching.
 func (r *Router) serveTemplateWithParams(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, ctx *Context, path string, shouldTrace, shouldMeasure bool) {
+	// Store the route template for metrics/tracing
+	routeTemplate := tmpl.pattern // Use template pattern, not raw path
+	ctx.routeTemplate = routeTemplate
+
 	// Reuse the context that already has parameters extracted
 	// Use special init that preserves parameters
 	ctx.initForRequestWithParams(req, w, tmpl.handlers, r)
@@ -1234,17 +1601,110 @@ func (r *Router) serveTemplateWithParams(w http.ResponseWriter, req *http.Reques
 	if shouldTrace && shouldMeasure {
 		rw := &responseWriter{ResponseWriter: w}
 		ctx.Response = rw
-		r.serveDynamicWithTracingAndMetrics(ctx, tmpl.handlers, path)
+		r.serveDynamicWithTracingAndMetrics(ctx, tmpl.handlers, routeTemplate)
 	} else if shouldTrace {
 		rw := &responseWriter{ResponseWriter: w}
 		ctx.Response = rw
-		r.serveDynamicWithTracing(ctx, tmpl.handlers, path)
+		r.serveDynamicWithTracing(ctx, tmpl.handlers, routeTemplate)
 	} else if shouldMeasure {
 		rw := &responseWriter{ResponseWriter: w}
 		ctx.Response = rw
-		r.serveDynamicWithMetrics(ctx, tmpl.handlers, path)
+		r.serveDynamicWithMetrics(ctx, tmpl.handlers, routeTemplate)
 	} else {
 		// Fast path: direct execution
 		ctx.Next()
 	}
+}
+
+// Serve starts the HTTP server on the specified address.
+// Automatically enables h2c if configured via WithH2C().
+//
+// The server is configured with production-safe timeouts to prevent
+// slowloris attacks and resource exhaustion. These timeouts are critical
+// for production deployments.
+//
+// Example:
+//
+//	r := router.New()
+//	r.GET("/", func(c *router.Context) {
+//	    c.String(http.StatusOK, "Hello, World!")
+//	})
+//	if err := r.Serve(":8080"); err != nil {
+//	    log.Fatal(err)
+//	}
+//
+// With H2C enabled (dev/behind LB only):
+//
+//	r := router.New(router.WithH2C(true))
+//	r.Serve(":8080")
+func (r *Router) Serve(addr string) error {
+	h := http.Handler(r)
+
+	if r.enableH2C {
+		h = h2c.NewHandler(h, &http2.Server{})
+		if r.logger != nil {
+			r.logger.Warn("H2C enabled; use only in dev or behind a trusted LB")
+		}
+	}
+
+	timeouts := r.serverTimeouts
+	if timeouts == nil {
+		timeouts = defaultServerTimeouts()
+	}
+
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: timeouts.readHeader,
+		ReadTimeout:       timeouts.read,
+		WriteTimeout:      timeouts.write,
+		IdleTimeout:       timeouts.idle,
+	}
+
+	return srv.ListenAndServe()
+}
+
+// ServeTLS starts the HTTPS server with TLS configuration.
+// For TLS servers, HTTP/2 is automatically enabled via ALPN.
+//
+// The server is configured with production-safe timeouts to prevent
+// slowloris attacks and resource exhaustion.
+//
+// Optional: Configure HTTP/2 settings for TLS:
+//
+//	import "golang.org/x/net/http2"
+//	srv := &http.Server{...}
+//	http2.ConfigureServer(srv, &http2.Server{
+//	    MaxConcurrentStreams: 256,
+//	})
+//
+// Example:
+//
+//	r := router.New()
+//	r.GET("/", func(c *router.Context) {
+//	    c.String(http.StatusOK, "Hello, World!")
+//	})
+//	if err := r.ServeTLS(":8443", "cert.pem", "key.pem"); err != nil {
+//	    log.Fatal(err)
+//	}
+func (r *Router) ServeTLS(addr, certFile, keyFile string) error {
+	timeouts := r.serverTimeouts
+	if timeouts == nil {
+		timeouts = defaultServerTimeouts()
+	}
+
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           r,
+		ReadHeaderTimeout: timeouts.readHeader,
+		ReadTimeout:       timeouts.read,
+		WriteTimeout:      timeouts.write,
+		IdleTimeout:       timeouts.idle,
+	}
+
+	// HTTP/2 is automatically enabled over TLS via ALPN
+	// Optional: tune HTTP/2 settings
+	// http2.ConfigureServer(srv, &http2.Server{MaxConcurrentStreams: 256})
+
+	return srv.ListenAndServeTLS(certFile, keyFile)
 }

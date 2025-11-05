@@ -1,6 +1,9 @@
 package router
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
+)
 
 // BindAndValidate binds the request body and validates it.
 // This is the most common validation pattern for handlers.
@@ -103,6 +106,61 @@ func (c *Context) ValidationError(err error, status int) {
 func (c *Context) MustBindAndValidate(out any, opts ...ValidationOption) bool {
 	if err := c.BindAndValidate(out, opts...); err != nil {
 		c.ValidationError(err, 400)
+		return false
+	}
+	return true
+}
+
+// ValidationErrorRFC7807 writes an RFC 9457 Problem Details response for validation errors.
+// Uses 422 Unprocessable Entity to distinguish semantic validation from parse errors (400).
+//
+// RFC 9457 guidance: Use 422 when the request is well-formed but contains semantic errors.
+// This provides better signals to clients about the nature of the error.
+//
+// Example:
+//
+//	if err := c.BindAndValidate(&req); err != nil {
+//		return c.ValidationErrorRFC7807(err, router.ProblemTypeValidation)
+//	}
+func (c *Context) ValidationErrorRFC7807(err error, typeURI string) error {
+	if err == nil {
+		return fmt.Errorf("ValidationErrorRFC7807 called with nil error")
+	}
+
+	// Use 422 for semantic validation failures (not 400)
+	p := NewProblemDetail(http.StatusUnprocessableEntity, "Validation Failed").
+		WithType(typeURI).
+		WithInstance(c.Request.URL.Path).
+		WithCause(err) // Chain the original error
+
+	// Handle ValidationErrors specially
+	if verrs, ok := err.(ValidationErrors); ok {
+		p.WithDetail(fmt.Sprintf("Request validation failed with %d error(s)", len(verrs.Errors)))
+		p.WithExtension("errors", verrs.Errors)
+
+		if verrs.Truncated {
+			p.WithExtension("truncated", true)
+		}
+	} else {
+		p.WithDetail(err.Error())
+	}
+
+	return c.ProblemDetail(p)
+}
+
+// MustBindAndValidateRFC7807 combines binding, validation, and RFC 9457 error response.
+// Returns true if validation succeeded, false otherwise (with error already written).
+//
+// Example:
+//
+//	var req CreateUserRequest
+//	if !c.MustBindAndValidateRFC7807(&req, router.ProblemTypeValidation) {
+//		return // Error already written
+//	}
+//	// Continue with validated request
+func (c *Context) MustBindAndValidateRFC7807(out any, typeURI string, opts ...ValidationOption) bool {
+	if err := c.BindAndValidate(out, opts...); err != nil {
+		_ = c.ValidationErrorRFC7807(err, typeURI)
 		return false
 	}
 	return true

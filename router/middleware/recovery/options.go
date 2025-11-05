@@ -66,3 +66,54 @@ func WithDisableStackAll(disabled bool) Option {
 		cfg.disableStackAll = disabled
 	}
 }
+
+// WithProblemDetails enables RFC 9457 Problem Details responses for panics.
+// When enabled, panics return standardized problem detail responses instead of
+// the default JSON error response.
+//
+// Example:
+//
+//	recovery.New(
+//		recovery.WithProblemDetails(true),
+//		recovery.WithProblemType(router.ProblemTypeInternal),
+//		recovery.WithIncludeStackInProblem(os.Getenv("ENV") != "production"),
+//	)
+func WithProblemDetails(enabled bool) Option {
+	return func(cfg *config) {
+		cfg.useProblemDetails = enabled
+		if cfg.problemTypeURI == "" {
+			cfg.problemTypeURI = router.ProblemTypeInternal
+		}
+	}
+}
+
+// WithProblemType sets the problem type URI for RFC 9457 responses.
+// Default: router.ProblemTypeInternal
+//
+// Example:
+//
+//	recovery.New(
+//		recovery.WithProblemDetails(true),
+//		recovery.WithProblemType("https://api.example.com/problems/panic"),
+//	)
+func WithProblemType(typeURI string) Option {
+	return func(cfg *config) {
+		cfg.problemTypeURI = typeURI
+	}
+}
+
+// WithIncludeStackInProblem includes stack traces in problem details.
+// WARNING: Only enable in development/staging environments!
+// Stack traces may leak sensitive information in production.
+//
+// Example:
+//
+//	recovery.New(
+//		recovery.WithProblemDetails(true),
+//		recovery.WithIncludeStackInProblem(os.Getenv("ENV") == "development"),
+//	)
+func WithIncludeStackInProblem(include bool) Option {
+	return func(cfg *config) {
+		cfg.includeStackInProblem = include
+	}
+}

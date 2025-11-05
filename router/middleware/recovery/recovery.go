@@ -1,10 +1,13 @@
 package recovery
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"runtime/debug"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"rivaas.dev/router"
 )
 
@@ -27,6 +30,15 @@ type config struct {
 
 	// disableStackAll disables full stack trace from all goroutines
 	disableStackAll bool
+
+	// useProblemDetails enables RFC 9457 Problem Details responses
+	useProblemDetails bool
+
+	// includeStackInProblem includes stack trace in problem details (dev/staging only!)
+	includeStackInProblem bool
+
+	// problemTypeURI is the problem type URI for RFC 9457 responses
+	problemTypeURI string
 }
 
 // defaultConfig returns the default configuration for recovery middleware.
@@ -51,6 +63,31 @@ func defaultHandler(c *router.Context, err any) {
 		"error": "Internal server error",
 		"code":  "INTERNAL_ERROR",
 	})
+}
+
+// problemDetailsHandler sends an RFC 9457 Problem Details response.
+func problemDetailsHandler(cfg *config) func(c *router.Context, err any, stack []byte) {
+	return func(c *router.Context, err any, stack []byte) {
+		p := router.NewProblemDetail(http.StatusInternalServerError, "Internal Server Error").
+			WithType(cfg.problemTypeURI).
+			WithDetail("An unexpected error occurred while processing your request.").
+			WithInstance(c.Request.URL.Path)
+
+		// Include panic details in dev/staging (never in production!)
+		if cfg.includeStackInProblem {
+			p.WithExtension("panic", fmt.Sprintf("%v", err))
+			if len(stack) > 0 {
+				// Limit stack size if configured
+				stackToInclude := stack
+				if cfg.stackSize > 0 && len(stack) > cfg.stackSize {
+					stackToInclude = stack[:cfg.stackSize]
+				}
+				p.WithExtension("stack", string(stackToInclude))
+			}
+		}
+
+		_ = c.ProblemDetail(p)
+	}
 }
 
 // New returns a middleware that recovers from panics in request handlers.
@@ -95,6 +132,21 @@ func New(opts ...Option) router.HandlerFunc {
 	return func(c *router.Context) {
 		defer func() {
 			if err := recover(); err != nil {
+				// Mark span with exception.escaped for panics (only place this is set)
+				if span := c.Span(); span != nil && span.SpanContext().IsValid() {
+					span.SetStatus(codes.Error, "panic recovered")
+					span.SetAttributes(
+						attribute.Bool("exception.escaped", true), // KEY: only set for panics
+						attribute.String("exception.type", fmt.Sprintf("%T", err)),
+						attribute.String("exception.message", fmt.Sprintf("%v", err)),
+					)
+
+					// Optionally record as error (creates exception event)
+					if actualErr, ok := err.(error); ok {
+						span.RecordError(actualErr)
+					}
+				}
+
 				// Capture stack trace if enabled
 				var stack []byte
 				if cfg.stackTrace {
@@ -117,6 +169,12 @@ func New(opts ...Option) router.HandlerFunc {
 				// Call logger (default or custom)
 				if cfg.logger != nil {
 					cfg.logger(c, err, stack)
+				}
+
+				// Use RFC 9457 Problem Details if enabled
+				if cfg.useProblemDetails {
+					problemDetailsHandler(cfg)(c, err, stack)
+					return
 				}
 
 				// Call custom handler or default
