@@ -1,3 +1,4 @@
+// Package main demonstrates a full-featured example of the Rivaas router with advanced features.
 package main
 
 import (

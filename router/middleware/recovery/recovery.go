@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"runtime/debug"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -53,12 +54,12 @@ func defaultConfig() *config {
 }
 
 // defaultLogger logs panic information with stack trace.
-func defaultLogger(c *router.Context, err any, stack []byte) {
+func defaultLogger(_ *router.Context, err any, stack []byte) {
 	log.Printf("[Recovery] panic recovered:\n%v\n%s", err, stack)
 }
 
 // defaultHandler sends a 500 Internal Server Error response.
-func defaultHandler(c *router.Context, err any) {
+func defaultHandler(c *router.Context, _ any) {
 	c.JSON(http.StatusInternalServerError, map[string]any{
 		"error": "Internal server error",
 		"code":  "INTERNAL_ERROR",
@@ -68,8 +69,14 @@ func defaultHandler(c *router.Context, err any) {
 // problemDetailsHandler sends an RFC 9457 Problem Details response.
 func problemDetailsHandler(cfg *config) func(c *router.Context, err any, stack []byte) {
 	return func(c *router.Context, err any, stack []byte) {
+		// Resolve problem type URI if it's a slug
+		typeURI := cfg.problemTypeURI
+		if !strings.HasPrefix(typeURI, "http://") && !strings.HasPrefix(typeURI, "https://") && typeURI != "about:blank" {
+			typeURI = c.ProblemType(typeURI)
+		}
+
 		p := router.NewProblemDetail(http.StatusInternalServerError, "Internal Server Error").
-			WithType(cfg.problemTypeURI).
+			WithType(typeURI).
 			WithDetail("An unexpected error occurred while processing your request.").
 			WithInstance(c.Request.URL.Path)
 

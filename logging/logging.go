@@ -67,6 +67,7 @@ const (
 type Level = slog.Level
 
 const (
+	// LevelDebug is the debug log level.
 	LevelDebug = slog.LevelDebug
 	LevelInfo  = slog.LevelInfo
 	LevelWarn  = slog.LevelWarn
@@ -456,7 +457,7 @@ func captureStack(skip int) string {
 }
 
 // Shutdown gracefully shuts down the logger.
-func (c *Config) Shutdown(ctx context.Context) error {
+func (c *Config) Shutdown(_ context.Context) error {
 	c.isShuttingDown.Store(true)
 
 	// Stop sampling ticker if running
@@ -722,22 +723,6 @@ func WithEnvironment(env string) Option {
 	}
 }
 
-// WithServiceInfo sets service metadata.
-// Deprecated: Use WithServiceName, WithServiceVersion, and WithEnvironment instead.
-func WithServiceInfo(name, version, env string) Option {
-	return func(c *Config) {
-		if name != "" {
-			c.serviceName = name
-		}
-		if version != "" {
-			c.serviceVersion = version
-		}
-		if env != "" {
-			c.environment = env
-		}
-	}
-}
-
 // WithSource enables source code location in logs.
 func WithSource(enabled bool) Option {
 	return func(c *Config) { c.addSource = enabled }
@@ -815,19 +800,19 @@ func Example() {
 	// DEBUG debugging info key=value
 }
 
-// Example_contextLogging demonstrates context-aware logging.
-func Example_contextLogging() {
+// ExampleContextLogging demonstrates context-aware logging.
+func ExampleContextLogging() {
 	logger := MustNew(WithJSONHandler())
 
 	// Simulate traced context
 	ctx := context.Background()
-	cl := NewContextLogger(logger, ctx)
+	cl := NewContextLogger(ctx, logger)
 
 	cl.Info("processing request", "user_id", "123")
 }
 
-// Example_errorWithStack demonstrates error logging with stack traces.
-func Example_errorWithStack() {
+// ExampleErrorWithStack demonstrates error logging with stack traces.
+func ExampleErrorWithStack() {
 	logger := MustNew(WithConsoleHandler())
 
 	err := errors.New("database connection failed")

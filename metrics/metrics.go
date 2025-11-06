@@ -72,16 +72,16 @@ import (
 	"rivaas.dev/logging"
 )
 
-// MetricsProvider represents the available metrics providers.
-type MetricsProvider string
+// Provider represents the available metrics providers.
+type Provider string
 
 const (
 	// PrometheusProvider uses Prometheus exporter for metrics (default).
-	PrometheusProvider MetricsProvider = "prometheus"
+	PrometheusProvider Provider = "prometheus"
 	// OTLPProvider uses OTLP HTTP exporter for metrics.
-	OTLPProvider MetricsProvider = "otlp"
+	OTLPProvider Provider = "otlp"
 	// StdoutProvider uses stdout exporter for metrics (development/testing).
-	StdoutProvider MetricsProvider = "stdout"
+	StdoutProvider Provider = "stdout"
 )
 
 // Config holds OpenTelemetry metrics configuration.
@@ -151,7 +151,7 @@ type Config struct {
 	maxCustomMetrics int // Maximum number of custom metrics
 
 	// Small types (1-2 bytes, grouped together to minimize padding)
-	provider            MetricsProvider
+	provider            Provider
 	isShuttingDown      atomic.Bool // Prevents server restart during shutdown
 	enabled             bool
 	recordParams        bool
@@ -224,7 +224,7 @@ func WithServiceVersion(version string) Option {
 }
 
 // WithProvider sets the metrics provider.
-func WithProvider(provider MetricsProvider) Option {
+func WithProvider(provider Provider) Option {
 	return func(c *Config) {
 		c.provider = provider
 	}
@@ -315,9 +315,9 @@ func WithStrictPort() Option {
 }
 
 // WithMaxCustomMetrics sets the maximum number of custom metrics allowed.
-func WithMaxCustomMetrics(max int) Option {
+func WithMaxCustomMetrics(maxLimit int) Option {
 	return func(c *Config) {
-		c.maxCustomMetrics = max
+		c.maxCustomMetrics = maxLimit
 	}
 }
 
@@ -519,7 +519,7 @@ func (c *Config) GetHandler() (http.Handler, error) {
 }
 
 // GetProvider returns the current metrics provider.
-func (c *Config) GetProvider() MetricsProvider {
+func (c *Config) GetProvider() Provider {
 	if !c.enabled {
 		return ""
 	}

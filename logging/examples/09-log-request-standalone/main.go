@@ -1,3 +1,4 @@
+// Package main demonstrates standalone request logging functionality.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// Package handlers provides request validation and utility functions for the full-featured example.
 package handlers
 
 import (
@@ -5,7 +6,7 @@ import (
 	"time"
 )
 
-// ValidateUserRequest validates the CreateUserRequest.
+// Validate validates the CreateUserRequest.
 func (r *CreateUserRequest) Validate() error {
 	if r.Name == "" {
 		return WrapError(ErrValidationFailed, "name is required")
@@ -25,7 +26,7 @@ func (r *CreateUserRequest) Validate() error {
 	return nil
 }
 
-// ValidateOrderRequest validates the CreateOrderRequest.
+// Validate validates the CreateOrderRequest.
 func (r *CreateOrderRequest) Validate() error {
 	if r.UserID <= 0 {
 		return WrapError(ErrValidationFailed, "user_id must be a positive integer")

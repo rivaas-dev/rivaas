@@ -1,3 +1,4 @@
+// Package main demonstrates JSON-formatted logging output.
 package main
 
 import (
@@ -8,7 +9,9 @@ func main() {
 	// Create a logger with JSON output (structured, machine-readable)
 	log := logging.MustNew(
 		logging.WithJSONHandler(),
-		logging.WithServiceInfo("my-api", "v1.0.0", "production"),
+		logging.WithServiceName("my-api"),
+		logging.WithServiceVersion("v1.0.0"),
+		logging.WithEnvironment("production"),
 		logging.WithSource(true), // Include source file and line number
 	)
 

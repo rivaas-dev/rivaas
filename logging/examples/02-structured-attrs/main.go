@@ -1,3 +1,4 @@
+// Package main demonstrates structured logging with attributes.
 package main
 
 import (

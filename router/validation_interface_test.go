@@ -60,7 +60,7 @@ type userWithValueContextValidator struct {
 	Name string `json:"name"`
 }
 
-func (u userWithValueContextValidator) ValidateContext(ctx context.Context) error {
+func (u userWithValueContextValidator) ValidateContext(_ context.Context) error {
 	if u.Name == "" {
 		return errors.New("name is required")
 	}
@@ -76,7 +76,7 @@ func (u *userWithBoth) Validate() error {
 	return errors.New("should not use Validate()")
 }
 
-func (u *userWithBoth) ValidateContext(ctx context.Context) error {
+func (u *userWithBoth) ValidateContext(_ context.Context) error {
 	if u.Name == "" {
 		return errors.New("name is required")
 	}
@@ -200,10 +200,6 @@ func TestValidateWithInterface_ErrorCoercion(t *testing.T) {
 
 	// Should be able to unwrap
 	var verrs ValidationErrors
-	if errors.As(err, &verrs) {
-		// Good, it's a ValidationErrors
-	} else {
-		// That's also fine - it might be a generic error
-		// The important thing is we got an error
-	}
+	_ = errors.As(err, &verrs)
+	// Whether it's ValidationErrors or generic error, we got an error which is what matters
 }

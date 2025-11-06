@@ -1571,6 +1571,111 @@ users.GET("/:id", RouteMiddleware(), handler)
 // Execution order: GlobalMiddleware → APIMiddleware → V1Middleware → UsersMiddleware → RouteMiddleware → handler
 ```
 
+### ⚠️ Memory Safety & Context Lifecycle {#memory-safety-context-lifecycle}
+
+**CRITICAL**: Context objects are pooled and reused across requests to minimize garbage collection pressure. Understanding context lifecycle is essential for memory safety.
+
+#### Context Pooling
+
+Contexts are automatically pooled and reused:
+
+- **Automatic pooling**: Router manages context lifecycle automatically
+- **Zero allocations**: Only 1 allocation per request (16B overhead)
+- **GC pressure reduction**: Reusing contexts minimizes garbage collection
+- **Performance**: ~15% faster than per-request allocations
+
+#### ⚠️ CRITICAL RULES
+
+1. **DO NOT retain references to Context objects beyond the request handler lifetime.**
+2. **If you MUST retain a reference** (e.g., async operations), **call `Release()` when done.**
+3. **DO NOT use a Context after calling `Release()`** - it will be reused for other requests.
+4. **The router automatically returns contexts to the pool** after request completion.
+
+#### Why This Matters
+
+- **Memory leaks**: Retaining references prevents contexts from being garbage collected
+- **Data corruption**: Contexts are reused - old data may appear in new requests
+- **Security issues**: Sensitive request data may leak to other requests
+- **Undefined behavior**: Use-after-release causes unpredictable bugs
+
+#### Correct Usage
+
+```go
+// ✅ CORRECT: Normal handler - no manual release needed
+func handler(c *router.Context) {
+    userID := c.Param("id")
+    c.JSON(200, map[string]string{"id": userID})
+    // Context automatically returned to pool by router
+}
+
+// ✅ CORRECT: Async operation with explicit release
+func handler(c *router.Context) {
+    go func(ctx *router.Context) {
+        defer ctx.Release() // CRITICAL: Release when done
+        // Process async work...
+        processAsync(ctx.Param("id"))
+    }(c)
+}
+
+// ✅ CORRECT: Stored reference with explicit release
+func handler(c *router.Context) {
+    storedContext := c
+    // ... later, when done ...
+    storedContext.Release() // CRITICAL: Release when done
+}
+```
+
+#### ❌ Incorrect Usage
+
+```go
+// ❌ WRONG: Retaining reference without release
+var globalContext *router.Context
+
+func handler(c *router.Context) {
+    globalContext = c // BAD! Memory leak and data corruption
+}
+
+// ❌ WRONG: Using context after release
+func handler(c *router.Context) {
+    c.Release()
+    userID := c.Param("id") // BAD! Context already returned to pool
+}
+
+// ❌ WRONG: Storing in struct without release
+type Service struct {
+    ctx *router.Context // BAD! Never do this
+}
+```
+
+#### Release() Method
+
+The `Release()` method explicitly returns a context to the pool:
+
+```go
+// Release marks the context as invalid and returns it to the pool.
+// DO NOT use the context after calling Release().
+func (c *Context) Release()
+```
+
+**When to use `Release()`:**
+
+- Async operations (goroutines, channels)
+- Stored references beyond handler lifetime
+- Explicit pool return before handler completion
+
+**When NOT to use `Release()`:**
+
+- Normal request handlers (router handles it automatically)
+- Synchronous operations within handler
+
+**What `Release()` does:**
+
+- Clears all sensitive data (Request, Response, binding metadata, etc.)
+- Marks context as released to prevent accidental reuse
+- Returns context to appropriate pool for reuse
+
+See the [Context API](#context-api) section for detailed method documentation.
+
 ### Context API
 
 The Context object provides access to the request/response and various utility methods.
@@ -2902,10 +3007,25 @@ func handler(c *router.Context) {
     processUser(userID)
 }
 
-// Bad: Don't store context
+// ❌ Bad: Don't store context without release
 var globalContext *router.Context
 func handler(c *router.Context) {
-    globalContext = c // Never do this!
+    globalContext = c // Never do this! Causes memory leaks and data corruption
+}
+
+// ✅ Good: If you must store, release when done
+func handler(c *router.Context) {
+    storedContext := c
+    // ... use storedContext ...
+    storedContext.Release() // CRITICAL: Release when done
+}
+
+// ✅ Good: Async operations with release
+func handler(c *router.Context) {
+    go func(ctx *router.Context) {
+        defer ctx.Release() // CRITICAL: Always release in defer
+        // Process async work...
+    }(c)
 }
 ```
 

@@ -147,9 +147,9 @@ func TestValidate_Concurrent(t *testing.T) {
 	errors := make(chan error, numGoroutines*numValidationsPerGoroutine)
 
 	// Run concurrent validations
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := 0; j < numValidationsPerGoroutine; j++ {
 				user := User{
@@ -198,7 +198,7 @@ func TestValidate_ConcurrentWithCache(t *testing.T) {
 	var wg sync.WaitGroup
 	errors := make(chan error, numGoroutines*numValidationsPerGoroutine)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
@@ -408,7 +408,7 @@ func TestValidate_DeepRecursion(t *testing.T) {
 	// Create a chain of 100 nested levels
 	root := &Nested{Value: "test"}
 	current := root
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		current.Next = &Nested{Value: "test"}
 		current = current.Next
 	}
@@ -421,7 +421,7 @@ func TestValidate_DeepRecursion(t *testing.T) {
 	// Test with missing value at depth 50
 	root2 := &Nested{Value: "test"}
 	current2 := root2
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		current2.Next = &Nested{Value: "test"}
 		current2 = current2.Next
 	}

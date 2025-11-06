@@ -1,3 +1,4 @@
+// Package main demonstrates context-only field logging.
 package main
 
 import (

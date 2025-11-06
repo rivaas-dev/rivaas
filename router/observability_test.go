@@ -27,35 +27,35 @@ func (m *mockMetricsRecorder) IsEnabled() bool {
 	return m.enabled
 }
 
-func (m *mockMetricsRecorder) StartRequest(ctx context.Context, path string, isStatic bool, attrs ...attribute.KeyValue) any {
+func (m *mockMetricsRecorder) StartRequest(_ context.Context, _ string, _ bool, _ ...attribute.KeyValue) any {
 	m.startRequestCalled = true
 	return nil
 }
 
-func (m *mockMetricsRecorder) FinishRequest(ctx context.Context, data any, statusCode int, size int64) {
+func (m *mockMetricsRecorder) FinishRequest(_ context.Context, _ any, _ int, _ int64) {
 	m.finishRequestCalled = true
 }
 
-func (m *mockMetricsRecorder) RecordRouteRegistration(ctx context.Context, method, path string) {}
+func (m *mockMetricsRecorder) RecordRouteRegistration(_ context.Context, _, _ string) {}
 
-func (m *mockMetricsRecorder) RecordMetric(ctx context.Context, name string, value float64, attrs ...attribute.KeyValue) {
+func (m *mockMetricsRecorder) RecordMetric(_ context.Context, _ string, _ float64, _ ...attribute.KeyValue) {
 	m.recordMetricCalled = true
 }
 
-func (m *mockMetricsRecorder) IncrementCounter(ctx context.Context, name string, attrs ...attribute.KeyValue) {
+func (m *mockMetricsRecorder) IncrementCounter(_ context.Context, _ string, _ ...attribute.KeyValue) {
 	m.incrementCalled = true
 	m.incrementCounterCalled = true
 }
 
-func (m *mockMetricsRecorder) SetGauge(ctx context.Context, name string, value float64, attrs ...attribute.KeyValue) {
+func (m *mockMetricsRecorder) SetGauge(_ context.Context, _ string, _ float64, _ ...attribute.KeyValue) {
 	m.setGaugeCalled = true
 }
 
-func (m *mockMetricsRecorder) RecordConstraintFailure(ctx context.Context, path string) {}
+func (m *mockMetricsRecorder) RecordConstraintFailure(_ context.Context, _ string) {}
 
-func (m *mockMetricsRecorder) RecordContextPoolHit(ctx context.Context) {}
+func (m *mockMetricsRecorder) RecordContextPoolHit(_ context.Context) {}
 
-func (m *mockMetricsRecorder) RecordContextPoolMiss(ctx context.Context) {}
+func (m *mockMetricsRecorder) RecordContextPoolMiss(_ context.Context) {}
 
 // mockTracingRecorder implements TracingRecorder for testing
 type mockTracingRecorder struct {
@@ -77,11 +77,11 @@ func (m *mockTracingRecorder) IsEnabled() bool {
 	return m.enabled
 }
 
-func (m *mockTracingRecorder) ShouldExcludePath(path string) bool {
+func (m *mockTracingRecorder) ShouldExcludePath(_ string) bool {
 	return m.shouldExclude
 }
 
-func (m *mockTracingRecorder) StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+func (m *mockTracingRecorder) StartSpan(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
 	m.startSpanCalled = true
 	if m.mockContext != nil && m.mockSpan != nil {
 		return m.mockContext, m.mockSpan
@@ -89,15 +89,15 @@ func (m *mockTracingRecorder) StartSpan(ctx context.Context, name string, opts .
 	return ctx, trace.SpanFromContext(ctx)
 }
 
-func (m *mockTracingRecorder) FinishSpan(span trace.Span, statusCode int) {
+func (m *mockTracingRecorder) FinishSpan(_ trace.Span, _ int) {
 	m.finishSpanCalled = true
 }
 
-func (m *mockTracingRecorder) SetSpanAttribute(span trace.Span, key string, value any) {
+func (m *mockTracingRecorder) SetSpanAttribute(_ trace.Span, _ string, _ any) {
 	m.setAttributeCalled = true
 }
 
-func (m *mockTracingRecorder) AddSpanEvent(span trace.Span, name string, attrs ...attribute.KeyValue) {
+func (m *mockTracingRecorder) AddSpanEvent(_ trace.Span, _ string, _ ...attribute.KeyValue) {
 	m.addEventCalled = true
 }
 
@@ -116,12 +116,12 @@ func (m *mockTracingRecorder) TraceContext() context.Context {
 	return context.Background()
 }
 
-func (m *mockTracingRecorder) ExtractTraceContext(ctx context.Context, headers http.Header) context.Context {
+func (m *mockTracingRecorder) ExtractTraceContext(ctx context.Context, _ http.Header) context.Context {
 	m.extractContextCalled = true
 	return ctx
 }
 
-func (m *mockTracingRecorder) InjectTraceContext(ctx context.Context, headers http.Header) {
+func (m *mockTracingRecorder) InjectTraceContext(_ context.Context, _ http.Header) {
 	m.injectContextCalled = true
 }
 
@@ -132,15 +132,15 @@ type mockContextMetricsRecorder struct {
 	setGaugeCalled     bool
 }
 
-func (m *mockContextMetricsRecorder) RecordMetric(ctx context.Context, name string, value float64, attrs ...attribute.KeyValue) {
+func (m *mockContextMetricsRecorder) RecordMetric(_ context.Context, _ string, _ float64, _ ...attribute.KeyValue) {
 	m.recordMetricCalled = true
 }
 
-func (m *mockContextMetricsRecorder) IncrementCounter(ctx context.Context, name string, attrs ...attribute.KeyValue) {
+func (m *mockContextMetricsRecorder) IncrementCounter(_ context.Context, _ string, _ ...attribute.KeyValue) {
 	m.incrementCalled = true
 }
 
-func (m *mockContextMetricsRecorder) SetGauge(ctx context.Context, name string, value float64, attrs ...attribute.KeyValue) {
+func (m *mockContextMetricsRecorder) SetGauge(_ context.Context, _ string, _ float64, _ ...attribute.KeyValue) {
 	m.setGaugeCalled = true
 }
 
@@ -160,11 +160,11 @@ func (m *mockContextTracingRecorder) SpanID() string {
 	return m.spanID
 }
 
-func (m *mockContextTracingRecorder) SetSpanAttribute(key string, value any) {
+func (m *mockContextTracingRecorder) SetSpanAttribute(_ string, _ any) {
 	m.setAttributeCalled = true
 }
 
-func (m *mockContextTracingRecorder) AddSpanEvent(name string, attrs ...attribute.KeyValue) {
+func (m *mockContextTracingRecorder) AddSpanEvent(_ string, _ ...attribute.KeyValue) {
 	m.addEventCalled = true
 }
 
@@ -772,7 +772,7 @@ func TestPostFormDefault(t *testing.T) {
 }
 
 // TestIsSecureWithTLS tests IsSecure with TLS connection
-func TestIsSecureWithTLS(t *testing.T) {
+func TestIsSecureWithTLS(_ *testing.T) {
 	r := New()
 
 	r.GET("/secure", func(c *Context) {

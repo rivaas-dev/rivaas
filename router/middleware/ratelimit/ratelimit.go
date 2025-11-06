@@ -1,261 +1,295 @@
 package ratelimit
 
 import (
+	"context"
+	"fmt"
 	"net/http"
-	"sync"
+	"strconv"
 	"time"
 
 	"rivaas.dev/router"
 )
 
-// Option defines functional options for ratelimit middleware configuration.
-type Option func(*config)
+// KeyFunc determines the rate limit key for a request (e.g., per IP, per user, per route).
+type KeyFunc func(*router.Context) string
 
-// config holds the configuration for the ratelimit middleware.
-type config struct {
-	// requestsPerSecond is the number of requests allowed per second
-	requestsPerSecond int
-
-	// burst is the maximum burst size (number of requests that can be made instantly)
-	burst int
-
-	// keyFunc extracts the rate limit key from the request (e.g., IP address, user ID)
-	keyFunc func(*router.Context) string
-
-	// onLimitExceeded is called when rate limit is exceeded
-	onLimitExceeded func(*router.Context)
-
-	// cleanupInterval is how often to clean up expired limiters
-	cleanupInterval time.Duration
-
-	// limiterTTL is how long to keep a limiter before cleaning it up
-	limiterTTL time.Duration
+// Meta contains rate limit metadata for callbacks and logging.
+type Meta struct {
+	Limit        int           // Rate limit (requests per window)
+	Remaining    int           // Remaining requests in current window
+	ResetSeconds int           // Seconds until window reset
+	Window       time.Duration // Window duration
+	Key          string        // Rate limit key (e.g., "ip:192.168.1.1")
+	Route        string        // Matched route template
+	Method       string        // HTTP method
+	ClientIP     string        // Client IP address
 }
 
-// rateLimiter implements a token bucket algorithm for rate limiting.
-// This is a per-key limiter that tracks tokens and last refill time.
-type rateLimiter struct {
-	tokens         float64   // Current number of tokens
-	lastRefillTime time.Time // Last time tokens were refilled
-	mu             sync.Mutex
+// CommonOptions contains shared configuration for all rate limiters.
+type CommonOptions struct {
+	Key        KeyFunc                     // Function to derive rate limit key
+	Headers    bool                        // Emit RateLimit-* headers (IETF draft)
+	Enforce    bool                        // true = block on exceed (429), false = report-only
+	OnExceeded func(*router.Context, Meta) // Callback when limit exceeded
 }
 
-// rateLimiterStore manages multiple rate limiters keyed by client identifier.
-type rateLimiterStore struct {
-	limiters map[string]*rateLimiter
-	mu       sync.RWMutex
-	config   *config
-	stopChan chan struct{}
+// TokenBucket implements token bucket rate limiting.
+// Allows bursts up to Burst size, refills at Rate tokens per second.
+type TokenBucket struct {
+	Rate  int // Tokens per second
+	Burst int // Maximum tokens (burst capacity)
 }
 
-// defaultConfig returns the default configuration for ratelimit middleware.
-func defaultConfig() *config {
-	return &config{
-		requestsPerSecond: 100,                 // 100 requests per second
-		burst:             20,                  // Allow bursts up to 20 requests
-		keyFunc:           defaultKeyFunc,      // Use client IP as key
-		onLimitExceeded:   defaultLimitHandler, // Default 429 response
-		cleanupInterval:   time.Minute,         // Clean up every minute
-		limiterTTL:        5 * time.Minute,     // Remove inactive limiters after 5 minutes
-	}
+// SlidingWindow implements sliding window rate limiting.
+// Uses two fixed windows (current + previous) for accurate counting.
+type SlidingWindow struct {
+	Window time.Duration // Fixed window duration (e.g., 1 minute)
+	Limit  int           // Requests per window
+	Store  WindowStore   // Storage backend (in-memory, Redis, etc.)
 }
 
-// defaultKeyFunc extracts the client IP address as the rate limit key.
-func defaultKeyFunc(c *router.Context) string {
-	return c.ClientIP()
+// WindowStore provides storage for sliding window rate limiting.
+type WindowStore interface {
+	// GetCounts returns (current count, previous count, window start unix time, error).
+	GetCounts(ctx context.Context, key string, window time.Duration) (int, int, int64, error)
+	// Incr increments the current window count.
+	Incr(ctx context.Context, key string, window time.Duration) error
 }
 
-// defaultLimitHandler sends a 429 Too Many Requests response.
-func defaultLimitHandler(c *router.Context) {
-	c.JSON(http.StatusTooManyRequests, map[string]string{
-		"error": "rate limit exceeded",
-	})
-}
-
-// newRateLimiterStore creates a new rate limiter store and starts cleanup goroutine.
-func newRateLimiterStore(cfg *config) *rateLimiterStore {
-	store := &rateLimiterStore{
-		limiters: make(map[string]*rateLimiter),
-		config:   cfg,
-		stopChan: make(chan struct{}),
-	}
-
-	// Start cleanup goroutine
-	go store.cleanupLoop()
-
-	return store
-}
-
-// cleanupLoop periodically removes expired limiters to prevent memory leaks.
-func (s *rateLimiterStore) cleanupLoop() {
-	ticker := time.NewTicker(s.config.cleanupInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.cleanup()
-		case <-s.stopChan:
-			return
-		}
-	}
-}
-
-// cleanup removes limiters that haven't been used recently.
-func (s *rateLimiterStore) cleanup() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	now := time.Now()
-	for key, limiter := range s.limiters {
-		limiter.mu.Lock()
-		inactive := now.Sub(limiter.lastRefillTime) > s.config.limiterTTL
-		limiter.mu.Unlock()
-
-		if inactive {
-			delete(s.limiters, key)
-		}
-	}
-}
-
-// stop stops the cleanup goroutine.
-func (s *rateLimiterStore) stop() {
-	close(s.stopChan)
-}
-
-// getLimiter retrieves or creates a limiter for the given key.
-func (s *rateLimiterStore) getLimiter(key string) *rateLimiter {
-	// Fast path: read lock for existing limiter
-	s.mu.RLock()
-	limiter, exists := s.limiters[key]
-	s.mu.RUnlock()
-
-	if exists {
-		return limiter
-	}
-
-	// Slow path: create new limiter with write lock
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Double-check after acquiring write lock
-	limiter, exists = s.limiters[key]
-	if exists {
-		return limiter
-	}
-
-	// Create new limiter with full bucket
-	limiter = &rateLimiter{
-		tokens:         float64(s.config.burst),
-		lastRefillTime: time.Now(),
-	}
-	s.limiters[key] = limiter
-
-	return limiter
-}
-
-// allow checks if a request should be allowed based on the token bucket algorithm.
-func (l *rateLimiter) allow(rate int, burst int) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	now := time.Now()
-	elapsed := now.Sub(l.lastRefillTime).Seconds()
-
-	// Refill tokens based on time elapsed
-	// Formula: tokens = min(burst, tokens + rate * elapsed)
-	l.tokens += float64(rate) * elapsed
-	if l.tokens > float64(burst) {
-		l.tokens = float64(burst)
-	}
-
-	l.lastRefillTime = now
-
-	// Check if we have enough tokens
-	if l.tokens >= 1.0 {
-		l.tokens -= 1.0
-		return true
-	}
-
-	return false
-}
-
-// New returns a middleware that limits request rate using the token bucket algorithm.
+// New creates a token bucket rate limiter middleware using functional options.
+// Defaults: 100 requests/second, burst of 20, rate limit by IP.
 //
-// Algorithm: Token Bucket
-//   - Each client has a bucket that holds tokens (burst capacity)
-//   - Tokens are refilled at a constant rate (requestsPerSecond)
-//   - Each request consumes 1 token
-//   - Requests are rejected when bucket is empty
-//
-// Features:
-//   - Per-client rate limiting (default: by IP address)
-//   - Configurable burst support for traffic spikes
-//   - Automatic cleanup of inactive limiters
-//   - Custom key extraction (IP, user ID, API key)
-//   - Custom limit exceeded handler
-//
-// Basic usage:
-//
-//	r := router.New()
-//	r.Use(ratelimit.New())
-//
-// Custom configuration:
+// Example:
 //
 //	r.Use(ratelimit.New(
-//	    ratelimit.WithRequestsPerSecond(50),   // 50 req/s per client
-//	    ratelimit.WithBurst(10),               // Allow bursts of 10
-//	    ratelimit.WithKeyFunc(func(c *router.Context) string {
-//	        return c.Request.Header.Get("X-API-Key") // Rate limit by API key
-//	    }),
+//	    ratelimit.WithRequestsPerSecond(50),
+//	    ratelimit.WithBurst(10),
 //	))
-//
-// Per-user rate limiting:
-//
-//	r.Use(ratelimit.New(
-//	    ratelimit.WithKeyFunc(func(c *router.Context) string {
-//	        userID := c.Request.Header.Get("X-User-ID")
-//	        if userID == "" {
-//	            return c.ClientIP() // Fall back to IP
-//	        }
-//	        return "user:" + userID
-//	    }),
-//	))
-//
-// Performance: ~200-500ns overhead per request (negligible)
-// Memory: ~200 bytes per unique client (cleaned up after 5 minutes of inactivity)
 func New(opts ...Option) router.HandlerFunc {
-	// Apply options to default config
-	cfg := defaultConfig()
+	cfg := &config{
+		requestsPerSecond: 100,
+		burst:             20,
+		cleanupInterval:   time.Minute,
+		limiterTTL:        5 * time.Minute,
+	}
+
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
-	// Create rate limiter store
-	store := newRateLimiterStore(cfg)
+	// Build CommonOptions from config
+	commonOpts := CommonOptions{
+		Key:     cfg.keyFunc,
+		Headers: true,
+		Enforce: true,
+	}
+
+	// Convert onLimitExceeded handler if provided
+	if cfg.onLimitExceeded != nil {
+		commonOpts.OnExceeded = func(c *router.Context, _ Meta) {
+			cfg.onLimitExceeded(c)
+		}
+	}
+
+	// Create token bucket from config
+	tb := TokenBucket{
+		Rate:  cfg.requestsPerSecond,
+		Burst: cfg.burst,
+	}
+
+	return WithTokenBucket(tb, commonOpts)
+}
+
+// WithTokenBucket creates a token bucket rate limiter middleware.
+func WithTokenBucket(tb TokenBucket, opts CommonOptions) router.HandlerFunc {
+	if opts.Key == nil {
+		opts.Key = func(c *router.Context) string {
+			return "ip:" + c.ClientIP()
+		}
+	}
+
+	// In-memory token bucket store (simple implementation)
+	store := newTokenBucketStore(tb.Rate, tb.Burst)
 
 	return func(c *router.Context) {
-		// Extract rate limit key
-		key := cfg.keyFunc(c)
-		if key == "" {
-			// If key extraction fails, allow the request
-			// This prevents blocking all requests due to misconfiguration
+		key := opts.Key(c)
+
+		// Check limit
+		allowed, remaining, resetSeconds := store.Allow(key, time.Now())
+
+		// Set headers if enabled
+		if opts.Headers {
+			c.Header("RateLimit-Limit", strconv.Itoa(tb.Burst))
+			c.Header("RateLimit-Remaining", strconv.Itoa(remaining))
+			c.Header("RateLimit-Reset", strconv.Itoa(resetSeconds))
+		}
+
+		if !allowed {
+			// Limit exceeded
+			meta := Meta{
+				Limit:        tb.Burst,
+				Remaining:    0,
+				ResetSeconds: resetSeconds,
+				Window:       time.Second, // Token bucket uses 1-second windows
+				Key:          key,
+				Route:        c.RouteTemplate(),
+				Method:       c.Request.Method,
+				ClientIP:     c.ClientIP(),
+			}
+
+			// Call callback if provided
+			if opts.OnExceeded != nil {
+				opts.OnExceeded(c, meta)
+				// Always abort after calling custom handler to prevent route handler execution
+				// The custom handler is responsible for writing the response
+				c.Abort()
+				return
+			}
+
+			// Enforce or just report
+			if opts.Enforce {
+				// Set Retry-After header
+				c.Header("Retry-After", strconv.Itoa(resetSeconds))
+
+				// Return 429 Problem Details
+				_ = c.ProblemDetail(
+					router.NewProblemDetail(http.StatusTooManyRequests, "Too Many Requests").
+						WithType(c.ProblemType(router.PTRateLimit)).
+						WithDetail("Rate limit exceeded. Please try again later.").
+						WithExtension("limit", tb.Burst).
+						WithExtension("reset_in", resetSeconds),
+				)
+				c.Abort()
+				return
+			}
+		}
+
+		c.Next()
+	}
+}
+
+// WithSlidingWindow creates a sliding window rate limiter middleware.
+func WithSlidingWindow(sw SlidingWindow, opts CommonOptions) router.HandlerFunc {
+	if opts.Key == nil {
+		opts.Key = func(c *router.Context) string {
+			return "ip:" + c.ClientIP()
+		}
+	}
+
+	if sw.Store == nil {
+		// Default to in-memory store
+		sw.Store = NewInMemoryStore()
+	}
+
+	return func(c *router.Context) {
+		key := opts.Key(c)
+		now := time.Now()
+
+		// Get counts from store
+		curr, prev, windowStart, err := sw.Store.GetCounts(c.Request.Context(), key, sw.Window)
+		if err != nil {
+			// Store error - allow request but log
+			if c.Logger() != nil {
+				c.Logger().Warn("rate limit store error", "error", err, "key", key)
+			}
 			c.Next()
 			return
 		}
 
-		// Get limiter for this key
-		limiter := store.getLimiter(key)
+		// Calculate effective usage using sliding window algorithm
+		// Effective = curr + prev * (1 - elapsed/window)
+		elapsed := now.Sub(time.Unix(windowStart, 0))
+		if elapsed > sw.Window {
+			elapsed = sw.Window
+		}
+		prevWeight := 1.0 - float64(elapsed)/float64(sw.Window)
+		if prevWeight < 0 {
+			prevWeight = 0
+		}
+		effectiveUsage := float64(curr) + float64(prev)*prevWeight
 
-		// Check if request is allowed
-		if !limiter.allow(cfg.requestsPerSecond, cfg.burst) {
-			// Rate limit exceeded
-			cfg.onLimitExceeded(c)
-			c.Abort()
+		// Increment current window
+		_ = sw.Store.Incr(c.Request.Context(), key, sw.Window)
+
+		// Calculate remaining and reset
+		remaining := int(float64(sw.Limit) - effectiveUsage)
+		if remaining < 0 {
+			remaining = 0
+		}
+
+		// Calculate reset time (seconds until current window ends)
+		windowEnd := windowStart + int64(sw.Window.Seconds())
+		resetSeconds := int(windowEnd - now.Unix())
+		if resetSeconds < 0 {
+			resetSeconds = 0
+		}
+
+		// Set headers if enabled
+		if opts.Headers {
+			// Format: RateLimit-Limit: <limit>;w=<seconds>
+			c.Header("RateLimit-Limit", fmt.Sprintf("%d;w=%d", sw.Limit, int(sw.Window.Seconds())))
+			c.Header("RateLimit-Remaining", strconv.Itoa(remaining))
+			c.Header("RateLimit-Reset", strconv.Itoa(resetSeconds))
+		}
+
+		// Check if limit exceeded
+		if int(effectiveUsage) >= sw.Limit {
+			meta := Meta{
+				Limit:        sw.Limit,
+				Remaining:    0,
+				ResetSeconds: resetSeconds,
+				Window:       sw.Window,
+				Key:          key,
+				Route:        c.RouteTemplate(),
+				Method:       c.Request.Method,
+				ClientIP:     c.ClientIP(),
+			}
+
+			// Call callback if provided
+			if opts.OnExceeded != nil {
+				opts.OnExceeded(c, meta)
+				// Always abort after calling custom handler to prevent route handler execution
+				// The custom handler is responsible for writing the response
+				c.Abort()
+				return
+			}
+
+			// Enforce or just report
+			if opts.Enforce {
+				// Set Retry-After header
+				c.Header("Retry-After", strconv.Itoa(resetSeconds))
+
+				// Return 429 Problem Details
+				_ = c.ProblemDetail(
+					router.NewProblemDetail(http.StatusTooManyRequests, "Too Many Requests").
+						WithType(c.ProblemType(router.PTRateLimit)).
+						WithDetail("Rate limit exceeded. Please try again later.").
+						WithExtension("limit", sw.Limit).
+						WithExtension("window", sw.Window.String()).
+						WithExtension("reset_in", resetSeconds),
+				)
+				c.Abort()
+				return
+			}
+		}
+
+		// Check if aborted (e.g., by custom handler)
+		if c.IsAborted() {
 			return
 		}
 
-		// Request allowed, continue
 		c.Next()
 	}
+}
+
+// PerRoute wraps a rate limiter middleware for per-route application.
+// This allows different rate limits for different routes.
+//
+// Example:
+//
+//	r.GET("/expensive", handler, ratelimit.PerRoute(
+//	    ratelimit.WithSlidingWindow(...),
+//	))
+func PerRoute(m router.HandlerFunc) router.HandlerFunc {
+	return m
 }

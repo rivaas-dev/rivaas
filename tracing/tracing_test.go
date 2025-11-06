@@ -39,7 +39,7 @@ func TestTracingWithHTTP(t *testing.T) {
 	defer config.Shutdown(context.Background())
 
 	// Create HTTP handler with tracing middleware
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -92,7 +92,7 @@ func TestTracingMiddleware(t *testing.T) {
 	)
 
 	// Create a test handler
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
@@ -121,12 +121,12 @@ func TestTracingIntegration(t *testing.T) {
 	mux := http.NewServeMux()
 
 	// Add routes
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"message":"Hello"}`))
 	})
 
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"healthy"}`))
 	})
@@ -164,13 +164,13 @@ func TestTracingRecorderInterface(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 
-	// Test that config implements router.TracingRecorder interface
+	// Test that config implements router.Recorder interface
 	var recorder interface{} = config
 	_, ok := recorder.(interface {
 		IsEnabled() bool
 		ShouldExcludePath(string) bool
 	})
-	assert.True(t, ok, "Config should implement TracingRecorder interface")
+	assert.True(t, ok, "Config should implement Recorder interface")
 	assert.True(t, config.IsEnabled())
 }
 
@@ -198,7 +198,7 @@ func TestSamplingRate(t *testing.T) {
 		defer config.Shutdown(context.Background())
 
 		// All requests should be traced
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -218,7 +218,7 @@ func TestSamplingRate(t *testing.T) {
 		defer config.Shutdown(context.Background())
 
 		// No requests should be traced
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -246,7 +246,7 @@ func TestSamplingRate(t *testing.T) {
 		// 2. No panics or race conditions occur
 		// 3. The behavior is consistent
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -272,7 +272,7 @@ func TestParameterRecording(t *testing.T) {
 		)
 		defer config.Shutdown(context.Background())
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -293,7 +293,7 @@ func TestParameterRecording(t *testing.T) {
 
 		assert.False(t, config.recordParams)
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -355,11 +355,11 @@ func TestErrorStatusCodes(t *testing.T) {
 
 	// Create mux with different status codes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/not-found", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/not-found", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte(`{"error":"not found"}`))
 	})
-	mux.HandleFunc("/error", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/error", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{"error":"server error"}`))
 	})
@@ -385,7 +385,7 @@ func TestConcurrentResponseWriter(t *testing.T) {
 	)
 	defer config.Shutdown(context.Background())
 
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -715,7 +715,7 @@ func TestDisabledRecording(t *testing.T) {
 		)
 		defer config.Shutdown(context.Background())
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -734,7 +734,7 @@ func TestDisabledRecording(t *testing.T) {
 		)
 		defer config.Shutdown(context.Background())
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -771,7 +771,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 			WithSampleRate(1.0),
 		)
 
-		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("OK"))
 		})
@@ -793,7 +793,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 			WithExcludePaths("/health"),
 		)
 
-		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 
@@ -810,7 +810,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 	t.Run("MiddlewareDisabledTracing", func(t *testing.T) {
 		config := MustNew(WithSampleRate(0.0))
 
-		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 
@@ -833,7 +833,7 @@ func TestContextTracing(t *testing.T) {
 		ctx, span := config.StartSpan(ctx, "test")
 		defer config.FinishSpan(span, http.StatusOK)
 
-		ct := NewContextTracing(config, ctx, span)
+		ct := NewContextTracing(ctx, config, span)
 
 		assert.NotNil(t, ct.TraceContext())
 		assert.NotNil(t, ct.GetSpan())
@@ -842,7 +842,7 @@ func TestContextTracing(t *testing.T) {
 
 	t.Run("NilContext", func(t *testing.T) {
 		config := MustNew()
-		ct := NewContextTracing(config, nil, nil)
+		ct := NewContextTracing(context.TODO(), config, nil)
 
 		// Should not panic and should return valid context
 		ctx := ct.TraceContext()
@@ -854,7 +854,7 @@ func TestContextTracing(t *testing.T) {
 		ctx, span := config.StartSpan(context.Background(), "test")
 		defer config.FinishSpan(span, http.StatusOK)
 
-		ct := NewContextTracing(config, ctx, span)
+		ct := NewContextTracing(ctx, config, span)
 
 		// These should not panic
 		ct.SetSpanAttribute("key", "value")
@@ -870,7 +870,7 @@ func TestContextTracing(t *testing.T) {
 	t.Run("ContextTracingNilSpan", func(t *testing.T) {
 		config := MustNew()
 		ctx := context.Background()
-		ct := NewContextTracing(config, ctx, nil)
+		ct := NewContextTracing(ctx, config, nil)
 
 		// Should handle nil span gracefully
 		ct.SetSpanAttribute("key", "value")
@@ -985,7 +985,7 @@ func TestProviderSetup(t *testing.T) {
 		config, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("v1.0.0"),
-			WithProvider(TracingProvider("invalid")),
+			WithProvider(Provider("invalid")),
 		)
 		assert.Error(t, err)
 		assert.Nil(t, config)
@@ -1039,7 +1039,7 @@ func TestWarningLogs(t *testing.T) {
 		// Create a custom logger to capture warnings
 		var loggedWarnings []string
 		logger := &testLogger{
-			warnFunc: func(msg string, keysAndValues ...any) {
+			warnFunc: func(msg string, _ ...any) {
 				loggedWarnings = append(loggedWarnings, msg)
 			},
 		}
@@ -1070,7 +1070,7 @@ func TestWarningLogs(t *testing.T) {
 		// Create a custom logger to capture debug messages
 		var loggedDebugMessages []string
 		logger := &testLogger{
-			debugFunc: func(msg string, keysAndValues ...any) {
+			debugFunc: func(msg string, _ ...any) {
 				loggedDebugMessages = append(loggedDebugMessages, msg)
 			},
 		}
@@ -1106,7 +1106,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		var hookCalled bool
 		var capturedReq *http.Request
 
-		startHook := func(ctx context.Context, span trace.Span, req *http.Request) {
+		startHook := func(_ context.Context, span trace.Span, req *http.Request) {
 			hookCalled = true
 			capturedReq = req
 			// Add custom attribute
@@ -1120,7 +1120,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		defer config.Shutdown(context.Background())
 
 		// Create middleware and make request
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1138,7 +1138,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		var hookCalled bool
 		var capturedStatusCode int
 
-		finishHook := func(span trace.Span, statusCode int) {
+		finishHook := func(_ trace.Span, statusCode int) {
 			hookCalled = true
 			capturedStatusCode = statusCode
 		}
@@ -1150,7 +1150,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		defer config.Shutdown(context.Background())
 
 		// Create middleware and make request
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		}))
 
@@ -1167,11 +1167,11 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		var startHookCalled bool
 		var finishHookCalled bool
 
-		startHook := func(ctx context.Context, span trace.Span, req *http.Request) {
+		startHook := func(_ context.Context, _ trace.Span, _ *http.Request) {
 			startHookCalled = true
 		}
 
-		finishHook := func(span trace.Span, statusCode int) {
+		finishHook := func(_ trace.Span, _ int) {
 			finishHookCalled = true
 		}
 
@@ -1183,7 +1183,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		defer config.Shutdown(context.Background())
 
 		// Create middleware and make request
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1200,11 +1200,11 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		var startHookCalled bool
 		var finishHookCalled bool
 
-		startHook := func(ctx context.Context, span trace.Span, req *http.Request) {
+		startHook := func(_ context.Context, _ trace.Span, _ *http.Request) {
 			startHookCalled = true
 		}
 
-		finishHook := func(span trace.Span, statusCode int) {
+		finishHook := func(_ trace.Span, _ int) {
 			finishHookCalled = true
 		}
 
@@ -1217,7 +1217,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		defer config.Shutdown(context.Background())
 
 		// Create middleware and make request
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1296,7 +1296,7 @@ func TestGranularParameterRecording(t *testing.T) {
 		)
 		defer config.Shutdown(context.Background())
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1317,7 +1317,7 @@ func TestGranularParameterRecording(t *testing.T) {
 		)
 		defer config.Shutdown(context.Background())
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 

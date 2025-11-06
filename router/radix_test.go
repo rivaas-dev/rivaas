@@ -21,13 +21,13 @@ func (suite *RadixTestSuite) SetupTest() {
 // TestRadixTree tests basic radix tree functionality
 func (suite *RadixTestSuite) TestRadixTree() {
 	// Add routes
-	suite.root.addRouteWithConstraints("/", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/users", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/users/:id", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/users/:id/posts", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/posts", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/posts/:id", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/users", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/users/:id", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/users/:id/posts", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/users/:id/posts/:post_id", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/posts", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/posts/:id", []HandlerFunc{func(_ *Context) {}}, nil)
 
 	// Test cases
 	tests := []struct {
@@ -69,10 +69,10 @@ func (suite *RadixTestSuite) TestRadixTree() {
 // TestRadixTreeComplex tests complex radix tree scenarios
 func (suite *RadixTestSuite) TestRadixTreeComplex() {
 	// Add complex routes
-	suite.root.addRouteWithConstraints("/api/v1/users/:id", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/api/v1/users/:id/posts/:post_id", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/api/v1/posts/:id/comments/:comment_id", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/api/v2/users", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/api/v1/users/:id", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/api/v1/users/:id/posts/:post_id", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/api/v1/posts/:id/comments/:comment_id", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/api/v2/users", []HandlerFunc{func(_ *Context) {}}, nil)
 
 	// Test cases
 	tests := []struct {
@@ -111,11 +111,11 @@ func (suite *RadixTestSuite) TestRadixTreeComplex() {
 // TestRadixTreeEdgeCases tests edge cases for radix tree
 func (suite *RadixTestSuite) TestRadixTreeEdgeCases() {
 	// Add edge case routes
-	suite.root.addRouteWithConstraints("/", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/a", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/ab", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/abc", []HandlerFunc{func(c *Context) {}}, nil)
-	suite.root.addRouteWithConstraints("/:param", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/a", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/ab", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/abc", []HandlerFunc{func(_ *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/:param", []HandlerFunc{func(_ *Context) {}}, nil)
 
 	// Test cases
 	tests := []struct {
@@ -154,7 +154,7 @@ func (suite *RadixTestSuite) TestRadixTreeEdgeCases() {
 // TestRadixTree_MoreThan8Params tests the map fallback for >8 parameters
 func (suite *RadixTestSuite) TestRadixTree_MoreThan8Params() {
 	// Add route with 9 parameters to trigger map fallback
-	suite.root.addRouteWithConstraints("/a/:p1/b/:p2/c/:p3/d/:p4/e/:p5/f/:p6/g/:p7/h/:p8/i/:p9", []HandlerFunc{func(c *Context) {}}, nil)
+	suite.root.addRouteWithConstraints("/a/:p1/b/:p2/c/:p3/d/:p4/e/:p5/f/:p6/g/:p7/h/:p8/i/:p9", []HandlerFunc{func(_ *Context) {}}, nil)
 
 	ctx := &Context{}
 	handlers := suite.root.getRoute("/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9", ctx)

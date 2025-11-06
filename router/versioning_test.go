@@ -1247,7 +1247,7 @@ func TestObservabilityHooks(t *testing.T) {
 			WithQueryVersioning("v"),
 			WithDefaultVersion("v1"),
 			WithVersionObserver(
-				func(version string, method string) {
+				func(_ string, method string) {
 					methods = append(methods, method)
 				},
 				nil,
@@ -1342,7 +1342,7 @@ func TestComplexVersioningScenarios(t *testing.T) {
 			WithDefaultVersion("v1"),
 			WithDeprecatedVersion("v1", sunsetV1),
 			WithVersionObserver(
-				func(version string, method string) {
+				func(version string, _ string) {
 					detectedVersions = append(detectedVersions, version)
 				},
 				nil,

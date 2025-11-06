@@ -14,7 +14,7 @@ func TestMiddleware_Basic(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
@@ -43,7 +43,7 @@ func TestMiddleware_SkipPaths(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger, WithSkipPaths("/health", "/metrics"))
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -73,7 +73,7 @@ func TestMiddleware_WithHeaders(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger, WithLogHeaders(true))
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -110,7 +110,7 @@ func TestMiddleware_StatusLevels(t *testing.T) {
 			th := NewTestHelper(t)
 			mw := Middleware(th.Logger)
 
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tt.statusCode)
 			})
 
@@ -133,7 +133,7 @@ func TestMiddleware_CapturesSize(t *testing.T) {
 	mw := Middleware(th.Logger)
 
 	responseBody := "Hello, World!"
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(responseBody))
 	})
@@ -154,7 +154,7 @@ func TestMiddleware_CapturesDuration(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(10 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	})
@@ -185,7 +185,7 @@ func TestMiddleware_QueryParameters(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -204,7 +204,7 @@ func TestMiddleware_NoQueryParameters(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -226,7 +226,7 @@ func TestMiddleware_MultipleRequests(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -255,7 +255,7 @@ func TestMiddleware_WithDifferentMethods(t *testing.T) {
 			th := NewTestHelper(t)
 			mw := Middleware(th.Logger)
 
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
 
@@ -353,11 +353,11 @@ func TestResponseWriter_WriteImplicitStatus(t *testing.T) {
 }
 
 // Test pool reuse
-func TestMiddleware_PoolReuse(t *testing.T) {
+func TestMiddleware_PoolReuse(_ *testing.T) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -378,7 +378,7 @@ func TestMiddleware_WithQuery(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -415,7 +415,7 @@ func TestMiddleware_AllStatusCodes(t *testing.T) {
 			th := NewTestHelper(t)
 			mw := Middleware(th.Logger)
 
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(code)
 			})
 
@@ -449,7 +449,7 @@ func TestMiddleware_HTTPMethods(t *testing.T) {
 			th := NewTestHelper(t)
 			mw := Middleware(th.Logger)
 
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
 
@@ -467,11 +467,11 @@ func TestMiddleware_HTTPMethods(t *testing.T) {
 }
 
 // Test pool allocation patterns
-func TestPools_NoAllocation(t *testing.T) {
+func TestPools_NoAllocation(_ *testing.T) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -510,7 +510,7 @@ func TestContextLogger_WithTrace(t *testing.T) {
 	// Create a basic context (no actual tracing for unit test)
 	ctx := context.Background()
 
-	cl := NewContextLogger(th.Logger, ctx)
+	cl := NewContextLogger(ctx, th.Logger)
 	cl.Info("traced message", "key", "value")
 
 	if !th.ContainsLog("traced message") {
@@ -523,7 +523,7 @@ func TestMiddleware_UserAgent(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -544,7 +544,7 @@ func TestMiddleware_RemoteAddr(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -566,7 +566,7 @@ func TestMiddleware_MultipleSkipPaths(t *testing.T) {
 	skipPaths := []string{"/health", "/metrics", "/ready", "/alive"}
 	mw := Middleware(th.Logger, WithSkipPaths(skipPaths...))
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -599,7 +599,7 @@ func TestMiddleware_HeadersWithSensitiveData(t *testing.T) {
 	th := NewTestHelper(t)
 	mw := Middleware(th.Logger, WithLogHeaders(true))
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -659,11 +659,11 @@ func TestResponseWriter_MultipleWrites(t *testing.T) {
 }
 
 // Test middleware integration with context logger pool
-func TestMiddleware_ContextLoggerPooling(t *testing.T) {
+func TestMiddleware_ContextLoggerPooling(_ *testing.T) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Simulate some work
 		time.Sleep(1 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
@@ -699,7 +699,7 @@ func TestMiddleware_PanicRecovery(t *testing.T) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		panic("test panic")
 	})
 
@@ -749,7 +749,7 @@ func TestMiddleware_OptionCombinations(t *testing.T) {
 			logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 			mw := Middleware(logger, tt.opts...)
 
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
 
@@ -772,7 +772,7 @@ func TestMiddleware_PreservesResponse(t *testing.T) {
 	mw := Middleware(logger)
 
 	expectedBody := `{"message":"success","data":{"id":123}}`
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(expectedBody))
@@ -805,7 +805,7 @@ func TestMiddleware_LargeResponse(t *testing.T) {
 
 	// Create 1MB response
 	largeBody := strings.Repeat("x", 1024*1024)
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(largeBody))
 	})
@@ -830,7 +830,7 @@ func TestMiddleware_PreservesHeaders(t *testing.T) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Custom-Header", "custom-value")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(http.StatusOK)

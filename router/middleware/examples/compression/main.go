@@ -94,7 +94,7 @@ func customLevelExample(r *router.Router) {
 	// Best speed (level 1)
 	fast := r.Group("/fast")
 	fast.Use(compression.New(
-		compression.WithLevel(gzip.BestSpeed),
+		compression.WithGzipLevel(gzip.BestSpeed),
 	))
 	fast.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]any{
@@ -106,7 +106,7 @@ func customLevelExample(r *router.Router) {
 	// Best compression (level 9)
 	best := r.Group("/best")
 	best.Use(compression.New(
-		compression.WithLevel(gzip.BestCompression),
+		compression.WithGzipLevel(gzip.BestCompression),
 	))
 	best.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]any{
@@ -163,7 +163,7 @@ func productionExample(r *router.Router) {
 	// Production compression settings
 	api.Use(compression.New(
 		// Use default compression (good balance of speed vs size)
-		compression.WithLevel(gzip.DefaultCompression),
+		compression.WithGzipLevel(gzip.DefaultCompression),
 
 		// Only compress responses >= 1KB
 		compression.WithMinSize(1024),

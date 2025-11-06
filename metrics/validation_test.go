@@ -319,7 +319,7 @@ func TestAtomicMapOperationsSafety(t *testing.T) {
 	})
 
 	// Test concurrent reads and writes
-	t.Run("ConcurrentReadsWrites", func(t *testing.T) {
+	t.Run("ConcurrentReadsWrites", func(_ *testing.T) {
 		var wg sync.WaitGroup
 		const numReaders = 10
 		const numWriters = 10
@@ -537,7 +537,7 @@ func TestCASRetriesMetric(t *testing.T) {
 	wg.Add(numGoroutines)
 
 	for i := range numGoroutines {
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := range metricsPerGoroutine {
 				// Use shared metric names to increase contention

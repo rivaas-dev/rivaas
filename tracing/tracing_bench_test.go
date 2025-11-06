@@ -14,7 +14,7 @@ import (
 func BenchmarkTracingOverhead(b *testing.B) {
 	b.Run("NoTracing", func(b *testing.B) {
 		config := MustNew(WithSampleRate(0.0))
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -30,7 +30,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 
 	b.Run("WithTracing100Percent", func(b *testing.B) {
 		config := MustNew(WithSampleRate(1.0))
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -46,7 +46,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 
 	b.Run("WithTracing50Percent", func(b *testing.B) {
 		config := MustNew(WithSampleRate(0.5))
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -158,7 +158,7 @@ func BenchmarkContextPropagation(b *testing.B) {
 // BenchmarkResponseWriterConcurrency measures responseWriter mutex contention
 func BenchmarkResponseWriterConcurrency(b *testing.B) {
 	config := MustNew(WithSampleRate(1.0))
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))

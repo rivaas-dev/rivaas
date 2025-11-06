@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"time"
 	"unsafe"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -36,8 +35,45 @@ import (
 //   - Custom metrics recording capabilities
 //   - Route versioning support for API versioning
 //
-// Context objects are pooled and reused to minimize garbage collection pressure.
-// Do not retain references to Context objects beyond the request lifetime.
+// ⚠️ MEMORY SAFETY: Context objects are pooled and reused to minimize garbage collection pressure.
+//
+// CRITICAL RULES:
+//  1. DO NOT retain references to Context objects beyond the request handler lifetime.
+//  2. If you MUST retain a reference (e.g., async operations), call Release() when done.
+//  3. DO NOT use a Context after calling Release() - it will be reused for other requests.
+//  4. The router automatically returns contexts to the pool after request completion.
+//
+// Why this matters:
+//   - Contexts are reused across requests to reduce allocations
+//   - Retaining references causes memory leaks and data corruption
+//   - Use-after-release causes undefined behavior and security issues
+//
+// Example (CORRECT - no manual release needed):
+//
+//	func handler(c *router.Context) {
+//	    userID := c.Param("id")
+//	    c.JSON(200, map[string]string{"id": userID})
+//	    // Context automatically returned to pool by router
+//	}
+//
+// Example (CORRECT - async operation with release):
+//
+//	func handler(c *router.Context) {
+//	    go func(ctx *router.Context) {
+//	        defer ctx.Release() // CRITICAL: Release when done
+//	        // Process async work...
+//	    }(c)
+//	}
+//
+// Example (WRONG - retaining reference without release):
+//
+//	var globalContext *router.Context // BAD!
+//
+//	func handler(c *router.Context) {
+//	    globalContext = c // BAD! Memory leak and data corruption
+//	}
+//
+// See Release() method for more details on manual context management.
 //
 // NOTE: Fields are ordered by size (largest to smallest) for optimal memory layout
 // and to minimize padding. This reduces struct size and improves cache efficiency.
@@ -79,6 +115,9 @@ type Context struct {
 
 	// Abort flag to stop handler chain execution
 	aborted bool // Set to true when Abort() is called
+
+	// Memory safety: Track if context has been released to prevent use-after-release
+	released bool // Set to true when Release() is called - DO NOT use after this
 }
 
 // HandlerFunc defines the handler function signature for route handlers and middleware.
@@ -211,6 +250,10 @@ func (c *Context) IsAborted() bool {
 //
 //go:inline
 func (c *Context) Param(key string) string {
+	// Safety check: prevent use-after-release
+	if c.released {
+		return ""
+	}
 	// Fast array lookup first (zero allocations for ≤8 params)
 	for i := int32(0); i < c.paramCount; i++ {
 		if c.paramKeys[i] == key {
@@ -237,6 +280,10 @@ func (c *Context) Param(key string) string {
 //		return
 //	}
 func (c *Context) JSON(code int, obj any) error {
+	// Safety check: prevent use-after-release
+	if c.released {
+		return errors.New("context has been released - cannot write response")
+	}
 	// Encode to buffer first to catch errors before writing headers
 	// This prevents inconsistent response state if encoding fails
 	var buf strings.Builder
@@ -248,6 +295,10 @@ func (c *Context) JSON(code int, obj any) error {
 	}
 
 	// Only write headers after successful encoding
+	// Safety check: Response may be nil if context was released
+	if c.Response == nil {
+		return errors.New("context has been released - Response is nil")
+	}
 	c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	// Check if headers have already been written to avoid "superfluous response.WriteHeader call"
@@ -411,7 +462,7 @@ func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 	return writeErr
 }
 
-// AsciiJSON sends a JSON response with all non-ASCII characters escaped to \uXXXX.
+// ASCIIJSON sends a JSON response with all non-ASCII characters escaped to \uXXXX.
 // This ensures the response is pure ASCII, useful for legacy systems or strict compatibility.
 //
 // Performance: +10-15% overhead vs JSON() due to Unicode escaping.
@@ -426,9 +477,9 @@ func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 //	    "message": "Hello 世界 🌍",
 //	    "name":    "José",
 //	}
-//	c.AsciiJSON(200, data)
+//	c.ASCIIJSON(200, data)
 //	// Output: {"message":"Hello \u4e16\u754c \ud83c\udf0d","name":"Jos\u00e9"}
-func (c *Context) AsciiJSON(code int, obj any) error {
+func (c *Context) ASCIIJSON(code int, obj any) error {
 	// Use json.Marshal which already escapes non-ASCII to \uXXXX by default
 	// when using the default encoder settings
 	var buf bytes.Buffer
@@ -436,7 +487,7 @@ func (c *Context) AsciiJSON(code int, obj any) error {
 	encoder.SetEscapeHTML(false) // Don't escape HTML, but still escape Unicode
 
 	if err := encoder.Encode(obj); err != nil {
-		return fmt.Errorf("AsciiJSON encoding failed for type %T: %w", obj, err)
+		return fmt.Errorf("ASCIIJSON encoding failed for type %T: %w", obj, err)
 	}
 
 	// Get the JSON bytes
@@ -672,6 +723,10 @@ func (c *Context) Header(key, value string) {
 //	limit := c.Query("limit") // "10"
 //	missing := c.Query("xyz") // ""
 func (c *Context) Query(key string) string {
+	// Safety check: prevent use-after-release
+	if c.released || c.Request == nil {
+		return ""
+	}
 	return c.Request.URL.Query().Get(key)
 }
 
@@ -986,7 +1041,7 @@ func (c *Context) ProblemDetail(p *ProblemDetail) error {
 
 	// RFC 9457: Set defaults
 	if p.Type == "" {
-		p.Type = ProblemTypeBlank
+		p.Type = PTBlank
 	}
 	if p.Title == "" {
 		if txt := http.StatusText(p.Status); txt != "" {
@@ -1027,7 +1082,7 @@ func (c *Context) ProblemDetail(p *ProblemDetail) error {
 	}
 
 	// RFC 9457: Link header for problem type documentation
-	if p.Type != "" && p.Type != ProblemTypeBlank {
+	if p.Type != "" && p.Type != PTBlank {
 		c.AppendHeader("Link", fmt.Sprintf("<%s>; rel=\"describedby\"", p.Type))
 	}
 
@@ -1135,7 +1190,7 @@ func (c *Context) Problem(status int, typeURI, title, detail string, ext map[str
 func (c *Context) NotFoundProblem() error {
 	return c.ProblemDetail(
 		NewProblemDetail(http.StatusNotFound, "Not Found").
-			WithType(ProblemTypeNotFound).
+			WithType(c.ProblemType(PTNotFound)).
 			WithInstance(c.Request.URL.Path),
 	)
 }
@@ -1158,7 +1213,7 @@ func (c *Context) MethodNotAllowedProblem(allowed []string) error {
 
 	return c.ProblemDetail(
 		NewProblemDetail(http.StatusMethodNotAllowed, "Method Not Allowed").
-			WithType(ProblemTypeMethodNotAllowed).
+			WithType(c.ProblemType(PTMethodNotAllowed)).
 			WithDetail(fmt.Sprintf("The %s method is not allowed for this resource.", c.Request.Method)).
 			WithInstance(c.Request.URL.Path).
 			WithExtension("allowed_methods", allowed),
@@ -1167,22 +1222,48 @@ func (c *Context) MethodNotAllowedProblem(allowed []string) error {
 
 // UnauthorizedProblem sends a 401 Unauthorized problem response.
 func (c *Context) UnauthorizedProblem(detail string) error {
-	return c.Problem(http.StatusUnauthorized, ProblemTypeUnauthorized, "Unauthorized", detail, nil)
+	return c.Problem(http.StatusUnauthorized, c.ProblemType(PTUnauthorized), "Unauthorized", detail, nil)
 }
 
 // ForbiddenProblem sends a 403 Forbidden problem response.
 func (c *Context) ForbiddenProblem(detail string) error {
-	return c.Problem(http.StatusForbidden, ProblemTypeForbidden, "Forbidden", detail, nil)
+	return c.Problem(http.StatusForbidden, c.ProblemType(PTForbidden), "Forbidden", detail, nil)
 }
 
 // ConflictProblem sends a 409 Conflict problem response.
 func (c *Context) ConflictProblem(detail string) error {
-	return c.Problem(http.StatusConflict, ProblemTypeConflict, "Conflict", detail, nil)
+	return c.Problem(http.StatusConflict, c.ProblemType(PTConflict), "Conflict", detail, nil)
 }
 
 // InternalProblem sends a 500 Internal Server Error problem response.
 func (c *Context) InternalProblem(detail string) error {
-	return c.Problem(http.StatusInternalServerError, ProblemTypeInternal, "Internal Server Error", detail, nil)
+	return c.Problem(http.StatusInternalServerError, c.ProblemType(PTInternal), "Internal Server Error", detail, nil)
+}
+
+// ProblemType resolves a problem type slug to a full URI.
+// If the slug is already an absolute URI (starts with "http"), it is returned as-is.
+// If a base URL is configured, the slug is appended to it.
+// Otherwise, returns "about:blank".
+//
+// Example:
+//
+//	// With base URL "https://docs.rivaas.dev/problems":
+//	c.ProblemType("validation-error") // Returns "https://docs.rivaas.dev/problems/validation-error"
+//	c.ProblemType("https://api.example.com/problems/custom") // Returns as-is
+//	c.ProblemType("") // Returns "about:blank"
+func (c *Context) ProblemType(slug string) string {
+	// Already absolute
+	if strings.HasPrefix(slug, "http://") || strings.HasPrefix(slug, "https://") {
+		return slug
+	}
+
+	// No base configured or empty slug
+	if c.router.problemBase == "" || slug == "" {
+		return "about:blank"
+	}
+
+	// Resolve relative slug
+	return c.router.problemBase + "/" + slug
 }
 
 // RecordMetric records a custom histogram metric by delegating to the metrics recorder.
@@ -1321,175 +1402,6 @@ func (c *Context) LogError(msg string, args ...any) {
 //
 // Example:
 //
-//	c.SetETag("abc123", false)  // Strong ETag: "abc123"
-//	c.SetETag("abc123", true)   // Weak ETag: W/"abc123"
-func (c *Context) SetETag(etag string, weak bool) {
-	if etag == "" {
-		return
-	}
-	if weak {
-		c.Header("ETag", `W/`+`"`+etag+`"`)
-	} else {
-		c.Header("ETag", `"`+etag+`"`)
-	}
-}
-
-// normalizeETag removes quotes and W/ prefix from ETag for comparison.
-func normalizeETag(tag string) string {
-	tag = strings.TrimSpace(tag)
-	tag = strings.TrimPrefix(tag, "W/")
-	return strings.Trim(tag, `"`)
-}
-
-// IfNoneMatch checks the If-None-Match header and returns 304 Not Modified if the ETag matches.
-// Per RFC 7232, If-None-Match takes precedence over If-Modified-Since.
-// Returns true if a 304 was written (client cache is fresh).
-//
-// Example:
-//
-//	if c.IfNoneMatch(etag) {
-//		return // 304 already sent
-//	}
-//	c.SetETag(etag, false)
-//	c.JSON(200, data)
-func (c *Context) IfNoneMatch(etag string) bool {
-	if etag == "" {
-		return false
-	}
-	inm := c.Request.Header.Get("If-None-Match")
-	if inm == "" {
-		return false
-	}
-
-	normalizedETag := normalizeETag(etag)
-	for _, tag := range strings.Split(inm, ",") {
-		tag = strings.TrimSpace(tag)
-		if tag == "*" {
-			// Match any ETag
-			c.SetETag(etag, false)
-			c.Response.WriteHeader(http.StatusNotModified)
-			return true
-		}
-		normalizedTag := normalizeETag(tag)
-		if normalizedTag == normalizedETag {
-			// Match found - check if it was weak
-			weak := strings.HasPrefix(tag, "W/")
-			c.SetETag(etag, weak)
-			c.Response.WriteHeader(http.StatusNotModified)
-			return true
-		}
-	}
-	return false
-}
-
-// IfModifiedSince checks the If-Modified-Since header and returns 304 Not Modified if the resource hasn't changed.
-// Returns true if a 304 was written (client cache is fresh).
-//
-// Example:
-//
-//	if c.IfModifiedSince(lastModified) {
-//		return // 304 already sent
-//	}
-//	c.Header("Last-Modified", lastModified.UTC().Format(http.TimeFormat))
-//	c.JSON(200, data)
-func (c *Context) IfModifiedSince(modTime time.Time) bool {
-	if modTime.IsZero() {
-		return false
-	}
-	ims := c.Request.Header.Get("If-Modified-Since")
-	if ims == "" {
-		return false
-	}
-	t, err := http.ParseTime(ims)
-	if err != nil {
-		return false
-	}
-	// Not modified if server time <= client time
-	if !modTime.After(t) {
-		c.Header("Last-Modified", modTime.UTC().Format(http.TimeFormat))
-		c.Response.WriteHeader(http.StatusNotModified)
-		return true
-	}
-	return false
-}
-
-// Fresh checks both If-None-Match (priority) and If-Modified-Since headers.
-// Returns true if a 304 was written (client cache is fresh).
-// Per RFC 7232, If-None-Match takes precedence.
-//
-// Example:
-//
-//	if c.Fresh(etag, lastModified) {
-//		return // 304 already sent
-//	}
-//	c.SetETag(etag, false)
-//	c.Header("Last-Modified", lastModified.UTC().Format(http.TimeFormat))
-//	c.JSON(200, data)
-func (c *Context) Fresh(etag string, modTime time.Time) bool {
-	// If-None-Match takes precedence per RFC 7232
-	if c.IfNoneMatch(etag) {
-		return true
-	}
-	return c.IfModifiedSince(modTime)
-}
-
-// SetCacheHeaders sets ETag, Last-Modified, and Cache-Control headers.
-// Convenience method for setting all cache-related headers at once.
-//
-// Example:
-//
-//	c.SetCacheHeaders(etag, lastModified, 300) // 5 minute cache
-func (c *Context) SetCacheHeaders(etag string, modTime time.Time, maxAge int) {
-	if etag != "" {
-		c.SetETag(etag, false)
-	}
-	if !modTime.IsZero() {
-		c.Header("Last-Modified", modTime.UTC().Format(http.TimeFormat))
-	}
-	if maxAge > 0 {
-		c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
-	}
-}
-
-// IfMatch checks the If-Match header for optimistic locking (PUT/PATCH).
-// Returns false if precondition failed (412 already sent).
-//
-// Example:
-//
-//	if !c.IfMatch(currentETag) {
-//		return // 412 already sent
-//	}
-//	// Update resource...
-func (c *Context) IfMatch(etag string) bool {
-	if etag == "" {
-		return true // No precondition
-	}
-	im := c.Request.Header.Get("If-Match")
-	if im == "" {
-		return true // No precondition
-	}
-
-	normalizedETag := normalizeETag(etag)
-	for _, tag := range strings.Split(im, ",") {
-		tag = strings.TrimSpace(tag)
-		if tag == "*" {
-			return true // Match any
-		}
-		normalizedTag := normalizeETag(tag)
-		if normalizedTag == normalizedETag {
-			return true // Match found
-		}
-	}
-
-	// Precondition failed
-	_ = c.ProblemDetail(
-		NewProblemDetail(http.StatusPreconditionFailed, "Precondition Failed").
-			WithType(ProblemTypePreconditionFailed).
-			WithDetail("The resource has been modified since your last request.").
-			WithExtension("current_etag", etag),
-	)
-	return false
-}
 
 // BindOptions configures strict JSON binding behavior.
 type BindOptions struct {
@@ -1549,7 +1461,7 @@ func (c *Context) RequireContentType(allowed ...string) bool {
 func (c *Context) unsupportedMediaTypeProblem(received string, allowed []string) bool {
 	_ = c.ProblemDetail(
 		NewProblemDetail(http.StatusUnsupportedMediaType, "Unsupported Media Type").
-			WithType(ProblemTypeUnsupportedMediaType).
+			WithType(c.ProblemType(PTUnsupportedMediaType)).
 			WithDetail("This endpoint only accepts specific media types.").
 			WithExtension("received", received).
 			WithExtension("supported_types", allowed),
@@ -1575,14 +1487,14 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
 		return c.ProblemDetail(
 			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(ProblemTypeMalformedJSON).
+				WithType(c.ProblemType(PTMalformedJSON)).
 				WithDetail("Unexpected end of JSON input."),
 		)
 
 	case errors.As(err, new(*json.SyntaxError)):
 		return c.ProblemDetail(
 			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(ProblemTypeMalformedJSON).
+				WithType(c.ProblemType(PTMalformedJSON)).
 				WithDetail(err.Error()),
 		)
 
@@ -1591,7 +1503,7 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 		// Valid JSON, wrong types -> 422
 		return c.ProblemDetail(
 			NewProblemDetail(http.StatusUnprocessableEntity, "Unprocessable Entity").
-				WithType(ProblemTypeValidation).
+				WithType(c.ProblemType(PTValidation)).
 				WithDetail(fmt.Sprintf("Invalid type for field %q: expected %s.", ute.Field, ute.Type)).
 				WithExtension("field", ute.Field).
 				WithExtension("expected_type", ute.Type.String()),
@@ -1604,7 +1516,7 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 			field := strings.Trim(strings.TrimPrefix(errStr, "json: unknown field "), `"`)
 			return c.ProblemDetail(
 				NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-					WithType(ProblemTypeMalformedJSON).
+					WithType(c.ProblemType(PTMalformedJSON)).
 					WithDetail(fmt.Sprintf("Unknown field %q.", field)).
 					WithExtension("unknown_field", field),
 			)
@@ -1614,7 +1526,7 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 		if strings.Contains(errStr, "request body too large") || strings.Contains(errStr, "http: request body too large") {
 			return c.ProblemDetail(
 				NewProblemDetail(http.StatusRequestEntityTooLarge, "Payload Too Large").
-					WithType(ProblemTypeTooLarge).
+					WithType(c.ProblemType(PTTooLarge)).
 					WithDetail("Request body exceeds the maximum allowed size."),
 			)
 		}
@@ -1622,7 +1534,7 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 		// Fallback
 		return c.ProblemDetail(
 			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(ProblemTypeMalformedJSON).
+				WithType(c.ProblemType(PTMalformedJSON)).
 				WithDetail(err.Error()),
 		)
 	}
@@ -1666,7 +1578,7 @@ func (c *Context) BindStrict(dst any, opt BindOptions) error {
 	if dec.More() {
 		return c.ProblemDetail(
 			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(ProblemTypeMalformedJSON).
+				WithType(c.ProblemType(PTMalformedJSON)).
 				WithDetail("Request body must contain a single JSON value."),
 		)
 	}
@@ -1702,7 +1614,7 @@ func StreamJSONArray[T any](c *Context, each func(T) error, maxItems int) error 
 	if delim, ok := tok.(json.Delim); !ok || delim != '[' {
 		return c.ProblemDetail(
 			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(ProblemTypeMalformedJSON).
+				WithType(c.ProblemType(PTMalformedJSON)).
 				WithDetail("Expected a JSON array."),
 		)
 	}
@@ -1713,7 +1625,7 @@ func StreamJSONArray[T any](c *Context, each func(T) error, maxItems int) error 
 		if maxItems > 0 && count > maxItems {
 			return c.ProblemDetail(
 				NewProblemDetail(http.StatusBadRequest, "Too Many Items").
-					WithType(ProblemTypeTooLarge).
+					WithType(c.ProblemType(PTTooLarge)).
 					WithDetail(fmt.Sprintf("Array exceeds maximum of %d items", maxItems)),
 			)
 		}
@@ -1838,6 +1750,121 @@ func (c *Context) reset() {
 	c.version = ""
 	c.routeTemplate = ""
 	c.aborted = false
+	c.released = false // Reset released flag for reuse
+}
+
+// Release marks the context as invalid and returns it to the pool.
+//
+// ⚠️ CRITICAL: DO NOT use the context after calling Release().
+// The context will be reused for other requests, and any retained references
+// will point to invalid data, causing memory safety issues and data corruption.
+//
+// This method:
+//   - Clears all sensitive data (Request, Response, binding metadata, etc.)
+//   - Marks the context as released to prevent accidental reuse
+//   - Returns the context to the appropriate pool for reuse
+//
+// When to use Release():
+//   - You've stored a reference to Context beyond the request handler
+//   - You're using Context in async operations (goroutines, channels)
+//   - You need to explicitly return a context to the pool before handler completion
+//
+// ⚠️ WARNING: In normal request handling, you should NOT call Release() manually.
+// The router automatically returns contexts to the pool after request completion.
+// Only call Release() if you've retained a Context reference beyond the handler.
+//
+// Example (async operation):
+//
+//	func handler(c *router.Context) {
+//	    // Start async operation
+//	    go func(ctx *router.Context) {
+//	        defer ctx.Release() // CRITICAL: Release when done
+//	        // Process async work...
+//	    }(c)
+//	}
+//
+// Example (stored reference):
+//
+//	func handler(c *router.Context) {
+//	    // Store reference for later use
+//	    storedContext := c
+//	    // ... later, when done ...
+//	    storedContext.Release() // CRITICAL: Release when done
+//	}
+//
+// Memory Safety:
+//   - Contexts are pooled and reused to minimize GC pressure
+//   - Retaining references beyond request lifetime causes memory leaks
+//   - Use-after-release causes undefined behavior and data corruption
+//   - Always call Release() if you retain a Context reference
+func (c *Context) Release() {
+	if c.released {
+		// Already released - prevent double release
+		return
+	}
+
+	// Clear sensitive data first
+	c.Request = nil
+	c.Response = nil
+	c.handlers = nil
+	c.bindingMeta = nil
+	c.span = nil
+	c.traceCtx = nil
+	c.metricsRecorder = nil
+	c.tracingRecorder = nil
+
+	// Clear header parsing cache
+	c.cachedAcceptHeader = ""
+	c.cachedAcceptSpecs = nil
+	if c.cachedArena != nil {
+		c.cachedArena.reset()
+		arenaPool.Put(c.cachedArena)
+		c.cachedArena = nil
+	}
+
+	// Clear parameters
+	if c.paramCount > 0 {
+		clearCount := c.paramCount
+		if clearCount > 8 {
+			clearCount = 8
+		}
+		for i := range clearCount {
+			c.paramKeys[i] = ""
+			c.paramValues[i] = ""
+		}
+		c.paramCount = 0
+	}
+	if c.Params != nil {
+		clear(c.Params)
+	}
+
+	// Clear other fields
+	c.version = ""
+	c.routeTemplate = ""
+	c.aborted = false
+	c.index = -1
+
+	// Mark as released BEFORE returning to pool
+	// This prevents use-after-release if someone still has a reference
+	c.released = true
+
+	// Save paramCount before reset (needed for pool selection)
+	paramCount := c.paramCount
+
+	// Call reset() manually to clear all fields (including setting released=false for reuse)
+	// This ensures the context is properly reset for the next request
+	c.reset()
+
+	// Return to appropriate pool based on original paramCount
+	if c.router != nil && c.router.contextPool != nil {
+		// Use router's context pool (preferred)
+		// Set paramCount temporarily for pool selection
+		c.paramCount = paramCount
+		c.router.contextPool.Put(c)
+	} else {
+		// Fallback to global pool for static routes
+		globalContextPool.Put(c)
+	}
 }
 
 // initForRequest initializes the context for a new request.

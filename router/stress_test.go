@@ -21,9 +21,8 @@ func (suite *StressTestSuite) SetupTest() {
 }
 
 func (suite *StressTestSuite) TearDownTest() {
-	if suite.router != nil {
-		// Cleanup if needed
-	}
+	// Cleanup if needed
+	_ = suite.router
 }
 
 // TestRouterStress tests the router under high concurrent load

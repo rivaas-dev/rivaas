@@ -1,0 +1,130 @@
+package app
+
+import (
+	"fmt"
+	"net/http/pprof"
+
+	"rivaas.dev/router"
+)
+
+// DebugEndpointsOpts configures debug endpoints like pprof.
+type DebugEndpointsOpts struct {
+	// MountPrefix is the prefix under which to mount debug endpoints.
+	// Defaults to "/debug" if not specified.
+	// Example: "/debug" mounts pprof at "/debug/pprof"
+	MountPrefix string
+
+	// EnablePprof determines if pprof endpoints should be registered.
+	// pprof endpoints are only registered if this is true.
+	// WARNING: pprof exposes sensitive runtime information. Only enable in development
+	// or behind authentication/authorization.
+	EnablePprof bool
+}
+
+// WithDebugEndpoints registers debug endpoints like pprof.
+//
+// Endpoints registered (if EnablePprof is true):
+//   - GET /debug/pprof/ - Main pprof index
+//   - GET /debug/pprof/cmdline - Command line
+//   - GET /debug/pprof/profile - CPU profile
+//   - GET /debug/pprof/symbol - Symbol lookup
+//   - POST /debug/pprof/symbol - Symbol lookup
+//   - GET /debug/pprof/trace - Execution trace
+//   - GET /debug/pprof/{profile} - Named profiles (allocs, block, goroutine, heap, mutex, threadcreate)
+//
+// Returns an error if any endpoint path already exists (collision detection).
+//
+// WARNING: pprof endpoints expose sensitive runtime information including:
+//   - Goroutine stack traces
+//   - Memory allocation details
+//   - CPU profiling data
+//
+// Only enable in development or behind proper authentication/authorization.
+//
+// Example:
+//
+//	_ = a.WithDebugEndpoints(app.DebugEndpointsOpts{
+//	    MountPrefix: "/debug",
+//	    EnablePprof: os.Getenv("PPROF_ENABLED") == "true",
+//	})
+func (a *App) WithDebugEndpoints(o DebugEndpointsOpts) error {
+	if !o.EnablePprof {
+		return nil // Silently skip if disabled
+	}
+
+	prefix := o.MountPrefix
+	if prefix == "" {
+		prefix = "/debug"
+	}
+
+	base := prefix + "/pprof"
+
+	// Check for route collisions
+	pprofPaths := []string{
+		base + "/",
+		base + "/cmdline",
+		base + "/profile",
+		base + "/symbol",
+		base + "/trace",
+		base + "/allocs",
+		base + "/block",
+		base + "/goroutine",
+		base + "/heap",
+		base + "/mutex",
+		base + "/threadcreate",
+	}
+
+	for _, path := range pprofPaths {
+		if a.router.RouteExists("GET", path) {
+			return fmt.Errorf("route already registered: GET %s", path)
+		}
+	}
+
+	// Check POST /symbol
+	if a.router.RouteExists("POST", base+"/symbol") {
+		return fmt.Errorf("route already registered: POST %s/symbol", base)
+	}
+
+	// Register pprof endpoints
+	registerPprof(a.Router(), base)
+
+	return nil
+}
+
+// registerPprof registers all pprof endpoints under the given base path.
+func registerPprof(r *router.Router, base string) {
+	// Main index
+	r.GET(base+"/", func(c *router.Context) {
+		pprof.Index(c.Response, c.Request)
+	})
+
+	// Common endpoints
+	r.GET(base+"/cmdline", func(c *router.Context) {
+		pprof.Cmdline(c.Response, c.Request)
+	})
+
+	r.GET(base+"/profile", func(c *router.Context) {
+		pprof.Profile(c.Response, c.Request)
+	})
+
+	r.POST(base+"/symbol", func(c *router.Context) {
+		pprof.Symbol(c.Response, c.Request)
+	})
+
+	r.GET(base+"/symbol", func(c *router.Context) {
+		pprof.Symbol(c.Response, c.Request)
+	})
+
+	r.GET(base+"/trace", func(c *router.Context) {
+		pprof.Trace(c.Response, c.Request)
+	})
+
+	// Named profiles
+	profiles := []string{"allocs", "block", "goroutine", "heap", "mutex", "threadcreate"}
+	for _, p := range profiles {
+		pp := p // Capture for closure
+		r.GET(base+"/"+pp, func(c *router.Context) {
+			pprof.Handler(pp).ServeHTTP(c.Response, c.Request)
+		})
+	}
+}

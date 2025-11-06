@@ -111,18 +111,18 @@ const (
 // Fast sampling multiplier (Knuth's multiplicative hash constant)
 const samplingMultiplier = 2654435761
 
-// TracingProvider represents the available tracing providers.
-type TracingProvider string
+// Provider represents the available tracing providers.
+type Provider string
 
 const (
 	// NoopProvider is a no-op provider that doesn't export anything (default).
-	NoopProvider TracingProvider = "noop"
+	NoopProvider Provider = "noop"
 
 	// StdoutProvider exports traces to stdout (development/testing).
-	StdoutProvider TracingProvider = "stdout"
+	StdoutProvider Provider = "stdout"
 
 	// OTLPProvider exports traces via OTLP gRPC protocol.
-	OTLPProvider TracingProvider = "otlp"
+	OTLPProvider Provider = "otlp"
 )
 
 // SpanStartHook is called when a request span is started.
@@ -154,7 +154,7 @@ type SpanFinishHook func(span trace.Span, statusCode int)
 // Config holds OpenTelemetry tracing configuration.
 // All operations on Config are thread-safe.
 //
-// Config implements the TracingRecorder interface for integration with
+// Config implements the Recorder interface for integration with
 // the Rivaas router package.
 //
 // Important: Config is immutable after creation via New(). All configuration
@@ -176,7 +176,7 @@ type Config struct {
 	recordHeaders  []string
 	serviceName    string
 	serviceVersion string
-	provider       TracingProvider
+	provider       Provider
 	otlpEndpoint   string
 
 	// Parameter recording configuration
@@ -471,7 +471,7 @@ func WithCustomPropagator(propagator propagation.TextMapPropagator) Option {
 //
 //	config := tracing.New(tracing.WithProvider(tracing.StdoutProvider))
 //	config := tracing.New(tracing.WithProvider(tracing.OTLPProvider))
-func WithProvider(provider TracingProvider) Option {
+func WithProvider(provider Provider) Option {
 	return func(c *Config) {
 		c.provider = provider
 	}
@@ -771,7 +771,7 @@ func (c *Config) GetPropagator() propagation.TextMapPropagator {
 }
 
 // GetProvider returns the current tracing provider.
-func (c *Config) GetProvider() TracingProvider {
+func (c *Config) GetProvider() Provider {
 	if !c.enabled {
 		return ""
 	}

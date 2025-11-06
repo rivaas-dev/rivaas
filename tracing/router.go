@@ -8,9 +8,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// TracingRecorder interface for integration with router.
+// Recorder interface for integration with router.
 // This is defined locally to avoid circular dependencies.
-type TracingRecorder interface {
+type Recorder interface {
 	StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span)
 	FinishSpan(span trace.Span, statusCode int)
 	SetSpanAttribute(span trace.Span, key string, value interface{})
@@ -34,7 +34,7 @@ func WithTracing(opts ...Option) RouterOption {
 
 		// Try to set the tracing configuration on the router
 		// This uses interface{} to avoid circular dependencies
-		if setter, ok := router.(interface{ SetTracingRecorder(TracingRecorder) }); ok {
+		if setter, ok := router.(interface{ SetTracingRecorder(Recorder) }); ok {
 			setter.SetTracingRecorder(config)
 		}
 	}
@@ -43,7 +43,7 @@ func WithTracing(opts ...Option) RouterOption {
 // WithTracingFromConfig creates a router option from an existing tracing config.
 func WithTracingFromConfig(config *Config) RouterOption {
 	return func(router interface{}) {
-		if setter, ok := router.(interface{ SetTracingRecorder(TracingRecorder) }); ok {
+		if setter, ok := router.(interface{ SetTracingRecorder(Recorder) }); ok {
 			setter.SetTracingRecorder(config)
 		}
 	}
@@ -124,7 +124,7 @@ func (rw *responseWriter) Size() int {
 	return rw.size
 }
 
-// Context integration helpers for router context
+// ContextTracing provides context integration helpers for router context.
 type ContextTracing struct {
 	config *Config
 	span   trace.Span
@@ -133,7 +133,7 @@ type ContextTracing struct {
 
 // NewContextTracing creates a new context tracing helper.
 // The context parameter must not be nil; if nil, context.Background() will be used.
-func NewContextTracing(config *Config, ctx context.Context, span trace.Span) *ContextTracing {
+func NewContextTracing(ctx context.Context, config *Config, span trace.Span) *ContextTracing {
 	if ctx == nil {
 		ctx = context.Background()
 	}

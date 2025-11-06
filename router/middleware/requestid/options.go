@@ -1,3 +1,5 @@
+// Package requestid provides middleware for generating and managing
+// unique request IDs for distributed tracing and request correlation.
 package requestid
 
 // WithHeader sets the header name for the request ID.

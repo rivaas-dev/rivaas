@@ -113,9 +113,9 @@ func BenchmarkVersionDetectionWithObserver(b *testing.B) {
 		WithHeaderVersioning("X-API-Version"),
 		WithDefaultVersion("v1"),
 		WithVersionObserver(
-			func(version string, method string) { detectedCount++ },
+			func(_, _ string) { detectedCount++ },
 			func() {},
-			func(attempted string) {},
+			func(_ string) {},
 		),
 	))
 
@@ -415,9 +415,9 @@ func BenchmarkComplexVersioningScenario(b *testing.B) {
 		WithDefaultVersion("v1"),
 		WithDeprecatedVersion("v1", time.Now().Add(30*24*time.Hour)),
 		WithVersionObserver(
-			func(version string, method string) {},
+			func(_, _ string) {},
 			func() {},
-			func(attempted string) {},
+			func(_ string) {},
 		),
 	))
 

@@ -64,9 +64,7 @@ func TestCompression_NoGzipSupport(t *testing.T) {
 	}
 
 	// Response should be uncompressed
-	if strings.Contains(w.Body.String(), "Hello") {
-		// Good - response is not compressed
-	} else {
+	if !strings.Contains(w.Body.String(), "Hello") {
 		t.Error("Response should be uncompressed")
 	}
 }
@@ -193,7 +191,7 @@ func TestCompression_CompressionLevels(t *testing.T) {
 	for _, level := range levels {
 		t.Run(fmt.Sprintf("level-%d", level), func(t *testing.T) {
 			r := router.New()
-			r.Use(New(WithLevel(level)))
+			r.Use(New(WithGzipLevel(level)))
 			r.GET("/test", func(c *router.Context) {
 				data := strings.Repeat("compress this ", 100)
 				c.JSON(http.StatusOK, map[string]string{"data": data})
@@ -367,7 +365,7 @@ func BenchmarkCompression_LargeResponse(b *testing.B) {
 
 func BenchmarkCompression_BestSpeed(b *testing.B) {
 	r := router.New()
-	r.Use(New(WithLevel(gzip.BestSpeed)))
+	r.Use(New(WithGzipLevel(gzip.BestSpeed)))
 	r.GET("/test", func(c *router.Context) {
 		data := strings.Repeat("data ", 100)
 		c.JSON(http.StatusOK, map[string]string{"content": data})
@@ -387,7 +385,7 @@ func BenchmarkCompression_BestSpeed(b *testing.B) {
 
 func BenchmarkCompression_BestCompression(b *testing.B) {
 	r := router.New()
-	r.Use(New(WithLevel(gzip.BestCompression)))
+	r.Use(New(WithGzipLevel(gzip.BestCompression)))
 	r.GET("/test", func(c *router.Context) {
 		data := strings.Repeat("data ", 100)
 		c.JSON(http.StatusOK, map[string]string{"content": data})

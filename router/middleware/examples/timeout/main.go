@@ -1,3 +1,5 @@
+// Package main demonstrates how to use the timeout middleware
+// to set request timeout limits.
 package main
 
 import (

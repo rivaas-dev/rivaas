@@ -1,3 +1,4 @@
+// Package main demonstrates debug information and metrics logging.
 package main
 
 import (

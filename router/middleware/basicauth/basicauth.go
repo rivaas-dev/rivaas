@@ -1,3 +1,5 @@
+// Package basicauth provides HTTP Basic Authentication middleware with
+// configurable user validation and realm support.
 package basicauth
 
 import (

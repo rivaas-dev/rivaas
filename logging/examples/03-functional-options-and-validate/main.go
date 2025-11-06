@@ -1,3 +1,4 @@
+// Package main demonstrates functional options and validation.
 package main
 
 import (

@@ -1,3 +1,5 @@
+// Package accesslog provides middleware for structured HTTP access logging
+// with configurable formats, field selection, and output destinations.
 package accesslog
 
 import (

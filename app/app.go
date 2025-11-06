@@ -1,3 +1,4 @@
+// Package app provides the main application implementation for Rivaas.
 package app
 
 import (
@@ -98,6 +99,92 @@ type serverConfig struct {
 	readHeaderTimeout time.Duration
 	maxHeaderBytes    int
 	shutdownTimeout   time.Duration
+}
+
+// Validate validates the server configuration and returns all validation errors.
+// This method performs comprehensive validation including:
+//   - All timeouts must be positive
+//   - ReadTimeout should not exceed WriteTimeout (common misconfiguration)
+//   - ShutdownTimeout must be at least 1 second for proper graceful shutdown
+//   - MaxHeaderBytes must be at least 1KB to handle standard HTTP headers
+//
+// Returns a ValidationErrors containing all validation failures, or nil if valid.
+//
+// Example:
+//
+//	cfg := &serverConfig{
+//	    readTimeout:     10 * time.Second,
+//	    writeTimeout:    5 * time.Second, // Invalid: read > write
+//	    shutdownTimeout: 100 * time.Millisecond, // Invalid: too short
+//	}
+//	if err := cfg.Validate(); err != nil {
+//	    // Handle validation errors
+//	}
+func (sc *serverConfig) Validate() *ValidationErrors {
+	var errs ValidationErrors
+
+	// Validate timeouts are positive
+	if sc.readTimeout <= 0 {
+		errs.Add(newTimeoutError("server.readTimeout", sc.readTimeout, "must be positive"))
+	}
+
+	if sc.writeTimeout <= 0 {
+		errs.Add(newTimeoutError("server.writeTimeout", sc.writeTimeout, "must be positive"))
+	}
+
+	if sc.idleTimeout <= 0 {
+		errs.Add(newTimeoutError("server.idleTimeout", sc.idleTimeout, "must be positive"))
+	}
+
+	if sc.readHeaderTimeout <= 0 {
+		errs.Add(newTimeoutError("server.readHeaderTimeout", sc.readHeaderTimeout, "must be positive"))
+	}
+
+	if sc.shutdownTimeout <= 0 {
+		errs.Add(newTimeoutError("server.shutdownTimeout", sc.shutdownTimeout, "must be positive"))
+	}
+
+	// Validate max header bytes
+	if sc.maxHeaderBytes <= 0 {
+		errs.Add(newInvalidValueError("server.maxHeaderBytes", sc.maxHeaderBytes,
+			"must be positive"))
+	}
+
+	// Cross-field validation: ReadTimeout should not exceed WriteTimeout
+	// This is a common misconfiguration that can cause issues where the server
+	// times out reading the request body before it can write the response.
+	// In practice, write operations are typically faster than read operations,
+	// so write timeout should be >= read timeout.
+	if sc.readTimeout > 0 && sc.writeTimeout > 0 {
+		if sc.readTimeout > sc.writeTimeout {
+			errs.Add(newComparisonError("server.readTimeout", "server.writeTimeout",
+				sc.readTimeout, sc.writeTimeout,
+				"read timeout should not exceed write timeout"))
+		}
+	}
+
+	// Validate shutdown timeout is reasonable (at least 1 second)
+	// Very short shutdown timeouts can cause issues with graceful shutdown,
+	// as the server needs time to:
+	//   - Stop accepting new connections
+	//   - Wait for in-flight requests to complete
+	//   - Close idle connections
+	//   - Clean up resources
+	if sc.shutdownTimeout > 0 && sc.shutdownTimeout < time.Second {
+		errs.Add(newInvalidValueError("server.shutdownTimeout", sc.shutdownTimeout,
+			"must be at least 1 second for proper graceful shutdown"))
+	}
+
+	// Validate max header bytes is reasonable (at least 1KB)
+	// Very small values can cause legitimate requests to fail, as standard
+	// HTTP headers (User-Agent, Accept, Cookie, etc.) can easily exceed 512 bytes.
+	// 1KB is a reasonable minimum that handles most real-world scenarios.
+	if sc.maxHeaderBytes > 0 && sc.maxHeaderBytes < 1024 {
+		errs.Add(newInvalidValueError("server.maxHeaderBytes", sc.maxHeaderBytes,
+			"must be at least 1KB (1024 bytes) to handle standard HTTP headers"))
+	}
+
+	return &errs
 }
 
 // middlewareConfig holds middleware configuration.
@@ -340,46 +427,40 @@ func WithTracingConfig(tracingCfg *tracing.Config) Option {
 	}
 }
 
-// validate checks if the configuration is valid.
+// validate checks if the configuration is valid and returns structured errors.
+// It collects all validation errors before returning them, allowing users to
+// see all issues at once rather than one at a time.
 func (c *config) validate() error {
+	var errs ValidationErrors
+
+	// Validate service name
 	if c.serviceName == "" {
-		return fmt.Errorf("service name cannot be empty")
+		errs.Add(newEmptyFieldError("serviceName"))
 	}
 
+	// Validate service version
 	if c.serviceVersion == "" {
-		return fmt.Errorf("service version cannot be empty")
+		errs.Add(newEmptyFieldError("serviceVersion"))
 	}
 
+	// Validate environment
 	if c.environment != EnvironmentDevelopment && c.environment != EnvironmentProduction {
-		return fmt.Errorf("environment must be '%s' or '%s', got: %s",
-			EnvironmentDevelopment, EnvironmentProduction, c.environment)
+		errs.Add(newInvalidEnumError("environment", c.environment,
+			[]string{EnvironmentDevelopment, EnvironmentProduction}))
 	}
 
-	if c.server.readTimeout <= 0 {
-		return fmt.Errorf("read timeout must be positive, got: %s", c.server.readTimeout)
+	// Validate server configuration
+	if c.server != nil {
+		// Use the dedicated Validate() method for better separation of concerns
+		serverErrs := c.server.Validate()
+		if serverErrs != nil && serverErrs.HasErrors() {
+			// Merge server validation errors into the main error collection
+			errs.Errors = append(errs.Errors, serverErrs.Errors...)
+		}
 	}
 
-	if c.server.writeTimeout <= 0 {
-		return fmt.Errorf("write timeout must be positive, got: %s", c.server.writeTimeout)
-	}
-
-	if c.server.idleTimeout <= 0 {
-		return fmt.Errorf("idle timeout must be positive, got: %s", c.server.idleTimeout)
-	}
-
-	if c.server.readHeaderTimeout <= 0 {
-		return fmt.Errorf("read header timeout must be positive, got: %s", c.server.readHeaderTimeout)
-	}
-
-	if c.server.maxHeaderBytes <= 0 {
-		return fmt.Errorf("max header bytes must be positive, got: %d", c.server.maxHeaderBytes)
-	}
-
-	if c.server.shutdownTimeout <= 0 {
-		return fmt.Errorf("shutdown timeout must be positive, got: %s", c.server.shutdownTimeout)
-	}
-
-	return nil
+	// Return all errors if any exist
+	return errs.ToError()
 }
 
 // defaultConfig returns a configuration with sensible defaults.
@@ -428,7 +509,9 @@ func New(opts ...Option) (*App, error) {
 
 	// Validate configuration
 	if err := cfg.validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+		// Return validation errors as-is (they're already structured)
+		// Don't wrap them to preserve the structured error type
+		return nil, err
 	}
 
 	// Create router with options if provided
@@ -850,7 +933,7 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 			}
 			return lipgloss.NewStyle() // No color for border
 		}()).
-		StyleFunc(func(row, col int) lipgloss.Style {
+		StyleFunc(func(row, _ int) lipgloss.Style {
 			style := lipgloss.NewStyle().
 				Align(lipgloss.Left).
 				Padding(0, 1)

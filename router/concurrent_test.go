@@ -252,13 +252,13 @@ func (suite *ConcurrentTestSuite) TestConcurrentParameterExtraction() {
 
 	r.GET("/users/:id/posts/:postId/comments/:commentId", func(c *Context) {
 		id := c.Param("id")
-		postId := c.Param("postId")
-		commentId := c.Param("commentId")
+		postID := c.Param("postId")
+		commentID := c.Param("commentId")
 
 		c.JSON(200, map[string]string{
 			"id":        id,
-			"postId":    postId,
-			"commentId": commentId,
+			"postId":    postID,
+			"commentId": commentID,
 		})
 	})
 

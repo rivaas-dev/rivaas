@@ -26,9 +26,8 @@ func (suite *RouterTestSuite) SetupTest() {
 
 // TearDownTest runs after each individual test
 func (suite *RouterTestSuite) TearDownTest() {
-	if suite.router != nil {
-		// Cleanup if needed
-	}
+	// Cleanup if needed
+	_ = suite.router
 }
 
 // TestBasicRouting tests basic HTTP method routing
@@ -343,15 +342,15 @@ type mockLogger struct {
 	lastError string
 }
 
-func (m *mockLogger) Error(msg string, keysAndValues ...any) {
+func (m *mockLogger) Error(msg string, _ ...any) {
 	m.lastError = msg
 }
 
-func (m *mockLogger) Warn(msg string, keysAndValues ...any) {}
+func (m *mockLogger) Warn(_ string, _ ...any) {}
 
-func (m *mockLogger) Info(msg string, keysAndValues ...any) {}
+func (m *mockLogger) Info(_ string, _ ...any) {}
 
-func (m *mockLogger) Debug(msg string, keysAndValues ...any) {}
+func (m *mockLogger) Debug(_ string, _ ...any) {}
 
 // TestWithLogger tests logger configuration
 func TestWithLogger(t *testing.T) {
@@ -606,9 +605,8 @@ func TestResponseWriter_HijackAndFlush(t *testing.T) {
 			if err != nil {
 				t.Errorf("Hijack failed: %v", err)
 			}
-			if conn != nil {
-				// Don't close here as it's managed by test cleanup
-			}
+			// Don't close conn here as it's managed by test cleanup
+			_ = conn
 		} else {
 			t.Error("expected Hijacker interface")
 		}

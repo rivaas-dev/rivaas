@@ -20,7 +20,7 @@ type ContextLogger struct {
 // NewContextLogger creates a context-aware logger.
 // If the context contains an active OpenTelemetry span, trace and span IDs
 // will be automatically added to all log entries.
-func NewContextLogger(cfg *Config, ctx context.Context) *ContextLogger {
+func NewContextLogger(ctx context.Context, cfg *Config) *ContextLogger {
 	l := cfg.Logger()
 
 	// Extract trace information from context
@@ -66,7 +66,7 @@ func (cl *ContextLogger) SpanID() string {
 
 // reset resets the ContextLogger for reuse from the pool.
 // This is more efficient than creating a new ContextLogger for each request.
-func (cl *ContextLogger) reset(cfg *Config, ctx context.Context) {
+func (cl *ContextLogger) reset(ctx context.Context, cfg *Config) {
 	l := cfg.Logger()
 	cl.ctx = ctx
 	cl.traceID = ""

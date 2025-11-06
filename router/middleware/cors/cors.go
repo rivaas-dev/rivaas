@@ -1,3 +1,5 @@
+// Package cors provides middleware for handling Cross-Origin Resource Sharing (CORS),
+// allowing configurable access control for cross-origin requests.
 package cors
 
 import (

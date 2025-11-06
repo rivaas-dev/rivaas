@@ -1,20 +1,5 @@
 package compression
 
-// WithLevel sets the gzip compression level (deprecated, use WithGzipLevel).
-// Valid values: 0 (no compression) to 9 (best compression).
-// Default: gzip.DefaultCompression (-1, which is typically level 6)
-//
-// Example:
-//
-//	compression.New(compression.WithLevel(gzip.BestCompression))
-//
-// Deprecated: Use WithGzipLevel instead.
-func WithLevel(level int) Option {
-	return func(cfg *config) {
-		cfg.gzipLevel = level
-	}
-}
-
 // WithGzipLevel sets the gzip compression level.
 // Valid values: 0 (no compression) to 9 (best compression).
 // Default: gzip.DefaultCompression (-1, which is typically level 6)

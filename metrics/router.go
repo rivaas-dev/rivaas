@@ -7,10 +7,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// MetricsRecorder interface for integration with router.
+// Recorder interface for integration with router.
 // This is defined locally to avoid circular dependencies.
-// It must match the MetricsRecorder interface in router/interfaces.go.
-type MetricsRecorder interface {
+// It must match the Recorder interface in router/interfaces.go.
+type Recorder interface {
 	// RecordMetric records a custom histogram metric with the given name and value.
 	RecordMetric(ctx context.Context, name string, value float64, attributes ...attribute.KeyValue)
 
@@ -58,7 +58,7 @@ func WithMetrics(opts ...Option) interface{} {
 
 		// Try to set the metrics configuration on the router
 		// This uses interface{} to avoid circular dependencies
-		if setter, ok := r.(interface{ SetMetricsRecorder(MetricsRecorder) }); ok {
+		if setter, ok := r.(interface{ SetMetricsRecorder(Recorder) }); ok {
 			setter.SetMetricsRecorder(config)
 		}
 	}
@@ -67,7 +67,7 @@ func WithMetrics(opts ...Option) interface{} {
 // WithMetricsFromConfig creates a router option from an existing metrics config.
 func WithMetricsFromConfig(config *Config) interface{} {
 	return func(r interface{}) {
-		if setter, ok := r.(interface{ SetMetricsRecorder(MetricsRecorder) }); ok {
+		if setter, ok := r.(interface{ SetMetricsRecorder(Recorder) }); ok {
 			setter.SetMetricsRecorder(config)
 		}
 	}
@@ -185,7 +185,7 @@ func (rw *responseWriter) Size() int {
 	return rw.size
 }
 
-// Context integration helpers for router context
+// ContextMetrics provides context integration helpers for router context.
 type ContextMetrics struct {
 	config *Config
 }

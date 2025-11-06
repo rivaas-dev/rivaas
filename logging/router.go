@@ -2,9 +2,9 @@ package logging
 
 import "log/slog"
 
-// LoggingRecorder is used by router/app to access logging.
-// This interface follows the same pattern as metrics.MetricsRecorder and tracing.TracingRecorder.
-type LoggingRecorder interface {
+// Recorder is used by router/app to access logging.
+// This interface follows the same pattern as metrics.Recorder and tracing.Recorder.
+type Recorder interface {
 	Logger() *slog.Logger
 	With(args ...any) *slog.Logger
 	WithGroup(name string) *slog.Logger

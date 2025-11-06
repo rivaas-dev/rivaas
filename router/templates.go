@@ -267,9 +267,7 @@ func (t *RouteTemplate) matchAndExtract(path string, ctx *Context) bool {
 
 	// Exact slash count validation
 	expectedSlashes := t.segmentCount
-	if pathLen > 0 && path[0] == '/' {
-		// Path starts with / - this is expected
-	} else {
+	if pathLen == 0 || path[0] != '/' {
 		expectedSlashes-- // Pattern has leading / but path doesn't
 	}
 

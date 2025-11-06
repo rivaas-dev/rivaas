@@ -65,7 +65,9 @@ log := logging.MustNew(
 ```go
 log := logging.MustNew(
     logging.WithJSONHandler(),
-    logging.WithServiceInfo("my-api", "v1.0.0", "production"),
+    logging.WithServiceName("my-api"),
+    logging.WithServiceVersion("v1.0.0"),
+    logging.WithEnvironment("production"),
 )
 ```
 
@@ -75,7 +77,9 @@ log := logging.MustNew(
 r := router.New(
     logging.WithLogging(
         logging.WithJSONHandler(),
-        logging.WithServiceInfo("api", "v1", "prod"),
+        logging.WithServiceName("api"),
+        logging.WithServiceVersion("v1"),
+        logging.WithEnvironment("prod"),
     ),
 )
 ```

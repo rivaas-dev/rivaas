@@ -1,0 +1,339 @@
+package router
+
+import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// mockParameterReader is a mock implementation of ParameterReader for testing.
+type mockParameterReader struct {
+	params        map[string]string
+	queries       map[string]string
+	formValues    map[string]string
+	cookies       map[string]string
+	queryDefaults map[string]string
+	formDefaults  map[string]string
+}
+
+func (m *mockParameterReader) Param(key string) string {
+	return m.params[key]
+}
+
+func (m *mockParameterReader) Query(key string) string {
+	return m.queries[key]
+}
+
+func (m *mockParameterReader) QueryDefault(key, defaultValue string) string {
+	if val, ok := m.queryDefaults[key]; ok {
+		return val
+	}
+	return defaultValue
+}
+
+func (m *mockParameterReader) FormValue(key string) string {
+	return m.formValues[key]
+}
+
+func (m *mockParameterReader) FormValueDefault(key, defaultValue string) string {
+	if val, ok := m.formDefaults[key]; ok {
+		return val
+	}
+	return defaultValue
+}
+
+func (m *mockParameterReader) AllParams() map[string]string {
+	result := make(map[string]string, len(m.params))
+	for k, v := range m.params {
+		result[k] = v
+	}
+	return result
+}
+
+func (m *mockParameterReader) AllQueries() map[string]string {
+	result := make(map[string]string, len(m.queries))
+	for k, v := range m.queries {
+		result[k] = v
+	}
+	return result
+}
+
+func (m *mockParameterReader) GetCookie(name string) (string, error) {
+	if val, ok := m.cookies[name]; ok {
+		return val, nil
+	}
+	return "", errors.New("cookie not found")
+}
+
+// mockResponseWriter is a mock implementation of ResponseWriter for testing.
+type mockResponseWriter struct {
+	statusCode int
+	headers    map[string]string
+	body       []byte
+	cookies    []http.Cookie
+}
+
+func (m *mockResponseWriter) JSON(code int, _ any) error {
+	m.statusCode = code
+	m.headers["Content-Type"] = "application/json; charset=utf-8"
+	// In real implementation, would marshal obj to JSON
+	m.body = []byte(`{"test":"data"}`)
+	return nil
+}
+
+func (m *mockResponseWriter) IndentedJSON(code int, obj any) error {
+	return m.JSON(code, obj)
+}
+
+func (m *mockResponseWriter) PureJSON(code int, obj any) error {
+	return m.JSON(code, obj)
+}
+
+func (m *mockResponseWriter) SecureJSON(code int, obj any, _ ...string) error {
+	return m.JSON(code, obj)
+}
+
+func (m *mockResponseWriter) ASCIIJSON(code int, obj any) error {
+	return m.JSON(code, obj)
+}
+
+func (m *mockResponseWriter) String(code int, format string, _ ...any) error {
+	m.statusCode = code
+	m.headers["Content-Type"] = "text/plain"
+	m.body = []byte(format)
+	return nil
+}
+
+func (m *mockResponseWriter) HTML(code int, html string) error {
+	m.statusCode = code
+	m.headers["Content-Type"] = "text/html"
+	m.body = []byte(html)
+	return nil
+}
+
+func (m *mockResponseWriter) YAML(code int, _ any) error {
+	m.statusCode = code
+	m.headers["Content-Type"] = "application/x-yaml"
+	return nil
+}
+
+func (m *mockResponseWriter) Data(code int, contentType string, data []byte) error {
+	m.statusCode = code
+	m.headers["Content-Type"] = contentType
+	m.body = data
+	return nil
+}
+
+func (m *mockResponseWriter) Status(code int) {
+	m.statusCode = code
+}
+
+func (m *mockResponseWriter) Header(key, value string) {
+	m.headers[key] = value
+}
+
+func (m *mockResponseWriter) Redirect(code int, location string) {
+	m.statusCode = code
+	m.headers["Location"] = location
+}
+
+func (m *mockResponseWriter) NoContent() {
+	m.statusCode = http.StatusNoContent
+}
+
+func (m *mockResponseWriter) SetCookie(name, value string, maxAge int, path, domain string, secure, httpOnly bool) {
+	m.cookies = append(m.cookies, http.Cookie{
+		Name:     name,
+		Value:    value,
+		MaxAge:   maxAge,
+		Path:     path,
+		Domain:   domain,
+		Secure:   secure,
+		HttpOnly: httpOnly,
+	})
+}
+
+// Example business logic function that uses ParameterReader interface.
+// This demonstrates how interfaces enable easier testing.
+func processUserRequest(reader ParameterReader) (string, error) {
+	userID := reader.Param("id")
+	if userID == "" {
+		return "", errors.New("user ID is required")
+	}
+
+	page := reader.QueryDefault("page", "1")
+	if page == "" {
+		return "", errors.New("page parameter is invalid")
+	}
+
+	return userID + ":" + page, nil
+}
+
+// Example business logic function that uses ResponseWriter interface.
+// This demonstrates how interfaces enable easier testing.
+func sendUserResponse(writer ResponseWriter, userID string) error {
+	return writer.JSON(http.StatusOK, map[string]string{
+		"user_id": userID,
+		"status":  "active",
+	})
+}
+
+// TestParameterReaderInterface demonstrates testing with ParameterReader interface.
+func TestParameterReaderInterface(t *testing.T) {
+	t.Run("with real Context", func(t *testing.T) {
+		r := New()
+		r.GET("/users/:id", func(c *Context) {
+			result, err := processUserRequest(c)
+			require.NoError(t, err)
+			assert.Equal(t, "123:1", result)
+		})
+
+		req := httptest.NewRequest("GET", "/users/123?page=1", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("with mock ParameterReader", func(t *testing.T) {
+		mock := &mockParameterReader{
+			params: map[string]string{
+				"id": "456",
+			},
+			queryDefaults: map[string]string{
+				"page": "2",
+			},
+		}
+
+		result, err := processUserRequest(mock)
+		require.NoError(t, err)
+		assert.Equal(t, "456:2", result)
+	})
+
+	t.Run("missing user ID", func(t *testing.T) {
+		mock := &mockParameterReader{
+			params: map[string]string{},
+		}
+
+		_, err := processUserRequest(mock)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "user ID is required")
+	})
+}
+
+// TestResponseWriterInterface demonstrates testing with ResponseWriter interface.
+func TestResponseWriterInterface(t *testing.T) {
+	t.Run("with real Context", func(t *testing.T) {
+		r := New()
+		r.GET("/users/:id", func(c *Context) {
+			err := sendUserResponse(c, "789")
+			require.NoError(t, err)
+		})
+
+		req := httptest.NewRequest("GET", "/users/789", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "user_id")
+		assert.Contains(t, w.Body.String(), "789")
+	})
+
+	t.Run("with mock ResponseWriter", func(t *testing.T) {
+		mock := &mockResponseWriter{
+			headers: make(map[string]string),
+		}
+
+		err := sendUserResponse(mock, "999")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, mock.statusCode)
+		assert.Equal(t, "application/json; charset=utf-8", mock.headers["Content-Type"])
+	})
+}
+
+// TestContextImplementsInterfaces verifies that Context implements all interfaces.
+func TestContextImplementsInterfaces(t *testing.T) {
+	r := New()
+	req := httptest.NewRequest("GET", "/test", nil)
+	w := httptest.NewRecorder()
+
+	// Use router to create properly initialized context
+	r.GET("/test", func(c *Context) {
+		// Test ParameterReader interface
+		var reader ParameterReader = c
+		assert.NotNil(t, reader)
+		assert.Equal(t, "", reader.Param("nonexistent"))
+		assert.Equal(t, "", reader.Query("nonexistent"))
+
+		// Test ResponseWriter interface
+		var writer ResponseWriter = c
+		assert.NotNil(t, writer)
+		assert.NoError(t, writer.String(200, "test"))
+
+		// Test ContextReader interface
+		var contextReader ContextReader = c
+		assert.NotNil(t, contextReader)
+		// Version may be empty if versioning is not configured
+		_ = contextReader.Version()
+
+		// Test ContextWriter interface
+		var contextWriter ContextWriter = c
+		assert.NotNil(t, contextWriter)
+		assert.NoError(t, contextWriter.NotFoundProblem())
+	})
+
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// Example helper functions that demonstrate interface composition.
+// These functions show how interfaces enable clear separation of concerns.
+
+// readParamsOnly demonstrates a function that only needs to read parameters.
+func readParamsOnly(reader ParameterReader) {
+	userID := reader.Param("id")
+	page := reader.Query("page")
+	_ = userID
+	_ = page
+}
+
+// writeResponseOnly demonstrates a function that only needs to write responses.
+func writeResponseOnly(writer ResponseWriter) error {
+	return writer.JSON(200, map[string]string{"status": "ok"})
+}
+
+// processRequestBoth demonstrates a function that needs both reading and writing.
+func processRequestBoth(reader ParameterReader, writer ResponseWriter) error {
+	userID := reader.Param("id")
+	return writer.JSON(200, map[string]string{"user_id": userID})
+}
+
+// TestComposition demonstrates how interfaces enable composition.
+func TestComposition(t *testing.T) {
+	// All functions can work with Context
+	req := httptest.NewRequest("GET", "/users/123", nil)
+	w := httptest.NewRecorder()
+	c := NewContext(w, req)
+
+	// Or with mocks for testing
+	mockReader := &mockParameterReader{
+		params: map[string]string{"id": "456"},
+	}
+	mockWriter := &mockResponseWriter{
+		headers: make(map[string]string),
+	}
+
+	// Test with real Context
+	readParamsOnly(c)
+	assert.NoError(t, writeResponseOnly(c))
+	assert.NoError(t, processRequestBoth(c, c))
+
+	// Test with mocks
+	readParamsOnly(mockReader)
+	assert.NoError(t, writeResponseOnly(mockWriter))
+	assert.NoError(t, processRequestBoth(mockReader, mockWriter))
+}

@@ -20,9 +20,8 @@ func (suite *ExtendedTestSuite) SetupTest() {
 }
 
 func (suite *ExtendedTestSuite) TearDownTest() {
-	if suite.router != nil {
-		// Cleanup if needed
-	}
+	// Cleanup if needed
+	_ = suite.router
 }
 
 // TestRouteIntrospection tests route introspection functionality
@@ -120,7 +119,9 @@ func (suite *ExtendedTestSuite) TestAcceptsHelpers() {
 }
 
 func (suite *ExtendedTestSuite) TestClientIP() {
-	r := New()
+	r := New(WithTrustedProxies(
+		WithProxies("10.0.0.0/8", "192.168.0.0/16"),
+	))
 
 	r.GET("/ip", func(c *Context) {
 		c.String(200, "%s", c.ClientIP())
@@ -330,9 +331,9 @@ func TestExtendedSuite(t *testing.T) {
 func TestRoutes(t *testing.T) {
 	r := New()
 
-	r.GET("/users", func(c *Context) {})
-	r.POST("/users", func(c *Context) {})
-	r.GET("/users/:id", func(c *Context) {})
+	r.GET("/users", func(_ *Context) {})
+	r.POST("/users", func(_ *Context) {})
+	r.GET("/users/:id", func(_ *Context) {})
 
 	routes := r.Routes()
 	if len(routes) != 3 {

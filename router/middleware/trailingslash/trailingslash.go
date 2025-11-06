@@ -1,3 +1,4 @@
+// Package trailingslash provides middleware for handling trailing slashes in URLs.
 package trailingslash
 
 import (

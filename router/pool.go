@@ -152,13 +152,13 @@ func (cp *ContextPool) Get(paramCount int) *Context {
 	if paramCount <= 4 {
 		atomic.AddUint64(&cp.smallHits, 1)
 		return cp.smallPool.Get().(*Context)
-	} else if paramCount <= 8 {
+	}
+	if paramCount <= 8 {
 		atomic.AddUint64(&cp.mediumHits, 1)
 		return cp.mediumPool.Get().(*Context)
-	} else {
-		atomic.AddUint64(&cp.largeHits, 1)
-		return cp.largePool.Get().(*Context)
 	}
+	atomic.AddUint64(&cp.largeHits, 1)
+	return cp.largePool.Get().(*Context)
 }
 
 // Put returns a context to the appropriate pool

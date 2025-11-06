@@ -1,3 +1,4 @@
+// Package main demonstrates dynamic log level changes at runtime.
 package main
 
 import (

@@ -75,9 +75,9 @@ func WithPartial(partial bool) ValidationOption {
 // Example:
 //
 //	Validate(&req, WithMaxErrors(10))
-func WithMaxErrors(max int) ValidationOption {
+func WithMaxErrors(maxErrors int) ValidationOption {
 	return func(c *validationConfig) {
-		c.maxErrors = max
+		c.maxErrors = maxErrors
 	}
 }
 
@@ -188,9 +188,9 @@ func WithRedactor(redactor Redactor) ValidationOption {
 // Example:
 //
 //	Validate(&req, WithMaxFields(5000), WithPartial(true))
-func WithMaxFields(max int) ValidationOption {
+func WithMaxFields(maxFields int) ValidationOption {
 	return func(c *validationConfig) {
-		c.maxFields = max
+		c.maxFields = maxFields
 	}
 }
 
@@ -201,9 +201,9 @@ func WithMaxFields(max int) ValidationOption {
 // Example:
 //
 //	Validate(&req, WithMaxCachedSchemas(2048))
-func WithMaxCachedSchemas(max int) ValidationOption {
+func WithMaxCachedSchemas(maxCachedSchemas int) ValidationOption {
 	return func(c *validationConfig) {
-		c.maxCachedSchemas = max
+		c.maxCachedSchemas = maxCachedSchemas
 	}
 }
 

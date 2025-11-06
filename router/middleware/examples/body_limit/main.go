@@ -1,3 +1,5 @@
+// Package main demonstrates how to use the bodylimit middleware
+// to restrict the maximum size of request bodies.
 package main
 
 import (

@@ -203,7 +203,7 @@ func TestAtomicOperationsSafety(t *testing.T) {
 // measurable performance benefit.
 func BenchmarkAlignmentImpact(b *testing.B) {
 	r := New()
-	r.GET("/users/:id", func(c *Context) {})
+	r.GET("/users/:id", func(_ *Context) {})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -211,5 +211,6 @@ func BenchmarkAlignmentImpact(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// This accesses atomic fields, testing if alignment impacts performance
 		_ = r.getTreeForMethodDirect("GET")
+		_ = i // avoid unused variable warning
 	}
 }

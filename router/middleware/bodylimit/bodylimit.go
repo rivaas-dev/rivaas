@@ -1,3 +1,5 @@
+// Package bodylimit provides middleware for limiting the size of HTTP request bodies,
+// preventing abuse and protecting against large payload attacks.
 package bodylimit
 
 import (

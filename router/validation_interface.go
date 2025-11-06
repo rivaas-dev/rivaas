@@ -44,7 +44,7 @@ func validateWithInterface(v any, cfg *validationConfig) error {
 		}
 
 		// Try pointer receiver with context
-		if err := callValidatorWithContext(v, cfg.ctx); err != nil {
+		if err := callValidatorWithContext(cfg.ctx, v); err != nil {
 			if err != errNotImplemented {
 				return coerceToValidationErrors(err, cfg)
 			}
@@ -157,7 +157,7 @@ func typeImplementsValidatorWithContext(t reflect.Type) bool {
 }
 
 // callValidatorWithContext calls ValidateContext() method using reflection.
-func callValidatorWithContext(v any, ctx context.Context) error {
+func callValidatorWithContext(ctx context.Context, v any) error {
 	rv := reflect.ValueOf(v)
 	rt := reflect.TypeOf(v)
 

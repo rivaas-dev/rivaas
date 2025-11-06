@@ -69,6 +69,7 @@ type UserStore struct {
 	nextID int
 }
 
+// NewUserStore creates a new UserStore instance with sample data.
 func NewUserStore() *UserStore {
 	return &UserStore{
 		users: map[int]User{
@@ -79,6 +80,7 @@ func NewUserStore() *UserStore {
 	}
 }
 
+// List returns all users in the store.
 func (s *UserStore) List() []User {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -90,6 +92,7 @@ func (s *UserStore) List() []User {
 	return users
 }
 
+// Get retrieves a user by ID.
 func (s *UserStore) Get(id int) (User, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -98,6 +101,7 @@ func (s *UserStore) Get(id int) (User, bool) {
 	return user, ok
 }
 
+// Create adds a new user to the store.
 func (s *UserStore) Create(name, email string) User {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -114,6 +118,7 @@ func (s *UserStore) Create(name, email string) User {
 	return user
 }
 
+// Update modifies an existing user in the store.
 func (s *UserStore) Update(id int, name, email string) (User, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -130,6 +135,7 @@ func (s *UserStore) Update(id int, name, email string) (User, bool) {
 	return user, true
 }
 
+// Delete removes a user from the store.
 func (s *UserStore) Delete(id int) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -148,6 +154,7 @@ type PostStore struct {
 	nextID int
 }
 
+// NewPostStore creates a new PostStore instance.
 func NewPostStore() *PostStore {
 	return &PostStore{
 		posts:  make(map[int]Post),
@@ -155,6 +162,7 @@ func NewPostStore() *PostStore {
 	}
 }
 
+// Create adds a new post to the store.
 func (s *PostStore) Create(userID int, title, content string) Post {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -171,6 +179,7 @@ func (s *PostStore) Create(userID int, title, content string) Post {
 	return post
 }
 
+// GetByUser returns all posts for a specific user.
 func (s *PostStore) GetByUser(userID int) []Post {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

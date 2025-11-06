@@ -223,35 +223,17 @@ func (c *Context) FullURL() string {
 	return scheme + "://" + host + path
 }
 
-// ClientIP returns the real client IP address.
-// It checks X-Forwarded-For, X-Real-IP headers and falls back to RemoteAddr.
-// This is proxy-aware and efficient for common cases.
+// ClientIP returns the real client IP address, respecting trusted proxy headers.
+// The implementation is in router/proxies.go and includes security features:
+//   - Only trusts headers when the immediate peer is in a trusted CIDR range
+//   - Supports X-Forwarded-For, X-Real-IP, and CF-Connecting-IP headers
+//   - Prevents IP spoofing attacks
 //
 // Example:
 //
 //	clientIP := c.ClientIP() // "203.0.113.1"
-func (c *Context) ClientIP() string {
-	// Check X-Forwarded-For header first (most common proxy header)
-	if xff := c.Request.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the first IP if multiple are present
-		if idx := strings.Index(xff, ","); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
-	}
-
-	// Check X-Real-IP header
-	if xri := c.Request.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-
-	// Fall back to RemoteAddr
-	ip, _, err := net.SplitHostPort(c.Request.RemoteAddr)
-	if err != nil {
-		return c.Request.RemoteAddr
-	}
-	return ip
-}
+//
+// See router/proxies.go for the full implementation.
 
 // ClientIPs returns all IP addresses from the X-Forwarded-For chain.
 // The first IP is typically the real client, subsequent IPs are proxies.

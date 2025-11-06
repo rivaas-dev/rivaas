@@ -212,18 +212,18 @@ func main() {
 	})
 
 	// Combining Multiple Patterns
-	complex := r.Group("/complex")
-	complex.Use(
+	complexGroup := r.Group("/complex")
+	complexGroup.Use(
 		requestIDMiddleware(),
 		timingMiddleware(),
 		authMiddleware(),
 	)
-	complex.Use(func(c *router.Context) {
+	complexGroup.Use(func(c *router.Context) {
 		c.Header("X-Complex-Route", "true")
 		c.Next()
 	})
 
-	complex.GET("/endpoint", func(c *router.Context) {
+	complexGroup.GET("/endpoint", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
 			"message": "Complex route with multiple middleware",
 		})
@@ -421,6 +421,7 @@ func timingMiddleware() router.HandlerFunc {
 
 // Custom Middleware with Configuration
 
+// LoggerConfig holds configuration for the logger middleware.
 type LoggerConfig struct {
 	Format    string
 	SkipPaths []string

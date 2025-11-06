@@ -1,3 +1,5 @@
+// Package recovery provides middleware for recovering from panics in HTTP handlers,
+// preventing server crashes and returning proper error responses.
 package recovery
 
 import "rivaas.dev/router"
@@ -82,13 +84,14 @@ func WithProblemDetails(enabled bool) Option {
 	return func(cfg *config) {
 		cfg.useProblemDetails = enabled
 		if cfg.problemTypeURI == "" {
-			cfg.problemTypeURI = router.ProblemTypeInternal
+			cfg.problemTypeURI = router.PTInternal
 		}
 	}
 }
 
 // WithProblemType sets the problem type URI for RFC 9457 responses.
-// Default: router.ProblemTypeInternal
+// Can be a slug (e.g., "internal-error") or a full URI.
+// Default: router.PTInternal (resolved via ProblemType() helper)
 //
 // Example:
 //

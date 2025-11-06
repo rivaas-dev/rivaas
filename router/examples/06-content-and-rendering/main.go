@@ -144,7 +144,7 @@ func main() {
 			"greeting": "こんにちは",
 			"note":     "All non-ASCII converted to \\uXXXX",
 		}
-		c.AsciiJSON(200, data)
+		c.ASCIIJSON(200, data)
 	})
 
 	// YAML: human-readable format for configuration and documentation APIs
@@ -235,7 +235,7 @@ func main() {
 		case "secure":
 			c.SecureJSON(200, benchData)
 		case "ascii":
-			c.AsciiJSON(200, benchData)
+			c.ASCIIJSON(200, benchData)
 		case "yaml":
 			c.YAML(200, benchData)
 		default:

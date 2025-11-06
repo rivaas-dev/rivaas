@@ -56,7 +56,7 @@ func TestMetricsWithHTTP(t *testing.T) {
 	require.NoError(t, err, "Metrics server should start")
 
 	// Create HTTP handler with metrics middleware
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -117,7 +117,7 @@ func TestMetricsMiddleware(t *testing.T) {
 	)
 
 	// Create a test handler
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
@@ -189,12 +189,12 @@ func TestMetricsIntegration(t *testing.T) {
 	mux := http.NewServeMux()
 
 	// Add routes
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"message":"Hello"}`))
 	})
 
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"healthy"}`))
 	})
@@ -222,7 +222,7 @@ func TestMetricsHandler(t *testing.T) {
 	)
 
 	// Create HTTP handler with metrics to generate some data
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -331,7 +331,7 @@ func TestShutdown(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("OTLP", func(t *testing.T) {
+	t.Run("OTLP", func(_ *testing.T) {
 		config := MustNew(
 			WithServiceName("test-service"),
 			WithProvider(OTLPProvider),

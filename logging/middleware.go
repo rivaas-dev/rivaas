@@ -161,7 +161,7 @@ func Middleware(cfg *Config, opts ...MiddlewareOption) func(http.Handler) http.H
 
 			// Get pooled ContextLogger
 			cl := contextLoggerPool.Get().(*ContextLogger)
-			cl.reset(cfg, r.Context())
+			cl.reset(r.Context(), cfg)
 			defer contextLoggerPool.Put(cl)
 
 			// Get pooled attribute slice

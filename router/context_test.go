@@ -252,7 +252,7 @@ func TestContext_Status_AlreadyWritten(t *testing.T) {
 }
 
 // TestContext_Next_WithCancellation tests Next with cancelled context
-func TestContext_Next_WithCancellation(t *testing.T) {
+func TestContext_Next_WithCancellation(_ *testing.T) {
 	r := New(WithCancellationCheck(true))
 
 	handlerCalled := false
@@ -494,7 +494,7 @@ func TestContext_Reset_ClearsAllFields(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	ctx := NewContext(w, req)
-	ctx.handlers = []HandlerFunc{func(c *Context) {}}
+	ctx.handlers = []HandlerFunc{func(_ *Context) {}}
 	ctx.router = r
 	ctx.paramCount = 2
 	ctx.paramKeys[0] = "key1"
@@ -553,7 +553,7 @@ func TestContext_InitForRequest(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
-	handlers := []HandlerFunc{func(c *Context) {}}
+	handlers := []HandlerFunc{func(_ *Context) {}}
 
 	ctx := NewContext(nil, nil)
 	ctx.initForRequest(req, w, handlers, r)
@@ -585,7 +585,7 @@ func TestContext_InitForRequestWithParams(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
-	handlers := []HandlerFunc{func(c *Context) {}}
+	handlers := []HandlerFunc{func(_ *Context) {}}
 
 	ctx := NewContext(nil, nil)
 
@@ -895,7 +895,7 @@ func TestContext_Abort_InHandler(t *testing.T) {
 }
 
 // TestContextPool_Put_AllPools tests returning to all pool sizes
-func TestContextPool_Put_AllPools(t *testing.T) {
+func TestContextPool_Put_AllPools(_ *testing.T) {
 	r := New()
 	pool := r.contextPool
 

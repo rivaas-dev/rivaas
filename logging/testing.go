@@ -182,8 +182,8 @@ func (th *TestHelper) AssertLog(t *testing.T, level, msg string, attrs map[strin
 	t.Errorf("log entry not found: level=%s msg=%s attrs=%v", level, msg, attrs)
 }
 
-// Example_testHelper demonstrates using the test helper.
-func Example_testHelper() {
+// ExampleTestHelper demonstrates using the test helper.
+func ExampleTestHelper() {
 	// This would typically be in a test function with *testing.T
 	// th := NewTestHelper(t)
 	//
@@ -280,7 +280,7 @@ type HandlerSpy struct {
 }
 
 // Enabled implements slog.Handler.
-func (hs *HandlerSpy) Enabled(_ context.Context, level slog.Level) bool {
+func (hs *HandlerSpy) Enabled(_ context.Context, _ slog.Level) bool {
 	return true
 }
 
@@ -293,12 +293,12 @@ func (hs *HandlerSpy) Handle(_ context.Context, r slog.Record) error {
 }
 
 // WithAttrs implements slog.Handler.
-func (hs *HandlerSpy) WithAttrs(attrs []slog.Attr) slog.Handler {
+func (hs *HandlerSpy) WithAttrs(_ []slog.Attr) slog.Handler {
 	return hs
 }
 
 // WithGroup implements slog.Handler.
-func (hs *HandlerSpy) WithGroup(name string) slog.Handler {
+func (hs *HandlerSpy) WithGroup(_ string) slog.Handler {
 	return hs
 }
 

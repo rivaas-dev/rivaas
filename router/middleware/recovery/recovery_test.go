@@ -14,7 +14,7 @@ func TestRecovery_BasicPanic(t *testing.T) {
 	r := router.New()
 	r.Use(New())
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("test panic")
 	})
 
@@ -73,7 +73,7 @@ func TestRecovery_CustomHandler(t *testing.T) {
 		}),
 	))
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("custom panic")
 	})
 
@@ -112,14 +112,14 @@ func TestRecovery_CustomLogger(t *testing.T) {
 	loggerCalled := false
 
 	r.Use(New(
-		WithLogger(func(c *router.Context, err any, stack []byte) {
+		WithLogger(func(_ *router.Context, err any, stack []byte) {
 			loggerCalled = true
 			loggedError = err
 			loggedStack = stack
 		}),
 	))
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("logger test panic")
 	})
 
@@ -147,12 +147,12 @@ func TestRecovery_DisableStackTrace(t *testing.T) {
 	var loggedStack []byte
 	r.Use(New(
 		WithStackTrace(false),
-		WithLogger(func(c *router.Context, err any, stack []byte) {
+		WithLogger(func(_ *router.Context, _ any, stack []byte) {
 			loggedStack = stack
 		}),
 	))
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("no stack trace")
 	})
 
@@ -172,12 +172,12 @@ func TestRecovery_CustomStackSize(t *testing.T) {
 	var loggedStack []byte
 	r.Use(New(
 		WithStackSize(1024), // 1KB
-		WithLogger(func(c *router.Context, err any, stack []byte) {
+		WithLogger(func(_ *router.Context, _ any, stack []byte) {
 			loggedStack = stack
 		}),
 	))
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("stack size test")
 	})
 
@@ -208,7 +208,7 @@ func TestRecovery_MultipleMiddleware(t *testing.T) {
 
 	r.Use(New())
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("middleware test")
 	})
 
@@ -230,7 +230,7 @@ func TestRecovery_PanicInMiddleware(t *testing.T) {
 	r := router.New()
 	r.Use(New())
 
-	r.Use(func(c *router.Context) {
+	r.Use(func(_ *router.Context) {
 		panic("panic in middleware")
 	})
 
@@ -266,12 +266,12 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 
 			var capturedPanic any
 			r.Use(New(
-				WithLogger(func(c *router.Context, err any, stack []byte) {
+				WithLogger(func(_ *router.Context, err any, _ []byte) {
 					capturedPanic = err
 				}),
 			))
 
-			r.GET("/panic", func(c *router.Context) {
+			r.GET("/panic", func(_ *router.Context) {
 				panic(tt.panicValue)
 			})
 
@@ -302,13 +302,13 @@ func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
 
 	loggerCalled := false
 	r.Use(New(
-		WithLogger(func(c *router.Context, err any, stack []byte) {
+		WithLogger(func(_ *router.Context, _ any, _ []byte) {
 			loggerCalled = true
 			// Custom logger - doesn't print to stderr
 		}),
 	))
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("custom logger test")
 	})
 
@@ -331,12 +331,12 @@ func TestRecovery_StackTraceContent(t *testing.T) {
 
 	var stackTrace []byte
 	r.Use(New(
-		WithLogger(func(c *router.Context, err interface{}, stack []byte) {
+		WithLogger(func(_ *router.Context, _ interface{}, stack []byte) {
 			stackTrace = stack
 		}),
 	))
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("stack content test")
 	})
 
@@ -362,7 +362,7 @@ func TestRecovery_RouteGroups(t *testing.T) {
 	r.Use(New())
 
 	api := r.Group("/api")
-	api.GET("/panic", func(c *router.Context) {
+	api.GET("/panic", func(_ *router.Context) {
 		panic("group panic")
 	})
 
@@ -385,16 +385,16 @@ func TestRecovery_MultipleOptions(t *testing.T) {
 	r.Use(New(
 		WithStackTrace(true),
 		WithStackSize(2048),
-		WithLogger(func(c *router.Context, err any, stack []byte) {
+		WithLogger(func(_ *router.Context, _ any, _ []byte) {
 			loggerCalled = true
 		}),
-		WithHandler(func(c *router.Context, err any) {
+		WithHandler(func(c *router.Context, _ any) {
 			handlerCalled = true
 			c.JSON(http.StatusInternalServerError, map[string]string{"error": "recovered"})
 		}),
 	))
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("multiple options test")
 	})
 
@@ -440,7 +440,7 @@ func BenchmarkRecovery_WithPanic(b *testing.B) {
 	r := router.New()
 	r.Use(New())
 
-	r.GET("/panic", func(c *router.Context) {
+	r.GET("/panic", func(_ *router.Context) {
 		panic("benchmark panic")
 	})
 

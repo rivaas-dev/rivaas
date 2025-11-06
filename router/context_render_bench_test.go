@@ -78,8 +78,8 @@ func BenchmarkSecureJSON(b *testing.B) {
 	}
 }
 
-// BenchmarkAsciiJSON tests ASCII-escaped JSON performance
-func BenchmarkAsciiJSON(b *testing.B) {
+// BenchmarkASCIIJSON tests ASCII-escaped JSON performance
+func BenchmarkASCIIJSON(b *testing.B) {
 	// Data with Unicode for meaningful benchmark
 	unicodeData := map[string]string{
 		"message": "Hello 世界 🌍",
@@ -95,7 +95,7 @@ func BenchmarkAsciiJSON(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		w.Body.Reset()
-		_ = c.AsciiJSON(200, unicodeData)
+		_ = c.ASCIIJSON(200, unicodeData)
 	}
 }
 
@@ -362,8 +362,8 @@ func BenchmarkAllRenderingMethods(b *testing.B) {
 		{"IndentedJSON", func(c *Context) error { return c.IndentedJSON(200, benchData) }},
 		{"PureJSON", func(c *Context) error { return c.PureJSON(200, benchData) }},
 		{"SecureJSON", func(c *Context) error { return c.SecureJSON(200, benchData) }},
-		{"AsciiJSON", func(c *Context) error {
-			return c.AsciiJSON(200, map[string]string{"msg": "Hello 世界"})
+		{"ASCIIJSON", func(c *Context) error {
+			return c.ASCIIJSON(200, map[string]string{"msg": "Hello 世界"})
 		}},
 		{"YAML", func(c *Context) error { return c.YAML(200, benchData) }},
 		{"Data", func(c *Context) error { return c.Data(200, "text/plain", []byte("test")) }},
@@ -521,8 +521,8 @@ func BenchmarkJSON_Variants_Parallel(b *testing.B) {
 	}
 }
 
-// BenchmarkAsciiJSON_UnicodeComplexity tests Unicode escaping at different complexities
-func BenchmarkAsciiJSON_UnicodeComplexity(b *testing.B) {
+// BenchmarkASCIIJSON_UnicodeComplexity tests Unicode escaping at different complexities
+func BenchmarkASCIIJSON_UnicodeComplexity(b *testing.B) {
 	tests := []struct {
 		name string
 		data map[string]string
@@ -556,7 +556,7 @@ func BenchmarkAsciiJSON_UnicodeComplexity(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				w.Body.Reset()
-				_ = c.AsciiJSON(200, tt.data)
+				_ = c.ASCIIJSON(200, tt.data)
 			}
 		})
 	}

@@ -59,7 +59,7 @@ func TestFastPathConstraintValidation(t *testing.T) {
 		{Param: "id", Pattern: mustCompile(`^\d+$`)},
 	}
 
-	tmpl := compileRouteTemplate("GET", "/users/:id", []HandlerFunc{func(c *Context) {}}, constraints)
+	tmpl := compileRouteTemplate("GET", "/users/:id", []HandlerFunc{func(_ *Context) {}}, constraints)
 
 	t.Logf("Template segmentCount: %d", tmpl.segmentCount)
 	t.Logf("Template paramPos: %v", tmpl.paramPos)

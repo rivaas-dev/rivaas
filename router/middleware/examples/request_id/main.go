@@ -1,3 +1,5 @@
+// Package main demonstrates how to use the requestid middleware
+// to add unique request IDs to HTTP requests.
 package main
 
 import (

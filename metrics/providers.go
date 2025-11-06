@@ -213,7 +213,7 @@ func (c *Config) startMetricsServer() {
 	mux.Handle(c.metricsPath, c.prometheusHandler)
 
 	// Add a health endpoint for the metrics server
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"healthy","service":"metrics-server"}`))

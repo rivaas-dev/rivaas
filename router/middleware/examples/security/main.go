@@ -1,3 +1,5 @@
+// Package main demonstrates how to use the security middleware
+// to add security headers to HTTP responses.
 package main
 
 import (
@@ -238,37 +240,49 @@ func allOptionsExample(r *router.Router) {
 	})
 }
 
-// CSP Builder helper (in a real app, you might want this)
+// CSPBuilder is a helper for building Content Security Policy directives.
+// In a real app, you might want this.
 type CSPBuilder struct {
 	directives map[string][]string
 }
 
+// NewCSPBuilder creates a new CSPBuilder instance.
 func NewCSPBuilder() *CSPBuilder {
 	return &CSPBuilder{
 		directives: make(map[string][]string),
 	}
 }
 
+// DefaultSrc sets the default-src directive for the Content Security Policy.
+// This directive serves as a fallback for other fetch directives.
 func (b *CSPBuilder) DefaultSrc(sources ...string) *CSPBuilder {
 	b.directives["default-src"] = sources
 	return b
 }
 
+// ScriptSrc sets the script-src directive for the Content Security Policy.
+// This directive specifies valid sources for JavaScript execution.
 func (b *CSPBuilder) ScriptSrc(sources ...string) *CSPBuilder {
 	b.directives["script-src"] = sources
 	return b
 }
 
+// StyleSrc sets the style-src directive for the Content Security Policy.
+// This directive specifies valid sources for stylesheets.
 func (b *CSPBuilder) StyleSrc(sources ...string) *CSPBuilder {
 	b.directives["style-src"] = sources
 	return b
 }
 
+// ImgSrc sets the img-src directive for the Content Security Policy.
+// This directive specifies valid sources for images.
 func (b *CSPBuilder) ImgSrc(sources ...string) *CSPBuilder {
 	b.directives["img-src"] = sources
 	return b
 }
 
+// Build constructs the final Content Security Policy header value
+// from all configured directives.
 func (b *CSPBuilder) Build() string {
 	var parts []string
 	for directive, sources := range b.directives {

@@ -1,8 +1,10 @@
 package app
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,23 +17,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNew_ValidationErrors tests that New returns appropriate errors
+// TestNew_ValidationErrors tests that New returns appropriate structured errors
 // for various invalid configuration scenarios.
 func TestNew_ValidationErrors(t *testing.T) {
 	tests := []struct {
-		name    string
-		opts    []Option
-		wantErr string
+		name        string
+		opts        []Option
+		wantErr     string
+		wantErrType interface{}             // Expected error type (ConfigError, ValidationErrors, etc.)
+		checkError  func(*testing.T, error) // Optional custom error checking
 	}{
 		{
-			name:    "empty service name",
-			opts:    []Option{WithServiceName(""), WithServiceVersion("1.0.0")},
-			wantErr: "service name cannot be empty",
+			name:        "empty service name",
+			opts:        []Option{WithServiceName(""), WithServiceVersion("1.0.0")},
+			wantErr:     "serviceName",
+			wantErrType: &ValidationErrors{},
+			checkError: func(t *testing.T, err error) {
+				var ve *ValidationErrors
+				if errors.As(err, &ve) {
+					assert.True(t, ve.HasErrors())
+					assert.Greater(t, len(ve.Errors), 0)
+					// Check that one of the errors is about serviceName
+					found := false
+					for _, e := range ve.Errors {
+						if e.Field == "serviceName" {
+							found = true
+							assert.Equal(t, "cannot be empty", e.Message)
+						}
+					}
+					assert.True(t, found, "should have serviceName error")
+				}
+			},
 		},
 		{
-			name:    "empty service version",
-			opts:    []Option{WithServiceName("test"), WithServiceVersion("")},
-			wantErr: "service version cannot be empty",
+			name:        "empty service version",
+			opts:        []Option{WithServiceName("test"), WithServiceVersion("")},
+			wantErr:     "serviceVersion",
+			wantErrType: &ValidationErrors{},
 		},
 		{
 			name: "invalid environment",
@@ -40,7 +62,22 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 				WithEnvironment("staging"),
 			},
-			wantErr: "environment must be",
+			wantErr:     "environment",
+			wantErrType: &ValidationErrors{},
+			checkError: func(t *testing.T, err error) {
+				var ve *ValidationErrors
+				if errors.As(err, &ve) {
+					found := false
+					for _, e := range ve.Errors {
+						if e.Field == "environment" {
+							found = true
+							assert.Equal(t, "staging", e.Value)
+							assert.Contains(t, e.Message, "must be one of")
+						}
+					}
+					assert.True(t, found, "should have environment error")
+				}
+			},
 		},
 		{
 			name: "negative read timeout",
@@ -49,7 +86,8 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 				WithServerConfig(WithReadTimeout(-1 * time.Second)),
 			},
-			wantErr: "read timeout must be positive",
+			wantErr:     "server.readTimeout",
+			wantErrType: &ValidationErrors{},
 		},
 		{
 			name: "zero write timeout",
@@ -58,7 +96,8 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 				WithServerConfig(WithWriteTimeout(0)),
 			},
-			wantErr: "write timeout must be positive",
+			wantErr:     "server.writeTimeout",
+			wantErrType: &ValidationErrors{},
 		},
 		{
 			name: "negative idle timeout",
@@ -67,7 +106,8 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 				WithServerConfig(WithIdleTimeout(-5 * time.Second)),
 			},
-			wantErr: "idle timeout must be positive",
+			wantErr:     "server.idleTimeout",
+			wantErrType: &ValidationErrors{},
 		},
 		{
 			name: "zero read header timeout",
@@ -76,7 +116,8 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 				WithServerConfig(WithReadHeaderTimeout(0)),
 			},
-			wantErr: "read header timeout must be positive",
+			wantErr:     "server.readHeaderTimeout",
+			wantErrType: &ValidationErrors{},
 		},
 		{
 			name: "zero max header bytes",
@@ -85,7 +126,8 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 				WithServerConfig(WithMaxHeaderBytes(0)),
 			},
-			wantErr: "max header bytes must be positive",
+			wantErr:     "server.maxHeaderBytes",
+			wantErrType: &ValidationErrors{},
 		},
 		{
 			name: "negative shutdown timeout",
@@ -94,7 +136,73 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 				WithServerConfig(WithShutdownTimeout(-10 * time.Second)),
 			},
-			wantErr: "shutdown timeout must be positive",
+			wantErr:     "server.shutdownTimeout",
+			wantErrType: &ValidationErrors{},
+		},
+		{
+			name: "read timeout exceeds write timeout",
+			opts: []Option{
+				WithServiceName("test"),
+				WithServiceVersion("1.0.0"),
+				WithServerConfig(
+					WithReadTimeout(20*time.Second),
+					WithWriteTimeout(10*time.Second),
+				),
+			},
+			wantErr:     "read timeout should not exceed write timeout",
+			wantErrType: &ValidationErrors{},
+			checkError: func(t *testing.T, err error) {
+				var ve *ValidationErrors
+				if errors.As(err, &ve) {
+					found := false
+					for _, e := range ve.Errors {
+						if e.Field == "server.readTimeout" && strings.Contains(e.Message, "read timeout should not exceed") {
+							found = true
+						}
+					}
+					assert.True(t, found, "should have read timeout comparison error")
+				}
+			},
+		},
+		{
+			name: "shutdown timeout too short",
+			opts: []Option{
+				WithServiceName("test"),
+				WithServiceVersion("1.0.0"),
+				WithServerConfig(WithShutdownTimeout(100 * time.Millisecond)),
+			},
+			wantErr:     "must be at least 1 second",
+			wantErrType: &ValidationErrors{},
+		},
+		{
+			name: "max header bytes too small",
+			opts: []Option{
+				WithServiceName("test"),
+				WithServiceVersion("1.0.0"),
+				WithServerConfig(WithMaxHeaderBytes(512)),
+			},
+			wantErr:     "must be at least 1KB",
+			wantErrType: &ValidationErrors{},
+		},
+		{
+			name: "multiple validation errors",
+			opts: []Option{
+				WithServiceName(""),
+				WithServiceVersion(""),
+				WithEnvironment("invalid"),
+				WithServerConfig(WithReadTimeout(-1 * time.Second)),
+			},
+			wantErr:     "validation errors",
+			wantErrType: &ValidationErrors{},
+			checkError: func(t *testing.T, err error) {
+				var ve *ValidationErrors
+				if errors.As(err, &ve) {
+					// Should have multiple errors
+					assert.Greater(t, len(ve.Errors), 1, "should have multiple validation errors")
+					// Check error message format
+					assert.Contains(t, err.Error(), "validation errors")
+				}
+			},
 		},
 		{
 			name: "empty server config is valid",
@@ -114,6 +222,20 @@ func TestNew_ValidationErrors(t *testing.T) {
 				assert.Error(t, err)
 				assert.Nil(t, app)
 				assert.Contains(t, err.Error(), tt.wantErr)
+
+				// Check error type if specified
+				if tt.wantErrType != nil {
+					// Use errors.As for type checking
+					var target *ValidationErrors
+					if errors.As(err, &target) {
+						assert.NotNil(t, target)
+					}
+				}
+
+				// Run custom error checking if provided
+				if tt.checkError != nil {
+					tt.checkError(t, err)
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, app)

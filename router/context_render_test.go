@@ -301,8 +301,8 @@ func TestSecureJSON(t *testing.T) {
 	}
 }
 
-// TestAsciiJSON tests ASCII-only JSON encoding
-func TestAsciiJSON(t *testing.T) {
+// TestASCIIJSON tests ASCII-only JSON encoding
+func TestASCIIJSON(t *testing.T) {
 	tests := []struct {
 		name           string
 		data           any
@@ -389,7 +389,7 @@ func TestAsciiJSON(t *testing.T) {
 			req := httptest.NewRequest("GET", "/", nil)
 			c := NewContext(w, req)
 
-			err := c.AsciiJSON(tt.expectedStatus, tt.data)
+			err := c.ASCIIJSON(tt.expectedStatus, tt.data)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
@@ -608,7 +608,7 @@ type errorReader struct {
 	err error
 }
 
-func (er *errorReader) Read(p []byte) (n int, err error) {
+func (er *errorReader) Read(_ []byte) (n int, err error) {
 	return 0, er.err
 }
 
@@ -722,9 +722,9 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 			expectedCT: "application/json; charset=utf-8",
 		},
 		{
-			name: "AsciiJSON",
+			name: "ASCIIJSON",
 			renderFunc: func(c *Context) error {
-				return c.AsciiJSON(200, data)
+				return c.ASCIIJSON(200, data)
 			},
 			expectedCT: "application/json; charset=utf-8",
 		},
@@ -783,9 +783,9 @@ func TestJSON_Variants_ErrorHandling(t *testing.T) {
 			},
 		},
 		{
-			name: "AsciiJSON encoding error",
+			name: "ASCIIJSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.AsciiJSON(200, bad)
+				return c.ASCIIJSON(200, bad)
 			},
 		},
 	}

@@ -1,3 +1,4 @@
+// Package main demonstrates basic logger initialization and log levels.
 package main
 
 import (

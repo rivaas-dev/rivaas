@@ -121,7 +121,9 @@ logging.WithOutput(&buf)
 ### Service Information
 
 ```go
-logging.WithServiceInfo("my-api", "v1.0.0", "production")
+logging.WithServiceName("my-api"),
+logging.WithServiceVersion("v1.0.0"),
+logging.WithEnvironment("production")
 ```
 
 ### Source Code Location
@@ -160,6 +162,7 @@ log.Info("user login",
 ```
 
 Automatically redacted fields:
+
 - `password`
 - `token`
 - `secret`
@@ -266,7 +269,7 @@ The middleware automatically adjusts log levels based on HTTP status codes:
 - **4xx**: WARN level
 - **5xx**: ERROR level
 
-```
+```text
 INFO  request started method=GET path=/api/users remote=127.0.0.1:52134
 INFO  request completed status=200 size=1024 duration=15ms
 
@@ -312,7 +315,9 @@ func main() {
 // Create logger once
 logger := logging.MustNew(
     logging.WithJSONHandler(),
-    logging.WithServiceInfo("my-api", "v1.0.0", "production"),
+    logging.WithServiceName("my-api"),
+    logging.WithServiceVersion("v1.0.0"),
+    logging.WithEnvironment("production"),
 )
 
 // Use in router
@@ -636,6 +641,7 @@ log.Info("User logged in",
 ```
 
 **Key Differences**:
+
 - Use `logging.WithJSONHandler()` instead of `&logrus.JSONFormatter{}`
 - Fields are inline, not in `WithFields()` map
 - `logging.LevelInfo` instead of `logrus.InfoLevel`
@@ -672,6 +678,7 @@ logger.Info("User logged in",
 ```
 
 **Key Differences**:
+
 - No need for `zap.String()` wrappers - pass values directly
 - `Shutdown()` instead of `Sync()`
 - Simpler API, similar performance
@@ -700,7 +707,9 @@ import "rivaas.dev/logging"
 
 logger := logging.MustNew(
     logging.WithJSONHandler(),
-    logging.WithServiceInfo("myapp", "1.0.0", "production"),
+    logging.WithServiceName("myapp"),
+    logging.WithServiceVersion("1.0.0"),
+    logging.WithEnvironment("production"),
 )
 
 logger.Info("User logged in",
@@ -710,8 +719,9 @@ logger.Info("User logged in",
 ```
 
 **Key Differences**:
+
 - Simpler syntax - no chaining
-- `WithServiceInfo()` for service metadata
+- `WithServiceName()`, `WithServiceVersion()`, and `WithEnvironment()` for service metadata
 - Fields passed directly, not via chainable methods
 - Better integration with OpenTelemetry
 
@@ -742,6 +752,7 @@ logger.Info("User logged in",
 ```
 
 **Key Benefits**:
+
 - Structured logging (machine parseable)
 - Log levels (Debug, Info, Warn, Error)
 - Automatic sensitive data redaction
@@ -773,6 +784,7 @@ When migrating from another logger:
 | stdlib log | ~1,000 | Low | ✅ Yes | Unstructured |
 
 **Trade-off**: Rivaas logging is slightly slower than zap/zerolog but offers:
+
 - Standard library compatibility (using slog)
 - Zero external dependencies (except OpenTelemetry)
 - Simpler, cleaner API
@@ -916,7 +928,7 @@ go test -bench=. -benchmem ./logging
 - `LogError(err error, msg string, extra ...any)` - Log error with context
 - `LogDuration(msg string, start time.Time, extra ...any)` - Log operation duration
 
-### Configuration Options
+### Configuration Functions
 
 - `WithJSONHandler()` - Use JSON output
 - `WithTextHandler()` - Use text output
@@ -924,7 +936,9 @@ go test -bench=. -benchmem ./logging
 - `WithLevel(level Level)` - Set minimum log level
 - `WithDebugLevel()` - Enable debug logging
 - `WithOutput(w io.Writer)` - Set output destination
-- `WithServiceInfo(name, version, env string)` - Set service metadata
+- `WithServiceName(name string)` - Set service name
+- `WithServiceVersion(version string)` - Set service version
+- `WithEnvironment(env string)` - Set environment
 - `WithSource(enabled bool)` - Add source location to logs
 - `WithReplaceAttr(fn)` - Custom attribute replacer
 - `WithCustomLogger(logger *slog.Logger)` - Use custom logger
@@ -961,4 +975,3 @@ Contributions are welcome! Please see the main repository for contribution guide
 - [metrics](../metrics/) - OpenTelemetry metrics
 - [tracing](../tracing/) - Distributed tracing
 - [app](../app/) - Batteries-included framework
-

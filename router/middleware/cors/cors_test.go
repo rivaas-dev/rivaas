@@ -149,7 +149,7 @@ func TestCORS_Preflight(t *testing.T) {
 		c.JSON(200, map[string]string{"message": "ok"})
 	})
 	// Register OPTIONS handler for preflight
-	r.OPTIONS("/test", func(c *router.Context) {
+	r.OPTIONS("/test", func(_ *router.Context) {
 		// CORS middleware will handle the response
 	})
 
@@ -189,7 +189,7 @@ func TestCORS_PreflightDisallowedOrigin(t *testing.T) {
 		c.JSON(200, map[string]string{"message": "ok"})
 	})
 	// Register OPTIONS handler for preflight
-	r.OPTIONS("/test", func(c *router.Context) {
+	r.OPTIONS("/test", func(_ *router.Context) {
 		// CORS middleware will handle the response
 	})
 

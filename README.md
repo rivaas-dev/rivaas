@@ -245,7 +245,9 @@ app := app.New(
 logging.WithLogging(
     logging.WithJSONHandler(), // or WithConsoleHandler(), WithTextHandler()
     logging.WithDebugLevel(),
-    logging.WithServiceInfo("my-api", "v1.0.0", "production"),
+    logging.WithServiceName("my-api"),
+    logging.WithServiceVersion("v1.0.0"),
+    logging.WithEnvironment("production"),
 )
 
 // Metrics configuration

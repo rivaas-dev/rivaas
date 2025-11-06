@@ -1,3 +1,4 @@
+// Package timeout provides middleware for setting request timeouts.
 package timeout
 
 import "rivaas.dev/router"

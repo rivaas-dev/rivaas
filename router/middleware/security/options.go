@@ -1,3 +1,5 @@
+// Package security provides middleware for setting security-related HTTP headers
+// such as Content-Security-Policy, X-Frame-Options, and other security headers.
 package security
 
 // WithFrameOptions sets the X-Frame-Options header.

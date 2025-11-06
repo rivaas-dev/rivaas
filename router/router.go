@@ -187,6 +187,12 @@ type Router struct {
 	// HTTP/2 Cleartext (H2C) support
 	enableH2C      bool            // Enable HTTP/2 cleartext support (dev/behind LB only)
 	serverTimeouts *serverTimeouts // HTTP server timeout configuration
+
+	// Trusted proxies configuration for real client IP detection
+	realip *realIPConfig // Compiled trusted proxy configuration
+
+	// Problem Details base URL for RFC 9457 type URIs
+	problemBase string // Base URL for problem type resolution (e.g., "https://docs.rivaas.dev/problems")
 }
 
 // serverTimeouts holds HTTP server timeout configuration.
@@ -312,6 +318,52 @@ func (r *Router) NoRoute(handler HandlerFunc) {
 	r.noRouteMutex.Lock()
 	defer r.noRouteMutex.Unlock()
 	r.noRouteHandler = handler
+}
+
+// RouteExists checks if a route exists for the given method and path.
+// Returns true if the route is registered, false otherwise.
+// This is useful for collision detection when registering routes.
+//
+// Example:
+//
+//	if r.RouteExists("GET", "/healthz") {
+//	    return fmt.Errorf("route already registered: GET /healthz")
+//	}
+func (r *Router) RouteExists(method, path string) bool {
+	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
+	if treesPtr == nil {
+		return false
+	}
+	trees := (*map[string]*node)(treesPtr)
+	if trees == nil {
+		return false
+	}
+
+	tree, exists := (*trees)[method]
+	if !exists || tree == nil {
+		return false
+	}
+
+	// Create a temporary context for path matching
+	c := getContextFromGlobalPool()
+	defer func() {
+		c.reset()
+		globalContextPool.Put(c)
+	}()
+
+	// Check radix tree
+	if handlers := tree.getRoute(path, c); handlers != nil {
+		return true
+	}
+
+	// Also check compiled routes if they exist
+	if tree.compiled != nil {
+		if handlers := tree.compiled.getRoute(path); handlers != nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 // getAllowedMethodsForPath checks all method trees to find which methods have routes for the given path.
@@ -709,6 +761,37 @@ func WithCancellationCheck(enabled bool) Option {
 func WithTemplateRouting(enabled bool) Option {
 	return func(r *Router) {
 		r.useTemplates = enabled
+	}
+}
+
+// WithProblemBaseURL returns a RouterOption that sets the base URL for RFC 9457 problem type URIs.
+// Problem type slugs (e.g., "validation-error") will be resolved to full URIs by appending
+// to this base URL (e.g., "https://docs.rivaas.dev/problems/validation-error").
+//
+// If the base URL is not set or a slug is already an absolute URI (starts with "http"),
+// the slug is used as-is.
+//
+// Example:
+//
+//	r := router.New(
+//	    router.WithProblemBaseURL("https://docs.rivaas.dev/problems"),
+//	)
+//
+//	// In handler:
+//	return c.Problem(
+//	    http.StatusBadRequest,
+//	    c.ProblemType("validation-error"), // Resolves to "https://docs.rivaas.dev/problems/validation-error"
+//	    "Validation failed",
+//	    "Invalid input",
+//	    nil,
+//	)
+func WithProblemBaseURL(url string) Option {
+	return func(r *Router) {
+		// Validate URL format
+		if url != "" && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			panic(fmt.Sprintf("problem base URL must be absolute (http/https): %q", url))
+		}
+		r.problemBase = strings.TrimSuffix(url, "/")
 	}
 }
 

@@ -59,15 +59,15 @@ func BenchmarkRivaasRouter(b *testing.B) {
 // BenchmarkStandardMux benchmarks Go's standard library mux
 func BenchmarkStandardMux(b *testing.B) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Hello"))
 	})
-	mux.HandleFunc("/users/123", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/users/123", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("User: 123"))
 	})
-	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("User: 123, Post: 456"))
 	})
@@ -87,15 +87,15 @@ func BenchmarkStandardMux(b *testing.B) {
 // BenchmarkSimpleRouter benchmarks a simple map-based router
 func BenchmarkSimpleRouter(b *testing.B) {
 	routes := map[string]http.HandlerFunc{
-		"/": func(w http.ResponseWriter, r *http.Request) {
+		"/": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("Hello"))
 		},
-		"/users/123": func(w http.ResponseWriter, r *http.Request) {
+		"/users/123": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("User: 123"))
 		},
-		"/users/123/posts/456": func(w http.ResponseWriter, r *http.Request) {
+		"/users/123/posts/456": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("User: 123, Post: 456"))
 		},
@@ -219,15 +219,15 @@ func BenchmarkFasthttpRouter(b *testing.B) {
 func BenchmarkFasthttpRouterViaAdaptor(b *testing.B) {
 	// Create a simple net/http handler
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Hello"))
 	})
-	mux.HandleFunc("/users/123", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/users/123", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("User: 123"))
 	})
-	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("User: 123, Post: 456"))
 	})
@@ -250,7 +250,7 @@ func BenchmarkFasthttpRouterViaAdaptor(b *testing.B) {
 // BenchmarkChiRouter benchmarks Chi router
 func BenchmarkChiRouter(b *testing.B) {
 	r := chi.NewRouter()
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Hello"))
 	})

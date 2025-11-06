@@ -1,3 +1,4 @@
+// Package main demonstrates error logging with stack traces.
 package main
 
 import (

@@ -87,7 +87,7 @@ func BenchmarkMiddleware_Basic(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
@@ -106,7 +106,7 @@ func BenchmarkMiddleware_WithHeaders(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger, WithLogHeaders(true))
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -127,7 +127,7 @@ func BenchmarkMiddleware_SkipPath(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger, WithSkipPaths("/health"))
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -148,7 +148,7 @@ func BenchmarkContextLogger(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cl := NewContextLogger(logger, ctx)
+		cl := NewContextLogger(ctx, logger)
 		cl.Info("message", "key", "value")
 	}
 }
@@ -161,7 +161,7 @@ func BenchmarkContextLogger_Pooled(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			cl := contextLoggerPool.Get().(*ContextLogger)
-			cl.reset(logger, ctx)
+			cl.reset(ctx, logger)
 			cl.Info("message", "key", "value")
 			contextLoggerPool.Put(cl)
 		}
@@ -308,7 +308,7 @@ func BenchmarkPool_ContextLogger(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		cl := contextLoggerPool.Get().(*ContextLogger)
-		cl.reset(logger, ctx)
+		cl.reset(ctx, logger)
 		contextLoggerPool.Put(cl)
 	}
 }
@@ -555,7 +555,7 @@ func BenchmarkLoggerAccess_HighContention(b *testing.B) {
 func BenchmarkMiddleware_Concurrent(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger)
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Simulate minimal work
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
@@ -576,7 +576,7 @@ func BenchmarkMiddleware_Concurrent(b *testing.B) {
 func BenchmarkMiddleware_ConcurrentWithHeaders(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	mw := Middleware(logger, WithLogHeaders(true))
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	wrapped := mw(handler)
@@ -605,7 +605,7 @@ func BenchmarkPool_Effectiveness(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
 				// Simulate creating new objects each time
-				cl := NewContextLogger(logger, ctx)
+				cl := NewContextLogger(ctx, logger)
 				cl.Info("message", "key", "value")
 			}
 		})
@@ -615,7 +615,7 @@ func BenchmarkPool_Effectiveness(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
 				cl := contextLoggerPool.Get().(*ContextLogger)
-				cl.reset(logger, ctx)
+				cl.reset(ctx, logger)
 				cl.Info("message", "key", "value")
 				contextLoggerPool.Put(cl)
 			}

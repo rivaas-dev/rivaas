@@ -1,3 +1,4 @@
+// Package main demonstrates a quick start example of the Rivaas router.
 package main
 
 import (

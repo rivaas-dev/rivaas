@@ -1,3 +1,4 @@
+// Package main demonstrates the test helper for testing logging functionality.
 package main
 
 import (

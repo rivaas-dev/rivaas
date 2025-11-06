@@ -101,7 +101,7 @@ func TestGetHandlerName_NilHandlerThroughRoute(t *testing.T) {
 	r := New()
 
 	// Register route with nil handler explicitly
-	var nilHandler HandlerFunc = nil
+	var nilHandler HandlerFunc
 	r.addRouteWithConstraints("GET", "/nil-test", []HandlerFunc{nilHandler})
 
 	routes := r.Routes()

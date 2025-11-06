@@ -244,9 +244,8 @@ func TestAccepts_CacheHit(t *testing.T) {
 		if c.cachedAcceptSpecs == nil {
 			t.Error("cachedAcceptSpecs should be populated after parsing new header")
 		}
-		if c.cachedAcceptSpecs != nil && len(c.cachedAcceptSpecs) != originalCachedSpecsLen {
-			// Length may be different, which confirms it's a new parse
-		}
+		// Length may be different, which confirms it's a new parse
+		_ = originalCachedSpecsLen
 	})
 
 	t.Run("multiple_cache_hits_same_request", func(t *testing.T) {

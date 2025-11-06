@@ -126,7 +126,7 @@ func TestRegisterTag_Freeze(t *testing.T) {
 	validationsFrozen.Store(false)
 
 	// First registration should work
-	err := RegisterTag("test_tag", func(fl validator.FieldLevel) bool {
+	err := RegisterTag("test_tag", func(_ validator.FieldLevel) bool {
 		return true
 	})
 	if err != nil {
@@ -140,7 +140,7 @@ func TestRegisterTag_Freeze(t *testing.T) {
 	_ = Validate(&TestStruct{Field: "test"}, WithStrategy(ValidationTags))
 
 	// Second registration should fail
-	err = RegisterTag("test_tag2", func(fl validator.FieldLevel) bool {
+	err = RegisterTag("test_tag2", func(_ validator.FieldLevel) bool {
 		return true
 	})
 	if err == nil {

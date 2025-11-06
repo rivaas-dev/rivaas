@@ -3894,7 +3894,7 @@ func TestSetFieldValue_UnsupportedType(t *testing.T) {
 		}
 	})
 
-	t.Run("unsupported type - Interface", func(t *testing.T) {
+	t.Run("unsupported type - Interface", func(_ *testing.T) {
 		type Params struct {
 			Value interface{} `query:"value"`
 		}
@@ -3907,10 +3907,9 @@ func TestSetFieldValue_UnsupportedType(t *testing.T) {
 		err := c.BindQuery(&params)
 		// Note: interface{} might be handled differently, but if it reaches the switch,
 		// it should trigger the unsupported type error
-		if err != nil && !strings.Contains(err.Error(), "unsupported type") {
-			// If there's an error but it's not about unsupported type, that's also valid
-			// as interface{} might be handled before reaching the switch
-		}
+		// If there's an error but it's not about unsupported type, that's also valid
+		// as interface{} might be handled before reaching the switch
+		_ = err
 	})
 
 	t.Run("unsupported type - UnsafePointer", func(t *testing.T) {
@@ -3984,7 +3983,7 @@ func TestSetFieldValue_UnsupportedType(t *testing.T) {
 		}
 	})
 
-	t.Run("unsupported type - Map (non-string key)", func(t *testing.T) {
+	t.Run("unsupported type - Map (non-string key)", func(_ *testing.T) {
 		// Map with non-string key would fail early, but tests error handling
 		type Params struct {
 			Data map[int]string `query:"data"`
@@ -3997,10 +3996,9 @@ func TestSetFieldValue_UnsupportedType(t *testing.T) {
 		var params Params
 		err := c.BindQuery(&params)
 		// Maps are handled specially, but this tests error paths
-		if err != nil {
-			// Error might mention map or unsupported type
-			// Both are valid error messages depending on where validation happens
-		}
+		// Error might mention map or unsupported type
+		// Both are valid error messages depending on where validation happens
+		_ = err
 	})
 
 	t.Run("verify default case error format matches", func(t *testing.T) {
@@ -4344,19 +4342,19 @@ func TestWarmupBindingCache_EdgeCases(t *testing.T) {
 		Name string `query:"name"`
 	}
 
-	t.Run("pointer to struct", func(t *testing.T) {
+	t.Run("pointer to struct", func(_ *testing.T) {
 		// Test pointer type handling
 		WarmupBindingCache(&TestStruct{})
 		// Should not panic and should warm up cache
 	})
 
-	t.Run("non-struct types", func(t *testing.T) {
+	t.Run("non-struct types", func(_ *testing.T) {
 		// Test non-struct types should be skipped
 		WarmupBindingCache("string", 42, []int{1, 2, 3}, map[string]int{"a": 1})
 		// Should not panic, non-structs should be skipped
 	})
 
-	t.Run("mix of structs and non-structs", func(t *testing.T) {
+	t.Run("mix of structs and non-structs", func(_ *testing.T) {
 		type User struct {
 			ID int `json:"id"`
 		}
@@ -4369,7 +4367,7 @@ func TestWarmupBindingCache_EdgeCases(t *testing.T) {
 		// Should handle structs and skip non-structs
 	})
 
-	t.Run("pointer to non-struct", func(t *testing.T) {
+	t.Run("pointer to non-struct", func(_ *testing.T) {
 		// Test pointer to non-struct (should unwrap pointer, then skip)
 		str := "test"
 		WarmupBindingCache(&str)
@@ -4872,10 +4870,9 @@ func TestPrefixGetter_Has_RemainingPaths(t *testing.T) {
 			prefix: "prefix.",
 		}
 
-		// Should use direct Has check only ()
-		if pg.Has("key") {
-			// This should work through the direct Has check
-		}
+		// Should use direct Has check only
+		// This should work through the direct Has check
+		_ = pg.Has("key")
 		if pg.Has("nonexistent") {
 			t.Error("Expected Has(\"nonexistent\") to return false")
 		}
@@ -5029,7 +5026,7 @@ func TestSetField_PointerEmptyValue(t *testing.T) {
 
 // TestConvertValue_EdgeCases tests convertValue remaining paths
 func TestConvertValue_EdgeCases(t *testing.T) {
-	t.Run("int8 overflow", func(t *testing.T) {
+	t.Run("int8 overflow", func(_ *testing.T) {
 		type Params struct {
 			Value int8 `query:"value"`
 		}
@@ -5436,7 +5433,7 @@ func TestSetMapField_ComplexKeys(t *testing.T) {
 }
 
 // TestSplitMediaType_EdgeCases tests splitMediaType with various inputs
-func TestSplitMediaType_EdgeCases(t *testing.T) {
+func TestSplitMediaType_EdgeCases(_ *testing.T) {
 	r := New()
 
 	tests := []struct {

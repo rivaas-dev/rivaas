@@ -85,7 +85,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 }
 
 // TestIntegration_MemoryLeakDetection tests for context pool memory leaks
-func TestIntegration_MemoryLeakDetection(t *testing.T) {
+func TestIntegration_MemoryLeakDetection(_ *testing.T) {
 	r := New()
 
 	r.GET("/test", func(c *Context) {
@@ -484,7 +484,7 @@ func TestIntegration_ContextReuse(t *testing.T) {
 func TestIntegration_PanicRecoveryInHandler(t *testing.T) {
 	r := New()
 
-	r.GET("/panic", func(c *Context) {
+	r.GET("/panic", func(_ *Context) {
 		panic("test panic")
 	})
 
@@ -529,7 +529,7 @@ func TestIntegration_HighLoadStressTest(t *testing.T) {
 
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
-		go func(routineID int) {
+		go func(_ int) {
 			defer wg.Done()
 
 			for j := 0; j < requestsPerRoutine; j++ {

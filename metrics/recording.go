@@ -38,25 +38,25 @@ var reservedPrefixes = []string{
 	"router_", // Reserved by this package for router-specific metrics
 }
 
-// MetricsLimitError is returned when the custom metrics limit is reached.
-type MetricsLimitError struct {
+// LimitError is returned when the custom metrics limit is reached.
+type LimitError struct {
 	MetricName string
 	Limit      int
 	Current    int64
 }
 
-func (e *MetricsLimitError) Error() string {
+func (e *LimitError) Error() string {
 	return fmt.Sprintf("metrics limit reached: cannot create '%s' (current: %d, limit: %d)",
 		e.MetricName, e.Current, e.Limit)
 }
 
-// MetricsUpdateError is returned when atomic map update fails after max retries.
-type MetricsUpdateError struct {
+// UpdateError is returned when atomic map update fails after max retries.
+type UpdateError struct {
 	Operation string
 	Retries   int
 }
 
-func (e *MetricsUpdateError) Error() string {
+func (e *UpdateError) Error() string {
 	return fmt.Sprintf("failed to update metrics map after %d retries: %s", e.Retries, e.Operation)
 }
 
@@ -559,7 +559,7 @@ func (c *Config) updateAtomicCustomCounters(updater func(map[string]metric.Int64
 		}
 	}
 	c.logWarn("Failed to update custom counters after max retries", "maxRetries", maxCASRetries)
-	return &MetricsUpdateError{Operation: "updateCustomCounters", Retries: maxCASRetries}
+	return &UpdateError{Operation: "updateCustomCounters", Retries: maxCASRetries}
 }
 
 // updateAtomicCustomHistograms atomically updates the custom histograms map using Compare-And-Swap.
@@ -596,7 +596,7 @@ func (c *Config) updateAtomicCustomHistograms(updater func(map[string]metric.Flo
 		}
 	}
 	c.logWarn("Failed to update custom histograms after max retries", "maxRetries", maxCASRetries)
-	return &MetricsUpdateError{Operation: "updateCustomHistograms", Retries: maxCASRetries}
+	return &UpdateError{Operation: "updateCustomHistograms", Retries: maxCASRetries}
 }
 
 // updateAtomicCustomGauges atomically updates the custom gauges map using Compare-And-Swap.
@@ -633,7 +633,7 @@ func (c *Config) updateAtomicCustomGauges(updater func(map[string]metric.Float64
 		}
 	}
 	c.logWarn("Failed to update custom gauges after max retries", "maxRetries", maxCASRetries)
-	return &MetricsUpdateError{Operation: "updateCustomGauges", Retries: maxCASRetries}
+	return &UpdateError{Operation: "updateCustomGauges", Retries: maxCASRetries}
 }
 
 // getOrCreateCounter gets or creates a custom counter metric.
@@ -665,7 +665,7 @@ func (c *Config) getOrCreateCounter(ctx context.Context, name string) (metric.In
 
 		// Check limit
 		if currentCount >= int64(c.maxCustomMetrics) {
-			return nil, &MetricsLimitError{
+			return nil, &LimitError{
 				MetricName: name,
 				Limit:      c.maxCustomMetrics,
 				Current:    currentCount,
@@ -763,7 +763,7 @@ func (c *Config) getOrCreateHistogram(ctx context.Context, name string) (metric.
 
 		// Check limit
 		if currentCount >= int64(c.maxCustomMetrics) {
-			return nil, &MetricsLimitError{
+			return nil, &LimitError{
 				MetricName: name,
 				Limit:      c.maxCustomMetrics,
 				Current:    currentCount,
@@ -861,7 +861,7 @@ func (c *Config) getOrCreateGauge(ctx context.Context, name string) (metric.Floa
 
 		// Check limit
 		if currentCount >= int64(c.maxCustomMetrics) {
-			return nil, &MetricsLimitError{
+			return nil, &LimitError{
 				MetricName: name,
 				Limit:      c.maxCustomMetrics,
 				Current:    currentCount,

@@ -552,7 +552,7 @@ func TestMetricsWithDisabledState(t *testing.T) {
 	assert.False(t, config.IsEnabled())
 
 	// GetProvider should return empty string
-	assert.Equal(t, MetricsProvider(""), config.GetProvider())
+	assert.Equal(t, Provider(""), config.GetProvider())
 
 	// GetServerAddress should return empty string
 	assert.Equal(t, "", config.GetServerAddress())

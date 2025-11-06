@@ -262,6 +262,49 @@ app.WithServerConfig(
 - `MaxHeaderBytes`: 1MB
 - `ShutdownTimeout`: 30s
 
+**Configuration Validation:**
+
+Server configuration is automatically validated when creating the app. The validation catches common misconfigurations:
+
+- ✅ **All timeouts must be positive** - Prevents invalid timeout values
+- ✅ **ReadTimeout should not exceed WriteTimeout** - Common misconfiguration that can cause issues where the server times out reading the request body before it can write the response
+- ✅ **ShutdownTimeout must be at least 1 second** - Ensures proper graceful shutdown (needs time to stop accepting connections, wait for in-flight requests, close idle connections, and clean up resources)
+- ✅ **MaxHeaderBytes must be at least 1KB** - Prevents legitimate requests from failing due to standard HTTP headers (User-Agent, Accept, Cookie, etc.) exceeding the limit
+
+**Example - Invalid Configuration:**
+
+```go
+app, err := app.New(
+    app.WithServiceName("my-api"),
+    app.WithServerConfig(
+        app.WithReadTimeout(15 * time.Second),
+        app.WithWriteTimeout(10 * time.Second), // ❌ Invalid: read > write
+        app.WithShutdownTimeout(100 * time.Millisecond), // ❌ Invalid: too short
+        app.WithMaxHeaderBytes(512), // ❌ Invalid: too small
+    ),
+)
+// err will contain validation errors:
+// validation errors (3):
+//   1. configuration error in server.readTimeout: read timeout should not exceed write timeout (compared with server.writeTimeout: 10s) (constraint: server.readTimeout vs server.writeTimeout, value: 15s)
+//   2. configuration error in server.shutdownTimeout: must be at least 1 second for proper graceful shutdown (value: 100ms)
+//   3. configuration error in server.maxHeaderBytes: must be at least 1KB (1024 bytes) to handle standard HTTP headers (value: 512)
+```
+
+**Example - Valid Configuration:**
+
+```go
+app, err := app.New(
+    app.WithServiceName("my-api"),
+    app.WithServerConfig(
+        app.WithReadTimeout(10 * time.Second),
+        app.WithWriteTimeout(15 * time.Second), // ✅ Valid: write >= read
+        app.WithShutdownTimeout(5 * time.Second), // ✅ Valid: >= 1s
+        app.WithMaxHeaderBytes(2048), // ✅ Valid: >= 1KB
+    ),
+)
+// err will be nil - configuration is valid
+```
+
 ### Middleware Configuration
 
 Add middleware during initialization or after app creation:

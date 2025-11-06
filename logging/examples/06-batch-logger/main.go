@@ -1,3 +1,4 @@
+// Package main demonstrates batch logging for high-throughput scenarios.
 package main
 
 import (

@@ -24,7 +24,7 @@ func TestRateLimit_Basic(t *testing.T) {
 	})
 
 	// First 5 requests should succeed (burst capacity)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		req := httptest.NewRequest("GET", "/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -58,7 +58,7 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 	})
 
 	// Use up the burst
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		req := httptest.NewRequest("GET", "/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -107,7 +107,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 	})
 
 	// User 1: use up burst
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("X-User-ID", "user1")
 		w := httptest.NewRecorder()
@@ -202,11 +202,8 @@ func TestRateLimit_Concurrent(t *testing.T) {
 	rateLimitedCount := 0
 	var mu sync.Mutex
 
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+	for range 100 {
+		wg.Go(func() {
 			req := httptest.NewRequest("GET", "/test", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
@@ -214,12 +211,13 @@ func TestRateLimit_Concurrent(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			if w.Code == http.StatusOK {
+			switch w.Code {
+			case http.StatusOK:
 				successCount++
-			} else if w.Code == http.StatusTooManyRequests {
+			case http.StatusTooManyRequests:
 				rateLimitedCount++
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -241,7 +239,7 @@ func TestRateLimit_EmptyKey(t *testing.T) {
 
 	// Key function that returns empty string
 	r.Use(New(
-		WithKeyFunc(func(c *router.Context) string {
+		WithKeyFunc(func(_ *router.Context) string {
 			return "" // Empty key
 		}),
 	))
@@ -274,7 +272,7 @@ func TestRateLimit_BurstBehavior(t *testing.T) {
 	})
 
 	// Should allow burst of 3 requests immediately
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		req := httptest.NewRequest("GET", "/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -311,7 +309,7 @@ func BenchmarkRateLimit(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}

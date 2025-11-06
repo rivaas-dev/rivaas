@@ -1,3 +1,5 @@
+// Package ratelimit provides middleware for rate limiting HTTP requests
+// using configurable stores (in-memory, Redis, etc.) and token bucket algorithm.
 package ratelimit
 
 import (
@@ -5,6 +7,19 @@ import (
 
 	"rivaas.dev/router"
 )
+
+// Option defines functional options for rate limit middleware configuration.
+type Option func(*config)
+
+// config holds the configuration for the rate limit middleware.
+type config struct {
+	requestsPerSecond int
+	burst             int
+	keyFunc           func(*router.Context) string
+	onLimitExceeded   func(*router.Context)
+	cleanupInterval   time.Duration
+	limiterTTL        time.Duration
+}
 
 // WithRequestsPerSecond sets the number of requests allowed per second.
 // Default: 100 requests/second

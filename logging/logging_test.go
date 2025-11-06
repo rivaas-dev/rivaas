@@ -41,7 +41,11 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "with service info",
-			opts: []Option{WithServiceInfo("test", "v1.0.0", "test")},
+			opts: []Option{
+				WithServiceName("test"),
+				WithServiceVersion("v1.0.0"),
+				WithEnvironment("test"),
+			},
 		},
 		{
 			name: "with source",
@@ -302,7 +306,9 @@ func TestSampling_ErrorsAlwaysLogged(t *testing.T) {
 func TestDebugInfo(t *testing.T) {
 	logger := MustNew(
 		WithJSONHandler(),
-		WithServiceInfo("test-service", "v1.0.0", "test"),
+		WithServiceName("test-service"),
+		WithServiceVersion("v1.0.0"),
+		WithEnvironment("test"),
 		WithDebugMode(true),
 	)
 
@@ -676,7 +682,7 @@ func TestDebugMode(t *testing.T) {
 }
 
 // Test sampling with ticker reset
-func TestSampling_WithTicker(t *testing.T) {
+func TestSampling_WithTicker(_ *testing.T) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(io.Discard),
@@ -785,7 +791,7 @@ func TestHandlerTypes_Output(t *testing.T) {
 }
 
 // Test concurrent access safety
-func TestConcurrentAccess(t *testing.T) {
+func TestConcurrentAccess(_ *testing.T) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 
 	done := make(chan struct{})
@@ -855,7 +861,7 @@ func TestGetEnvOrDefault(t *testing.T) {
 
 // Test with replace attr
 func TestWithReplaceAttr(t *testing.T) {
-	th := NewTestHelper(t, WithReplaceAttr(func(groups []string, a slog.Attr) slog.Attr {
+	th := NewTestHelper(t, WithReplaceAttr(func(_ []string, a slog.Attr) slog.Attr {
 		if a.Key == "custom_field" {
 			return slog.String(a.Key, "***CUSTOM***")
 		}
@@ -928,7 +934,7 @@ func TestLevel_Accessor(t *testing.T) {
 }
 
 // Test error tracking
-func TestErrorCount(t *testing.T) {
+func TestErrorCount(_ *testing.T) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 
 	logger.Info("info")

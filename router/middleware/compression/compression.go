@@ -1,3 +1,4 @@
+// Package compression provides middleware for HTTP response compression.
 package compression
 
 import (
@@ -131,29 +132,28 @@ func (cw *compressWriter) Write(data []byte) (int, error) {
 				return totalWritten, err
 			}
 			return totalWritten, nil
-		} else {
-			// Don't compress - too small
-			cw.compress = false
-			if !cw.headersSent {
-				cw.ResponseWriter.WriteHeader(cw.statusCode)
-			}
+		}
+		// Don't compress - too small
+		cw.compress = false
+		if !cw.headersSent {
+			cw.ResponseWriter.WriteHeader(cw.statusCode)
+		}
 
-			written := 0
-			if cw.bufferUsed > 0 {
-				n, err := cw.ResponseWriter.Write(cw.buffer)
-				written += n
-				if err != nil {
-					return written, err
-				}
-			}
-
-			if len(data) > 0 {
-				n, err := cw.ResponseWriter.Write(data)
-				written += n
+		written := 0
+		if cw.bufferUsed > 0 {
+			n, err := cw.ResponseWriter.Write(cw.buffer)
+			written += n
+			if err != nil {
 				return written, err
 			}
-			return written, nil
 		}
+
+		if len(data) > 0 {
+			n, err := cw.ResponseWriter.Write(data)
+			written += n
+			return written, err
+		}
+		return written, nil
 	}
 
 	return len(data), nil

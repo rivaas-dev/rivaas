@@ -1,3 +1,5 @@
+// Package logger provides HTTP request/response logging middleware with
+// configurable output formats, colors, and path skipping.
 package logger
 
 import (

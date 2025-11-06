@@ -1,8 +1,8 @@
 package middleware
 
-// contextKey is a type for context keys to avoid collisions with other packages.
+// ContextKey is a type for context keys to avoid collisions with other packages.
 // Using a custom type prevents conflicts with string-based context keys.
-type contextKey string
+type ContextKey string
 
 // Context keys used across middlewares.
 // These are defined here to ensure uniqueness and prevent conflicts.
@@ -10,9 +10,13 @@ type contextKey string
 const (
 	// RequestIDKey is the context key for storing request ID.
 	// Used by: RequestID middleware (sets it) and Logger middleware (reads it).
-	RequestIDKey contextKey = "middleware.request_id"
+	RequestIDKey ContextKey = "middleware.request_id"
 
 	// AuthUsernameKey is the context key for storing authenticated username.
 	// Used by: BasicAuth middleware (sets it).
-	AuthUsernameKey contextKey = "middleware.auth_username"
+	AuthUsernameKey ContextKey = "middleware.auth_username"
+
+	// OriginalMethodKey is the context key for storing the original HTTP method
+	// before method override. Used by: MethodOverride middleware.
+	OriginalMethodKey ContextKey = "middleware.original_method"
 )

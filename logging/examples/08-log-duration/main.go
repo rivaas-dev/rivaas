@@ -1,3 +1,4 @@
+// Package main demonstrates duration logging for performance monitoring.
 package main
 
 import (

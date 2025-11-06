@@ -1,3 +1,6 @@
+// Package main demonstrates the recovery middleware with various configuration options.
+// It shows how to handle panics gracefully in different scenarios from basic
+// usage to production-ready setups with custom handlers and structured logging.
 package main
 
 import (
@@ -62,7 +65,7 @@ func basicExample(r *router.Router) {
 	// Use default recovery middleware
 	r.Use(recovery.New())
 
-	r.GET("/basic-panic", func(c *router.Context) {
+	r.GET("/basic-panic", func(_ *router.Context) {
 		// This will panic and be recovered
 		panic("Something went wrong!")
 	})
@@ -80,7 +83,7 @@ func customHandlerExample(r *router.Router) {
 
 	// Recovery with custom handler that includes request ID
 	api.Use(recovery.New(
-		recovery.WithHandler(func(c *router.Context, err any) {
+		recovery.WithHandler(func(c *router.Context, _ any) {
 			// Send custom error response
 			c.JSON(http.StatusInternalServerError, map[string]any{
 				"error":   "Internal server error",
@@ -92,7 +95,7 @@ func customHandlerExample(r *router.Router) {
 		}),
 	))
 
-	api.GET("/custom-panic", func(c *router.Context) {
+	api.GET("/custom-panic", func(_ *router.Context) {
 		// Simulate a panic
 		var user map[string]string
 		_ = user["name"] // This will panic: assignment to entry in nil map
@@ -119,7 +122,7 @@ func customLoggerExample(r *router.Router) {
 		recovery.WithStackTrace(true),
 	))
 
-	logged.GET("/logged-panic", func(c *router.Context) {
+	logged.GET("/logged-panic", func(_ *router.Context) {
 		panic("This panic will be logged with structured logging")
 	})
 }
@@ -137,7 +140,7 @@ func advancedExample(r *router.Router) {
 		recovery.WithStackSize(8<<10),
 
 		// Custom logger
-		recovery.WithLogger(func(c *router.Context, err any, stack []byte) {
+		recovery.WithLogger(func(c *router.Context, err any, _ []byte) {
 			log.Printf("[PANIC RECOVERED] Error: %v, Path: %s", err, c.Request.URL.Path)
 		}),
 
@@ -192,7 +195,7 @@ func productionExample(r *router.Router) {
 		recovery.WithStackTrace(true),
 
 		// Custom logger (integrate with your logging system)
-		recovery.WithLogger(func(c *router.Context, err any, stack []byte) {
+		recovery.WithLogger(func(c *router.Context, err any, _ []byte) {
 			// Send to your logging system (e.g., Sentry, DataDog, etc.)
 			log.Printf("[PRODUCTION PANIC] Error: %v, Path: %s, Method: %s, IP: %s",
 				err,
@@ -203,7 +206,7 @@ func productionExample(r *router.Router) {
 		}),
 
 		// Clean error response for clients
-		recovery.WithHandler(func(c *router.Context, err any) {
+		recovery.WithHandler(func(c *router.Context, _ any) {
 			c.JSON(http.StatusInternalServerError, map[string]any{
 				"error":   "Internal server error",
 				"message": "We're sorry, something went wrong. Please try again later.",
@@ -212,7 +215,7 @@ func productionExample(r *router.Router) {
 		}),
 	))
 
-	prod.GET("/panic", func(c *router.Context) {
+	prod.GET("/panic", func(_ *router.Context) {
 		panic("Production recovery example - this will be handled gracefully")
 	})
 }

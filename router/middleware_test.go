@@ -21,9 +21,8 @@ func (suite *MiddlewareTestSuite) SetupTest() {
 }
 
 func (suite *MiddlewareTestSuite) TearDownTest() {
-	if suite.router != nil {
-		// Cleanup if needed
-	}
+	// Cleanup if needed
+	_ = suite.router
 }
 
 // TestMiddlewareChain tests middleware chain execution with proper ordering
@@ -91,7 +90,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainConcurrency() {
 	r := New()
 
 	// Add middleware that tracks concurrent execution
-	r.Use(func(c *Context) {
+	r.Use(func(_ *Context) {
 		// Simulate some work
 		time.Sleep(1 * time.Millisecond)
 	})
@@ -132,7 +131,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainPerformance() {
 
 	// Add multiple middleware layers
 	for range 5 {
-		r.Use(func(c *Context) {
+		r.Use(func(_ *Context) {
 			// Simulate middleware work
 		})
 	}

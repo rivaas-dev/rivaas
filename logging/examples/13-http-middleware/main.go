@@ -1,3 +1,4 @@
+// Package main demonstrates how to use the logging middleware with HTTP handlers.
 package main
 
 import (
@@ -10,7 +11,9 @@ func main() {
 	// Create logger with JSON output
 	log := logging.MustNew(
 		logging.WithJSONHandler(),
-		logging.WithServiceInfo("http-api", "v1.0.0", "production"),
+		logging.WithServiceName("http-api"),
+		logging.WithServiceVersion("v1.0.0"),
+		logging.WithEnvironment("production"),
 	)
 
 	// Create HTTP middleware
@@ -20,7 +23,7 @@ func main() {
 	)
 
 	// Example handler
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"message":"Hello, World!"}`))
@@ -30,7 +33,7 @@ func main() {
 	http.Handle("/api/hello", mw(handler))
 
 	// Health check endpoint (not logged due to WithSkipPaths)
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
