@@ -178,6 +178,66 @@ func (suite *ExtendedTestSuite) TestClientIP() {
 	}
 }
 
+func (suite *ExtendedTestSuite) TestClientIP_CustomHeaders() {
+	// Test custom header support (e.g., Fastly, Akamai, etc.)
+	r := New(WithTrustedProxies(
+		WithProxies("10.0.0.0/8", "192.168.0.0/16"),
+		WithProxyHeaders(
+			HeaderXFF,
+			RealIPHeader("Fastly-Client-IP"), // Custom header
+			RealIPHeader("True-Client-IP"),   // Another custom header
+		),
+	))
+
+	r.GET("/ip", func(c *Context) {
+		c.String(200, "%s", c.ClientIP())
+	})
+
+	tests := []struct {
+		name           string
+		remoteAddr     string
+		headerName     string
+		headerValue    string
+		expectedPrefix string
+	}{
+		{
+			name:           "Fastly-Client-IP custom header",
+			remoteAddr:     "10.0.0.1:8080",
+			headerName:     "Fastly-Client-IP",
+			headerValue:    "203.0.113.50",
+			expectedPrefix: "203.0.113.50",
+		},
+		{
+			name:           "True-Client-IP custom header",
+			remoteAddr:     "10.0.0.1:8080",
+			headerName:     "True-Client-IP",
+			headerValue:    "198.51.100.25",
+			expectedPrefix: "198.51.100.25",
+		},
+		{
+			name:           "Custom header from untrusted proxy (ignored)",
+			remoteAddr:     "203.0.113.50:8080", // Not in trusted CIDR
+			headerName:     "Fastly-Client-IP",
+			headerValue:    "198.51.100.25",
+			expectedPrefix: "203.0.113.50", // Should return RemoteAddr, not header
+		},
+	}
+
+	for _, test := range tests {
+		suite.Run(test.name, func() {
+			req := httptest.NewRequest("GET", "/ip", nil)
+			req.RemoteAddr = test.remoteAddr
+			req.Header.Set(test.headerName, test.headerValue)
+			w := httptest.NewRecorder()
+
+			r.ServeHTTP(w, req)
+
+			suite.True(strings.HasPrefix(w.Body.String(), test.expectedPrefix),
+				"Expected IP to start with %s, got %s", test.expectedPrefix, w.Body.String())
+		})
+	}
+}
+
 func (suite *ExtendedTestSuite) TestRedirect() {
 	r := New()
 

@@ -2,6 +2,7 @@ package router
 
 import (
 	"bufio"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -138,7 +139,7 @@ func (suite *RouterTestSuite) TestRouterGroupMiddleware() {
 	// Create a group with middleware
 	api := suite.router.Group("/api/v1")
 	api.Use(func(c *Context) {
-		c.Header("X-API-Version", "v1")
+		c.Header("X-Api-Version", "v1")
 		c.Next()
 	})
 
@@ -152,7 +153,7 @@ func (suite *RouterTestSuite) TestRouterGroupMiddleware() {
 	suite.router.ServeHTTP(w, req)
 
 	suite.Equal(200, w.Code)
-	suite.Equal("v1", w.Header().Get("X-API-Version"))
+	suite.Equal("v1", w.Header().Get("X-Api-Version"))
 }
 
 // TestRouterComplexRoutes tests complex route patterns
@@ -206,7 +207,7 @@ func (suite *RouterTestSuite) TestContextMethods() {
 
 	suite.router.GET("/html", func(c *Context) {
 		// Test HTML response
-		c.HTML(http.StatusOK, "<h1>Hello</h1>")
+		_ = c.HTML(http.StatusOK, "<h1>Hello</h1>")
 	})
 
 	// Test JSON
@@ -431,8 +432,10 @@ func TestResponseWriter_Hijack(t *testing.T) {
 
 	// Create mock connection for hijack
 	server, client := net.Pipe()
-	defer server.Close()
-	defer client.Close()
+	defer func() {
+		_ = server.Close()
+		_ = client.Close()
+	}()
 
 	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
 
@@ -616,8 +619,10 @@ func TestResponseWriter_HijackAndFlush(t *testing.T) {
 
 	// Create connection pair
 	server, client := net.Pipe()
-	defer server.Close()
-	defer client.Close()
+	defer func() {
+		_ = server.Close()
+		_ = client.Close()
+	}()
 
 	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
 
@@ -663,8 +668,10 @@ func TestResponseWriter_HijackPreservesStatusAndSize(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 
 	server, client := net.Pipe()
-	defer server.Close()
-	defer client.Close()
+	defer func() {
+		_ = server.Close()
+		_ = client.Close()
+	}()
 
 	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
 	mockWriter := &mockHijackableResponseWriter{
@@ -719,8 +726,10 @@ func TestResponseWriter_FlushWithMetrics(t *testing.T) {
 func TestResponseWriter_InterfaceAssertion(t *testing.T) {
 	// Test with hijackable writer
 	server, client := net.Pipe()
-	defer server.Close()
-	defer client.Close()
+	defer func() {
+		_ = server.Close()
+		_ = client.Close()
+	}()
 
 	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
 	hijackable := &mockHijackableResponseWriter{
@@ -794,7 +803,7 @@ func TestResponseWriter_HijackError(t *testing.T) {
 		t.Error("expected error from Hijack()")
 	}
 
-	if receivedErr != http.ErrNotSupported {
+	if !errors.Is(receivedErr, http.ErrNotSupported) {
 		t.Errorf("expected ErrNotSupported, got %v", receivedErr)
 	}
 }
@@ -854,8 +863,10 @@ func TestResponseWriter_StatusCodeAndSizeAfterHijack(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 
 	server, client := net.Pipe()
-	defer server.Close()
-	defer client.Close()
+	defer func() {
+		_ = server.Close()
+		_ = client.Close()
+	}()
 
 	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
 	mockWriter := &mockHijackableResponseWriter{
@@ -936,8 +947,10 @@ func TestResponseWriter_HijackWithTracing(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 
 	server, client := net.Pipe()
-	defer server.Close()
-	defer client.Close()
+	defer func() {
+		_ = server.Close()
+		_ = client.Close()
+	}()
 
 	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
 	mockWriter := &mockHijackableResponseWriter{
@@ -1409,7 +1422,7 @@ func TestWithCancellationCheck_Performance(t *testing.T) {
 			count := 0
 
 			// Add multiple middleware to test the check happens in each
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				r.Use(func(c *Context) {
 					count++
 					c.Next()

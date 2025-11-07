@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"unsafe"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -99,7 +100,6 @@ type Context struct {
 	// CACHE LINE 3+: Less frequently accessed fields
 	Params          map[string]string      // URL parameters (fallback for >8 params)
 	span            trace.Span             // Current OpenTelemetry span
-	traceCtx        context.Context        // Trace context for propagation
 	metricsRecorder ContextMetricsRecorder // Metrics recorder for this context
 	tracingRecorder ContextTracingRecorder // Tracing recorder for this context
 	version         string                 // Current API version (e.g., "v1", "v2")
@@ -117,7 +117,8 @@ type Context struct {
 	aborted bool // Set to true when Abort() is called
 
 	// Memory safety: Track if context has been released to prevent use-after-release
-	released bool // Set to true when Release() is called - DO NOT use after this
+	// Uses atomic.Bool for thread-safe access when context is used from multiple goroutines
+	released atomic.Bool // Set to true when Release() is called - DO NOT use after this
 }
 
 // HandlerFunc defines the handler function signature for route handlers and middleware.
@@ -250,8 +251,8 @@ func (c *Context) IsAborted() bool {
 //
 //go:inline
 func (c *Context) Param(key string) string {
-	// Safety check: prevent use-after-release
-	if c.released {
+	// Safety check: prevent use-after-release (thread-safe atomic read)
+	if c.released.Load() {
 		return ""
 	}
 	// Fast array lookup first (zero allocations for ≤8 params)
@@ -280,9 +281,9 @@ func (c *Context) Param(key string) string {
 //		return
 //	}
 func (c *Context) JSON(code int, obj any) error {
-	// Safety check: prevent use-after-release
-	if c.released {
-		return errors.New("context has been released - cannot write response")
+	// Safety check: prevent use-after-release (thread-safe atomic read)
+	if c.released.Load() {
+		return ErrContextReleased
 	}
 	// Encode to buffer first to catch errors before writing headers
 	// This prevents inconsistent response state if encoding fails
@@ -297,7 +298,7 @@ func (c *Context) JSON(code int, obj any) error {
 	// Only write headers after successful encoding
 	// Safety check: Response may be nil if context was released
 	if c.Response == nil {
-		return errors.New("context has been released - Response is nil")
+		return ErrContextResponseNil
 	}
 	c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -723,8 +724,8 @@ func (c *Context) Header(key, value string) {
 //	limit := c.Query("limit") // "10"
 //	missing := c.Query("xyz") // ""
 func (c *Context) Query(key string) string {
-	// Safety check: prevent use-after-release
-	if c.released || c.Request == nil {
+	// Safety check: prevent use-after-release (thread-safe atomic read)
+	if c.released.Load() || c.Request == nil {
 		return ""
 	}
 	return c.Request.URL.Query().Get(key)
@@ -1036,7 +1037,7 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 //	return c.ProblemDetail(problem)
 func (c *Context) ProblemDetail(p *ProblemDetail) error {
 	if p == nil {
-		return fmt.Errorf("ProblemDetail called with nil problem")
+		return ErrProblemDetailNil
 	}
 
 	// RFC 9457: Set defaults
@@ -1310,7 +1311,7 @@ func (c *Context) SpanID() string {
 
 // SetSpanAttribute adds an attribute to the current span.
 // This is a no-op if tracing is not active.
-func (c *Context) SetSpanAttribute(key string, value interface{}) {
+func (c *Context) SetSpanAttribute(key string, value any) {
 	if c.tracingRecorder != nil {
 		c.tracingRecorder.SetSpanAttribute(key, value)
 	}
@@ -1512,8 +1513,8 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 	default:
 		errStr := err.Error()
 		// Unknown field string from DisallowUnknownFields()
-		if strings.HasPrefix(errStr, "json: unknown field ") {
-			field := strings.Trim(strings.TrimPrefix(errStr, "json: unknown field "), `"`)
+		if field, ok := strings.CutPrefix(errStr, "json: unknown field "); ok {
+			field = strings.Trim(field, `"`)
 			return c.ProblemDetail(
 				NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
 					WithType(c.ProblemType(PTMalformedJSON)).
@@ -1557,7 +1558,7 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 func (c *Context) BindStrict(dst any, opt BindOptions) error {
 	// 1) Content-Type check
 	if !c.RequireContentTypeJSON() {
-		return fmt.Errorf("content type not allowed")
+		return ErrContentTypeNotAllowed
 	}
 
 	// 2) Size cap
@@ -1599,7 +1600,7 @@ func (c *Context) BindStrict(dst any, opt BindOptions) error {
 //	}, 10000) // Max 10k items
 func StreamJSONArray[T any](c *Context, each func(T) error, maxItems int) error {
 	if !c.RequireContentTypeJSON() {
-		return fmt.Errorf("content type not allowed")
+		return ErrContentTypeNotAllowed
 	}
 
 	dec := json.NewDecoder(c.Request.Body)
@@ -1660,7 +1661,7 @@ func StreamJSONArray[T any](c *Context, each func(T) error, maxItems int) error 
 //	})
 func StreamNDJSON[T any](c *Context, each func(T) error) error {
 	if !c.RequireContentType("application/x-ndjson") {
-		return fmt.Errorf("content type not allowed")
+		return ErrContentTypeNotAllowed
 	}
 
 	dec := json.NewDecoder(c.Request.Body)
@@ -1694,7 +1695,6 @@ func (c *Context) reset() {
 	c.index = -1
 	c.version = ""
 	c.span = nil
-	c.traceCtx = nil
 	c.metricsRecorder = nil
 	c.tracingRecorder = nil
 	c.aborted = false
@@ -1716,10 +1716,7 @@ func (c *Context) reset() {
 	if c.paramCount > 0 {
 		// Clamp to array size to prevent index out of range
 		// (paramCount might be invalid if context was corrupted)
-		clearCount := c.paramCount
-		if clearCount > 8 {
-			clearCount = 8
-		}
+		clearCount := min(c.paramCount, 8)
 
 		// Performance note: Manual loop vs clear() builtin (Go 1.21+)
 		// Benchmarks show manual loop is 4-10x faster for small string arrays:
@@ -1750,7 +1747,7 @@ func (c *Context) reset() {
 	c.version = ""
 	c.routeTemplate = ""
 	c.aborted = false
-	c.released = false // Reset released flag for reuse
+	c.released.Store(false) // Reset released flag for reuse (thread-safe atomic write)
 }
 
 // Release marks the context as invalid and returns it to the pool.
@@ -1798,7 +1795,9 @@ func (c *Context) reset() {
 //   - Use-after-release causes undefined behavior and data corruption
 //   - Always call Release() if you retain a Context reference
 func (c *Context) Release() {
-	if c.released {
+	// Thread-safe check: prevent double release using atomic compare-and-swap
+	// This ensures only one goroutine can successfully mark the context as released
+	if c.released.Swap(true) {
 		// Already released - prevent double release
 		return
 	}
@@ -1809,7 +1808,6 @@ func (c *Context) Release() {
 	c.handlers = nil
 	c.bindingMeta = nil
 	c.span = nil
-	c.traceCtx = nil
 	c.metricsRecorder = nil
 	c.tracingRecorder = nil
 
@@ -1824,10 +1822,7 @@ func (c *Context) Release() {
 
 	// Clear parameters
 	if c.paramCount > 0 {
-		clearCount := c.paramCount
-		if clearCount > 8 {
-			clearCount = 8
-		}
+		clearCount := min(c.paramCount, 8)
 		for i := range clearCount {
 			c.paramKeys[i] = ""
 			c.paramValues[i] = ""
@@ -1844,9 +1839,9 @@ func (c *Context) Release() {
 	c.aborted = false
 	c.index = -1
 
-	// Mark as released BEFORE returning to pool
+	// Mark as released BEFORE returning to pool (already done by Swap above)
 	// This prevents use-after-release if someone still has a reference
-	c.released = true
+	// Note: released flag was already set to true by Swap() above
 
 	// Save paramCount before reset (needed for pool selection)
 	paramCount := c.paramCount

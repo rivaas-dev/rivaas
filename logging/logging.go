@@ -10,13 +10,6 @@
 //	logger := logging.MustNew(logging.WithConsoleHandler())
 //	logger.Info("service started", "port", 8080)
 //
-// With HTTP middleware:
-//
-//	mw := logging.Middleware(logger,
-//	    logging.WithSkipPaths("/health", "/metrics"),
-//	)
-//	http.Handle("/", mw(handler))
-//
 // With router integration:
 //
 //	r := router.New(

@@ -137,7 +137,7 @@ func TestGroupHEAD(t *testing.T) {
 	api.HEAD("/users/:id", func(c *Context) {
 		called = true
 		id := c.Param("id")
-		c.Header("X-User-ID", id)
+		c.Header("X-User-Id", id)
 		c.Status(http.StatusOK)
 	})
 
@@ -158,8 +158,8 @@ func TestGroupHEAD(t *testing.T) {
 		t.Errorf("HEAD request should not have body, got %d bytes", w.Body.Len())
 	}
 
-	if w.Header().Get("X-User-ID") != "999" {
-		t.Errorf("expected X-User-ID header to be 999, got %s", w.Header().Get("X-User-ID"))
+	if w.Header().Get("X-User-Id") != "999" {
+		t.Errorf("expected X-User-Id header to be 999, got %s", w.Header().Get("X-User-Id"))
 	}
 }
 

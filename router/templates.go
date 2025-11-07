@@ -71,10 +71,16 @@ type TemplateCache struct {
 	// Dynamic route templates: ordered by specificity
 	dynamicTemplates []*RouteTemplate
 
-	// First-segment index for fast filtering (ASCII optimization)
+	// First-segment index for fast filtering (ASCII-only optimization)
 	// Maps first character after '/' to templates that start with that char
 	// Example: 'u' → ["/users/:id", "/user/profile"]
 	// This reduces search space by ~95% for typical APIs
+	//
+	// DESIGN DECISION: ASCII-only (0-127) for performance-first architecture.
+	// - UTF-8 paths beyond ASCII fall back to linear scan (still correct, just slower)
+	// - Extending to Latin-1 (256) or full UTF-8 would add complexity/memory without
+	//   measurable benefit for typical HTTP APIs (99%+ use ASCII paths)
+	// - This aligns with our performance-first philosophy: optimize for common case
 	firstSegmentIndex    [128][]*RouteTemplate // ASCII quick lookup (0-127)
 	hasFirstSegmentIndex bool                  // Whether index is built
 
@@ -322,7 +328,7 @@ func (t *RouteTemplate) matchAndExtract(path string, ctx *Context) bool {
 
 	// Extract and validate parameters (by position - no search!)
 	paramCount := int32(len(t.paramPos))
-	for i := int32(0); i < paramCount; i++ {
+	for i := range int(paramCount) {
 		pos := t.paramPos[i]
 		if pos >= segCount {
 			return false
@@ -331,8 +337,8 @@ func (t *RouteTemplate) matchAndExtract(path string, ctx *Context) bool {
 		value := segments[pos]
 
 		// Inline constraint validation (if constraint exists)
-		if i < int32(len(t.constraints)) && t.constraints[i] != nil {
-			if !t.constraints[i].MatchString(value) {
+		if int32(i) < int32(len(t.constraints)) && t.constraints[int32(i)] != nil {
+			if !t.constraints[int32(i)].MatchString(value) {
 				return false
 			}
 		}
@@ -455,6 +461,8 @@ func (tc *TemplateCache) matchDynamic(method, path string, ctx *Context) *RouteT
 		firstChar := path[1]
 		if firstChar < 128 {
 			// ASCII fast path - check jump table
+			// Note: Non-ASCII paths (UTF-8 beyond byte 127) skip this optimization
+			// and fall back to linear scan. This is intentional - see struct comment.
 			candidates := tc.firstSegmentIndex[firstChar]
 			for _, tmpl := range candidates {
 				// Check method before matching path
@@ -488,6 +496,11 @@ func (tc *TemplateCache) matchDynamic(method, path string, ctx *Context) *RouteT
 // the same character as the path.
 //
 // Example: Path "/users/123" → Only check templates starting with 'u'
+//
+// DESIGN DECISION: Only indexes ASCII characters (0-127) for performance.
+// UTF-8 paths beyond ASCII are still matched correctly via fallback linear scan.
+// Extending to full UTF-8 would add complexity without measurable benefit for
+// typical HTTP APIs where ASCII paths dominate.
 func (tc *TemplateCache) buildFirstSegmentIndex() {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()

@@ -101,7 +101,11 @@ func (c *Context) Accepts(offers ...string) string {
 	} else {
 		// Get arena from pool (reuse if already cached for this request)
 		if c.cachedArena == nil {
-			c.cachedArena = arenaPool.Get().(*headerArena)
+			arena, ok := arenaPool.Get().(*headerArena)
+			if !ok {
+				panic("router: arenaPool corruption - expected *headerArena")
+			}
+			c.cachedArena = arena
 		}
 
 		// Parse and cache for this request (zero-allocation using arena)
@@ -523,7 +527,11 @@ func acceptHeaderFast(c *Context, header string) []acceptSpec {
 
 	// Get arena from pool (reuse if already cached for this request)
 	if c.cachedArena == nil {
-		c.cachedArena = arenaPool.Get().(*headerArena)
+		arena, ok := arenaPool.Get().(*headerArena)
+		if !ok {
+			panic("router: arenaPool corruption - expected *headerArena")
+		}
+		c.cachedArena = arena
 	}
 
 	// Parse using arena (zero allocations)

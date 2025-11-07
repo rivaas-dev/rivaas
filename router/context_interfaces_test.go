@@ -1,7 +1,7 @@
 package router
 
 import (
-	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -48,17 +48,13 @@ func (m *mockParameterReader) FormValueDefault(key, defaultValue string) string 
 
 func (m *mockParameterReader) AllParams() map[string]string {
 	result := make(map[string]string, len(m.params))
-	for k, v := range m.params {
-		result[k] = v
-	}
+	maps.Copy(result, m.params)
 	return result
 }
 
 func (m *mockParameterReader) AllQueries() map[string]string {
 	result := make(map[string]string, len(m.queries))
-	for k, v := range m.queries {
-		result[k] = v
-	}
+	maps.Copy(result, m.queries)
 	return result
 }
 
@@ -66,7 +62,7 @@ func (m *mockParameterReader) GetCookie(name string) (string, error) {
 	if val, ok := m.cookies[name]; ok {
 		return val, nil
 	}
-	return "", errors.New("cookie not found")
+	return "", ErrCookieNotFound
 }
 
 // mockResponseWriter is a mock implementation of ResponseWriter for testing.
@@ -162,12 +158,12 @@ func (m *mockResponseWriter) SetCookie(name, value string, maxAge int, path, dom
 func processUserRequest(reader ParameterReader) (string, error) {
 	userID := reader.Param("id")
 	if userID == "" {
-		return "", errors.New("user ID is required")
+		return "", ErrUserIDRequired
 	}
 
 	page := reader.QueryDefault("page", "1")
 	if page == "" {
-		return "", errors.New("page parameter is invalid")
+		return "", ErrPageParameterInvalid
 	}
 
 	return userID + ":" + page, nil

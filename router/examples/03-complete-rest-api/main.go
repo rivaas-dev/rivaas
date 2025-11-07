@@ -24,9 +24,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"rivaas.dev/logging"
 	"rivaas.dev/router"
+	"rivaas.dev/router/middleware/accesslog"
 	"rivaas.dev/router/middleware/cors"
-	"rivaas.dev/router/middleware/logger"
 	"rivaas.dev/router/middleware/recovery"
 )
 
@@ -195,11 +196,19 @@ func (s *PostStore) GetByUser(userID int) []Post {
 
 func main() {
 	r := router.New()
+
+	// Set up logging for accesslog middleware
+	logger := logging.MustNew(
+		logging.WithConsoleHandler(),
+		logging.WithDebugLevel(),
+	)
+	r.SetLogger(logger)
+
 	userStore := NewUserStore()
 	postStore := NewPostStore()
 
 	// Global middleware
-	r.Use(logger.New(), recovery.New(), cors.New(cors.WithAllowAllOrigins(true)))
+	r.Use(accesslog.New(), recovery.New(), cors.New(cors.WithAllowAllOrigins(true)))
 
 	// API routes
 	api := r.Group("/api/v1")
@@ -540,40 +549,40 @@ func main() {
 		})
 	})
 
-	// Create a logger with clean, colorful output
-	logger := log.NewWithOptions(os.Stderr, log.Options{
+	// Create a console logger for startup messages
+	consoleLogger := log.NewWithOptions(os.Stderr, log.Options{
 		ReportTimestamp: false,
 		ReportCaller:    false,
 	})
 
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET    /api/v1/users              # List users with pagination")
-	logger.Print("  GET    /api/v1/users/:id          # Get user by ID")
-	logger.Print("  POST   /api/v1/users              # Create user")
-	logger.Print("  PUT    /api/v1/users/:id          # Update user")
-	logger.Print("  DELETE /api/v1/users/:id          # Delete user")
-	logger.Print("  GET    /api/v1/users/:id/posts    # Get user posts")
-	logger.Print("  POST   /api/v1/users/:id/posts    # Create post for user")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  curl http://localhost:8080/api/v1/users")
-	logger.Print("  curl http://localhost:8080/api/v1/users?page=1&page_size=5")
-	logger.Print("  curl http://localhost:8080/api/v1/users/1")
-	logger.Print(`  curl -X POST http://localhost:8080/api/v1/users \`)
-	logger.Print(`    -H 'Content-Type: application/json' \`)
-	logger.Print(`    -d '{"name":"Charlie","email":"charlie@example.com"}'`)
-	logger.Print(`  curl -X PUT http://localhost:8080/api/v1/users/1 \`)
-	logger.Print(`    -H 'Content-Type: application/json' \`)
-	logger.Print(`    -d '{"name":"Alice Updated","email":"alice.new@example.com"}'`)
-	logger.Print("  curl -X DELETE http://localhost:8080/api/v1/users/2")
-	logger.Print(`  curl -X POST http://localhost:8080/api/v1/users/1/posts \`)
-	logger.Print(`    -H 'Content-Type: application/json' \`)
-	logger.Print(`    -d '{"title":"My Post","content":"Post content here"}'`)
-	logger.Print("")
+	consoleLogger.Info("🚀 Server starting on http://localhost:8080")
+	consoleLogger.Print("")
+	consoleLogger.Print("📝 Available endpoints:")
+	consoleLogger.Print("  GET    /api/v1/users              # List users with pagination")
+	consoleLogger.Print("  GET    /api/v1/users/:id          # Get user by ID")
+	consoleLogger.Print("  POST   /api/v1/users              # Create user")
+	consoleLogger.Print("  PUT    /api/v1/users/:id          # Update user")
+	consoleLogger.Print("  DELETE /api/v1/users/:id          # Delete user")
+	consoleLogger.Print("  GET    /api/v1/users/:id/posts    # Get user posts")
+	consoleLogger.Print("  POST   /api/v1/users/:id/posts    # Create post for user")
+	consoleLogger.Print("")
+	consoleLogger.Print("📋 Example commands:")
+	consoleLogger.Print("  curl http://localhost:8080/api/v1/users")
+	consoleLogger.Print("  curl http://localhost:8080/api/v1/users?page=1&page_size=5")
+	consoleLogger.Print("  curl http://localhost:8080/api/v1/users/1")
+	consoleLogger.Print(`  curl -X POST http://localhost:8080/api/v1/users \`)
+	consoleLogger.Print(`    -H 'Content-Type: application/json' \`)
+	consoleLogger.Print(`    -d '{"name":"Charlie","email":"charlie@example.com"}'`)
+	consoleLogger.Print(`  curl -X PUT http://localhost:8080/api/v1/users/1 \`)
+	consoleLogger.Print(`    -H 'Content-Type: application/json' \`)
+	consoleLogger.Print(`    -d '{"name":"Alice Updated","email":"alice.new@example.com"}'`)
+	consoleLogger.Print("  curl -X DELETE http://localhost:8080/api/v1/users/2")
+	consoleLogger.Print(`  curl -X POST http://localhost:8080/api/v1/users/1/posts \`)
+	consoleLogger.Print(`    -H 'Content-Type: application/json' \`)
+	consoleLogger.Print(`    -d '{"title":"My Post","content":"Post content here"}'`)
+	consoleLogger.Print("")
 
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	consoleLogger.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // contains checks if a string contains a substring

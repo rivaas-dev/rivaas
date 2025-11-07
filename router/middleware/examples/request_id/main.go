@@ -9,13 +9,21 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"rivaas.dev/logging"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/logger"
+	"rivaas.dev/router/middleware/accesslog"
 	"rivaas.dev/router/middleware/requestid"
 )
 
 func main() {
 	r := router.New()
+
+	// Set up logging for accesslog middleware
+	logCfg := logging.MustNew(
+		logging.WithConsoleHandler(),
+		logging.WithDebugLevel(),
+	)
+	r.SetLogger(logCfg)
 
 	// Example 1: Default request ID
 	defaultRequestIDExample(r)
@@ -113,28 +121,13 @@ func customGeneratorExample(r *router.Router) {
 	})
 }
 
-// Example 4: Integration with logger
+// Example 4: Integration with accesslog
 func loggerIntegrationExample(r *router.Router) {
 	logged := r.Group("/logged")
 
-	// RequestID must come before Logger
+	// RequestID must come before accesslog
 	logged.Use(requestid.New())
-	logged.Use(logger.New(
-		logger.WithFormatter(func(params logger.FormatterParams) string {
-			reqID := params.RequestID
-			if reqID == "" {
-				reqID = "no-id"
-			}
-			return fmt.Sprintf("[%s] [%s] %s %s %d %v\n",
-				params.TimeStamp.Format("15:04:05"),
-				reqID,
-				params.Method,
-				params.Path,
-				params.StatusCode,
-				params.Latency,
-			)
-		}),
-	))
+	logged.Use(accesslog.New())
 
 	logged.GET("", func(c *router.Context) {
 		reqID := requestid.Get(c)

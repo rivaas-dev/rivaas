@@ -6,6 +6,7 @@ package router
 import (
 	"fmt"
 	"io"
+	"maps"
 	"mime/multipart"
 	"net"
 	"os"
@@ -33,9 +34,7 @@ func (c *Context) AllParams() map[string]string {
 	}
 
 	// Copy from map storage (>8 params, rare case)
-	for k, v := range c.Params {
-		result[k] = v
-	}
+	maps.Copy(result, c.Params)
 
 	return result
 }
@@ -510,14 +509,18 @@ func (c *Context) FormFile(key string) (*multipart.FileHeader, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		// Safe to ignore: we've already read the FileHeader metadata we need.
+		// The actual file data is accessed later via FileHeader.Open()
+		_ = file.Close()
+	}()
 
 	// Return the file header
 	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File[key] != nil {
 		return c.Request.MultipartForm.File[key][0], nil
 	}
 
-	return nil, fmt.Errorf("file %q not found", key)
+	return nil, fmt.Errorf("%w: %q", ErrFileNotFound, key)
 }
 
 // FormFiles returns all files for the given form key from a multipart form.
@@ -547,7 +550,7 @@ func (c *Context) FormFiles(key string) ([]*multipart.FileHeader, error) {
 		return c.Request.MultipartForm.File[key], nil
 	}
 
-	return nil, fmt.Errorf("no files found for key %q", key)
+	return nil, fmt.Errorf("%w: %q", ErrNoFilesFound, key)
 }
 
 // SaveFile saves an uploaded file to the specified destination path.
@@ -574,13 +577,17 @@ func (c *Context) FormFiles(key string) ([]*multipart.FileHeader, error) {
 //	// Use safe filename
 //	safeName := filepath.Base(file.Filename) // Prevent path traversal
 //	err = c.SaveFile(file, "./uploads/" + safeName)
-func (c *Context) SaveFile(fileHeader *multipart.FileHeader, dst string) error {
+func (c *Context) SaveFile(fileHeader *multipart.FileHeader, dst string) (err error) {
 	// Open the uploaded file
 	src, err := fileHeader.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open uploaded file: %w", err)
 	}
-	defer src.Close()
+	defer func() {
+		if cerr := src.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("failed to close source file: %w", cerr)
+		}
+	}()
 
 	// Create parent directories if needed
 	dir := filepath.Dir(dst)
@@ -593,7 +600,13 @@ func (c *Context) SaveFile(fileHeader *multipart.FileHeader, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer out.Close()
+	defer func() {
+		// CRITICAL: Close can fail when flushing buffered data to disk.
+		// If Close fails, the file may be incomplete even though io.Copy succeeded.
+		if cerr := out.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("failed to close destination file: %w", cerr)
+		}
+	}()
 
 	// Copy file contents
 	if _, err := io.Copy(out, src); err != nil {

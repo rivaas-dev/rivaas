@@ -1,6 +1,7 @@
 package router
 
 import (
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -333,8 +334,7 @@ func fastAcceptVersion(accept, pattern string) (string, bool) {
 
 	// Handle comma-separated Accept values
 	// e.g., "application/vnd.myapi.v2+json, text/html"
-	acceptValues := strings.Split(accept, ",")
-	for _, val := range acceptValues {
+	for val := range strings.SplitSeq(accept, ",") {
 		val = strings.TrimSpace(val)
 
 		// Find prefix in this Accept value
@@ -676,9 +676,7 @@ func (r *Router) addVersionRoute(version, method, path string, handlers []Handle
 		for k, v := range currentTrees {
 			// Deep copy method trees map for each version
 			methodTreesCopy := make(map[string]*node, len(v))
-			for mk, mv := range v {
-				methodTreesCopy[mk] = mv // Node pointers are shared (safe - immutable after creation)
-			}
+			maps.Copy(methodTreesCopy, v) // Node pointers are shared (safe - immutable after creation)
 			newTrees[k] = methodTreesCopy
 		}
 
@@ -761,6 +759,41 @@ func (vr *VersionRouter) HEAD(path string, handlers ...HandlerFunc) *Route {
 
 // addVersionRoute adds a route to the version-specific router
 func (vr *VersionRouter) addVersionRoute(method, path string, handlers []HandlerFunc) *Route {
+	// Analyze route for introspection
+	handlerName := "anonymous"
+	if len(handlers) > 0 {
+		handlerName = getHandlerName(handlers[len(handlers)-1])
+	}
+
+	// Extract middleware names (all handlers except the last one)
+	var middlewareNames []string
+	if len(handlers) > 1 {
+		middlewareNames = make([]string, 0, len(handlers)-1)
+		for i := 0; i < len(handlers)-1; i++ {
+			middlewareNames = append(middlewareNames, getHandlerName(handlers[i]))
+		}
+	}
+
+	// Count parameters in path
+	paramCount := strings.Count(path, ":")
+
+	// Check if route is static (no parameters)
+	isStatic := !strings.Contains(path, ":") && !strings.HasSuffix(path, "*")
+
+	// Store route info for introspection (protected by separate mutex for low-frequency access)
+	vr.router.routeTree.routesMutex.Lock()
+	vr.router.routeTree.routes = append(vr.router.routeTree.routes, RouteInfo{
+		Method:      method,
+		Path:        path,
+		HandlerName: handlerName,
+		Middleware:  middlewareNames,
+		Constraints: make(map[string]string), // Will be populated when constraints are added
+		IsStatic:    isStatic,
+		Version:     vr.version, // Set the version for version-specific routes
+		ParamCount:  paramCount,
+	})
+	vr.router.routeTree.routesMutex.Unlock()
+
 	// Combine global middleware with route handlers
 	// IMPORTANT: Create a new slice to avoid aliasing bugs with append
 	allHandlers := make([]HandlerFunc, 0, len(vr.router.middleware)+len(handlers))
@@ -769,6 +802,9 @@ func (vr *VersionRouter) addVersionRoute(method, path string, handlers []Handler
 
 	// Add to version-specific tree
 	vr.router.addVersionRoute(vr.version, method, path, allHandlers, nil)
+
+	// Record route registration for metrics
+	vr.router.recordRouteRegistration(method, path)
 
 	// Create route object for consistency
 	route := &Route{

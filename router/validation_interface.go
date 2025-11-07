@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"sync"
@@ -45,7 +46,7 @@ func validateWithInterface(v any, cfg *validationConfig) error {
 
 		// Try pointer receiver with context
 		if err := callValidatorWithContext(cfg.ctx, v); err != nil {
-			if err != errNotImplemented {
+			if !errors.Is(err, errNotImplemented) {
 				return coerceToValidationErrors(err, cfg)
 			}
 		} else {
@@ -63,7 +64,7 @@ func validateWithInterface(v any, cfg *validationConfig) error {
 
 	// Try pointer receiver
 	if err := callValidator(v); err != nil {
-		if err != errNotImplemented {
+		if !errors.Is(err, errNotImplemented) {
 			return coerceToValidationErrors(err, cfg)
 		}
 	} else {
@@ -82,7 +83,7 @@ func typeImplementsValidator(t reflect.Type) bool {
 		return cached.(bool)
 	}
 
-	implements := t.Implements(reflect.TypeOf((*Validator)(nil)).Elem())
+	implements := t.Implements(reflect.TypeFor[Validator]())
 	validatorTypeCache.Store(t, implements)
 	return implements
 }
@@ -151,7 +152,7 @@ func typeImplementsValidatorWithContext(t reflect.Type) bool {
 		return cached.(bool)
 	}
 
-	implements := t.Implements(reflect.TypeOf((*ValidatorWithContext)(nil)).Elem())
+	implements := t.Implements(reflect.TypeFor[ValidatorWithContext]())
 	validatorWithContextTypeCache.Store(t, implements)
 	return implements
 }

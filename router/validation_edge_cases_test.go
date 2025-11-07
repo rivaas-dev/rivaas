@@ -151,7 +151,7 @@ func TestValidate_Concurrent(t *testing.T) {
 		wg.Add(1)
 		go func(_ int) {
 			defer wg.Done()
-			for j := 0; j < numValidationsPerGoroutine; j++ {
+			for range numValidationsPerGoroutine {
 				user := User{
 					Name:  "John",
 					Email: "john@example.com",
@@ -204,7 +204,7 @@ func TestValidate_ConcurrentWithCache(t *testing.T) {
 			defer wg.Done()
 			// Use numeric ID that's URL-safe
 			schemaID := fmt.Sprintf("test-schema-%d", id)
-			for j := 0; j < numValidationsPerGoroutine; j++ {
+			for range numValidationsPerGoroutine {
 				user := User{Name: "John"}
 				err := Validate(&user, WithStrategy(ValidationJSONSchema), WithCustomSchema(schemaID, schema))
 				if err != nil {
@@ -328,7 +328,7 @@ func TestValidationErrors_UnwrapChain(t *testing.T) {
 	}
 
 	// Test nested wrapping
-	wrapped := errors.New("outer error: %w")
+	wrapped := fmt.Errorf("%w: %w", ErrOuterError, verrs)
 	// Note: FieldError and ValidationErrors already implement Unwrap
 	// This test verifies the chain works
 	if !errors.Is(verrs, ErrValidation) {

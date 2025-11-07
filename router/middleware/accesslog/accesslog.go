@@ -121,7 +121,7 @@ func New(opts ...Option) router.HandlerFunc {
 			"duration_ms", duration.Milliseconds(),
 			"bytes_sent", ss.Size(),
 			"user_agent", c.Request.UserAgent(),
-			"client_ip", extractClientIP(c.Request),
+			"client_ip", c.ClientIP(),
 			"host", c.Request.Host,
 			"proto", c.Request.Proto,
 		}
@@ -244,26 +244,4 @@ func (rw *responseWriter) ReadFrom(r io.Reader) (int64, error) {
 	n, err := io.Copy(rw.ResponseWriter, r)
 	rw.size += int(n)
 	return n, err
-}
-
-// extractClientIP extracts real client IP from request (same logic as tracing).
-// TODO: Only trust X-Forwarded-For when RemoteAddr is in configured proxy CIDR.
-func extractClientIP(req *http.Request) string {
-	// Check X-Forwarded-For if behind proxy
-	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
-		if idx := strings.Index(xff, ","); idx > 0 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
-	}
-
-	// Fallback to RemoteAddr, strip port
-	if addr := req.RemoteAddr; addr != "" {
-		if idx := strings.LastIndex(addr, ":"); idx > 0 {
-			return addr[:idx]
-		}
-		return addr
-	}
-
-	return ""
 }

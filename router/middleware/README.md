@@ -16,7 +16,7 @@ Production-ready HTTP middleware for rivaas/router. Each middleware is provided 
 
 | Middleware | Purpose | Package |
 |------------|---------|---------|
-| **Logger** | Request/response logging with customizable formats | [`logger/`](logger/) |
+| **AccessLog** | Structured HTTP access logging with sampling and filtering | [`accesslog/`](accesslog/) |
 | **RequestID** | Request ID generation and tracking for distributed tracing | [`requestid/`](requestid/) |
 
 ### Reliability
@@ -42,18 +42,24 @@ Production-ready HTTP middleware for rivaas/router. Each middleware is provided 
 package main
 
 import (
+    "rivaas.dev/logging"
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/logger"
+    "rivaas.dev/router/middleware/accesslog"
     "rivaas.dev/router/middleware/recovery"
     "rivaas.dev/router/middleware/requestid"
 )
 
 func main() {
-    r := router.New()
+    r := router.New(
+        logging.WithLogging(
+            logging.WithConsoleHandler(),
+            logging.WithDebugLevel(),
+        ),
+    )
     
     // Apply middleware globally
     r.Use(requestid.New())
-    r.Use(logger.New())
+    r.Use(accesslog.New())
     r.Use(recovery.New())
     
     r.GET("/", func(c *router.Context) {
@@ -72,12 +78,13 @@ package main
 import (
     "time"
     
+    "rivaas.dev/logging"
     "rivaas.dev/router"
+    "rivaas.dev/router/middleware/accesslog"
     "rivaas.dev/router/middleware/basicauth"
     "rivaas.dev/router/middleware/bodylimit"
     "rivaas.dev/router/middleware/compression"
     "rivaas.dev/router/middleware/cors"
-    "rivaas.dev/router/middleware/logger"
     "rivaas.dev/router/middleware/ratelimit"
     "rivaas.dev/router/middleware/recovery"
     "rivaas.dev/router/middleware/requestid"
@@ -86,13 +93,17 @@ import (
 )
 
 func main() {
-    r := router.New()
+    r := router.New(
+        logging.WithLogging(
+            logging.WithJSONHandler(),
+            logging.WithLevel(logging.LevelInfo),
+        ),
+    )
     
     // Observability (apply first)
     r.Use(requestid.New())
-    r.Use(logger.New(
-        logger.WithColors(false),
-        logger.WithSkipPaths("/health", "/metrics"),
+    r.Use(accesslog.New(
+        accesslog.WithExcludePaths("/health", "/metrics"),
     ))
     
     // Reliability
@@ -140,8 +151,8 @@ r := router.New()
 // 1. Request ID - Generate early for logging/tracing
 r.Use(requestid.New())
 
-// 2. Logger - Log all requests including failed ones
-r.Use(logger.New())
+// 2. AccessLog - Log all requests including failed ones
+r.Use(accesslog.New())
 
 // 3. Recovery - Catch panics from all other middleware
 r.Use(recovery.New())
@@ -185,14 +196,13 @@ r.GET("/", handler)
 
 Each middleware supports extensive configuration through functional options. See individual package documentation for details.
 
-### Logger with Custom Format
+### AccessLog with Custom Configuration
 
 ```go
-r.Use(logger.New(
-    logger.WithFormat(logger.FormatJSON),
-    logger.WithColors(false),
-    logger.WithSkipPaths("/health", "/metrics"),
-    logger.WithRequestID(true),
+r.Use(accesslog.New(
+    accesslog.WithExcludePaths("/health", "/metrics"),
+    accesslog.WithSampleRate(0.1), // Log 10% of requests
+    accesslog.WithSlowThreshold(500 * time.Millisecond),
 ))
 ```
 
@@ -252,7 +262,7 @@ Complete runnable examples demonstrating real-world usage are available in the [
 
 - **[Basic Auth](examples/basic_auth/)** - Authentication with multiple users
 - **[CORS](examples/cors/)** - Cross-origin configuration for APIs
-- **[Logger](examples/logger/)** - Custom log formats and JSON output
+- **[AccessLog](examples/logger/)** - Structured access logging with sampling
 - **[Rate Limit](examples/ratelimit/)** - Per-client rate limiting
 - **[Recovery](examples/recovery/)** - Panic recovery with custom handlers
 - **[Request ID](examples/request_id/)** - Request tracking for distributed systems
@@ -272,7 +282,7 @@ All middleware includes comprehensive unit tests. To run tests:
 go test ./...
 
 # Test specific middleware
-go test ./logger
+go test ./accesslog
 
 # With coverage
 go test -cover ./...
@@ -300,7 +310,7 @@ Benchmark results are included in each middleware's test file.
 
 For detailed API documentation, see:
 
-- Individual package godoc (e.g., `go doc rivaas.dev/router/middleware/logger`)
+- Individual package godoc (e.g., `go doc rivaas.dev/router/middleware/accesslog`)
 - [pkg.go.dev](https://pkg.go.dev/rivaas.dev/router/middleware)
 - Package-level `doc.go` files in each subdirectory
 

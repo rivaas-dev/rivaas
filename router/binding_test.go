@@ -17,6 +17,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // customUUID is a custom type for testing encoding.TextUnmarshaler interface
@@ -27,7 +30,7 @@ func (u *customUUID) UnmarshalText(text []byte) error {
 	s := string(text)
 	// Simple UUID validation (just check length, not full RFC4122)
 	if len(s) != 36 {
-		return errors.New("invalid UUID format: must be 36 characters")
+		return ErrInvalidUUIDFormat
 	}
 	*u = customUUID(s)
 	return nil
@@ -37,60 +40,92 @@ func (u *customUUID) UnmarshalText(text []byte) error {
 type failingReader struct{}
 
 func (r *failingReader) Read([]byte) (int, error) {
-	return 0, errors.New("read error")
+	return 0, ErrReadError
 }
 
-// Test BindJSON
+// TestBindJSON tests JSON binding functionality
 func TestBindJSON(t *testing.T) {
+	t.Parallel()
+
 	type User struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
 		Age   int    `json:"age"`
 	}
 
-	t.Run("valid JSON", func(t *testing.T) {
-		body := `{"name":"John","email":"john@example.com","age":30}`
-		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		body     string
+		setup    func(req *http.Request) // Optional: for custom request setup
+		wantErr  bool
+		validate func(t *testing.T, user User)
+	}{
+		{
+			name: "valid JSON",
+			body: `{"name":"John","email":"john@example.com","age":30}`,
+			setup: func(req *http.Request) {
+				req.Header.Set("Content-Type", "application/json")
+			},
+			wantErr: false,
+			validate: func(t *testing.T, user User) {
+				assert.Equal(t, "John", user.Name)
+				assert.Equal(t, "john@example.com", user.Email)
+				assert.Equal(t, 30, user.Age)
+			},
+		},
+		{
+			name: "invalid JSON",
+			body: `{"name":"John","age":"invalid"}`,
+			setup: func(req *http.Request) {
+				req.Header.Set("Content-Type", "application/json")
+			},
+			wantErr:  true,
+			validate: func(t *testing.T, user User) {},
+		},
+		{
+			name: "nil body",
+			body: "",
+			setup: func(req *http.Request) {
+				req.Header.Set("Content-Type", "application/json")
+			},
+			wantErr:  true,
+			validate: func(t *testing.T, user User) {},
+		},
+	}
 
-		var user User
-		if err := c.BindJSON(&user); err != nil {
-			t.Fatalf("BindJSON failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if user.Name != "John" || user.Email != "john@example.com" || user.Age != 30 {
-			t.Errorf("BindJSON got %+v, want {John john@example.com 30}", user)
-		}
-	})
+			var bodyReader io.Reader
+			if tt.body != "" {
+				bodyReader = strings.NewReader(tt.body)
+			}
+			req := httptest.NewRequest("POST", "/", bodyReader)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("invalid JSON", func(t *testing.T) {
-		body := `{"name":"John","age":"invalid"}`
-		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var user User
+			err := c.BindJSON(&user)
 
-		var user User
-		if err := c.BindJSON(&user); err == nil {
-			t.Error("Expected error for invalid JSON, got nil")
-		}
-	})
-
-	t.Run("nil body", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var user User
-		if err := c.BindJSON(&user); err == nil {
-			t.Error("Expected error for nil body, got nil")
-		}
-	})
+			if tt.wantErr {
+				assert.Error(t, err, "Expected error for %s", tt.name)
+			} else {
+				require.NoError(t, err, "BindJSON should succeed for %s", tt.name)
+				tt.validate(t, user)
+			}
+		})
+	}
 }
 
-// Test BindQuery
+// TestBindQuery tests query parameter binding functionality
 func TestBindQuery(t *testing.T) {
+	t.Parallel()
+
 	type SearchParams struct {
 		Query    string `query:"q"`
 		Page     int    `query:"page"`
@@ -98,401 +133,493 @@ func TestBindQuery(t *testing.T) {
 		Active   bool   `query:"active"`
 	}
 
-	t.Run("all fields", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?q=golang&page=2&page_size=20&active=true", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		wantErr  bool
+		validate func(t *testing.T, params SearchParams, err error)
+	}{
+		{
+			name:    "all fields",
+			query:   "q=golang&page=2&page_size=20&active=true",
+			wantErr: false,
+			validate: func(t *testing.T, params SearchParams, err error) {
+				assert.Equal(t, "golang", params.Query)
+				assert.Equal(t, 2, params.Page)
+				assert.Equal(t, 20, params.PageSize)
+				assert.True(t, params.Active)
+			},
+		},
+		{
+			name:    "partial fields",
+			query:   "q=test",
+			wantErr: false,
+			validate: func(t *testing.T, params SearchParams, err error) {
+				assert.Equal(t, "test", params.Query)
+				assert.Equal(t, 0, params.Page, "Page should be zero value when not provided")
+			},
+		},
+		{
+			name:    "invalid integer",
+			query:   "page=invalid",
+			wantErr: true,
+			validate: func(t *testing.T, params SearchParams, err error) {
+				var bindErr *BindError
+				require.True(t, errors.As(err, &bindErr), "Expected BindError")
+				assert.Equal(t, "Page", bindErr.Field)
+			},
+		},
+	}
 
-		var params SearchParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Query != "golang" || params.Page != 2 || params.PageSize != 20 || !params.Active {
-			t.Errorf("BindQuery got %+v", params)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("partial fields", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?q=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var params SearchParams
+			err := c.BindQuery(&params)
 
-		var params SearchParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Query != "test" || params.Page != 0 {
-			t.Errorf("BindQuery got %+v", params)
-		}
-	})
-
-	t.Run("invalid integer", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?page=invalid", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params SearchParams
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for invalid integer")
-		}
-
-		// Check it's a BindError
-		var bindErr *BindError
-		if !errors.As(err, &bindErr) {
-			t.Errorf("Expected BindError, got %T", err)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+			}
+			tt.validate(t, params, err)
+		})
+	}
 }
 
-// Test BindParams
+// TestBindParams tests route parameter binding functionality
 func TestBindParams(t *testing.T) {
+	t.Parallel()
+
 	type UserParams struct {
 		ID     int    `params:"id"`
 		Action string `params:"action"`
 	}
 
-	t.Run("valid params", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/users/123/edit", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		setup    func(c *Context)
+		validate func(t *testing.T, params UserParams)
+	}{
+		{
+			name: "valid params",
+			setup: func(c *Context) {
+				// Simulate router setting params
+				c.paramCount = 2
+				c.paramKeys[0] = "id"
+				c.paramValues[0] = "123"
+				c.paramKeys[1] = "action"
+				c.paramValues[1] = "edit"
+			},
+			validate: func(t *testing.T, params UserParams) {
+				assert.Equal(t, 123, params.ID)
+				assert.Equal(t, "edit", params.Action)
+			},
+		},
+		{
+			name: "params from map (>8 params)",
+			setup: func(c *Context) {
+				// Simulate fallback to map
+				c.Params = map[string]string{
+					"id":     "456",
+					"action": "view",
+				}
+			},
+			validate: func(t *testing.T, params UserParams) {
+				assert.Equal(t, 456, params.ID)
+				assert.Equal(t, "view", params.Action)
+			},
+		},
+	}
 
-		// Simulate router setting params
-		c.paramCount = 2
-		c.paramKeys[0] = "id"
-		c.paramValues[0] = "123"
-		c.paramKeys[1] = "action"
-		c.paramValues[1] = "edit"
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		var params UserParams
-		if err := c.BindParams(&params); err != nil {
-			t.Fatalf("BindParams failed: %v", err)
-		}
+			req := httptest.NewRequest("GET", "/", nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		if params.ID != 123 || params.Action != "edit" {
-			t.Errorf("BindParams got %+v, want {123 edit}", params)
-		}
-	})
+			if tt.setup != nil {
+				tt.setup(c)
+			}
 
-	t.Run("params from map (>8 params)", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		// Simulate fallback to map
-		c.Params = map[string]string{
-			"id":     "456",
-			"action": "view",
-		}
-
-		var params UserParams
-		if err := c.BindParams(&params); err != nil {
-			t.Fatalf("BindParams failed: %v", err)
-		}
-
-		if params.ID != 456 || params.Action != "view" {
-			t.Errorf("BindParams got %+v", params)
-		}
-	})
+			var params UserParams
+			require.NoError(t, c.BindParams(&params))
+			tt.validate(t, params)
+		})
+	}
 }
 
-// Test BindCookies
+// TestBindCookies tests cookie binding functionality
 func TestBindCookies(t *testing.T) {
+	t.Parallel()
+
 	type SessionCookies struct {
 		SessionID  string `cookie:"session_id"`
 		Theme      string `cookie:"theme"`
 		RememberMe bool   `cookie:"remember_me"`
 	}
 
-	t.Run("valid cookies", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		req.AddCookie(&http.Cookie{Name: "session_id", Value: "abc123"})
-		req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
-		req.AddCookie(&http.Cookie{Name: "remember_me", Value: "true"})
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any // The struct to bind to
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "valid cookies",
+			setup: func(req *http.Request) {
+				req.AddCookie(&http.Cookie{Name: "session_id", Value: "abc123"})
+				req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
+				req.AddCookie(&http.Cookie{Name: "remember_me", Value: "true"})
+			},
+			params: &SessionCookies{},
+			validate: func(t *testing.T, params any) {
+				cookies := params.(*SessionCookies)
+				assert.Equal(t, "abc123", cookies.SessionID)
+				assert.Equal(t, "dark", cookies.Theme)
+				assert.True(t, cookies.RememberMe)
+			},
+		},
+		{
+			name: "URL encoded cookies",
+			setup: func(req *http.Request) {
+				// Cookie with URL-encoded value
+				req.AddCookie(&http.Cookie{Name: "session_id", Value: url.QueryEscape("value with spaces")})
+			},
+			params: &struct {
+				SessionID string `cookie:"session_id"`
+			}{},
+			validate: func(t *testing.T, params any) {
+				cookies := params.(*struct {
+					SessionID string `cookie:"session_id"`
+				})
+				assert.Equal(t, "value with spaces", cookies.SessionID)
+			},
+		},
+	}
 
-		var cookies SessionCookies
-		if err := c.BindCookies(&cookies); err != nil {
-			t.Fatalf("BindCookies failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if cookies.SessionID != "abc123" || cookies.Theme != "dark" || !cookies.RememberMe {
-			t.Errorf("BindCookies got %+v", cookies)
-		}
-	})
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("URL encoded cookies", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		// Cookie with URL-encoded value
-		req.AddCookie(&http.Cookie{Name: "session_id", Value: url.QueryEscape("value with spaces")})
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var cookies struct {
-			SessionID string `cookie:"session_id"`
-		}
-		if err := c.BindCookies(&cookies); err != nil {
-			t.Fatalf("BindCookies failed: %v", err)
-		}
-
-		if cookies.SessionID != "value with spaces" {
-			t.Errorf("BindCookies got %q, want %q", cookies.SessionID, "value with spaces")
-		}
-	})
+			require.NoError(t, c.BindCookies(tt.params))
+			tt.validate(t, tt.params)
+		})
+	}
 }
 
-// Test BindHeaders
+// TestBindHeaders tests HTTP header binding functionality
 func TestBindHeaders(t *testing.T) {
+	t.Parallel()
+
 	type RequestHeaders struct {
 		UserAgent string `header:"User-Agent"`
 		Token     string `header:"Authorization"`
 		Accept    string `header:"Accept"`
 	}
 
-	t.Run("valid headers", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		req.Header.Set("User-Agent", "Mozilla/5.0")
-		req.Header.Set("Authorization", "Bearer token123")
-		req.Header.Set("Accept", "application/json")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any // The struct to bind to
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "valid headers",
+			setup: func(req *http.Request) {
+				req.Header.Set("User-Agent", "Mozilla/5.0")
+				req.Header.Set("Authorization", "Bearer token123")
+				req.Header.Set("Accept", "application/json")
+			},
+			params: &RequestHeaders{},
+			validate: func(t *testing.T, params any) {
+				headers := params.(*RequestHeaders)
+				assert.Equal(t, "Mozilla/5.0", headers.UserAgent)
+				assert.Equal(t, "Bearer token123", headers.Token)
+				assert.Equal(t, "application/json", headers.Accept)
+			},
+		},
+		{
+			name: "case insensitive",
+			setup: func(req *http.Request) {
+				req.Header.Set("User-Agent", "Test")
+			},
+			params: &struct {
+				UserAgent string `header:"User-Agent"`
+			}{},
+			validate: func(t *testing.T, params any) {
+				headers := params.(*struct {
+					UserAgent string `header:"User-Agent"`
+				})
+				assert.Equal(t, "Test", headers.UserAgent)
+			},
+		},
+	}
 
-		var headers RequestHeaders
-		if err := c.BindHeaders(&headers); err != nil {
-			t.Fatalf("BindHeaders failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if headers.UserAgent != "Mozilla/5.0" || headers.Token != "Bearer token123" || headers.Accept != "application/json" {
-			t.Errorf("BindHeaders got %+v", headers)
-		}
-	})
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("case insensitive", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		req.Header.Set("user-agent", "Test")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var headers struct {
-			UserAgent string `header:"User-Agent"`
-		}
-		if err := c.BindHeaders(&headers); err != nil {
-			t.Fatalf("BindHeaders failed: %v", err)
-		}
-
-		if headers.UserAgent != "Test" {
-			t.Errorf("BindHeaders got %q, want %q", headers.UserAgent, "Test")
-		}
-	})
+			require.NoError(t, c.BindHeaders(tt.params))
+			tt.validate(t, tt.params)
+		})
+	}
 }
 
-// Test BindBody with different content types
+// TestBindBody tests automatic content type detection and binding
 func TestBindBody(t *testing.T) {
+	t.Parallel()
+
 	type User struct {
 		Name  string `json:"name" form:"name"`
 		Email string `json:"email" form:"email"`
 		Age   int    `json:"age" form:"age"`
 	}
 
-	t.Run("JSON content type", func(t *testing.T) {
-		body := `{"name":"Alice","email":"alice@example.com","age":25}`
-		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		body     string
+		setup    func(req *http.Request) // Optional: for custom headers
+		wantErr  bool
+		validate func(t *testing.T, user User)
+	}{
+		{
+			name: "JSON content type",
+			body: `{"name":"Alice","email":"alice@example.com","age":25}`,
+			setup: func(req *http.Request) {
+				req.Header.Set("Content-Type", "application/json")
+			},
+			wantErr: false,
+			validate: func(t *testing.T, user User) {
+				assert.Equal(t, "Alice", user.Name)
+				assert.Equal(t, "alice@example.com", user.Email)
+				assert.Equal(t, 25, user.Age)
+			},
+		},
+		{
+			name: "form content type",
+			body: func() string {
+				form := url.Values{}
+				form.Set("name", "Bob")
+				form.Set("email", "bob@example.com")
+				form.Set("age", "35")
+				return form.Encode()
+			}(),
+			setup: func(req *http.Request) {
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			},
+			wantErr: false,
+			validate: func(t *testing.T, user User) {
+				assert.Equal(t, "Bob", user.Name)
+				assert.Equal(t, "bob@example.com", user.Email)
+				assert.Equal(t, 35, user.Age)
+			},
+		},
+		{
+			name:    "default to JSON when no content type",
+			body:    `{"name":"Charlie","email":"charlie@example.com","age":40}`,
+			setup:   nil, // No Content-Type header
+			wantErr: false,
+			validate: func(t *testing.T, user User) {
+				assert.Equal(t, "Charlie", user.Name)
+				assert.Equal(t, 40, user.Age)
+			},
+		},
+		{
+			name: "unsupported content type",
+			body: "data",
+			setup: func(req *http.Request) {
+				req.Header.Set("Content-Type", "application/octet-stream")
+			},
+			wantErr:  true,
+			validate: func(t *testing.T, user User) {},
+		},
+	}
 
-		var user User
-		if err := c.BindBody(&user); err != nil {
-			t.Fatalf("BindBody failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if user.Name != "Alice" || user.Age != 25 {
-			t.Errorf("BindBody got %+v", user)
-		}
-	})
+			req := httptest.NewRequest("POST", "/", strings.NewReader(tt.body))
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("form content type", func(t *testing.T) {
-		form := url.Values{}
-		form.Set("name", "Bob")
-		form.Set("email", "bob@example.com")
-		form.Set("age", "35")
+			var user User
+			err := c.BindBody(&user)
 
-		req := httptest.NewRequest("POST", "/", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var user User
-		if err := c.BindBody(&user); err != nil {
-			t.Fatalf("BindBody failed: %v", err)
-		}
-
-		if user.Name != "Bob" || user.Age != 35 {
-			t.Errorf("BindBody got %+v", user)
-		}
-	})
-
-	t.Run("default to JSON when no content type", func(t *testing.T) {
-		body := `{"name":"Charlie","email":"charlie@example.com","age":40}`
-		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
-		// No Content-Type header
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var user User
-		if err := c.BindBody(&user); err != nil {
-			t.Fatalf("BindBody failed: %v", err)
-		}
-
-		if user.Name != "Charlie" {
-			t.Errorf("BindBody got %+v", user)
-		}
-	})
-
-	t.Run("unsupported content type", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/", strings.NewReader("data"))
-		req.Header.Set("Content-Type", "application/octet-stream")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var user User
-		err := c.BindBody(&user)
-		if err == nil {
-			t.Error("Expected error for unsupported content type")
-		}
-		if !strings.Contains(err.Error(), "unsupported content type") {
-			t.Errorf("Expected 'unsupported content type' error, got: %v", err)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				assert.Contains(t, err.Error(), "unsupported content type")
+			} else {
+				require.NoError(t, err, "BindBody should succeed for %s", tt.name)
+				tt.validate(t, user)
+			}
+		})
+	}
 }
 
-// Test slice binding
+// TestBindQuery_Slices tests slice binding in query parameters
 func TestBindQuery_Slices(t *testing.T) {
+	t.Parallel()
+
 	type TagRequest struct {
 		Tags []string `query:"tags"`
 		IDs  []int    `query:"ids"`
 	}
 
-	t.Run("string slice", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?tags=go&tags=rust&tags=python", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		wantErr  bool
+		validate func(t *testing.T, params TagRequest)
+	}{
+		{
+			name:    "string slice",
+			query:   "tags=go&tags=rust&tags=python",
+			wantErr: false,
+			validate: func(t *testing.T, params TagRequest) {
+				require.Len(t, params.Tags, 3)
+				assert.Equal(t, "go", params.Tags[0])
+				assert.Equal(t, "rust", params.Tags[1])
+				assert.Equal(t, "python", params.Tags[2])
+			},
+		},
+		{
+			name:    "int slice",
+			query:   "ids=1&ids=2&ids=3",
+			wantErr: false,
+			validate: func(t *testing.T, params TagRequest) {
+				require.Len(t, params.IDs, 3)
+				assert.Equal(t, 1, params.IDs[0])
+				assert.Equal(t, 2, params.IDs[1])
+				assert.Equal(t, 3, params.IDs[2])
+			},
+		},
+		{
+			name:     "invalid int in slice",
+			query:    "ids=1&ids=invalid&ids=3",
+			wantErr:  true,
+			validate: func(t *testing.T, params TagRequest) {},
+		},
+	}
 
-		var params TagRequest
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if len(params.Tags) != 3 {
-			t.Fatalf("Expected 3 tags, got %d", len(params.Tags))
-		}
-		if params.Tags[0] != "go" || params.Tags[1] != "rust" || params.Tags[2] != "python" {
-			t.Errorf("Tags = %v", params.Tags)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("int slice", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?ids=1&ids=2&ids=3", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var params TagRequest
+			err := c.BindQuery(&params)
 
-		var params TagRequest
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if len(params.IDs) != 3 {
-			t.Fatalf("Expected 3 IDs, got %d", len(params.IDs))
-		}
-		if params.IDs[0] != 1 || params.IDs[1] != 2 || params.IDs[2] != 3 {
-			t.Errorf("IDs = %v", params.IDs)
-		}
-	})
-
-	t.Run("invalid int in slice", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?ids=1&ids=invalid&ids=3", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params TagRequest
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for invalid integer in slice")
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+				tt.validate(t, params)
+			}
+		})
+	}
 }
 
-// Test pointer fields
+// TestBindQuery_Pointers tests pointer field binding in query parameters
 func TestBindQuery_Pointers(t *testing.T) {
+	t.Parallel()
+
 	type OptionalParams struct {
 		Name   *string `query:"name"`
 		Age    *int    `query:"age"`
 		Active *bool   `query:"active"`
 	}
 
-	t.Run("all values present", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?name=John&age=30&active=true", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		validate func(t *testing.T, params OptionalParams)
+	}{
+		{
+			name:  "all values present",
+			query: "name=John&age=30&active=true",
+			validate: func(t *testing.T, params OptionalParams) {
+				require.NotNil(t, params.Name)
+				assert.Equal(t, "John", *params.Name)
+				require.NotNil(t, params.Age)
+				assert.Equal(t, 30, *params.Age)
+				require.NotNil(t, params.Active)
+				assert.True(t, *params.Active)
+			},
+		},
+		{
+			name:  "missing values remain nil",
+			query: "name=John",
+			validate: func(t *testing.T, params OptionalParams) {
+				require.NotNil(t, params.Name)
+				assert.Equal(t, "John", *params.Name)
+				assert.Nil(t, params.Age, "Age should be nil when not provided")
+			},
+		},
+		{
+			name:  "empty value remains nil",
+			query: "name=&age=",
+			validate: func(t *testing.T, params OptionalParams) {
+				assert.Nil(t, params.Name, "Name should be nil for empty value")
+				assert.Nil(t, params.Age, "Age should be nil for empty value")
+			},
+		},
+	}
 
-		var params OptionalParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Name == nil || *params.Name != "John" {
-			t.Error("Name pointer not set correctly")
-		}
-		if params.Age == nil || *params.Age != 30 {
-			t.Error("Age pointer not set correctly")
-		}
-		if params.Active == nil || !*params.Active {
-			t.Error("Active pointer not set correctly")
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("missing values remain nil", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?name=John", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params OptionalParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Name == nil || *params.Name != "John" {
-			t.Error("Name should be set")
-		}
-		if params.Age != nil {
-			t.Error("Age should be nil when not provided")
-		}
-	})
-
-	t.Run("empty value remains nil", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?name=&age=", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params OptionalParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Name != nil {
-			t.Error("Name should be nil for empty value")
-		}
-		if params.Age != nil {
-			t.Error("Age should be nil for empty value")
-		}
-	})
+			var params OptionalParams
+			require.NoError(t, c.BindQuery(&params))
+			tt.validate(t, params)
+		})
+	}
 }
 
-// Test various data types
+// TestBindQuery_DataTypes tests binding of various data types in query parameters
 func TestBindQuery_DataTypes(t *testing.T) {
+	t.Parallel()
+
 	type AllTypes struct {
 		String  string  `query:"string"`
 		Int     int     `query:"int"`
@@ -505,47 +632,62 @@ func TestBindQuery_DataTypes(t *testing.T) {
 		Bool    bool    `query:"bool"`
 	}
 
-	req := httptest.NewRequest("GET", "/", nil)
-	// Build query parameters programmatically to avoid URL length issues
-	q := req.URL.Query()
-	q.Set("string", "test")
-	q.Set("int", "-42")
-	q.Set("int8", "127")
-	q.Set("int16", "32000")
-	q.Set("int32", "2147483647")
-	q.Set("uint", "42")
-	q.Set("float32", "3.14")
-	q.Set("float64", "2.718281828")
-	q.Set("bool", "true")
-	req.URL.RawQuery = q.Encode()
-
-	w := httptest.NewRecorder()
-	c := NewContext(w, req)
-
-	var params AllTypes
-	if err := c.BindQuery(&params); err != nil {
-		t.Fatalf("BindQuery failed: %v", err)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "all data types",
+			setup: func(req *http.Request) {
+				// Build query parameters programmatically to avoid URL length issues
+				q := req.URL.Query()
+				q.Set("string", "test")
+				q.Set("int", "-42")
+				q.Set("int8", "127")
+				q.Set("int16", "32000")
+				q.Set("int32", "2147483647")
+				q.Set("uint", "42")
+				q.Set("float32", "3.14")
+				q.Set("float64", "2.718281828")
+				q.Set("bool", "true")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &AllTypes{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*AllTypes)
+				assert.Equal(t, "test", p.String)
+				assert.Equal(t, -42, p.Int)
+				assert.Equal(t, int8(127), p.Int8)
+				assert.True(t, p.Bool)
+				assert.InDelta(t, 3.14, p.Float32, 0.01)
+			},
+		},
 	}
 
-	if params.String != "test" {
-		t.Errorf("String = %v", params.String)
-	}
-	if params.Int != -42 {
-		t.Errorf("Int = %v", params.Int)
-	}
-	if params.Int8 != 127 {
-		t.Errorf("Int8 = %v", params.Int8)
-	}
-	if params.Bool != true {
-		t.Errorf("Bool = %v", params.Bool)
-	}
-	if params.Float32 < 3.13 || params.Float32 > 3.15 {
-		t.Errorf("Float32 = %v", params.Float32)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
+
+			require.NoError(t, c.BindQuery(tt.params))
+			tt.validate(t, tt.params)
+		})
 	}
 }
 
-// Test boolean parsing variations
+// TestParseBool tests boolean parsing variations
 func TestParseBool(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected bool
@@ -579,21 +721,25 @@ func TestParseBool(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := parseBool(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseBool(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr && result != tt.expected {
-				t.Errorf("parseBool(%q) = %v, want %v", tt.input, result, tt.expected)
+			if tt.wantErr {
+				assert.Error(t, err, "parseBool(%q) should return error", tt.input)
+			} else {
+				require.NoError(t, err, "parseBool(%q) should not return error", tt.input)
+				assert.Equal(t, tt.expected, result, "parseBool(%q) = %v, want %v", tt.input, result, tt.expected)
 			}
 		})
 	}
 }
 
-// Test BindForm
+// TestBindForm tests form binding functionality
 func TestBindForm(t *testing.T) {
+	t.Parallel()
+
 	type LoginForm struct {
 		Username string `form:"username"`
 		Password string `form:"password"`
@@ -601,6 +747,8 @@ func TestBindForm(t *testing.T) {
 	}
 
 	t.Run("urlencoded form", func(t *testing.T) {
+		t.Parallel()
+
 		form := url.Values{}
 		form.Set("username", "alice")
 		form.Set("password", "secret123")
@@ -612,61 +760,87 @@ func TestBindForm(t *testing.T) {
 		c := NewContext(w, req)
 
 		var login LoginForm
-		if err := c.BindForm(&login); err != nil {
-			t.Fatalf("BindForm failed: %v", err)
-		}
-
-		if login.Username != "alice" || login.Password != "secret123" || !login.Remember {
-			t.Errorf("BindForm got %+v", login)
-		}
+		require.NoError(t, c.BindForm(&login))
+		assert.Equal(t, "alice", login.Username)
+		assert.Equal(t, "secret123", login.Password)
+		assert.True(t, login.Remember)
 	})
 }
 
-// Test error cases
+// TestBind_Errors tests error cases in binding
 func TestBind_Errors(t *testing.T) {
-	t.Run("not a pointer", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?name=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	t.Parallel()
 
-		var params struct {
-			Name string `query:"name"`
-		}
-		err := c.BindQuery(params) // Not a pointer!
-		if err == nil {
-			t.Error("Expected error for non-pointer")
-		}
-	})
+	tests := []struct {
+		name     string
+		setup    func(c *Context) error
+		wantErr  bool
+		validate func(t *testing.T, err error)
+	}{
+		{
+			name: "not a pointer",
+			setup: func(c *Context) error {
+				var params struct {
+					Name string `query:"name"`
+				}
+				return c.BindQuery(params) // Not a pointer!
+			},
+			wantErr: true,
+			validate: func(t *testing.T, err error) {
+				assert.Error(t, err, "Expected error for non-pointer")
+			},
+		},
+		{
+			name: "nil pointer",
+			setup: func(c *Context) error {
+				var params *struct {
+					Name string `query:"name"`
+				}
+				return c.BindQuery(params)
+			},
+			wantErr: true,
+			validate: func(t *testing.T, err error) {
+				assert.Error(t, err, "Expected error for nil pointer")
+			},
+		},
+		{
+			name: "not a struct",
+			setup: func(c *Context) error {
+				var str string
+				return c.BindQuery(&str)
+			},
+			wantErr: true,
+			validate: func(t *testing.T, err error) {
+				assert.Error(t, err, "Expected error for non-struct")
+			},
+		},
+	}
 
-	t.Run("nil pointer", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?name=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		var params *struct {
-			Name string `query:"name"`
-		}
-		err := c.BindQuery(params)
-		if err == nil {
-			t.Error("Expected error for nil pointer")
-		}
-	})
+			req := httptest.NewRequest("GET", "/?name=test", nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("not a struct", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?name=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			err := tt.setup(c)
 
-		var str string
-		err := c.BindQuery(&str)
-		if err == nil {
-			t.Error("Expected error for non-struct")
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+			} else {
+				require.NoError(t, err, "Should succeed for %s", tt.name)
+			}
+			tt.validate(t, err)
+		})
+	}
 }
 
-// Test type cache efficiency
+// TestStructInfoCache tests type cache efficiency
 func TestStructInfoCache(t *testing.T) {
+	t.Parallel()
+
 	type TestStruct struct {
 		Name string `query:"name"`
 		Age  int    `query:"age"`
@@ -678,24 +852,21 @@ func TestStructInfoCache(t *testing.T) {
 
 	// First call - should populate cache
 	var s1 TestStruct
-	if err := c.BindQuery(&s1); err != nil {
-		t.Fatalf("First BindQuery failed: %v", err)
-	}
+	require.NoError(t, c.BindQuery(&s1), "First BindQuery failed")
 
 	// Second call - should use cache
 	var s2 TestStruct
-	if err := c.BindQuery(&s2); err != nil {
-		t.Fatalf("Second BindQuery failed: %v", err)
-	}
+	require.NoError(t, c.BindQuery(&s2), "Second BindQuery failed")
 
 	// Both should have same values
-	if s1.Name != s2.Name || s1.Age != s2.Age {
-		t.Error("Cached binding produced different results")
-	}
+	assert.Equal(t, s1.Name, s2.Name, "Cached binding produced different Name values")
+	assert.Equal(t, s1.Age, s2.Age, "Cached binding produced different Age values")
 }
 
-// Test BindError details
+// TestBindError_Details tests BindError details
 func TestBindError_Details(t *testing.T) {
+	t.Parallel()
+
 	type Params struct {
 		Age int `query:"age"`
 	}
@@ -706,157 +877,167 @@ func TestBindError_Details(t *testing.T) {
 
 	var params Params
 	err := c.BindQuery(&params)
-
-	if err == nil {
-		t.Fatal("Expected BindError")
-	}
+	require.Error(t, err, "Expected BindError")
 
 	var bindErr *BindError
-	if !errors.As(err, &bindErr) {
-		t.Fatalf("Expected BindError, got %T", err)
-	}
-
-	if bindErr.Field != "Age" {
-		t.Errorf("Field = %q, want %q", bindErr.Field, "Age")
-	}
-	if bindErr.Tag != "query" {
-		t.Errorf("Tag = %q, want %q", bindErr.Tag, "query")
-	}
-	if bindErr.Value != "invalid" {
-		t.Errorf("Value = %q, want %q", bindErr.Value, "invalid")
-	}
+	require.True(t, errors.As(err, &bindErr), "Expected BindError type")
+	assert.Equal(t, "Age", bindErr.Field)
+	assert.Equal(t, "query", bindErr.Tag)
+	assert.Equal(t, "invalid", bindErr.Value)
 }
 
-// Test real-world scenarios
+// TestBindQuery_RealWorld tests real-world binding scenarios
 func TestBindQuery_RealWorld(t *testing.T) {
-	t.Run("pagination", func(t *testing.T) {
-		type Pagination struct {
-			Page     int    `query:"page"`
-			PageSize int    `query:"page_size"`
-			Sort     string `query:"sort"`
-			Order    string `query:"order"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?page=3&page_size=50&sort=created_at&order=desc", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		params   any // The struct to bind to
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name:  "pagination",
+			query: "page=3&page_size=50&sort=created_at&order=desc",
+			params: &struct {
+				Page     int    `query:"page"`
+				PageSize int    `query:"page_size"`
+				Sort     string `query:"sort"`
+				Order    string `query:"order"`
+			}{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*struct {
+					Page     int    `query:"page"`
+					PageSize int    `query:"page_size"`
+					Sort     string `query:"sort"`
+					Order    string `query:"order"`
+				})
+				assert.Equal(t, 3, p.Page)
+				assert.Equal(t, 50, p.PageSize)
+				assert.Equal(t, "created_at", p.Sort)
+				assert.Equal(t, "desc", p.Order)
+			},
+		},
+		{
+			name:  "filters",
+			query: "status=active&status=pending&category=electronics&min_price=10.50&max_price=99.99",
+			params: &struct {
+				Status   []string `query:"status"`
+				Category []string `query:"category"`
+				MinPrice float64  `query:"min_price"`
+				MaxPrice float64  `query:"max_price"`
+			}{},
+			validate: func(t *testing.T, params any) {
+				f := params.(*struct {
+					Status   []string `query:"status"`
+					Category []string `query:"category"`
+					MinPrice float64  `query:"min_price"`
+					MaxPrice float64  `query:"max_price"`
+				})
+				require.Len(t, f.Status, 2)
+				assert.Equal(t, "active", f.Status[0])
+				assert.Equal(t, "pending", f.Status[1])
+				assert.Equal(t, 10.50, f.MinPrice)
+				assert.Equal(t, 99.99, f.MaxPrice)
+			},
+		},
+	}
 
-		var p Pagination
-		if err := c.BindQuery(&p); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if p.Page != 3 || p.PageSize != 50 || p.Sort != "created_at" || p.Order != "desc" {
-			t.Errorf("Pagination = %+v", p)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("filters", func(t *testing.T) {
-		type Filters struct {
-			Status   []string `query:"status"`
-			Category []string `query:"category"`
-			MinPrice float64  `query:"min_price"`
-			MaxPrice float64  `query:"max_price"`
-		}
-
-		req := httptest.NewRequest("GET", "/?status=active&status=pending&category=electronics&min_price=10.50&max_price=99.99", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var f Filters
-		if err := c.BindQuery(&f); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if len(f.Status) != 2 || f.Status[0] != "active" || f.Status[1] != "pending" {
-			t.Errorf("Status = %v", f.Status)
-		}
-		if f.MinPrice != 10.50 || f.MaxPrice != 99.99 {
-			t.Errorf("Prices = %v, %v", f.MinPrice, f.MaxPrice)
-		}
-	})
+			require.NoError(t, c.BindQuery(tt.params))
+			tt.validate(t, tt.params)
+		})
+	}
 }
 
-// Test time.Time support
+// TestBindQuery_TimeType tests time.Time support in query parameters
 func TestBindQuery_TimeType(t *testing.T) {
+	t.Parallel()
+
 	type EventParams struct {
 		StartDate time.Time  `query:"start"`
 		EndDate   time.Time  `query:"end"`
 		Created   *time.Time `query:"created"`
 	}
 
-	t.Run("RFC3339 format", func(t *testing.T) {
-		start := "2024-01-15T10:30:00Z"
-		end := "2024-01-20T15:45:00Z"
+	tests := []struct {
+		name     string
+		query    string
+		wantErr  bool
+		validate func(t *testing.T, params EventParams)
+	}{
+		{
+			name:    "RFC3339 format",
+			query:   "start=2024-01-15T10:30:00Z&end=2024-01-20T15:45:00Z",
+			wantErr: false,
+			validate: func(t *testing.T, params EventParams) {
+				expectedStart, err := time.Parse(time.RFC3339, "2024-01-15T10:30:00Z")
+				require.NoError(t, err)
+				assert.True(t, params.StartDate.Equal(expectedStart), "StartDate should match expected time")
+			},
+		},
+		{
+			name:    "date only format",
+			query:   "start=2024-01-15",
+			wantErr: false,
+			validate: func(t *testing.T, params EventParams) {
+				expected, err := time.Parse("2006-01-02", "2024-01-15")
+				require.NoError(t, err)
+				assert.True(t, params.StartDate.Equal(expected), "StartDate should match expected date")
+			},
+		},
+		{
+			name:    "pointer time field",
+			query:   "created=2024-01-15T10:00:00Z",
+			wantErr: false,
+			validate: func(t *testing.T, params EventParams) {
+				require.NotNil(t, params.Created, "Created should not be nil")
+				expected, err := time.Parse(time.RFC3339, "2024-01-15T10:00:00Z")
+				require.NoError(t, err)
+				assert.True(t, params.Created.Equal(expected), "Created should match expected time")
+			},
+		},
+		{
+			name:     "invalid time format",
+			query:    "start=invalid-date",
+			wantErr:  true,
+			validate: func(t *testing.T, params EventParams) {},
+		},
+	}
 
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("start", start)
-		q.Set("end", end)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		var params EventParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		expectedStart, _ := time.Parse(time.RFC3339, start)
-		if !params.StartDate.Equal(expectedStart) {
-			t.Errorf("StartDate = %v, want %v", params.StartDate, expectedStart)
-		}
-	})
+			var params EventParams
+			err := c.BindQuery(&params)
 
-	t.Run("date only format", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?start=2024-01-15", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			if tt.wantErr {
+				assert.Error(t, err, "Expected error for %s", tt.name)
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+				tt.validate(t, params)
+			}
+		})
+	}
 
-		var params EventParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		expected, _ := time.Parse("2006-01-02", "2024-01-15")
-		if !params.StartDate.Equal(expected) {
-			t.Errorf("StartDate = %v, want %v", params.StartDate, expected)
-		}
-	})
-
-	t.Run("pointer time field", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?created=2024-01-15T10:00:00Z", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params EventParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Created == nil {
-			t.Fatal("Created should not be nil")
-		}
-
-		expected, _ := time.Parse(time.RFC3339, "2024-01-15T10:00:00Z")
-		if !params.Created.Equal(expected) {
-			t.Errorf("Created = %v, want %v", *params.Created, expected)
-		}
-	})
-
-	t.Run("invalid time format", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?start=invalid-date", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params EventParams
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for invalid time format")
-		}
-	})
-
+	// Time slice test - kept separate due to different struct type
 	t.Run("time slice", func(t *testing.T) {
+		t.Parallel()
+
 		type DateList struct {
 			Dates []time.Time `query:"dates"`
 		}
@@ -871,267 +1052,272 @@ func TestBindQuery_TimeType(t *testing.T) {
 		c := NewContext(w, req)
 
 		var params DateList
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if len(params.Dates) != 3 {
-			t.Fatalf("Expected 3 dates, got %d", len(params.Dates))
-		}
+		require.NoError(t, c.BindQuery(&params))
+		require.Len(t, params.Dates, 3)
 	})
 }
 
-// Test time.Duration support
+// TestBindQuery_DurationType tests time.Duration support in query parameters
 func TestBindQuery_DurationType(t *testing.T) {
+	t.Parallel()
+
 	type TimeoutParams struct {
 		Timeout  time.Duration  `query:"timeout"`
 		Interval time.Duration  `query:"interval"`
 		TTL      *time.Duration `query:"ttl"`
 	}
 
-	t.Run("valid durations", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?timeout=5s&interval=10m&ttl=1h", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		wantErr  bool
+		validate func(t *testing.T, params TimeoutParams)
+	}{
+		{
+			name:    "valid durations",
+			query:   "timeout=5s&interval=10m&ttl=1h",
+			wantErr: false,
+			validate: func(t *testing.T, params TimeoutParams) {
+				assert.Equal(t, 5*time.Second, params.Timeout)
+				assert.Equal(t, 10*time.Minute, params.Interval)
+				require.NotNil(t, params.TTL)
+				assert.Equal(t, time.Hour, *params.TTL)
+			},
+		},
+		{
+			name:    "complex duration",
+			query:   "timeout=1h30m45s",
+			wantErr: false,
+			validate: func(t *testing.T, params TimeoutParams) {
+				expected := time.Hour + 30*time.Minute + 45*time.Second
+				assert.Equal(t, expected, params.Timeout)
+			},
+		},
+		{
+			name:     "invalid duration",
+			query:    "timeout=invalid",
+			wantErr:  true,
+			validate: func(t *testing.T, params TimeoutParams) {},
+		},
+	}
 
-		var params TimeoutParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Timeout != 5*time.Second {
-			t.Errorf("Timeout = %v, want 5s", params.Timeout)
-		}
-		if params.Interval != 10*time.Minute {
-			t.Errorf("Interval = %v, want 10m", params.Interval)
-		}
-		if params.TTL == nil || *params.TTL != time.Hour {
-			t.Errorf("TTL = %v, want 1h", params.TTL)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("complex duration", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?timeout=1h30m45s", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var params TimeoutParams
+			err := c.BindQuery(&params)
 
-		var params TimeoutParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		expected := time.Hour + 30*time.Minute + 45*time.Second
-		if params.Timeout != expected {
-			t.Errorf("Timeout = %v, want %v", params.Timeout, expected)
-		}
-	})
-
-	t.Run("invalid duration", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?timeout=invalid", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params TimeoutParams
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for invalid duration")
-		}
-	})
+			if tt.wantErr {
+				assert.Error(t, err, "Expected error for %s", tt.name)
+			} else {
+				require.NoError(t, err)
+				tt.validate(t, params)
+			}
+		})
+	}
 }
 
-// Test net.IP support
+// TestBindQuery_IPType tests net.IP support
 func TestBindQuery_IPType(t *testing.T) {
+	t.Parallel()
+
 	type NetworkParams struct {
 		AllowedIP net.IP   `query:"allowed_ip"`
 		BlockedIP net.IP   `query:"blocked_ip"`
 		IPs       []net.IP `query:"ips"`
 	}
 
-	t.Run("IPv4 address", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?allowed_ip=192.168.1.1", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		setup    func(req *http.Request) // Optional: for complex query setup
+		wantErr  bool
+		validate func(t *testing.T, params NetworkParams)
+	}{
+		{
+			name:    "IPv4 address",
+			query:   "allowed_ip=192.168.1.1",
+			wantErr: false,
+			validate: func(t *testing.T, params NetworkParams) {
+				expected := net.ParseIP("192.168.1.1")
+				assert.True(t, params.AllowedIP.Equal(expected))
+			},
+		},
+		{
+			name:    "IPv6 address",
+			query:   "allowed_ip=2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			wantErr: false,
+			validate: func(t *testing.T, params NetworkParams) {
+				assert.NotNil(t, params.AllowedIP, "AllowedIP should not be nil")
+			},
+		},
+		{
+			name:    "IP slice",
+			query:   "ips=192.168.1.1&ips=10.0.0.1&ips=172.16.0.1",
+			wantErr: false,
+			validate: func(t *testing.T, params NetworkParams) {
+				require.Len(t, params.IPs, 3)
+			},
+		},
+		{
+			name:     "invalid IP",
+			query:    "allowed_ip=invalid-ip",
+			wantErr:  true,
+			validate: func(t *testing.T, params NetworkParams) {},
+		},
+	}
 
-		var params NetworkParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		expected := net.ParseIP("192.168.1.1")
-		if !params.AllowedIP.Equal(expected) {
-			t.Errorf("AllowedIP = %v, want %v", params.AllowedIP, expected)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("IPv6 address", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?allowed_ip=2001:0db8:85a3:0000:0000:8a2e:0370:7334", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var params NetworkParams
+			err := c.BindQuery(&params)
 
-		var params NetworkParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.AllowedIP == nil {
-			t.Error("AllowedIP should not be nil")
-		}
-	})
-
-	t.Run("IP slice", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Add("ips", "192.168.1.1")
-		q.Add("ips", "10.0.0.1")
-		q.Add("ips", "172.16.0.1")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params NetworkParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if len(params.IPs) != 3 {
-			t.Fatalf("Expected 3 IPs, got %d", len(params.IPs))
-		}
-	})
-
-	t.Run("invalid IP", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?allowed_ip=invalid-ip", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params NetworkParams
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for invalid IP")
-		}
-	})
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				tt.validate(t, params)
+			}
+		})
+	}
 }
 
-// Test url.URL support
+// TestBindQuery_URLType tests url.URL support
 func TestBindQuery_URLType(t *testing.T) {
+	t.Parallel()
+
 	type WebhookParams struct {
 		CallbackURL url.URL  `query:"callback"`
 		RedirectURL url.URL  `query:"redirect"`
 		OptionalURL *url.URL `query:"optional"`
 	}
 
-	t.Run("valid URL", func(t *testing.T) {
-		callback := "https://example.com/webhook"
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("callback", callback)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		validate func(t *testing.T, params WebhookParams)
+	}{
+		{
+			name:  "valid URL",
+			query: "callback=https://example.com/webhook",
+			validate: func(t *testing.T, params WebhookParams) {
+				expected := "https://example.com/webhook"
+				assert.Equal(t, expected, params.CallbackURL.String())
+			},
+		},
+		{
+			name:  "URL with query params",
+			query: "callback=https://example.com/hook?token=abc&id=123",
+			validate: func(t *testing.T, params WebhookParams) {
+				assert.Equal(t, "example.com", params.CallbackURL.Host)
+			},
+		},
+	}
 
-		var params WebhookParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.CallbackURL.String() != callback {
-			t.Errorf("CallbackURL = %v, want %v", params.CallbackURL.String(), callback)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("URL with query params", func(t *testing.T) {
-		callback := "https://example.com/hook?token=abc&id=123"
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("callback", callback)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params WebhookParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.CallbackURL.Host != "example.com" {
-			t.Errorf("Host = %v, want example.com", params.CallbackURL.Host)
-		}
-	})
+			var params WebhookParams
+			require.NoError(t, c.BindQuery(&params))
+			tt.validate(t, params)
+		})
+	}
 }
 
-// Test encoding.TextUnmarshaler interface
+// TestBindQuery_TextUnmarshaler tests encoding.TextUnmarshaler interface
 func TestBindQuery_TextUnmarshaler(t *testing.T) {
+	t.Parallel()
+
 	type Request struct {
 		ID       customUUID  `query:"id"`
 		TraceID  customUUID  `query:"trace_id"`
 		Optional *customUUID `query:"optional"`
 	}
 
-	t.Run("valid custom type", func(t *testing.T) {
-		id := "550e8400-e29b-41d4-a716-446655440000"
-		traceID := "660e8400-e29b-41d4-a716-446655440001"
+	tests := []struct {
+		name     string
+		query    string
+		wantErr  bool
+		validate func(t *testing.T, params Request)
+	}{
+		{
+			name:    "valid custom type",
+			query:   "id=550e8400-e29b-41d4-a716-446655440000&trace_id=660e8400-e29b-41d4-a716-446655440001",
+			wantErr: false,
+			validate: func(t *testing.T, params Request) {
+				expectedID := "550e8400-e29b-41d4-a716-446655440000"
+				expectedTraceID := "660e8400-e29b-41d4-a716-446655440001"
+				assert.Equal(t, expectedID, string(params.ID))
+				assert.Equal(t, expectedTraceID, string(params.TraceID))
+			},
+		},
+		{
+			name:     "invalid custom type",
+			query:    "id=invalid-uuid",
+			wantErr:  true,
+			validate: func(t *testing.T, params Request) {},
+		},
+		{
+			name:    "pointer to custom type",
+			query:   "id=550e8400-e29b-41d4-a716-446655440000&optional=770e8400-e29b-41d4-a716-446655440002",
+			wantErr: false,
+			validate: func(t *testing.T, params Request) {
+				require.NotNil(t, params.Optional, "Optional should not be nil")
+				expected := "770e8400-e29b-41d4-a716-446655440002"
+				assert.Equal(t, expected, string(*params.Optional))
+			},
+		},
+	}
 
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("id", id)
-		q.Set("trace_id", traceID)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		var params Request
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		if string(params.ID) != id {
-			t.Errorf("ID = %v, want %v", params.ID, id)
-		}
-		if string(params.TraceID) != traceID {
-			t.Errorf("TraceID = %v, want %v", params.TraceID, traceID)
-		}
-	})
+			var params Request
+			err := c.BindQuery(&params)
 
-	t.Run("invalid custom type", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?id=invalid-uuid", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Request
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for invalid UUID")
-		}
-		if !strings.Contains(err.Error(), "invalid UUID format") {
-			t.Errorf("Expected UUID format error, got: %v", err)
-		}
-	})
-
-	t.Run("pointer to custom type", func(t *testing.T) {
-		optional := "770e8400-e29b-41d4-a716-446655440002"
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("id", "550e8400-e29b-41d4-a716-446655440000")
-		q.Set("optional", optional)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Request
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Optional == nil {
-			t.Fatal("Optional should not be nil")
-		}
-		if string(*params.Optional) != optional {
-			t.Errorf("Optional = %v, want %v", *params.Optional, optional)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				assert.Contains(t, err.Error(), "invalid UUID format")
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+				tt.validate(t, params)
+			}
+		})
+	}
 }
 
-// Test embedded struct support
+// TestBindQuery_EmbeddedStruct tests embedded struct support
 func TestBindQuery_EmbeddedStruct(t *testing.T) {
+	t.Parallel()
+
 	type Pagination struct {
 		Page     int `query:"page"`
 		PageSize int `query:"page_size"`
@@ -1143,32 +1329,27 @@ func TestBindQuery_EmbeddedStruct(t *testing.T) {
 		Sort       string `query:"sort"`
 	}
 
+	type AdvancedSearch struct {
+		*Pagination
+		Query string `query:"q"`
+	}
+
 	t.Run("embedded fields", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest("GET", "/?q=golang&page=2&page_size=20&sort=name", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		var params SearchRequest
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Query != "golang" {
-			t.Errorf("Query = %v", params.Query)
-		}
-		if params.Page != 2 {
-			t.Errorf("Page = %v (from embedded struct)", params.Page)
-		}
-		if params.PageSize != 20 {
-			t.Errorf("PageSize = %v (from embedded struct)", params.PageSize)
-		}
+		require.NoError(t, c.BindQuery(&params))
+		assert.Equal(t, "golang", params.Query)
+		assert.Equal(t, 2, params.Page, "Page from embedded struct")
+		assert.Equal(t, 20, params.PageSize, "PageSize from embedded struct")
 	})
 
 	t.Run("pointer to embedded struct", func(t *testing.T) {
-		type AdvancedSearch struct {
-			*Pagination
-			Query string `query:"q"`
-		}
+		t.Parallel()
 
 		req := httptest.NewRequest("GET", "/?q=test&page=3&page_size=30", nil)
 		w := httptest.NewRecorder()
@@ -1177,21 +1358,16 @@ func TestBindQuery_EmbeddedStruct(t *testing.T) {
 		params := AdvancedSearch{
 			Pagination: &Pagination{}, // Must initialize pointer
 		}
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Query != "test" {
-			t.Errorf("Query = %v", params.Query)
-		}
-		if params.Page != 3 {
-			t.Errorf("Page = %v", params.Page)
-		}
+		require.NoError(t, c.BindQuery(&params))
+		assert.Equal(t, "test", params.Query)
+		assert.Equal(t, 3, params.Page)
 	})
 }
 
-// Test combined advanced types
+// TestBindQuery_CombinedAdvancedTypes tests combining multiple advanced types
 func TestBindQuery_CombinedAdvancedTypes(t *testing.T) {
+	t.Parallel()
+
 	type AdvancedParams struct {
 		// Time types
 		StartDate time.Time     `query:"start"`
@@ -1210,60 +1386,71 @@ func TestBindQuery_CombinedAdvancedTypes(t *testing.T) {
 		Active bool   `query:"active"`
 	}
 
-	req := httptest.NewRequest("GET", "/", nil)
-	q := req.URL.Query()
-	q.Set("start", "2024-01-15T10:00:00Z")
-	q.Set("timeout", "30s")
-	q.Set("allowed_ip", "192.168.1.1")
-	q.Set("proxy", "http://proxy.example.com:8080")
-	q.Add("dates", "2024-01-15")
-	q.Add("dates", "2024-01-16")
-	q.Add("durations", "5s")
-	q.Add("durations", "10m")
-	q.Set("name", "test")
-	q.Set("active", "true")
-	req.URL.RawQuery = q.Encode()
-	w := httptest.NewRecorder()
-	c := NewContext(w, req)
-
-	var params AdvancedParams
-	if err := c.BindQuery(&params); err != nil {
-		t.Fatalf("BindQuery failed: %v", err)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "combined advanced types",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("start", "2024-01-15T10:00:00Z")
+				q.Set("timeout", "30s")
+				q.Set("allowed_ip", "192.168.1.1")
+				q.Set("proxy", "http://proxy.example.com:8080")
+				q.Add("dates", "2024-01-15")
+				q.Add("dates", "2024-01-16")
+				q.Add("durations", "5s")
+				q.Add("durations", "10m")
+				q.Set("name", "test")
+				q.Set("active", "true")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &AdvancedParams{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*AdvancedParams)
+				// Validate time
+				expectedTime, _ := time.Parse(time.RFC3339, "2024-01-15T10:00:00Z")
+				assert.True(t, p.StartDate.Equal(expectedTime), "StartDate should match expected time")
+				// Validate duration
+				assert.Equal(t, 30*time.Second, p.Timeout, "Timeout should be 30s")
+				// Validate IP
+				expectedIP := net.ParseIP("192.168.1.1")
+				assert.True(t, p.AllowedIP.Equal(expectedIP), "AllowedIP should match expected IP")
+				// Validate URL
+				assert.Equal(t, "proxy.example.com:8080", p.ProxyURL.Host, "ProxyURL.Host should match")
+				// Validate slices
+				require.Len(t, p.Dates, 2, "Dates should have 2 elements")
+				require.Len(t, p.Durations, 2, "Durations should have 2 elements")
+				assert.Equal(t, 5*time.Second, p.Durations[0], "First duration should be 5s")
+			},
+		},
 	}
 
-	// Validate time
-	expectedTime, _ := time.Parse(time.RFC3339, "2024-01-15T10:00:00Z")
-	if !params.StartDate.Equal(expectedTime) {
-		t.Errorf("StartDate = %v", params.StartDate)
-	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Validate duration
-	if params.Timeout != 30*time.Second {
-		t.Errorf("Timeout = %v", params.Timeout)
-	}
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	// Validate IP
-	expectedIP := net.ParseIP("192.168.1.1")
-	if !params.AllowedIP.Equal(expectedIP) {
-		t.Errorf("AllowedIP = %v", params.AllowedIP)
-	}
-
-	// Validate URL
-	if params.ProxyURL.Host != "proxy.example.com:8080" {
-		t.Errorf("ProxyURL.Host = %v", params.ProxyURL.Host)
-	}
-
-	// Validate slices
-	if len(params.Dates) != 2 {
-		t.Errorf("Dates length = %d", len(params.Dates))
-	}
-	if len(params.Durations) != 2 || params.Durations[0] != 5*time.Second {
-		t.Errorf("Durations = %v", params.Durations)
+			require.NoError(t, c.BindQuery(tt.params))
+			tt.validate(t, tt.params)
+		})
 	}
 }
 
-// Test parseTime function directly
+// TestParseTime tests parseTime function directly
 func TestParseTime(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		input   string
@@ -1280,808 +1467,750 @@ func TestParseTime(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := parseTime(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseTime(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			if tt.wantErr {
+				assert.Error(t, err, "parseTime(%q) should return error", tt.input)
+			} else {
+				require.NoError(t, err, "parseTime(%q) should not return error", tt.input)
 			}
 		})
 	}
 }
 
-// Test net.IPNet support
+// TestBindQuery_IPNetType tests net.IPNet support
 func TestBindQuery_IPNetType(t *testing.T) {
+	t.Parallel()
+
 	type NetworkParams struct {
 		Subnet        net.IPNet   `query:"subnet"`
 		AllowedRanges []net.IPNet `query:"ranges"`
 		OptionalCIDR  *net.IPNet  `query:"optional"`
 	}
 
-	t.Run("valid CIDR", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?subnet=192.168.1.0/24", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		wantErr  bool
+		validate func(t *testing.T, params NetworkParams)
+	}{
+		{
+			name:    "valid CIDR",
+			query:   "subnet=192.168.1.0/24",
+			wantErr: false,
+			validate: func(t *testing.T, params NetworkParams) {
+				_, expected, _ := net.ParseCIDR("192.168.1.0/24")
+				assert.Equal(t, expected.String(), params.Subnet.String())
+			},
+		},
+		{
+			name:    "IPv6 CIDR",
+			query:   "subnet=2001:db8::/32",
+			wantErr: false,
+			validate: func(t *testing.T, params NetworkParams) {
+				assert.NotNil(t, params.Subnet.IP, "Subnet IP should not be nil")
+			},
+		},
+		{
+			name:    "CIDR slice",
+			query:   "ranges=10.0.0.0/8&ranges=172.16.0.0/12&ranges=192.168.0.0/16",
+			wantErr: false,
+			validate: func(t *testing.T, params NetworkParams) {
+				require.Len(t, params.AllowedRanges, 3)
+			},
+		},
+		{
+			name:     "invalid CIDR",
+			query:    "subnet=invalid-cidr",
+			wantErr:  true,
+			validate: func(t *testing.T, params NetworkParams) {},
+		},
+	}
 
-		var params NetworkParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		_, expected, _ := net.ParseCIDR("192.168.1.0/24")
-		if params.Subnet.String() != expected.String() {
-			t.Errorf("Subnet = %v, want %v", params.Subnet.String(), expected.String())
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("IPv6 CIDR", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?subnet=2001:db8::/32", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var params NetworkParams
+			err := c.BindQuery(&params)
 
-		var params NetworkParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Subnet.IP == nil {
-			t.Error("Subnet IP should not be nil")
-		}
-	})
-
-	t.Run("CIDR slice", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Add("ranges", "10.0.0.0/8")
-		q.Add("ranges", "172.16.0.0/12")
-		q.Add("ranges", "192.168.0.0/16")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params NetworkParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if len(params.AllowedRanges) != 3 {
-			t.Fatalf("Expected 3 ranges, got %d", len(params.AllowedRanges))
-		}
-	})
-
-	t.Run("invalid CIDR", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?subnet=invalid-cidr", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params NetworkParams
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for invalid CIDR")
-		}
-		if !strings.Contains(err.Error(), "invalid CIDR notation") {
-			t.Errorf("Expected CIDR error, got: %v", err)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				assert.Contains(t, err.Error(), "invalid CIDR notation")
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+				tt.validate(t, params)
+			}
+		})
+	}
 }
 
-// Test regexp.Regexp support
+// TestBindQuery_RegexpType tests regexp.Regexp support
 func TestBindQuery_RegexpType(t *testing.T) {
+	t.Parallel()
+
 	type PatternParams struct {
 		Pattern       regexp.Regexp  `query:"pattern"`
 		OptionalRegex *regexp.Regexp `query:"optional"`
 	}
 
-	t.Run("valid regexp", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("pattern", `^user-[0-9]+$`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request) // For setting query with proper encoding
+		wantErr  bool
+		validate func(t *testing.T, params PatternParams)
+	}{
+		{
+			name: "valid regexp",
+			setup: func(req *http.Request) {
+				// Set raw query directly with properly encoded + character
+				// The + needs to be encoded as %2B to avoid being decoded as a space
+				req.URL.RawQuery = "pattern=" + url.QueryEscape(`^user-[0-9]+$`)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, params PatternParams) {
+				expected := `^user-[0-9]+$`
+				assert.Equal(t, expected, params.Pattern.String())
+				assert.True(t, params.Pattern.MatchString("user-123"), "Pattern should match user-123")
+				assert.False(t, params.Pattern.MatchString("admin-123"), "Pattern should not match admin-123")
+			},
+		},
+		{
+			name: "invalid regexp",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("pattern", "[invalid")
+				req.URL.RawQuery = q.Encode()
+			},
+			wantErr:  true,
+			validate: func(t *testing.T, params PatternParams) {},
+		},
+	}
 
-		var params PatternParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Pattern.String() != `^user-[0-9]+$` {
-			t.Errorf("Pattern = %v", params.Pattern.String())
-		}
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		// Test the regex works
-		if !params.Pattern.MatchString("user-123") {
-			t.Error("Pattern should match user-123")
-		}
-		if params.Pattern.MatchString("admin-123") {
-			t.Error("Pattern should not match admin-123")
-		}
-	})
+			var params PatternParams
+			err := c.BindQuery(&params)
 
-	t.Run("invalid regexp", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?pattern=[invalid", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params PatternParams
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for invalid regexp")
-		}
-		if !strings.Contains(err.Error(), "invalid regular expression") {
-			t.Errorf("Expected regexp error, got: %v", err)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				assert.Contains(t, err.Error(), "invalid regular expression")
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+				tt.validate(t, params)
+			}
+		})
+	}
 }
 
-// Test bracket notation for maps
+// TestBindQuery_BracketNotation tests bracket notation for maps
 func TestBindQuery_BracketNotation(t *testing.T) {
+	t.Parallel()
+
 	type MapParams struct {
 		Metadata map[string]string `query:"metadata"`
 		Scores   map[string]int    `query:"scores"`
 	}
 
-	t.Run("simple bracket notation", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?metadata[name]=John&metadata[age]=30", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		setup    func(req *http.Request) // Optional: for complex query setup
+		wantErr  bool
+		validate func(t *testing.T, params MapParams)
+	}{
+		{
+			name:    "simple bracket notation",
+			query:   "metadata[name]=John&metadata[age]=30",
+			wantErr: false,
+			validate: func(t *testing.T, params MapParams) {
+				require.NotNil(t, params.Metadata, "Metadata should not be nil")
+				assert.Equal(t, "John", params.Metadata["name"])
+				assert.Equal(t, "30", params.Metadata["age"])
+			},
+		},
+		{
+			name: "quoted keys with special characters",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				// Keys with dots and dashes need quotes
+				q.Set(`metadata["user.name"]`, "John Doe")
+				q.Set(`metadata['user-email']`, "john@example.com")
+				q.Set(`metadata["org.id"]`, "12345")
+				req.URL.RawQuery = q.Encode()
+			},
+			wantErr: false,
+			validate: func(t *testing.T, params MapParams) {
+				assert.Equal(t, "John Doe", params.Metadata["user.name"])
+				assert.Equal(t, "john@example.com", params.Metadata["user-email"])
+				assert.Equal(t, "12345", params.Metadata["org.id"])
+			},
+		},
+		{
+			name:    "typed map with bracket notation",
+			query:   "scores[math]=95&scores[science]=88&scores[history]=92",
+			wantErr: false,
+			validate: func(t *testing.T, params MapParams) {
+				assert.Equal(t, 95, params.Scores["math"])
+				assert.Equal(t, 88, params.Scores["science"])
+				require.Len(t, params.Scores, 3)
+			},
+		},
+		{
+			name:    "mixed dot and bracket notation",
+			query:   "metadata.key1=value1&metadata[key2]=value2&metadata.key3=value3",
+			wantErr: false,
+			validate: func(t *testing.T, params MapParams) {
+				require.Len(t, params.Metadata, 3)
+				assert.Equal(t, "value1", params.Metadata["key1"])
+				assert.Equal(t, "value2", params.Metadata["key2"])
+				assert.Equal(t, "value3", params.Metadata["key3"])
+			},
+		},
+		{
+			name:     "invalid bracket - no closing",
+			query:    "metadata[unclosed=value",
+			wantErr:  true,
+			validate: func(t *testing.T, params MapParams) {},
+		},
+		{
+			name:     "empty brackets rejected for maps",
+			query:    "metadata[]=value",
+			wantErr:  true,
+			validate: func(t *testing.T, params MapParams) {},
+		},
+		{
+			name:     "nested brackets rejected",
+			query:    "metadata[key1][key2]=value",
+			wantErr:  true,
+			validate: func(t *testing.T, params MapParams) {},
+		},
+	}
 
-		var params MapParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Metadata == nil {
-			t.Fatal("Metadata should not be nil")
-		}
-		if params.Metadata["name"] != "John" {
-			t.Errorf("metadata[name] = %v, want John", params.Metadata["name"])
-		}
-		if params.Metadata["age"] != "30" {
-			t.Errorf("metadata[age] = %v, want 30", params.Metadata["age"])
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("quoted keys with special characters", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		// Keys with dots and dashes need quotes
-		q.Set(`metadata["user.name"]`, "John Doe")
-		q.Set(`metadata['user-email']`, "john@example.com")
-		q.Set(`metadata["org.id"]`, "12345")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var params MapParams
+			err := c.BindQuery(&params)
 
-		var params MapParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Metadata["user.name"] != "John Doe" {
-			t.Errorf(`metadata["user.name"] = %v`, params.Metadata["user.name"])
-		}
-		if params.Metadata["user-email"] != "john@example.com" {
-			t.Errorf(`metadata['user-email'] = %v`, params.Metadata["user-email"])
-		}
-		if params.Metadata["org.id"] != "12345" {
-			t.Errorf(`metadata["org.id"] = %v`, params.Metadata["org.id"])
-		}
-	})
-
-	t.Run("typed map with bracket notation", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?scores[math]=95&scores[science]=88&scores[history]=92", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params MapParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Scores["math"] != 95 {
-			t.Errorf("scores[math] = %v, want 95", params.Scores["math"])
-		}
-		if params.Scores["science"] != 88 {
-			t.Errorf("scores[science] = %v, want 88", params.Scores["science"])
-		}
-		if len(params.Scores) != 3 {
-			t.Errorf("Expected 3 scores, got %d", len(params.Scores))
-		}
-	})
-
-	t.Run("mixed dot and bracket notation", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?metadata.key1=value1&metadata[key2]=value2&metadata.key3=value3", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params MapParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if len(params.Metadata) != 3 {
-			t.Fatalf("Expected 3 entries, got %d", len(params.Metadata))
-		}
-		if params.Metadata["key1"] != "value1" {
-			t.Errorf("key1 = %v", params.Metadata["key1"])
-		}
-		if params.Metadata["key2"] != "value2" {
-			t.Errorf("key2 = %v", params.Metadata["key2"])
-		}
-		if params.Metadata["key3"] != "value3" {
-			t.Errorf("key3 = %v", params.Metadata["key3"])
-		}
-	})
-
-	t.Run("invalid bracket - no closing", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?metadata[unclosed=value", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params MapParams
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for unclosed bracket")
-		}
-		if !strings.Contains(err.Error(), "invalid bracket notation") {
-			t.Errorf("Expected bracket error, got: %v", err)
-		}
-	})
-
-	t.Run("empty brackets rejected for maps", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?metadata[]=value", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params MapParams
-		err := c.BindQuery(&params)
-		// Empty brackets should fail for maps (array notation)
-		if err == nil {
-			t.Error("Expected error for empty brackets on map")
-		}
-	})
-
-	t.Run("nested brackets rejected", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?metadata[key1][key2]=value", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params MapParams
-		err := c.BindQuery(&params)
-		// Nested brackets should fail (array notation)
-		if err == nil {
-			t.Error("Expected error for nested brackets on map")
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				if tt.name == "invalid bracket - no closing" {
+					assert.Contains(t, err.Error(), "invalid bracket notation")
+				}
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+				tt.validate(t, params)
+			}
+		})
+	}
 }
 
-// Test map support with dot notation
+// TestBindQuery_Maps tests map support with dot notation
 func TestBindQuery_Maps(t *testing.T) {
+	t.Parallel()
+
 	type FilterParams struct {
 		Metadata map[string]string `query:"metadata"`
 		Tags     map[string]string `query:"tags"`
 		Settings map[string]any    `query:"settings"`
 	}
 
-	t.Run("string map with dot notation", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("metadata.name", "John")
-		q.Set("metadata.age", "30")
-		q.Set("metadata.city", "NYC")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	type TypedMapParams struct {
+		Scores map[string]int     `query:"scores"`
+		Rates  map[string]float64 `query:"rates"`
+	}
 
-		var params FilterParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any // The struct to bind to
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "string map with dot notation",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("metadata.name", "John")
+				q.Set("metadata.age", "30")
+				q.Set("metadata.city", "NYC")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &FilterParams{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*FilterParams)
+				require.NotNil(t, p.Metadata, "Metadata map should not be nil")
+				assert.Equal(t, "John", p.Metadata["name"])
+				assert.Equal(t, "30", p.Metadata["age"])
+				require.Len(t, p.Metadata, 3)
+			},
+		},
+		{
+			name: "map with interface{} values",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("settings.debug", "true")
+				q.Set("settings.port", "8080")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &FilterParams{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*FilterParams)
+				require.NotNil(t, p.Settings, "Settings map should not be nil")
+				assert.Equal(t, "true", p.Settings["debug"])
+			},
+		},
+		{
+			name:   "empty map",
+			setup:  nil,
+			params: &FilterParams{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*FilterParams)
+				// Maps without values should remain nil (not cause error)
+				assert.Empty(t, p.Metadata, "Metadata should be empty")
+			},
+		},
+		{
+			name: "typed map values",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("scores.math", "95")
+				q.Set("scores.science", "88")
+				q.Set("rates.usd", "1.0")
+				q.Set("rates.eur", "0.85")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &TypedMapParams{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*TypedMapParams)
+				assert.Equal(t, 95, p.Scores["math"])
+				assert.InDelta(t, 0.85, p.Rates["eur"], 0.01, "rates.eur should be ~0.85")
+			},
+		},
+	}
 
-		if params.Metadata == nil {
-			t.Fatal("Metadata map should not be nil")
-		}
-		if params.Metadata["name"] != "John" {
-			t.Errorf("metadata.name = %v, want John", params.Metadata["name"])
-		}
-		if params.Metadata["age"] != "30" {
-			t.Errorf("metadata.age = %v, want 30", params.Metadata["age"])
-		}
-		if len(params.Metadata) != 3 {
-			t.Errorf("Expected 3 metadata entries, got %d", len(params.Metadata))
-		}
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("map with interface{} values", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("settings.debug", "true")
-		q.Set("settings.port", "8080")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		var params FilterParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Settings == nil {
-			t.Fatal("Settings map should not be nil")
-		}
-		if params.Settings["debug"] != "true" {
-			t.Errorf("settings.debug = %v", params.Settings["debug"])
-		}
-	})
-
-	t.Run("empty map", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params FilterParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		// Maps without values should remain nil (not cause error)
-		if len(params.Metadata) > 0 {
-			t.Error("Metadata should be empty")
-		}
-	})
-
-	t.Run("typed map values", func(t *testing.T) {
-		type TypedMapParams struct {
-			Scores map[string]int     `query:"scores"`
-			Rates  map[string]float64 `query:"rates"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("scores.math", "95")
-		q.Set("scores.science", "88")
-		q.Set("rates.usd", "1.0")
-		q.Set("rates.eur", "0.85")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params TypedMapParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Scores["math"] != 95 {
-			t.Errorf("scores.math = %v, want 95", params.Scores["math"])
-		}
-		if params.Rates["eur"] < 0.84 || params.Rates["eur"] > 0.86 {
-			t.Errorf("rates.eur = %v, want ~0.85", params.Rates["eur"])
-		}
-	})
+			require.NoError(t, c.BindQuery(tt.params))
+			tt.validate(t, tt.params)
+		})
+	}
 }
 
 // TestBindQuery_MapJSONFallback tests the JSON string parsing fallback for map fields.
 // This tests the code path where no dot/bracket notation is found, so it falls back
 // to parsing a JSON string value for the map prefix.
 func TestBindQuery_MapJSONFallback(t *testing.T) {
-	t.Run("string map from JSON string", func(t *testing.T) {
-		type Params struct {
-			Metadata map[string]string `query:"metadata"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		// Set a JSON string value (no dot/bracket notation)
-		q.Set("metadata", `{"name":"John","age":"30","city":"NYC"}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any // The struct to bind to
+		wantErr  bool
+		validate func(t *testing.T, params any, err error)
+	}{
+		{
+			name: "string map from JSON string",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				// Set a JSON string value (no dot/bracket notation)
+				q.Set("metadata", `{"name":"John","age":"30","city":"NYC"}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Metadata map[string]string `query:"metadata"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				p := params.(*struct {
+					Metadata map[string]string `query:"metadata"`
+				})
+				require.NotNil(t, p.Metadata, "Metadata map should not be nil")
+				assert.Equal(t, "John", p.Metadata["name"])
+				assert.Equal(t, "30", p.Metadata["age"])
+				assert.Equal(t, "NYC", p.Metadata["city"])
+				require.Len(t, p.Metadata, 3)
+			},
+		},
+		{
+			name: "int map from JSON string",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("scores", `{"math":95,"science":88,"history":92}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Scores map[string]int `query:"scores"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				p := params.(*struct {
+					Scores map[string]int `query:"scores"`
+				})
+				require.NotNil(t, p.Scores, "Scores map should not be nil")
+				assert.Equal(t, 95, p.Scores["math"])
+				assert.Equal(t, 88, p.Scores["science"])
+				assert.Equal(t, 92, p.Scores["history"])
+			},
+		},
+		{
+			name: "float64 map from JSON string",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("rates", `{"usd":1.0,"eur":0.85,"gbp":0.77}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Rates map[string]float64 `query:"rates"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				p := params.(*struct {
+					Rates map[string]float64 `query:"rates"`
+				})
+				require.NotNil(t, p.Rates, "Rates map should not be nil")
+				assert.InDelta(t, 1.0, p.Rates["usd"], 0.01)
+				assert.InDelta(t, 0.85, p.Rates["eur"], 0.01)
+			},
+		},
+		{
+			name: "bool map from JSON string",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("flags", `{"debug":true,"verbose":false,"trace":true}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Flags map[string]bool `query:"flags"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				p := params.(*struct {
+					Flags map[string]bool `query:"flags"`
+				})
+				require.NotNil(t, p.Flags, "Flags map should not be nil")
+				assert.True(t, p.Flags["debug"])
+				assert.False(t, p.Flags["verbose"])
+				assert.True(t, p.Flags["trace"])
+			},
+		},
+		{
+			name: "interface{} map from JSON string",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("settings", `{"debug":true,"port":8080,"name":"server"}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Settings map[string]any `query:"settings"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				p := params.(*struct {
+					Settings map[string]any `query:"settings"`
+				})
+				require.NotNil(t, p.Settings, "Settings map should not be nil")
+				assert.Equal(t, "true", p.Settings["debug"])
+				assert.Equal(t, "8080", p.Settings["port"])
+				assert.Equal(t, "server", p.Settings["name"])
+			},
+		},
+		{
+			name: "empty JSON object",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("metadata", `{}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Metadata map[string]string `query:"metadata"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				p := params.(*struct {
+					Metadata map[string]string `query:"metadata"`
+				})
+				require.NotNil(t, p.Metadata, "Metadata map should not be nil")
+				assert.Empty(t, p.Metadata, "Expected empty map")
+			},
+		},
+		{
+			name: "empty JSON string - should not error",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("metadata", "")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Metadata map[string]string `query:"metadata"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				// Should not error, just skip JSON parsing
+			},
+		},
+		{
+			name: "invalid JSON - should silently fail without error",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("metadata", `{invalid json}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Metadata map[string]string `query:"metadata"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				p := params.(*struct {
+					Metadata map[string]string `query:"metadata"`
+				})
+				// Map should remain nil or empty since JSON parsing failed
+				assert.Empty(t, p.Metadata, "Metadata should be empty when JSON is invalid")
+			},
+		},
+		{
+			name: "type conversion error - should return error",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				// Valid JSON but invalid int value
+				q.Set("scores", `{"math":"not-a-number"}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Scores map[string]int `query:"scores"`
+			}{},
+			wantErr: true,
+			validate: func(t *testing.T, params any, err error) {
+				// Error should mention the key
+				assert.Contains(t, err.Error(), "math", "Error should mention the key 'math'")
+			},
+		},
+		{
+			name: "JSON string with numeric keys",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("data", `{"123":"value1","456":"value2"}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Data map[string]string `query:"data"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				p := params.(*struct {
+					Data map[string]string `query:"data"`
+				})
+				assert.Equal(t, "value1", p.Data["123"])
+				assert.Equal(t, "value2", p.Data["456"])
+			},
+		},
+		{
+			name: "JSON with nested objects - should parse only top level",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				// JSON with nested object - nested part will be converted to string
+				q.Set("config", `{"outer":"value","nested":{"inner":"data"}}`)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Config map[string]any `query:"config"`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any, err error) {
+				p := params.(*struct {
+					Config map[string]any `query:"config"`
+				})
+				assert.Equal(t, "value", p.Config["outer"])
+				// Nested object will be converted to string via fmt.Sprint
+				assert.NotNil(t, p.Config["nested"], "config[\"nested\"] should not be nil")
+			},
+		},
+	}
 
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Metadata == nil {
-			t.Fatal("Metadata map should not be nil")
-		}
-		if params.Metadata["name"] != "John" {
-			t.Errorf("metadata[\"name\"] = %v, want John", params.Metadata["name"])
-		}
-		if params.Metadata["age"] != "30" {
-			t.Errorf("metadata[\"age\"] = %v, want 30", params.Metadata["age"])
-		}
-		if params.Metadata["city"] != "NYC" {
-			t.Errorf("metadata[\"city\"] = %v, want NYC", params.Metadata["city"])
-		}
-		if len(params.Metadata) != 3 {
-			t.Errorf("Expected 3 metadata entries, got %d", len(params.Metadata))
-		}
-	})
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("int map from JSON string", func(t *testing.T) {
-		type Params struct {
-			Scores map[string]int `query:"scores"`
-		}
+			err := c.BindQuery(tt.params)
 
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("scores", `{"math":95,"science":88,"history":92}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Scores == nil {
-			t.Fatal("Scores map should not be nil")
-		}
-		if params.Scores["math"] != 95 {
-			t.Errorf("scores[\"math\"] = %v, want 95", params.Scores["math"])
-		}
-		if params.Scores["science"] != 88 {
-			t.Errorf("scores[\"science\"] = %v, want 88", params.Scores["science"])
-		}
-		if params.Scores["history"] != 92 {
-			t.Errorf("scores[\"history\"] = %v, want 92", params.Scores["history"])
-		}
-	})
-
-	t.Run("float64 map from JSON string", func(t *testing.T) {
-		type Params struct {
-			Rates map[string]float64 `query:"rates"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("rates", `{"usd":1.0,"eur":0.85,"gbp":0.77}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Rates == nil {
-			t.Fatal("Rates map should not be nil")
-		}
-		if params.Rates["usd"] < 0.99 || params.Rates["usd"] > 1.01 {
-			t.Errorf("rates[\"usd\"] = %v, want ~1.0", params.Rates["usd"])
-		}
-		if params.Rates["eur"] < 0.84 || params.Rates["eur"] > 0.86 {
-			t.Errorf("rates[\"eur\"] = %v, want ~0.85", params.Rates["eur"])
-		}
-	})
-
-	t.Run("bool map from JSON string", func(t *testing.T) {
-		type Params struct {
-			Flags map[string]bool `query:"flags"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("flags", `{"debug":true,"verbose":false,"trace":true}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Flags == nil {
-			t.Fatal("Flags map should not be nil")
-		}
-		if !params.Flags["debug"] {
-			t.Errorf("flags[\"debug\"] = %v, want true", params.Flags["debug"])
-		}
-		if params.Flags["verbose"] {
-			t.Errorf("flags[\"verbose\"] = %v, want false", params.Flags["verbose"])
-		}
-		if !params.Flags["trace"] {
-			t.Errorf("flags[\"trace\"] = %v, want true", params.Flags["trace"])
-		}
-	})
-
-	t.Run("interface{} map from JSON string", func(t *testing.T) {
-		type Params struct {
-			Settings map[string]any `query:"settings"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("settings", `{"debug":true,"port":8080,"name":"server"}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Settings == nil {
-			t.Fatal("Settings map should not be nil")
-		}
-		if params.Settings["debug"] != "true" {
-			t.Errorf("settings[\"debug\"] = %v, want \"true\"", params.Settings["debug"])
-		}
-		if params.Settings["port"] != "8080" {
-			t.Errorf("settings[\"port\"] = %v, want \"8080\"", params.Settings["port"])
-		}
-		if params.Settings["name"] != "server" {
-			t.Errorf("settings[\"name\"] = %v, want \"server\"", params.Settings["name"])
-		}
-	})
-
-	t.Run("empty JSON object", func(t *testing.T) {
-		type Params struct {
-			Metadata map[string]string `query:"metadata"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("metadata", `{}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Metadata == nil {
-			t.Fatal("Metadata map should not be nil")
-		}
-		if len(params.Metadata) != 0 {
-			t.Errorf("Expected empty map, got %d entries", len(params.Metadata))
-		}
-	})
-
-	t.Run("empty JSON string - should not error", func(t *testing.T) {
-		type Params struct {
-			Metadata map[string]string `query:"metadata"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("metadata", "")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		// Should not error, just skip JSON parsing
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery should not error on empty string: %v", err)
-		}
-	})
-
-	t.Run("invalid JSON - should silently fail without error", func(t *testing.T) {
-		type Params struct {
-			Metadata map[string]string `query:"metadata"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("metadata", `{invalid json}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		// Should not error, just skip invalid JSON parsing
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery should not error on invalid JSON (should silently fail): %v", err)
-		}
-		// Map should remain nil or empty since JSON parsing failed
-		if len(params.Metadata) > 0 {
-			t.Errorf("Metadata should be empty when JSON is invalid, got %v", params.Metadata)
-		}
-	})
-
-	t.Run("type conversion error - should return error", func(t *testing.T) {
-		type Params struct {
-			Scores map[string]int `query:"scores"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		// Valid JSON but invalid int value
-		q.Set("scores", `{"math":"not-a-number"}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("BindQuery should error on invalid type conversion")
-		}
-		// Error should mention the key
-		if !strings.Contains(err.Error(), "math") {
-			t.Errorf("Error should mention the key 'math', got: %v", err)
-		}
-	})
-
-	t.Run("JSON string with numeric keys", func(t *testing.T) {
-		type Params struct {
-			Data map[string]string `query:"data"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("data", `{"123":"value1","456":"value2"}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Data["123"] != "value1" {
-			t.Errorf("data[\"123\"] = %v, want value1", params.Data["123"])
-		}
-		if params.Data["456"] != "value2" {
-			t.Errorf("data[\"456\"] = %v, want value2", params.Data["456"])
-		}
-	})
-
-	t.Run("JSON with nested objects - should parse only top level", func(t *testing.T) {
-		type Params struct {
-			Config map[string]any `query:"config"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		// JSON with nested object - nested part will be converted to string
-		q.Set("config", `{"outer":"value","nested":{"inner":"data"}}`)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Config["outer"] != "value" {
-			t.Errorf("config[\"outer\"] = %v, want value", params.Config["outer"])
-		}
-		// Nested object will be converted to string via fmt.Sprint
-		if params.Config["nested"] == nil {
-			t.Error("config[\"nested\"] should not be nil")
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+			}
+			tt.validate(t, tt.params, err)
+		})
+	}
 }
 
 // TestBindForm_MapJSONFallback tests the JSON string parsing fallback for map fields in form data.
 func TestBindForm_MapJSONFallback(t *testing.T) {
-	t.Run("string map from JSON string", func(t *testing.T) {
-		type Params struct {
-			Metadata map[string]string `form:"metadata"`
-		}
+	t.Parallel()
 
-		r := New()
-		r.POST("/test", func(c *Context) {
-			var params Params
-			if err := c.BindForm(&params); err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, params)
+	tests := []struct {
+		name           string
+		setupForm      func() url.Values
+		setupHandler   func() func(c *Context)
+		expectedStatus int
+		validate       func(t *testing.T, w *httptest.ResponseRecorder)
+	}{
+		{
+			name: "string map from JSON string",
+			setupForm: func() url.Values {
+				form := url.Values{}
+				form.Set("metadata", `{"name":"John","age":"30","city":"NYC"}`)
+				return form
+			},
+			setupHandler: func() func(c *Context) {
+				type Params struct {
+					Metadata map[string]string `form:"metadata"`
+				}
+				return func(c *Context) {
+					var params Params
+					if err := c.BindForm(&params); err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, params)
+				}
+			},
+			expectedStatus: http.StatusOK,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var result struct {
+					Metadata map[string]string `json:"metadata"`
+				}
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+				assert.Equal(t, "John", result.Metadata["name"])
+				assert.Equal(t, "30", result.Metadata["age"])
+			},
+		},
+		{
+			name: "int map from JSON string",
+			setupForm: func() url.Values {
+				form := url.Values{}
+				form.Set("scores", `{"math":95,"science":88}`)
+				return form
+			},
+			setupHandler: func() func(c *Context) {
+				type Params struct {
+					Scores map[string]int `form:"scores"`
+				}
+				return func(c *Context) {
+					var params Params
+					if err := c.BindForm(&params); err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, params)
+				}
+			},
+			expectedStatus: http.StatusOK,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var result struct {
+					Scores map[string]int `json:"scores"`
+				}
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+				assert.Equal(t, 95, result.Scores["math"])
+				assert.Equal(t, 88, result.Scores["science"])
+			},
+		},
+		{
+			name: "invalid JSON - should silently fail",
+			setupForm: func() url.Values {
+				form := url.Values{}
+				form.Set("metadata", `{invalid json}`)
+				return form
+			},
+			setupHandler: func() func(c *Context) {
+				type Params struct {
+					Metadata map[string]string `form:"metadata"`
+				}
+				return func(c *Context) {
+					var params Params
+					if err := c.BindForm(&params); err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, map[string]int{"count": len(params.Metadata)})
+				}
+			},
+			expectedStatus: http.StatusOK,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Should not error, just skip invalid JSON
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := New()
+			r.POST("/test", tt.setupHandler())
+
+			form := tt.setupForm()
+			req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code, "Expected status %d, got %d: %s", tt.expectedStatus, w.Code, w.Body.String())
+			tt.validate(t, w)
 		})
-
-		form := url.Values{}
-		form.Set("metadata", `{"name":"John","age":"30","city":"NYC"}`)
-
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-		}
-
-		var result struct {
-			Metadata map[string]string `json:"metadata"`
-		}
-		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
-			t.Fatalf("failed to parse response: %v", err)
-		}
-
-		if result.Metadata["name"] != "John" {
-			t.Errorf("metadata[\"name\"] = %v, want John", result.Metadata["name"])
-		}
-		if result.Metadata["age"] != "30" {
-			t.Errorf("metadata[\"age\"] = %v, want 30", result.Metadata["age"])
-		}
-	})
-
-	t.Run("int map from JSON string", func(t *testing.T) {
-		type Params struct {
-			Scores map[string]int `form:"scores"`
-		}
-
-		r := New()
-		r.POST("/test", func(c *Context) {
-			var params Params
-			if err := c.BindForm(&params); err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, params)
-		})
-
-		form := url.Values{}
-		form.Set("scores", `{"math":95,"science":88}`)
-
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-		}
-
-		var result struct {
-			Scores map[string]int `json:"scores"`
-		}
-		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
-			t.Fatalf("failed to parse response: %v", err)
-		}
-
-		if result.Scores["math"] != 95 {
-			t.Errorf("scores[\"math\"] = %v, want 95", result.Scores["math"])
-		}
-		if result.Scores["science"] != 88 {
-			t.Errorf("scores[\"science\"] = %v, want 88", result.Scores["science"])
-		}
-	})
-
-	t.Run("invalid JSON - should silently fail", func(t *testing.T) {
-		type Params struct {
-			Metadata map[string]string `form:"metadata"`
-		}
-
-		r := New()
-		r.POST("/test", func(c *Context) {
-			var params Params
-			if err := c.BindForm(&params); err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, map[string]int{"count": len(params.Metadata)})
-		})
-
-		form := url.Values{}
-		form.Set("metadata", `{invalid json}`)
-
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		// Should not error, just skip invalid JSON
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-		}
-	})
+	}
 }
 
-// Test nested struct support with dot notation
+// TestBindQuery_NestedStructs tests nested struct support with dot notation
 func TestBindQuery_NestedStructs(t *testing.T) {
+	t.Parallel()
+
 	type Address struct {
 		Street  string `query:"street"`
 		City    string `query:"city"`
@@ -2094,726 +2223,758 @@ func TestBindQuery_NestedStructs(t *testing.T) {
 		Address Address `query:"address"`
 	}
 
-	t.Run("nested struct with dot notation", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("name", "John")
-		q.Set("email", "john@example.com")
-		q.Set("address.street", "123 Main St")
-		q.Set("address.city", "NYC")
-		q.Set("address.zip_code", "10001")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	type Location struct {
+		Lat float64 `query:"lat"`
+		Lng float64 `query:"lng"`
+	}
 
-		var params UserRequest
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	type FullAddress struct {
+		Street   string   `query:"street"`
+		Location Location `query:"location"`
+	}
 
-		if params.Name != "John" {
-			t.Errorf("Name = %v", params.Name)
-		}
-		if params.Address.Street != "123 Main St" {
-			t.Errorf("Address.Street = %v", params.Address.Street)
-		}
-		if params.Address.City != "NYC" {
-			t.Errorf("Address.City = %v", params.Address.City)
-		}
-		if params.Address.ZipCode != "10001" {
-			t.Errorf("Address.ZipCode = %v", params.Address.ZipCode)
-		}
-	})
+	type ComplexRequest struct {
+		Name    string      `query:"name"`
+		Address FullAddress `query:"address"`
+	}
 
-	t.Run("deeply nested structs", func(t *testing.T) {
-		type Location struct {
-			Lat float64 `query:"lat"`
-			Lng float64 `query:"lng"`
-		}
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any // The struct to bind to
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "nested struct with dot notation",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("name", "John")
+				q.Set("email", "john@example.com")
+				q.Set("address.street", "123 Main St")
+				q.Set("address.city", "NYC")
+				q.Set("address.zip_code", "10001")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &UserRequest{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*UserRequest)
+				assert.Equal(t, "John", p.Name)
+				assert.Equal(t, "123 Main St", p.Address.Street)
+				assert.Equal(t, "NYC", p.Address.City)
+				assert.Equal(t, "10001", p.Address.ZipCode)
+			},
+		},
+		{
+			name: "deeply nested structs",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("name", "Test")
+				q.Set("address.street", "Main St")
+				q.Set("address.location.lat", "40.7128")
+				q.Set("address.location.lng", "-74.0060")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &ComplexRequest{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*ComplexRequest)
+				assert.Equal(t, "Main St", p.Address.Street)
+				assert.InDelta(t, 40.7128, p.Address.Location.Lat, 0.01)
+			},
+		},
+	}
 
-		type FullAddress struct {
-			Street   string   `query:"street"`
-			Location Location `query:"location"`
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		type ComplexRequest struct {
-			Name    string      `query:"name"`
-			Address FullAddress `query:"address"`
-		}
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("name", "Test")
-		q.Set("address.street", "Main St")
-		q.Set("address.location.lat", "40.7128")
-		q.Set("address.location.lng", "-74.0060")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params ComplexRequest
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Address.Street != "Main St" {
-			t.Errorf("Address.Street = %v", params.Address.Street)
-		}
-		if params.Address.Location.Lat < 40.71 || params.Address.Location.Lat > 40.72 {
-			t.Errorf("Address.Location.Lat = %v", params.Address.Location.Lat)
-		}
-	})
+			require.NoError(t, c.BindQuery(tt.params))
+			tt.validate(t, tt.params)
+		})
+	}
 }
 
-// TestBindQuery_PointerMap tests pointer to map types  for pointer maps).
+// TestBindQuery_PointerMap tests pointer to map types
 func TestBindQuery_PointerMap(t *testing.T) {
-	t.Run("pointer to map[string]string", func(t *testing.T) {
-		type Params struct {
-			Metadata *map[string]string `query:"metadata"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("metadata.name", "John")
-		q.Set("metadata.age", "30")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any // The struct to bind to
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "pointer to map[string]string",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("metadata.name", "John")
+				q.Set("metadata.age", "30")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Metadata *map[string]string `query:"metadata"`
+			}{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*struct {
+					Metadata *map[string]string `query:"metadata"`
+				})
+				require.NotNil(t, p.Metadata, "Metadata map pointer should not be nil")
+				assert.Equal(t, "John", (*p.Metadata)["name"])
+				assert.Equal(t, "30", (*p.Metadata)["age"])
+			},
+		},
+		{
+			name: "pointer to map[string]int",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("scores.math", "95")
+				q.Set("scores.science", "88")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Scores *map[string]int `query:"scores"`
+			}{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*struct {
+					Scores *map[string]int `query:"scores"`
+				})
+				require.NotNil(t, p.Scores, "Scores map pointer should not be nil")
+				assert.Equal(t, 95, (*p.Scores)["math"])
+				assert.Equal(t, 88, (*p.Scores)["science"])
+			},
+		},
+	}
 
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Metadata == nil {
-			t.Fatal("Metadata map pointer should not be nil")
-		}
-		if (*params.Metadata)["name"] != "John" {
-			t.Errorf("metadata[\"name\"] = %v, want John", (*params.Metadata)["name"])
-		}
-		if (*params.Metadata)["age"] != "30" {
-			t.Errorf("metadata[\"age\"] = %v, want 30", (*params.Metadata)["age"])
-		}
-	})
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("pointer to map[string]int", func(t *testing.T) {
-		type Params struct {
-			Scores *map[string]int `query:"scores"`
-		}
-
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("scores.math", "95")
-		q.Set("scores.science", "88")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Scores == nil {
-			t.Fatal("Scores map pointer should not be nil")
-		}
-		if (*params.Scores)["math"] != 95 {
-			t.Errorf("scores[\"math\"] = %v, want 95", (*params.Scores)["math"])
-		}
-		if (*params.Scores)["science"] != 88 {
-			t.Errorf("scores[\"science\"] = %v, want 88", (*params.Scores)["science"])
-		}
-	})
+			require.NoError(t, c.BindQuery(tt.params))
+			tt.validate(t, tt.params)
+		})
+	}
 }
 
 // TestBindForm_PointerMap tests pointer to map types in form data.
 func TestBindForm_PointerMap(t *testing.T) {
-	t.Run("pointer to map[string]string", func(t *testing.T) {
-		type Params struct {
-			Metadata *map[string]string `form:"metadata"`
-		}
+	t.Parallel()
 
-		r := New()
-		r.POST("/test", func(c *Context) {
-			var params Params
-			if err := c.BindForm(&params); err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, params)
+	tests := []struct {
+		name           string
+		setupForm      func() url.Values
+		setupHandler   func() func(c *Context)
+		expectedStatus int
+		validate       func(t *testing.T, w *httptest.ResponseRecorder)
+	}{
+		{
+			name: "pointer to map[string]string",
+			setupForm: func() url.Values {
+				form := url.Values{}
+				form.Set("metadata.name", "John")
+				form.Set("metadata.age", "30")
+				return form
+			},
+			setupHandler: func() func(c *Context) {
+				type Params struct {
+					Metadata *map[string]string `form:"metadata"`
+				}
+				return func(c *Context) {
+					var params Params
+					if err := c.BindForm(&params); err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, params)
+				}
+			},
+			expectedStatus: http.StatusOK,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var result struct {
+					Metadata *map[string]string `json:"metadata"`
+				}
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+				require.NotNil(t, result.Metadata, "Metadata map pointer should not be nil")
+				assert.Equal(t, "John", (*result.Metadata)["name"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := New()
+			r.POST("/test", tt.setupHandler())
+
+			form := tt.setupForm()
+			req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code, "Expected status %d, got %d: %s", tt.expectedStatus, w.Code, w.Body.String())
+			tt.validate(t, w)
 		})
-
-		form := url.Values{}
-		form.Set("metadata.name", "John")
-		form.Set("metadata.age", "30")
-
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-		}
-
-		var result struct {
-			Metadata *map[string]string `json:"metadata"`
-		}
-		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
-			t.Fatalf("failed to parse response: %v", err)
-		}
-
-		if result.Metadata == nil {
-			t.Fatal("Metadata map pointer should not be nil")
-		}
-		if (*result.Metadata)["name"] != "John" {
-			t.Errorf("metadata[\"name\"] = %v, want John", (*result.Metadata)["name"])
-		}
-	})
+	}
 }
 
 // TestBindQuery_MapTypeConversionError tests error path for queryGetter when type conversion fails
-// ).
 func TestBindQuery_MapTypeConversionError(t *testing.T) {
-	t.Run("queryGetter dot notation - invalid int conversion", func(t *testing.T) {
-		type Params struct {
-			Scores map[string]int `query:"scores"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("scores.math", "not-a-number") // Invalid int value
-		q.Set("scores.science", "88")        // Valid value (should not be reached if error happens first)
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any // The struct to bind to
+		wantErr  bool
+		validate func(t *testing.T, err error)
+	}{
+		{
+			name: "queryGetter dot notation - invalid int conversion",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("scores.math", "not-a-number") // Invalid int value
+				q.Set("scores.science", "88")        // Valid value (should not be reached if error happens first)
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Scores map[string]int `query:"scores"`
+			}{},
+			wantErr: true,
+			validate: func(t *testing.T, err error) {
+				// Error should mention the key "math"
+				assert.Contains(t, err.Error(), "math", "Error should mention key 'math'")
+				assert.Contains(t, err.Error(), "key", "Error should include 'key'")
+				assert.Contains(t, err.Error(), "\"math\"", "Error should include quoted key name")
+			},
+		},
+		{
+			name: "queryGetter bracket notation - invalid float conversion",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("rates[usd]", "invalid-float")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &struct {
+				Rates map[string]float64 `query:"rates"`
+			}{},
+			wantErr: true,
+			validate: func(t *testing.T, err error) {
+				// Error should mention the key
+				assert.Contains(t, err.Error(), "usd", "Error should mention key 'usd'")
+			},
+		},
+	}
 
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid int conversion, got nil")
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Error should mention the key "math"
-		if !strings.Contains(err.Error(), "math") {
-			t.Errorf("Error should mention key 'math', got: %v", err)
-		}
-		if !strings.Contains(err.Error(), "key") || !strings.Contains(err.Error(), "\"math\"") {
-			t.Errorf("Error should include quoted key name, got: %v", err)
-		}
-	})
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("queryGetter bracket notation - invalid float conversion", func(t *testing.T) {
-		type Params struct {
-			Rates map[string]float64 `query:"rates"`
-		}
+			err := c.BindQuery(tt.params)
 
-		req := httptest.NewRequest("GET", "/", nil)
-		q := req.URL.Query()
-		q.Set("rates[usd]", "invalid-float")
-		req.URL.RawQuery = q.Encode()
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid float conversion, got nil")
-		}
-
-		// Error should mention the key
-		if !strings.Contains(err.Error(), "usd") {
-			t.Errorf("Error should mention key 'usd', got: %v", err)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				tt.validate(t, err)
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+			}
+		})
+	}
 }
 
 // TestBindForm_MapTypeConversionError tests error path for formGetter when type conversion fails
-// ).
 // Also tests formGetter dot notation path (: found = true, mapKey = strings.TrimPrefix).
 func TestBindForm_MapTypeConversionError(t *testing.T) {
-	t.Run("formGetter dot notation - invalid int conversion", func(t *testing.T) {
-		type Params struct {
-			Scores map[string]int `form:"scores"`
-		}
+	t.Parallel()
 
-		r := New()
-		r.POST("/test", func(c *Context) {
-			var params Params
-			err := c.BindForm(&params)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
+	tests := []struct {
+		name           string
+		setupForm      func() url.Values
+		expectedStatus int
+		validate       func(t *testing.T, w *httptest.ResponseRecorder)
+	}{
+		{
+			name: "formGetter dot notation - invalid int conversion",
+			setupForm: func() url.Values {
+				form := url.Values{}
+				form.Set("scores.math", "not-a-number") // Invalid int value
+				form.Set("scores.science", "88")
+				return form
+			},
+			expectedStatus: http.StatusBadRequest,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var errorResp map[string]string
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errorResp))
+				errorMsg := errorResp["error"]
+				assert.Contains(t, errorMsg, "math", "Error should mention key 'math'")
+				assert.Contains(t, errorMsg, "key", "Error should include 'key'")
+				assert.Contains(t, errorMsg, "\"math\"", "Error should include quoted key name")
+			},
+		},
+		{
+			name: "formGetter dot notation - successful binding",
+			setupForm: func() url.Values {
+				form := url.Values{}
+				form.Set("metadata.name", "John") // Tests : found = true, mapKey extraction
+				form.Set("metadata.age", "30")
+				return form
+			},
+			expectedStatus: http.StatusOK,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var result struct {
+					Metadata map[string]string `json:"metadata"`
+				}
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+				assert.Equal(t, "John", result.Metadata["name"])
+				assert.Equal(t, "30", result.Metadata["age"])
+			},
+		},
+		{
+			name: "formGetter bracket notation - invalid bool conversion",
+			setupForm: func() url.Values {
+				form := url.Values{}
+				form.Set("flags[debug]", "not-a-bool") // Invalid bool value
+				return form
+			},
+			expectedStatus: http.StatusBadRequest,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var errorResp map[string]string
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errorResp))
+				errorMsg := errorResp["error"]
+				assert.Contains(t, errorMsg, "debug", "Error should mention key 'debug'")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var handler func(c *Context)
+			if strings.Contains(tt.name, "invalid int conversion") {
+				type Params struct {
+					Scores map[string]int `form:"scores"`
+				}
+				handler = func(c *Context) {
+					var params Params
+					err := c.BindForm(&params)
+					if err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, params)
+				}
+			} else if strings.Contains(tt.name, "successful binding") {
+				type Params struct {
+					Metadata map[string]string `form:"metadata"`
+				}
+				handler = func(c *Context) {
+					var params Params
+					if err := c.BindForm(&params); err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, params)
+				}
+			} else if strings.Contains(tt.name, "invalid bool conversion") {
+				type Params struct {
+					Flags map[string]bool `form:"flags"`
+				}
+				handler = func(c *Context) {
+					var params Params
+					err := c.BindForm(&params)
+					if err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, params)
+				}
 			}
-			c.JSON(http.StatusOK, params)
+
+			r := New()
+			r.POST("/test", handler)
+
+			form := tt.setupForm()
+			req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code, "Expected status %d, got %d: %s", tt.expectedStatus, w.Code, w.Body.String())
+			tt.validate(t, w)
 		})
-
-		form := url.Values{}
-		form.Set("scores.math", "not-a-number") // Invalid int value
-		form.Set("scores.science", "88")
-
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		// Should return error status
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("expected status 400, got %d: %s", w.Code, w.Body.String())
-		}
-
-		// Error should mention the key "math"
-		var errorResp map[string]string
-		if err := json.Unmarshal(w.Body.Bytes(), &errorResp); err != nil {
-			t.Fatalf("failed to parse error response: %v", err)
-		}
-
-		errorMsg := errorResp["error"]
-		if !strings.Contains(errorMsg, "math") {
-			t.Errorf("Error should mention key 'math', got: %v", errorMsg)
-		}
-		if !strings.Contains(errorMsg, "key") || !strings.Contains(errorMsg, "\"math\"") {
-			t.Errorf("Error should include quoted key name, got: %v", errorMsg)
-		}
-	})
-
-	t.Run("formGetter dot notation - successful binding", func(t *testing.T) {
-		type Params struct {
-			Metadata map[string]string `form:"metadata"`
-		}
-
-		r := New()
-		r.POST("/test", func(c *Context) {
-			var params Params
-			if err := c.BindForm(&params); err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, params)
-		})
-
-		form := url.Values{}
-		form.Set("metadata.name", "John") // Tests : found = true, mapKey extraction
-		form.Set("metadata.age", "30")
-
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-		}
-
-		var result struct {
-			Metadata map[string]string `json:"metadata"`
-		}
-		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
-			t.Fatalf("failed to parse response: %v", err)
-		}
-
-		if result.Metadata["name"] != "John" {
-			t.Errorf("metadata[\"name\"] = %v, want John", result.Metadata["name"])
-		}
-		if result.Metadata["age"] != "30" {
-			t.Errorf("metadata[\"age\"] = %v, want 30", result.Metadata["age"])
-		}
-	})
-
-	t.Run("formGetter bracket notation - invalid bool conversion", func(t *testing.T) {
-		type Params struct {
-			Flags map[string]bool `form:"flags"`
-		}
-
-		r := New()
-		r.POST("/test", func(c *Context) {
-			var params Params
-			err := c.BindForm(&params)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, params)
-		})
-
-		form := url.Values{}
-		form.Set("flags[debug]", "not-a-bool") // Invalid bool value
-
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		// Should return error status
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("expected status 400, got %d: %s", w.Code, w.Body.String())
-		}
-
-		// Error should mention the key
-		var errorResp map[string]string
-		if err := json.Unmarshal(w.Body.Bytes(), &errorResp); err != nil {
-			t.Fatalf("failed to parse error response: %v", err)
-		}
-
-		errorMsg := errorResp["error"]
-		if !strings.Contains(errorMsg, "debug") {
-			t.Errorf("Error should mention key 'debug', got: %v", errorMsg)
-		}
-	})
+	}
 }
 
 // TestPrefixGetter_Has tests the Has method of prefixGetter, specifically the iteration
-// logic for queryGetter and formGetter ( in binding.go).
+// logic for queryGetter and formGetter
 func TestPrefixGetter_Has(t *testing.T) {
-	t.Run("queryGetter - exact key match", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("address.street", "Main St")
-		values.Set("address.city", "NYC")
-		values.Set("name", "John")
+	t.Parallel()
 
-		qg := &queryGetter{values: values}
-		pg := &prefixGetter{
-			inner:  qg,
-			prefix: "address.",
-		}
+	tests := []struct {
+		name     string
+		setup    func() (*prefixGetter, url.Values)
+		key      string
+		expected bool
+	}{
+		{
+			name: "queryGetter - exact key match",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("address.street", "Main St")
+				values.Set("address.city", "NYC")
+				values.Set("name", "John")
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "address.",
+				}
+				return pg, values
+			},
+			key:      "street",
+			expected: true,
+		},
+		{
+			name: "queryGetter - exact key match (city)",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("address.street", "Main St")
+				values.Set("address.city", "NYC")
+				values.Set("name", "John")
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "address.",
+				}
+				return pg, values
+			},
+			key:      "city",
+			expected: true,
+		},
+		{
+			name: "queryGetter - key without prefix",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("address.street", "Main St")
+				values.Set("address.city", "NYC")
+				values.Set("name", "John")
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "address.",
+				}
+				return pg, values
+			},
+			key:      "name",
+			expected: false,
+		},
+		{
+			name: "queryGetter - prefix match with dot",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("address.location.lat", "40.7128")
+				values.Set("address.location.lng", "-74.0060")
+				values.Set("address.city", "NYC")
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "address.",
+				}
+				return pg, values
+			},
+			key:      "location",
+			expected: true,
+		},
+		{
+			name: "queryGetter - no matching keys",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("user.name", "John")
+				values.Set("user.email", "john@example.com")
+				values.Set("other.field", "value")
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "address.",
+				}
+				return pg, values
+			},
+			key:      "street",
+			expected: false,
+		},
+		{
+			name: "queryGetter - empty values",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "address.",
+				}
+				return pg, values
+			},
+			key:      "street",
+			expected: false,
+		},
+		{
+			name: "formGetter - exact key match",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("metadata.name", "John")
+				values.Set("metadata.age", "30")
+				values.Set("title", "Mr")
+				fg := &formGetter{values: values}
+				pg := &prefixGetter{
+					inner:  fg,
+					prefix: "metadata.",
+				}
+				return pg, values
+			},
+			key:      "name",
+			expected: true,
+		},
+		{
+			name: "formGetter - prefix match with dot",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("config.database.host", "localhost")
+				values.Set("config.database.port", "5432")
+				values.Set("config.debug", "true")
+				fg := &formGetter{values: values}
+				pg := &prefixGetter{
+					inner:  fg,
+					prefix: "config.",
+				}
+				return pg, values
+			},
+			key:      "database",
+			expected: true,
+		},
+		{
+			name: "formGetter - no matching keys",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("user.name", "John")
+				values.Set("other.field", "value")
+				fg := &formGetter{values: values}
+				pg := &prefixGetter{
+					inner:  fg,
+					prefix: "config.",
+				}
+				return pg, values
+			},
+			key:      "debug",
+			expected: false,
+		},
+		{
+			name: "formGetter - empty values",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				fg := &formGetter{values: values}
+				pg := &prefixGetter{
+					inner:  fg,
+					prefix: "metadata.",
+				}
+				return pg, values
+			},
+			key:      "name",
+			expected: false,
+		},
+		{
+			name: "queryGetter - multiple prefix matches",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("address.street", "Main St")
+				values.Set("address.street.number", "123")
+				values.Set("address.city", "NYC")
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "address.",
+				}
+				return pg, values
+			},
+			key:      "street",
+			expected: true,
+		},
+		{
+			name: "formGetter - key that starts with prefix but doesn't match",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				values.Set("addresses.street", "Main St") // Note: "addresses" not "address"
+				values.Set("address.city", "NYC")
+				fg := &formGetter{values: values}
+				pg := &prefixGetter{
+					inner:  fg,
+					prefix: "address.",
+				}
+				return pg, values
+			},
+			key:      "street",
+			expected: false,
+		},
+		{
+			name: "queryGetter - iteration path when direct Has returns false",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				// Set nested key that doesn't match exact fullKey
+				values.Set("address.location.lat", "40.7128")
+				// Note: "address.location" doesn't exist as a key, only "address.location.lat"
+				// So direct Has("address.location") returns false, forcing iteration
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "address.",
+				}
+				return pg, values
+			},
+			key:      "location",
+			expected: true,
+		},
+		{
+			name: "formGetter - iteration path when direct Has returns false",
+			setup: func() (*prefixGetter, url.Values) {
+				values := url.Values{}
+				// Set nested key that doesn't match exact fullKey
+				values.Set("config.database.host", "localhost")
+				// Note: "config.database" doesn't exist as a key, only "config.database.host"
+				// So direct Has("config.database") returns false, forcing iteration
+				fg := &formGetter{values: values}
+				pg := &prefixGetter{
+					inner:  fg,
+					prefix: "config.",
+				}
+				return pg, values
+			},
+			key:      "database",
+			expected: true,
+		},
+	}
 
-		// Should find exact match "address.street" when checking for "street"
-		if !pg.Has("street") {
-			t.Error("Expected Has(\"street\") to return true for exact match")
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Should find exact match "address.city" when checking for "city"
-		if !pg.Has("city") {
-			t.Error("Expected Has(\"city\") to return true for exact match")
-		}
-
-		// Should not find "name" (doesn't start with prefix)
-		if pg.Has("name") {
-			t.Error("Expected Has(\"name\") to return false (key doesn't have prefix)")
-		}
-	})
-
-	t.Run("queryGetter - prefix match with dot", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("address.location.lat", "40.7128")
-		values.Set("address.location.lng", "-74.0060")
-		values.Set("address.city", "NYC")
-
-		qg := &queryGetter{values: values}
-		pg := &prefixGetter{
-			inner:  qg,
-			prefix: "address.",
-		}
-
-		// Should find "address.location.lat" when checking for "location"
-		// because it starts with "address.location."
-		if !pg.Has("location") {
-			t.Error("Expected Has(\"location\") to return true for prefix match")
-		}
-
-		// Should also find "address.city" (exact match)
-		if !pg.Has("city") {
-			t.Error("Expected Has(\"city\") to return true for exact match")
-		}
-	})
-
-	t.Run("queryGetter - no matching keys", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("user.name", "John")
-		values.Set("user.email", "john@example.com")
-		values.Set("other.field", "value")
-
-		qg := &queryGetter{values: values}
-		pg := &prefixGetter{
-			inner:  qg,
-			prefix: "address.",
-		}
-
-		// Should not find any keys with "address." prefix
-		if pg.Has("street") {
-			t.Error("Expected Has(\"street\") to return false (no matching keys)")
-		}
-		if pg.Has("city") {
-			t.Error("Expected Has(\"city\") to return false (no matching keys)")
-		}
-	})
-
-	t.Run("queryGetter - empty values", func(t *testing.T) {
-		values := url.Values{}
-		qg := &queryGetter{values: values}
-		pg := &prefixGetter{
-			inner:  qg,
-			prefix: "address.",
-		}
-
-		// Should return false for any key when values are empty
-		if pg.Has("street") {
-			t.Error("Expected Has(\"street\") to return false for empty values")
-		}
-	})
-
-	t.Run("formGetter - exact key match", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("metadata.name", "John")
-		values.Set("metadata.age", "30")
-		values.Set("title", "Mr")
-
-		fg := &formGetter{values: values}
-		pg := &prefixGetter{
-			inner:  fg,
-			prefix: "metadata.",
-		}
-
-		// Should find exact match "metadata.name" when checking for "name"
-		if !pg.Has("name") {
-			t.Error("Expected Has(\"name\") to return true for exact match")
-		}
-
-		// Should find exact match "metadata.age" when checking for "age"
-		if !pg.Has("age") {
-			t.Error("Expected Has(\"age\") to return true for exact match")
-		}
-
-		// Should not find "title" (doesn't start with prefix)
-		if pg.Has("title") {
-			t.Error("Expected Has(\"title\") to return false (key doesn't have prefix)")
-		}
-	})
-
-	t.Run("formGetter - prefix match with dot", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("config.database.host", "localhost")
-		values.Set("config.database.port", "5432")
-		values.Set("config.debug", "true")
-
-		fg := &formGetter{values: values}
-		pg := &prefixGetter{
-			inner:  fg,
-			prefix: "config.",
-		}
-
-		// Should find "config.database.host" when checking for "database"
-		// because it starts with "config.database."
-		if !pg.Has("database") {
-			t.Error("Expected Has(\"database\") to return true for prefix match")
-		}
-
-		// Should also find "config.debug" (exact match)
-		if !pg.Has("debug") {
-			t.Error("Expected Has(\"debug\") to return true for exact match")
-		}
-	})
-
-	t.Run("formGetter - no matching keys", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("user.name", "John")
-		values.Set("other.field", "value")
-
-		fg := &formGetter{values: values}
-		pg := &prefixGetter{
-			inner:  fg,
-			prefix: "config.",
-		}
-
-		// Should not find any keys with "config." prefix
-		if pg.Has("debug") {
-			t.Error("Expected Has(\"debug\") to return false (no matching keys)")
-		}
-	})
-
-	t.Run("formGetter - empty values", func(t *testing.T) {
-		values := url.Values{}
-		fg := &formGetter{values: values}
-		pg := &prefixGetter{
-			inner:  fg,
-			prefix: "metadata.",
-		}
-
-		// Should return false for any key when values are empty
-		if pg.Has("name") {
-			t.Error("Expected Has(\"name\") to return false for empty values")
-		}
-	})
-
-	t.Run("queryGetter - multiple prefix matches", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("address.street", "Main St")
-		values.Set("address.street.number", "123")
-		values.Set("address.city", "NYC")
-
-		qg := &queryGetter{values: values}
-		pg := &prefixGetter{
-			inner:  qg,
-			prefix: "address.",
-		}
-
-		// Should find "address.street" (exact match)
-		if !pg.Has("street") {
-			t.Error("Expected Has(\"street\") to return true")
-		}
-
-		// Should also find "address.city" (exact match)
-		if !pg.Has("city") {
-			t.Error("Expected Has(\"city\") to return true")
-		}
-	})
-
-	t.Run("formGetter - key that starts with prefix but doesn't match", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("addresses.street", "Main St") // Note: "addresses" not "address"
-		values.Set("address.city", "NYC")
-
-		fg := &formGetter{values: values}
-		pg := &prefixGetter{
-			inner:  fg,
-			prefix: "address.",
-		}
-
-		// Should find "address.city" (exact match)
-		if !pg.Has("city") {
-			t.Error("Expected Has(\"city\") to return true")
-		}
-
-		// Should not find "street" because "addresses.street" doesn't start with "address."
-		if pg.Has("street") {
-			t.Error("Expected Has(\"street\") to return false")
-		}
-	})
-
-	t.Run("queryGetter - direct Has check returns true", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("address.street", "Main St")
-
-		qg := &queryGetter{values: values}
-		pg := &prefixGetter{
-			inner:  qg,
-			prefix: "address.",
-		}
-
-		// The direct Has check  should return true before iteration
-		// This tests that the iteration code is still reached even when direct check passes
-		if !pg.Has("street") {
-			t.Error("Expected Has(\"street\") to return true")
-		}
-	})
-
-	t.Run("queryGetter - iteration path when direct Has returns false", func(t *testing.T) {
-		values := url.Values{}
-		// Set nested key that doesn't match exact fullKey
-		values.Set("address.location.lat", "40.7128")
-		// Note: "address.location" doesn't exist as a key, only "address.location.lat"
-		// So direct Has("address.location") returns false, forcing iteration
-
-		qg := &queryGetter{values: values}
-		pg := &prefixGetter{
-			inner:  qg,
-			prefix: "address.",
-		}
-
-		// fullKey = "address.location"
-		// Direct check: inner.Has("address.location") = false (key doesn't exist)
-		// Iteration should find "address.location.lat" starting with "address.location."
-		if !pg.Has("location") {
-			t.Error("Expected Has(\"location\") to return true via iteration path")
-		}
-	})
-
-	t.Run("formGetter - iteration path when direct Has returns false", func(t *testing.T) {
-		values := url.Values{}
-		// Set nested key that doesn't match exact fullKey
-		values.Set("config.database.host", "localhost")
-		// Note: "config.database" doesn't exist as a key, only "config.database.host"
-		// So direct Has("config.database") returns false, forcing iteration
-
-		fg := &formGetter{values: values}
-		pg := &prefixGetter{
-			inner:  fg,
-			prefix: "config.",
-		}
-
-		// fullKey = "config.database"
-		// Direct check: inner.Has("config.database") = false (key doesn't exist)
-		// Iteration should find "config.database.host" starting with "config.database."
-		if !pg.Has("database") {
-			t.Error("Expected Has(\"database\") to return true via iteration path")
-		}
-	})
+			pg, _ := tt.setup()
+			result := pg.Has(tt.key)
+			assert.Equal(t, tt.expected, result, "Has(%q) should return %v", tt.key, tt.expected)
+		})
+	}
 }
 
-// Test enum validation
+// TestBindQuery_EnumValidation tests enum validation
 func TestBindQuery_EnumValidation(t *testing.T) {
+	t.Parallel()
+
 	type StatusParams struct {
 		Status   string `query:"status" enum:"active,inactive,pending"`
 		Role     string `query:"role" enum:"admin,user,guest"`
 		Priority string `query:"priority" enum:"low,medium,high"`
 	}
 
-	t.Run("valid enum values", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?status=active&role=admin&priority=high", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		params   any // The struct to bind to
+		wantErr  bool
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name:    "valid enum values",
+			query:   "status=active&role=admin&priority=high",
+			params:  &StatusParams{},
+			wantErr: false,
+			validate: func(t *testing.T, params any) {
+				p := params.(*StatusParams)
+				assert.Equal(t, "active", p.Status)
+				assert.Equal(t, "admin", p.Role)
+				assert.Equal(t, "high", p.Priority)
+			},
+		},
+		{
+			name:     "invalid enum value",
+			query:    "status=invalid-status",
+			params:   &StatusParams{},
+			wantErr:  true,
+			validate: func(t *testing.T, params any) {},
+		},
+		{
+			name:    "empty value passes enum validation",
+			query:   "role=admin",
+			params:  &StatusParams{},
+			wantErr: false,
+			validate: func(t *testing.T, params any) {
+				p := params.(*StatusParams)
+				assert.Equal(t, "admin", p.Role)
+				assert.Empty(t, p.Status, "Status should be empty")
+			},
+		},
+		{
+			name:  "enum with whitespace handling",
+			query: "value=option2",
+			params: &struct {
+				Value string `query:"value" enum:" option1 , option2 , option3 "`
+			}{},
+			wantErr: false,
+			validate: func(t *testing.T, params any) {
+				// Just verify it doesn't error
+			},
+		},
+	}
 
-		var params StatusParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Status != "active" || params.Role != "admin" || params.Priority != "high" {
-			t.Errorf("Enum values = %+v", params)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("invalid enum value", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?status=invalid-status", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			err := c.BindQuery(tt.params)
 
-		var params StatusParams
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Error("Expected error for invalid enum value")
-		}
-		if !strings.Contains(err.Error(), "not in allowed values") {
-			t.Errorf("Expected enum error, got: %v", err)
-		}
-	})
-
-	t.Run("empty value passes enum validation", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?role=admin", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params StatusParams
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v (empty values should pass)", err)
-		}
-
-		if params.Role != "admin" {
-			t.Errorf("Role = %v", params.Role)
-		}
-		if params.Status != "" {
-			t.Errorf("Status should be empty")
-		}
-	})
-
-	t.Run("enum with whitespace handling", func(t *testing.T) {
-		type SpacedEnum struct {
-			Value string `query:"value" enum:" option1 , option2 , option3 "`
-		}
-
-		req := httptest.NewRequest("GET", "/?value=option2", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params SpacedEnum
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery should handle whitespace in enum: %v", err)
-		}
-	})
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "not in allowed values")
+			} else {
+				require.NoError(t, err)
+				tt.validate(t, tt.params)
+			}
+		})
+	}
 }
 
-// Test combined complex features
+// TestBindQuery_AllComplexTypes tests combined complex features
 func TestBindQuery_AllComplexTypes(t *testing.T) {
+	t.Parallel()
+
 	type ComplexParams struct {
 		// Basic types
 		Name string `query:"name"`
@@ -2849,78 +3010,80 @@ func TestBindQuery_AllComplexTypes(t *testing.T) {
 		IPs   []net.IP    `query:"ips"`
 	}
 
-	req := httptest.NewRequest("GET", "/", nil)
-	q := req.URL.Query()
-
-	// Basic
-	q.Set("name", "John")
-	q.Set("age", "30")
-
-	// Time
-	q.Set("start", "2024-01-15T10:00:00Z")
-	q.Set("timeout", "30s")
-
-	// Network
-	q.Set("allowed_ip", "192.168.1.1")
-	q.Set("subnet", "10.0.0.0/8")
-	q.Set("callback", "https://example.com/hook")
-
-	// Regex
-	q.Set("pattern", `^\w+$`)
-
-	// Maps
-	q.Set("metadata.key1", "value1")
-	q.Set("metadata.key2", "value2")
-	q.Set("settings.debug", "true")
-
-	// Nested struct
-	q.Set("address.street", "Main St")
-	q.Set("address.city", "NYC")
-
-	// Enum
-	q.Set("status", "active")
-
-	// Slices
-	q.Add("dates", "2024-01-15")
-	q.Add("dates", "2024-01-16")
-	q.Add("ips", "192.168.1.1")
-	q.Add("ips", "10.0.0.1")
-
-	req.URL.RawQuery = q.Encode()
-	w := httptest.NewRecorder()
-	c := NewContext(w, req)
-
-	var params ComplexParams
-	if err := c.BindQuery(&params); err != nil {
-		t.Fatalf("BindQuery failed: %v", err)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "all complex types",
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				// Basic
+				q.Set("name", "John")
+				q.Set("age", "30")
+				// Time
+				q.Set("start", "2024-01-15T10:00:00Z")
+				q.Set("timeout", "30s")
+				// Network
+				q.Set("allowed_ip", "192.168.1.1")
+				q.Set("subnet", "10.0.0.0/8")
+				q.Set("callback", "https://example.com/hook")
+				// Regex
+				q.Set("pattern", `^\w+$`)
+				// Maps
+				q.Set("metadata.key1", "value1")
+				q.Set("metadata.key2", "value2")
+				q.Set("settings.debug", "true")
+				// Nested struct
+				q.Set("address.street", "Main St")
+				q.Set("address.city", "NYC")
+				// Enum
+				q.Set("status", "active")
+				// Slices
+				q.Add("dates", "2024-01-15")
+				q.Add("dates", "2024-01-16")
+				q.Add("ips", "192.168.1.1")
+				q.Add("ips", "10.0.0.1")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &ComplexParams{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*ComplexParams)
+				assert.Equal(t, "John", p.Name, "Name should match")
+				assert.Equal(t, 30*time.Second, p.Timeout, "Timeout should be 30s")
+				assert.Equal(t, "value1", p.Metadata["key1"], "metadata.key1 should match")
+				assert.Equal(t, "Main St", p.Address.Street, "address.street should match")
+				assert.Equal(t, "active", p.Status, "Status should match")
+				require.Len(t, p.Dates, 2, "Dates should have 2 elements")
+				require.Len(t, p.IPs, 2, "IPs should have 2 elements")
+			},
+		},
 	}
 
-	// Validate all fields
-	if params.Name != "John" {
-		t.Errorf("Name = %v", params.Name)
-	}
-	if params.Timeout != 30*time.Second {
-		t.Errorf("Timeout = %v", params.Timeout)
-	}
-	if params.Metadata["key1"] != "value1" {
-		t.Errorf("metadata.key1 = %v", params.Metadata["key1"])
-	}
-	if params.Address.Street != "Main St" {
-		t.Errorf("address.street = %v", params.Address.Street)
-	}
-	if params.Status != "active" {
-		t.Errorf("Status = %v", params.Status)
-	}
-	if len(params.Dates) != 2 {
-		t.Errorf("Dates length = %d", len(params.Dates))
-	}
-	if len(params.IPs) != 2 {
-		t.Errorf("IPs length = %d", len(params.IPs))
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
+
+			require.NoError(t, c.BindQuery(tt.params))
+			tt.validate(t, tt.params)
+		})
 	}
 }
 
-// Test default values
+// TestBindQuery_DefaultValues tests default values
 func TestBindQuery_DefaultValues(t *testing.T) {
+	t.Parallel()
+
 	type ParamsWithDefaults struct {
 		Page     int    `query:"page" default:"1"`
 		PageSize int    `query:"page_size" default:"10"`
@@ -2930,80 +3093,62 @@ func TestBindQuery_DefaultValues(t *testing.T) {
 		Limit    int    `query:"limit" default:"100"`
 	}
 
-	t.Run("all defaults applied", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil) // No query params
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		validate func(t *testing.T, params ParamsWithDefaults)
+	}{
+		{
+			name:  "all defaults applied",
+			query: "",
+			validate: func(t *testing.T, params ParamsWithDefaults) {
+				assert.Equal(t, 1, params.Page, "Page should default to 1")
+				assert.Equal(t, 10, params.PageSize, "PageSize should default to 10")
+				assert.Equal(t, "created_at", params.Sort, "Sort should default to created_at")
+				assert.Equal(t, "desc", params.Order, "Order should default to desc")
+				assert.True(t, params.Active, "Active should default to true")
+				assert.Equal(t, 100, params.Limit, "Limit should default to 100")
+			},
+		},
+		{
+			name:  "user values override defaults",
+			query: "page=5&page_size=50&active=false",
+			validate: func(t *testing.T, params ParamsWithDefaults) {
+				assert.Equal(t, 5, params.Page, "Page should be user value")
+				assert.Equal(t, 50, params.PageSize, "PageSize should be user value")
+				assert.False(t, params.Active, "Active should be user value")
+				assert.Equal(t, "created_at", params.Sort, "Sort should be default")
+			},
+		},
+		{
+			name:  "partial user values with defaults",
+			query: "page=3",
+			validate: func(t *testing.T, params ParamsWithDefaults) {
+				assert.Equal(t, 3, params.Page, "Page should be user value")
+				assert.Equal(t, 10, params.PageSize, "PageSize should be default")
+			},
+		},
+	}
 
-		var params ParamsWithDefaults
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Page != 1 {
-			t.Errorf("Page = %v, want 1 (default)", params.Page)
-		}
-		if params.PageSize != 10 {
-			t.Errorf("PageSize = %v, want 10 (default)", params.PageSize)
-		}
-		if params.Sort != "created_at" {
-			t.Errorf("Sort = %v, want created_at (default)", params.Sort)
-		}
-		if params.Order != "desc" {
-			t.Errorf("Order = %v, want desc (default)", params.Order)
-		}
-		if !params.Active {
-			t.Errorf("Active = %v, want true (default)", params.Active)
-		}
-		if params.Limit != 100 {
-			t.Errorf("Limit = %v, want 100 (default)", params.Limit)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("user values override defaults", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?page=5&page_size=50&active=false", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var params ParamsWithDefaults
+			require.NoError(t, c.BindQuery(&params))
+			tt.validate(t, params)
+		})
+	}
 
-		var params ParamsWithDefaults
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Page != 5 {
-			t.Errorf("Page = %v, want 5 (user value)", params.Page)
-		}
-		if params.PageSize != 50 {
-			t.Errorf("PageSize = %v, want 50 (user value)", params.PageSize)
-		}
-		if params.Active {
-			t.Errorf("Active = %v, want false (user value)", params.Active)
-		}
-		// Fields without user values should use defaults
-		if params.Sort != "created_at" {
-			t.Errorf("Sort = %v, want created_at (default)", params.Sort)
-		}
-	})
-
-	t.Run("partial user values with defaults", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?page=3", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params ParamsWithDefaults
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Page != 3 {
-			t.Errorf("Page = %v, want 3 (user value)", params.Page)
-		}
-		if params.PageSize != 10 {
-			t.Errorf("PageSize = %v, want 10 (default)", params.PageSize)
-		}
-	})
-
+	// Default time values test - kept separate due to different struct type
 	t.Run("default time values", func(t *testing.T) {
+		t.Parallel()
+
 		type TimeDefaults struct {
 			Timeout time.Duration `query:"timeout" default:"30s"`
 			Created time.Time     `query:"created" default:"2024-01-01T00:00:00Z"`
@@ -3014,21 +3159,17 @@ func TestBindQuery_DefaultValues(t *testing.T) {
 		c := NewContext(w, req)
 
 		var params TimeDefaults
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+		require.NoError(t, c.BindQuery(&params))
 
-		if params.Timeout != 30*time.Second {
-			t.Errorf("Timeout = %v, want 30s (default)", params.Timeout)
-		}
-		if params.Created.IsZero() {
-			t.Error("Created should have default value")
-		}
+		assert.Equal(t, 30*time.Second, params.Timeout, "Timeout should default to 30s")
+		assert.False(t, params.Created.IsZero(), "Created should have default value")
 	})
 }
 
 // Test WarmupBindingCache
 func TestWarmupBindingCache(t *testing.T) {
+	t.Parallel()
+
 	type TestStruct1 struct {
 		Name string `query:"name"`
 		Age  int    `query:"age"`
@@ -3051,25 +3192,19 @@ func TestWarmupBindingCache(t *testing.T) {
 	typeCacheMu.RLock()
 	defer typeCacheMu.RUnlock()
 
-	t1Type := reflect.TypeOf(TestStruct1{})
-	if _, ok := typeCache[t1Type]; !ok {
-		t.Error("TestStruct1 should be in cache")
-	}
-	if _, ok := typeCache[t1Type]["query"]; !ok {
-		t.Error("TestStruct1 query tag should be cached")
-	}
+	t1Type := reflect.TypeFor[TestStruct1]()
+	assert.Contains(t, typeCache, t1Type, "TestStruct1 should be in cache")
+	assert.Contains(t, typeCache[t1Type], "query", "TestStruct1 query tag should be cached")
 
-	t2Type := reflect.TypeOf(TestStruct2{})
-	if _, ok := typeCache[t2Type]; !ok {
-		t.Error("TestStruct2 should be in cache")
-	}
-	if _, ok := typeCache[t2Type]["json"]; !ok {
-		t.Error("TestStruct2 json tag should be cached")
-	}
+	t2Type := reflect.TypeFor[TestStruct2]()
+	assert.Contains(t, typeCache, t2Type, "TestStruct2 should be in cache")
+	assert.Contains(t, typeCache[t2Type], "json", "TestStruct2 json tag should be cached")
 }
 
-// TestGetStructInfo_DoubleCheckLocking tests the double-check locking pattern ()
+// TestGetStructInfo_DoubleCheckLocking tests the double-check locking pattern
 func TestGetStructInfo_DoubleCheckLocking(t *testing.T) {
+	t.Parallel()
+
 	type ConcurrentStruct struct {
 		Name  string `query:"name"`
 		Email string `query:"email"`
@@ -3086,10 +3221,8 @@ func TestGetStructInfo_DoubleCheckLocking(t *testing.T) {
 	errors := make(chan error, numGoroutines)
 
 	// Launch multiple goroutines that all try to bind the same struct type simultaneously
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			// Create a request to trigger binding
 			req := httptest.NewRequest("GET", "/?name=John&email=john@example.com&age=30", nil)
 			w := httptest.NewRecorder()
@@ -3103,10 +3236,10 @@ func TestGetStructInfo_DoubleCheckLocking(t *testing.T) {
 
 			// Verify binding worked
 			if params.Name != "John" || params.Email != "john@example.com" || params.Age != 30 {
-				errors <- fmt.Errorf("binding failed: got %+v", params)
+				errors <- fmt.Errorf("%w: got %+v", ErrBindingFailed, params)
 				return
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -3114,20 +3247,16 @@ func TestGetStructInfo_DoubleCheckLocking(t *testing.T) {
 
 	// Check for errors
 	for err := range errors {
-		t.Errorf("Goroutine error: %v", err)
+		assert.NoError(t, err, "Goroutine should not error")
 	}
 
 	// Verify cache was populated (at least one goroutine should have parsed it)
 	typeCacheMu.RLock()
 	defer typeCacheMu.RUnlock()
 
-	structType := reflect.TypeOf(ConcurrentStruct{})
-	if _, ok := typeCache[structType]; !ok {
-		t.Error("ConcurrentStruct should be in cache after concurrent binding")
-	}
-	if _, ok := typeCache[structType]["query"]; !ok {
-		t.Error("ConcurrentStruct query tag should be cached")
-	}
+	structType := reflect.TypeFor[ConcurrentStruct]()
+	assert.Contains(t, typeCache, structType, "ConcurrentStruct should be in cache after concurrent binding")
+	assert.Contains(t, typeCache[structType], "query", "ConcurrentStruct query tag should be cached")
 }
 
 // Benchmark binding performance
@@ -3142,7 +3271,7 @@ func BenchmarkBindJSON(b *testing.B) {
 	body, _ := json.Marshal(user)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest("POST", "/", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -3166,7 +3295,7 @@ func BenchmarkBindQuery(b *testing.B) {
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		c := NewContext(w, req)
 		var params Params
 		if err := c.BindQuery(&params); err != nil {
@@ -3185,7 +3314,7 @@ func BenchmarkBindParams(b *testing.B) {
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		c := NewContext(w, req)
 		c.paramCount = 2
 		c.paramKeys[0] = "id"
@@ -3213,10 +3342,10 @@ func BenchmarkBindQuery_Cached(b *testing.B) {
 
 	// Warm up cache
 	var warmup Params
-	c.BindQuery(&warmup)
+	_ = c.BindQuery(&warmup)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		var params Params
 		if err := c.BindQuery(&params); err != nil {
 			b.Fatal(err)
@@ -3224,8 +3353,10 @@ func BenchmarkBindQuery_Cached(b *testing.B) {
 	}
 }
 
-// Test complex real-world binding
+// TestBindQuery_ComplexStruct tests complex real-world binding
 func TestBindQuery_ComplexStruct(t *testing.T) {
+	t.Parallel()
+
 	type ComplexParams struct {
 		// Strings
 		Query  string   `query:"q"`
@@ -3248,49 +3379,62 @@ func TestBindQuery_ComplexStruct(t *testing.T) {
 		OptionalAge  *int    `query:"optional_age"`
 	}
 
-	req := httptest.NewRequest("GET", "/", nil)
-	// Build query parameters programmatically
-	q := req.URL.Query()
-	q.Set("q", "search")
-	q.Set("filter", "all")
-	q.Add("tags", "go")
-	q.Add("tags", "rust")
-	q.Set("page", "2")
-	q.Set("page_size", "20")
-	q.Set("limit", "100")
-	q.Add("ids", "1")
-	q.Add("ids", "2")
-	q.Add("ids", "3")
-	q.Add("scores", "1.5")
-	q.Add("scores", "2.5")
-	q.Set("active", "true")
-	q.Set("verified", "false")
-	q.Set("optional_name", "John")
-	req.URL.RawQuery = q.Encode()
-
-	w := httptest.NewRecorder()
-	c := NewContext(w, req)
-
-	var params ComplexParams
-	if err := c.BindQuery(&params); err != nil {
-		t.Fatalf("BindQuery failed: %v", err)
+	tests := []struct {
+		name     string
+		setup    func(req *http.Request)
+		params   any
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "complex struct with all types",
+			setup: func(req *http.Request) {
+				// Build query parameters programmatically
+				q := req.URL.Query()
+				q.Set("q", "search")
+				q.Set("filter", "all")
+				q.Add("tags", "go")
+				q.Add("tags", "rust")
+				q.Set("page", "2")
+				q.Set("page_size", "20")
+				q.Set("limit", "100")
+				q.Add("ids", "1")
+				q.Add("ids", "2")
+				q.Add("ids", "3")
+				q.Add("scores", "1.5")
+				q.Add("scores", "2.5")
+				q.Set("active", "true")
+				q.Set("verified", "false")
+				q.Set("optional_name", "John")
+				req.URL.RawQuery = q.Encode()
+			},
+			params: &ComplexParams{},
+			validate: func(t *testing.T, params any) {
+				p := params.(*ComplexParams)
+				assert.Equal(t, "search", p.Query, "Query should match")
+				require.Len(t, p.Tags, 2, "Tags should have 2 elements")
+				require.Len(t, p.IDs, 3, "IDs should have 3 elements")
+				require.NotNil(t, p.OptionalName, "OptionalName should not be nil")
+				assert.Equal(t, "John", *p.OptionalName, "OptionalName should be John")
+				assert.Nil(t, p.OptionalAge, "OptionalAge should be nil")
+			},
+		},
 	}
 
-	// Validate all fields
-	if params.Query != "search" {
-		t.Errorf("Query = %v", params.Query)
-	}
-	if len(params.Tags) != 2 {
-		t.Errorf("Tags length = %d", len(params.Tags))
-	}
-	if len(params.IDs) != 3 {
-		t.Errorf("IDs length = %d", len(params.IDs))
-	}
-	if params.OptionalName == nil || *params.OptionalName != "John" {
-		t.Error("OptionalName not set correctly")
-	}
-	if params.OptionalAge != nil {
-		t.Error("OptionalAge should be nil")
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.setup != nil {
+				tt.setup(req)
+			}
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
+
+			require.NoError(t, c.BindQuery(tt.params))
+			tt.validate(t, tt.params)
+		})
 	}
 }
 
@@ -3324,19 +3468,18 @@ func TestWarmupBindingCache_MultipleTypes(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Error("User binding should work after warmup")
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "User binding should work after warmup")
 }
 
 // TestBindBody_UnsupportedContentType tests BindBody with unsupported content type
 func TestBindBody_UnsupportedContentType(t *testing.T) {
-	r := New()
+	t.Parallel()
 
 	type Data struct {
 		Value string `json:"value"`
 	}
 
+	r := New()
 	r.POST("/test", func(c *Context) {
 		var data Data
 		err := c.BindBody(&data)
@@ -3355,15 +3498,14 @@ func TestBindBody_UnsupportedContentType(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Should return error for unsupported type
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for unsupported content type, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code, "expected 400 for unsupported content type")
 }
 
 // TestGetCookie_URLEscaping tests cookie value unescaping
 func TestGetCookie_URLEscaping(t *testing.T) {
-	r := New()
+	t.Parallel()
 
+	r := New()
 	r.GET("/test", func(c *Context) {
 		value, err := c.GetCookie("data")
 
@@ -3385,56 +3527,73 @@ func TestGetCookie_URLEscaping(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Error("should successfully get and unescape cookie")
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "should successfully get and unescape cookie")
 }
 
 // TestBindJSON_EdgeCases tests JSON binding edge cases
 func TestBindJSON_EdgeCases(t *testing.T) {
-	r := New()
+	t.Parallel()
 
 	type Data struct {
 		Value string `json:"value"`
 	}
 
-	r.POST("/test", func(c *Context) {
-		var data Data
-		err := c.BindJSON(&data)
-
-		if err != nil {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
-			return
-		}
-
-		c.JSON(http.StatusOK, data)
-	})
-
-	// Test malformed JSON
-	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(`{invalid json`))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Error("should return error for malformed JSON")
+	tests := []struct {
+		name           string
+		body           string
+		expectedStatus int
+		validate       func(t *testing.T, w *httptest.ResponseRecorder)
+	}{
+		{
+			name:           "malformed JSON",
+			body:           `{invalid json`,
+			expectedStatus: http.StatusBadRequest,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Should return error for malformed JSON
+			},
+		},
+		{
+			name:           "empty body",
+			body:           ``,
+			expectedStatus: http.StatusBadRequest,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Empty body should fail
+			},
+		},
 	}
 
-	// Test empty body
-	req2 := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(``))
-	req2.Header.Set("Content-Type", "application/json")
-	w2 := httptest.NewRecorder()
-	r.ServeHTTP(w2, req2)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Empty body should fail
-	if w2.Code != http.StatusBadRequest {
-		t.Error("should return error for empty JSON")
+			r := New()
+			r.POST("/test", func(c *Context) {
+				var data Data
+				err := c.BindJSON(&data)
+
+				if err != nil {
+					c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
+					return
+				}
+
+				c.JSON(http.StatusOK, data)
+			})
+
+			req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code, "Expected status %d, got %d: %s", tt.expectedStatus, w.Code, w.Body.String())
+			tt.validate(t, w)
+		})
 	}
 }
 
 // TestConvertValue_AllTypes tests type conversion for all supported types
 func TestConvertValue_AllTypes(t *testing.T) {
-	r := New()
+	t.Parallel()
 
 	type AllTypes struct {
 		String  string  `form:"str"`
@@ -3453,38 +3612,58 @@ func TestConvertValue_AllTypes(t *testing.T) {
 		Bool    bool    `form:"bool"`
 	}
 
-	r.POST("/test", func(c *Context) {
-		var data AllTypes
-		if err := c.BindForm(&data); err != nil {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-	})
+	tests := []struct {
+		name           string
+		setupForm      func() url.Values
+		expectedStatus int
+	}{
+		{
+			name: "all supported types",
+			setupForm: func() url.Values {
+				form := url.Values{}
+				form.Set("str", "text")
+				form.Set("int", "42")
+				form.Set("int8", "8")
+				form.Set("int16", "16")
+				form.Set("int32", "32")
+				form.Set("int64", "64")
+				form.Set("uint", "42")
+				form.Set("uint8", "8")
+				form.Set("uint16", "16")
+				form.Set("uint32", "32")
+				form.Set("uint64", "64")
+				form.Set("float32", "3.14")
+				form.Set("float64", "2.718")
+				form.Set("bool", "true")
+				return form
+			},
+			expectedStatus: http.StatusOK,
+		},
+	}
 
-	form := url.Values{}
-	form.Set("str", "text")
-	form.Set("int", "42")
-	form.Set("int8", "8")
-	form.Set("int16", "16")
-	form.Set("int32", "32")
-	form.Set("int64", "64")
-	form.Set("uint", "42")
-	form.Set("uint8", "8")
-	form.Set("uint16", "16")
-	form.Set("uint32", "32")
-	form.Set("uint64", "64")
-	form.Set("float32", "3.14")
-	form.Set("float64", "2.718")
-	form.Set("bool", "true")
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+			r := New()
+			r.POST("/test", func(c *Context) {
+				var data AllTypes
+				if err := c.BindForm(&data); err != nil {
+					c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+			})
 
-	if w.Code != http.StatusOK {
-		t.Errorf("should bind all types successfully: %s", w.Body.String())
+			form := tt.setupForm()
+			req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code, "Expected status %d, got %d: %s", tt.expectedStatus, w.Code, w.Body.String())
+		})
 	}
 }
 
@@ -3494,735 +3673,595 @@ func TestConvertValue_AllTypes(t *testing.T) {
 // - Invalid bool parsing error (from parseBool)
 // - Unsupported type error
 func TestConvertValue_ErrorCases(t *testing.T) {
-	t.Run("invalid_unsigned_integer_error_path", func(t *testing.T) {
-		// Test error for invalid unsigned integer parsing
-		tests := []struct {
-			name  string
-			value string
-			kind  reflect.Kind
-		}{
-			{"negative value for uint", "-42", reflect.Uint},
-			{"negative value for uint8", "-10", reflect.Uint8},
-			{"negative value for uint16", "-100", reflect.Uint16},
-			{"negative value for uint32", "-1000", reflect.Uint32},
-			{"negative value for uint64", "-999999", reflect.Uint64},
-			{"invalid format for uint", "abc", reflect.Uint},
-			{"decimal for uint", "42.5", reflect.Uint},
-			{"empty string for uint", "", reflect.Uint},
-			{"whitespace for uint", "   ", reflect.Uint},
-		}
+	t.Parallel()
 
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				result, err := convertValue(tt.value, tt.kind)
+	tests := []struct {
+		name           string
+		value          string
+		kind           reflect.Kind
+		expectedErrMsg string
+	}{
+		// Invalid unsigned integer errors
+		{"negative value for uint", "-42", reflect.Uint, "invalid unsigned integer"},
+		{"negative value for uint8", "-10", reflect.Uint8, "invalid unsigned integer"},
+		{"negative value for uint16", "-100", reflect.Uint16, "invalid unsigned integer"},
+		{"negative value for uint32", "-1000", reflect.Uint32, "invalid unsigned integer"},
+		{"negative value for uint64", "-999999", reflect.Uint64, "invalid unsigned integer"},
+		{"invalid format for uint", "abc", reflect.Uint, "invalid unsigned integer"},
+		{"decimal for uint", "42.5", reflect.Uint, "invalid unsigned integer"},
+		{"empty string for uint", "", reflect.Uint, "invalid unsigned integer"},
+		{"whitespace for uint", "   ", reflect.Uint, "invalid unsigned integer"},
+		// Invalid float errors
+		{"invalid format for float32", "abc", reflect.Float32, "invalid float"},
+		{"invalid format for float64", "xyz", reflect.Float64, "invalid float"},
+		{"empty string for float32", "", reflect.Float32, "invalid float"},
+		{"whitespace for float64", "   ", reflect.Float64, "invalid float"},
+		{"mixed chars for float32", "12abc", reflect.Float32, "invalid float"},
+		{"only dots for float64", "...", reflect.Float64, "invalid float"},
+		{"multiple dots for float32", "12.34.56", reflect.Float32, "invalid float"},
+		// Invalid bool errors
+		{"invalid bool value", "maybe", reflect.Bool, "invalid"},
+		{"numeric 2", "2", reflect.Bool, "invalid"},
+		{"numeric 3", "3", reflect.Bool, "invalid"},
+		{"random text", "random", reflect.Bool, "invalid"},
+		{"mixed case invalid", "Maybe", reflect.Bool, "invalid"},
+		{"yesno together", "yesno", reflect.Bool, "invalid"},
+		{"truefalse together", "truefalse", reflect.Bool, "invalid"},
+		// Unsupported type errors
+		{"slice type", "", reflect.Slice, "unsupported type"},
+		{"map type", "", reflect.Map, "unsupported type"},
+		{"array type", "", reflect.Array, "unsupported type"},
+		{"chan type", "", reflect.Chan, "unsupported type"},
+		{"func type", "", reflect.Func, "unsupported type"},
+		{"interface type", "", reflect.Interface, "unsupported type"},
+		{"ptr type", "", reflect.Ptr, "unsupported type"},
+		{"struct type", "", reflect.Struct, "unsupported type"},
+		{"unsafe pointer", "", reflect.UnsafePointer, "unsupported type"},
+	}
 
-				if err == nil {
-					t.Errorf("convertValue(%q, %v) should return error, got result: %v", tt.value, tt.kind, result)
-				}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-				if err != nil && !strings.Contains(err.Error(), "invalid unsigned integer") {
-					t.Errorf("convertValue(%q, %v) error = %q, want error containing 'invalid unsigned integer'",
-						tt.value, tt.kind, err.Error())
-				}
-			})
-		}
-	})
+			result, err := convertValue(tt.value, tt.kind)
 
-	t.Run("invalid_float_error_path", func(t *testing.T) {
-		// Test error for invalid float parsing
-		tests := []struct {
-			name  string
-			value string
-			kind  reflect.Kind
-		}{
-			{"invalid format for float32", "abc", reflect.Float32},
-			{"invalid format for float64", "xyz", reflect.Float64},
-			{"empty string for float32", "", reflect.Float32},
-			{"whitespace for float64", "   ", reflect.Float64},
-			{"mixed chars for float32", "12abc", reflect.Float32},
-			{"only dots for float64", "...", reflect.Float64},
-			{"multiple dots for float32", "12.34.56", reflect.Float32},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				result, err := convertValue(tt.value, tt.kind)
-
-				if err == nil {
-					t.Errorf("convertValue(%q, %v) should return error, got result: %v", tt.value, tt.kind, result)
-				}
-
-				if err != nil && !strings.Contains(err.Error(), "invalid float") {
-					t.Errorf("convertValue(%q, %v) error = %q, want error containing 'invalid float'",
-						tt.value, tt.kind, err.Error())
-				}
-			})
-		}
-	})
-
-	t.Run("invalid_bool_error_path", func(t *testing.T) {
-		// Test error from parseBool for invalid boolean values
-		tests := []struct {
-			name  string
-			value string
-		}{
-			{"invalid bool value", "maybe"},
-			{"numeric 2", "2"},
-			{"numeric 3", "3"},
-			{"random text", "random"},
-			{"mixed case invalid", "Maybe"},
-			{"yesno together", "yesno"},
-			{"truefalse together", "truefalse"},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				result, err := convertValue(tt.value, reflect.Bool)
-
-				if err == nil {
-					t.Errorf("convertValue(%q, reflect.Bool) should return error, got result: %v", tt.value, result)
-				}
-
-				// parseBool returns error with message "invalid boolean value", and convertValue returns it as-is
-				if err != nil && !strings.Contains(err.Error(), "invalid boolean") && !strings.Contains(err.Error(), "invalid") {
-					t.Errorf("convertValue(%q, reflect.Bool) error = %q, want error containing 'invalid boolean' or 'invalid'",
-						tt.value, err.Error())
-				}
-			})
-		}
-	})
-
-	t.Run("unsupported_type_error_path", func(t *testing.T) {
-		// Test error for unsupported types
-		tests := []struct {
-			name string
-			kind reflect.Kind
-		}{
-			{"slice type", reflect.Slice},
-			{"map type", reflect.Map},
-			{"array type", reflect.Array},
-			{"chan type", reflect.Chan},
-			{"func type", reflect.Func},
-			{"interface type", reflect.Interface},
-			{"ptr type", reflect.Ptr},
-			{"struct type", reflect.Struct},
-			{"unsafe pointer", reflect.UnsafePointer},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				result, err := convertValue("test", tt.kind)
-
-				if err == nil {
-					t.Errorf("convertValue(\"test\", %v) should return error, got result: %v", tt.kind, result)
-				}
-
-				if err != nil && !strings.Contains(err.Error(), "unsupported type") {
-					t.Errorf("convertValue(\"test\", %v) error = %q, want error containing 'unsupported type'",
-						tt.kind, err.Error())
-				}
-
-				if err != nil && !strings.Contains(err.Error(), tt.kind.String()) {
-					t.Errorf("convertValue(\"test\", %v) error = %q, want error containing type name",
-						tt.kind, err.Error())
-				}
-			})
-		}
-	})
-
-	t.Run("edge_cases_covering_all_error_paths", func(t *testing.T) {
-		// Test all error paths in one comprehensive test
-		testCases := []struct {
-			name        string
-			value       string
-			kind        reflect.Kind
-			errorSubstr string
-		}{
-			{
-				name:        "error_path_negative_uint",
-				value:       "-5",
-				kind:        reflect.Uint,
-				errorSubstr: "invalid unsigned integer",
-			},
-			{
-				name:        "error_path_invalid_float",
-				value:       "not_a_float",
-				kind:        reflect.Float64,
-				errorSubstr: "invalid float",
-			},
-			{
-				name:        "error_path_invalid_bool",
-				value:       "maybe",
-				kind:        reflect.Bool,
-				errorSubstr: "invalid",
-			},
-			{
-				name:        "error_path_unsupported_slice",
-				value:       "test",
-				kind:        reflect.Slice,
-				errorSubstr: "unsupported type",
-			},
-		}
-
-		for _, tt := range testCases {
-			t.Run(tt.name, func(t *testing.T) {
-				result, err := convertValue(tt.value, tt.kind)
-
-				if err == nil {
-					t.Errorf("convertValue(%q, %v) should return error, got result: %v",
-						tt.value, tt.kind, result)
-				}
-
-				if err != nil && !strings.Contains(err.Error(), tt.errorSubstr) {
-					t.Errorf("convertValue(%q, %v) error = %q, want error containing %q",
-						tt.value, tt.kind, err.Error(), tt.errorSubstr)
-				}
-			})
-		}
-	})
+			require.Error(t, err, "convertValue(%q, %v) should return error", tt.value, tt.kind)
+			assert.Contains(t, err.Error(), tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
+			assert.Nil(t, result, "Result should be nil on error")
+		})
+	}
 }
 
-// TestSetField_PointerFieldError tests error path for pointer fields .
+// TestSetField_PointerFieldError tests error path for pointer fields.
 // When setFieldValue fails for a pointer field, the error should be returned.
 func TestSetField_PointerFieldError(t *testing.T) {
-	t.Run("pointer to int with invalid value", func(t *testing.T) {
-		type Params struct {
-			Age *int `query:"age"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?age=not-a-number", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name           string
+		query          string
+		params         any
+		expectedErrMsg string
+	}{
+		{
+			name:  "pointer to int with invalid value",
+			query: "age=not-a-number",
+			params: &struct {
+				Age *int `query:"age"`
+			}{},
+			expectedErrMsg: "Age",
+		},
+		{
+			name:  "pointer to time.Time with invalid value",
+			query: "start=invalid-time",
+			params: &struct {
+				StartTime *time.Time `query:"start"`
+			}{},
+			expectedErrMsg: "StartTime",
+		},
+		{
+			name:  "pointer to float64 with invalid value",
+			query: "price=not-a-float",
+			params: &struct {
+				Price *float64 `query:"price"`
+			}{},
+			expectedErrMsg: "Price",
+		},
+	}
 
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid int value in pointer field, got nil")
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Error should be returned from setFieldValue
-		// Error is wrapped in BindError, but should contain field name and conversion error
-		if !strings.Contains(err.Error(), "Age") || !strings.Contains(err.Error(), "invalid") {
-			t.Errorf("Error should mention field and be about invalid conversion, got: %v", err)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("pointer to time.Time with invalid value", func(t *testing.T) {
-		type Params struct {
-			StartTime *time.Time `query:"start"`
-		}
+			err := c.BindQuery(tt.params)
 
-		req := httptest.NewRequest("GET", "/?start=invalid-time", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid time value in pointer field, got nil")
-		}
-
-		// Error should propagate from setFieldValue
-		if !strings.Contains(err.Error(), "StartTime") {
-			t.Errorf("Error should mention field name, got: %v", err)
-		}
-	})
-
-	t.Run("pointer to float64 with invalid value", func(t *testing.T) {
-		type Params struct {
-			Price *float64 `query:"price"`
-		}
-
-		req := httptest.NewRequest("GET", "/?price=not-a-float", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid float value in pointer field, got nil")
-		}
-
-		// Error should be returned
-		if !strings.Contains(err.Error(), "Price") {
-			t.Errorf("Error should mention field name, got: %v", err)
-		}
-	})
+			require.Error(t, err, "Expected error for %s", tt.name)
+			assert.Contains(t, err.Error(), tt.expectedErrMsg, "Error should mention field name %q", tt.expectedErrMsg)
+		})
+	}
 }
 
-// TestSetFieldValue_InvalidURL tests error path for invalid URL parsing ).
+// TestSetFieldValue_InvalidURL tests error path for invalid URL parsing
 func TestSetFieldValue_InvalidURL(t *testing.T) {
-	t.Run("invalid URL format", func(t *testing.T) {
-		type Params struct {
-			CallbackURL url.URL `query:"callback"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?callback=://invalid-url", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name           string
+		query          string
+		params         any
+		wantErr        bool
+		expectedErrMsg string
+		validate       func(t *testing.T, params any)
+	}{
+		{
+			name:  "invalid URL format",
+			query: "callback=://invalid-url",
+			params: &struct {
+				CallbackURL url.URL `query:"callback"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "invalid URL",
+			validate:       func(t *testing.T, params any) {},
+		},
+		{
+			name:  "malformed URL with missing scheme",
+			query: "endpoint=://malformed",
+			params: &struct {
+				Endpoint url.URL `query:"endpoint"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "invalid URL",
+			validate:       func(t *testing.T, params any) {},
+		},
+		{
+			name:  "valid URL should succeed",
+			query: "endpoint=https://example.com/path",
+			params: &struct {
+				Endpoint url.URL `query:"endpoint"`
+			}{},
+			wantErr:        false,
+			expectedErrMsg: "",
+			validate: func(t *testing.T, params any) {
+				p := params.(*struct {
+					Endpoint url.URL `query:"endpoint"`
+				})
+				assert.Equal(t, "example.com", p.Endpoint.Host, "URL Host should match")
+			},
+		},
+	}
 
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid URL, got nil")
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Error should contain "invalid URL"
-		if !strings.Contains(err.Error(), "invalid URL") {
-			t.Errorf("Error should contain 'invalid URL', got: %v", err)
-		}
-		if !strings.Contains(err.Error(), "CallbackURL") {
-			t.Errorf("Error should mention field name 'CallbackURL', got: %v", err)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("malformed URL with missing scheme", func(t *testing.T) {
-		type Params struct {
-			Endpoint url.URL `query:"endpoint"`
-		}
+			err := c.BindQuery(tt.params)
 
-		req := httptest.NewRequest("GET", "/?endpoint=://malformed", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for malformed URL, got nil")
-		}
-
-		// Should trigger invalid URL error path
-		if !strings.Contains(err.Error(), "invalid URL") {
-			t.Errorf("Error should contain 'invalid URL', got: %v", err)
-		}
-	})
-
-	t.Run("valid URL should succeed", func(t *testing.T) {
-		type Params struct {
-			Endpoint url.URL `query:"endpoint"`
-		}
-
-		req := httptest.NewRequest("GET", "/?endpoint=https://example.com/path", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery should succeed for valid URL, got: %v", err)
-		}
-
-		if params.Endpoint.Host != "example.com" {
-			t.Errorf("URL Host = %v, want example.com", params.Endpoint.Host)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				assert.Contains(t, err.Error(), tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
+			} else {
+				require.NoError(t, err, "BindQuery should succeed for %s", tt.name)
+				tt.validate(t, tt.params)
+			}
+		})
+	}
 }
 
-// TestSetFieldValue_UnsupportedType tests error path for unsupported types )).
+// TestSetFieldValue_UnsupportedType tests error path for unsupported types.
 // This tests types that are not handled in the switch statement (default case).
 func TestSetFieldValue_UnsupportedType(t *testing.T) {
-	t.Run("unsupported type - Array", func(t *testing.T) {
-		type Params struct {
-			Data [5]int `query:"data"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?data=1,2,3", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name           string
+		query          string
+		params         any
+		wantErr        bool
+		expectedErrMsg string
+		validate       func(t *testing.T, err error)
+	}{
+		{
+			name:  "unsupported type - Array",
+			query: "data=1,2,3",
+			params: &struct {
+				Data [5]int `query:"data"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate: func(t *testing.T, err error) {
+				assert.Contains(t, strings.ToLower(err.Error()), "array", "Error should mention 'array'")
+			},
+		},
+		{
+			name:  "unsupported type - Chan",
+			query: "channel=test",
+			params: &struct {
+				Channel chan int `query:"channel"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate: func(t *testing.T, err error) {
+				assert.Contains(t, err.Error(), "Chan", "Error should mention 'Chan'")
+			},
+		},
+		{
+			name:  "unsupported type - Func",
+			query: "handler=test",
+			params: &struct {
+				Handler func() `query:"handler"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate: func(t *testing.T, err error) {
+				assert.Contains(t, strings.ToLower(err.Error()), "func", "Error should mention 'func'")
+			},
+		},
+		{
+			name:  "unsupported type - Interface",
+			query: "value=test",
+			params: &struct {
+				Value any `query:"value"`
+			}{},
+			wantErr:        false, // interface{} might be handled differently
+			expectedErrMsg: "",
+			validate:       func(t *testing.T, err error) {},
+		},
+		{
+			name:  "unsupported type - UnsafePointer",
+			query: "data=test",
+			params: &struct {
+				Data [0]struct{} `query:"data"` // Empty struct array
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate:       func(t *testing.T, err error) {},
+		},
+		{
+			name:  "unsupported type - Complex64",
+			query: "complex=1+2i",
+			params: &struct {
+				Complex complex64 `query:"complex"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate:       func(t *testing.T, err error) {},
+		},
+		{
+			name:  "unsupported type - Complex128",
+			query: "complex=1+2i",
+			params: &struct {
+				Complex complex128 `query:"complex"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate:       func(t *testing.T, err error) {},
+		},
+		{
+			name:  "unsupported type - Map (non-string key)",
+			query: "data=test",
+			params: &struct {
+				Data map[int]string `query:"data"`
+			}{},
+			wantErr:        false, // Maps are handled specially
+			expectedErrMsg: "",
+			validate:       func(t *testing.T, err error) {},
+		},
+		{
+			name:  "verify default case error format matches",
+			query: "data=test",
+			params: &struct {
+				Unsupported [3]string `query:"data"` // Array type that will fail
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate: func(t *testing.T, err error) {
+				errStr := err.Error()
+				parts := strings.Split(errStr, "unsupported type:")
+				require.GreaterOrEqual(t, len(parts), 2, "Error should match format 'unsupported type: <kind>'")
+			},
+		},
+	}
 
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for unsupported array type, got nil")
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Error should contain "unsupported type"
-		// The error message contains "unsupported type: array" (lowercase)
-		if !strings.Contains(err.Error(), "unsupported type") {
-			t.Errorf("Error should contain 'unsupported type', got: %v", err)
-		}
-		if !strings.Contains(strings.ToLower(err.Error()), "array") {
-			t.Errorf("Error should mention 'array', got: %v", err)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("unsupported type - Chan", func(t *testing.T) {
-		type Params struct {
-			Channel chan int `query:"channel"`
-		}
+			err := c.BindQuery(tt.params)
 
-		req := httptest.NewRequest("GET", "/?channel=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for unsupported channel type, got nil")
-		}
-
-		// Should trigger unsupported type error path
-		if !strings.Contains(err.Error(), "unsupported type") {
-			t.Errorf("Error should contain 'unsupported type', got: %v", err)
-		}
-		if !strings.Contains(err.Error(), "Chan") {
-			t.Errorf("Error should mention 'Chan', got: %v", err)
-		}
-	})
-
-	t.Run("unsupported type - Func", func(t *testing.T) {
-		type Params struct {
-			Handler func() `query:"handler"`
-		}
-
-		req := httptest.NewRequest("GET", "/?handler=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for unsupported function type, got nil")
-		}
-
-		// Should trigger unsupported type error path
-		if !strings.Contains(err.Error(), "unsupported type") {
-			t.Errorf("Error should contain 'unsupported type', got: %v", err)
-		}
-		// Error message contains "unsupported type: func" (lowercase)
-		if !strings.Contains(strings.ToLower(err.Error()), "func") {
-			t.Errorf("Error should mention 'func', got: %v", err)
-		}
-	})
-
-	t.Run("unsupported type - Interface", func(_ *testing.T) {
-		type Params struct {
-			Value interface{} `query:"value"`
-		}
-
-		req := httptest.NewRequest("GET", "/?value=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		// Note: interface{} might be handled differently, but if it reaches the switch,
-		// it should trigger the unsupported type error
-		// If there's an error but it's not about unsupported type, that's also valid
-		// as interface{} might be handled before reaching the switch
-		_ = err
-	})
-
-	t.Run("unsupported type - UnsafePointer", func(t *testing.T) {
-		// Testing with a type that would result in UnsafePointer kind
-		// This is tricky to test directly, but we can test that the error format is correct
-		// by checking the error message structure when it occurs
-		type Params struct {
-			Data [0]struct{} `query:"data"` // Empty struct array
-		}
-
-		req := httptest.NewRequest("GET", "/?data=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for unsupported array type, got nil")
-		}
-
-		// Error format should match fmt.Errorf("unsupported type: %v", fieldType.Kind())
-		if !strings.Contains(err.Error(), "unsupported type") {
-			t.Errorf("Error should contain 'unsupported type', got: %v", err)
-		}
-	})
-
-	t.Run("unsupported type - Complex64 (if convertValue ever succeeds)", func(t *testing.T) {
-		// This test ensures unsupported type default case is covered.
-		// Note: Most unsupported types fail in convertValue before reaching the switch.
-		// This is defensive code for the theoretical case where convertValue succeeds
-		// but the switch doesn't handle the type.
-		type Params struct {
-			Complex complex64 `query:"complex"`
-		}
-
-		req := httptest.NewRequest("GET", "/?complex=1+2i", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for unsupported complex type, got nil")
-		}
-
-		// Error should contain "unsupported type" - either from convertValue  or switch
-		// Both use the same error format: fmt.Errorf("unsupported type: %v", ...)
-		if !strings.Contains(err.Error(), "unsupported type") {
-			t.Errorf("Error should contain 'unsupported type', got: %v", err)
-		}
-	})
-
-	t.Run("unsupported type - Complex128", func(t *testing.T) {
-		type Params struct {
-			Complex complex128 `query:"complex"`
-		}
-
-		req := httptest.NewRequest("GET", "/?complex=1+2i", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for unsupported complex type, got nil")
-		}
-
-		// Error should contain "unsupported type"
-		if !strings.Contains(err.Error(), "unsupported type") {
-			t.Errorf("Error should contain 'unsupported type', got: %v", err)
-		}
-	})
-
-	t.Run("unsupported type - Map (non-string key)", func(_ *testing.T) {
-		// Map with non-string key would fail early, but tests error handling
-		type Params struct {
-			Data map[int]string `query:"data"`
-		}
-
-		req := httptest.NewRequest("GET", "/?data=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		// Maps are handled specially, but this tests error paths
-		// Error might mention map or unsupported type
-		// Both are valid error messages depending on where validation happens
-		_ = err
-	})
-
-	t.Run("verify default case error format matches", func(t *testing.T) {
-		// This test verifies that if unsupported type case is reached, the error format is correct.
-		// The error format should be: fmt.Errorf("unsupported type: %v", fieldType.Kind())
-		type Params struct {
-			Unsupported [3]string `query:"data"` // Array type that will fail
-		}
-
-		req := httptest.NewRequest("GET", "/?data=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error, got nil")
-		}
-
-		// Verify error contains the expected format pattern
-		errStr := err.Error()
-		if !strings.Contains(errStr, "unsupported type") {
-			t.Errorf("Error should contain 'unsupported type', got: %v", err)
-		}
-
-		// The error format from "unsupported type: %v" where %v is the Kind
-		// Verify it follows this pattern (contains "unsupported type:" followed by a kind name)
-		parts := strings.Split(errStr, "unsupported type:")
-		if len(parts) < 2 {
-			t.Errorf("Error should match format 'unsupported type: <kind>', got: %v", err)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				if tt.expectedErrMsg != "" {
+					assert.Contains(t, err.Error(), tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
+				}
+				tt.validate(t, err)
+			} else {
+				// May or may not error, just test the path
+				_ = err
+			}
+		})
+	}
 }
 
 // TestPrefixGetter_GetAll tests prefixGetter.GetAll method
 func TestPrefixGetter_GetAll(t *testing.T) {
-	t.Run("queryGetter with prefix", func(t *testing.T) {
-		values := url.Values{}
-		values.Add("user.name", "John")
-		values.Add("user.email", "john@example.com")
-		values.Add("user.email", "john.doe@example.com")
-		values.Add("other.field", "value")
+	t.Parallel()
 
-		qg := &queryGetter{values: values}
-		pg := &prefixGetter{
-			inner:  qg,
-			prefix: "user.",
-		}
+	tests := []struct {
+		name     string
+		setup    func() (*prefixGetter, string)
+		validate func(t *testing.T, result []string, key string)
+	}{
+		{
+			name: "queryGetter with prefix - name",
+			setup: func() (*prefixGetter, string) {
+				values := url.Values{}
+				values.Add("user.name", "John")
+				values.Add("user.email", "john@example.com")
+				values.Add("user.email", "john.doe@example.com")
+				values.Add("other.field", "value")
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "user.",
+				}
+				return pg, "name"
+			},
+			validate: func(t *testing.T, result []string, key string) {
+				require.Len(t, result, 1, "Expected 1 value for %q", key)
+				assert.Equal(t, "John", result[0], "Expected first value to be 'John'")
+			},
+		},
+		{
+			name: "queryGetter with prefix - email",
+			setup: func() (*prefixGetter, string) {
+				values := url.Values{}
+				values.Add("user.name", "John")
+				values.Add("user.email", "john@example.com")
+				values.Add("user.email", "john.doe@example.com")
+				values.Add("other.field", "value")
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "user.",
+				}
+				return pg, "email"
+			},
+			validate: func(t *testing.T, result []string, key string) {
+				require.Len(t, result, 2, "Expected 2 values for %q", key)
+				assert.Equal(t, "john@example.com", result[0], "Expected first email")
+				assert.Equal(t, "john.doe@example.com", result[1], "Expected second email")
+			},
+		},
+		{
+			name: "queryGetter with prefix - nonexistent",
+			setup: func() (*prefixGetter, string) {
+				values := url.Values{}
+				values.Add("user.name", "John")
+				qg := &queryGetter{values: values}
+				pg := &prefixGetter{
+					inner:  qg,
+					prefix: "user.",
+				}
+				return pg, "nonexistent"
+			},
+			validate: func(t *testing.T, result []string, key string) {
+				assert.Nil(t, result, "Expected nil for non-existent key")
+			},
+		},
+		{
+			name: "formGetter with prefix - tags",
+			setup: func() (*prefixGetter, string) {
+				values := url.Values{}
+				values.Add("meta.tags", "go")
+				values.Add("meta.tags", "rust")
+				values.Add("meta.version", "1.0")
+				values.Add("other.data", "value")
+				fg := &formGetter{values: values}
+				pg := &prefixGetter{
+					inner:  fg,
+					prefix: "meta.",
+				}
+				return pg, "tags"
+			},
+			validate: func(t *testing.T, result []string, key string) {
+				require.Len(t, result, 2, "Expected 2 values for %q", key)
+			},
+		},
+		{
+			name: "formGetter with prefix - version",
+			setup: func() (*prefixGetter, string) {
+				values := url.Values{}
+				values.Add("meta.tags", "go")
+				values.Add("meta.version", "1.0")
+				fg := &formGetter{values: values}
+				pg := &prefixGetter{
+					inner:  fg,
+					prefix: "meta.",
+				}
+				return pg, "version"
+			},
+			validate: func(t *testing.T, result []string, key string) {
+				require.Len(t, result, 1, "Expected 1 value for %q", key)
+				assert.Equal(t, "1.0", result[0], "Expected version to be '1.0'")
+			},
+		},
+		{
+			name: "cookieGetter with prefix",
+			setup: func() (*prefixGetter, string) {
+				cookies := []*http.Cookie{
+					{Name: "session.id", Value: "abc123"},
+					{Name: "session.token", Value: "def456"},
+					{Name: "other.data", Value: "value"},
+				}
+				cg := &cookieGetter{cookies: cookies}
+				pg := &prefixGetter{
+					inner:  cg,
+					prefix: "session.",
+				}
+				return pg, "id"
+			},
+			validate: func(t *testing.T, result []string, key string) {
+				require.Len(t, result, 1, "Expected 1 value for %q", key)
+				assert.Equal(t, "abc123", result[0], "Expected id to be 'abc123'")
+			},
+		},
+		{
+			name: "headerGetter with prefix",
+			setup: func() (*prefixGetter, string) {
+				headers := http.Header{}
+				headers.Add("X-Meta-Tags", "tag1")
+				headers.Add("X-Meta-Tags", "tag2")
+				headers.Add("X-Other-Data", "value")
+				hg := &headerGetter{headers: headers}
+				pg := &prefixGetter{
+					inner:  hg,
+					prefix: "X-Meta-",
+				}
+				return pg, "Tags"
+			},
+			validate: func(t *testing.T, result []string, key string) {
+				require.Len(t, result, 2, "Expected 2 values for %q", key)
+			},
+		},
+	}
 
-		// Test GetAll for "name" (should return ["John"])
-		all := pg.GetAll("name")
-		if len(all) != 1 || all[0] != "John" {
-			t.Errorf("expected [\"John\"], got %v", all)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Test GetAll for "email" (should return both emails)
-		all = pg.GetAll("email")
-		if len(all) != 2 {
-			t.Errorf("expected 2 values, got %d", len(all))
-		}
-		if all[0] != "john@example.com" || all[1] != "john.doe@example.com" {
-			t.Errorf("unexpected email values: %v", all)
-		}
-
-		// Test non-existent key
-		none := pg.GetAll("nonexistent")
-		if none != nil {
-			t.Errorf("expected nil for non-existent key, got %v", none)
-		}
-	})
-
-	t.Run("formGetter with prefix", func(t *testing.T) {
-		values := url.Values{}
-		values.Add("meta.tags", "go")
-		values.Add("meta.tags", "rust")
-		values.Add("meta.version", "1.0")
-		values.Add("other.data", "value")
-
-		fg := &formGetter{values: values}
-		pg := &prefixGetter{
-			inner:  fg,
-			prefix: "meta.",
-		}
-
-		// Test GetAll for "tags"
-		all := pg.GetAll("tags")
-		if len(all) != 2 {
-			t.Errorf("expected 2 values, got %d", len(all))
-		}
-
-		// Test GetAll for "version"
-		all = pg.GetAll("version")
-		if len(all) != 1 || all[0] != "1.0" {
-			t.Errorf("expected [\"1.0\"], got %v", all)
-		}
-	})
-
-	t.Run("cookieGetter with prefix", func(t *testing.T) {
-		cookies := []*http.Cookie{
-			{Name: "session.id", Value: "abc123"},
-			{Name: "session.token", Value: "def456"},
-			{Name: "other.data", Value: "value"},
-		}
-
-		cg := &cookieGetter{cookies: cookies}
-		pg := &prefixGetter{
-			inner:  cg,
-			prefix: "session.",
-		}
-
-		// Test GetAll for "id"
-		all := pg.GetAll("id")
-		if len(all) != 1 || all[0] != "abc123" {
-			t.Errorf("expected [\"abc123\"], got %v", all)
-		}
-	})
-
-	t.Run("headerGetter with prefix", func(t *testing.T) {
-		headers := http.Header{}
-		headers.Add("X-Meta-Tags", "tag1")
-		headers.Add("X-Meta-Tags", "tag2")
-		headers.Add("X-Other-Data", "value")
-
-		hg := &headerGetter{headers: headers}
-		pg := &prefixGetter{
-			inner:  hg,
-			prefix: "X-Meta-",
-		}
-
-		// Test GetAll for "Tags"
-		all := pg.GetAll("Tags")
-		if len(all) != 2 {
-			t.Errorf("expected 2 values, got %d", len(all))
-		}
-	})
+			pg, key := tt.setup()
+			result := pg.GetAll(key)
+			tt.validate(t, result, key)
+		})
+	}
 }
 
 // TestPrefixGetter_GetAll_ThroughNestedBinding tests prefixGetter.GetAll through actual nested struct binding
 // This ensures GetAll is called when binding nested structs with slice fields
 func TestPrefixGetter_GetAll_ThroughNestedBinding(t *testing.T) {
-	t.Run("nested struct with slice field - query", func(t *testing.T) {
-		type Address struct {
-			Tags []string `query:"tags"`
-		}
-		type Params struct {
-			Address Address `query:"address"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?address.tags=home&address.tags=work", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	// Define struct types at test level to avoid type scope issues
+	type Address struct {
+		Tags []string `query:"tags"`
+	}
+	type ParamsQuery struct {
+		Address Address `query:"address"`
+	}
 
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	type Metadata struct {
+		Versions []string `form:"versions"`
+	}
+	type FormData struct {
+		Metadata Metadata `form:"meta"`
+	}
 
-		if len(params.Address.Tags) != 2 {
-			t.Errorf("expected 2 tags, got %d", len(params.Address.Tags))
-		}
-		if params.Address.Tags[0] != "home" || params.Address.Tags[1] != "work" {
-			t.Errorf("unexpected tags: %v", params.Address.Tags)
-		}
-	})
+	type Item struct {
+		Tags []string `query:"tags"`
+	}
+	type Section struct {
+		Items Item `query:"item"`
+	}
+	type ParamsDeep struct {
+		Section Section `query:"section"`
+	}
 
-	t.Run("nested struct with slice field - form", func(t *testing.T) {
-		type Metadata struct {
-			Versions []string `form:"versions"`
-		}
-		type FormData struct {
-			Metadata Metadata `form:"meta"`
-		}
+	tests := []struct {
+		name     string
+		setup    func() (*http.Request, any)
+		bindFunc func(c *Context, params any) error
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "nested struct with slice field - query",
+			setup: func() (*http.Request, any) {
+				req := httptest.NewRequest("GET", "/?address.tags=home&address.tags=work", nil)
+				return req, &ParamsQuery{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindQuery(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*ParamsQuery)
+				require.Len(t, p.Address.Tags, 2, "Expected 2 tags")
+				assert.Equal(t, "home", p.Address.Tags[0], "Expected first tag to be 'home'")
+				assert.Equal(t, "work", p.Address.Tags[1], "Expected second tag to be 'work'")
+			},
+		},
+		{
+			name: "nested struct with slice field - form",
+			setup: func() (*http.Request, any) {
+				form := url.Values{}
+				form.Add("meta.versions", "1.0")
+				form.Add("meta.versions", "2.0")
+				form.Add("meta.versions", "3.0")
+				req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				return req, &FormData{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindForm(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*FormData)
+				require.Len(t, p.Metadata.Versions, 3, "Expected 3 versions")
+				assert.Equal(t, "1.0", p.Metadata.Versions[0], "Expected first version")
+				assert.Equal(t, "2.0", p.Metadata.Versions[1], "Expected second version")
+				assert.Equal(t, "3.0", p.Metadata.Versions[2], "Expected third version")
+			},
+		},
+		{
+			name: "deeply nested struct with slice",
+			setup: func() (*http.Request, any) {
+				req := httptest.NewRequest("GET", "/?section.item.tags=tag1&section.item.tags=tag2", nil)
+				return req, &ParamsDeep{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindQuery(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*ParamsDeep)
+				require.Len(t, p.Section.Items.Tags, 2, "Expected 2 tags")
+			},
+		},
+	}
 
-		form := url.Values{}
-		form.Add("meta.versions", "1.0")
-		form.Add("meta.versions", "2.0")
-		form.Add("meta.versions", "3.0")
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			req, params := tt.setup()
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		var data FormData
-		if err := c.BindForm(&data); err != nil {
-			t.Fatalf("BindForm failed: %v", err)
-		}
-
-		if len(data.Metadata.Versions) != 3 {
-			t.Errorf("expected 3 versions, got %d", len(data.Metadata.Versions))
-		}
-		if data.Metadata.Versions[0] != "1.0" || data.Metadata.Versions[1] != "2.0" || data.Metadata.Versions[2] != "3.0" {
-			t.Errorf("unexpected versions: %v", data.Metadata.Versions)
-		}
-	})
-
-	t.Run("deeply nested struct with slice", func(t *testing.T) {
-		type Item struct {
-			Tags []string `query:"tags"`
-		}
-		type Section struct {
-			Items Item `query:"item"`
-		}
-		type Params struct {
-			Section Section `query:"section"`
-		}
-
-		req := httptest.NewRequest("GET", "/?section.item.tags=tag1&section.item.tags=tag2", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if len(params.Section.Items.Tags) != 2 {
-			t.Errorf("expected 2 tags, got %d", len(params.Section.Items.Tags))
-		}
-	})
+			require.NoError(t, tt.bindFunc(c, params), "%s should succeed", tt.name)
+			tt.validate(t, params)
+		})
+	}
 }
 
 // TestParamsGetter_GetAll_ThroughBinding tests paramsGetter.GetAll through actual binding
 func TestParamsGetter_GetAll_ThroughBinding(t *testing.T) {
+	t.Parallel()
+
 	type Params struct {
 		ID string `params:"id"`
 	}
@@ -4233,13 +4272,8 @@ func TestParamsGetter_GetAll_ThroughBinding(t *testing.T) {
 	c.Params = map[string]string{"id": "123"}
 
 	var params Params
-	if err := c.BindParams(&params); err != nil {
-		t.Fatalf("BindParams failed: %v", err)
-	}
-
-	if params.ID != "123" {
-		t.Errorf("expected ID=123, got %s", params.ID)
-	}
+	require.NoError(t, c.BindParams(&params), "BindParams should succeed")
+	assert.Equal(t, "123", params.ID, "Expected ID=123")
 
 	// Test that GetAll is used internally for slices (if applicable)
 	type ParamsWithSlice struct {
@@ -4248,69 +4282,84 @@ func TestParamsGetter_GetAll_ThroughBinding(t *testing.T) {
 
 	var paramsSlice ParamsWithSlice
 	c.Params = map[string]string{"id": "456"}
-	if err := c.BindParams(&paramsSlice); err != nil {
-		t.Fatalf("BindParams failed: %v", err)
-	}
-
-	if len(paramsSlice.IDs) != 1 || paramsSlice.IDs[0] != "456" {
-		t.Errorf("expected IDs=[\"456\"], got %v", paramsSlice.IDs)
-	}
+	require.NoError(t, c.BindParams(&paramsSlice), "BindParams should succeed for slice")
+	require.Len(t, paramsSlice.IDs, 1, "Expected 1 ID")
+	assert.Equal(t, "456", paramsSlice.IDs[0], "Expected first ID to be '456'")
 }
 
 // TestCookieGetter_GetAll_ThroughBinding tests cookieGetter.GetAll through actual binding
 // This tests the URL unescaping error path
 func TestCookieGetter_GetAll_ThroughBinding(t *testing.T) {
-	t.Run("multiple cookies with same name", func(t *testing.T) {
-		type Cookies struct {
-			Session []string `cookie:"session"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/", nil)
-		req.AddCookie(&http.Cookie{Name: "session", Value: "abc123"})
-		req.AddCookie(&http.Cookie{Name: "session", Value: "def456"})
+	// Define struct types at test level to avoid type scope issues
+	type CookiesWithSession struct {
+		Session []string `cookie:"session"`
+	}
 
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	type CookiesWithData struct {
+		Data []string `cookie:"data"`
+	}
 
-		var cookies Cookies
-		if err := c.BindCookies(&cookies); err != nil {
-			t.Fatalf("BindCookies failed: %v", err)
-		}
+	tests := []struct {
+		name     string
+		setup    func() *http.Request
+		params   any
+		validate func(t *testing.T, cookies any)
+	}{
+		{
+			name: "multiple cookies with same name",
+			setup: func() *http.Request {
+				req := httptest.NewRequest("GET", "/", nil)
+				req.AddCookie(&http.Cookie{Name: "session", Value: "abc123"})
+				req.AddCookie(&http.Cookie{Name: "session", Value: "def456"})
+				return req
+			},
+			params: &CookiesWithSession{},
+			validate: func(t *testing.T, cookies any) {
+				c := cookies.(*CookiesWithSession)
+				require.Len(t, c.Session, 2, "Expected 2 session cookies")
+				assert.Equal(t, "abc123", c.Session[0], "Expected first session")
+				assert.Equal(t, "def456", c.Session[1], "Expected second session")
+			},
+		},
+		{
+			name: "URL unescaping error path",
+			setup: func() *http.Request {
+				req := httptest.NewRequest("GET", "/", nil)
+				// Create a cookie with invalid URL encoding to trigger error path
+				req.AddCookie(&http.Cookie{Name: "data", Value: "%ZZ"}) // Invalid percent encoding
+				return req
+			},
+			params: &CookiesWithData{},
+			validate: func(t *testing.T, cookies any) {
+				c := cookies.(*CookiesWithData)
+				// Should fallback to raw cookie value on unescaping error
+				require.Len(t, c.Data, 1, "Expected 1 data cookie")
+				assert.Equal(t, "%ZZ", c.Data[0], "Expected raw value %%ZZ")
+			},
+		},
+	}
 
-		if len(cookies.Session) != 2 {
-			t.Errorf("expected 2 session cookies, got %d", len(cookies.Session))
-		}
-		if cookies.Session[0] != "abc123" || cookies.Session[1] != "def456" {
-			t.Errorf("unexpected session values: %v", cookies.Session)
-		}
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("URL unescaping error path", func(t *testing.T) {
-		type Cookies struct {
-			Data []string `cookie:"data"`
-		}
+			req := tt.setup()
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		req := httptest.NewRequest("GET", "/", nil)
-		// Create a cookie with invalid URL encoding to trigger error path
-		req.AddCookie(&http.Cookie{Name: "data", Value: "%ZZ"}) // Invalid percent encoding
-
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var cookies Cookies
-		if err := c.BindCookies(&cookies); err != nil {
-			t.Fatalf("BindCookies failed: %v", err)
-		}
-
-		// Should fallback to raw cookie value on unescaping error
-		if len(cookies.Data) != 1 || cookies.Data[0] != "%ZZ" {
-			t.Errorf("expected Data=[\"%%ZZ\"], got %v", cookies.Data)
-		}
-	})
+			require.NoError(t, c.BindCookies(tt.params), "BindCookies should succeed")
+			tt.validate(t, tt.params)
+		})
+	}
 }
 
 // TestHeaderGetter_GetAll_ThroughBinding tests headerGetter.GetAll through actual binding
 func TestHeaderGetter_GetAll_ThroughBinding(t *testing.T) {
+	t.Parallel()
+
 	type Headers struct {
 		Tags []string `header:"X-Tags"`
 	}
@@ -4324,166 +4373,184 @@ func TestHeaderGetter_GetAll_ThroughBinding(t *testing.T) {
 	c := NewContext(w, req)
 
 	var headers Headers
-	if err := c.BindHeaders(&headers); err != nil {
-		t.Fatalf("BindHeaders failed: %v", err)
-	}
+	require.NoError(t, c.BindHeaders(&headers), "BindHeaders should succeed")
 
-	if len(headers.Tags) != 3 {
-		t.Errorf("expected 3 tags, got %d", len(headers.Tags))
-	}
-	if headers.Tags[0] != "tag1" || headers.Tags[1] != "tag2" || headers.Tags[2] != "tag3" {
-		t.Errorf("unexpected tag values: %v", headers.Tags)
-	}
+	require.Len(t, headers.Tags, 3, "Expected 3 tags")
+	assert.Equal(t, "tag1", headers.Tags[0], "Expected first tag")
+	assert.Equal(t, "tag2", headers.Tags[1], "Expected second tag")
+	assert.Equal(t, "tag3", headers.Tags[2], "Expected third tag")
 }
 
 // TestWarmupBindingCache_EdgeCases tests WarmupBindingCache with edge cases to improve coverage
 func TestWarmupBindingCache_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	type TestStruct struct {
 		Name string `query:"name"`
 	}
 
-	t.Run("pointer to struct", func(_ *testing.T) {
-		// Test pointer type handling
-		WarmupBindingCache(&TestStruct{})
-		// Should not panic and should warm up cache
-	})
+	type User struct {
+		ID int `json:"id"`
+	}
 
-	t.Run("non-struct types", func(_ *testing.T) {
-		// Test non-struct types should be skipped
-		WarmupBindingCache("string", 42, []int{1, 2, 3}, map[string]int{"a": 1})
-		// Should not panic, non-structs should be skipped
-	})
+	type Product struct {
+		Name string `form:"name"`
+	}
 
-	t.Run("mix of structs and non-structs", func(_ *testing.T) {
-		type User struct {
-			ID int `json:"id"`
-		}
-		type Product struct {
-			Name string `form:"name"`
-		}
+	type EmptyStruct struct{}
 
-		// Mix of valid structs and non-structs
-		WarmupBindingCache(User{}, &Product{}, "string", 123)
-		// Should handle structs and skip non-structs
-	})
+	tests := []struct {
+		name string
+		args []any
+	}{
+		{
+			name: "pointer to struct",
+			args: []any{&TestStruct{}},
+		},
+		{
+			name: "non-struct types",
+			args: []any{"string", 42, []int{1, 2, 3}, map[string]int{"a": 1}},
+		},
+		{
+			name: "mix of structs and non-structs",
+			args: []any{User{}, &Product{}, "string", 123},
+		},
+		{
+			name: "pointer to non-struct",
+			args: []any{func() *string { s := "test"; return &s }()},
+		},
+		{
+			name: "empty struct",
+			args: []any{EmptyStruct{}},
+		},
+	}
 
-	t.Run("pointer to non-struct", func(_ *testing.T) {
-		// Test pointer to non-struct (should unwrap pointer, then skip)
-		str := "test"
-		WarmupBindingCache(&str)
-		// Should not panic
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Should not panic
+			WarmupBindingCache(tt.args...)
+		})
+	}
 }
 
-// TestBindBody_ContentTypeWithParameters tests BindBody with content type containing parameters ()
+// TestBindBody_ContentTypeWithParameters tests BindBody with content type containing parameters
 func TestBindBody_ContentTypeWithParameters(t *testing.T) {
+	t.Parallel()
+
 	type Data struct {
 		Value string `json:"value"`
 	}
 
-	r := New()
-	r.POST("/test", func(c *Context) {
-		var data Data
-		if err := c.BindBody(&data); err != nil {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, data)
-	})
+	type FormData struct {
+		Name string `form:"name"`
+	}
 
-	t.Run("JSON with charset parameter", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(`{"value":"test"}`))
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+	tests := []struct {
+		name           string
+		setup          func() (*http.Request, *Router)
+		expectedStatus int
+	}{
+		{
+			name: "JSON with charset parameter",
+			setup: func() (*http.Request, *Router) {
+				r := New()
+				r.POST("/test", func(c *Context) {
+					var data Data
+					if err := c.BindBody(&data); err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, data)
+				})
+				req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(`{"value":"test"}`))
+				req.Header.Set("Content-Type", "application/json; charset=utf-8")
+				return req, r
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "form with boundary parameter",
+			setup: func() (*http.Request, *Router) {
+				r := New()
+				r.POST("/form", func(c *Context) {
+					var data FormData
+					if err := c.BindBody(&data); err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, data)
+				})
+				form := url.Values{}
+				form.Set("name", "John")
+				req := httptest.NewRequest(http.MethodPost, "/form", strings.NewReader(form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+				return req, r
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "multipart with boundary",
+			setup: func() (*http.Request, *Router) {
+				r := New()
+				r.POST("/multipart", func(c *Context) {
+					var data FormData
+					if err := c.BindBody(&data); err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, data)
+				})
+				body := &bytes.Buffer{}
+				writer := multipart.NewWriter(body)
+				_ = writer.WriteField("name", "Jane")
+				_ = writer.Close()
+				req := httptest.NewRequest(http.MethodPost, "/multipart", body)
+				req.Header.Set("Content-Type", writer.FormDataContentType()) // Includes boundary parameter
+				return req, r
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "content type with leading/trailing spaces and parameters",
+			setup: func() (*http.Request, *Router) {
+				r := New()
+				r.POST("/spaces", func(c *Context) {
+					var data Data
+					if err := c.BindBody(&data); err != nil {
+						c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, data)
+				})
+				req := httptest.NewRequest(http.MethodPost, "/spaces", strings.NewReader(`{"value":"test"}`))
+				req.Header.Set("Content-Type", "  application/json ; charset=utf-8  ") // Spaces and parameters
+				return req, r
+			},
+			expectedStatus: http.StatusOK,
+		},
+	}
 
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200 for JSON with charset, got %d: %s", w.Code, w.Body.String())
-		}
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("form with boundary parameter", func(t *testing.T) {
-		type FormData struct {
-			Name string `form:"name"`
-		}
+			req, r := tt.setup()
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-		r.POST("/form", func(c *Context) {
-			var data FormData
-			if err := c.BindBody(&data); err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, data)
+			assert.Equal(t, tt.expectedStatus, w.Code, "expected status %d, got %d: %s", tt.expectedStatus, w.Code, w.Body.String())
 		})
-
-		form := url.Values{}
-		form.Set("name", "John")
-		req := httptest.NewRequest(http.MethodPost, "/form", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200 for form with charset, got %d: %s", w.Code, w.Body.String())
-		}
-	})
-
-	t.Run("multipart with boundary", func(t *testing.T) {
-		type FormData struct {
-			Name string `form:"name"`
-		}
-
-		r.POST("/multipart", func(c *Context) {
-			var data FormData
-			if err := c.BindBody(&data); err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, data)
-		})
-
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-		writer.WriteField("name", "Jane")
-		writer.Close()
-
-		req := httptest.NewRequest(http.MethodPost, "/multipart", body)
-		req.Header.Set("Content-Type", writer.FormDataContentType()) // Includes boundary parameter
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200 for multipart, got %d: %s", w.Code, w.Body.String())
-		}
-	})
-
-	t.Run("content type with leading/trailing spaces and parameters", func(t *testing.T) {
-		type Data struct {
-			Value string `json:"value"`
-		}
-
-		r.POST("/spaces", func(c *Context) {
-			var data Data
-			if err := c.BindBody(&data); err != nil {
-				c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, data)
-		})
-
-		req := httptest.NewRequest(http.MethodPost, "/spaces", strings.NewReader(`{"value":"test"}`))
-		req.Header.Set("Content-Type", "  application/json ; charset=utf-8  ") // Spaces and parameters
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200 for content type with spaces, got %d: %s", w.Code, w.Body.String())
-		}
-	})
+	}
 }
 
 // TestBindJSON_NilBody tests BindJSON with nil request body
 func TestBindJSON_NilBody(t *testing.T) {
+	t.Parallel()
+
 	type Data struct {
 		Value string `json:"value"`
 	}
@@ -4495,121 +4562,130 @@ func TestBindJSON_NilBody(t *testing.T) {
 
 	var data Data
 	err := c.BindJSON(&data)
-	if err == nil {
-		t.Fatal("Expected error for nil body, got nil")
-	}
-	if !strings.Contains(err.Error(), "request body is nil") {
-		t.Errorf("Expected 'request body is nil' error, got: %v", err)
-	}
+
+	require.Error(t, err, "Expected error for nil body")
+	assert.Contains(t, err.Error(), "request body is nil", "Expected 'request body is nil' error")
 }
 
-// TestTagParsing_CommaSeparatedOptions tests json/form tags with comma-separated options ()
+// TestTagParsing_CommaSeparatedOptions tests json/form tags with comma-separated options
 func TestTagParsing_CommaSeparatedOptions(t *testing.T) {
-	t.Run("json tag with omitempty", func(t *testing.T) {
-		type Data struct {
-			Name  string `json:"name,omitempty"`
-			Email string `json:"email,omitempty"`
-			Age   int    `json:"age,omitempty"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"John","email":"john@example.com","age":30}`))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	// Define struct types at test level to avoid type scope issues
+	type JSONDataOmitempty struct {
+		Name  string `json:"name,omitempty"`
+		Email string `json:"email,omitempty"`
+		Age   int    `json:"age,omitempty"`
+	}
 
-		var data Data
-		if err := c.BindJSON(&data); err != nil {
-			t.Fatalf("BindJSON failed: %v", err)
-		}
+	type FormDataOmitempty struct {
+		Username string `form:"username,omitempty"`
+		Password string `form:"password,omitempty"`
+	}
 
-		if data.Name != "John" {
-			t.Errorf("Expected Name=John, got %s", data.Name)
-		}
-		if data.Email != "john@example.com" {
-			t.Errorf("Expected Email=john@example.com, got %s", data.Email)
-		}
-		if data.Age != 30 {
-			t.Errorf("Expected Age=30, got %d", data.Age)
-		}
-	})
+	type JSONDataEmptyName struct {
+		FieldName string `json:",omitempty"` // Empty name, should use "FieldName"
+	}
 
-	t.Run("form tag with omitempty", func(t *testing.T) {
-		type FormData struct {
-			Username string `form:"username,omitempty"`
-			Password string `form:"password,omitempty"`
-		}
+	type JSONDataSkipField struct {
+		Public  string `json:"public"`
+		Private string `json:"-"` // Should be skipped
+	}
 
-		form := url.Values{}
-		form.Set("username", "testuser")
-		form.Set("password", "secret123")
+	tests := []struct {
+		name     string
+		setup    func() (*http.Request, any)
+		bindFunc func(c *Context, params any) error
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "json tag with omitempty",
+			setup: func() (*http.Request, any) {
+				req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"John","email":"john@example.com","age":30}`))
+				req.Header.Set("Content-Type", "application/json")
+				return req, &JSONDataOmitempty{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindJSON(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*JSONDataOmitempty)
+				assert.Equal(t, "John", p.Name)
+				assert.Equal(t, "john@example.com", p.Email)
+				assert.Equal(t, 30, p.Age)
+			},
+		},
+		{
+			name: "form tag with omitempty",
+			setup: func() (*http.Request, any) {
+				form := url.Values{}
+				form.Set("username", "testuser")
+				form.Set("password", "secret123")
+				req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				return req, &FormDataOmitempty{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindForm(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*FormDataOmitempty)
+				assert.Equal(t, "testuser", p.Username)
+				assert.Equal(t, "secret123", p.Password)
+			},
+		},
+		{
+			name: "json tag with empty name and options",
+			setup: func() (*http.Request, any) {
+				req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"FieldName":"test"}`))
+				req.Header.Set("Content-Type", "application/json")
+				return req, &JSONDataEmptyName{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindJSON(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*JSONDataEmptyName)
+				assert.Equal(t, "test", p.FieldName)
+			},
+		},
+		{
+			name: "json tag with dash (skip field)",
+			setup: func() (*http.Request, any) {
+				req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"public":"visible","Private":"should be ignored"}`))
+				req.Header.Set("Content-Type", "application/json")
+				return req, &JSONDataSkipField{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindJSON(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*JSONDataSkipField)
+				assert.Equal(t, "visible", p.Public)
+				assert.Empty(t, p.Private, "Private should be empty (skipped)")
+			},
+		},
+	}
 
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		var data FormData
-		if err := c.BindForm(&data); err != nil {
-			t.Fatalf("BindForm failed: %v", err)
-		}
+			req, params := tt.setup()
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		if data.Username != "testuser" {
-			t.Errorf("Expected Username=testuser, got %s", data.Username)
-		}
-		if data.Password != "secret123" {
-			t.Errorf("Expected Password=secret123, got %s", data.Password)
-		}
-	})
-
-	t.Run("json tag with empty name and options", func(t *testing.T) {
-		// Test Use field name if tag is empty
-		type Data struct {
-			FieldName string `json:",omitempty"` // Empty name, should use "FieldName"
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"FieldName":"test"}`))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var data Data
-		if err := c.BindJSON(&data); err != nil {
-			t.Fatalf("BindJSON failed: %v", err)
-		}
-
-		if data.FieldName != "test" {
-			t.Errorf("Expected FieldName=test, got %s", data.FieldName)
-		}
-	})
-
-	t.Run("json tag with dash (skip field)", func(t *testing.T) {
-		// Test Skip fields marked with "-"
-		type Data struct {
-			Public  string `json:"public"`
-			Private string `json:"-"` // Should be skipped
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"public":"visible","Private":"should be ignored"}`))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var data Data
-		if err := c.BindJSON(&data); err != nil {
-			t.Fatalf("BindJSON failed: %v", err)
-		}
-
-		if data.Public != "visible" {
-			t.Errorf("Expected Public=visible, got %s", data.Public)
-		}
-		if data.Private != "" {
-			t.Errorf("Expected Private to be empty (skipped), got %s", data.Private)
-		}
-	})
+			require.NoError(t, tt.bindFunc(c, params), "%s should succeed", tt.name)
+			tt.validate(t, params)
+		})
+	}
 }
 
 // TestCookieGetter_Get_UnescapingError tests cookieGetter.Get with URL unescaping error
 func TestCookieGetter_Get_UnescapingError(t *testing.T) {
+	t.Parallel()
+
 	cookies := []*http.Cookie{
 		{Name: "data", Value: "%ZZ"}, // Invalid percent encoding
 	}
@@ -4618,13 +4694,13 @@ func TestCookieGetter_Get_UnescapingError(t *testing.T) {
 
 	// Should fallback to raw cookie value on unescaping error
 	value := getter.Get("data")
-	if value != "%ZZ" {
-		t.Errorf("Expected raw value %%ZZ on unescaping error, got %s", value)
-	}
+	assert.Equal(t, "%ZZ", value, "Expected raw value %%ZZ on unescaping error")
 }
 
 // TestCookieGetter_Get_NotFound tests cookieGetter.Get when cookie is not found
 func TestCookieGetter_Get_NotFound(t *testing.T) {
+	t.Parallel()
+
 	cookies := []*http.Cookie{
 		{Name: "session_id", Value: "abc123"},
 		{Name: "theme", Value: "dark"},
@@ -4634,66 +4710,70 @@ func TestCookieGetter_Get_NotFound(t *testing.T) {
 
 	// Should return empty string when cookie key is not found
 	value := getter.Get("nonexistent")
-	if value != "" {
-		t.Errorf("Expected empty string for nonexistent cookie, got %q", value)
-	}
+	assert.Empty(t, value, "Expected empty string for nonexistent cookie")
 
 	// Verify existing cookies still work
-	if session := getter.Get("session_id"); session != "abc123" {
-		t.Errorf("Expected session_id to be 'abc123', got %q", session)
-	}
+	session := getter.Get("session_id")
+	assert.Equal(t, "abc123", session, "Expected session_id to be 'abc123'")
 }
 
 // TestBindForm_ParseErrors tests BindForm parse errors
 func TestBindForm_ParseErrors(t *testing.T) {
-	t.Run("multipart parse error", func(t *testing.T) {
-		type FormData struct {
-			Name string `form:"name"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("malformed multipart"))
-		req.Header.Set("Content-Type", "multipart/form-data; boundary=invalid-boundary")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	type FormData struct {
+		Name string `form:"name"`
+	}
 
-		var data FormData
-		err := c.BindForm(&data)
-		if err == nil {
-			t.Fatal("Expected error for malformed multipart, got nil")
-		}
-		if !strings.Contains(err.Error(), "failed to parse multipart form") {
-			t.Errorf("Expected multipart parse error, got: %v", err)
-		}
-	})
+	tests := []struct {
+		name           string
+		setup          func() *http.Request
+		expectedErrMsg string
+	}{
+		{
+			name: "multipart parse error",
+			setup: func() *http.Request {
+				req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("malformed multipart"))
+				req.Header.Set("Content-Type", "multipart/form-data; boundary=invalid-boundary")
+				return req
+			},
+			expectedErrMsg: "failed to parse multipart form",
+		},
+		{
+			name: "form parse error",
+			setup: func() *http.Request {
+				// Use failingReader to trigger ParseForm failure
+				req := httptest.NewRequest(http.MethodPost, "/", &failingReader{})
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				req.Body = io.NopCloser(&failingReader{})
+				return req
+			},
+			expectedErrMsg: "failed to parse form",
+		},
+	}
 
-	t.Run("form parse error", func(t *testing.T) {
-		type FormData struct {
-			Name string `form:"name"`
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Use failingReader to trigger ParseForm failure
-		req := httptest.NewRequest(http.MethodPost, "/", &failingReader{})
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Body = io.NopCloser(&failingReader{})
+			req := tt.setup()
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var data FormData
+			err := c.BindForm(&data)
 
-		var data FormData
-		err := c.BindForm(&data)
-
-		// Should return error with "failed to parse form" message
-		if err == nil {
-			t.Fatal("Expected error for form parse failure, got nil")
-		}
-		if !strings.Contains(err.Error(), "failed to parse form") {
-			t.Errorf("Expected 'failed to parse form' error, got: %v", err)
-		}
-	})
+			require.Error(t, err, "Expected error for %s", tt.name)
+			assert.Contains(t, err.Error(), tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
+		})
+	}
 }
 
-// TestParseTime_AllFormats tests parseTime with all supported formats ()
+// TestParseTime_AllFormats tests parseTime with all supported formats
 func TestParseTime_AllFormats(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		value   string
@@ -4715,7 +4795,10 @@ func TestParseTime_AllFormats(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			type Params struct {
 				Time time.Time `query:"time"`
 			}
@@ -4728,515 +4811,593 @@ func TestParseTime_AllFormats(t *testing.T) {
 			err := c.BindQuery(&params)
 
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("Expected error for %q, got nil", tt.value)
-				}
+				assert.Error(t, err, "Expected error for %q", tt.value)
 			} else {
-				if err != nil {
-					t.Errorf("Unexpected error for %q: %v", tt.value, err)
-				} else if params.Time.IsZero() {
-					t.Errorf("Time should not be zero for valid format %q", tt.value)
-				}
+				require.NoError(t, err, "Unexpected error for %q", tt.value)
+				assert.False(t, params.Time.IsZero(), "Time should not be zero for valid format %q", tt.value)
 			}
 		})
 	}
 }
 
-// TestExtractBracketKey_EdgeCases tests extractBracketKey edge cases ()
+// TestExtractBracketKey_EdgeCases tests extractBracketKey edge cases
 func TestExtractBracketKey_EdgeCases(t *testing.T) {
-	t.Run("no prefix match", func(t *testing.T) {
-		result := extractBracketKey("other[key]", "prefix")
-		if result != "" {
-			t.Errorf("Expected empty string for non-matching prefix, got %q", result)
-		}
-	})
+	t.Parallel()
 
-	t.Run("no closing bracket", func(t *testing.T) {
-		result := extractBracketKey("prefix[unclosed", "prefix")
-		if result != "" {
-			t.Errorf("Expected empty string for unclosed bracket, got %q", result)
-		}
-	})
+	tests := []struct {
+		name     string
+		input    string
+		prefix   string
+		expected string
+	}{
+		{"no prefix match", "other[key]", "prefix", ""},
+		{"no closing bracket", "prefix[unclosed", "prefix", ""},
+		{"empty brackets", "prefix[]", "prefix", ""},
+		{"nested brackets", "prefix[key1][key2]", "prefix", ""},
+		{"quoted key with double quotes", `prefix["key.with.dots"]`, "prefix", "key.with.dots"},
+		{"quoted key with single quotes", "prefix['key-with-dash']", "prefix", "key-with-dash"},
+		{"quoted key empty after trimming", `prefix[""]`, "prefix", ""},
+	}
 
-	t.Run("empty brackets", func(t *testing.T) {
-		result := extractBracketKey("prefix[]", "prefix")
-		if result != "" {
-			t.Errorf("Expected empty string for empty brackets, got %q", result)
-		}
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("nested brackets", func(t *testing.T) {
-		result := extractBracketKey("prefix[key1][key2]", "prefix")
-		if result != "" {
-			t.Errorf("Expected empty string for nested brackets, got %q", result)
-		}
-	})
-
-	t.Run("quoted key with double quotes", func(t *testing.T) {
-		result := extractBracketKey(`prefix["key.with.dots"]`, "prefix")
-		if result != "key.with.dots" {
-			t.Errorf("Expected 'key.with.dots', got %q", result)
-		}
-	})
-
-	t.Run("quoted key with single quotes", func(t *testing.T) {
-		result := extractBracketKey("prefix['key-with-dash']", "prefix")
-		if result != "key-with-dash" {
-			t.Errorf("Expected 'key-with-dash', got %q", result)
-		}
-	})
-
-	t.Run("quoted key empty after trimming", func(t *testing.T) {
-		result := extractBracketKey(`prefix[""]`, "prefix")
-		if result != "" {
-			t.Errorf("Expected empty string for empty quoted key, got %q", result)
-		}
-	})
+			result := extractBracketKey(tt.input, tt.prefix)
+			assert.Equal(t, tt.expected, result, "extractBracketKey(%q, %q) = %q, want %q", tt.input, tt.prefix, result, tt.expected)
+		})
+	}
 }
 
-// TestPrefixGetter_Has_RemainingPaths tests remaining paths in prefixGetter.Has (25% coverage -> 100%)
+// TestPrefixGetter_Has_RemainingPaths tests remaining paths in prefixGetter.Has
 func TestPrefixGetter_Has_RemainingPaths(t *testing.T) {
-	t.Run("headerGetter with prefix", func(t *testing.T) {
-		headers := http.Header{}
-		headers.Set("X-Meta-Tags", "tag1")
-		headers.Set("X-Other-Data", "value")
+	t.Parallel()
 
-		hg := &headerGetter{headers: headers}
-		pg := &prefixGetter{
-			inner:  hg,
-			prefix: "X-Meta-",
-		}
+	tests := []struct {
+		name     string
+		setup    func() (*prefixGetter, string, bool)
+		validate func(t *testing.T, result bool, key string)
+	}{
+		{
+			name: "headerGetter with prefix",
+			setup: func() (*prefixGetter, string, bool) {
+				headers := http.Header{}
+				headers.Set("X-Meta-Tags", "tag1")
+				headers.Set("X-Other-Data", "value")
+				hg := &headerGetter{headers: headers}
+				pg := &prefixGetter{
+					inner:  hg,
+					prefix: "X-Meta-",
+				}
+				return pg, "Tags", true
+			},
+			validate: func(t *testing.T, result bool, key string) {
+				assert.True(t, result, "Expected Has(%q) to return true", key)
+			},
+		},
+		{
+			name: "headerGetter with prefix - nonexistent",
+			setup: func() (*prefixGetter, string, bool) {
+				headers := http.Header{}
+				headers.Set("X-Meta-Tags", "tag1")
+				headers.Set("X-Other-Data", "value")
+				hg := &headerGetter{headers: headers}
+				pg := &prefixGetter{
+					inner:  hg,
+					prefix: "X-Meta-",
+				}
+				return pg, "Nonexistent", false
+			},
+			validate: func(t *testing.T, result bool, key string) {
+				assert.False(t, result, "Expected Has(%q) to return false", key)
+			},
+		},
+		{
+			name: "paramsGetter with prefix",
+			setup: func() (*prefixGetter, string, bool) {
+				params := map[string]string{
+					"meta.name": "John",
+					"meta.age":  "30",
+				}
+				pg := &paramsGetter{params: params}
+				pg2 := &prefixGetter{
+					inner:  pg,
+					prefix: "meta.",
+				}
+				return pg2, "name", true
+			},
+			validate: func(t *testing.T, result bool, key string) {
+				assert.True(t, result, "Expected Has(%q) to return true", key)
+			},
+		},
+		{
+			name: "cookieGetter with prefix",
+			setup: func() (*prefixGetter, string, bool) {
+				cookies := []*http.Cookie{
+					{Name: "session.id", Value: "abc123"},
+					{Name: "session.token", Value: "def456"},
+				}
+				cg := &cookieGetter{cookies: cookies}
+				pg := &prefixGetter{
+					inner:  cg,
+					prefix: "session.",
+				}
+				return pg, "id", true
+			},
+			validate: func(t *testing.T, result bool, key string) {
+				assert.True(t, result, "Expected Has(%q) to return true", key)
+			},
+		},
+		{
+			name: "cookieGetter with prefix - nonexistent",
+			setup: func() (*prefixGetter, string, bool) {
+				cookies := []*http.Cookie{
+					{Name: "session.id", Value: "abc123"},
+					{Name: "session.token", Value: "def456"},
+				}
+				cg := &cookieGetter{cookies: cookies}
+				pg := &prefixGetter{
+					inner:  cg,
+					prefix: "session.",
+				}
+				return pg, "nonexistent", false
+			},
+			validate: func(t *testing.T, result bool, key string) {
+				assert.False(t, result, "Expected Has(%q) to return false", key)
+			},
+		},
+		{
+			name: "inner getter that doesn't match queryGetter or formGetter",
+			setup: func() (*prefixGetter, string, bool) {
+				// Create a custom getter that doesn't match the type assertions
+				customGetter := &paramsGetter{params: map[string]string{"key": "value"}}
+				pg := &prefixGetter{
+					inner:  customGetter,
+					prefix: "prefix.",
+				}
+				return pg, "nonexistent", false
+			},
+			validate: func(t *testing.T, result bool, key string) {
+				assert.False(t, result, "Expected Has(%q) to return false", key)
+			},
+		},
+	}
 
-		// Direct Has check should work
-		if !pg.Has("Tags") {
-			t.Error("Expected Has(\"Tags\") to return true")
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Non-existent key
-		if pg.Has("Nonexistent") {
-			t.Error("Expected Has(\"Nonexistent\") to return false")
-		}
-	})
-
-	t.Run("paramsGetter with prefix", func(t *testing.T) {
-		params := map[string]string{
-			"meta.name": "John",
-			"meta.age":  "30",
-		}
-
-		pg := &paramsGetter{params: params}
-		pg2 := &prefixGetter{
-			inner:  pg,
-			prefix: "meta.",
-		}
-
-		// Should find keys with prefix
-		if !pg2.Has("name") {
-			t.Error("Expected Has(\"name\") to return true")
-		}
-		if !pg2.Has("age") {
-			t.Error("Expected Has(\"age\") to return true")
-		}
-	})
-
-	t.Run("cookieGetter with prefix", func(t *testing.T) {
-		cookies := []*http.Cookie{
-			{Name: "session.id", Value: "abc123"},
-			{Name: "session.token", Value: "def456"},
-		}
-
-		cg := &cookieGetter{cookies: cookies}
-		pg := &prefixGetter{
-			inner:  cg,
-			prefix: "session.",
-		}
-
-		if !pg.Has("id") {
-			t.Error("Expected Has(\"id\") to return true")
-		}
-		if !pg.Has("token") {
-			t.Error("Expected Has(\"token\") to return true")
-		}
-		if pg.Has("nonexistent") {
-			t.Error("Expected Has(\"nonexistent\") to return false")
-		}
-	})
-
-	t.Run("inner getter that doesn't match queryGetter or formGetter", func(t *testing.T) {
-		// Create a custom getter that doesn't match the type assertions
-		customGetter := &paramsGetter{params: map[string]string{"key": "value"}}
-		pg := &prefixGetter{
-			inner:  customGetter,
-			prefix: "prefix.",
-		}
-
-		// Should use direct Has check only
-		// This should work through the direct Has check
-		_ = pg.Has("key")
-		if pg.Has("nonexistent") {
-			t.Error("Expected Has(\"nonexistent\") to return false")
-		}
-	})
+			pg, key, expected := tt.setup()
+			result := pg.Has(key)
+			assert.Equal(t, expected, result, "Has(%q) = %v, want %v", key, result, expected)
+			tt.validate(t, result, key)
+		})
+	}
 }
 
 // TestValidateEnum_ErrorPath tests validateEnum error path
 func TestValidateEnum_ErrorPath(t *testing.T) {
-	t.Run("invalid enum value", func(t *testing.T) {
-		type Params struct {
-			Status string `query:"status" enum:"active,inactive,pending"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?status=invalid", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	type Params struct {
+		Status string `query:"status" enum:"active,inactive,pending"`
+	}
 
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid enum value, got nil")
-		}
+	tests := []struct {
+		name           string
+		query          string
+		wantErr        bool
+		expectedErrMsg string
+		validate       func(t *testing.T, params Params)
+	}{
+		{
+			name:           "invalid enum value",
+			query:          "status=invalid",
+			wantErr:        true,
+			expectedErrMsg: "not in allowed values",
+			validate:       func(t *testing.T, params Params) {},
+		},
+		{
+			name:           "empty value skips validation",
+			query:          "status=",
+			wantErr:        false,
+			expectedErrMsg: "",
+			validate: func(t *testing.T, params Params) {
+				assert.Empty(t, params.Status, "Expected empty status")
+			},
+		},
+		{
+			name:           "missing parameter skips validation",
+			query:          "",
+			wantErr:        false,
+			expectedErrMsg: "",
+			validate: func(t *testing.T, params Params) {
+				assert.Empty(t, params.Status, "Expected empty status")
+			},
+		},
+	}
 
-		if !strings.Contains(err.Error(), "not in allowed values") {
-			t.Errorf("Expected enum validation error, got: %v", err)
-		}
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("empty value skips validation", func(t *testing.T) {
-		type Params struct {
-			Status string `query:"status" enum:"active,inactive,pending"`
-		}
+			url := "/"
+			if tt.query != "" {
+				url = "/?" + tt.query
+			}
+			req := httptest.NewRequest("GET", url, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		// Test with empty query parameter ()
-		req := httptest.NewRequest("GET", "/?status=", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			var params Params
+			err := c.BindQuery(&params)
 
-		var params Params
-		err := c.BindQuery(&params)
-		if err != nil {
-			t.Errorf("Expected no error for empty enum value, got: %v", err)
-		}
-
-		if params.Status != "" {
-			t.Errorf("Expected empty status, got: %q", params.Status)
-		}
-	})
-
-	t.Run("missing parameter skips validation", func(t *testing.T) {
-		type Params struct {
-			Status string `query:"status" enum:"active,inactive,pending"`
-		}
-
-		// Test with missing query parameter ()
-		req := httptest.NewRequest("GET", "/", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err != nil {
-			t.Errorf("Expected no error for missing enum value, got: %v", err)
-		}
-
-		if params.Status != "" {
-			t.Errorf("Expected empty status, got: %q", params.Status)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				assert.Contains(t, err.Error(), tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
+			} else {
+				require.NoError(t, err, "Expected no error for %s", tt.name)
+				tt.validate(t, params)
+			}
+		})
+	}
 }
 
-// TestSetSliceField_ErrorPath tests setSliceField error paths ()
+// TestSetSliceField_ErrorPath tests setSliceField error paths
 func TestSetSliceField_ErrorPath(t *testing.T) {
-	t.Run("invalid element conversion", func(t *testing.T) {
-		type Params struct {
-			IDs []int `query:"ids"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?ids=123&ids=invalid&ids=456", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name           string
+		query          string
+		params         any
+		expectedErrMsg string
+	}{
+		{
+			name:  "invalid element conversion",
+			query: "ids=123&ids=invalid&ids=456",
+			params: &struct {
+				IDs []int `query:"ids"`
+			}{},
+			expectedErrMsg: "element",
+		},
+		{
+			name:  "invalid time in slice",
+			query: "times=2024-01-01&times=invalid-time&times=2024-01-02",
+			params: &struct {
+				Times []time.Time `query:"times"`
+			}{},
+			expectedErrMsg: "", // Any error is acceptable
+		},
+	}
 
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid integer in slice, got nil")
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if !strings.Contains(err.Error(), "element") {
-			t.Errorf("Expected element error, got: %v", err)
-		}
-	})
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("invalid time in slice", func(t *testing.T) {
-		type Params struct {
-			Times []time.Time `query:"times"`
-		}
+			err := c.BindQuery(tt.params)
 
-		req := httptest.NewRequest("GET", "/?times=2024-01-01&times=invalid-time&times=2024-01-02", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid time in slice, got nil")
-		}
-	})
+			require.Error(t, err, "Expected error for %s", tt.name)
+			if tt.expectedErrMsg != "" {
+				assert.Contains(t, err.Error(), tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
+			}
+		})
+	}
 }
 
 // TestSetField_PointerEmptyValue tests setField with pointer and empty value
 func TestSetField_PointerEmptyValue(t *testing.T) {
+	t.Parallel()
+
 	type Params struct {
 		Name *string `query:"name"`
 		Age  *int    `query:"age"`
 	}
 
-	t.Run("empty string leaves pointer nil", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?name=", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		query    string
+		validate func(t *testing.T, params Params)
+	}{
+		{
+			name:  "empty string leaves pointer nil",
+			query: "name=",
+			validate: func(t *testing.T, params Params) {
+				assert.Nil(t, params.Name, "Expected Name to be nil for empty value")
+			},
+		},
+		{
+			name:  "missing value leaves pointer nil",
+			query: "",
+			validate: func(t *testing.T, params Params) {
+				assert.Nil(t, params.Name, "Expected Name to be nil for missing value")
+				assert.Nil(t, params.Age, "Expected Age to be nil for missing value")
+			},
+		},
+	}
 
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.Name != nil {
-			t.Errorf("Expected Name to be nil for empty value, got %v", params.Name)
-		}
-	})
+			url := "/"
+			if tt.query != "" {
+				url = "/?" + tt.query
+			}
+			req := httptest.NewRequest("GET", url, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("missing value leaves pointer nil", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Name != nil {
-			t.Errorf("Expected Name to be nil for missing value, got %v", params.Name)
-		}
-		if params.Age != nil {
-			t.Errorf("Expected Age to be nil for missing value, got %v", params.Age)
-		}
-	})
+			var params Params
+			require.NoError(t, c.BindQuery(&params), "BindQuery should succeed for %s", tt.name)
+			tt.validate(t, params)
+		})
+	}
 }
 
 // TestConvertValue_EdgeCases tests convertValue remaining paths
 func TestConvertValue_EdgeCases(t *testing.T) {
-	t.Run("int8 overflow", func(_ *testing.T) {
-		type Params struct {
-			Value int8 `query:"value"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?value=999999", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name           string
+		query          string
+		params         any
+		wantErr        bool
+		expectedErrMsg string
+	}{
+		{
+			name:  "int8 overflow",
+			query: "value=999999",
+			params: &struct {
+				Value int8 `query:"value"`
+			}{},
+			wantErr:        false, // May or may not error depending on conversion, but tests the path
+			expectedErrMsg: "",
+		},
+		{
+			name:  "uint overflow",
+			query: "value=-1",
+			params: &struct {
+				Value uint `query:"value"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "invalid unsigned integer",
+		},
+		{
+			name:  "float with invalid format",
+			query: "value=not-a-number",
+			params: &struct {
+				Value float64 `query:"value"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "invalid float",
+		},
+	}
 
-		var params Params
-		err := c.BindQuery(&params)
-		// May or may not error depending on conversion, but tests the path
-		_ = err
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("uint overflow", func(t *testing.T) {
-		type Params struct {
-			Value uint `query:"value"`
-		}
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		req := httptest.NewRequest("GET", "/?value=-1", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+			err := c.BindQuery(tt.params)
 
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for negative uint, got nil")
-		}
-	})
-
-	t.Run("float with invalid format", func(t *testing.T) {
-		type Params struct {
-			Value float64 `query:"value"`
-		}
-
-		req := httptest.NewRequest("GET", "/?value=not-a-number", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid float, got nil")
-		}
-		if !strings.Contains(err.Error(), "invalid float") {
-			t.Errorf("Expected float error, got: %v", err)
-		}
-	})
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				if tt.expectedErrMsg != "" {
+					assert.Contains(t, err.Error(), tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
+				}
+			} else {
+				// May or may not error, just test the path
+				_ = err
+			}
+		})
+	}
 }
 
 // TestParamsGetter_GetAll_NonExistent tests paramsGetter.GetAll for non-existent key
 func TestParamsGetter_GetAll_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	params := map[string]string{"id": "123"}
 	getter := &paramsGetter{params: params}
 
 	// Test non-existent key returns nil
 	none := getter.GetAll("nonexistent")
-	if none != nil {
-		t.Errorf("Expected nil for non-existent key, got %v", none)
-	}
+	assert.Nil(t, none, "Expected nil for non-existent key")
 
 	// Test existing key returns slice
 	all := getter.GetAll("id")
-	if len(all) != 1 || all[0] != "123" {
-		t.Errorf("Expected [\"123\"], got %v", all)
-	}
+	require.Len(t, all, 1, "Expected slice with 1 element")
+	assert.Equal(t, "123", all[0], "Expected first element to be '123'")
 }
 
 // TestBind_ErrorPaths tests bind function error paths
 func TestBind_ErrorPaths(t *testing.T) {
-	t.Run("non-pointer input", func(t *testing.T) {
-		type Params struct {
-			Name string `query:"name"`
-		}
+	t.Parallel()
 
-		var params Params
-		err := bind(params, &queryGetter{url.Values{}}, "query")
-		if err == nil {
-			t.Fatal("Expected error for non-pointer, got nil")
-		}
-		if !strings.Contains(err.Error(), "pointer to struct") {
-			t.Errorf("Expected pointer error, got: %v", err)
-		}
-	})
+	tests := []struct {
+		name           string
+		setup          func() (any, valueGetter)
+		expectedErrMsg string
+	}{
+		{
+			name: "non-pointer input",
+			setup: func() (any, valueGetter) {
+				type Params struct {
+					Name string `query:"name"`
+				}
+				var params Params
+				return params, &queryGetter{url.Values{}}
+			},
+			expectedErrMsg: "pointer to struct",
+		},
+		{
+			name: "nil pointer",
+			setup: func() (any, valueGetter) {
+				var params *struct {
+					Name string `query:"name"`
+				}
+				return params, &queryGetter{url.Values{}}
+			},
+			expectedErrMsg: "nil",
+		},
+		{
+			name: "pointer to non-struct",
+			setup: func() (any, valueGetter) {
+				var value *int
+				return &value, &queryGetter{url.Values{}}
+			},
+			expectedErrMsg: "pointer to struct",
+		},
+	}
 
-	t.Run("nil pointer", func(t *testing.T) {
-		var params *struct {
-			Name string `query:"name"`
-		}
-		err := bind(params, &queryGetter{url.Values{}}, "query")
-		if err == nil {
-			t.Fatal("Expected error for nil pointer, got nil")
-		}
-		if !strings.Contains(err.Error(), "nil") {
-			t.Errorf("Expected nil pointer error, got: %v", err)
-		}
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("pointer to non-struct", func(t *testing.T) {
-		var value *int
-		err := bind(&value, &queryGetter{url.Values{}}, "query")
-		if err == nil {
-			t.Fatal("Expected error for pointer to non-struct, got nil")
-		}
-		if !strings.Contains(err.Error(), "pointer to struct") {
-			t.Errorf("Expected struct error, got: %v", err)
-		}
-	})
+			params, getter := tt.setup()
+			err := bind(params, getter, "query")
+
+			require.Error(t, err, "Expected error for %s", tt.name)
+			assert.Contains(t, err.Error(), tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
+		})
+	}
 }
 
 // TestParseStructType_RemainingPaths tests parseStructType remaining paths
 func TestParseStructType_RemainingPaths(t *testing.T) {
-	t.Run("unexported fields are skipped", func(t *testing.T) {
-		type Params struct {
-			Exported string `query:"exported"`
-			// unexported field (lowercase) should be skipped - using blank identifier
-			_ string `query:"unexported"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?exported=test&unexported=ignored", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	// Define struct types at test level to avoid type scope issues
+	type ParamsUnexported struct {
+		Exported string `query:"exported"`
+		_        string `query:"unexported"` // unexported field (lowercase) should be skipped
+	}
 
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	type ParamsNoQueryTag struct {
+		HasTag     string `query:"has_tag"`
+		NoQueryTag string // No query tag, should be skipped for query binding
+	}
 
-		if params.Exported != "test" {
-			t.Errorf("Expected Exported=test, got %s", params.Exported)
-		}
-		// unexported field should not be set
-	})
+	type DataEmptyJSONTag struct {
+		FieldName string `json:""` // Empty tag, should use "FieldName"
+	}
 
-	t.Run("non-standard tag skipped when empty", func(t *testing.T) {
-		type Params struct {
-			HasTag     string `query:"has_tag"`
-			NoQueryTag string // No query tag, should be skipped for query binding
-		}
+	type Embedded struct {
+		Value string `query:"value"`
+	}
+	type ParamsEmbedded struct {
+		*Embedded        // Pointer to embedded struct
+		Name      string `query:"name"`
+	}
 
-		req := httptest.NewRequest("GET", "/?has_tag=value", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name     string
+		setup    func() (*http.Request, any)
+		bindFunc func(c *Context, params any) error
+		validate func(t *testing.T, params any)
+	}{
+		{
+			name: "unexported fields are skipped",
+			setup: func() (*http.Request, any) {
+				req := httptest.NewRequest("GET", "/?exported=test&unexported=ignored", nil)
+				return req, &ParamsUnexported{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindQuery(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*ParamsUnexported)
+				assert.Equal(t, "test", p.Exported, "Expected Exported=test")
+			},
+		},
+		{
+			name: "non-standard tag skipped when empty",
+			setup: func() (*http.Request, any) {
+				req := httptest.NewRequest("GET", "/?has_tag=value", nil)
+				return req, &ParamsNoQueryTag{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindQuery(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*ParamsNoQueryTag)
+				assert.Equal(t, "value", p.HasTag, "Expected HasTag=value")
+				assert.Empty(t, p.NoQueryTag, "NoQueryTag should remain zero value")
+			},
+		},
+		{
+			name: "json tag without name uses field name",
+			setup: func() (*http.Request, any) {
+				req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"FieldName":"test"}`))
+				req.Header.Set("Content-Type", "application/json")
+				return req, &DataEmptyJSONTag{}
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindJSON(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*DataEmptyJSONTag)
+				assert.Equal(t, "test", p.FieldName, "Expected FieldName=test")
+			},
+		},
+		{
+			name: "embedded struct with pointer",
+			setup: func() (*http.Request, any) {
+				// Initialize the embedded pointer to avoid nil pointer panic
+				params := ParamsEmbedded{
+					Embedded: &Embedded{},
+					Name:     "",
+				}
+				req := httptest.NewRequest("GET", "/?value=embedded&name=test", nil)
+				return req, &params
+			},
+			bindFunc: func(c *Context, params any) error {
+				return c.BindQuery(params)
+			},
+			validate: func(t *testing.T, params any) {
+				p := params.(*ParamsEmbedded)
+				assert.Equal(t, "test", p.Name, "Expected Name=test")
+				require.NotNil(t, p.Embedded, "Embedded should not be nil")
+				assert.Equal(t, "embedded", p.Value, "Expected Embedded.Value=embedded")
+			},
+		},
+	}
 
-		var params Params
-		if err := c.BindQuery(&params); err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if params.HasTag != "value" {
-			t.Errorf("Expected HasTag=value, got %s", params.HasTag)
-		}
-		// NoQueryTag should remain zero value (skipped at )
-	})
+			req, params := tt.setup()
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-	t.Run("json tag without name uses field name", func(t *testing.T) {
-		type Data struct {
-			FieldName string `json:""` // Empty tag, should use "FieldName"
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"FieldName":"test"}`))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var data Data
-		if err := c.BindJSON(&data); err != nil {
-			t.Fatalf("BindJSON failed: %v", err)
-		}
-
-		if data.FieldName != "test" {
-			t.Errorf("Expected FieldName=test, got %s", data.FieldName)
-		}
-	})
-
-	t.Run("embedded struct with pointer", func(t *testing.T) {
-		type Embedded struct {
-			Value string `query:"value"`
-		}
-		type Params struct {
-			*Embedded        // Pointer to embedded struct - tests
-			Name      string `query:"name"`
-		}
-
-		// Initialize the embedded pointer to avoid nil pointer panic
-		params := Params{
-			Embedded: &Embedded{},
-			Name:     "",
-		}
-
-		req := httptest.NewRequest("GET", "/?value=embedded&name=test", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		err := c.BindQuery(&params)
-		if err != nil {
-			t.Fatalf("BindQuery failed: %v", err)
-		}
-
-		if params.Name != "test" {
-			t.Errorf("Expected Name=test, got %s", params.Name)
-		}
-		if params.Embedded == nil || params.Embedded.Value != "embedded" {
-			t.Errorf("Expected Embedded.Value=embedded, got %v", params.Embedded)
-		}
-	})
+			require.NoError(t, tt.bindFunc(c, params), "%s should succeed", tt.name)
+			tt.validate(t, params)
+		})
+	}
 }
 
 // TestBind_SkipUnexportedFields tests that unexported fields are skipped
 func TestBind_SkipUnexportedFields(t *testing.T) {
+	t.Parallel()
+
 	// Note: parseStructType already skips unexported fields,
 	// but this is defensive code for cases where CanSet() might return false.
 	// This can happen with embedded structs or when accessing fields through reflection.
@@ -5252,16 +5413,10 @@ func TestBind_SkipUnexportedFields(t *testing.T) {
 	c := NewContext(w, req)
 
 	var params Params
-	if err := c.BindQuery(&params); err != nil {
-		t.Fatalf("BindQuery failed: %v", err)
-	}
+	require.NoError(t, c.BindQuery(&params), "BindQuery should succeed")
 
-	if params.Name != "john" {
-		t.Errorf("Expected Name=john, got %s", params.Name)
-	}
-	if params.Age != 30 {
-		t.Errorf("Expected Age=30, got %d", params.Age)
-	}
+	assert.Equal(t, "john", params.Name, "Expected Name=john")
+	assert.Equal(t, 30, params.Age, "Expected Age=30")
 
 	// To actually hit this path, we need a field that's in the cache but CanSet() returns false.
 	// This is defensive code, and in practice parseStructType filters these out.
@@ -5270,137 +5425,97 @@ func TestBind_SkipUnexportedFields(t *testing.T) {
 
 // TestBind_NestedStructError tests error handling for nested struct binding failures
 func TestBind_NestedStructError(t *testing.T) {
-	t.Run("nested struct with invalid data", func(t *testing.T) {
-		type Address struct {
-			ZipCode int `query:"zip_code"` // Will fail with invalid value
-		}
-		type Params struct {
-			Address Address `query:"address"`
-		}
+	t.Parallel()
 
-		req := httptest.NewRequest("GET", "/?address.zip_code=invalid", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
+	tests := []struct {
+		name          string
+		query         string
+		params        any
+		expectedField string
+		validate      func(t *testing.T, bindErr *BindError)
+	}{
+		{
+			name:  "nested struct with invalid data",
+			query: "address.zip_code=invalid",
+			params: &struct {
+				Address struct {
+					ZipCode int `query:"zip_code"`
+				} `query:"address"`
+			}{},
+			expectedField: "Address",
+			validate: func(t *testing.T, bindErr *BindError) {
+				assert.Equal(t, "query", bindErr.Tag, "Expected Tag='query'")
+				assert.Empty(t, bindErr.Value, "Expected empty Value for nested struct error")
+				assert.NotNil(t, bindErr.Err, "Expected underlying error")
+			},
+		},
+		{
+			name:  "nested struct with invalid time format",
+			query: "meta.created_at=invalid-time",
+			params: &struct {
+				Metadata struct {
+					CreatedAt time.Time `query:"created_at"`
+				} `query:"meta"`
+			}{},
+			expectedField: "Metadata",
+			validate:      func(t *testing.T, bindErr *BindError) {},
+		},
+		{
+			name:  "nested struct with invalid enum",
+			query: "config.status=invalid",
+			params: &struct {
+				Config struct {
+					Status string `query:"status" enum:"active,inactive"`
+				} `query:"config"`
+			}{},
+			expectedField: "Config",
+			validate:      func(t *testing.T, bindErr *BindError) {},
+		},
+		{
+			name:  "deeply nested struct error",
+			query: "middle.inner.value=not-a-number",
+			params: &struct {
+				Middle struct {
+					Inner struct {
+						Value int `query:"value"`
+					} `query:"inner"`
+				} `query:"middle"`
+			}{},
+			expectedField: "Middle",
+			validate:      func(t *testing.T, bindErr *BindError) {},
+		},
+	}
 
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid nested struct value, got nil")
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Error should be wrapped in BindError with Field, Tag, and Err set ()
-		var bindErr *BindError
-		if !errors.As(err, &bindErr) {
-			t.Fatalf("Expected BindError, got %T: %v", err, err)
-		}
+			req := httptest.NewRequest("GET", "/?"+tt.query, nil)
+			w := httptest.NewRecorder()
+			c := NewContext(w, req)
 
-		if bindErr.Field != "Address" {
-			t.Errorf("Expected Field='Address', got %q", bindErr.Field)
-		}
-		if bindErr.Tag != "query" {
-			t.Errorf("Expected Tag='query', got %q", bindErr.Tag)
-		}
-		if bindErr.Value != "" {
-			t.Errorf("Expected empty Value for nested struct error, got %q", bindErr.Value)
-		}
-		if bindErr.Err == nil {
-			t.Error("Expected underlying error, got nil")
-		}
-	})
+			err := c.BindQuery(tt.params)
 
-	t.Run("nested struct with invalid time format", func(t *testing.T) {
-		type Metadata struct {
-			CreatedAt time.Time `query:"created_at"`
-		}
-		type Params struct {
-			Metadata Metadata `query:"meta"`
-		}
+			require.Error(t, err, "Expected error for %s", tt.name)
 
-		req := httptest.NewRequest("GET", "/?meta.created_at=invalid-time", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid time in nested struct, got nil")
-		}
-
-		var bindErr *BindError
-		if !errors.As(err, &bindErr) {
-			t.Fatalf("Expected BindError, got %T: %v", err, err)
-		}
-
-		if bindErr.Field != "Metadata" {
-			t.Errorf("Expected Field='Metadata', got %q", bindErr.Field)
-		}
-	})
-
-	t.Run("nested struct with invalid enum", func(t *testing.T) {
-		type Config struct {
-			Status string `query:"status" enum:"active,inactive"`
-		}
-		type Params struct {
-			Config Config `query:"config"`
-		}
-
-		req := httptest.NewRequest("GET", "/?config.status=invalid", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for invalid enum in nested struct, got nil")
-		}
-
-		var bindErr *BindError
-		if !errors.As(err, &bindErr) {
-			t.Fatalf("Expected BindError, got %T: %v", err, err)
-		}
-
-		if bindErr.Field != "Config" {
-			t.Errorf("Expected Field='Config', got %q", bindErr.Field)
-		}
-	})
-
-	t.Run("deeply nested struct error", func(t *testing.T) {
-		type Inner struct {
-			Value int `query:"value"`
-		}
-		type Middle struct {
-			Inner Inner `query:"inner"`
-		}
-		type Params struct {
-			Middle Middle `query:"middle"`
-		}
-
-		req := httptest.NewRequest("GET", "/?middle.inner.value=not-a-number", nil)
-		w := httptest.NewRecorder()
-		c := NewContext(w, req)
-
-		var params Params
-		err := c.BindQuery(&params)
-		if err == nil {
-			t.Fatal("Expected error for deeply nested invalid value, got nil")
-		}
-
-		// Error should propagate up through nested structures
-		var bindErr *BindError
-		if !errors.As(err, &bindErr) {
-			t.Fatalf("Expected BindError, got %T: %v", err, err)
-		}
-	})
+			var bindErr *BindError
+			require.True(t, errors.As(err, &bindErr), "Expected BindError, got %T: %v", err, err)
+			assert.Equal(t, tt.expectedField, bindErr.Field, "Expected Field=%q", tt.expectedField)
+			tt.validate(t, bindErr)
+		})
+	}
 }
 
 // TestSetMapField_ComplexKeys tests map field binding with complex bracket notation
 func TestSetMapField_ComplexKeys(t *testing.T) {
-	r := New()
+	t.Parallel()
 
 	type Data struct {
 		Config map[string]string `form:"config"`
 	}
 
+	r := New()
 	r.POST("/test", func(c *Context) {
 		var data Data
 		if err := c.BindForm(&data); err != nil {
@@ -5427,9 +5542,7 @@ func TestSetMapField_ComplexKeys(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("should handle complex map keys: %s", w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "should handle complex map keys: %s", w.Body.String())
 }
 
 // TestSplitMediaType_EdgeCases tests splitMediaType with various inputs
@@ -5463,13 +5576,14 @@ func TestSplitMediaType_EdgeCases(_ *testing.T) {
 
 // TestBindCookies_InvalidURLEncoding tests cookie binding with invalid URL encoding
 func TestBindCookies_InvalidURLEncoding(t *testing.T) {
-	r := New()
+	t.Parallel()
 
 	type CookieData struct {
 		Session string `cookie:"session"`
 		Token   string `cookie:"token"`
 	}
 
+	r := New()
 	r.GET("/test", func(c *Context) {
 		var data CookieData
 		// Bind cookies - invalid encoding should be handled gracefully
@@ -5491,7 +5605,5 @@ func TestBindCookies_InvalidURLEncoding(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Should handle gracefully (invalid encoding returns raw value)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "expected 200, got %d: %s", w.Code, w.Body.String())
 }

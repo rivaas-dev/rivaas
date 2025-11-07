@@ -2,16 +2,23 @@ package router
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestBindForm_BasicTypes tests binding basic form data types
 func TestBindForm_BasicTypes(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Name   string  `form:"name"`
 		Age    int     `form:"age"`
@@ -40,13 +47,20 @@ func TestBindForm_BasicTypes(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "John Doe", response.Name)
+	assert.Equal(t, 30, response.Age)
+	assert.True(t, response.Active)
+	assert.Equal(t, 95.5, response.Score)
 }
 
 // TestBindForm_NestedStructs tests binding nested struct data
 func TestBindForm_NestedStructs(t *testing.T) {
+	t.Parallel()
+
 	type Address struct {
 		Street string `form:"street"`
 		City   string `form:"city"`
@@ -79,13 +93,20 @@ func TestBindForm_NestedStructs(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response User
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "Alice", response.Name)
+	assert.Equal(t, "123 Main St", response.Address.Street)
+	assert.Equal(t, "Springfield", response.Address.City)
+	assert.Equal(t, "12345", response.Address.Zip)
 }
 
 // TestBindForm_Slices tests binding slice form data
 func TestBindForm_Slices(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Tags []string `form:"tags"`
 		IDs  []int    `form:"ids"`
@@ -114,13 +135,18 @@ func TestBindForm_Slices(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, []string{"go", "rust", "python"}, response.Tags)
+	assert.Equal(t, []int{1, 2, 3}, response.IDs)
 }
 
-// TestBindForm_Maps tests binding map form data
-func TestBindForm_Maps(t *testing.T) {
+// TestBindForm_MapStringString tests map[string]string binding
+func TestBindForm_MapStringString(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Metadata map[string]string `form:"metadata"`
 	}
@@ -145,15 +171,21 @@ func TestBindForm_Maps(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "value1", response.Metadata["key1"])
+	assert.Equal(t, "value2", response.Metadata["key2"])
+	assert.Equal(t, "value3", response.Metadata["key3"])
 }
 
-// TestBindForm_MapInterface tests binding map[string]interface{}
-func TestBindForm_MapInterface(t *testing.T) {
+// TestBindForm_MapStringAny tests map[string]any binding
+func TestBindForm_MapStringAny(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
-		Data map[string]interface{} `form:"data"`
+		Data map[string]any `form:"data"`
 	}
 
 	r := New()
@@ -176,13 +208,53 @@ func TestBindForm_MapInterface(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.NotNil(t, response.Data)
+	assert.NotEmpty(t, response.Data)
 }
 
-// TestBindForm_NestedMaps tests that nested maps return appropriate error
-func TestBindForm_NestedMaps(t *testing.T) {
+// TestBindForm_MapStringInt tests map[string]int binding
+func TestBindForm_MapStringInt(t *testing.T) {
+	t.Parallel()
+
+	type FormData struct {
+		IntMap map[string]int `form:"intmap"`
+	}
+
+	r := New()
+	r.POST("/submit", func(c *Context) {
+		var data FormData
+		if err := c.BindForm(&data); err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, data)
+	})
+
+	form := url.Values{}
+	form.Set("intmap[count]", "42")
+	form.Set("intmap[total]", "100")
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, 42, response.IntMap["count"])
+	assert.Equal(t, 100, response.IntMap["total"])
+}
+
+// TestBindForm_NestedMapsNotSupported tests that nested maps return appropriate error
+func TestBindForm_NestedMapsNotSupported(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Config map[string]map[string]string `form:"config"`
 	}
@@ -191,7 +263,6 @@ func TestBindForm_NestedMaps(t *testing.T) {
 	r.POST("/submit", func(c *Context) {
 		var data FormData
 		if err := c.BindForm(&data); err != nil {
-			// Nested maps are not supported, should return error
 			c.JSON(http.StatusBadRequest, map[string]string{"error": "nested maps not supported"})
 			return
 		}
@@ -206,14 +277,13 @@ func TestBindForm_NestedMaps(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	// Should return error for nested maps
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for nested maps, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // TestBindForm_EmptyForm tests binding with empty form data
 func TestBindForm_EmptyForm(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Name string `form:"name"`
 	}
@@ -233,14 +303,13 @@ func TestBindForm_EmptyForm(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	// Should succeed with empty values
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 // TestBindForm_Multipart tests binding multipart form data
 func TestBindForm_Multipart(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Name  string `form:"name"`
 		Email string `form:"email"`
@@ -258,22 +327,27 @@ func TestBindForm_Multipart(t *testing.T) {
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	writer.WriteField("name", "Jane")
-	writer.WriteField("email", "jane@example.com")
-	writer.Close()
+	_ = writer.WriteField("name", "Jane")
+	_ = writer.WriteField("email", "jane@example.com")
+	_ = writer.Close()
 
 	req := httptest.NewRequest(http.MethodPost, "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "Jane", response.Name)
+	assert.Equal(t, "jane@example.com", response.Email)
 }
 
-// TestBindForm_ParseError tests handling of form parse errors
-func TestBindForm_ParseError(t *testing.T) {
+// TestBindForm_MalformedMultipart tests handling of malformed multipart data
+func TestBindForm_MalformedMultipart(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Name string `form:"name"`
 	}
@@ -282,27 +356,27 @@ func TestBindForm_ParseError(t *testing.T) {
 	r.POST("/submit", func(c *Context) {
 		var data FormData
 		if err := c.BindForm(&data); err != nil {
-			// Error should be returned for malformed multipart
 			c.JSON(http.StatusBadRequest, map[string]string{"error": "parse failed"})
 			return
 		}
 		c.JSON(http.StatusOK, data)
 	})
 
-	// Malformed multipart data
 	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader("malformed"))
 	req.Header.Set("Content-Type", "multipart/form-data; boundary=invalid")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for malformed multipart, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // TestValueGetter_GetAll tests all GetAll implementations
 func TestValueGetter_GetAll(t *testing.T) {
+	t.Parallel()
+
 	t.Run("queryGetter", func(t *testing.T) {
+		t.Parallel()
+
 		values := url.Values{}
 		values.Add("tags", "go")
 		values.Add("tags", "rust")
@@ -311,42 +385,28 @@ func TestValueGetter_GetAll(t *testing.T) {
 		getter := &queryGetter{values: values}
 
 		all := getter.GetAll("tags")
-		if len(all) != 3 {
-			t.Errorf("expected 3 values, got %d", len(all))
-		}
+		assert.Equal(t, []string{"go", "rust", "python"}, all)
 
-		if all[0] != "go" || all[1] != "rust" || all[2] != "python" {
-			t.Errorf("unexpected values: %v", all)
-		}
-
-		// Test non-existent key
 		none := getter.GetAll("nonexistent")
-		if none != nil {
-			t.Errorf("expected nil for non-existent key, got %v", none)
-		}
+		assert.Nil(t, none)
 	})
 
 	t.Run("paramsGetter", func(t *testing.T) {
+		t.Parallel()
+
 		params := map[string]string{"id": "123"}
 		getter := &paramsGetter{params: params}
 
 		all := getter.GetAll("id")
-		if len(all) != 1 {
-			t.Errorf("expected 1 value, got %d", len(all))
-		}
+		assert.Equal(t, []string{"123"}, all)
 
-		if all[0] != "123" {
-			t.Errorf("expected '123', got '%s'", all[0])
-		}
-
-		// Test non-existent key
 		none := getter.GetAll("nonexistent")
-		if none != nil {
-			t.Errorf("expected nil for non-existent key, got %v", none)
-		}
+		assert.Nil(t, none)
 	})
 
 	t.Run("cookieGetter", func(t *testing.T) {
+		t.Parallel()
+
 		cookies := []*http.Cookie{
 			{Name: "session", Value: url.QueryEscape("abc123")},
 			{Name: "session", Value: url.QueryEscape("def456")},
@@ -354,18 +414,15 @@ func TestValueGetter_GetAll(t *testing.T) {
 		getter := &cookieGetter{cookies: cookies}
 
 		all := getter.GetAll("session")
-		if len(all) != 2 {
-			t.Errorf("expected 2 values, got %d", len(all))
-		}
+		assert.Len(t, all, 2)
 
-		// Test non-existent key
 		none := getter.GetAll("nonexistent")
-		if len(none) != 0 {
-			t.Errorf("expected empty slice for non-existent key, got %v", none)
-		}
+		assert.Empty(t, none)
 	})
 
 	t.Run("headerGetter", func(t *testing.T) {
+		t.Parallel()
+
 		headers := http.Header{}
 		headers.Add("X-Tags", "tag1")
 		headers.Add("X-Tags", "tag2")
@@ -374,12 +431,12 @@ func TestValueGetter_GetAll(t *testing.T) {
 		getter := &headerGetter{headers: headers}
 
 		all := getter.GetAll("X-Tags")
-		if len(all) != 3 {
-			t.Errorf("expected 3 values, got %d", len(all))
-		}
+		assert.Len(t, all, 3)
 	})
 
 	t.Run("formGetter", func(t *testing.T) {
+		t.Parallel()
+
 		values := url.Values{}
 		values.Add("items", "item1")
 		values.Add("items", "item2")
@@ -387,14 +444,14 @@ func TestValueGetter_GetAll(t *testing.T) {
 		getter := &formGetter{values: values}
 
 		all := getter.GetAll("items")
-		if len(all) != 2 {
-			t.Errorf("expected 2 values, got %d", len(all))
-		}
+		assert.Len(t, all, 2)
 	})
 }
 
 // TestBindError_Unwrap tests the Unwrap method
 func TestBindError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	originalErr := &BindError{
 		Field: "age",
 		Value: "invalid",
@@ -403,7 +460,6 @@ func TestBindError_Unwrap(t *testing.T) {
 		Err:   nil,
 	}
 
-	// Create error with inner error
 	innerErr := &BindError{
 		Field: "nested",
 		Value: "bad",
@@ -419,100 +475,17 @@ func TestBindError_Unwrap(t *testing.T) {
 		Err:   innerErr,
 	}
 
-	// Test Unwrap
 	unwrapped := outerErr.Unwrap()
-	if unwrapped != innerErr {
-		t.Errorf("expected inner error, got %v", unwrapped)
-	}
+	assert.True(t, errors.Is(unwrapped, innerErr))
 
-	// Test with nil inner error
-	if originalErr.Unwrap() != nil {
-		t.Error("expected nil when no inner error")
-	}
-}
-
-// TestBindForm_MapStringString tests map[string]string binding
-func TestBindForm_MapStringString(t *testing.T) {
-	type FormData struct {
-		Labels map[string]string `form:"labels"`
-	}
-
-	r := New()
-	r.POST("/submit", func(c *Context) {
-		var data FormData
-		if err := c.BindForm(&data); err != nil {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-
-		if data.Labels == nil {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": "labels is nil"})
-			return
-		}
-
-		c.JSON(http.StatusOK, data)
-	})
-
-	form := url.Values{}
-	form.Set("labels[env]", "production")
-	form.Set("labels[region]", "us-east-1")
-	form.Set("labels[version]", "v1.2.3")
-
-	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-// TestBindForm_MapStringInterface tests map[string]interface{} binding
-func TestBindForm_MapStringInterface(t *testing.T) {
-	type FormData struct {
-		Data map[string]interface{} `form:"data"`
-	}
-
-	r := New()
-	r.POST("/submit", func(c *Context) {
-		var data FormData
-		if err := c.BindForm(&data); err != nil {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-
-		if data.Data == nil {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": "data is nil"})
-			return
-		}
-
-		// Verify data is accessible
-		if len(data.Data) == 0 {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": "data is empty"})
-			return
-		}
-
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-	})
-
-	form := url.Values{}
-	form.Set("data[string]", "text")
-	form.Set("data[number]", "42")
-	form.Set("data[bool]", "true")
-
-	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Nil(t, originalErr.Unwrap())
 }
 
 // TestBindForm_MapIntString tests map[int]string binding
+// Note: This test accepts both success and failure since integer key conversion support may vary
 func TestBindForm_MapIntString(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Items map[int]string `form:"items"`
 	}
@@ -521,17 +494,9 @@ func TestBindForm_MapIntString(t *testing.T) {
 	r.POST("/submit", func(c *Context) {
 		var data FormData
 		if err := c.BindForm(&data); err != nil {
-			// Int key conversion might not be supported
 			c.JSON(http.StatusBadRequest, map[string]string{"error": "conversion failed"})
 			return
 		}
-
-		// If it succeeds, verify the map was populated
-		if len(data.Items) == 0 {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": "map not populated"})
-			return
-		}
-
 		c.JSON(http.StatusOK, data)
 	})
 
@@ -545,14 +510,23 @@ func TestBindForm_MapIntString(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	// Accept either success or validation error
-	if w.Code != http.StatusOK && w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 200 or 400, got %d: %s", w.Code, w.Body.String())
+	// Accept either success or error - implementation may not support int keys
+	if w.Code == http.StatusOK {
+		var response FormData
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Len(t, response.Items, 3)
+		assert.Equal(t, "first", response.Items[1])
+		assert.Equal(t, "second", response.Items[2])
+		assert.Equal(t, "tenth", response.Items[10])
+	} else {
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	}
 }
 
 // TestBindForm_ComplexNested tests deeply nested form structures
 func TestBindForm_ComplexNested(t *testing.T) {
+	t.Parallel()
+
 	type Nested struct {
 		Level3 string `form:"level3"`
 	}
@@ -587,13 +561,19 @@ func TestBindForm_ComplexNested(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "value1", response.Level1)
+	assert.Equal(t, "value2", response.Middle.Level2)
+	assert.Equal(t, "value3", response.Middle.Nested.Level3)
 }
 
-// TestBindForm_InvalidTypes tests binding with type conversion errors
-func TestBindForm_InvalidTypes(t *testing.T) {
+// TestBindForm_ReturnsErrorOnInvalidIntConversion tests binding with type conversion errors
+func TestBindForm_ReturnsErrorOnInvalidIntConversion(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Age int `form:"age"`
 	}
@@ -602,7 +582,6 @@ func TestBindForm_InvalidTypes(t *testing.T) {
 	r.POST("/submit", func(c *Context) {
 		var data FormData
 		if err := c.BindForm(&data); err != nil {
-			// Should get validation error
 			c.JSON(http.StatusBadRequest, map[string]string{"error": "validation failed"})
 			return
 		}
@@ -617,13 +596,13 @@ func TestBindForm_InvalidTypes(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for invalid type, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // TestBindForm_SpecialCharacters tests form data with special characters
 func TestBindForm_SpecialCharacters(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Text string `form:"text"`
 	}
@@ -646,13 +625,17 @@ func TestBindForm_SpecialCharacters(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "Hello & Goodbye! @#$%^&*()", response.Text)
 }
 
 // TestBindForm_ArrayNotation tests array notation in form keys
 func TestBindForm_ArrayNotation(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Items []string `form:"items"`
 	}
@@ -677,13 +660,13 @@ func TestBindForm_ArrayNotation(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-// TestBindForm_RequiredValidation tests required field validation
-func TestBindForm_RequiredValidation(t *testing.T) {
+// TestBindForm_RequiredFieldValidation tests required field validation
+func TestBindForm_RequiredFieldValidation(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Name  string `form:"name" binding:"required"`
 		Email string `form:"email" binding:"required"`
@@ -697,7 +680,7 @@ func TestBindForm_RequiredValidation(t *testing.T) {
 			return
 		}
 
-		// Manual validation since binding tag might not enforce required
+		// Manual validation for demonstration
 		if data.Name == "" || data.Email == "" {
 			c.JSON(http.StatusBadRequest, map[string]string{"error": "required field missing"})
 			return
@@ -706,24 +689,22 @@ func TestBindForm_RequiredValidation(t *testing.T) {
 		c.JSON(http.StatusOK, data)
 	})
 
-	// Test missing required field
 	form := url.Values{}
 	form.Set("name", "John")
-	// email is missing
+	// email is intentionally missing
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	// Should fail either at binding or manual validation
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for missing required field, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // TestBindForm_URLEncoded tests URL-encoded form data
 func TestBindForm_URLEncoded(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		URL   string `form:"url"`
 		Query string `form:"query"`
@@ -748,46 +729,18 @@ func TestBindForm_URLEncoded(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
-}
+	assert.Equal(t, http.StatusOK, w.Code)
 
-// TestBindForm_MixedMapTypes tests maps with different value types
-func TestBindForm_MixedMapTypes(t *testing.T) {
-	type FormData struct {
-		StringMap map[string]string      `form:"strmap"`
-		IntMap    map[string]int         `form:"intmap"`
-		AnyMap    map[string]interface{} `form:"anymap"`
-	}
-
-	r := New()
-	r.POST("/submit", func(c *Context) {
-		var data FormData
-		if err := c.BindForm(&data); err != nil {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
-	})
-
-	form := url.Values{}
-	form.Set("strmap[key1]", "value1")
-	form.Set("intmap[count]", "42")
-	form.Set("anymap[data]", "anything")
-
-	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "https://example.com/path?foo=bar", response.URL)
+	assert.Equal(t, "search term with spaces", response.Query)
 }
 
 // TestCookieGetter_Has tests the Has method
 func TestCookieGetter_Has(t *testing.T) {
+	t.Parallel()
+
 	cookies := []*http.Cookie{
 		{Name: "session", Value: "abc123"},
 		{Name: "user_id", Value: "42"},
@@ -795,21 +748,15 @@ func TestCookieGetter_Has(t *testing.T) {
 
 	getter := &cookieGetter{cookies: cookies}
 
-	if !getter.Has("session") {
-		t.Error("should have session cookie")
-	}
-
-	if !getter.Has("user_id") {
-		t.Error("should have user_id cookie")
-	}
-
-	if getter.Has("nonexistent") {
-		t.Error("should not have nonexistent cookie")
-	}
+	assert.True(t, getter.Has("session"))
+	assert.True(t, getter.Has("user_id"))
+	assert.False(t, getter.Has("nonexistent"))
 }
 
 // TestBindForm_DuplicateKeys tests handling of duplicate form keys
 func TestBindForm_DuplicateKeys(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		Values []string `form:"value"`
 	}
@@ -821,12 +768,6 @@ func TestBindForm_DuplicateKeys(t *testing.T) {
 			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
-
-		if len(data.Values) < 2 {
-			c.JSON(http.StatusBadRequest, map[string]string{"error": "expected multiple values"})
-			return
-		}
-
 		c.JSON(http.StatusOK, data)
 	})
 
@@ -840,13 +781,18 @@ func TestBindForm_DuplicateKeys(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Len(t, response.Values, 3)
+	assert.Equal(t, []string{"first", "second", "third"}, response.Values)
 }
 
-// TestBindForm_MapKeyConversion tests map keys that need type conversion
-func TestBindForm_MapKeyConversion(t *testing.T) {
+// TestBindForm_ConvertsIntegerMapKeys tests map keys with integer type conversion
+func TestBindForm_ConvertsIntegerMapKeys(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		IntKeys map[int]string `form:"intkeys"`
 	}
@@ -854,16 +800,11 @@ func TestBindForm_MapKeyConversion(t *testing.T) {
 	r := New()
 	r.POST("/submit", func(c *Context) {
 		var data FormData
-		err := c.BindForm(&data)
-
-		// Int key conversion might not be fully supported
-		// Test that it either works or returns a clear error
-		if err != nil {
+		if err := c.BindForm(&data); err != nil {
 			c.JSON(http.StatusBadRequest, map[string]string{"error": "key conversion failed"})
 			return
 		}
-
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		c.JSON(http.StatusOK, data)
 	})
 
 	form := url.Values{}
@@ -875,14 +816,23 @@ func TestBindForm_MapKeyConversion(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	// Accept either success or error
-	if w.Code != http.StatusOK && w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 200 or 400, got %d: %s", w.Code, w.Body.String())
+	// Accept success if implementation supports it
+	if w.Code == http.StatusOK {
+		var response FormData
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Len(t, response.IntKeys, 2)
+		assert.Equal(t, "hundred", response.IntKeys[100])
+		assert.Equal(t, "two hundred", response.IntKeys[200])
+	} else {
+		// Or accept error if not supported
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	}
 }
 
-// TestBindForm_InvalidMapKey tests invalid map key conversion
-func TestBindForm_InvalidMapKey(t *testing.T) {
+// TestBindForm_ReturnsErrorOnInvalidMapKey tests invalid map key conversion
+func TestBindForm_ReturnsErrorOnInvalidMapKey(t *testing.T) {
+	t.Parallel()
+
 	type FormData struct {
 		IntKeys map[int]string `form:"intkeys"`
 	}
@@ -890,14 +840,11 @@ func TestBindForm_InvalidMapKey(t *testing.T) {
 	r := New()
 	r.POST("/submit", func(c *Context) {
 		var data FormData
-		err := c.BindForm(&data)
-
-		// Should get error for invalid int key
-		if err == nil {
-			c.JSON(http.StatusOK, data)
-		} else {
+		if err := c.BindForm(&data); err != nil {
 			c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid key"})
+			return
 		}
+		c.JSON(http.StatusOK, data)
 	})
 
 	form := url.Values{}
@@ -908,8 +855,93 @@ func TestBindForm_InvalidMapKey(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	// Should return error for invalid key conversion
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for invalid map key, got %d", w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestBindForm_UnicodeCharacters tests form data with unicode characters
+func TestBindForm_UnicodeCharacters(t *testing.T) {
+	t.Parallel()
+
+	type FormData struct {
+		Text string `form:"text"`
+		Name string `form:"name"`
 	}
+
+	r := New()
+	r.POST("/submit", func(c *Context) {
+		var data FormData
+		if err := c.BindForm(&data); err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, data)
+	})
+
+	form := url.Values{}
+	form.Set("text", "Hello 世界! 🌍")
+	form.Set("name", "José María Ömer")
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response FormData
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "Hello 世界! 🌍", response.Text)
+	assert.Equal(t, "José María Ömer", response.Name)
+}
+
+// TestBindForm_EmptySliceInitialization tests that empty slices are properly initialized
+func TestBindForm_EmptySliceInitialization(t *testing.T) {
+	t.Parallel()
+
+	type FormData struct {
+		Tags []string `form:"tags"`
+	}
+
+	r := New()
+	r.POST("/submit", func(c *Context) {
+		var data FormData
+		if err := c.BindForm(&data); err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, data)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestBindForm_EmptyMapInitialization tests that empty maps are properly initialized
+func TestBindForm_EmptyMapInitialization(t *testing.T) {
+	t.Parallel()
+
+	type FormData struct {
+		Data map[string]string `form:"data"`
+	}
+
+	r := New()
+	r.POST("/submit", func(c *Context) {
+		var data FormData
+		if err := c.BindForm(&data); err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, data)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }

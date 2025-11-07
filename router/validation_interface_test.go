@@ -10,6 +10,14 @@ type testContextKey string
 
 const testLocaleKey testContextKey = "locale"
 
+// Static errors for validation tests
+var (
+	errNameRequired  = errors.New("name is required")
+	errEmailRequired = errors.New("email is required")
+	errShouldNotUse  = errors.New("should not use Validate()")
+	errNameTooShort  = errors.New("نام باید حداقل ۳ کاراکتر باشد")
+)
+
 // Test structs implementing Validator interface
 type userWithValidator struct {
 	Name  string `json:"name"`
@@ -18,10 +26,10 @@ type userWithValidator struct {
 
 func (u *userWithValidator) Validate() error {
 	if u.Name == "" {
-		return errors.New("name is required")
+		return errNameRequired
 	}
 	if u.Email == "" {
-		return errors.New("email is required")
+		return errEmailRequired
 	}
 	return nil
 }
@@ -32,7 +40,7 @@ type userWithValueValidator struct {
 
 func (u userWithValueValidator) Validate() error {
 	if u.Name == "" {
-		return errors.New("name is required")
+		return errNameRequired
 	}
 	return nil
 }
@@ -45,12 +53,12 @@ type userWithContextValidator struct {
 
 func (u *userWithContextValidator) ValidateContext(ctx context.Context) error {
 	if u.Name == "" {
-		return errors.New("name is required")
+		return errNameRequired
 	}
 	// Check context for locale
 	if locale := ctx.Value(testLocaleKey); locale != nil {
 		if locale.(string) == "fa" && len(u.Name) < 3 {
-			return errors.New("نام باید حداقل ۳ کاراکتر باشد")
+			return errNameTooShort
 		}
 	}
 	return nil
@@ -62,7 +70,7 @@ type userWithValueContextValidator struct {
 
 func (u userWithValueContextValidator) ValidateContext(_ context.Context) error {
 	if u.Name == "" {
-		return errors.New("name is required")
+		return errNameRequired
 	}
 	return nil
 }
@@ -73,12 +81,12 @@ type userWithBoth struct {
 }
 
 func (u *userWithBoth) Validate() error {
-	return errors.New("should not use Validate()")
+	return errShouldNotUse
 }
 
 func (u *userWithBoth) ValidateContext(_ context.Context) error {
 	if u.Name == "" {
-		return errors.New("name is required")
+		return errNameRequired
 	}
 	return nil
 }

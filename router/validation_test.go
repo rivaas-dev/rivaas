@@ -153,7 +153,7 @@ func TestValidationErrors_AddError(t *testing.T) {
 	}
 
 	// Add generic error
-	verrs.AddError(errors.New("generic error"))
+	verrs.AddError(ErrGenericError)
 	if len(verrs.Errors) != 3 {
 		t.Errorf("expected 3 errors, got %d", len(verrs.Errors))
 	}

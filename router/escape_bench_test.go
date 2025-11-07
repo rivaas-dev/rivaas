@@ -18,7 +18,7 @@ func BenchmarkContextPooling(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -36,7 +36,7 @@ func BenchmarkContextPooling_StaticRoute(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -54,7 +54,7 @@ func BenchmarkContextPooling_MultiParam(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -70,7 +70,7 @@ func BenchmarkParamLookup(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = ctx.Param("id") // Should not allocate
 	}
 }
@@ -89,7 +89,7 @@ func BenchmarkParamLookup_Multiple(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = ctx.Param("uid")
 		_ = ctx.Param("pid")
 		_ = ctx.Param("cid")
@@ -100,7 +100,7 @@ func BenchmarkParamLookup_Multiple(b *testing.B) {
 func BenchmarkParamLookup_Fallback(b *testing.B) {
 	ctx := &Context{}
 	// Fill array completely
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		ctx.paramKeys[i] = "key" + string(rune('0'+i))
 		ctx.paramValues[i] = "val" + string(rune('0'+i))
 	}
@@ -113,7 +113,7 @@ func BenchmarkParamLookup_Fallback(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = ctx.Param("p9") // Should use map
 	}
 }
@@ -130,7 +130,7 @@ func BenchmarkResponseWriter_Status(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -148,7 +148,7 @@ func BenchmarkResponseWriter_String(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -166,7 +166,7 @@ func BenchmarkResponseWriter_JSON(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -196,7 +196,7 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -216,7 +216,7 @@ func BenchmarkContextReset(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ctx.reset()
 	}
 }
@@ -237,7 +237,7 @@ func BenchmarkHandlerExecution(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ctx.index = -1
 		ctx.Next()
 	}

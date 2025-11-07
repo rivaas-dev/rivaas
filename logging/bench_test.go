@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -82,65 +81,6 @@ func BenchmarkConcurrentLogging(b *testing.B) {
 	})
 }
 
-// Benchmark HTTP middleware
-func BenchmarkMiddleware_Basic(b *testing.B) {
-	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	mw := Middleware(logger)
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-
-	wrapped := mw(handler)
-	req := httptest.NewRequest("GET", "/test", nil)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
-		wrapped.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkMiddleware_WithHeaders(b *testing.B) {
-	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	mw := Middleware(logger, WithLogHeaders(true))
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	wrapped := mw(handler)
-	req := httptest.NewRequest("GET", "/test", nil)
-	req.Header.Set("Authorization", "Bearer token")
-	req.Header.Set("User-Agent", "Test/1.0")
-	req.Header.Set("Accept", "application/json")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
-		wrapped.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkMiddleware_SkipPath(b *testing.B) {
-	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	mw := Middleware(logger, WithSkipPaths("/health"))
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	wrapped := mw(handler)
-	req := httptest.NewRequest("GET", "/health", nil)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
-		wrapped.ServeHTTP(w, req)
-	}
-}
-
 // Benchmark context logger
 func BenchmarkContextLogger(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
@@ -160,10 +100,8 @@ func BenchmarkContextLogger_Pooled(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			cl := contextLoggerPool.Get().(*ContextLogger)
-			cl.reset(ctx, logger)
+			cl := NewContextLogger(ctx, logger)
 			cl.Info("message", "key", "value")
-			contextLoggerPool.Put(cl)
 		}
 	})
 }
@@ -290,35 +228,14 @@ func BenchmarkShutdownCheck_Atomic(b *testing.B) {
 }
 
 // Benchmark pool operations
-func BenchmarkPool_ResponseWriter(b *testing.B) {
-	w := httptest.NewRecorder()
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		rw := responseWriterPool.Get().(*responseWriter)
-		rw.reset(w)
-		responseWriterPool.Put(rw)
-	}
-}
-
 func BenchmarkPool_ContextLogger(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	ctx := context.Background()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cl := contextLoggerPool.Get().(*ContextLogger)
-		cl.reset(ctx, logger)
-		contextLoggerPool.Put(cl)
-	}
-}
-
-func BenchmarkPool_AttrSlice(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		attrsPtr := attrSlicePool.Get().(*[]any)
-		*attrsPtr = (*attrsPtr)[:0]
-		attrSlicePool.Put(attrsPtr)
+		cl := NewContextLogger(ctx, logger)
+		_ = cl
 	}
 }
 
@@ -551,51 +468,6 @@ func BenchmarkLoggerAccess_HighContention(b *testing.B) {
 	})
 }
 
-// Benchmark middleware under realistic concurrent load
-func BenchmarkMiddleware_Concurrent(b *testing.B) {
-	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	mw := Middleware(logger)
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		// Simulate minimal work
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-	wrapped := mw(handler)
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		req := httptest.NewRequest("GET", "/test?foo=bar", nil)
-		req.Header.Set("User-Agent", "Benchmark/1.0")
-		for pb.Next() {
-			w := httptest.NewRecorder()
-			wrapped.ServeHTTP(w, req)
-		}
-	})
-}
-
-func BenchmarkMiddleware_ConcurrentWithHeaders(b *testing.B) {
-	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	mw := Middleware(logger, WithLogHeaders(true))
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	wrapped := mw(handler)
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("Authorization", "Bearer token")
-		req.Header.Set("User-Agent", "Benchmark/1.0")
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Accept-Language", "en-US")
-		req.Header.Set("Cache-Control", "no-cache")
-		for pb.Next() {
-			w := httptest.NewRecorder()
-			wrapped.ServeHTTP(w, req)
-		}
-	})
-}
-
 // Benchmark pooling effectiveness under load
 func BenchmarkPool_Effectiveness(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
@@ -614,10 +486,8 @@ func BenchmarkPool_Effectiveness(b *testing.B) {
 	b.Run("with_pooling", func(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				cl := contextLoggerPool.Get().(*ContextLogger)
-				cl.reset(ctx, logger)
+				cl := NewContextLogger(ctx, logger)
 				cl.Info("message", "key", "value")
-				contextLoggerPool.Put(cl)
 			}
 		})
 	})

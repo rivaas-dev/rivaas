@@ -52,9 +52,27 @@ func WithProxies(cidrs ...string) TrustedProxyOption {
 // WithProxyHeaders sets which headers to consult, in order of preference.
 // Defaults to [HeaderXFF, HeaderXRealIP] if not specified.
 //
+// You can use predefined headers (HeaderXFF, HeaderXRealIP, HeaderCFConnecting)
+// or create custom headers for any CDN/proxy service by casting a string:
+//
+//	customHeader := router.RealIPHeader("Fastly-Client-IP")
+//	router.WithProxyHeaders(router.HeaderXFF, customHeader)
+//
+// Common CDN headers:
+//   - Cloudflare: "CF-Connecting-IP" (or use HeaderCFConnecting)
+//   - Fastly: "Fastly-Client-IP"
+//   - Akamai: "True-Client-IP"
+//   - AWS CloudFront: "CloudFront-Viewer-Address" (contains IP:port, needs parsing)
+//
 // Example:
 //
 //	router.WithProxyHeaders(HeaderXFF, HeaderXRealIP, HeaderCFConnecting)
+//
+//	// With custom header:
+//	router.WithProxyHeaders(
+//	    router.HeaderXFF,
+//	    router.RealIPHeader("Fastly-Client-IP"),
+//	)
 func WithProxyHeaders(headers ...RealIPHeader) TrustedProxyOption {
 	return func(cfg *trustedProxyConfig) {
 		cfg.headers = headers
@@ -213,7 +231,13 @@ func (c *Context) ClientIP() string {
 				return ip
 			}
 		case HeaderCFConnecting:
-			if ip := parseOneIP(c.Request.Header.Get("CF-Connecting-IP")); ip != "" {
+			if ip := parseOneIP(c.Request.Header.Get("Cf-Connecting-Ip")); ip != "" {
+				return ip
+			}
+		default:
+			// Support custom header names (e.g., Fastly-Client-IP, True-Client-IP, etc.)
+			// RealIPHeader is a string type, so any header name can be used
+			if ip := parseOneIP(c.Request.Header.Get(string(h))); ip != "" {
 				return ip
 			}
 		}
@@ -277,7 +301,7 @@ func lastUntrustedXFF(xff string, cfg *realIPConfig) string {
 	// If we found untrusted IPs, return the leftmost one from the original chain
 	if leftmostUntrusted != "" {
 		// Find leftmost untrusted IP in original chain
-		for i := 0; i < len(parts); i++ {
+		for i := range parts {
 			if ip := parseOneIP(parts[i]); ip != "" && !cfg.isTrusted(ip) {
 				return ip
 			}

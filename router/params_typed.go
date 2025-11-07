@@ -3,6 +3,7 @@ package router
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -220,10 +221,8 @@ func (c *Context) ParamEnum(name string, allowed ...string) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrParamMissing, name)
 	}
 
-	for _, a := range allowed {
-		if s == a {
-			return s, nil
-		}
+	if slices.Contains(allowed, s) {
+		return s, nil
 	}
 
 	return "", fmt.Errorf("%w: %s (value %q not in allowed list: %v)", ErrParamInvalid, name, s, allowed)
@@ -379,7 +378,7 @@ func (c *Context) QueryInts(name string) ([]int, error) {
 
 		n, err := strconv.Atoi(p)
 		if err != nil {
-			return nil, fmt.Errorf("query %q: invalid integer %q", name, p)
+			return nil, fmt.Errorf("%w %q: %q", ErrQueryInvalidInteger, name, p)
 		}
 		result = append(result, n)
 	}

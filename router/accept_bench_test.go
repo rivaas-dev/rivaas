@@ -108,7 +108,10 @@ func BenchmarkParseAcceptFast(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			// Get arena from pool
-			arena := arenaPool.Get().(*headerArena)
+			arena, ok := arenaPool.Get().(*headerArena)
+			if !ok {
+				b.Fatal("arenaPool.Get() returned non-*headerArena type")
+			}
 			defer func() {
 				arena.reset()
 				arenaPool.Put(arena)
@@ -256,7 +259,10 @@ func BenchmarkArenaPooling(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			arena := arenaPool.Get().(*headerArena)
+			arena, ok := arenaPool.Get().(*headerArena)
+			if !ok {
+				b.Fatal("arenaPool.Get() returned non-*headerArena type")
+			}
 			specs := arena.getSpecs(4)
 			_ = specs
 			arena.reset()
@@ -270,7 +276,10 @@ func BenchmarkArenaPooling(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			arena := arenaPool.Get().(*headerArena)
+			arena, ok := arenaPool.Get().(*headerArena)
+			if !ok {
+				b.Fatal("arenaPool.Get() returned non-*headerArena type")
+			}
 			specs := parseAcceptFast(header, arena)
 			_ = specs
 			arena.reset()
@@ -293,7 +302,10 @@ func BenchmarkMemoryLocality(b *testing.B) {
 
 	for _, tt := range headers {
 		b.Run(tt.name, func(b *testing.B) {
-			arena := arenaPool.Get().(*headerArena)
+			arena, ok := arenaPool.Get().(*headerArena)
+			if !ok {
+				b.Fatal("arenaPool.Get() returned non-*headerArena type")
+			}
 			defer func() {
 				arena.reset()
 				arenaPool.Put(arena)
@@ -324,7 +336,10 @@ func BenchmarkZeroAllocationProof(b *testing.B) {
 
 	for _, header := range testCases {
 		b.Run(header, func(b *testing.B) {
-			arena := arenaPool.Get().(*headerArena)
+			arena, ok := arenaPool.Get().(*headerArena)
+			if !ok {
+				b.Fatal("arenaPool.Get() returned non-*headerArena type")
+			}
 			defer func() {
 				arena.reset()
 				arenaPool.Put(arena)

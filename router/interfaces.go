@@ -26,11 +26,11 @@ type MetricsRecorder interface {
 
 	// StartRequest initializes metrics collection for a request.
 	// Returns a request metrics object that should be passed to FinishRequest.
-	StartRequest(ctx context.Context, path string, isStatic bool, attributes ...attribute.KeyValue) interface{}
+	StartRequest(ctx context.Context, path string, isStatic bool, attributes ...attribute.KeyValue) any
 
 	// FinishRequest completes metrics collection for a request.
 	// Takes the request metrics object returned by StartRequest.
-	FinishRequest(ctx context.Context, metrics interface{}, statusCode int, responseSize int64)
+	FinishRequest(ctx context.Context, metrics any, statusCode int, responseSize int64)
 
 	// IsEnabled returns true if metrics are enabled.
 	IsEnabled() bool
@@ -47,7 +47,7 @@ type TracingRecorder interface {
 	FinishSpan(span trace.Span, statusCode int)
 
 	// SetSpanAttribute adds an attribute to the span.
-	SetSpanAttribute(span trace.Span, key string, value interface{})
+	SetSpanAttribute(span trace.Span, key string, value any)
 
 	// AddSpanEvent adds an event to the span with optional attributes.
 	AddSpanEvent(span trace.Span, name string, attrs ...attribute.KeyValue)
@@ -93,7 +93,7 @@ type ContextTracingRecorder interface {
 
 	// SetSpanAttribute adds an attribute to the current span.
 	// This is a no-op if tracing is not active.
-	SetSpanAttribute(key string, value interface{})
+	SetSpanAttribute(key string, value any)
 
 	// AddSpanEvent adds an event to the current span with optional attributes.
 	// This is a no-op if tracing is not active.
@@ -111,7 +111,7 @@ type ContextTracingRecorder interface {
 // The interface is intentionally minimal to allow for flexible implementations.
 type RequestMetrics interface {
 	// GetStartTime returns the request start time.
-	GetStartTime() interface{}
+	GetStartTime() any
 
 	// GetRequestSize returns the request size in bytes.
 	GetRequestSize() int64

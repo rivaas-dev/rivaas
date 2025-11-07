@@ -8,7 +8,6 @@ Structured logging for Rivaas using Go's standard `log/slog` package.
 - **Context-Aware Logging**: Automatic trace correlation with OpenTelemetry
 - **Sensitive Data Redaction**: Automatic sanitization of passwords, tokens, and secrets
 - **Functional Options API**: Clean, composable configuration
-- **HTTP Middleware**: Request/response logging with status code-based log levels
 - **Router Integration**: Seamless integration following metrics/tracing patterns
 - **Zero External Dependencies**: Uses only Go standard library (except OpenTelemetry for trace correlation)
 
@@ -216,68 +215,6 @@ requestLogger.Info("received",
     "path", "/api/users",
 )
 // Output: {"msg":"received","request":{"method":"POST","path":"/api/users"}}
-```
-
-## HTTP Middleware
-
-### Basic HTTP Middleware
-
-```go
-import (
-    "net/http"
-    "rivaas.dev/logging"
-)
-
-func main() {
-    log := logging.MustNew(logging.WithConsoleHandler())
-    
-    // Create middleware
-    mw := logging.Middleware(log)
-    
-    // Wrap your handler
-    handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.WriteHeader(http.StatusOK)
-        w.Write([]byte("OK"))
-    })
-    
-    http.Handle("/", mw(handler))
-    http.ListenAndServe(":8080", nil)
-}
-```
-
-### Skip Paths
-
-```go
-mw := logging.Middleware(log,
-    logging.WithSkipPaths("/health", "/metrics", "/readiness"),
-)
-```
-
-### Log Headers
-
-```go
-mw := logging.Middleware(log,
-    logging.WithLogHeaders(true),  // Default: false
-)
-```
-
-### Status-Based Log Levels
-
-The middleware automatically adjusts log levels based on HTTP status codes:
-
-- **2xx/3xx**: INFO level
-- **4xx**: WARN level
-- **5xx**: ERROR level
-
-```text
-INFO  request started method=GET path=/api/users remote=127.0.0.1:52134
-INFO  request completed status=200 size=1024 duration=15ms
-
-WARN  request started method=GET path=/api/users/999 remote=127.0.0.1:52135
-WARN  request completed status=404 size=123 duration=5ms
-
-ERROR request started method=POST path=/api/users remote=127.0.0.1:52136
-ERROR request completed status=500 size=256 duration=150ms
 ```
 
 ## Router Integration
@@ -492,18 +429,6 @@ Benchmark results on a modern CPU (Apple M3 Max, go1.24.0):
 
 **Recommendation**: Use JSON or Text handlers in production for best performance.
 
-### Middleware Overhead
-
-HTTP middleware overhead per request:
-
-| Configuration | ns/op | B/op | allocs/op |
-|---------------|-------|------|-----------|
-| Basic logging | ~2,500 | 512 | 4 |
-| With headers | ~3,200 | 768 | 6 |
-| Skip path | ~150 | 0 | 0 |
-
-**Recommendation**: Use `WithSkipPaths()` for high-frequency endpoints like health checks.
-
 ### Concurrent Performance
 
 The logger is designed for concurrent use with minimal lock contention:
@@ -521,16 +446,13 @@ BenchmarkConcurrentLogging-14  15,000,000  75 ns/op  0 B/op  0 allocs/op
 ### Optimization Tips
 
 1. **Set appropriate log levels**: Debug logging has overhead; use INFO+ in production
-2. **Skip noisy paths**: Use `WithSkipPaths()` for health checks and metrics
-3. **Avoid logging in tight loops**: Log batch summaries instead
-4. **Use structured fields**: More efficient than string concatenation
-5. **Reuse loggers**: Create once, use many times
-6. **Disable headers**: Don't log headers unless debugging
+2. **Avoid logging in tight loops**: Log batch summaries instead
+3. **Use structured fields**: More efficient than string concatenation
+4. **Reuse loggers**: Create once, use many times
 
 ### Memory Usage
 
 - **Logger creation**: ~1KB per logger instance
-- **Per-request overhead**: ~512 bytes (middleware)
 - **No allocations**: Zero allocs for standard log calls
 - **Pooling**: Consider `sync.Pool` for ContextLogger in extreme high-load scenarios
 
@@ -547,10 +469,8 @@ logger.Info("user action",
 // BAD - String concatenation, inefficient
 logger.Info(fmt.Sprintf("User %s performed %s in %dms", userID, "login", elapsed.Milliseconds()))
 
-// GOOD - Skip high-frequency endpoints
-mw := logging.Middleware(logger,
-    logging.WithSkipPaths("/health", "/metrics", "/ready"),
-)
+// GOOD - Use router accesslog middleware for HTTP logging
+// See router/middleware/accesslog for details
 
 // GOOD - Appropriate log level for production
 logger := logging.MustNew(
@@ -571,7 +491,7 @@ go test -bench=. -benchmem ./logging
 go test -bench=BenchmarkJSONHandler -benchmem
 
 # CPU profiling
-go test -bench=BenchmarkMiddleware -cpuprofile=cpu.prof
+go test -bench=BenchmarkLogging -cpuprofile=cpu.prof
 go tool pprof cpu.prof
 
 # Memory profiling
@@ -597,7 +517,6 @@ Compared to popular Go logging libraries:
 See the [examples directory](./examples/) for complete working examples:
 
 - Basic logging
-- HTTP middleware
 - Router integration
 - Context-aware logging
 - Custom handlers
@@ -831,12 +750,14 @@ cl := logging.NewContextLogger(logger, ctx)
 cl.Info("traced message")  // Will include trace_id and span_id
 ```
 
-#### Middleware Not Logging
+#### Access Log Not Working
 
 ```go
-// Ensure middleware is applied in correct order
-// Logging middleware should be early in the chain
-http.Handle("/", loggingMiddleware(authMiddleware(handler)))
+// Ensure accesslog middleware is applied and logger is configured
+r := router.New()
+logger := logging.MustNew(logging.WithJSONHandler())
+r.SetLogger(logger)
+r.Use(accesslog.New())
 ```
 
 #### High Memory Usage
@@ -847,10 +768,10 @@ logger := logging.MustNew(
     logging.WithLevel(logging.LevelWarn),  // Only warnings and errors
 )
 
-// Skip high-frequency paths
-mw := logging.Middleware(logger,
-    logging.WithSkipPaths("/health", "/metrics", "/ready"),
-)
+// Use router accesslog middleware with path exclusions
+r.Use(accesslog.New(
+    accesslog.WithExcludePaths("/health", "/metrics", "/ready"),
+))
 ```
 
 ### Debugging
@@ -906,7 +827,6 @@ go test -bench=. -benchmem ./logging
 
 - `New(opts ...Option) (*Config, error)` - Create new logger
 - `MustNew(opts ...Option) *Config` - Create new logger or panic
-- `Middleware(cfg *Config, opts ...MiddlewareOption)` - HTTP middleware
 - `NewContextLogger(cfg *Config, ctx context.Context)` - Context logger
 
 ### Logger Methods
@@ -947,11 +867,6 @@ go test -bench=. -benchmem ./logging
 
 - `WithLogging(opts ...Option)` - Enable logging in router
 - `WithLoggingFromConfig(cfg *Config)` - Use existing logger
-
-### Middleware Options
-
-- `WithSkipPaths(paths ...string)` - Skip logging for paths
-- `WithLogHeaders(enabled bool)` - Log request headers
 
 ### Error Types
 

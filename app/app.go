@@ -10,9 +10,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/lipgloss"
@@ -21,7 +23,7 @@ import (
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/logger"
+	"rivaas.dev/router/middleware/accesslog"
 	"rivaas.dev/router/middleware/recovery"
 	"rivaas.dev/tracing"
 )
@@ -501,9 +503,9 @@ func New(opts ...Option) (*App, error) {
 		// Always include recovery middleware by default
 		cfg.middleware.functions = append(cfg.middleware.functions, recovery.New())
 
-		// Include logger in development mode by default
+		// Include accesslog in development mode by default
 		if cfg.environment == EnvironmentDevelopment {
-			cfg.middleware.functions = append(cfg.middleware.functions, logger.New())
+			cfg.middleware.functions = append(cfg.middleware.functions, accesslog.New())
 		}
 	}
 
@@ -778,7 +780,7 @@ func (a *App) getColorWriter(w io.Writer) *colorprofile.Writer {
 
 // printStartupBanner prints an eye-catching ASCII art startup banner with service information.
 // The banner displays dynamically generated ASCII art of the service name along with version, environment, address, and routes.
-func (a *App) printStartupBanner(addr string) {
+func (a *App) printStartupBanner(addr, protocol string) {
 	w := a.getColorWriter(os.Stdout)
 
 	// Generate ASCII art from service name using go-figure
@@ -828,6 +830,13 @@ func (a *App) printStartupBanner(addr string) {
 		displayAddr = "0.0.0.0" + addr
 	}
 
+	// Prepend scheme based on protocol
+	scheme := "http://"
+	if protocol == "HTTPS" {
+		scheme = "https://"
+	}
+	displayAddr = scheme + displayAddr
+
 	versionLabel := labelStyle.Render("Version:")
 	versionValue := valueStyle.Foreground(lipgloss.Color("14")).Render(a.config.serviceVersion)
 	envLabel := labelStyle.Render("Environment:")
@@ -851,6 +860,12 @@ func (a *App) printStartupBanner(addr string) {
 		if strings.HasPrefix(metricsAddr, ":") {
 			metricsAddr = "0.0.0.0" + metricsAddr
 		}
+		// Prepend scheme (metrics server is always HTTP) and append path
+		metricsPath := a.metrics.Path()
+		if metricsPath == "" {
+			metricsPath = "/metrics" // Default path
+		}
+		metricsAddr = "http://" + metricsAddr + metricsPath
 		metricsValue = valueStyle.Foreground(lipgloss.Color("13")).Render(metricsAddr)
 	} else {
 		metricsValue = valueStyle.Foreground(lipgloss.Color("240")).Render("Disabled")
@@ -907,22 +922,101 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 		"OPTIONS": lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),  // Gray
 	}
 
-	// Build table rows
+	// Style for version column
+	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true) // Orange
+
+	// Determine if we should use colors (only in development, Writer checks terminal)
+	useColors := a.config.environment == EnvironmentDevelopment
+
+	// Build table rows and calculate content width
 	rows := make([][]string, 0, len(routes))
+	maxMethodWidth := len("Method")
+	maxVersionWidth := len("Version")
+	maxPathWidth := len("Path")
+	maxHandlerWidth := len("Handler")
+
 	for _, route := range routes {
 		method := route.Method
-		if style, ok := methodStyles[method]; ok {
-			method = style.Render(method)
+		if useColors {
+			if style, ok := methodStyles[method]; ok {
+				method = style.Render(method)
+			}
 		}
+
+		// Format version field (show "-" if empty, style if present)
+		version := route.Version
+		if version == "" {
+			version = "-"
+		} else if useColors {
+			version = versionStyle.Render(version)
+		}
+
+		// Calculate content widths (use original values, not styled ones, for accurate measurement)
+		if len(route.Method) > maxMethodWidth {
+			maxMethodWidth = len(route.Method)
+		}
+
+		versionLen := len(route.Version)
+		if versionLen == 0 {
+			versionLen = 1 // "-" is 1 char
+		}
+		if versionLen > maxVersionWidth {
+			maxVersionWidth = versionLen
+		}
+
+		if len(route.Path) > maxPathWidth {
+			maxPathWidth = len(route.Path)
+		}
+
+		if len(route.HandlerName) > maxHandlerWidth {
+			maxHandlerWidth = len(route.HandlerName)
+		}
+
 		rows = append(rows, []string{
 			method,
+			version,
 			route.Path,
 			route.HandlerName,
 		})
 	}
 
-	// Determine if we should use colors (only in development, Writer checks terminal)
-	useColors := a.config.environment == EnvironmentDevelopment
+	// Calculate minimum width needed: borders + separators + padding + content
+	// Border chars: left (1) + right (1) = 2
+	// Separators: 3 vertical bars between 4 columns = 3
+	// Padding: 2 chars per column (left + right) * 4 columns = 8
+	// Content: sum of max widths for each column
+	minWidth := 2 + 3 + 8 + maxMethodWidth + maxVersionWidth + maxPathWidth + maxHandlerWidth
+
+	// Try to get terminal width if available
+	// First try to extract file from wrapped writer, then try os.Stdout directly
+	terminalWidth := width // Use provided width as fallback
+
+	var file *os.File
+	if f, ok := w.(*os.File); ok {
+		file = f
+	} else {
+		// Try os.Stdout as fallback (most common case)
+		file = os.Stdout
+	}
+
+	if termWidth, _, err := getTerminalSize(file); err == nil && termWidth > 0 {
+		terminalWidth = termWidth
+	}
+
+	// Determine final table width:
+	// - Use calculated minimum if it's larger than provided width
+	// - But don't exceed terminal width
+	// - Ensure minimum of 60 characters
+	tableWidth := minWidth
+	if width > tableWidth {
+		tableWidth = width
+	}
+	if terminalWidth > 0 && tableWidth > terminalWidth {
+		tableWidth = terminalWidth
+	}
+	if tableWidth < 60 {
+		tableWidth = 60
+	}
 
 	// Create table with lipgloss/table
 	t := table.New().
@@ -947,12 +1041,51 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 
 			return style
 		}).
-		Headers("Method", "Path", "Handler").
+		Headers("Method", "Version", "Path", "Handler").
 		Rows(rows...).
-		Width(width)
+		Width(tableWidth)
 
 	// Write to writer
 	fmt.Fprintln(w, t.Render())
+}
+
+// getTerminalSize attempts to get the terminal size using platform-specific methods.
+// Returns width, height, and error.
+func getTerminalSize(file *os.File) (int, int, error) {
+	if file == nil {
+		return 0, 0, fmt.Errorf("file is nil")
+	}
+
+	fd := int(file.Fd())
+
+	// For Unix-like systems (Linux, macOS, BSD), use TIOCGWINSZ ioctl
+	if runtime.GOOS != "windows" {
+		var dimensions struct {
+			rows    uint16
+			cols    uint16
+			xpixels uint16
+			ypixels uint16
+		}
+
+		// TIOCGWINSZ constant value (0x5413) - get window size
+		const TIOCGWINSZ = 0x5413
+
+		// Use syscall to get terminal size
+		_, _, errno := syscall.Syscall6(
+			syscall.SYS_IOCTL,
+			uintptr(fd),
+			uintptr(TIOCGWINSZ),
+			uintptr(unsafe.Pointer(&dimensions)),
+			0, 0, 0,
+		)
+
+		if errno == 0 {
+			return int(dimensions.cols), int(dimensions.rows), nil
+		}
+	}
+
+	// For Windows or if ioctl fails, return error
+	return 0, 0, fmt.Errorf("unable to get terminal size")
 }
 
 // PrintRoutes prints all registered routes to stdout in a formatted table.
@@ -1014,7 +1147,7 @@ func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol
 	// Start server in a goroutine
 	serverErr := make(chan error, 1)
 	go func() {
-		a.printStartupBanner(server.Addr)
+		a.printStartupBanner(server.Addr, protocol)
 		a.logStartupInfo(server.Addr, protocol)
 		// Routes are now displayed as part of the startup banner
 

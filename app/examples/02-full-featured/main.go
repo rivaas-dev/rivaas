@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"rivaas.dev/app"
+	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/cors"
@@ -26,7 +27,7 @@ func main() {
 	serviceVersion := getEnv("SERVICE_VERSION", "v1.0.0")
 
 	// Set up tracing provider based on environment
-	var tracingProvider tracing.TracingProvider
+	var tracingProvider tracing.Provider
 	var otlpEndpoint string
 
 	switch environment {
@@ -38,7 +39,7 @@ func main() {
 	}
 
 	// Configure metrics provider
-	var metricsProvider metrics.MetricsProvider
+	var metricsProvider metrics.Provider
 	metricsPort := getEnv("METRICS_PORT", ":9090")
 
 	switch environment {
@@ -59,6 +60,10 @@ func main() {
 				router.WithDefaultVersion("v1"),
 				router.WithValidVersions("v1", "v2"), // Optional: validate versions
 			),
+		),
+		app.WithLogging(
+			logging.WithConsoleHandler(),
+			logging.WithDebugLevel(),
 		),
 		// Configure metrics
 		app.WithMetrics(
@@ -86,6 +91,7 @@ func main() {
 		log.Fatalf("Failed to create app: %v", err)
 	}
 
+	//a.Use(accesslog.New())
 	a.Use(requestid.New())
 	a.Use(cors.New(cors.WithAllowAllOrigins(true)))
 	a.Use(timeout.New(30 * time.Second))
@@ -182,6 +188,10 @@ func main() {
 	// 		"enhanced":    true,
 	// 	})
 	// })
+
+	// Compile routes for optimal performance and correct route tracking
+	// This ensures versioned routes show correct route templates in access logs
+	a.Router().Warmup()
 
 	// Start server with graceful shutdown
 	if err := a.Run(":8181"); err != nil {

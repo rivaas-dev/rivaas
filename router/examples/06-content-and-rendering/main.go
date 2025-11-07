@@ -40,13 +40,13 @@ func main() {
 			c.JSON(http.StatusOK, user)
 		case "xml":
 			c.Header("Content-Type", "application/xml")
-			c.String(http.StatusOK, "<user><id>%d</id><name>%s</name></user>", user["id"], user["name"])
+			_ = c.String(http.StatusOK, "<user><id>%d</id><name>%s</name></user>", user["id"], user["name"])
 		case "html":
 			html := fmt.Sprintf("<html><body><h1>User: %s</h1><p>ID: %d</p></body></html>", user["name"], user["id"])
-			c.HTML(http.StatusOK, html)
+			_ = c.HTML(http.StatusOK, html)
 		default:
 			c.Status(http.StatusNotAcceptable)
-			c.String(http.StatusNotAcceptable, "Not Acceptable")
+			_ = c.String(http.StatusNotAcceptable, "Not Acceptable")
 		}
 	})
 
@@ -110,7 +110,7 @@ func main() {
 				"darkMode":      false,
 			},
 		}
-		c.IndentedJSON(200, data)
+		_ = c.IndentedJSON(200, data)
 	})
 
 	// PureJSON: unescaped HTML, faster for HTML/XML content (35% faster)
@@ -121,19 +121,19 @@ func main() {
 			"markdown": "## Header\n**Bold** text with <code>",
 			"note":     "PureJSON doesn't escape HTML - 35% faster!",
 		}
-		c.PureJSON(200, data)
+		_ = c.PureJSON(200, data)
 	})
 
 	// SecureJSON: prevents JSON hijacking with default "while(1);" prefix
 	r.GET("/json/secure", func(c *router.Context) {
 		secrets := []string{"secret1", "secret2", "secret3"}
-		c.SecureJSON(200, secrets)
+		_ = c.SecureJSON(200, secrets)
 	})
 
 	// SecureJSON with custom prefix: use "for(;;);" or other anti-hijacking patterns
 	r.GET("/json/secure/custom", func(c *router.Context) {
 		data := map[string]string{"token": "abc123"}
-		c.SecureJSON(200, data, "for(;;);")
+		_ = c.SecureJSON(200, data, "for(;;);")
 	})
 
 	// AsciiJSON: converts Unicode to ASCII escape sequences (\uXXXX format)
@@ -144,7 +144,7 @@ func main() {
 			"greeting": "こんにちは",
 			"note":     "All non-ASCII converted to \\uXXXX",
 		}
-		c.ASCIIJSON(200, data)
+		_ = c.ASCIIJSON(200, data)
 	})
 
 	// YAML: human-readable format for configuration and documentation APIs
@@ -162,18 +162,18 @@ func main() {
 				"debug":   true,
 			},
 		}
-		c.YAML(200, config)
+		_ = c.YAML(200, config)
 	})
 
 	// Data: raw bytes for binary content like images, PDFs (98% faster than JSON)
 	r.GET("/image", func(c *router.Context) {
 		pngData := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
-		c.Data(200, "image/png", pngData)
+		_ = c.Data(200, "image/png", pngData)
 	})
 
 	r.GET("/pdf", func(c *router.Context) {
 		pdfData := []byte("%PDF-1.4\nSample PDF content")
-		c.Data(200, "application/pdf", pdfData)
+		_ = c.Data(200, "application/pdf", pdfData)
 	})
 
 	// DataFromReader: stream large files efficiently without loading into memory
@@ -183,7 +183,9 @@ func main() {
 			c.JSON(500, map[string]string{"error": "File not found"})
 			return
 		}
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 
 		stat, _ := file.Stat()
 		headers := map[string]string{
@@ -191,13 +193,13 @@ func main() {
 			"Cache-Control":       "no-cache",
 		}
 
-		c.DataFromReader(200, stat.Size(), "text/markdown", file, headers)
+		_ = c.DataFromReader(200, stat.Size(), "text/markdown", file, headers)
 	})
 
 	// DataFromReader: stream dynamically generated content from readers
 	r.GET("/stream/logs", func(c *router.Context) {
 		logData := strings.NewReader("Log line 1\nLog line 2\nLog line 3\n...")
-		c.DataFromReader(200, -1, "text/plain; charset=utf-8", logData, map[string]string{
+		_ = c.DataFromReader(200, -1, "text/plain; charset=utf-8", logData, map[string]string{
 			"X-Content-Type": "stream",
 		})
 	})
@@ -212,7 +214,7 @@ func main() {
 		if callback == "" {
 			callback = "callback"
 		}
-		c.JSONP(200, data, callback)
+		_ = c.JSONP(200, data, callback)
 	})
 
 	// Performance comparison: test different rendering methods
@@ -229,15 +231,15 @@ func main() {
 		case "json":
 			c.JSON(200, benchData)
 		case "pure":
-			c.PureJSON(200, benchData)
+			_ = c.PureJSON(200, benchData)
 		case "indented":
-			c.IndentedJSON(200, benchData)
+			_ = c.IndentedJSON(200, benchData)
 		case "secure":
-			c.SecureJSON(200, benchData)
+			_ = c.SecureJSON(200, benchData)
 		case "ascii":
-			c.ASCIIJSON(200, benchData)
+			_ = c.ASCIIJSON(200, benchData)
 		case "yaml":
-			c.YAML(200, benchData)
+			_ = c.YAML(200, benchData)
 		default:
 			c.JSON(200, map[string]string{
 				"error": "Unknown format. Use: json, pure, indented, secure, ascii, yaml",
@@ -251,7 +253,7 @@ func main() {
 		for i := 0; i < 100; i++ {
 			buf.WriteString(fmt.Sprintf("Line %d\n", i))
 		}
-		c.DataFromReader(200, int64(buf.Len()), "text/plain", &buf, nil)
+		_ = c.DataFromReader(200, int64(buf.Len()), "text/plain", &buf, nil)
 	})
 
 	// Context Helpers: utilities for accessing request data and setting responses
@@ -318,12 +320,12 @@ func main() {
 
 	// String: plain text response
 	r.GET("/string", func(c *router.Context) {
-		c.String(http.StatusOK, "This is a plain text response")
+		_ = c.String(http.StatusOK, "This is a plain text response")
 	})
 
 	// HTML: render HTML content with proper content type
 	r.GET("/html", func(c *router.Context) {
-		c.HTML(http.StatusOK, "<html><body><h1>Hello</h1><p>This is HTML</p></body></html>")
+		_ = c.HTML(http.StatusOK, "<html><body><h1>Hello</h1><p>This is HTML</p></body></html>")
 	})
 
 	// Redirect: HTTP redirect response
@@ -365,7 +367,7 @@ func main() {
 			},
 		}
 
-		c.PureJSON(200, info)
+		_ = c.PureJSON(200, info)
 	})
 
 	// Create a logger with clean, colorful output

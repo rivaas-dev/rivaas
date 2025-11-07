@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 )
@@ -115,9 +116,7 @@ func (p *ProblemDetail) WithExtensions(m map[string]any) *ProblemDetail {
 	if p.Extensions == nil {
 		p.Extensions = make(map[string]any, len(m))
 	}
-	for k, v := range m {
-		p.Extensions[k] = v
-	}
+	maps.Copy(p.Extensions, m)
 	return p
 }
 

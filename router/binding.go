@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -78,13 +77,13 @@ var (
 	typeCacheMu sync.RWMutex
 
 	// Type references for special type handling
-	textUnmarshalerType = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
-	timeType            = reflect.TypeOf(time.Time{})
-	durationType        = reflect.TypeOf(time.Duration(0))
-	urlType             = reflect.TypeOf(url.URL{})
-	ipType              = reflect.TypeOf(net.IP{})
-	ipNetType           = reflect.TypeOf(net.IPNet{})
-	regexpType          = reflect.TypeOf(regexp.Regexp{})
+	textUnmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
+	timeType            = reflect.TypeFor[time.Time]()
+	durationType        = reflect.TypeFor[time.Duration]()
+	urlType             = reflect.TypeFor[url.URL]()
+	ipType              = reflect.TypeFor[net.IP]()
+	ipNetType           = reflect.TypeFor[net.IPNet]()
+	regexpType          = reflect.TypeFor[regexp.Regexp]()
 )
 
 // WarmupBindingCache pre-parses struct types to populate the type cache.
@@ -165,7 +164,7 @@ func (c *Context) BindBody(out any) error {
 	case "multipart/form-data":
 		return c.BindForm(out)
 	default:
-		return fmt.Errorf("unsupported content type: %s", contentType)
+		return fmt.Errorf("%w: %s", ErrUnsupportedContentType, contentType)
 	}
 }
 
@@ -191,7 +190,7 @@ func (c *Context) BindBody(out any) error {
 //	}
 func (c *Context) BindJSON(out any) error {
 	if c.Request.Body == nil {
-		return errors.New("request body is nil")
+		return ErrRequestBodyNil
 	}
 
 	if c.bindingMeta == nil {
@@ -243,7 +242,7 @@ func (c *Context) BindJSON(out any) error {
 //	}
 func (c *Context) BindJSONStrict(out any) error {
 	if c.Request.Body == nil {
-		return errors.New("request body is nil")
+		return ErrRequestBodyNil
 	}
 
 	if c.bindingMeta == nil {
@@ -539,16 +538,16 @@ func bind(out any, getter valueGetter, tagName string) error {
 	// Validate output is a pointer to struct
 	rv := reflect.ValueOf(out)
 	if rv.Kind() != reflect.Ptr {
-		return errors.New("out must be a pointer to struct")
+		return ErrOutMustBePointer
 	}
 
 	if rv.IsNil() {
-		return errors.New("out pointer is nil")
+		return ErrOutPointerNil
 	}
 
 	elem := rv.Elem()
 	if elem.Kind() != reflect.Struct {
-		return errors.New("out must be a pointer to struct")
+		return ErrOutMustBePointer
 	}
 
 	// Get cached struct info
@@ -856,7 +855,7 @@ func setFieldValue(field reflect.Value, value string) error {
 	case ipType:
 		ip := net.ParseIP(value)
 		if ip == nil {
-			return fmt.Errorf("invalid IP address: %s", value)
+			return fmt.Errorf("%w: %s", ErrInvalidIPAddress, value)
 		}
 		field.Set(reflect.ValueOf(ip))
 		return nil
@@ -881,7 +880,11 @@ func setFieldValue(field reflect.Value, value string) error {
 	// Priority 2: Check for encoding.TextUnmarshaler interface
 	// This allows custom types to define their own parsing logic
 	if field.CanAddr() && field.Addr().Type().Implements(textUnmarshalerType) {
-		return field.Addr().Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(value))
+		unmarshaler, ok := field.Addr().Interface().(encoding.TextUnmarshaler)
+		if !ok {
+			return fmt.Errorf("%w: failed to assert TextUnmarshaler", ErrUnsupportedType)
+		}
+		return unmarshaler.UnmarshalText([]byte(value))
 	}
 
 	// Priority 3: Handle primitive types
@@ -893,17 +896,37 @@ func setFieldValue(field reflect.Value, value string) error {
 	// Set the field value
 	switch fieldType.Kind() {
 	case reflect.String:
-		field.SetString(converted.(string))
+		str, ok := converted.(string)
+		if !ok {
+			return fmt.Errorf("%w: expected string, got %T", ErrUnsupportedType, converted)
+		}
+		field.SetString(str)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		field.SetInt(converted.(int64))
+		i, ok := converted.(int64)
+		if !ok {
+			return fmt.Errorf("%w: expected int64, got %T", ErrUnsupportedType, converted)
+		}
+		field.SetInt(i)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		field.SetUint(converted.(uint64))
+		u, ok := converted.(uint64)
+		if !ok {
+			return fmt.Errorf("%w: expected uint64, got %T", ErrUnsupportedType, converted)
+		}
+		field.SetUint(u)
 	case reflect.Float32, reflect.Float64:
-		field.SetFloat(converted.(float64))
+		f, ok := converted.(float64)
+		if !ok {
+			return fmt.Errorf("%w: expected float64, got %T", ErrUnsupportedType, converted)
+		}
+		field.SetFloat(f)
 	case reflect.Bool:
-		field.SetBool(converted.(bool))
+		b, ok := converted.(bool)
+		if !ok {
+			return fmt.Errorf("%w: expected bool, got %T", ErrUnsupportedType, converted)
+		}
+		field.SetBool(b)
 	default:
-		return fmt.Errorf("unsupported type: %v", fieldType.Kind())
+		return fmt.Errorf("%w: %v", ErrUnsupportedType, fieldType.Kind())
 	}
 
 	return nil
@@ -967,7 +990,7 @@ func convertValue(value string, kind reflect.Kind) (any, error) {
 		return b, nil
 
 	default:
-		return nil, fmt.Errorf("unsupported type: %v", kind)
+		return nil, fmt.Errorf("%w: %v", ErrUnsupportedType, kind)
 	}
 }
 
@@ -982,7 +1005,7 @@ func parseBool(value string) (bool, error) {
 	case "false", "0", "no", "off", "f", "n", "":
 		return false, nil
 	default:
-		return false, fmt.Errorf("invalid boolean value: %q", value)
+		return false, fmt.Errorf("%w: %q", ErrInvalidBooleanValue, value)
 	}
 }
 
@@ -991,7 +1014,7 @@ func parseBool(value string) (bool, error) {
 func parseTime(value string) (time.Time, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return time.Time{}, errors.New("empty time value")
+		return time.Time{}, ErrEmptyTimeValue
 	}
 
 	// Common formats in order of likelihood
@@ -1014,7 +1037,7 @@ func parseTime(value string) (time.Time, error) {
 		}
 	}
 
-	return time.Time{}, fmt.Errorf("unable to parse time %q (tried RFC3339, date-only, and other common formats)", value)
+	return time.Time{}, fmt.Errorf("%w %q (tried RFC3339, date-only, and other common formats)", ErrUnableToParseTime, value)
 }
 
 // setMapField handles binding data to map fields using dot or bracket notation.
@@ -1064,7 +1087,7 @@ func setMapField(field reflect.Value, getter valueGetter, prefix string, fieldTy
 
 	// Only support map[string]T
 	if mapType.Key().Kind() != reflect.String {
-		return fmt.Errorf("only map[string]T is supported, got %v", mapType)
+		return fmt.Errorf("%w, got %v", ErrOnlyMapStringTSupported, mapType)
 	}
 
 	// Get the actual map value (dereference if pointer)
@@ -1102,7 +1125,7 @@ func setMapField(field reflect.Value, getter valueGetter, prefix string, fieldTy
 			} else if strings.HasPrefix(key, prefixBracket) {
 				extractedKey := extractBracketKey(key, prefix)
 				if extractedKey == "" {
-					return fmt.Errorf("invalid bracket notation in key: %s", key)
+					return fmt.Errorf("%w: %s", ErrInvalidBracketNotation, key)
 				}
 				found = true
 				mapKey = extractedKey
@@ -1133,7 +1156,7 @@ func setMapField(field reflect.Value, getter valueGetter, prefix string, fieldTy
 			} else if strings.HasPrefix(key, prefixBracket) {
 				extractedKey := extractBracketKey(key, prefix)
 				if extractedKey == "" {
-					return fmt.Errorf("invalid bracket notation in key: %s", key)
+					return fmt.Errorf("%w: %s", ErrInvalidBracketNotation, key)
 				}
 				found = true
 				mapKey = extractedKey
@@ -1286,14 +1309,13 @@ func validateEnum(value string, enumValues string) error {
 		return nil // Empty values skip enum validation
 	}
 
-	allowed := strings.Split(enumValues, ",")
-	for _, a := range allowed {
+	for a := range strings.SplitSeq(enumValues, ",") {
 		if strings.TrimSpace(a) == value {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("value %q not in allowed values: %s", value, enumValues)
+	return fmt.Errorf("%w %q: %s", ErrValueNotInAllowedValues, value, enumValues)
 }
 
 // convertToType converts a string value to the target reflect.Type.

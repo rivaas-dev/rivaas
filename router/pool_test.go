@@ -21,7 +21,7 @@ func TestContextPool_Stats(t *testing.T) {
 	}
 
 	// Get and put some contexts
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		ctx := pool.Get(2) // Small pool (≤4 params)
 		pool.Put(ctx)
 	}
@@ -60,19 +60,19 @@ func TestContextPool_Stats_Distribution(t *testing.T) {
 
 	// Get contexts from different pools
 	// Small pool: 10 contexts (≤4 params)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		ctx := pool.Get(2)
 		pool.Put(ctx)
 	}
 
 	// Medium pool: 5 contexts (5-8 params)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		ctx := pool.Get(6)
 		pool.Put(ctx)
 	}
 
 	// Large pool: 2 contexts (>8 params)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		ctx := pool.Get(10)
 		pool.Put(ctx)
 	}
@@ -123,7 +123,7 @@ func TestContextPool_ResetStats(t *testing.T) {
 	pool := r.contextPool
 
 	// Generate some activity
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		ctx := pool.Get(2)
 		pool.Put(ctx)
 	}
@@ -166,10 +166,10 @@ func TestContextPool_Stats_HitRate(t *testing.T) {
 	pool.ResetStats()
 
 	// Get 10, Put 8 (simulate 2 contexts not returned - potential leak)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		pool.Get(2)
 	}
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		ctx := &Context{paramCount: 2}
 		pool.Put(ctx)
 	}
@@ -221,9 +221,9 @@ func TestContextPool_Stats_Concurrent(t *testing.T) {
 
 	// Concurrent Get/Put operations
 	done := make(chan struct{})
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
-			for j := 0; j < 100; j++ {
+			for range 100 {
 				ctx := pool.Get(2)
 				pool.Put(ctx)
 			}
@@ -232,7 +232,7 @@ func TestContextPool_Stats_Concurrent(t *testing.T) {
 	}
 
 	// Wait for all goroutines
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 
@@ -262,7 +262,7 @@ func BenchmarkContextPool_Stats(b *testing.B) {
 	pool.ResetStats()
 
 	// Pre-warm the pool
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		ctx := pool.Get(2)
 		pool.Put(ctx)
 	}
@@ -270,7 +270,7 @@ func BenchmarkContextPool_Stats(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = pool.Stats()
 	}
 }
@@ -282,7 +282,7 @@ func BenchmarkContextPool_GetPut_WithStats(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ctx := pool.Get(2)
 		pool.Put(ctx)
 	}

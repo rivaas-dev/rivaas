@@ -20,7 +20,7 @@ func TestRateLimit_Basic(t *testing.T) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok")
 	})
 
 	// First 5 requests should succeed (burst capacity)
@@ -54,7 +54,7 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok")
 	})
 
 	// Use up the burst
@@ -103,7 +103,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok")
 	})
 
 	// User 1: use up burst

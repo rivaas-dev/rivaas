@@ -257,7 +257,7 @@ func TestAccepts_CacheHit(t *testing.T) {
 		c := NewContext(w, req)
 
 		// Multiple calls with same header
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			result := c.Accepts("json", "html", "xml")
 			if result != "json" {
 				t.Errorf("Accepts() call %d = %q, want %q", i+1, result, "json")
@@ -585,11 +585,14 @@ func BenchmarkAcceptsEncodings(b *testing.B) {
 
 // TestHeaderArena_Reset tests the reset method for arena recycling
 func TestHeaderArena_Reset(t *testing.T) {
-	arena := arenaPool.Get().(*headerArena)
+	arena, ok := arenaPool.Get().(*headerArena)
+	if !ok {
+		t.Fatal("arenaPool.Get() returned non-*headerArena type")
+	}
 
 	// Simulate usage by setting used count and adding specs
 	arena.used = 5
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		arena.specs[i].value = "test"
 		arena.specs[i].quality = 900
 		arena.specs[i].params = make(map[string]string)
@@ -604,7 +607,7 @@ func TestHeaderArena_Reset(t *testing.T) {
 	}
 
 	// Verify specs are cleared
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		if arena.specs[i].value != "" {
 			t.Error("spec value should be cleared")
 		}
@@ -624,7 +627,10 @@ func TestHeaderArena_Reset(t *testing.T) {
 func TestHeaderArena_GetSpecs(t *testing.T) {
 	t.Run("within_buffer_size_uses_arena", func(t *testing.T) {
 		// Test that small capacities use the pre-allocated buffer
-		arena := arenaPool.Get().(*headerArena)
+		arena, ok := arenaPool.Get().(*headerArena)
+		if !ok {
+			t.Fatal("arenaPool.Get() returned non-*headerArena type")
+		}
 		defer func() {
 			arena.reset()
 			arenaPool.Put(arena)
@@ -670,7 +676,10 @@ func TestHeaderArena_GetSpecs(t *testing.T) {
 
 	t.Run("exceeds_buffer_size_heap_alloc", func(t *testing.T) {
 		// Test heap allocation fallback when capacity > 16
-		arena := arenaPool.Get().(*headerArena)
+		arena, ok := arenaPool.Get().(*headerArena)
+		if !ok {
+			t.Fatal("arenaPool.Get() returned non-*headerArena type")
+		}
 		defer func() {
 			arena.reset()
 			arenaPool.Put(arena)
@@ -721,7 +730,10 @@ func TestHeaderArena_GetSpecs(t *testing.T) {
 
 	t.Run("multiple_calls_reset_used", func(t *testing.T) {
 		// Test that getSpecs resets arena.used to 0
-		arena := arenaPool.Get().(*headerArena)
+		arena, ok := arenaPool.Get().(*headerArena)
+		if !ok {
+			t.Fatal("arenaPool.Get() returned non-*headerArena type")
+		}
 		defer func() {
 			arena.reset()
 			arenaPool.Put(arena)
@@ -743,7 +755,10 @@ func TestHeaderArena_GetSpecs(t *testing.T) {
 
 	t.Run("end_to_end_with_large_header", func(t *testing.T) {
 		// Test that parseAcceptFast with large header triggers heap allocation
-		arena := arenaPool.Get().(*headerArena)
+		arena, ok := arenaPool.Get().(*headerArena)
+		if !ok {
+			t.Fatal("arenaPool.Get() returned non-*headerArena type")
+		}
 		defer func() {
 			arena.reset()
 			arenaPool.Put(arena)
@@ -751,7 +766,7 @@ func TestHeaderArena_GetSpecs(t *testing.T) {
 
 		// Create a header with more than 16 parts to trigger heap allocation
 		parts := make([]string, 20)
-		for i := 0; i < 20; i++ {
+		for i := range 20 {
 			parts[i] = "application/json"
 		}
 		largeHeader := strings.Join(parts, ", ")
@@ -1064,7 +1079,10 @@ func TestParseAcceptPartFast(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				arena := arenaPool.Get().(*headerArena)
+				arena, ok := arenaPool.Get().(*headerArena)
+				if !ok {
+					t.Fatal("arenaPool.Get() returned non-*headerArena type")
+				}
 				defer func() {
 					arena.reset()
 					arenaPool.Put(arena)
@@ -1097,7 +1115,10 @@ func TestParseAcceptPartFast(t *testing.T) {
 func TestParseAcceptFast_EmptyHeader(t *testing.T) {
 	t.Run("empty_header_returns_nil", func(t *testing.T) {
 		// Test returning nil when header is empty string
-		arena := arenaPool.Get().(*headerArena)
+		arena, ok := arenaPool.Get().(*headerArena)
+		if !ok {
+			t.Fatal("arenaPool.Get() returned non-*headerArena type")
+		}
 		defer func() {
 			arena.reset()
 			arenaPool.Put(arena)
@@ -1126,7 +1147,10 @@ func TestParseAcceptFast_EmptyHeader(t *testing.T) {
 
 	t.Run("empty_header_vs_whitespace_header", func(t *testing.T) {
 		// Test distinction between empty string (returns nil) vs whitespace (returns empty slice)
-		arena := arenaPool.Get().(*headerArena)
+		arena, ok := arenaPool.Get().(*headerArena)
+		if !ok {
+			t.Fatal("arenaPool.Get() returned non-*headerArena type")
+		}
 		defer func() {
 			arena.reset()
 			arenaPool.Put(arena)
@@ -2247,7 +2271,10 @@ func BenchmarkAcceptParsingWithQValues(b *testing.B) {
 
 	for _, header := range headers {
 		b.Run(header[:20], func(b *testing.B) {
-			arena := arenaPool.Get().(*headerArena)
+			arena, ok := arenaPool.Get().(*headerArena)
+			if !ok {
+				b.Fatal("arenaPool.Get() returned non-*headerArena type")
+			}
 			defer func() {
 				arena.reset()
 				arenaPool.Put(arena)

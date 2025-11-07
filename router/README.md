@@ -550,6 +550,7 @@ if !ok {
 - **Atomic Operations**: Lock-free route registration and lookups
 - **Struct Field Alignment**: Optimized memory layout
 - **Cache Warmup**: `WarmupBindingCache()` for predictable startup
+- **Template Cache Index**: ASCII-only first-segment index (performance-first design)
 
 ### Security Features
 
@@ -1447,16 +1448,22 @@ Middleware functions execute before route handlers and can perform cross-cutting
 package main
 
 import (
+    "rivaas.dev/logging"
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/logger"
+    "rivaas.dev/router/middleware/accesslog"
     "rivaas.dev/router/middleware/recovery"
 )
 
 func main() {
-    r := router.New()
+    r := router.New(
+        logging.WithLogging(
+            logging.WithConsoleHandler(),
+            logging.WithDebugLevel(),
+        ),
+    )
     
     // Apply middleware globally
-    r.Use(logger.New(), recovery.New())
+    r.Use(accesslog.New(), recovery.New())
     
     // Apply to specific routes
     r.GET("/admin", auth.Required(), adminHandler)
@@ -2995,6 +3002,19 @@ r.GET("/api/status", statusHandler)
 r.GET("/users/:id", userHandler)
 r.GET("/posts/:id/comments", commentsHandler)
 ```
+
+#### Template Cache Index (ASCII-Only)
+
+The template cache uses a first-segment index for fast route filtering:
+
+- **ASCII paths** (0-127): O(1) array lookup - fastest path
+- **UTF-8 beyond ASCII**: Falls back to O(n) linear scan (still correct, just slower)
+- **Coverage**: 99%+ of HTTP API paths use ASCII characters
+- **Memory**: 1KB for 128-element array (negligible)
+
+**Design Philosophy**: This is an intentional performance-first trade-off. Extending to Latin-1 (256) or full UTF-8 would add complexity and memory overhead without measurable benefit for typical HTTP APIs where ASCII paths dominate. Non-ASCII paths like `/用户/:id` still work correctly but skip the index optimization.
+
+**Note**: This limitation aligns with our performance-first architecture - we optimize for the common case (ASCII) rather than adding complexity for rare edge cases (UTF-8 paths).
 
 #### Context Best Practices
 

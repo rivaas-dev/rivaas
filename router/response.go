@@ -133,7 +133,7 @@ func (c *Context) Link(url, rel string) {
 //	c.Download("./uploads/report-12345.pdf", "monthly-report.pdf") // Downloads as "monthly-report.pdf"
 func (c *Context) Download(filepath string, filename ...string) error {
 	// Determine filename for Content-Disposition
-	downloadName := filepath
+	var downloadName string
 	if len(filename) > 0 && filename[0] != "" {
 		downloadName = filename[0]
 	} else {

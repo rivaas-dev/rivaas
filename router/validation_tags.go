@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -71,7 +72,9 @@ func initTagValidator() {
 			return name
 		})
 
-		registerBuiltinValidators(tagValidator)
+		if err := registerBuiltinValidators(tagValidator); err != nil {
+			log.Printf("warning: failed to register built-in validators: %v", err)
+		}
 	})
 
 	// Freeze after first use
@@ -93,7 +96,7 @@ func RegisterTag(name string, fn validator.Func) error {
 
 	// Check frozen status inside mutex to avoid race condition
 	if validationsFrozen.Load() {
-		return fmt.Errorf("cannot register validators after first use")
+		return ErrCannotRegisterValidators
 	}
 
 	initTagValidator()
@@ -101,18 +104,26 @@ func RegisterTag(name string, fn validator.Func) error {
 	return tagValidator.RegisterValidation(name, fn)
 }
 
-func registerBuiltinValidators(v *validator.Validate) {
-	v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
+func registerBuiltinValidators(v *validator.Validate) error {
+	if err := v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
 		return reUsername.MatchString(fl.Field().String())
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to register username validator: %w", err)
+	}
 
-	v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
 		return reSlug.MatchString(fl.Field().String())
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to register slug validator: %w", err)
+	}
 
-	v.RegisterValidation("strong_password", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("strong_password", func(fl validator.FieldLevel) bool {
 		return len(fl.Field().String()) >= 8
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to register strong_password validator: %w", err)
+	}
+
+	return nil
 }
 
 // validateWithTags validates using go-playground/validator struct tags.

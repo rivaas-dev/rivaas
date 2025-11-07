@@ -30,7 +30,7 @@ func BenchmarkTemplateStatic(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r.ServeHTTP(w, req)
 	}
 }
@@ -56,7 +56,7 @@ func BenchmarkTemplateDynamic(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r.ServeHTTP(w, req)
 	}
 }
@@ -79,7 +79,7 @@ func BenchmarkTemplateWithConstraints(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r.ServeHTTP(w, req)
 	}
 }
@@ -101,7 +101,7 @@ func BenchmarkTemplateVsTree(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			r.ServeHTTP(w, req)
 		}
 	})
@@ -121,7 +121,7 @@ func BenchmarkTemplateVsTree(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			r.ServeHTTP(w, req)
 		}
 	})
@@ -142,7 +142,7 @@ func BenchmarkTemplateCompilation(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = compileRouteTemplate("GET", "/api/users/:id/posts/:pid", handlers, constraints)
 	}
 }
@@ -159,7 +159,7 @@ func BenchmarkTemplateMatching(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ctx.paramCount = 0
 		tmpl.matchAndExtract(path, ctx)
 	}
@@ -432,7 +432,7 @@ func TestTemplateCache_Concurrent(_ *testing.T) {
 	// Add routes concurrently
 	done := make(chan bool)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(id int) {
 			defer func() { done <- true }()
 
@@ -443,7 +443,7 @@ func TestTemplateCache_Concurrent(_ *testing.T) {
 	}
 
 	// Wait for all
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 

@@ -24,9 +24,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"rivaas.dev/logging"
 	"rivaas.dev/router"
+	"rivaas.dev/router/middleware/accesslog"
 	"rivaas.dev/router/middleware/cors"
-	"rivaas.dev/router/middleware/logger"
 	"rivaas.dev/router/middleware/recovery"
 	"rivaas.dev/router/middleware/timeout"
 )
@@ -34,9 +35,16 @@ import (
 func main() {
 	r := router.New()
 
+	// Set up logging for accesslog middleware
+	logCfg := logging.MustNew(
+		logging.WithConsoleHandler(),
+		logging.WithDebugLevel(),
+	)
+	r.SetLogger(logCfg)
+
 	// Global Middleware: applies to all routes
 	r.Use(requestIDMiddleware())
-	r.Use(logger.New())
+	r.Use(accesslog.New())
 	r.Use(recovery.New())
 
 	// Conditional Middleware: based on path or conditions
@@ -83,7 +91,9 @@ func main() {
 	})
 
 	// Middleware with Skip Paths
-	r.Use(loggingMiddlewareWithSkip([]string{"/health", "/metrics"}))
+	r.Use(accesslog.New(
+		accesslog.WithExcludePaths("/health", "/metrics"),
+	))
 
 	r.GET("/health", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"status": "healthy"})

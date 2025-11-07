@@ -48,6 +48,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -120,7 +121,7 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}
-	return nil, nil, fmt.Errorf("responseWriter does not implement http.Hijacker")
+	return nil, nil, ErrResponseWriterNotHijacker
 }
 
 // Flush implements http.Flusher interface.
@@ -399,14 +400,7 @@ func (r *Router) getAllowedMethodsForPath(path string) []string {
 			if tree.compiled != nil {
 				if handlers := tree.compiled.getRoute(path); handlers != nil {
 					// Avoid duplicates
-					found := false
-					for _, m := range allowed {
-						if m == method {
-							found = true
-							break
-						}
-					}
-					if !found {
+					if !slices.Contains(allowed, method) {
 						allowed = append(allowed, method)
 					}
 				}
@@ -417,58 +411,118 @@ func (r *Router) getAllowedMethodsForPath(path string) []string {
 	return allowed
 }
 
-// extractClientIP extracts the real client IP from request, respecting proxy headers.
-// TODO: Only trust X-Forwarded-For when RemoteAddr is in configured proxy CIDR.
-func extractClientIP(req *http.Request) string {
-	// Check X-Forwarded-For if behind trusted proxy
-	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take first IP from chain (leftmost = original client)
-		if idx := strings.Index(xff, ","); idx > 0 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
+// extractClientIP extracts the real client IP from request, respecting trusted proxy headers.
+// Only trusts proxy headers when the immediate peer (RemoteAddr) is in the configured trusted proxy CIDR list.
+// This prevents IP spoofing attacks by untrusted clients.
+func extractClientIP(req *http.Request, router *Router) string {
+	// Extract peer IP from RemoteAddr
+	remote := clientIPFromRemoteAddr(req.RemoteAddr)
+
+	// Fast path: no router or no proxy config → return peer IP (ignore headers)
+	if router == nil || router.realip == nil {
+		return remote
 	}
 
-	// Fallback to RemoteAddr, but strip port
-	if addr := req.RemoteAddr; addr != "" {
-		// Strip port (RemoteAddr includes ":port")
-		if idx := strings.LastIndex(addr, ":"); idx > 0 {
-			return addr[:idx]
-		}
-		return addr
+	cfg := router.realip
+
+	// Security: peer must be trusted to consult headers
+	// This prevents attackers from spoofing their IP by sending forged headers
+	if !cfg.isTrusted(remote) {
+		return remote
 	}
 
-	return ""
+	// Peer is trusted → consult headers in order of preference
+	for _, h := range cfg.headers {
+		switch h {
+		case HeaderXFF:
+			if ip := lastUntrustedXFF(req.Header.Get("X-Forwarded-For"), cfg); ip != "" {
+				// Log suspicious long chains
+				xff := req.Header.Get("X-Forwarded-For")
+				if strings.Count(xff, ",") > 10 {
+					if router.logger != nil {
+						router.logger.Warn("suspicious X-Forwarded-For chain",
+							"remote", remote,
+							"xff_count", strings.Count(xff, ",")+1,
+							"xff", xff,
+						)
+					}
+				}
+				return ip
+			}
+		case HeaderXRealIP:
+			if ip := parseOneIP(req.Header.Get("X-Real-IP")); ip != "" {
+				return ip
+			}
+		case HeaderCFConnecting:
+			if ip := parseOneIP(req.Header.Get("Cf-Connecting-Ip")); ip != "" {
+				return ip
+			}
+		default:
+			// Support custom header names (e.g., Fastly-Client-IP, True-Client-IP, etc.)
+			// RealIPHeader is a string type, so any header name can be used
+			if ip := parseOneIP(req.Header.Get(string(h))); ip != "" {
+				return ip
+			}
+		}
+	}
+
+	// No trusted header found → return peer IP
+	return remote
 }
 
-// detectScheme determines http vs https, respecting proxy headers.
-// TODO: Formalize proxy trust policy and consider RFC 7239 Forwarded header.
-func detectScheme(req *http.Request) string {
-	// Direct TLS connection
+// detectScheme determines http vs https, respecting trusted proxy headers.
+// Only trusts X-Forwarded-Proto when the immediate peer is in the configured trusted proxy CIDR list.
+// This prevents protocol spoofing attacks by untrusted clients.
+func detectScheme(req *http.Request, router *Router) string {
+	// Direct TLS connection (most reliable indicator)
 	if req.TLS != nil {
 		return "https"
 	}
 
-	// Honor X-Forwarded-Proto from trusted proxy
-	// TODO: Only trust when RemoteAddr is in configured proxy CIDR
-	if proto := req.Header.Get("X-Forwarded-Proto"); proto != "" {
-		return proto
+	// Fast path: no router or no proxy config → default to http
+	if router == nil || router.realip == nil {
+		return "http"
 	}
 
-	// TODO: Parse RFC 7239 Forwarded header:
+	// Extract peer IP from RemoteAddr
+	remote := clientIPFromRemoteAddr(req.RemoteAddr)
+
+	// Security: peer must be trusted to consult X-Forwarded-Proto
+	if !router.realip.isTrusted(remote) {
+		return "http"
+	}
+
+	// Peer is trusted → honor X-Forwarded-Proto header
+	if proto := req.Header.Get("X-Forwarded-Proto"); proto != "" {
+		// Normalize to lowercase for consistency
+		proto = strings.ToLower(proto)
+		if proto == "https" || proto == "http" {
+			return proto
+		}
+		// Invalid value → log and default to http
+		if router.logger != nil {
+			router.logger.Warn("invalid X-Forwarded-Proto value",
+				"remote", remote,
+				"proto", proto,
+			)
+		}
+	}
+
+	// TODO: Parse RFC 7239 Forwarded header in future:
 	// Forwarded: for=192.0.2.60;proto=https;by=203.0.113.43
+	// This would require parsing the Forwarded header format
 
 	return "http"
 }
 
 // setStandardSpanAttributes uses OpenTelemetry semantic conventions.
-func setStandardSpanAttributes(span trace.Span, req *http.Request, routeTemplate string) {
+func setStandardSpanAttributes(span trace.Span, req *http.Request, routeTemplate string, router *Router) {
 	if span == nil {
 		return
 	}
 
 	// Detect scheme (req.URL.Scheme is empty server-side)
-	scheme := detectScheme(req)
+	scheme := detectScheme(req, router)
 
 	// Use semconv constants (fewer typos, future-safe)
 	attrs := []attribute.KeyValue{
@@ -480,8 +534,8 @@ func setStandardSpanAttributes(span trace.Span, req *http.Request, routeTemplate
 		attribute.String("user_agent.original", req.UserAgent()),
 	}
 
-	// Client address
-	if clientIP := extractClientIP(req); clientIP != "" {
+	// Client address (respects trusted proxy configuration)
+	if clientIP := extractClientIP(req, router); clientIP != "" {
 		attrs = append(attrs, attribute.String("client.address", clientIP))
 	}
 
@@ -1135,9 +1189,10 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	// Load is optimized for concurrent read-heavy workloads
 	if compiledValue, ok := r.versionCache.Load(version); ok {
 		if compiled, ok := compiledValue.(*CompiledRouteTable); ok && compiled != nil {
-			// Try compiled routes first
-			if handlers := compiled.getRoute(path); handlers != nil {
-				r.serveVersionedHandlers(w, req, handlers, version, shouldTrace, shouldMeasure)
+			// Try compiled routes first - get both handlers and route pattern
+			if handlers, routePath := compiled.getRouteWithPath(path); handlers != nil {
+				// Use the actual route path (pattern) for route template, version for deprecation headers
+				r.serveVersionedHandlers(w, req, handlers, routePath, version, shouldTrace, shouldMeasure)
 				return
 			}
 		}
@@ -1191,10 +1246,9 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 		c.Request = req.WithContext(ctx)
 		c.Response = rw
 		c.span = span
-		c.traceCtx = ctx
 
 		// Set standard span attributes using semconv
-		setStandardSpanAttributes(span, req, c.routeTemplate)
+		setStandardSpanAttributes(span, req, c.routeTemplate, r)
 
 		// Start metrics (use route template, not raw path)
 		metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
@@ -1216,10 +1270,9 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 		c.Request = req.WithContext(ctx)
 		c.Response = rw
 		c.span = span
-		c.traceCtx = ctx
 
 		// Set standard span attributes using semconv
-		setStandardSpanAttributes(span, req, c.routeTemplate)
+		setStandardSpanAttributes(span, req, c.routeTemplate, r)
 
 		// Execute
 		c.Next()
@@ -1250,7 +1303,9 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 }
 
 // serveVersionedHandlers executes handlers with version information
-func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, version string, shouldTrace, shouldMeasure bool) {
+// routeTemplate is the actual route pattern (e.g., "/test") used for logging/metrics
+// version is the API version (e.g., "v1") used for deprecation headers and context
+func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate, version string, shouldTrace, shouldMeasure bool) {
 	// Add deprecation headers if version is deprecated (RFC 8594)
 	// This is called before handler execution to ensure headers are set early
 	if r.versioning != nil {
@@ -1260,15 +1315,15 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 	if shouldTrace && shouldMeasure {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithTracingAndMetrics(rw, req, handlers, version, true)
+		r.serveStaticWithTracingAndMetrics(rw, req, handlers, routeTemplate, true)
 	} else if shouldTrace {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithTracing(rw, req, handlers, version)
+		r.serveStaticWithTracing(rw, req, handlers, routeTemplate)
 	} else if shouldMeasure {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithMetrics(rw, req, handlers, version, true)
+		r.serveStaticWithMetrics(rw, req, handlers, routeTemplate, true)
 	} else {
 		// No metrics or tracing, use original response writer for zero allocations
 		// Direct execution without wrapper for performance
@@ -1280,6 +1335,7 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 		ctx.paramCount = 0
 		ctx.router = r
 		ctx.version = version
+		ctx.routeTemplate = routeTemplate // Set route template for access log
 
 		// Set metrics recorder for handler access to custom metrics
 		if r.metrics != nil {
@@ -1391,19 +1447,23 @@ func (r *Router) compileVersionRoutes() {
 
 	// Compile static routes for each version
 	for version, methodTrees := range versionTrees {
-		// For each version, compile all its method trees
+		// Create a single compiled table for this version that will contain routes from all methods
+		compiled := &CompiledRouteTable{
+			routes: make(map[uint64]*CompiledRoute),
+			bloom:  newBloomFilter(r.bloomFilterSize, r.bloomHashFunctions),
+		}
+
+		// Compile routes from ALL method trees into the single table
 		for _, tree := range methodTrees {
 			if tree != nil {
-				// Compile this version's static routes
-				compiled := tree.compileStaticRoutes(r.bloomFilterSize, r.bloomHashFunctions)
-
-				// Store in lock-free cache for fast lookup during requests
-				// sync.Map.Store is thread-safe and can be called concurrently
-				r.versionCache.Store(version, compiled)
-
-				// Only need to compile once per version (all methods share same compiled table)
-				break
+				// Compile this method's routes into the shared compiled table
+				tree.compileStaticRoutesRecursive(compiled, "")
 			}
+		}
+
+		// Store the compiled table for this version (contains routes from all methods)
+		if len(compiled.routes) > 0 {
+			r.versionCache.Store(version, compiled)
 		}
 	}
 }
@@ -1423,7 +1483,7 @@ func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.
 	req = req.WithContext(ctx)
 
 	// Set standard span attributes using semconv
-	setStandardSpanAttributes(span, req, routeTemplate)
+	setStandardSpanAttributes(span, req, routeTemplate, r)
 
 	// Start metrics with trace context (use route template, not raw path)
 	metricsData := r.metrics.StartRequest(ctx, routeTemplate, isStatic)
@@ -1432,7 +1492,6 @@ func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.
 	c := r.contextPool.Get(0)
 	c.initForRequest(req, rw, handlers, r)
 	c.span = span
-	c.traceCtx = ctx
 	c.routeTemplate = routeTemplate // Store for access
 
 	// Set version if versioning is enabled
@@ -1464,13 +1523,12 @@ func (r *Router) serveStaticWithTracing(rw *responseWriter, req *http.Request, h
 	req = req.WithContext(ctx)
 
 	// Set standard span attributes using semconv
-	setStandardSpanAttributes(span, req, routeTemplate)
+	setStandardSpanAttributes(span, req, routeTemplate, r)
 
 	// Get context from pool
 	c := r.contextPool.Get(0)
 	c.initForRequest(req, rw, handlers, r)
 	c.span = span
-	c.traceCtx = ctx
 	c.routeTemplate = routeTemplate // Store for access
 
 	// Set version if versioning is enabled
@@ -1534,10 +1592,9 @@ func (r *Router) serveDynamicWithTracingAndMetrics(c *Context, handlers []Handle
 	ctx, span := r.tracing.StartSpan(c.Request.Context(), spanName)
 	c.Request = c.Request.WithContext(ctx)
 	c.span = span
-	c.traceCtx = ctx
 
 	// Set standard span attributes using semconv
-	setStandardSpanAttributes(span, c.Request, c.routeTemplate)
+	setStandardSpanAttributes(span, c.Request, c.routeTemplate, r)
 
 	// Start metrics with trace context (use route template, not raw path)
 	metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
@@ -1578,10 +1635,9 @@ func (r *Router) serveDynamicWithTracing(c *Context, handlers []HandlerFunc, rou
 	ctx, span := r.tracing.StartSpan(c.Request.Context(), spanName)
 	c.Request = c.Request.WithContext(ctx)
 	c.span = span
-	c.traceCtx = ctx
 
 	// Set standard span attributes using semconv
-	setStandardSpanAttributes(span, c.Request, c.routeTemplate)
+	setStandardSpanAttributes(span, c.Request, c.routeTemplate, r)
 
 	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
 	// For non-versioned routes, version will be set lazily on first access via ctx.Version()

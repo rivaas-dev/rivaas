@@ -83,7 +83,7 @@ func TestWarmupConcurrent(t *testing.T) {
 
 	// Run warmup concurrently with Gets and Puts
 	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
+	for range goroutines {
 		go func() {
 			defer wg.Done()
 			r.contextPool.Warmup()
@@ -124,7 +124,7 @@ func TestWarmupMultipleTimes(t *testing.T) {
 	r := New()
 
 	// Call warmup multiple times
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		r.contextPool.Warmup()
 	}
 
@@ -156,7 +156,7 @@ func BenchmarkWarmupDefault(b *testing.B) {
 	r := New()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r.contextPool.Warmup()
 	}
 }
@@ -171,7 +171,7 @@ func BenchmarkWarmupLarge(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r.contextPool.Warmup(config)
 	}
 }
@@ -183,7 +183,7 @@ func BenchmarkWarmupSequential(b *testing.B) {
 	config := DefaultWarmupConfig()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		// Sequential warmup (old approach)
 		for j := 0; j < config.SmallContexts; j++ {
 			ctx := r.contextPool.smallPool.Get().(*Context)
@@ -205,7 +205,7 @@ func BenchmarkWarmupParallel(b *testing.B) {
 	r := New()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r.contextPool.Warmup()
 	}
 }
@@ -216,7 +216,7 @@ func BenchmarkGetPutAfterWarmup(b *testing.B) {
 	r.contextPool.Warmup()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ctx := r.contextPool.Get(2)
 		r.contextPool.Put(ctx)
 	}
@@ -227,7 +227,7 @@ func BenchmarkGetPutNoWarmup(b *testing.B) {
 	r := New()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ctx := r.contextPool.Get(2)
 		r.contextPool.Put(ctx)
 	}

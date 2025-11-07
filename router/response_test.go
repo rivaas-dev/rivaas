@@ -178,13 +178,15 @@ func TestDownload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpfile.Name())
+	defer func() {
+		_ = os.Remove(tmpfile.Name())
+	}()
 
 	content := []byte("test file content")
 	if _, err := tmpfile.Write(content); err != nil {
 		t.Fatal(err)
 	}
-	tmpfile.Close()
+	_ = tmpfile.Close()
 
 	t.Run("download with original filename", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/", nil)
@@ -457,7 +459,7 @@ func TestWrite(t *testing.T) {
 		c := NewContext(w, req)
 
 		// Context implements io.Writer
-		fmt.Fprintf(c, "User: %s, Count: %d", "Alice", 42)
+		_, _ = fmt.Fprintf(c, "User: %s, Count: %d", "Alice", 42)
 
 		expected := "User: Alice, Count: 42"
 		if w.Body.String() != expected {
@@ -508,7 +510,7 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 		}
 
 		// Use Format for automatic content negotiation
-		c.Format(200, user)
+		_ = c.Format(200, user)
 
 		if !strings.Contains(w.Body.String(), "123") {
 			t.Error("Should contain user data")
@@ -522,10 +524,10 @@ func BenchmarkSend(b *testing.B) {
 	req := httptest.NewRequest("GET", "/", nil)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
-		c.Send(data)
+		_ = c.Send(data)
 	}
 }
 
@@ -534,10 +536,10 @@ func BenchmarkWrite(b *testing.B) {
 	req := httptest.NewRequest("GET", "/", nil)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
-		c.Write(data)
+		_, _ = c.Write(data)
 	}
 }
 
@@ -545,10 +547,10 @@ func BenchmarkWriteString(b *testing.B) {
 	req := httptest.NewRequest("GET", "/", nil)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
-		c.WriteString("response data")
+		_, _ = c.WriteString("response data")
 	}
 }
 
@@ -663,7 +665,7 @@ func TestFormat_ComplexData(t *testing.T) {
 		{"int", 42},
 		{"float", 3.14159},
 		{"bool", true},
-		{"map", map[string]interface{}{"key": "value", "nested": map[string]string{"inner": "data"}}},
+		{"map", map[string]any{"key": "value", "nested": map[string]string{"inner": "data"}}},
 		{"slice", []string{"item1", "item2", "item3"}},
 		{"struct", struct {
 			Name string

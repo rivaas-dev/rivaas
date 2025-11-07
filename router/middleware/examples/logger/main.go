@@ -16,19 +16,25 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/charmbracelet/log"
+	"rivaas.dev/logging"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/logger"
+	"rivaas.dev/router/middleware/accesslog"
 	"rivaas.dev/router/middleware/requestid"
 )
 
 func main() {
 	r := router.New()
+
+	// Set up logging for accesslog middleware
+	logCfg := logging.MustNew(
+		logging.WithConsoleHandler(),
+		logging.WithDebugLevel(),
+	)
+	r.SetLogger(logCfg)
 
 	// Example 1: Default logging
 	defaultLoggingExample(r)
@@ -75,7 +81,7 @@ func main() {
 
 // Example 1: Default logging
 func defaultLoggingExample(r *router.Router) {
-	r.Use(logger.New())
+	r.Use(accesslog.New())
 
 	r.GET("/default", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
@@ -85,24 +91,15 @@ func defaultLoggingExample(r *router.Router) {
 }
 
 // Example 2: Custom format logging
+// Note: accesslog uses structured logging, so custom formatting is done via logging configuration
 func customFormatExample(r *router.Router) {
 	custom := r.Group("/custom")
 
-	custom.Use(logger.New(
-		logger.WithFormatter(func(params logger.FormatterParams) string {
-			return fmt.Sprintf("[%s] %s %s %d %v\n",
-				params.TimeStamp.Format("2006-01-02 15:04:05"),
-				params.Method,
-				params.Path,
-				params.StatusCode,
-				params.Latency,
-			)
-		}),
-	))
+	custom.Use(accesslog.New())
 
 	custom.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
-			"message": "Custom log format",
+			"message": "Structured logging (format controlled by logging config)",
 		})
 	})
 }
@@ -111,32 +108,19 @@ func customFormatExample(r *router.Router) {
 func jsonLoggingExample(r *router.Router) {
 	json := r.Group("/json")
 
-	json.Use(logger.New(
-		logger.WithFormatter(func(params logger.FormatterParams) string {
-			return fmt.Sprintf(
-				`{"time":"%s","method":"%s","path":"%s","status":%d,"latency_ms":%d,"ip":"%s"}%s`,
-				params.TimeStamp.Format(time.RFC3339),
-				params.Method,
-				params.Path,
-				params.StatusCode,
-				params.Latency.Milliseconds(),
-				params.ClientIP,
-				"\n",
-			)
-		}),
-	))
+	json.Use(accesslog.New())
 
 	json.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
-			"message": "JSON structured logging",
+			"message": "JSON structured logging (format controlled by logging config)",
 		})
 	})
 }
 
 // Example 4: Skip health check paths
 func skipPathsExample(r *router.Router) {
-	r.Use(logger.New(
-		logger.WithSkipPaths("/health", "/metrics"),
+	r.Use(accesslog.New(
+		accesslog.WithExcludePaths("/health", "/metrics"),
 	))
 
 	r.GET("/health", func(c *router.Context) {
@@ -150,27 +134,13 @@ func skipPathsExample(r *router.Router) {
 func requestIDIntegrationExample(r *router.Router) {
 	tracked := r.Group("/tracked")
 
-	// RequestID middleware must come before Logger
+	// RequestID middleware must come before accesslog
 	tracked.Use(requestid.New())
-	tracked.Use(logger.New(
-		logger.WithFormatter(func(params logger.FormatterParams) string {
-			reqID := params.RequestID
-			if reqID == "" {
-				reqID = "no-id"
-			}
-			return fmt.Sprintf("[%s] [%s] %s %s %d\n",
-				params.TimeStamp.Format("15:04:05"),
-				reqID,
-				params.Method,
-				params.Path,
-				params.StatusCode,
-			)
-		}),
-	))
+	tracked.Use(accesslog.New())
 
 	tracked.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
-			"message": "Request with ID tracking",
+			"message": "Request with ID tracking (automatic via accesslog)",
 		})
 	})
 }

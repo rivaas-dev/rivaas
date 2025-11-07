@@ -210,14 +210,14 @@ func TestRouter_ConcurrentVersionRegistration(t *testing.T) {
 	wg.Add(numGoroutines)
 
 	// Register routes concurrently from multiple goroutines
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(goroutineID int) {
 			defer wg.Done()
 
 			version := fmt.Sprintf("v%d", goroutineID%5+1) // v1 through v5
 			vr := r.Version(version)
 
-			for j := 0; j < routesPerGoroutine; j++ {
+			for j := range routesPerGoroutine {
 				path := fmt.Sprintf("/test/%d/%d", goroutineID, j)
 				vr.GET(path, func(c *Context) {
 					c.JSON(200, map[string]string{"ok": "true"})
@@ -253,7 +253,7 @@ func TestRouter_ConcurrentRouteRegistration(t *testing.T) {
 	wg.Add(numGoroutines)
 
 	// Register routes concurrently
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(n int) {
 			defer wg.Done()
 			r.GET(fmt.Sprintf("/path%d", n), func(c *Context) {
@@ -270,7 +270,7 @@ func TestRouter_ConcurrentRouteRegistration(t *testing.T) {
 		"All routes should be registered despite concurrent access")
 
 	// Test a few routes to ensure they work
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", fmt.Sprintf("/path%d", i), nil)
 
@@ -315,7 +315,7 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 				// Handle error explicitly by sending 500 response
 				c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 				c.Response.WriteHeader(http.StatusInternalServerError)
-				c.Response.Write([]byte(fmt.Sprintf(`{"error":"JSON encoding failed","type":"%T","details":"%s"}`, badData, err.Error())))
+				c.Response.Write(fmt.Appendf(nil, `{"error":"JSON encoding failed","type":"%T","details":"%s"}`, badData, err.Error()))
 			}
 		})
 

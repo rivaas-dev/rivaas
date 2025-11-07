@@ -18,7 +18,7 @@ func TestIntegration_ConcurrentRouteRegistration(t *testing.T) {
 	routeCount := 100
 
 	// Register routes from multiple goroutines
-	for i := 0; i < routeCount; i++ {
+	for i := range routeCount {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
@@ -62,10 +62,8 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	var wg sync.WaitGroup
 	concurrency := 100
 
-	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range concurrency {
+		wg.Go(func() {
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
@@ -74,7 +72,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 			if w.Code != http.StatusOK {
 				t.Errorf("expected status 200, got %d", w.Code)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -95,7 +93,7 @@ func TestIntegration_MemoryLeakDetection(_ *testing.T) {
 	r.Warmup()
 
 	// Run many requests
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -271,7 +269,7 @@ func TestIntegration_RouterWithAllFeatures(t *testing.T) {
 
 	// Test v1
 	req1 := httptest.NewRequest(http.MethodGet, "/users/123", nil)
-	req1.Header.Set("X-API-Version", "v1")
+	req1.Header.Set("X-Api-Version", "v1")
 	w1 := httptest.NewRecorder()
 	rVersioned.ServeHTTP(w1, req1)
 
@@ -281,7 +279,7 @@ func TestIntegration_RouterWithAllFeatures(t *testing.T) {
 
 	// Test v2
 	req2 := httptest.NewRequest(http.MethodGet, "/users/456", nil)
-	req2.Header.Set("X-API-Version", "v2")
+	req2.Header.Set("X-Api-Version", "v2")
 	w2 := httptest.NewRecorder()
 	rVersioned.ServeHTTP(w2, req2)
 
@@ -295,7 +293,7 @@ func TestIntegration_LargeNumberOfRoutes(t *testing.T) {
 	r := New()
 
 	// Register 1000 routes
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		path := "/route" + string(rune('0'+i%10)) + "/" + string(rune('a'+i%26))
 		r.GET(path, func(c *Context) {
 			c.Status(http.StatusOK)
@@ -510,7 +508,7 @@ func TestIntegration_HighLoadStressTest(t *testing.T) {
 	r := New()
 
 	// Register routes
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		path := "/api/resource" + string(rune('0'+i%10)) + "/:id"
 		r.GET(path, func(c *Context) {
 			c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
@@ -527,12 +525,12 @@ func TestIntegration_HighLoadStressTest(t *testing.T) {
 	concurrency := 1000
 	requestsPerRoutine := 100
 
-	for i := 0; i < concurrency; i++ {
+	for i := range concurrency {
 		wg.Add(1)
 		go func(_ int) {
 			defer wg.Done()
 
-			for j := 0; j < requestsPerRoutine; j++ {
+			for j := range requestsPerRoutine {
 				path := "/api/resource" + string(rune('0'+j%10)) + "/123"
 				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()

@@ -26,7 +26,7 @@ import (
 //	}
 func Validate(v any, opts ...ValidationOption) error {
 	if v == nil {
-		return fmt.Errorf("cannot validate nil value")
+		return ErrCannotValidateNilValue
 	}
 
 	cfg := newValidationConfig(opts...)
@@ -34,7 +34,7 @@ func Validate(v any, opts ...ValidationOption) error {
 	// Handle nil pointers and invalid values
 	rv := reflect.ValueOf(v)
 	if !rv.IsValid() {
-		return fmt.Errorf("cannot validate invalid value")
+		return ErrCannotValidateInvalidValue
 	}
 
 	// Check for nil pointers (but preserve pointer for interface validation)
@@ -130,11 +130,11 @@ func isApplicable(v any, strategy ValidationStrategy, cfg *validationConfig) boo
 		// Also check if pointer type implements (for pointer receivers)
 		rv := reflect.ValueOf(v)
 		if rv.Kind() == reflect.Ptr && !rv.IsNil() {
-			if rv.Type().Implements(reflect.TypeOf((*Validator)(nil)).Elem()) {
+			if rv.Type().Implements(reflect.TypeFor[Validator]()) {
 				return true
 			}
 			if cfg.ctx != nil {
-				if rv.Type().Implements(reflect.TypeOf((*ValidatorWithContext)(nil)).Elem()) {
+				if rv.Type().Implements(reflect.TypeFor[ValidatorWithContext]()) {
 					return true
 				}
 			}
@@ -142,11 +142,11 @@ func isApplicable(v any, strategy ValidationStrategy, cfg *validationConfig) boo
 		// Check if value can be addressed and pointer implements
 		if rv.IsValid() && rv.CanAddr() {
 			ptrType := rv.Addr().Type()
-			if ptrType.Implements(reflect.TypeOf((*Validator)(nil)).Elem()) {
+			if ptrType.Implements(reflect.TypeFor[Validator]()) {
 				return true
 			}
 			if cfg.ctx != nil {
-				if ptrType.Implements(reflect.TypeOf((*ValidatorWithContext)(nil)).Elem()) {
+				if ptrType.Implements(reflect.TypeFor[ValidatorWithContext]()) {
 					return true
 				}
 			}
@@ -248,7 +248,7 @@ func validateByStrategy(v any, strategy ValidationStrategy, cfg *validationConfi
 		return validateWithSchema(rv.Interface(), cfg)
 
 	default:
-		return fmt.Errorf("unknown validation strategy: %d", strategy)
+		return fmt.Errorf("%w: %d", ErrUnknownValidationStrategy, strategy)
 	}
 }
 

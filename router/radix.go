@@ -1,6 +1,7 @@
 package router
 
 import (
+	"maps"
 	"strings"
 	"sync"
 )
@@ -79,7 +80,7 @@ func newBloomFilter(size uint64, numHashFuncs int) *bloomFilter {
 	}
 
 	// Initialize seeds for hash functions
-	for i := 0; i < numHashFuncs; i++ {
+	for i := range numHashFuncs {
 		bf.seeds[i] = uint64(i + 1)
 	}
 
@@ -94,7 +95,7 @@ func (bf *bloomFilter) hashWithSeed(data []byte, seed uint64) uint64 {
 	)
 
 	hash := offset64 ^ seed
-	for i := 0; i < len(data); i++ {
+	for i := range data {
 		hash ^= uint64(data[i])
 		hash *= prime64
 	}
@@ -216,10 +217,9 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 
 	// Optimization 1: Detect and handle wildcard routes (e.g., /static/*)
 	// Wildcards must be checked before other optimizations
-	if strings.HasSuffix(path, "/*") {
+	if prefix, ok := strings.CutSuffix(path, "/*"); ok {
 		// Wildcard route: matches everything after the prefix
 		// Example: "/static/*" matches /static/css/app.css, /static/js/main.js, etc.
-		prefix := strings.TrimSuffix(path, "/*")
 		paramName := "filepath" // Default parameter name for wildcard captures
 
 		if prefix == "" {
@@ -515,9 +515,7 @@ func validateConstraints(constraints []RouteConstraint, ctx *Context) bool {
 	}
 	// Merge overflow map if exists
 	if ctx.Params != nil {
-		for k, v := range ctx.Params {
-			params[k] = v
-		}
+		maps.Copy(params, ctx.Params)
 	}
 
 	// Validate all constraints with O(1) lookup
@@ -541,10 +539,7 @@ func (n *node) compileStaticRoutes(bloomFilterSize uint64, numHashFuncs int) *Co
 	// Initialize compiled table if not exists
 	if n.compiled == nil {
 		// Use configured bloom filter size, with a minimum of 100
-		size := bloomFilterSize
-		if size < 100 {
-			size = 100
-		}
+		size := max(bloomFilterSize, 100)
 		n.compiled = &CompiledRouteTable{
 			routes: make(map[uint64]*CompiledRoute, 16), // Pre-allocate with capacity
 			bloom:  newBloomFilter(size, numHashFuncs),  // Configurable bloom filter
@@ -568,9 +563,7 @@ func (n *node) compileStaticRoutesRecursive(table *CompiledRouteTable, prefix st
 	n.mu.RLock()
 	handlers := n.handlers
 	children := make(map[string]*node, len(n.children))
-	for k, v := range n.children {
-		children[k] = v
-	}
+	maps.Copy(children, n.children)
 	n.mu.RUnlock()
 
 	// If this node has handlers and is a static route (no parameters), compile it
@@ -594,12 +587,7 @@ func (n *node) compileStaticRoutesRecursive(table *CompiledRouteTable, prefix st
 
 	// Recursively compile children using the snapshot
 	for path, child := range children {
-		childPath := prefix
-		if prefix == "" {
-			childPath = "/" + path
-		} else {
-			childPath = prefix + "/" + path
-		}
+		childPath := prefix + path
 		child.compileStaticRoutesRecursive(table, childPath)
 	}
 }
@@ -658,4 +646,48 @@ func (table *CompiledRouteTable) getRoute(path string) []HandlerFunc {
 	// Bloom filter false positive - route doesn't actually exist
 	// This is rare with properly sized bloom filter (~1-5% false positive rate)
 	return nil
+}
+
+// getRouteWithPath provides fast lookup for compiled static routes and returns both handlers and route path.
+// This is used when you need the actual route pattern (e.g., for logging/metrics).
+// Returns (handlers, routePath) if found, (nil, "") if not a static route or doesn't exist.
+func (table *CompiledRouteTable) getRouteWithPath(path string) ([]HandlerFunc, string) {
+	if table == nil {
+		return nil, ""
+	}
+
+	table.mu.RLock()
+	defer table.mu.RUnlock()
+
+	// Optimization: For small route sets, skip bloom filter
+	// When routes < 10: bloom filter overhead > direct hash lookup
+	if len(table.routes) < 10 {
+		// Direct hash lookup without bloom filter - use FNV-1a for zero allocations
+		routeHash := fnv1aHash(path)
+
+		if route, exists := table.routes[routeHash]; exists {
+			return route.handlers, route.path
+		}
+		return nil, ""
+	}
+
+	// Stage 1: Quick bloom filter check for negative lookups
+	// Eliminates ~99% of misses with just 3 hash computations
+	// Avoids expensive map lookup for non-existent routes
+	if !table.bloom.Test([]byte(path)) {
+		return nil, "" // Definitely not in the set
+	}
+
+	// Stage 2: Bloom filter says "maybe" - check the actual map
+	// Compute hash for exact match - use FNV-1a for zero allocations
+	routeHash := fnv1aHash(path)
+
+	// Fast hash-based lookup (O(1) average case)
+	if route, exists := table.routes[routeHash]; exists {
+		return route.handlers, route.path
+	}
+
+	// Bloom filter false positive - route doesn't actually exist
+	// This is rare with properly sized bloom filter (~1-5% false positive rate)
+	return nil, ""
 }

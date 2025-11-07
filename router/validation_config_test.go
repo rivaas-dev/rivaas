@@ -114,11 +114,11 @@ func TestWithCustomValidator(t *testing.T) {
 		case User:
 			user = &u
 		default:
-			return errors.New("invalid type")
+			return ErrInvalidType
 		}
 
 		if user.Name == "" {
-			return errors.New("custom: name is required")
+			return ErrCustomNameRequired
 		}
 		return nil
 	}

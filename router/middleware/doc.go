@@ -14,7 +14,7 @@ Security:
   - basicauth: HTTP Basic Authentication
 
 Observability:
-  - logger: Request/response logging with customizable formats
+  - accesslog: Structured HTTP access logging with sampling and filtering
   - requestid: Request ID generation and tracking for distributed tracing
 
 Reliability:
@@ -31,15 +31,22 @@ Performance:
 Basic setup with common middlewares:
 
 	import (
+	    "rivaas.dev/logging"
+	    "rivaas.dev/router"
+	    "rivaas.dev/router/middleware/accesslog"
 	    "rivaas.dev/router/middleware/requestid"
-	    "rivaas.dev/router/middleware/logger"
 	    "rivaas.dev/router/middleware/recovery"
 	    "rivaas.dev/router/middleware/security"
 	)
 
-	r := router.New()
+	r := router.New(
+	    logging.WithLogging(
+	        logging.WithConsoleHandler(),
+	        logging.WithDebugLevel(),
+	    ),
+	)
 	r.Use(requestid.New())
-	r.Use(logger.New())
+	r.Use(accesslog.New())
 	r.Use(recovery.New())
 	r.Use(security.New())
 
@@ -55,8 +62,10 @@ Rate limiting with custom configuration:
 Production setup:
 
 	import (
+	    "rivaas.dev/logging"
+	    "rivaas.dev/router"
+	    "rivaas.dev/router/middleware/accesslog"
 	    "rivaas.dev/router/middleware/requestid"
-	    "rivaas.dev/router/middleware/logger"
 	    "rivaas.dev/router/middleware/recovery"
 	    "rivaas.dev/router/middleware/security"
 	    "rivaas.dev/router/middleware/cors"
@@ -64,13 +73,17 @@ Production setup:
 	    "rivaas.dev/router/middleware/compression"
 	)
 
-	r := router.New()
+	r := router.New(
+	    logging.WithLogging(
+	        logging.WithJSONHandler(),
+	        logging.WithLevel(logging.LevelInfo),
+	    ),
+	)
 
 	// Observability
 	r.Use(requestid.New())
-	r.Use(logger.New(
-	    logger.WithColors(false),
-	    logger.WithSkipPaths("/health"),
+	r.Use(accesslog.New(
+	    accesslog.WithExcludePaths("/health"),
 	))
 
 	// Security
@@ -94,7 +107,7 @@ Recommended middleware order for optimal behavior:
 
  1. recovery          - Catch panics from all other middlewares
  2. requestid         - Generate ID early for logging
- 3. logger            - Log all requests including failed ones
+ 3. accesslog         - Log all requests including failed ones
  4. security/cors     - Set security headers early
  5. ratelimit         - Reject excessive requests before processing
  6. timeout           - Set time limits for downstream processing

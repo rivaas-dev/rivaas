@@ -51,9 +51,7 @@ func (suite *StressTestSuite) TestRouterStress() {
 	start := time.Now()
 
 	for range concurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range requests / concurrency {
 				req := httptest.NewRequest("GET", "/api/v1/users/123/posts/456", nil)
 				w := httptest.NewRecorder()
@@ -61,7 +59,7 @@ func (suite *StressTestSuite) TestRouterStress() {
 
 				suite.Equal(http.StatusOK, w.Code)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

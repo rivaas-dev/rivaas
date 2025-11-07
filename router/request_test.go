@@ -611,8 +611,8 @@ func TestFormFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fileWriter.Write([]byte("test file content"))
-		writer.Close()
+		_, _ = fileWriter.Write([]byte("test file content"))
+		_ = writer.Close()
 
 		// Create request
 		req := httptest.NewRequest("POST", "/upload", body)
@@ -637,7 +637,7 @@ func TestFormFile(t *testing.T) {
 	t.Run("file not found", func(t *testing.T) {
 		body := &bytes.Buffer{}
 		writer := multipart.NewWriter(body)
-		writer.Close()
+		_ = writer.Close()
 
 		req := httptest.NewRequest("POST", "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -677,8 +677,8 @@ func TestFormFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fileWriter.Write([]byte("content"))
-		writer.Close()
+		_, _ = fileWriter.Write([]byte("content"))
+		_ = writer.Close()
 
 		req := httptest.NewRequest("POST", "/upload", bytes.NewReader(body.Bytes()))
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -723,9 +723,9 @@ func TestFormFiles(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			fw.Write([]byte("content " + string(rune('A'+i))))
+			_, _ = fw.Write([]byte("content " + string(rune('A'+i))))
 		}
-		writer.Close()
+		_ = writer.Close()
 
 		req := httptest.NewRequest("POST", "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -770,7 +770,9 @@ func TestSaveFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	t.Run("save uploaded file", func(t *testing.T) {
 		body := &bytes.Buffer{}
@@ -781,8 +783,8 @@ func TestSaveFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fw.Write(fileContent)
-		writer.Close()
+		_, _ = fw.Write(fileContent)
+		_ = writer.Close()
 
 		req := httptest.NewRequest("POST", "/", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -820,8 +822,8 @@ func TestSaveFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fw.Write([]byte("content"))
-		writer.Close()
+		_, _ = fw.Write([]byte("content"))
+		_ = writer.Close()
 
 		req := httptest.NewRequest("POST", "/", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -851,14 +853,14 @@ func TestMultipartForm(t *testing.T) {
 
 		// Add files
 		fw1, _ := writer.CreateFormFile("docs", "file1.txt")
-		fw1.Write([]byte("content1"))
+		_, _ = fw1.Write([]byte("content1"))
 		fw2, _ := writer.CreateFormFile("docs", "file2.txt")
-		fw2.Write([]byte("content2"))
+		_, _ = fw2.Write([]byte("content2"))
 
 		// Add form values
-		writer.WriteField("username", "testuser")
-		writer.WriteField("email", "test@example.com")
-		writer.Close()
+		_ = writer.WriteField("username", "testuser")
+		_ = writer.WriteField("email", "test@example.com")
+		_ = writer.Close()
 
 		req := httptest.NewRequest("POST", "/", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())

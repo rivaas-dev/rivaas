@@ -176,7 +176,7 @@ func TestAtomicOperationsSafety(t *testing.T) {
 
 		// Register a route (triggers atomic operations)
 		r.GET("/test", func(c *Context) {
-			c.String(200, "OK")
+			_ = c.String(200, "OK")
 		})
 
 		// The fact that this doesn't panic means alignment is correct
@@ -191,7 +191,7 @@ func TestAtomicOperationsSafety(t *testing.T) {
 		// Register a versioned route
 		v1 := r.Version("v1")
 		v1.GET("/test", func(c *Context) {
-			c.String(200, "OK")
+			_ = c.String(200, "OK")
 		})
 
 		// The fact that this doesn't panic means alignment is correct
@@ -208,9 +208,8 @@ func BenchmarkAlignmentImpact(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		// This accesses atomic fields, testing if alignment impacts performance
 		_ = r.getTreeForMethodDirect("GET")
-		_ = i // avoid unused variable warning
 	}
 }

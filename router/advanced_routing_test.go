@@ -25,17 +25,22 @@ func (suite *AdvancedRoutingTestSuite) TearDownTest() {
 
 func (suite *AdvancedRoutingTestSuite) TestWildcardRoutes() {
 	r := New()
+	t := suite.T()
 
 	// Test default wildcard parameter
 	r.GET("/files/*", func(c *Context) {
 		filepath := c.Param("filepath")
-		c.JSON(200, map[string]string{"filepath": filepath})
+		if err := c.JSON(200, map[string]string{"filepath": filepath}); err != nil {
+			t.Errorf("failed to send JSON response: %v", err)
+		}
 	})
 
 	// Test custom wildcard parameter (still uses filepath parameter name)
 	r.GET("/static/*", func(c *Context) {
 		asset := c.Param("filepath") // Still uses "filepath" parameter name
-		c.JSON(200, map[string]string{"asset": asset})
+		if err := c.JSON(200, map[string]string{"asset": asset}); err != nil {
+			t.Errorf("failed to send JSON response: %v", err)
+		}
 	})
 
 	// Test requests
@@ -74,20 +79,25 @@ func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
 	)
 
 	// Register version-specific routes
+	t := suite.T()
 	v1 := r.Version("v1")
 	v1.GET("/users", func(c *Context) {
-		c.JSON(200, map[string]string{"version": "v1", "endpoint": "users"})
+		if err := c.JSON(200, map[string]string{"version": "v1", "endpoint": "users"}); err != nil {
+			t.Errorf("failed to send JSON response: %v", err)
+		}
 	})
 
 	v2 := r.Version("v2")
 	v2.GET("/users", func(c *Context) {
-		c.JSON(200, map[string]string{"version": "v2", "endpoint": "users"})
+		if err := c.JSON(200, map[string]string{"version": "v2", "endpoint": "users"}); err != nil {
+			t.Errorf("failed to send JSON response: %v", err)
+		}
 	})
 
 	// Test header-based versioning
 	suite.Run("HeaderVersioning", func() {
 		req := httptest.NewRequest("GET", "/users", nil)
-		req.Header.Set("API-Version", "v2")
+		req.Header.Set("Api-Version", "v2")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -132,31 +142,36 @@ func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
 
 	// Create version-specific groups
 	v1API := r.Version("v1").Group("/api", func(c *Context) {
-		c.Header("X-API-Version", "v1")
+		c.Header("X-Api-Version", "v1")
 		c.Next()
 	})
+	t := suite.T()
 	v1API.GET("/profile", func(c *Context) {
-		c.JSON(200, map[string]string{"version": "v1", "endpoint": "profile"})
+		if err := c.JSON(200, map[string]string{"version": "v1", "endpoint": "profile"}); err != nil {
+			t.Errorf("failed to send JSON response: %v", err)
+		}
 	})
 
 	v2API := r.Version("v2").Group("/api", func(c *Context) {
-		c.Header("X-API-Version", "v2")
+		c.Header("X-Api-Version", "v2")
 		c.Next()
 	})
 	v2API.GET("/profile", func(c *Context) {
-		c.JSON(200, map[string]string{"version": "v2", "endpoint": "profile"})
+		if err := c.JSON(200, map[string]string{"version": "v2", "endpoint": "profile"}); err != nil {
+			t.Errorf("failed to send JSON response: %v", err)
+		}
 	})
 
 	// Test v1 group
 	req := httptest.NewRequest("GET", "/api/profile", nil)
-	req.Header.Set("API-Version", "v1")
+	req.Header.Set("Api-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
 
 	// Check version header was set
-	suite.Equal("v1", w.Header().Get("X-API-Version"), "Expected X-API-Version header to be v1, got %s", w.Header().Get("X-API-Version"))
+	suite.Equal("v1", w.Header().Get("X-Api-Version"), "Expected X-Api-Version header to be v1, got %s", w.Header().Get("X-Api-Version"))
 }
 
 func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
@@ -178,14 +193,19 @@ func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
 	)
 
 	// Register version-specific routes
+	t := suite.T()
 	v1 := r.Version("v1")
 	v1.GET("/test", func(c *Context) {
-		c.JSON(200, map[string]string{"version": "v1"})
+		if err := c.JSON(200, map[string]string{"version": "v1"}); err != nil {
+			t.Errorf("failed to send JSON response: %v", err)
+		}
 	})
 
 	v2 := r.Version("v2")
 	v2.GET("/test", func(c *Context) {
-		c.JSON(200, map[string]string{"version": "v2"})
+		if err := c.JSON(200, map[string]string{"version": "v2"}); err != nil {
+			t.Errorf("failed to send JSON response: %v", err)
+		}
 	})
 
 	// Test subdomain-based versioning
@@ -208,21 +228,24 @@ func (suite *AdvancedRoutingTestSuite) TestContextVersionMethods() {
 		),
 	)
 
+	t := suite.T()
 	r.GET("/version-test", func(c *Context) {
 		version := c.Version()
 		isV1 := c.IsVersion("v1")
 		isV2 := c.IsVersion("v2")
 
-		c.JSON(200, map[string]interface{}{
+		if err := c.JSON(200, map[string]any{
 			"version": version,
 			"is_v1":   isV1,
 			"is_v2":   isV2,
-		})
+		}); err != nil {
+			t.Errorf("failed to send JSON response: %v", err)
+		}
 	})
 
 	// Test with v1 header
 	req := httptest.NewRequest("GET", "/version-test", nil)
-	req.Header.Set("API-Version", "v1")
+	req.Header.Set("Api-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -242,16 +265,19 @@ func (suite *AdvancedRoutingTestSuite) TestPerformance() {
 	)
 
 	// Register many routes
-	for i := 0; i < 100; i++ {
+	t := suite.T()
+	for i := range 100 {
 		v1 := r.Version("v1")
 		v1.GET("/test"+string(rune(i)), func(c *Context) {
-			c.JSON(200, map[string]string{"version": "v1"})
+			if err := c.JSON(200, map[string]string{"version": "v1"}); err != nil {
+				t.Errorf("failed to send JSON response: %v", err)
+			}
 		})
 	}
 
 	// Test that routing is still fast
 	req := httptest.NewRequest("GET", "/test0", nil)
-	req.Header.Set("API-Version", "v1")
+	req.Header.Set("Api-Version", "v1")
 	w := httptest.NewRecorder()
 
 	// This should be fast even with many routes
@@ -275,10 +301,13 @@ func (suite *AdvancedRoutingTestSuite) TestWildcardParameterNames() {
 		{"/docs/*", "filepath", "api/guide.md"},
 	}
 
+	t := suite.T()
 	for _, route := range routes {
 		r.GET(route.path, func(c *Context) {
 			param := c.Param(route.param)
-			c.JSON(200, map[string]string{route.param: param})
+			if err := c.JSON(200, map[string]string{route.param: param}); err != nil {
+				t.Errorf("failed to send JSON response: %v", err)
+			}
 		})
 	}
 
@@ -322,7 +351,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 			},
 			request: func() *http.Request {
 				req := httptest.NewRequest("GET", "/test", nil)
-				req.Header.Set("X-API-Version", "v2")
+				req.Header.Set("X-Api-Version", "v2")
 				return req
 			},
 			expected: "v2",
@@ -355,9 +384,12 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 			r := New(WithVersioning(cfg.config...))
 
 			// Register version-specific route
+			t := suite.T()
 			version := r.Version(cfg.expected)
 			version.GET("/test", func(c *Context) {
-				c.JSON(200, map[string]string{"version": c.Version()})
+				if err := c.JSON(200, map[string]string{"version": c.Version()}); err != nil {
+					t.Errorf("failed to send JSON response: %v", err)
+				}
 			})
 
 			req := cfg.request()

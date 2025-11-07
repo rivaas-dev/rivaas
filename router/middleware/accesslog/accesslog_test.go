@@ -416,7 +416,14 @@ func TestAccessLog_RouteTemplate(t *testing.T) {
 
 func TestAccessLog_ClientIP(t *testing.T) {
 	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	// Configure trusted proxies to test X-Forwarded-For header trust
+	// 10.0.0.0/8 covers the test proxy IPs (10.0.0.1)
+	r := router.New(
+		router.WithLogger(logger),
+		router.WithTrustedProxies(
+			router.WithProxies("10.0.0.0/8", "192.168.0.0/16"),
+		),
+	)
 	r.Use(New())
 
 	r.GET("/test", func(c *router.Context) {
@@ -430,8 +437,9 @@ func TestAccessLog_ClientIP(t *testing.T) {
 		expectedIP   string
 	}{
 		{"Direct connection", "192.168.1.1:12345", "", "192.168.1.1"},
-		{"X-Forwarded-For single IP", "10.0.0.1:8080", "203.0.113.1", "203.0.113.1"},
-		{"X-Forwarded-For multiple IPs", "10.0.0.1:8080", "203.0.113.1, 198.51.100.1", "203.0.113.1"},
+		{"X-Forwarded-For single IP (trusted proxy)", "10.0.0.1:8080", "203.0.113.1", "203.0.113.1"},
+		{"X-Forwarded-For multiple IPs (trusted proxy)", "10.0.0.1:8080", "203.0.113.1, 198.51.100.1", "203.0.113.1"},
+		{"X-Forwarded-For from untrusted proxy (ignored)", "203.0.113.50:8080", "198.51.100.1", "203.0.113.50"},
 		// Note: httptest.NewRequest always sets RemoteAddr, so we can't test "no IP" case
 	}
 
@@ -599,38 +607,9 @@ func TestSampleByHash(t *testing.T) {
 	}
 }
 
-func TestExtractClientIP(t *testing.T) {
-	tests := []struct {
-		name         string
-		remoteAddr   string
-		forwardedFor string
-		expected     string
-	}{
-		{"Direct connection", "192.168.1.1:12345", "", "192.168.1.1"},
-		{"X-Forwarded-For single", "10.0.0.1:8080", "203.0.113.1", "203.0.113.1"},
-		{"X-Forwarded-For multiple", "10.0.0.1:8080", "203.0.113.1, 198.51.100.1, 192.0.2.1", "203.0.113.1"},
-		{"X-Forwarded-For with spaces", "10.0.0.1:8080", " 203.0.113.1 , 198.51.100.1 ", "203.0.113.1"},
-		{"No port in RemoteAddr", "192.168.1.1", "", "192.168.1.1"},
-		{"IPv6 with port", "[2001:db8::1]:8080", "", "[2001:db8::1]"}, // extractClientIP uses LastIndex which keeps brackets
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			if tt.remoteAddr != "" {
-				req.RemoteAddr = tt.remoteAddr
-			}
-			if tt.forwardedFor != "" {
-				req.Header.Set("X-Forwarded-For", tt.forwardedFor)
-			}
-
-			result := extractClientIP(req)
-			if result != tt.expected {
-				t.Errorf("extractClientIP() = %q, want %q", result, tt.expected)
-			}
-		})
-	}
-}
+// TestExtractClientIP was removed - the middleware now uses c.ClientIP() which
+// has proper proxy trust checking. See router/proxies_test.go for comprehensive
+// tests of the trusted proxy functionality.
 
 func TestAccessLog_CombinedOptions(t *testing.T) {
 	logger := &mockLogger{}

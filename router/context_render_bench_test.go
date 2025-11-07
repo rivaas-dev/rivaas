@@ -8,7 +8,7 @@ import (
 )
 
 // Benchmark data for consistent comparison
-var benchData = map[string]interface{}{
+var benchData = map[string]any{
 	"id":      123,
 	"name":    "John Doe",
 	"email":   "john@example.com",
@@ -27,7 +27,7 @@ func BenchmarkJSON_Baseline(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		_ = c.JSON(200, benchData)
 	}
@@ -42,7 +42,7 @@ func BenchmarkIndentedJSON(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		_ = c.IndentedJSON(200, benchData)
 	}
@@ -57,7 +57,7 @@ func BenchmarkPureJSON(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		_ = c.PureJSON(200, benchData)
 	}
@@ -72,7 +72,7 @@ func BenchmarkSecureJSON(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		_ = c.SecureJSON(200, benchData)
 	}
@@ -93,7 +93,7 @@ func BenchmarkASCIIJSON(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		_ = c.ASCIIJSON(200, unicodeData)
 	}
@@ -108,7 +108,7 @@ func BenchmarkYAML(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		_ = c.YAML(200, benchData)
 	}
@@ -126,7 +126,7 @@ func BenchmarkDataFromReader(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		reader := bytes.NewReader(data)
 		_ = c.DataFromReader(200, int64(len(data)), "application/octet-stream", reader, nil)
@@ -145,7 +145,7 @@ func BenchmarkDataFromReader_Large(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		reader := bytes.NewReader(data)
 		_ = c.DataFromReader(200, int64(len(data)), "application/octet-stream", reader, nil)
@@ -163,7 +163,7 @@ func BenchmarkData(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		_ = c.Data(200, "text/plain", data)
 	}
@@ -184,7 +184,7 @@ func BenchmarkData_Binary(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		_ = c.Data(200, "application/octet-stream", data)
 	}
@@ -628,7 +628,7 @@ func BenchmarkDataFromReader_ChunkedTransfer(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(data)))
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w.Body.Reset()
 		reader := bytes.NewReader(data)
 		// contentLength = -1 triggers chunked transfer

@@ -145,7 +145,7 @@ func TestCoerceToValidationErrors_FieldError(t *testing.T) {
 }
 
 func TestCoerceToValidationErrors_GenericError(t *testing.T) {
-	genericErr := errors.New("generic validation error")
+	genericErr := ErrGenericValidation
 
 	cfg := newValidationConfig()
 	result := coerceToValidationErrors(genericErr, cfg)

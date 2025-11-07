@@ -19,7 +19,7 @@ func BenchmarkValidate_Tags(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Validate(user, WithStrategy(ValidationTags))
 	}
 }
@@ -32,7 +32,7 @@ func BenchmarkValidate_Interface(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Validate(user, WithStrategy(ValidationInterface))
 	}
 }
@@ -59,7 +59,7 @@ func BenchmarkValidate_JSONSchema(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Validate(user, WithStrategy(ValidationJSONSchema), WithCustomSchema("bench-user", schema))
 	}
 }
@@ -99,7 +99,7 @@ func BenchmarkValidate_Complex(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Validate(order, WithStrategy(ValidationTags))
 	}
 }
@@ -112,7 +112,7 @@ func BenchmarkValidate_Auto(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Validate(user) // Auto strategy
 	}
 }
@@ -135,7 +135,7 @@ func BenchmarkValidate_WithMaxErrors(b *testing.B) {
 	user := &User{} // All fields missing
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Validate(user, WithStrategy(ValidationTags), WithMaxErrors(5))
 	}
 }
@@ -174,7 +174,7 @@ func BenchmarkValidate_Partial(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Validate(user, WithStrategy(ValidationTags), WithPartial(true), WithPresence(pm))
 	}
 }

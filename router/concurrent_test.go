@@ -159,14 +159,12 @@ func (suite *ConcurrentTestSuite) TestConcurrentContextPooling() {
 	numRequests := 10000
 
 	for range numRequests {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			req := httptest.NewRequest("GET", "/test", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -195,14 +193,12 @@ func (suite *ConcurrentTestSuite) TestConcurrentMiddlewareExecution() {
 	numRequests := 1000
 
 	for range numRequests {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			req := httptest.NewRequest("GET", "/test", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -469,9 +465,7 @@ func TestAtomicRouteLookup(t *testing.T) {
 
 	// Make concurrent requests
 	for range concurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for j := 0; j < requestCount/concurrency; j++ {
 				// Test different route patterns
 				testPaths := []string{
@@ -499,7 +493,7 @@ func TestAtomicRouteLookup(t *testing.T) {
 					}
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -514,9 +508,7 @@ func TestConcurrentRegistrationAndLookup(t *testing.T) {
 	done := make(chan bool)
 
 	// Start route registration goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := range 100 {
 			path := "/concurrent" + string(rune('0'+i%10))
 			r.GET(path, func(c *Context) {
@@ -525,12 +517,10 @@ func TestConcurrentRegistrationAndLookup(t *testing.T) {
 			time.Sleep(time.Millisecond) // Small delay to allow lookups
 		}
 		close(done)
-	}()
+	})
 
 	// Start route lookup goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-done:
@@ -542,7 +532,7 @@ func TestConcurrentRegistrationAndLookup(t *testing.T) {
 				// Don't check status as routes are being added
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 

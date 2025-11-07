@@ -124,7 +124,7 @@ func (c *Context) MustBindAndValidate(out any, opts ...ValidationOption) bool {
 //	}
 func (c *Context) ValidationErrorRFC7807(err error, typeURI string) error {
 	if err == nil {
-		return fmt.Errorf("ValidationErrorRFC7807 called with nil error")
+		return ErrValidationErrorNil
 	}
 
 	// Use 422 for semantic validation failures (not 400)

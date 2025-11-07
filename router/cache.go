@@ -123,7 +123,7 @@ func (c *Context) HandleConditionals(o CondOpts) bool {
 		inm := c.Request.Header.Get("If-None-Match")
 		if inm != "" {
 			normalizedETag := o.ETag.Value
-			for _, tag := range strings.Split(inm, ",") {
+			for tag := range strings.SplitSeq(inm, ",") {
 				tag = strings.TrimSpace(tag)
 				if tag == "*" {
 					// Match any ETag
@@ -178,7 +178,7 @@ func (c *Context) HandleConditionals(o CondOpts) bool {
 		if im != "" {
 			normalizedETag := o.ETag.Value
 			matched := false
-			for _, tag := range strings.Split(im, ",") {
+			for tag := range strings.SplitSeq(im, ",") {
 				tag = strings.TrimSpace(tag)
 				if tag == "*" {
 					matched = true
@@ -262,7 +262,7 @@ func (c *Context) IfMatch(tag ETag) bool {
 	}
 
 	normalizedETag := tag.Value
-	for _, headerTag := range strings.Split(im, ",") {
+	for headerTag := range strings.SplitSeq(im, ",") {
 		headerTag = strings.TrimSpace(headerTag)
 		if headerTag == "*" {
 			return true // Match any
@@ -315,7 +315,7 @@ func (c *Context) AddVary(fields ...string) {
 	existing := c.Response.Header().Get("Vary")
 	existingFields := make(map[string]bool)
 	if existing != "" {
-		for _, field := range strings.Split(existing, ",") {
+		for field := range strings.SplitSeq(existing, ",") {
 			field = strings.TrimSpace(field)
 			if field != "" {
 				// Normalize to canonical form

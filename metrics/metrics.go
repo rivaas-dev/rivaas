@@ -535,6 +535,15 @@ func (c *Config) GetServerAddress() string {
 	return c.metricsPort
 }
 
+// Path returns the path for the Prometheus metrics endpoint.
+// Returns empty string if not using Prometheus provider.
+func (c *Config) Path() string {
+	if !c.enabled || c.provider != PrometheusProvider {
+		return ""
+	}
+	return c.metricsPath
+}
+
 // Shutdown gracefully shuts down the metrics system, flushing any pending metrics.
 // This should be called before the application exits to ensure all metrics are exported.
 // It stops the metrics server (if running) and shuts down the meter provider.
