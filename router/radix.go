@@ -322,6 +322,7 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 }
 
 // getRoute finds a route and extracts parameters directly into context arrays.
+// Returns both the handlers and the route pattern for observability.
 // This is the HOT PATH - optimized for zero allocations and minimal CPU cycles.
 //
 // Algorithm: Radix tree traversal with zero-allocation path parsing
@@ -329,7 +330,12 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 // 2. Parse path incrementally without strings.Split (zero allocations)
 // 3. Match segments against: static children → params → wildcards
 // 4. Store params in arrays (≤8) or map (>8, rare)
-// 5. Validate constraints and return handlers
+// 5. Validate constraints and return handlers with route pattern
+//
+// Returns:
+//   - handlers: The handler chain for the matched route (nil if no match)
+//   - pattern: The original route pattern (e.g., "/users/:id", "/posts/:pid/comments", "")
+//     Empty string if no route matches or pattern not available
 //
 // Performance optimizations:
 //   - No strings.Split allocation - manual parsing with string slicing
@@ -344,17 +350,17 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 // The compiler will inline this if it determines the function is small enough.
 //
 //go:noinline
-func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
+func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
 	// Optimization 1: Handle root path specially (common case)
 	if path == "/" {
-		return n.handlers
+		return n.handlers, n.path
 	}
 
 	if path == "" {
-		return n.handlers
+		return n.handlers, n.path
 	}
 
 	// Fast path for static routes (no parameters)
@@ -362,7 +368,7 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 	// This avoids tree traversal for static routes like /api/users, /health, etc.
 	if n.children != nil {
 		if child, exists := n.children[path]; exists && child.handlers != nil {
-			return child.handlers
+			return child.handlers, child.path
 		}
 	}
 
@@ -445,26 +451,26 @@ func (n *node) getRoute(path string, ctx *Context) []HandlerFunc {
 				}
 				ctx.Params[paramName] = path[start:]
 			}
-			return current.wildcard.node.handlers
+			return current.wildcard.node.handlers, current.wildcard.node.path
 		} else {
 			// No match found - route doesn't exist
-			return nil
+			return nil, ""
 		}
 
 		// If this is the last segment, validate constraints and return
 		if isLast {
 			// Validate parameter constraints (e.g., :id must be numeric)
 			if current.handlers != nil && !validateConstraints(current.constraints, ctx) {
-				return nil // Constraint validation failed
+				return nil, "" // Constraint validation failed
 			}
-			return current.handlers
+			return current.handlers, current.path
 		}
 
 		start = end + 1 // Move past the slash to next segment
 	}
 
 	// Reached end of path without matching - route not found
-	return nil
+	return nil, ""
 }
 
 // validateConstraints checks if all parameter constraints are satisfied.

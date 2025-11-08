@@ -225,7 +225,7 @@ func BenchmarkRadixTree(b *testing.B) {
 		for pb.Next() {
 			for _, path := range testPaths {
 				ctx.paramCount = 0 // Reset context for reuse
-				root.getRoute(path, ctx)
+				_, _ = root.getRoute(path, ctx)
 			}
 		}
 	})

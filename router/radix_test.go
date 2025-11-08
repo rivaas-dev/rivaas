@@ -49,7 +49,7 @@ func (suite *RadixTestSuite) TestRadixTree() {
 	for _, tt := range tests {
 		suite.Run(tt.path, func() {
 			ctx := &Context{}
-			handlers := suite.root.getRoute(tt.path, ctx)
+			handlers, _ := suite.root.getRoute(tt.path, ctx)
 
 			if tt.expected {
 				suite.NotNil(handlers, "Expected to find route for %s", tt.path)
@@ -91,7 +91,7 @@ func (suite *RadixTestSuite) TestRadixTreeComplex() {
 	for _, tt := range tests {
 		suite.Run(tt.path, func() {
 			ctx := &Context{}
-			handlers := suite.root.getRoute(tt.path, ctx)
+			handlers, _ := suite.root.getRoute(tt.path, ctx)
 
 			if tt.expected {
 				suite.NotNil(handlers, "Expected to find route for %s", tt.path)
@@ -134,7 +134,7 @@ func (suite *RadixTestSuite) TestRadixTreeEdgeCases() {
 	for _, tt := range tests {
 		suite.Run(tt.path, func() {
 			ctx := &Context{}
-			handlers := suite.root.getRoute(tt.path, ctx)
+			handlers, _ := suite.root.getRoute(tt.path, ctx)
 
 			if tt.expected {
 				suite.NotNil(handlers, "Expected to find route for %s", tt.path)
@@ -157,7 +157,7 @@ func (suite *RadixTestSuite) TestRadixTree_MoreThan8Params() {
 	suite.root.addRouteWithConstraints("/a/:p1/b/:p2/c/:p3/d/:p4/e/:p5/f/:p6/g/:p7/h/:p8/i/:p9", []HandlerFunc{func(_ *Context) {}}, nil)
 
 	ctx := &Context{}
-	handlers := suite.root.getRoute("/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9", ctx)
+	handlers, _ := suite.root.getRoute("/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9", ctx)
 
 	suite.NotNil(handlers, "Expected to find route with 9 parameters")
 

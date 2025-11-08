@@ -353,7 +353,7 @@ func (r *Router) RouteExists(method, path string) bool {
 	}()
 
 	// Check radix tree
-	if handlers := tree.getRoute(path, c); handlers != nil {
+	if handlers, _ := tree.getRoute(path, c); handlers != nil {
 		return true
 	}
 
@@ -393,7 +393,7 @@ func (r *Router) getAllowedMethodsForPath(path string) []string {
 	for _, method := range standardMethods {
 		if tree, exists := (*trees)[method]; exists && tree != nil {
 			// Try to match the path in this method's tree
-			if handlers := tree.getRoute(path, c); handlers != nil {
+			if handlers, _ := tree.getRoute(path, c); handlers != nil {
 				allowed = append(allowed, method)
 			}
 			// Also check compiled routes if they exist
@@ -1144,27 +1144,33 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}()
 
 	// Find the route and extract parameters
-	handlers := tree.getRoute(path, c)
+	handlers, routePattern := tree.getRoute(path, c)
 	if handlers == nil {
 		r.handleNotFound(w, req)
 		return
+	}
+
+	// Set route template from the matched pattern
+	c.routeTemplate = routePattern
+	if c.routeTemplate == "" {
+		c.routeTemplate = "_unmatched" // Fallback (should rarely happen)
 	}
 
 	if shouldTrace && shouldMeasure {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
 		c.Response = rw
-		r.serveDynamicWithTracingAndMetrics(c, handlers, path)
+		r.serveDynamicWithTracingAndMetrics(c, handlers, routePattern)
 	} else if shouldTrace {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
 		c.Response = rw
-		r.serveDynamicWithTracing(c, handlers, path)
+		r.serveDynamicWithTracing(c, handlers, routePattern)
 	} else if shouldMeasure {
 		// Wrap response writer for status code and size tracking (needed for metrics)
 		rw := &responseWriter{ResponseWriter: w}
 		c.Response = rw
-		r.serveDynamicWithMetrics(c, handlers, path)
+		r.serveDynamicWithMetrics(c, handlers, routePattern)
 	} else {
 		// No metrics or tracing, use original response writer for zero allocations
 		c.Response = w
@@ -1218,7 +1224,7 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	}()
 
 	// Find the route and extract parameters
-	handlers := tree.getRoute(path, c)
+	handlers, routePattern := tree.getRoute(path, c)
 	if handlers == nil {
 		r.handleNotFound(w, req)
 		return
@@ -1229,10 +1235,10 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 		r.versioning.setDeprecationHeaders(w, version)
 	}
 
-	// Set route template if not already set (fallback to sentinel for tree-based routes)
-	// TODO: Track matched pattern during tree.getRoute() for better template accuracy
+	// Set route template from the matched pattern
+	c.routeTemplate = routePattern
 	if c.routeTemplate == "" {
-		c.routeTemplate = "_unmatched"
+		c.routeTemplate = "_unmatched" // Fallback (should rarely happen)
 	}
 
 	// Execute handlers with the context that has extracted parameters
