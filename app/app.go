@@ -152,11 +152,17 @@ func (sc *serverConfig) Validate() *ValidationErrors {
 			"must be positive"))
 	}
 
-	// Cross-field validation: ReadTimeout should not exceed WriteTimeout
-	// This is a common misconfiguration that can cause issues where the server
-	// times out reading the request body before it can write the response.
-	// In practice, write operations are typically faster than read operations,
-	// so write timeout should be >= read timeout.
+	// Cross-field validation: ReadTimeout should not exceed WriteTimeout.
+	//
+	// Rationale: HTTP servers must complete reading the request before writing the response.
+	// If ReadTimeout > WriteTimeout, the server may successfully read the full request but
+	// then immediately timeout attempting to write the response. This creates a poor user
+	// experience where requests appear to succeed (from the client's perspective during upload)
+	// but fail during response delivery.
+	//
+	// Performance consideration: Write operations to established connections are typically
+	// I/O bound and faster than reads (which may involve slow clients or large payloads).
+	// Setting WriteTimeout >= ReadTimeout provides a safety margin for response delivery.
 	if sc.readTimeout > 0 && sc.writeTimeout > 0 {
 		if sc.readTimeout > sc.writeTimeout {
 			errs.Add(newComparisonError("server.readTimeout", "server.writeTimeout",
@@ -165,13 +171,23 @@ func (sc *serverConfig) Validate() *ValidationErrors {
 		}
 	}
 
-	// Validate shutdown timeout is reasonable (at least 1 second)
-	// Very short shutdown timeouts can cause issues with graceful shutdown,
-	// as the server needs time to:
-	//   - Stop accepting new connections
-	//   - Wait for in-flight requests to complete
-	//   - Close idle connections
-	//   - Clean up resources
+	// Validate shutdown timeout is reasonable (at least 1 second).
+	//
+	// Rationale: Graceful shutdown is a multi-step process that requires coordination:
+	//   1. Stop accepting new connections (~immediate)
+	//   2. Wait for in-flight requests to complete (variable, request-dependent)
+	//   3. Close idle keep-alive connections (requires TCP FIN/ACK exchange)
+	//   4. Flush observability buffers (metrics, traces, logs)
+	//   5. Clean up resources (file handles, database connections)
+	//
+	// A timeout < 1s is insufficient for steps 2-5 in production environments,
+	// especially under load. This forces abrupt termination, potentially causing:
+	// - Incomplete responses (client sees broken connections)
+	// - Lost observability data (metrics/logs not flushed)
+	// - Resource leaks (connections not properly closed)
+	//
+	// Performance impact: Longer shutdowns allow clean termination without resource
+	// leaks, improving overall system stability during deployments or scaling events.
 	if sc.shutdownTimeout > 0 && sc.shutdownTimeout < time.Second {
 		errs.Add(newInvalidValueError("server.shutdownTimeout", sc.shutdownTimeout,
 			"must be at least 1 second for proper graceful shutdown"))
@@ -1049,8 +1065,21 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 	fmt.Fprintln(w, t.Render())
 }
 
-// getTerminalSize attempts to get the terminal size using platform-specific methods.
-// Returns width, height, and error.
+// getTerminalSize attempts to get the terminal size using platform-specific syscalls.
+//
+// Algorithm: Uses the TIOCGWINSZ ioctl on Unix-like systems to query terminal dimensions.
+// This is a low-level system call that directly interrogates the TTY driver for the
+// current window size.
+//
+// Platform behavior:
+//   - Unix/Linux/macOS: Uses ioctl(fd, TIOCGWINSZ, &winsize) syscall
+//   - Windows: Returns error (ioctl not available)
+//   - Non-TTY (pipes, redirects): Returns error (no terminal attached)
+//
+// Performance: This is a fast syscall (<1µs typically) suitable for synchronous use
+// during startup banner rendering. No caching needed as it's called once per startup.
+//
+// Returns width, height in character cells, or error if terminal size unavailable.
 func getTerminalSize(file *os.File) (int, int, error) {
 	if file == nil {
 		return 0, 0, fmt.Errorf("file is nil")

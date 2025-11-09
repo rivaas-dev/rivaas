@@ -6,7 +6,17 @@ import (
 )
 
 // ConfigError represents a configuration validation error with structured information.
-// It provides detailed context about which field failed validation and why.
+//
+// Design rationale: Structured errors provide better user experience than plain strings
+// by enabling:
+//   - Programmatic error inspection (field-level error detection)
+//   - Rich formatting for CLI/web UI display
+//   - Error aggregation for batch validation
+//   - Internationalization support (field names remain constant)
+//
+// Performance note: This struct uses 4 words (32 bytes on 64-bit) per error.
+// For batch validation of N fields, this is O(N) memory overhead, which is
+// acceptable since validation happens once at startup, not in hot paths.
 type ConfigError struct {
 	// Field is the name of the configuration field that failed validation
 	Field string

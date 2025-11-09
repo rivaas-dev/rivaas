@@ -151,6 +151,18 @@ func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 }
 
 // runChecks executes all checks concurrently with timeout and returns failures.
+//
+// Concurrency design: Launches one goroutine per check to minimize total latency.
+// For N checks each taking T seconds, sequential execution takes N*T seconds,
+// while concurrent execution takes max(T) seconds.
+//
+// Example: 5 checks (database, redis, etc.) each taking 200ms sequentially = 1000ms.
+// Concurrent execution completes in ~200ms, 5x faster, improving startup/probe times.
+//
+// Timeout enforcement: Each check runs with an independent context.WithTimeout to
+// prevent one slow dependency from blocking the entire health check. This ensures
+// the probe responds within predictable time bounds.
+//
 // Returns a map of check name to error message for any failed checks.
 func runChecks(ctx context.Context, checks map[string]CheckFunc, timeout time.Duration) map[string]string {
 	type result struct {

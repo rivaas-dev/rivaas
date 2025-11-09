@@ -19,13 +19,18 @@ type MetricsEndpointOpts struct {
 
 // WithMetricsEndpoint registers the metrics endpoint on the main application router.
 //
-// ⚠️ IMPORTANT: This function conflicts with the metrics package's auto-server feature.
-// By default, metrics.New() automatically starts a separate HTTP server on port :9090.
-// To use this function, you MUST disable the auto-server:
+// Design decision: This method exists to support scenarios where metrics must be served
+// on the same port as the application (e.g., Kubernetes environments with strict
+// ingress rules, or when running behind a single load balancer).
 //
-//	app.WithMetrics(
-//	    metrics.WithServerDisabled(), // Required!
-//	)
+// Default recommendation: Use the metrics package's auto-server feature (port :9090)
+// to keep metrics separate from application traffic. This provides:
+//   - Traffic isolation (metrics scraping doesn't compete with app requests)
+//   - Independent rate limiting and access control
+//   - Simpler firewall rules (metrics port can be internal-only)
+//
+// ⚠️ IMPORTANT: This function conflicts with the metrics auto-server.
+// You MUST disable auto-server with metrics.WithServerDisabled() to use this endpoint.
 //
 // The endpoint is only registered if:
 //   - Enabled is true

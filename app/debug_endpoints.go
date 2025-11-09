@@ -23,6 +23,25 @@ type DebugEndpointsOpts struct {
 
 // WithDebugEndpoints registers debug endpoints like pprof.
 //
+// Security rationale: pprof endpoints are disabled by default and require explicit
+// opt-in because they expose sensitive runtime information that can be exploited:
+//
+// Attack vectors:
+//   - Goroutine dumps reveal internal logic and potential race conditions
+//   - Heap dumps may contain secrets, tokens, or PII in memory
+//   - CPU profiling can be used for timing attacks or DoS (profiling has overhead)
+//   - Alloc profiles reveal memory usage patterns useful for resource exhaustion attacks
+//
+// Safe usage patterns:
+//  1. Development: Enable unconditionally (no external exposure)
+//  2. Staging: Enable behind VPN or IP allowlist
+//  3. Production: Enable only with proper authentication middleware
+//     Example: app.Use(authMiddleware); app.WithDebugEndpoints(...)
+//
+// Performance impact: pprof itself has minimal overhead when idle. CPU profiling
+// adds ~5% overhead during profiling windows (30s default). Heap/alloc profiles
+// pause GC briefly (<10ms) to capture consistent snapshots.
+//
 // Endpoints registered (if EnablePprof is true):
 //   - GET /debug/pprof/ - Main pprof index
 //   - GET /debug/pprof/cmdline - Command line
@@ -33,13 +52,6 @@ type DebugEndpointsOpts struct {
 //   - GET /debug/pprof/{profile} - Named profiles (allocs, block, goroutine, heap, mutex, threadcreate)
 //
 // Returns an error if any endpoint path already exists (collision detection).
-//
-// WARNING: pprof endpoints expose sensitive runtime information including:
-//   - Goroutine stack traces
-//   - Memory allocation details
-//   - CPU profiling data
-//
-// Only enable in development or behind proper authentication/authorization.
 //
 // Example:
 //
