@@ -48,9 +48,9 @@ const (
 	// Below this threshold, the overhead of maintaining the index outweighs the benefits.
 	//
 	// Rationale:
-	//   - With ≤10 templates: Linear scan is ~50-100ns (acceptable)
-	//   - Index build cost: ~200ns + memory overhead
-	//   - Index lookup benefit: ~30% faster when >10 templates
+	//   - With ≤10 templates: Linear scan O(n) is acceptable (n is small)
+	//   - Index build cost: O(n) + memory overhead for index structure
+	//   - Index lookup benefit: O(1) vs O(n) when >10 templates
 	//
 	// This threshold ensures we only build the index when it provides a clear advantage.
 	minTemplatesForIndexing = 10

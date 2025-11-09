@@ -21,7 +21,9 @@ var globalContextPool = sync.Pool{
 //   - Type assertion panics are hard to debug in production
 //   - Fail-fast with clear error message improves debugging
 //
-// Performance: Negligible overhead (~1ns) for the type assertion check.
+// Performance characteristics:
+// - O(1) type assertion check (constant time)
+// - Negligible overhead compared to context allocation
 func getContextFromGlobalPool() *Context {
 	ctx, ok := globalContextPool.Get().(*Context)
 	if !ok {
@@ -59,13 +61,15 @@ type PoolStats struct {
 // 2. Cache locality: Similar-sized objects in same pool improves CPU cache usage
 // 3. GC optimization: Reduces fragmentation and pool pressure
 //
-// Performance impact: ~15% faster Get/Put operations vs single pool
-// Memory impact: ~20% less memory waste from over-sized pooled objects
+// Performance characteristics:
+// - Faster Get/Put operations vs single pool due to better cache locality
+// - Reduced memory waste from over-sized pooled objects
+// - Segmented pools improve GC efficiency by grouping similar-sized objects
 type ContextPool struct {
 	// Separate pools for different context sizes
-	smallPool  sync.Pool // ≤4 parameters (most common case - ~80% of requests)
-	mediumPool sync.Pool // 5-8 parameters (occasional - ~15% of requests)
-	largePool  sync.Pool // >8 parameters (rare case - ~5% of requests)
+	smallPool  sync.Pool // ≤4 parameters (most common case)
+	mediumPool sync.Pool // 5-8 parameters (occasional use)
+	largePool  sync.Pool // >8 parameters (rare case)
 	// Warm-up pool for high-traffic scenarios
 	warmupPool sync.Pool
 	router     *Router
@@ -182,12 +186,9 @@ func (cp *ContextPool) Put(ctx *Context) {
 // WarmupConfig configures pool warmup behavior for different traffic patterns.
 // Use this to optimize warmup for your specific workload distribution.
 //
-// Default values are based on typical HTTP router traffic patterns:
-//   - 80% of requests: ≤4 parameters (small pool)
-//   - 15% of requests: 5-8 parameters (medium pool)
-//   - 5% of requests: >8 parameters (large pool)
-//
-// Adjust these values based on your application's actual parameter distribution.
+// Default values are based on typical HTTP router traffic patterns where
+// most routes have few parameters. Adjust these values based on your
+// application's actual parameter distribution.
 type WarmupConfig struct {
 	SmallContexts  int // Number of small contexts to preallocate (default: 20)
 	MediumContexts int // Number of medium contexts to preallocate (default: 10)
@@ -195,12 +196,13 @@ type WarmupConfig struct {
 }
 
 // DefaultWarmupConfig returns the default warmup configuration.
-// Based on typical traffic patterns: 80% small, 15% medium, 5% large.
+// Defaults are optimized for typical REST API patterns where most routes
+// have few parameters. Adjust based on your workload characteristics.
 func DefaultWarmupConfig() *WarmupConfig {
 	return &WarmupConfig{
-		SmallContexts:  20, // 80% of 25 initial contexts
-		MediumContexts: 10, // 15% of 25 initial contexts (rounded up)
-		LargeContexts:  5,  // 5% of 25 initial contexts (rounded up)
+		SmallContexts:  20, // Most common case
+		MediumContexts: 10, // Occasional use
+		LargeContexts:  5,  // Rare case
 	}
 }
 
@@ -236,11 +238,11 @@ func (cp *ContextPool) Warmup(cfg ...*WarmupConfig) {
 	}
 
 	// Parallel warmup for speed - each pool warms independently
-	// This reduces warmup time from sequential ~150μs to parallel ~50μs
+	// Parallel execution reduces warmup time compared to sequential warmup
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	// Warm up small pool (most common case - 80% of traffic)
+	// Warm up small pool (most common case)
 	go func() {
 		defer wg.Done()
 		for i := 0; i < config.SmallContexts; i++ {
@@ -249,7 +251,7 @@ func (cp *ContextPool) Warmup(cfg ...*WarmupConfig) {
 		}
 	}()
 
-	// Warm up medium pool (occasional - 15% of traffic)
+	// Warm up medium pool (occasional use)
 	go func() {
 		defer wg.Done()
 		for i := 0; i < config.MediumContexts; i++ {
@@ -258,7 +260,7 @@ func (cp *ContextPool) Warmup(cfg ...*WarmupConfig) {
 		}
 	}()
 
-	// Warm up large pool (rare - 5% of traffic)
+	// Warm up large pool (rare case)
 	go func() {
 		defer wg.Done()
 		for i := 0; i < config.LargeContexts; i++ {
@@ -282,8 +284,8 @@ func (cp *ContextPool) Warmup(cfg ...*WarmupConfig) {
 // Usage patterns:
 //   - High HitRate (>0.95): Pool is being reused effectively
 //   - Low HitRate (<0.80): Contexts may be leaking (not being Put() back)
-//   - SmallPct should be ~80%: Most routes have ≤4 parameters
-//   - LargePct should be <5%: Routes with >8 params are rare
+//   - SmallPct typically highest: Most routes have ≤4 parameters
+//   - LargePct typically lowest: Routes with >8 params are rare
 //
 // Example:
 //

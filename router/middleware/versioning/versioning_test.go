@@ -450,8 +450,9 @@ func TestWithVersioning_Warning299WithSunset(t *testing.T) {
 	}
 
 	// Should contain sunset date
-	if warningHeader == "" || !contains(warningHeader, "2025-06-01") {
-		t.Errorf("Expected Warning header to contain sunset date, got %s", warningHeader)
+	expectedDate := sunset.Format("2006-01-02")
+	if warningHeader == "" || !contains(warningHeader, expectedDate) {
+		t.Errorf("Expected Warning header to contain sunset date %s, got %s", expectedDate, warningHeader)
 	}
 }
 

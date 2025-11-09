@@ -180,8 +180,10 @@ type VersionRouter struct {
 // - Extracts value until next "&" or end of string
 // - No allocations: uses string slicing only
 //
-// Performance: ~50-100ns vs ~500-1000ns for url.Query().Get()
-// Savings: Avoids allocating map[string][]string
+// Performance characteristics:
+// - O(k) where k is query string length (linear scan)
+// - Zero allocations: uses string slicing only
+// - Faster than url.Query().Get() which allocates a map for all parameters
 //
 // Examples:
 //   - "v=v1" → "v1", true
@@ -238,9 +240,10 @@ func fastQueryVersion(rawQuery, param string) (string, bool) {
 // fastHeaderVersion extracts version from header with zero allocations.
 // Uses direct map access instead of Header.Get() for slightly better performance.
 //
-// Performance: ~20-30ns vs ~40-50ns for Header.Get()
-// The standard library's Header.Get() is already optimized, but direct access
-// avoids the canonicalization overhead when header name is already canonical.
+// Performance characteristics:
+// - O(1) map lookup (constant time)
+// - Zero allocations: direct map access
+// - Slightly faster than Header.Get() which performs canonicalization
 //
 // Note: Header names are canonicalized by net/http (e.g., "api-version" → "Api-Version").
 // This function expects the canonicalized form.
@@ -261,8 +264,10 @@ func fastHeaderVersion(headers http.Header, headerName string) string {
 // - Extracts next path segment as version
 // - Stops at next "/" or end of string
 //
-// Performance: ~30-50ns for typical paths
-// Savings: Avoids string splitting or regex matching
+// Performance characteristics:
+// - O(k) where k is path length (linear scan for prefix and segment)
+// - Zero allocations: uses string slicing only
+// - Faster than string splitting or regex matching approaches
 //
 // Examples (with pattern "/v{version}/"):
 //   - "/v1/users" → "v1", true
@@ -310,8 +315,10 @@ func fastPathVersion(path, prefix string) (string, bool) {
 // - Extracts version between prefix and suffix
 // - Handles multiple Accept values (comma-separated)
 //
-// Performance: ~40-60ns for typical Accept headers
-// Savings: Avoids full MIME type parsing and regex
+// Performance characteristics:
+// - O(k) where k is Accept header length (linear scan)
+// - Zero allocations: uses string slicing only
+// - Faster than full MIME type parsing or regex matching
 //
 // Examples (with pattern "application/vnd.myapi.v{version}+json"):
 //   - "application/vnd.myapi.v2+json" → "v2", true
@@ -423,11 +430,11 @@ func (cfg *VersioningConfig) setDeprecationHeaders(w http.ResponseWriter, versio
 // 4. Query-based (convenient for testing)
 // 5. Custom detector (ultimate fallback)
 //
-// Performance optimizations:
-// - Path detection: ~30-50ns, zero-alloc prefix matching
-// - Header detection: ~20-30ns, direct map access
-// - Accept detection: ~40-60ns, zero-alloc pattern matching
-// - Query detection: ~50-100ns, zero-alloc RawQuery scanning
+// Performance characteristics:
+// - Path detection: O(k) where k is path length, zero-allocation prefix matching
+// - Header detection: O(1) map lookup, zero allocations
+// - Accept detection: O(k) where k is header length, zero-allocation pattern matching
+// - Query detection: O(k) where k is query string length, zero-allocation scanning
 // - Validation helper: reduces code duplication, early return optimization
 // - Observability hooks: called only when configured (zero overhead otherwise)
 //

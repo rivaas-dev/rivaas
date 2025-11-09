@@ -319,8 +319,10 @@ func (c *Context) JSON(code int, obj any) error {
 // IndentedJSON sends a JSON response with indentation for readability.
 // This is useful for debugging, development, and human-readable API responses.
 //
-// Performance: ~30-50% slower than JSON() due to formatting overhead.
-// Do NOT use in high-frequency endpoints (>1K req/s). Use JSON() instead.
+// Performance characteristics:
+// - Slower than JSON() due to formatting overhead (indentation, newlines)
+// - Not recommended for high-frequency production endpoints
+// - Use JSON() for production, IndentedJSON() for debugging/development
 //
 // Example:
 //
@@ -412,8 +414,10 @@ func (c *Context) PureJSON(code int, obj any) error {
 // SecureJSON sends a JSON response with a security prefix to prevent JSON hijacking.
 // The prefix prevents the response from being executed as JavaScript in old browsers.
 //
-// Performance: <1% overhead - just prepends prefix string.
-// Safe for production use with minimal performance impact.
+// Performance characteristics:
+// - Minimal overhead: only prepends a small prefix string
+// - Safe for production use with negligible performance impact
+// - Overhead is constant regardless of response size
 //
 // Default prefix: "while(1);" (matches Gin's default)
 // The client must strip this prefix before parsing JSON.
@@ -466,8 +470,10 @@ func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 // ASCIIJSON sends a JSON response with all non-ASCII characters escaped to \uXXXX.
 // This ensures the response is pure ASCII, useful for legacy systems or strict compatibility.
 //
-// Performance: +10-15% overhead vs JSON() due to Unicode escaping.
-// Only use when legacy client compatibility requires pure ASCII.
+// Performance characteristics:
+// - Higher overhead than JSON() due to Unicode character escaping
+// - Overhead scales with the number of non-ASCII characters in the response
+// - Only use when legacy client compatibility requires pure ASCII
 //
 // All non-ASCII characters (including emoji, Chinese, Japanese, etc.) are escaped
 // to their Unicode code point representation (\uXXXX).
@@ -869,8 +875,10 @@ func (c *Context) GetCookie(name string) (string, error) {
 // YAML sends a YAML response with the specified status code.
 // This is useful for configuration APIs, DevOps tools, and Kubernetes-style services.
 //
-// Performance: +150-300% overhead vs JSON() due to YAML marshaling complexity.
-// Do NOT use in high-frequency endpoints. Reserve for config/admin APIs only.
+// Performance characteristics:
+// - Significantly slower than JSON() due to YAML marshaling complexity
+// - Not suitable for high-frequency production endpoints
+// - Reserve for configuration/admin APIs where YAML format is required
 //
 // Requires: gopkg.in/yaml.v3 dependency
 //
@@ -977,8 +985,10 @@ func (c *Context) DataFromReader(code int, contentLength int64, contentType stri
 // Data sends raw bytes with a custom content type.
 // This is useful for sending binary data, images, PDFs, or any custom format.
 //
-// Performance: ~0% overhead - direct byte write with no encoding.
-// Safe for all use cases including high-frequency endpoints.
+// Performance characteristics:
+// - Minimal overhead: direct byte write with no encoding/formatting
+// - Suitable for all use cases including high-frequency endpoints
+// - Zero encoding overhead compared to JSON/YAML responses
 //
 // Example:
 //
@@ -1719,17 +1729,13 @@ func (c *Context) reset() {
 		clearCount := min(c.paramCount, 8)
 
 		// Performance note: Manual loop vs clear() builtin (Go 1.21+)
-		// Benchmarks show manual loop is 4-10x faster for small string arrays:
-		//   - 8 elements: manual=1.1ns, clear()=5.3ns
-		//   - 2 elements: manual=0.46ns, clear()=4.7ns
+		// Manual loop is measurably faster for small fixed-size string arrays
+		// due to compiler optimizations on tight loops with known bounds.
+		// The fixed array size (8 elements) enables further compiler optimizations.
+		// This optimization is meaningful in the hot path when processing
+		// high-throughput request handling.
 		//
-		// While clear() is more idiomatic, the manual loop provides measurably
-		// better performance for this hot path. The compiler can optimize the
-		// tight loop very effectively, and the fixed array size enables further
-		// optimizations. For reference, this optimization saves ~4ns per reset,
-		// which is meaningful when processing millions of requests per second.
-		//
-		// We DO use clear() for maps (line 1117) as map clearing has different
+		// We DO use clear() for maps (see map clearing below) as map clearing has different
 		// performance characteristics where clear() is optimized.
 		for i := range clearCount {
 			c.paramKeys[i] = ""

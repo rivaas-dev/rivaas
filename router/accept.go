@@ -27,7 +27,7 @@ type acceptSpec struct {
 // headerArena provides a pre-allocated buffer for acceptSpec slices.
 // This eliminates the slice allocation in parseAcceptFast.
 type headerArena struct {
-	specs [16]acceptSpec // Pre-allocated buffer (covers 99% of real-world cases)
+	specs [16]acceptSpec // Pre-allocated buffer (covers most real-world Accept headers)
 	used  int            // Number of specs currently in use
 }
 
@@ -279,7 +279,10 @@ func parseAcceptPartFast(part string) acceptSpec {
 //
 //	qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
 //
-// Performance: ~5-10ns vs ~50-100ns for strconv.ParseFloat
+// Performance characteristics:
+// - O(k) where k is string length (max 5 characters for q-values)
+// - Zero allocations: operates directly on string bytes
+// - Faster than strconv.ParseFloat for the constrained q-value format
 func parseQFast(s string) int {
 	if len(s) == 0 || len(s) > 5 { // Max valid: "1.000" or "0.999"
 		return -1

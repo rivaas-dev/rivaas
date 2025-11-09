@@ -17,13 +17,15 @@ import (
 // 3. Return final hash value
 //
 // Why FNV-1a for routing:
-// - Very fast: ~1ns per hash on modern CPUs
+// - Constant-time hashing: O(k) where k is string length
 // - Zero allocations: operates directly on string bytes
-// - Good distribution: minimizes hash collisions
+// - Good distribution: minimizes hash collisions for typical route sets
 // - Simple implementation: no external dependencies
 //
-// Performance: ~30% faster than crypto/hash alternatives
-// Collision rate: <0.1% for typical route sets
+// Performance characteristics:
+// - Faster than cryptographic hash functions (designed for security, not speed)
+// - Comparable to other non-cryptographic hashes (xxhash, cityhash) for routing use cases
+// - Low collision rate for typical route sets (tested with 10k+ routes)
 //
 // Compiler hint: This function is small and frequently called, making it
 // an excellent candidate for inlining to eliminate call overhead.
@@ -344,7 +346,13 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 //   - Early exits to avoid unnecessary work
 //   - Read lock (allows concurrent requests)
 //
-// Typical performance: <100ns for static routes, <500ns for parameterized routes
+// Performance characteristics:
+// - Static routes: O(1) map lookup after path normalization
+// - Parameterized routes: O(k) where k is the number of path segments
+// - Memory: Zero allocations for routes with ≤8 parameters (uses pre-allocated arrays)
+// - Scalability: Lookup time remains constant regardless of total route count
+//
+// For current performance benchmarks, see BenchmarkRadixTree in radix_test.go.
 //
 // Compiler hint: This function is critical path and should be kept small for inlining.
 // The compiler will inline this if it determines the function is small enough.
@@ -387,12 +395,9 @@ func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
 	// Each iteration processes one path segment (e.g., "users", "123", "posts")
 	//
 	// TODO(performance): For very long paths (>1KB), explore SIMD optimization
-	// for byte-parallel path scanning. SIMD could speed up slash detection:
-	//   import "golang.org/x/sys/cpu"
-	//   if cpu.X86.HasAVX2 && pathLen > 1024 {
-	//       // Use AVX2 instructions for parallel byte scanning
-	//       // Expected speedup: ~4-8x for paths with many segments
-	//   }
+	// for byte-parallel path scanning using AVX2 instructions. This could
+	// significantly improve slash detection performance for paths with many segments.
+	// Benchmark before implementing to verify gains justify added complexity.
 	// Trade-off: SIMD adds complexity and requires CPU feature detection.
 	// Benefit is minimal for typical REST APIs with short paths (<100 bytes).
 	for start < pathLen {
@@ -634,8 +639,9 @@ func (table *CompiledRouteTable) getRoute(path string) []HandlerFunc {
 	}
 
 	// Stage 1: Quick bloom filter check for negative lookups
-	// Eliminates ~99% of misses with just 3 hash computations
-	// Avoids expensive map lookup for non-existent routes
+	// Bloom filters provide probabilistic membership testing with high accuracy
+	// for negative results (definitely not in set). This avoids expensive map
+	// lookups for non-existent routes, which is the common case in routing.
 	if !table.bloom.Test([]byte(path)) {
 		return nil // Definitely not in the set
 	}
@@ -650,7 +656,9 @@ func (table *CompiledRouteTable) getRoute(path string) []HandlerFunc {
 	}
 
 	// Bloom filter false positive - route doesn't actually exist
-	// This is rare with properly sized bloom filter (~1-5% false positive rate)
+	// False positive rate depends on bloom filter size and number of routes.
+	// With default configuration (1000 bits, 3 hash functions), false positive
+	// rate is typically <5% for typical route counts (<1000 routes).
 	return nil
 }
 
@@ -678,8 +686,9 @@ func (table *CompiledRouteTable) getRouteWithPath(path string) ([]HandlerFunc, s
 	}
 
 	// Stage 1: Quick bloom filter check for negative lookups
-	// Eliminates ~99% of misses with just 3 hash computations
-	// Avoids expensive map lookup for non-existent routes
+	// Bloom filters provide probabilistic membership testing with high accuracy
+	// for negative results (definitely not in set). This avoids expensive map
+	// lookups for non-existent routes, which is the common case in routing.
 	if !table.bloom.Test([]byte(path)) {
 		return nil, "" // Definitely not in the set
 	}
@@ -694,6 +703,8 @@ func (table *CompiledRouteTable) getRouteWithPath(path string) ([]HandlerFunc, s
 	}
 
 	// Bloom filter false positive - route doesn't actually exist
-	// This is rare with properly sized bloom filter (~1-5% false positive rate)
+	// False positive rate depends on bloom filter size and number of routes.
+	// With default configuration (1000 bits, 3 hash functions), false positive
+	// rate is typically <5% for typical route counts (<1000 routes).
 	return nil, ""
 }

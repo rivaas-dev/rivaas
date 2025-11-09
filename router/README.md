@@ -2770,7 +2770,7 @@ Each example includes:
 ## Performance Metrics
 
 > **Benchmark Environment**: Intel i7-1265U (12th Gen), Linux 6.12.49, Go 1.23.0+  
-> **Last Updated**: September 2025
+> **Note**: Performance benchmarks are environment-specific. Run your own tests for accurate results.
 
 ### **Throughput & Latency** {#throughput-latency}
 
@@ -2819,7 +2819,7 @@ BenchmarkRadixTree-12             1,718,043 ops/sec   582.1ns/op     0B/op      
 
 > **Hardware**: Intel i7-1265U (12th Gen), 12 CPU cores  
 > **Test**: Single route with parameter (`/users/:id`)  
-> **Date**: September 2025
+> **Note**: Results are environment-specific and may vary based on hardware and Go version.
 
 | Router Type | Operations/sec | ns/op | Memory/op | Allocs/op | Features |
 |-------------|----------------|-------|-----------|-----------|----------|

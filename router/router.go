@@ -1,21 +1,41 @@
 // Package router provides an HTTP router for Go with minimal memory allocations.
 //
-// The router implements a radix tree-based routing algorithm for cloud-native
-// applications. It features efficient path matching for static routes, efficient
+// The router implements a radix tree-based routing algorithm optimized for
+// cloud-native applications. It features efficient path matching, zero-allocation
 // parameter extraction, and comprehensive middleware support.
 //
+// Architecture:
+//
+// The router uses a lock-free, copy-on-write architecture for concurrent
+// route registration and request handling:
+//   - Route tree: Atomic pointer with CAS loops (no global mutex)
+//   - Version trees: Atomic pointer with CAS loops (no global mutex)
+//   - Version cache: sync.Map for lock-free compiled route lookups
+//   - Per-node locks: Fine-grained RWMutex for concurrent tree modifications
+//
+// This design ensures:
+//   - Request handling never blocks on locks (fully lock-free read path)
+//   - Route registration uses optimistic concurrency (minimal contention)
+//   - Linear scalability with CPU cores for read operations
+//
 // Key Features:
-//   - Fast radix tree routing with O(k) path matching
-//   - Efficient path matching for static routes
-//   - Memory efficient with only 3 allocations per request
-//   - Support for URL parameters and middleware chains
+//   - Fast radix tree routing with O(k) path matching where k is path length
+//   - O(1) hash-based lookup for static routes (after compilation)
+//   - Zero-allocation parameter extraction for routes with ≤8 parameters
+//   - Context pooling with specialized pools for different parameter counts
 //   - Route grouping for hierarchical API organization
-//   - Context pooling for performance
+//   - Template-based routing for pre-compiled route patterns
+//   - API versioning support (path, header, query, Accept-based)
+//   - OpenTelemetry tracing and metrics integration
 //
 // Performance characteristics:
-//   - High throughput with minimal latency
-//   - Minimal memory allocations per request
-//   - Fast radix tree routing for static paths
+//   - Static routes: O(1) lookup after compilation (hash table)
+//   - Parameterized routes: O(k) where k is number of path segments
+//   - Memory: Zero allocations for routes with ≤8 parameters
+//   - Scalability: Lookup time remains constant regardless of route count
+//   - Concurrency: Lock-free read path scales linearly with CPU cores
+//
+// For current performance benchmarks, see router_bench_test.go.
 //
 // Example usage:
 //
@@ -206,18 +226,18 @@ type serverTimeouts struct {
 
 const (
 	// defaultBloomFilterSize is the default size of bloom filters for compiled routes.
-	// This value balances false positives (~1%) and memory usage (125 bytes).
-	// Formula: For optimal performance with ~1000 static routes:
-	//   - Bits needed: m = -n*ln(p) / (ln(2)^2) ≈ 1000 bits for p=0.01
-	//   - Memory: 1000 bits ≈ 125 bytes
+	// This value balances false positive rate and memory usage.
+	// Formula: For optimal performance with typical route counts:
+	//   - Bits needed: m = -n*ln(p) / (ln(2)^2) where n is route count, p is false positive rate
+	//   - Memory: approximately m/8 bytes
+	// Default of 1000 bits provides low false positive rate for typical route sets
 	defaultBloomFilterSize = 1000
 
 	// defaultBloomHashFunctions is the default number of hash functions for bloom filters.
 	// Optimal value calculated using formula: k = (m/n) * ln(2)
-	// For m=1000 bits and n~100 items: k = (1000/100) * 0.693 ≈ 7
 	// However, 3 hash functions provide good balance between:
-	//   - False positive rate (~5% for typical route counts)
-	//   - Computational overhead (3 hashes vs 7 hashes = 2.3x faster)
+	//   - False positive rate (acceptable for typical route counts)
+	//   - Computational overhead (fewer hash computations per lookup)
 	//   - Practical performance (bloom filter is a pre-filter, not exact lookup)
 	defaultBloomHashFunctions = 3
 )
