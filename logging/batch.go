@@ -6,9 +6,36 @@ import (
 	"time"
 )
 
-// BatchLogger allows accumulating log entries and flushing them periodically.
-// This is useful for high-frequency logging scenarios where you want to reduce
-// the number of write operations.
+// BatchLogger accumulates log records and flushes them in batches.
+//
+// Performance rationale: Batching reduces I/O syscall overhead by amortizing
+// fixed costs across multiple log entries:
+//
+// Without batching (per-entry I/O):
+//   - 1000 log entries = 1000 write() syscalls
+//   - Each syscall: ~1-5µs kernel transition + disk/network latency
+//   - Total overhead: 1000 * (syscall + I/O) = high latency, CPU waste
+//
+// With batching (100 entries/batch):
+//   - 1000 log entries = 10 write() syscalls
+//   - 10x reduction in syscall overhead
+//   - Batched writes enable OS/disk optimizations (write combining, less seeking)
+//
+// Trade-offs:
+//   - Latency: Adds up to (batch_size / log_rate) delay before logs appear
+//   - Memory: Buffers up to batch_size * avg_entry_size bytes
+//   - Durability: Crash before flush loses up to batch_size entries
+//
+// Mitigation strategies:
+//   - Periodic flush timer (logs appear within timeout even if batch not full)
+//   - Crash recovery: External log aggregation systems provide durability
+//   - Critical logs: Use synchronous logging for audit trails
+//
+// Typical configuration:
+//   - Batch size: 100-1000 entries (balances latency vs throughput)
+//   - Flush interval: 1-5 seconds (ensures logs appear promptly)
+//
+// Thread-safe: Safe to use concurrently by multiple goroutines.
 type BatchLogger struct {
 	cfg       *Config
 	entries   []batchEntry
@@ -25,8 +52,24 @@ type batchEntry struct {
 }
 
 // NewBatchLogger creates a logger that batches entries before writing.
-// batchSize: Maximum number of entries before auto-flush
-// flushInterval: Time interval for periodic flushing
+//
+// Parameters:
+//   - cfg: Underlying logger configuration for final output
+//   - batchSize: Maximum entries before automatic flush (typical: 100-1000)
+//   - flushInterval: Maximum time between flushes (typical: 1-5 seconds)
+//
+// Choosing batchSize:
+//   - Too small (< 10): Negates batching benefits
+//   - Too large (> 10000): Increases memory usage and delays
+//   - Sweet spot: 100-1000 for most applications
+//
+// Choosing flushInterval:
+//   - Too short (< 100ms): Reduces batching benefits
+//   - Too long (> 30s): Unacceptable log delay
+//   - Sweet spot: 1-5 seconds for most applications
+//
+// Memory usage: ~100 bytes per buffered entry. With batchSize=1000,
+// maximum buffered size is ~100KB.
 //
 // Example:
 //
@@ -34,9 +77,11 @@ type batchEntry struct {
 //	batchLogger := logging.NewBatchLogger(logger, 100, time.Second)
 //	defer batchLogger.Close()
 //
+//	// High-frequency logging
 //	for i := 0; i < 10000; i++ {
 //	    batchLogger.Info("high frequency event", "id", i)
 //	}
+//	// Logs are written in batches of 100 or every 1 second
 func NewBatchLogger(cfg *Config, batchSize int, flushInterval time.Duration) *BatchLogger {
 	bl := &BatchLogger{
 		cfg:       cfg,
@@ -122,6 +167,14 @@ func (bl *BatchLogger) flushLocked() {
 }
 
 // Close stops the batch logger and flushes any remaining entries.
+//
+// Important: Always call Close() to ensure buffered entries are written.
+// Use defer immediately after creating the BatchLogger:
+//
+//	batchLogger := logging.NewBatchLogger(cfg, 100, time.Second)
+//	defer batchLogger.Close()
+//
+// Failure to call Close() will result in lost log entries (up to batchSize).
 func (bl *BatchLogger) Close() {
 	close(bl.done)
 	bl.ticker.Stop()

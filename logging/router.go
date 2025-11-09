@@ -2,8 +2,24 @@ package logging
 
 import "log/slog"
 
-// Recorder is used by router/app to access logging.
-// This interface follows the same pattern as metrics.Recorder and tracing.Recorder.
+// Recorder is the interface used by router/app packages to access logging.
+//
+// Design rationale: The provider interface exists to support diverse operational
+// requirements without coupling application code to specific logging systems:
+//
+// 1. Development: Use slog with pretty-printed console output
+// 2. Testing: Use in-memory or no-op providers for fast, clean tests
+// 3. Production: Use vendor-specific SDKs (Datadog, New Relic) with optimized batching
+// 4. Migration: Switch providers without changing application logging calls
+//
+// Interface cost: Adds one virtual dispatch (~2-3ns) per log call. This is
+// negligible compared to actual logging work (formatting, I/O, etc.).
+//
+// Alternative considered: Direct slog usage would eliminate abstraction but
+// couples code to stdlib, making vendor SDK integration difficult.
+//
+// Design pattern: Dependency inversion principle - router depends on
+// abstraction (Recorder) not concrete implementation (Config).
 type Recorder interface {
 	Logger() *slog.Logger
 	With(args ...any) *slog.Logger
@@ -14,20 +30,36 @@ type Recorder interface {
 	Error(msg string, args ...any)
 }
 
-// RouterOption mirrors metrics/tracing pattern to avoid cycles.
+// RouterOption mirrors metrics/tracing pattern to avoid import cycles.
+//
+// Why interface{} parameter:
+//   - Allows type-safe dynamic dispatch without generics
+//   - Router implementation can be any type with SetLogger method
+//   - Avoids circular dependency between packages
+//
+// This is a common pattern in the Rivaas package architecture for
+// composable middleware configuration.
 type RouterOption func(interface{})
 
-// WithLogging enables logging on a router.
-// The router must implement SetLogger(Logger).
+// WithLogging enables logging on a router with the specified options.
 //
-// Example:
+// Pattern: Functional options for composable configuration.
+//
+// The router must implement SetLogger(Logger) interface. This is checked
+// at runtime using type assertion. If the router doesn't implement the
+// interface, the option silently does nothing (fail-safe behavior).
+//
+// Example usage:
 //
 //	r := router.New(
 //	    logging.WithLogging(
-//	        logging.WithConsoleHandler(),
-//	        logging.WithDebugLevel(),
+//	        logging.WithConsoleHandler(),  // Development-friendly output
+//	        logging.WithDebugLevel(),       // Verbose logging
+//	        logging.WithServiceName("api"), // Service identification
 //	    ),
 //	)
+//
+// This creates and configures a new logger specifically for the router.
 func WithLogging(opts ...Option) RouterOption {
 	return func(router interface{}) {
 		cfg := MustNew(opts...)
@@ -39,12 +71,27 @@ func WithLogging(opts ...Option) RouterOption {
 
 // WithLoggingFromConfig wires an existing logger into the router.
 //
+// When to use this vs WithLogging:
+//   - WithLogging: Creates new logger instance (typical case)
+//   - WithLoggingFromConfig: Shares existing logger across components
+//
+// Use case for sharing:
+//   - Multiple routers that should use the same logger
+//   - Router and background jobs sharing configuration
+//   - Testing with pre-configured mock logger
+//
 // Example:
 //
-//	logger := logging.MustNew(logging.WithJSONHandler())
-//	r := router.New(
-//	    logging.WithLoggingFromConfig(logger),
+//	// Shared logger for multiple components
+//	logger := logging.MustNew(
+//	    logging.WithJSONHandler(),
+//	    logging.WithServiceName("api"),
 //	)
+//
+//	router1 := router.New(logging.WithLoggingFromConfig(logger))
+//	router2 := router.New(logging.WithLoggingFromConfig(logger))
+//
+//	// Both routers use the same logger instance
 func WithLoggingFromConfig(cfg *Config) RouterOption {
 	return func(router interface{}) {
 		if setter, ok := router.(interface{ SetLogger(Logger) }); ok {

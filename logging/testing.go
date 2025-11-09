@@ -194,7 +194,22 @@ func ExampleTestHelper() {
 	// })
 }
 
-// MockWriter is a mock io.Writer for testing write behavior.
+// MockWriter is a mock io.Writer that records all writes for test assertions.
+//
+// Use cases:
+//   - Verify number of write calls (batching behavior)
+//   - Inspect write contents (log format validation)
+//   - Simulate write errors (error handling tests)
+//
+// Example:
+//
+//	mw := &MockWriter{}
+//	logger := logging.MustNew(logging.WithOutput(mw))
+//	logger.Info("test")
+//
+//	if mw.WriteCount() != 1 {
+//	    t.Error("expected exactly one write")
+//	}
 type MockWriter struct {
 	writes     [][]byte
 	writeError error
@@ -237,6 +252,25 @@ func (mw *MockWriter) Reset() {
 }
 
 // CountingWriter counts bytes written without storing them.
+//
+// Use cases:
+//   - Performance tests (memory overhead of storing writes is avoided)
+//   - Volume verification without memory constraints
+//   - Long-running tests that would exhaust memory with MockWriter
+//
+// Performance: Negligible overhead per write. Much faster than MockWriter
+// which copies every write (allocation + copy overhead).
+//
+// Example:
+//
+//	cw := &CountingWriter{}
+//	logger := logging.MustNew(logging.WithOutput(cw))
+//
+//	for i := 0; i < 1000000; i++ {
+//	    logger.Info("test")
+//	}
+//
+//	t.Logf("Total bytes logged: %d", cw.Count())
 type CountingWriter struct {
 	count int64
 }
@@ -253,7 +287,27 @@ func (cw *CountingWriter) Count() int64 {
 	return cw.count
 }
 
-// SlowWriter is a writer that adds artificial delay for testing timeouts.
+// SlowWriter simulates slow I/O for testing timeouts and backpressure.
+//
+// Use cases:
+//   - Test timeout handling in logging middleware
+//   - Simulate network latency in distributed logging
+//   - Verify non-blocking behavior under slow I/O
+//   - Test context cancellation during logging
+//
+// Example:
+//
+//	// Simulate 100ms network latency
+//	sw := NewSlowWriter(100*time.Millisecond, &bytes.Buffer{})
+//	logger := logging.MustNew(logging.WithOutput(sw))
+//
+//	start := time.Now()
+//	logger.Info("test")
+//	duration := time.Since(start)
+//
+//	if duration < 100*time.Millisecond {
+//	    t.Error("expected write to be delayed")
+//	}
 type SlowWriter struct {
 	delay time.Duration
 	inner io.Writer
@@ -273,7 +327,29 @@ func (sw *SlowWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// HandlerSpy records all Handle calls for testing custom handlers.
+// HandlerSpy records all slog.Handler.Handle calls for testing custom handlers.
+//
+// Use cases:
+//   - Test custom handler implementations
+//   - Verify handler receives expected records
+//   - Test handler filtering logic
+//   - Verify attribute and group handling
+//
+// Example:
+//
+//	spy := &HandlerSpy{}
+//	logger := slog.New(spy)
+//
+//	logger.Info("test", "key", "value")
+//
+//	if spy.RecordCount() != 1 {
+//	    t.Error("expected one record")
+//	}
+//
+//	records := spy.Records()
+//	if records[0].Message != "test" {
+//	    t.Error("unexpected message")
+//	}
 type HandlerSpy struct {
 	records []slog.Record
 	mu      sync.Mutex
