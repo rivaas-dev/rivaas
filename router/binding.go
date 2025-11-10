@@ -6,7 +6,6 @@ package router
 
 import (
 	"bytes"
-	"context"
 	"encoding"
 	"encoding/json"
 	"fmt"
@@ -21,13 +20,15 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"rivaas.dev/router/validation"
 )
 
 // bindingMetadata holds per-request binding state.
 type bindingMetadata struct {
-	bodyRead bool        // Whether the body has been read
-	rawBody  []byte      // Cached raw body bytes
-	presence PresenceMap // Tracks which fields are present in the request
+	bodyRead bool                   // Whether the body has been read
+	rawBody  []byte                 // Cached raw body bytes
+	presence validation.PresenceMap // Tracks which fields are present in the request
 }
 
 // BindError represents a binding error with detailed context about what failed.
@@ -194,9 +195,7 @@ func (c *Context) BindJSON(out any) error {
 	}
 
 	if c.bindingMeta == nil {
-		c.bindingMeta = &bindingMetadata{
-			presence: make(PresenceMap),
-		}
+		c.bindingMeta = &bindingMetadata{}
 	}
 
 	if !c.bindingMeta.bodyRead {
@@ -210,15 +209,14 @@ func (c *Context) BindJSON(out any) error {
 		// Refill for downstream middleware
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
-		// Track presence
-		var raw map[string]any
-		if err := json.Unmarshal(body, &raw); err == nil {
-			markPresence(raw, "", c.bindingMeta.presence)
+		// Track presence using validation package
+		if pm, err := validation.ComputePresence(body); err == nil {
+			c.bindingMeta.presence = pm
 		}
 
 		// Store raw JSON in context for schema validation optimization
 		c.Request = c.Request.WithContext(
-			context.WithValue(c.Request.Context(), contextKeyRawJSON, body),
+			validation.InjectRawJSONCtx(c.Request.Context(), body),
 		)
 	}
 
@@ -246,9 +244,7 @@ func (c *Context) BindJSONStrict(out any) error {
 	}
 
 	if c.bindingMeta == nil {
-		c.bindingMeta = &bindingMetadata{
-			presence: make(PresenceMap),
-		}
+		c.bindingMeta = &bindingMetadata{}
 	}
 
 	if !c.bindingMeta.bodyRead {
@@ -261,13 +257,13 @@ func (c *Context) BindJSONStrict(out any) error {
 
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
-		var raw map[string]any
-		if err := json.Unmarshal(body, &raw); err == nil {
-			markPresence(raw, "", c.bindingMeta.presence)
+		// Track presence using validation package
+		if pm, err := validation.ComputePresence(body); err == nil {
+			c.bindingMeta.presence = pm
 		}
 
 		c.Request = c.Request.WithContext(
-			context.WithValue(c.Request.Context(), contextKeyRawJSON, body),
+			validation.InjectRawJSONCtx(c.Request.Context(), body),
 		)
 	}
 
@@ -276,41 +272,15 @@ func (c *Context) BindJSONStrict(out any) error {
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(out); err != nil {
-		return newValidationError("", "json.unknown_field", err.Error(), nil)
+		return &validation.Error{Fields: []validation.FieldError{{Code: "json.unknown_field", Message: err.Error()}}}
 	}
 
 	return nil
 }
 
-// markPresence recursively populates PresenceMap with normalized dot paths.
-// Handles nested objects and arrays with indices.
-func markPresence(m map[string]any, prefix string, pm PresenceMap) {
-	for k, v := range m {
-		path := k
-		if prefix != "" {
-			path = prefix + "." + k
-		}
-		pm[path] = true
-
-		if nested, ok := v.(map[string]any); ok {
-			markPresence(nested, path, pm)
-		}
-
-		if arr, ok := v.([]any); ok {
-			for i, item := range arr {
-				itemPath := path + "." + strconv.Itoa(i)
-				pm[itemPath] = true
-				if nestedMap, ok := item.(map[string]any); ok {
-					markPresence(nestedMap, itemPath, pm)
-				}
-			}
-		}
-	}
-}
-
 // Presence returns the presence map for the current request.
 // Returns nil if no binding has occurred yet.
-func (c *Context) Presence() PresenceMap {
+func (c *Context) Presence() validation.PresenceMap {
 	if c.bindingMeta == nil {
 		return nil
 	}

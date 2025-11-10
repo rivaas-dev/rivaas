@@ -1,6 +1,8 @@
-package router
+package validation
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"reflect"
 )
@@ -11,36 +13,40 @@ import (
 // Example:
 //
 //	var req CreateUserRequest
-//	if err := Validate(&req); err != nil {
+//	if err := Validate(ctx, &req); err != nil {
 //	    // Handle validation error
 //	}
 //
 // With options:
 //
-//	if err := Validate(&req,
-//	    WithStrategy(ValidationTags),
+//	if err := Validate(ctx, &req,
+//	    WithStrategy(StrategyTags),
 //	    WithPartial(true),
 //	    WithPresence(presenceMap),
 //	); err != nil {
 //	    // Handle validation error
 //	}
-func Validate(v any, opts ...ValidationOption) error {
+func Validate(ctx context.Context, v any, opts ...Option) *Error {
 	if v == nil {
-		return ErrCannotValidateNilValue
+		return &Error{Fields: []FieldError{{Code: "nil", Message: ErrCannotValidateNilValue.Error()}}}
 	}
 
-	cfg := newValidationConfig(opts...)
+	cfg := defaultConfig(opts...)
+	// Use the context parameter if it wasn't explicitly set via WithContext() option
+	if !cfg.ctxExplicit {
+		cfg.ctx = ctx
+	}
 
 	// Handle nil pointers and invalid values
 	rv := reflect.ValueOf(v)
 	if !rv.IsValid() {
-		return ErrCannotValidateInvalidValue
+		return &Error{Fields: []FieldError{{Code: "invalid", Message: ErrCannotValidateInvalidValue.Error()}}}
 	}
 
 	// Check for nil pointers (but preserve pointer for interface validation)
 	for rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
-			return newValidationError("", "nil_pointer", "cannot validate nil pointer", nil)
+			return &Error{Fields: []FieldError{{Code: "nil_pointer", Message: "cannot validate nil pointer"}}}
 		}
 		rv = rv.Elem()
 	}
@@ -62,7 +68,7 @@ func Validate(v any, opts ...ValidationOption) error {
 
 	// Determine strategy (use original v to check interfaces)
 	strategy := cfg.strategy
-	if strategy == ValidationAuto {
+	if strategy == StrategyAuto {
 		strategy = determineStrategy(v, cfg)
 	}
 
@@ -70,10 +76,17 @@ func Validate(v any, opts ...ValidationOption) error {
 	return validateByStrategy(v, strategy, cfg)
 }
 
+// ValidatePartial validates only fields present in the PresenceMap.
+// Useful for PATCH requests where only provided fields should be validated.
+func ValidatePartial(ctx context.Context, v any, pm PresenceMap, opts ...Option) *Error {
+	opts = append([]Option{WithPresence(pm), WithPartial(true)}, opts...)
+	return Validate(ctx, v, opts...)
+}
+
 // validateAll runs all applicable validation strategies and aggregates errors.
-func validateAll(v any, cfg *validationConfig) error {
-	var all ValidationErrors
-	strategies := []ValidationStrategy{ValidationInterface, ValidationTags, ValidationJSONSchema}
+func validateAll(v any, cfg *config) *Error {
+	var all Error
+	strategies := []Strategy{StrategyInterface, StrategyTags, StrategyJSONSchema}
 	applied := 0
 
 	for _, strategy := range strategies {
@@ -83,17 +96,10 @@ func validateAll(v any, cfg *validationConfig) error {
 
 		applied++
 		if err := validateByStrategy(v, strategy, cfg); err != nil {
-			if verrs, ok := err.(ValidationErrors); ok {
-				all.Errors = append(all.Errors, verrs.Errors...)
-				if verrs.Truncated {
-					all.Truncated = true
-				}
-			} else {
-				all.AddError(err)
-			}
+			all.AddError(err)
 
 			// Check max errors
-			if cfg.maxErrors > 0 && len(all.Errors) >= cfg.maxErrors {
+			if cfg.maxErrors > 0 && len(all.Fields) >= cfg.maxErrors {
 				all.Truncated = true
 				break
 			}
@@ -101,22 +107,22 @@ func validateAll(v any, cfg *validationConfig) error {
 	}
 
 	// If requireAny is true, at least one strategy must have passed
-	if cfg.requireAny && applied > 0 && len(all.Errors) == 0 {
+	if cfg.requireAny && applied > 0 && len(all.Fields) == 0 {
 		return nil
 	}
 
 	if all.HasErrors() {
 		all.Sort()
-		return all
+		return &all
 	}
 
 	return nil
 }
 
 // isApplicable checks if a validation strategy can apply to the value.
-func isApplicable(v any, strategy ValidationStrategy, cfg *validationConfig) bool {
+func isApplicable(v any, strategy Strategy, cfg *config) bool {
 	switch strategy {
-	case ValidationInterface:
+	case StrategyInterface:
 		// Check if value implements Validator or ValidatorWithContext
 		// Check both value and pointer types
 		if _, ok := v.(Validator); ok {
@@ -153,7 +159,7 @@ func isApplicable(v any, strategy ValidationStrategy, cfg *validationConfig) boo
 		}
 		return false
 
-	case ValidationTags:
+	case StrategyTags:
 		// Tags require a struct type with actual validation tags
 		rv := reflect.ValueOf(v)
 		for rv.Kind() == reflect.Ptr {
@@ -175,7 +181,7 @@ func isApplicable(v any, strategy ValidationStrategy, cfg *validationConfig) boo
 		}
 		return false
 
-	case ValidationJSONSchema:
+	case StrategyJSONSchema:
 		// JSON Schema requires a schema to be available
 		if cfg.customSchema != "" {
 			return true
@@ -191,47 +197,47 @@ func isApplicable(v any, strategy ValidationStrategy, cfg *validationConfig) boo
 }
 
 // determineStrategy automatically determines the best validation strategy.
-func determineStrategy(v any, cfg *validationConfig) ValidationStrategy {
+func determineStrategy(v any, cfg *config) Strategy {
 	// Priority order:
 	// 1. Interface validation (Validate/ValidateContext)
 	// 2. Tag validation (struct tags)
 	// 3. JSON Schema
 
-	if isApplicable(v, ValidationInterface, cfg) {
-		return ValidationInterface
+	if isApplicable(v, StrategyInterface, cfg) {
+		return StrategyInterface
 	}
 
-	if isApplicable(v, ValidationTags, cfg) {
-		return ValidationTags
+	if isApplicable(v, StrategyTags, cfg) {
+		return StrategyTags
 	}
 
-	if isApplicable(v, ValidationJSONSchema, cfg) {
-		return ValidationJSONSchema
+	if isApplicable(v, StrategyJSONSchema, cfg) {
+		return StrategyJSONSchema
 	}
 
 	// Default to tags if it's a struct
 	rv := reflect.ValueOf(v)
 	for rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
-			return ValidationTags
+			return StrategyTags
 		}
 		rv = rv.Elem()
 	}
 	if rv.Kind() == reflect.Struct {
-		return ValidationTags
+		return StrategyTags
 	}
 
-	return ValidationTags
+	return StrategyTags
 }
 
 // validateByStrategy dispatches to the appropriate validation function.
-func validateByStrategy(v any, strategy ValidationStrategy, cfg *validationConfig) error {
+func validateByStrategy(v any, strategy Strategy, cfg *config) *Error {
 	switch strategy {
-	case ValidationInterface:
+	case StrategyInterface:
 		// Use original value (may be pointer) for interface validation
 		return validateWithInterface(v, cfg)
 
-	case ValidationTags:
+	case StrategyTags:
 		// Dereference for tag validation (tags work on struct values)
 		rv := reflect.ValueOf(v)
 		for rv.Kind() == reflect.Ptr && !rv.IsNil() {
@@ -239,7 +245,7 @@ func validateByStrategy(v any, strategy ValidationStrategy, cfg *validationConfi
 		}
 		return validateWithTags(rv.Interface(), cfg)
 
-	case ValidationJSONSchema:
+	case StrategyJSONSchema:
 		// Dereference for schema validation
 		rv := reflect.ValueOf(v)
 		for rv.Kind() == reflect.Ptr && !rv.IsNil() {
@@ -248,34 +254,50 @@ func validateByStrategy(v any, strategy ValidationStrategy, cfg *validationConfi
 		return validateWithSchema(rv.Interface(), cfg)
 
 	default:
-		return fmt.Errorf("%w: %d", ErrUnknownValidationStrategy, strategy)
+		return &Error{Fields: []FieldError{{Code: "unknown_strategy", Message: fmt.Sprintf("%v: %d", ErrUnknownValidationStrategy, strategy)}}}
 	}
 }
 
-// coerceToValidationErrors converts an error to ValidationErrors.
-func coerceToValidationErrors(err error, cfg *validationConfig) error {
+// coerceToValidationErrors converts an error to Error.
+func coerceToValidationErrors(err error, cfg *config) *Error {
 	if err == nil {
 		return nil
 	}
 
-	// Already a ValidationErrors
-	if verrs, ok := err.(ValidationErrors); ok {
-		if cfg.maxErrors > 0 && len(verrs.Errors) > cfg.maxErrors {
-			verrs.Errors = verrs.Errors[:cfg.maxErrors]
+	// Already an Error
+	if verrs, ok := err.(*Error); ok {
+		if cfg.maxErrors > 0 && len(verrs.Fields) > cfg.maxErrors {
+			verrs.Fields = verrs.Fields[:cfg.maxErrors]
 			verrs.Truncated = true
 		}
 		verrs.Sort()
 		return verrs
 	}
 
+	// Check if it's a ValidationErrors from old API (for compatibility during migration)
+	if verrs, ok := err.(interface {
+		Error() string
+		HasErrors() bool
+		Fields() []FieldError
+	}); ok {
+		fields := verrs.Fields()
+		if cfg.maxErrors > 0 && len(fields) > cfg.maxErrors {
+			fields = fields[:cfg.maxErrors]
+		}
+		return &Error{
+			Fields:    fields,
+			Truncated: cfg.maxErrors > 0 && len(fields) >= cfg.maxErrors,
+		}
+	}
+
 	// Already a FieldError
 	if fe, ok := err.(FieldError); ok {
-		return ValidationErrors{Errors: []FieldError{fe}}
+		return &Error{Fields: []FieldError{fe}}
 	}
 
 	// Generic error - wrap it
-	result := ValidationErrors{
-		Errors: []FieldError{
+	result := &Error{
+		Fields: []FieldError{
 			{
 				Code:    "validation_error",
 				Message: err.Error(),
@@ -283,19 +305,10 @@ func coerceToValidationErrors(err error, cfg *validationConfig) error {
 		},
 	}
 
-	return result
-}
-
-// newValidationError creates a new validation error.
-func newValidationError(path, code, message string, meta map[string]any) ValidationErrors {
-	return ValidationErrors{
-		Errors: []FieldError{
-			{
-				Path:    path,
-				Code:    code,
-				Message: message,
-				Meta:    meta,
-			},
-		},
+	// Check if it's the sentinel error
+	if errors.Is(err, ErrValidation) {
+		return result
 	}
+
+	return result
 }

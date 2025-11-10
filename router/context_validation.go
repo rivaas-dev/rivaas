@@ -3,6 +3,8 @@ package router
 import (
 	"fmt"
 	"net/http"
+
+	"rivaas.dev/router/validation"
 )
 
 // BindAndValidate binds the request body and validates it.
@@ -23,24 +25,35 @@ import (
 // With options:
 //
 //	if err := c.BindAndValidate(&req,
-//	    WithStrategy(ValidationTags),
-//	    WithPartial(true),
+//	    validation.WithStrategy(validation.StrategyTags),
+//	    validation.WithPartial(true),
 //	); err != nil {
 //	    c.ValidationError(err, 400)
 //	    return
 //	}
-func (c *Context) BindAndValidate(out any, opts ...ValidationOption) error {
+func (c *Context) BindAndValidate(out any, opts ...validation.Option) error {
 	if err := c.BindBody(out); err != nil {
 		return fmt.Errorf("binding failed: %w", err)
 	}
 
-	allOpts := []ValidationOption{
-		WithContext(c.Request.Context()),
-		WithPresence(c.Presence()),
+	ctx := c.Request.Context()
+	// Inject raw JSON if available
+	if c.bindingMeta != nil && len(c.bindingMeta.rawBody) > 0 {
+		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)
+	}
+
+	allOpts := []validation.Option{
+		validation.WithContext(ctx),
+	}
+	if pm := c.Presence(); pm != nil {
+		allOpts = append(allOpts, validation.WithPresence(pm))
 	}
 	allOpts = append(allOpts, opts...)
 
-	return Validate(out, allOpts...)
+	if verr := validation.Validate(ctx, out, allOpts...); verr != nil {
+		return verr
+	}
+	return nil
 }
 
 // BindAndValidateStrict binds JSON with unknown field rejection and validates.
@@ -53,23 +66,34 @@ func (c *Context) BindAndValidate(out any, opts ...ValidationOption) error {
 //	    c.ValidationError(err, 400)
 //	    return
 //	}
-func (c *Context) BindAndValidateStrict(out any, opts ...ValidationOption) error {
+func (c *Context) BindAndValidateStrict(out any, opts ...validation.Option) error {
 	if err := c.BindJSONStrict(out); err != nil {
 		return err
 	}
 
-	allOpts := []ValidationOption{
-		WithContext(c.Request.Context()),
-		WithPresence(c.Presence()),
-		WithDisallowUnknownFields(true),
+	ctx := c.Request.Context()
+	// Inject raw JSON if available
+	if c.bindingMeta != nil && len(c.bindingMeta.rawBody) > 0 {
+		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)
+	}
+
+	allOpts := []validation.Option{
+		validation.WithContext(ctx),
+		validation.WithDisallowUnknownFields(true),
+	}
+	if pm := c.Presence(); pm != nil {
+		allOpts = append(allOpts, validation.WithPresence(pm))
 	}
 	allOpts = append(allOpts, opts...)
 
-	return Validate(out, allOpts...)
+	if verr := validation.Validate(ctx, out, allOpts...); verr != nil {
+		return verr
+	}
+	return nil
 }
 
 // ValidationError formats and sends a validation error response.
-// If the error is a ValidationErrors, it returns structured JSON.
+// If the error is a validation.Error, it returns structured JSON.
 // Otherwise, it returns a simple error message.
 //
 // Example:
@@ -79,10 +103,10 @@ func (c *Context) BindAndValidateStrict(out any, opts ...ValidationOption) error
 //	    return
 //	}
 func (c *Context) ValidationError(err error, status int) {
-	if verrs, ok := err.(ValidationErrors); ok {
+	if verr, ok := err.(*validation.Error); ok {
 		c.JSON(status, map[string]any{
 			"error":   "validation_failed",
-			"details": verrs.Errors,
+			"details": verr.Fields,
 		})
 		return
 	}
@@ -103,7 +127,7 @@ func (c *Context) ValidationError(err error, status int) {
 //	    return // Error already written
 //	}
 //	// Continue with validated request
-func (c *Context) MustBindAndValidate(out any, opts ...ValidationOption) bool {
+func (c *Context) MustBindAndValidate(out any, opts ...validation.Option) bool {
 	if err := c.BindAndValidate(out, opts...); err != nil {
 		c.ValidationError(err, 400)
 		return false
@@ -133,12 +157,12 @@ func (c *Context) ValidationErrorRFC7807(err error, typeURI string) error {
 		WithInstance(c.Request.URL.Path).
 		WithCause(err) // Chain the original error
 
-	// Handle ValidationErrors specially
-	if verrs, ok := err.(ValidationErrors); ok {
-		p.WithDetail(fmt.Sprintf("Request validation failed with %d error(s)", len(verrs.Errors)))
-		p.WithExtension("errors", verrs.Errors)
+	// Handle validation.Error specially
+	if verr, ok := err.(*validation.Error); ok {
+		p.WithDetail(fmt.Sprintf("Request validation failed with %d error(s)", len(verr.Fields)))
+		p.WithExtension("errors", verr.Fields)
 
-		if verrs.Truncated {
+		if verr.Truncated {
 			p.WithExtension("truncated", true)
 		}
 	} else {
@@ -158,10 +182,50 @@ func (c *Context) ValidationErrorRFC7807(err error, typeURI string) error {
 //		return // Error already written
 //	}
 //	// Continue with validated request
-func (c *Context) MustBindAndValidateRFC7807(out any, typeURI string, opts ...ValidationOption) bool {
+func (c *Context) MustBindAndValidateRFC7807(out any, typeURI string, opts ...validation.Option) bool {
 	if err := c.BindAndValidate(out, opts...); err != nil {
 		_ = c.ValidationErrorRFC7807(err, typeURI)
 		return false
 	}
 	return true
+}
+
+// BindAndValidateInto binds and validates into a specific type.
+// This generic helper provides type-safe binding without needing to declare the variable.
+//
+// Example:
+//
+//	req, err := BindAndValidateInto[CreateUserRequest](c)
+//	if err != nil {
+//	    c.ValidationError(err, 400)
+//	    return
+//	}
+//	// req is of type CreateUserRequest
+func BindAndValidateInto[T any](c *Context, opts ...validation.Option) (T, error) {
+	var out T
+	if err := c.BindAndValidate(&out, opts...); err != nil {
+		var zero T
+		return zero, err
+	}
+	return out, nil
+}
+
+// MustBindAndValidateInto binds and validates, writing an error response on failure.
+// Returns the typed value and a success flag.
+// This method does NOT panic - it returns a boolean for control flow.
+//
+// Example:
+//
+//	req, ok := MustBindAndValidateInto[CreateUserRequest](c)
+//	if !ok {
+//	    return // Error already written
+//	}
+//	// req is of type CreateUserRequest
+func MustBindAndValidateInto[T any](c *Context, opts ...validation.Option) (T, bool) {
+	var out T
+	if !c.MustBindAndValidate(&out, opts...) {
+		var zero T
+		return zero, false
+	}
+	return out, true
 }

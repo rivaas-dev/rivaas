@@ -1,4 +1,4 @@
-package router
+package validation
 
 import (
 	"context"
@@ -16,25 +16,10 @@ var (
 	validatorWithContextTypeCache sync.Map // map[reflect.Type]bool
 )
 
-// Performance Characteristics:
-//
-// Interface validation has O(1) complexity for method lookup (cached).
-//
-// Optimizations:
-//   - Type interface checking is cached (validatorTypeCache, validatorWithContextTypeCache)
-//   - First call pays reflection cost, subsequent calls are cache hits
-//   - No allocations after cache warmup
-//
-// Memory usage:
-//   - Type cache: ~16 bytes per type
-//   - Negligible overhead compared to custom validation logic
-//
-// Thread safety:
-//   - Type caches use sync.Map for concurrent access
-//   - Reflection calls are read-only and inherently thread-safe
+var errNotImplemented = fmt.Errorf("validator not implemented")
 
 // validateWithInterface validates using custom Validate() or ValidateContext() methods.
-func validateWithInterface(v any, cfg *validationConfig) error {
+func validateWithInterface(v any, cfg *config) *Error {
 	// Prefer ValidatorWithContext if context is available
 	if cfg.ctx != nil {
 		if validator, ok := v.(ValidatorWithContext); ok {
@@ -74,8 +59,6 @@ func validateWithInterface(v any, cfg *validationConfig) error {
 	// No validator found
 	return nil
 }
-
-var errNotImplemented = fmt.Errorf("validator not implemented")
 
 // typeImplementsValidator checks if a type implements Validator interface (cached).
 func typeImplementsValidator(t reflect.Type) bool {

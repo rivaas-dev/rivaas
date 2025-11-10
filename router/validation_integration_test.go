@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"testing"
+
+	"rivaas.dev/router/validation"
 )
 
 func TestBindAndValidate_JSON(t *testing.T) {
@@ -190,7 +192,7 @@ func TestBindAndValidate_PartialUpdate(t *testing.T) {
 	router := New()
 	router.PATCH("/users/:id", func(c *Context) {
 		var req UpdateUserRequest
-		if err := c.BindAndValidate(&req, WithPartial(true)); err != nil {
+		if err := c.BindAndValidate(&req, validation.WithPartial(true)); err != nil {
 			c.ValidationError(err, 400)
 			return
 		}
@@ -389,8 +391,8 @@ func TestBindAndValidate_AllStrategiesIntegration(t *testing.T) {
 	router.POST("/users", func(c *Context) {
 		var req User
 		if err := c.BindAndValidate(&req,
-			WithStrategy(ValidationTags),
-			WithRunAll(true),
+			validation.WithStrategy(validation.StrategyTags),
+			validation.WithRunAll(true),
 		); err != nil {
 			c.ValidationError(err, 400)
 			return

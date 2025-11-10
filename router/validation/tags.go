@@ -1,4 +1,4 @@
-package router
+package validation
 
 import (
 	"fmt"
@@ -30,26 +30,6 @@ var (
 	// This avoids linear search when resolving paths
 	fieldMapCache sync.Map // map[reflect.Type]map[string]int
 )
-
-// Performance Characteristics:
-//
-// Tag validation has O(n) complexity where n is the number of fields to validate.
-//
-// Optimizations:
-//   - Field path resolution is cached per struct type (getFieldMap)
-//   - Namespace-to-JSON-path conversion is cached per type (getCachedJSONPath)
-//   - Partial validation only validates leaf fields that are present
-//   - Configurable max fields limit prevents DoS (WithMaxFields)
-//
-// Memory usage:
-//   - Path cache: ~100 bytes per unique struct type + ~50 bytes per namespace
-//   - Field map cache: ~24 bytes per struct field
-//   - Validator instance: ~1KB (shared, lazy initialized)
-//
-// Thread safety:
-//   - initTagValidator uses sync.Once for safe initialization
-//   - RegisterTag must be called before first validation (frozen after use)
-//   - All caches use sync.Map for concurrent access
 
 // initTagValidator initializes the tag validator (private, lazy).
 // This function uses sync.Once to ensure thread-safe, single initialization.
@@ -87,7 +67,7 @@ func initTagValidator() {
 //
 // Example:
 //
-//	router.RegisterTag("custom_tag", func(fl validator.FieldLevel) bool {
+//	validation.RegisterTag("custom_tag", func(fl validator.FieldLevel) bool {
 //	    return fl.Field().String() == "valid"
 //	})
 func RegisterTag(name string, fn validator.Func) error {
@@ -127,7 +107,7 @@ func registerBuiltinValidators(v *validator.Validate) error {
 }
 
 // validateWithTags validates using go-playground/validator struct tags.
-func validateWithTags(v any, config *validationConfig) error {
+func validateWithTags(v any, cfg *config) *Error {
 	initTagValidator()
 
 	rv := reflect.ValueOf(v)
@@ -143,8 +123,8 @@ func validateWithTags(v any, config *validationConfig) error {
 	}
 
 	// Partial mode: validate only leaf fields that are present
-	if config.partial && config.presence != nil {
-		return validatePartialLeafsOnly(v, config)
+	if cfg.partial && cfg.presence != nil {
+		return validatePartialLeafsOnly(v, cfg)
 	}
 
 	// Full validation
@@ -154,30 +134,30 @@ func validateWithTags(v any, config *validationConfig) error {
 	}
 
 	if validationErrs, ok := err.(validator.ValidationErrors); ok {
-		return formatTagErrors(validationErrs, v, config)
+		return formatTagErrors(validationErrs, v, cfg)
 	}
 
-	return err
+	return &Error{Fields: []FieldError{{Code: "tag_error", Message: err.Error()}}}
 }
 
 // validatePartialLeafsOnly validates only leaf fields present in request.
 // This avoids enforcing "required" on nested fields that weren't provided.
-func validatePartialLeafsOnly(v any, config *validationConfig) error {
-	leaves := config.presence.LeafPaths()
+func validatePartialLeafsOnly(v any, cfg *config) *Error {
+	leaves := cfg.presence.LeafPaths()
 	if len(leaves) == 0 {
 		return nil
 	}
 
 	// Sanity cap to prevent pathological inputs
 	maxLeaves := 10000 // default
-	if config.maxFields > 0 {
-		maxLeaves = config.maxFields
+	if cfg.maxFields > 0 {
+		maxLeaves = cfg.maxFields
 	}
 	if len(leaves) > maxLeaves {
 		leaves = leaves[:maxLeaves]
 	}
 
-	var result ValidationErrors
+	var result Error
 	structType := reflect.TypeOf(v)
 	for structType.Kind() == reflect.Ptr {
 		structType = structType.Elem()
@@ -206,7 +186,7 @@ func validatePartialLeafsOnly(v any, config *validationConfig) error {
 
 					// Redact if needed
 					value := fmt.Sprint(e.Value())
-					if config.redactor != nil && config.redactor(path) {
+					if cfg.redactor != nil && cfg.redactor(path) {
 						value = "***REDACTED***"
 						msg = strings.ReplaceAll(msg, fmt.Sprint(e.Value()), "***REDACTED***")
 					}
@@ -223,7 +203,7 @@ func validatePartialLeafsOnly(v any, config *validationConfig) error {
 		}
 
 		// Check max errors
-		if config.maxErrors > 0 && len(result.Errors) >= config.maxErrors {
+		if cfg.maxErrors > 0 && len(result.Fields) >= cfg.maxErrors {
 			result.Truncated = true
 			break
 		}
@@ -231,7 +211,7 @@ func validatePartialLeafsOnly(v any, config *validationConfig) error {
 
 	if result.HasErrors() {
 		result.Sort()
-		return result
+		return &result
 	}
 	return nil
 }
@@ -325,8 +305,8 @@ func getFieldMap(structType reflect.Type) map[string]int {
 }
 
 // formatTagErrors formats validator errors with stable codes and cached path resolution.
-func formatTagErrors(errs validator.ValidationErrors, structValue any, config *validationConfig) ValidationErrors {
-	var result ValidationErrors
+func formatTagErrors(errs validator.ValidationErrors, structValue any, cfg *config) *Error {
+	var result Error
 	structType := reflect.TypeOf(structValue)
 	for structType.Kind() == reflect.Ptr {
 		structType = structType.Elem()
@@ -344,8 +324,8 @@ func formatTagErrors(errs validator.ValidationErrors, structValue any, config *v
 		// Get or compute JSON path (cached)
 		path := getCachedJSONPath(ns, structType)
 
-		if config.fieldNameMapper != nil {
-			path = config.fieldNameMapper(path)
+		if cfg.fieldNameMapper != nil {
+			path = cfg.fieldNameMapper(path)
 		}
 
 		// Stable code
@@ -354,7 +334,7 @@ func formatTagErrors(errs validator.ValidationErrors, structValue any, config *v
 
 		// Redact
 		value := fmt.Sprint(e.Value())
-		if config.redactor != nil && config.redactor(path) {
+		if cfg.redactor != nil && cfg.redactor(path) {
 			value = "***REDACTED***"
 			msg = strings.ReplaceAll(msg, fmt.Sprint(e.Value()), "***REDACTED***")
 		}
@@ -365,14 +345,14 @@ func formatTagErrors(errs validator.ValidationErrors, structValue any, config *v
 			"value": value,
 		})
 
-		if config.maxErrors > 0 && len(result.Errors) >= config.maxErrors {
+		if cfg.maxErrors > 0 && len(result.Fields) >= cfg.maxErrors {
 			result.Truncated = true
 			break
 		}
 	}
 
 	result.Sort()
-	return result
+	return &result
 }
 
 // getCachedJSONPath gets or computes JSON path with caching.

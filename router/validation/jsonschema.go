@@ -1,7 +1,6 @@
-package router
+package validation
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -25,45 +24,24 @@ var (
 	schemaCacheMu sync.RWMutex
 )
 
-// Performance Characteristics:
-//
-// JSON Schema validation has O(n) complexity where n is the data size.
-//
-// Optimizations:
-//   - Compiled schemas are cached with LRU eviction (getOrCompileSchema)
-//   - Raw JSON from context is reused when available (avoids re-marshaling)
-//   - Partial validation prunes non-present fields before validation
-//   - Configurable cache size prevents unbounded memory growth
-//   - Uses santhosh-tekuri/jsonschema/v6 for fast, spec-compliant validation
-//
-// Memory usage:
-//   - Schema cache: ~2-10KB per compiled schema (varies by complexity)
-//   - Default max cache: 1024 schemas (~2-10MB)
-//   - LRU eviction runs when cache is full (O(n) scan, acceptable for n=1024)
-//
-// Thread safety:
-//   - Schema cache uses RWMutex for concurrent access
-//   - Read-heavy workloads benefit from shared read locks
-//   - LRU update is best-effort (doesn't block readers)
-
 // validateWithSchema validates using JSON Schema.
-func validateWithSchema(v any, config *validationConfig) error {
-	schemaID, schemaJSON := getSchemaForValue(v, config)
+func validateWithSchema(v any, cfg *config) *Error {
+	schemaID, schemaJSON := getSchemaForValue(v, cfg)
 	if schemaJSON == "" {
 		return nil
 	}
 
-	maxCached := config.maxCachedSchemas
+	maxCached := cfg.maxCachedSchemas
 	schema, err := getOrCompileSchema(schemaID, schemaJSON, maxCached)
 	if err != nil {
-		return fmt.Errorf("invalid JSON schema: %w", err)
+		return &Error{Fields: []FieldError{{Code: "schema_compile_error", Message: err.Error()}}}
 	}
 
 	var jsonBytes []byte
 
 	// Optimization: use raw JSON from context if available and not partial
-	if !config.partial {
-		if rawJSON := getRawJSONFromContext(config.ctx); rawJSON != nil {
+	if !cfg.partial {
+		if rawJSON, ok := ExtractRawJSONCtx(cfg.ctx); ok && len(rawJSON) > 0 {
 			jsonBytes = rawJSON
 		}
 	}
@@ -73,49 +51,36 @@ func validateWithSchema(v any, config *validationConfig) error {
 		var err error
 		jsonBytes, err = json.Marshal(v)
 		if err != nil {
-			return fmt.Errorf("failed to marshal: %w", err)
+			return &Error{Fields: []FieldError{{Code: "marshal_error", Message: err.Error()}}}
 		}
 	}
 
 	// Decode and prune for partial mode
 	var data any
-	if config.partial && config.presence != nil {
+	if cfg.partial && cfg.presence != nil {
 		if err := json.Unmarshal(jsonBytes, &data); err != nil {
-			return fmt.Errorf("failed to unmarshal: %w", err)
+			return &Error{Fields: []FieldError{{Code: "unmarshal_error", Message: err.Error()}}}
 		}
 
-		data = pruneByPresence(data, "", config.presence)
+		data = pruneByPresence(data, "", cfg.presence)
 		jsonBytes, _ = json.Marshal(data)
 	}
 
 	// Unmarshal data for validation
 	if data == nil {
 		if err := json.Unmarshal(jsonBytes, &data); err != nil {
-			return fmt.Errorf("failed to unmarshal for validation: %w", err)
+			return &Error{Fields: []FieldError{{Code: "unmarshal_error", Message: err.Error()}}}
 		}
 	}
 
 	// Validate
 	if err := schema.Validate(data); err != nil {
 		if verr, ok := err.(*jsonschema.ValidationError); ok {
-			return formatSchemaErrors(verr, config)
+			return formatSchemaErrors(verr, cfg)
 		}
-		return fmt.Errorf("schema validation error: %w", err)
+		return &Error{Fields: []FieldError{{Code: "schema_validation_error", Message: err.Error()}}}
 	}
 
-	return nil
-}
-
-// getRawJSONFromContext retrieves raw JSON body from context.
-func getRawJSONFromContext(ctx context.Context) []byte {
-	if ctx == nil {
-		return nil
-	}
-	if raw := ctx.Value(contextKeyRawJSON); raw != nil {
-		if b, ok := raw.([]byte); ok {
-			return b
-		}
-	}
 	return nil
 }
 
@@ -156,9 +121,9 @@ func pruneByPresence(data any, prefix string, pm PresenceMap) any {
 }
 
 // getSchemaForValue retrieves JSON Schema for a value.
-func getSchemaForValue(v any, config *validationConfig) (id, schema string) {
-	if config.customSchema != "" {
-		return config.customSchemaID, config.customSchema
+func getSchemaForValue(v any, cfg *config) (id, schema string) {
+	if cfg.customSchema != "" {
+		return cfg.customSchemaID, cfg.customSchema
 	}
 
 	if provider, ok := v.(JSONSchemaProvider); ok {
@@ -252,18 +217,18 @@ func getOrCompileSchema(id, schemaJSON string, maxCached int) (*jsonschema.Schem
 
 // formatSchemaErrors formats JSON Schema errors with stable codes.
 // The new library returns a structured ValidationError that we need to flatten.
-func formatSchemaErrors(verr *jsonschema.ValidationError, config *validationConfig) ValidationErrors {
-	var result ValidationErrors
+func formatSchemaErrors(verr *jsonschema.ValidationError, cfg *config) *Error {
+	var result Error
 
 	// Recursively collect all validation errors
-	collectSchemaErrors(verr, &result, config)
+	collectSchemaErrors(verr, &result, cfg)
 
 	result.Sort()
-	return result
+	return &result
 }
 
 // collectSchemaErrors recursively collects validation errors from the error tree.
-func collectSchemaErrors(verr *jsonschema.ValidationError, result *ValidationErrors, config *validationConfig) {
+func collectSchemaErrors(verr *jsonschema.ValidationError, result *Error, cfg *config) {
 	if verr == nil {
 		return
 	}
@@ -272,8 +237,8 @@ func collectSchemaErrors(verr *jsonschema.ValidationError, result *ValidationErr
 	field := strings.Join(verr.InstanceLocation, ".")
 	field = strings.TrimPrefix(field, ".")
 
-	if config.fieldNameMapper != nil && field != "" {
-		field = config.fieldNameMapper(field)
+	if cfg.fieldNameMapper != nil && field != "" {
+		field = cfg.fieldNameMapper(field)
 	}
 
 	// Extract error kind as code
@@ -291,7 +256,7 @@ func collectSchemaErrors(verr *jsonschema.ValidationError, result *ValidationErr
 			"schema_url": verr.SchemaURL,
 		})
 
-		if config.maxErrors > 0 && len(result.Errors) >= config.maxErrors {
+		if cfg.maxErrors > 0 && len(result.Fields) >= cfg.maxErrors {
 			result.Truncated = true
 			return
 		}
@@ -299,10 +264,10 @@ func collectSchemaErrors(verr *jsonschema.ValidationError, result *ValidationErr
 
 	// Recursively process nested errors
 	for _, cause := range verr.Causes {
-		if config.maxErrors > 0 && len(result.Errors) >= config.maxErrors {
+		if cfg.maxErrors > 0 && len(result.Fields) >= cfg.maxErrors {
 			result.Truncated = true
 			return
 		}
-		collectSchemaErrors(cause, result, config)
+		collectSchemaErrors(cause, result, cfg)
 	}
 }

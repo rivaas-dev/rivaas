@@ -1,8 +1,23 @@
-package router
+package validation
 
 import (
+	"context"
+	"errors"
 	"testing"
 )
+
+// benchUser implements Validator for benchmarks
+type benchUser struct {
+	Name  string
+	Email string
+}
+
+func (u *benchUser) Validate() error {
+	if u.Name == "" || u.Email == "" {
+		return errors.New("validation failed")
+	}
+	return nil
+}
 
 // BenchmarkValidate_Tags benchmarks tag-based validation
 func BenchmarkValidate_Tags(b *testing.B) {
@@ -18,22 +33,24 @@ func BenchmarkValidate_Tags(b *testing.B) {
 		Age:   25,
 	}
 
+	ctx := context.Background()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = Validate(user, WithStrategy(ValidationTags))
+		_ = Validate(ctx, user, WithStrategy(StrategyTags))
 	}
 }
 
 // BenchmarkValidate_Interface benchmarks interface-based validation
 func BenchmarkValidate_Interface(b *testing.B) {
-	user := &userWithValidator{
+	user := &benchUser{
 		Name:  "John",
 		Email: "john@example.com",
 	}
 
+	ctx := context.Background()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = Validate(user, WithStrategy(ValidationInterface))
+		_ = Validate(ctx, user, WithStrategy(StrategyInterface))
 	}
 }
 
@@ -58,9 +75,10 @@ func BenchmarkValidate_JSONSchema(b *testing.B) {
 		Email: "john@example.com",
 	}
 
+	ctx := context.Background()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = Validate(user, WithStrategy(ValidationJSONSchema), WithCustomSchema("bench-user", schema))
+		_ = Validate(ctx, user, WithStrategy(StrategyJSONSchema), WithCustomSchema("bench-user", schema))
 	}
 }
 
@@ -98,22 +116,24 @@ func BenchmarkValidate_Complex(b *testing.B) {
 		Total: 30.0,
 	}
 
+	ctx := context.Background()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = Validate(order, WithStrategy(ValidationTags))
+		_ = Validate(ctx, order, WithStrategy(StrategyTags))
 	}
 }
 
 // BenchmarkValidate_Auto benchmarks auto strategy selection
 func BenchmarkValidate_Auto(b *testing.B) {
-	user := &userWithValidator{
+	user := &benchUser{
 		Name:  "John",
 		Email: "john@example.com",
 	}
 
+	ctx := context.Background()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = Validate(user) // Auto strategy
+		_ = Validate(ctx, user) // Auto strategy
 	}
 }
 
@@ -134,9 +154,10 @@ func BenchmarkValidate_WithMaxErrors(b *testing.B) {
 
 	user := &User{} // All fields missing
 
+	ctx := context.Background()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = Validate(user, WithStrategy(ValidationTags), WithMaxErrors(5))
+		_ = Validate(ctx, user, WithStrategy(StrategyTags), WithMaxErrors(5))
 	}
 }
 
@@ -152,10 +173,11 @@ func BenchmarkValidate_Concurrent(b *testing.B) {
 		Email: "john@example.com",
 	}
 
+	ctx := context.Background()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = Validate(user, WithStrategy(ValidationTags))
+			_ = Validate(ctx, user, WithStrategy(StrategyTags))
 		}
 	})
 }
@@ -173,8 +195,9 @@ func BenchmarkValidate_Partial(b *testing.B) {
 		"name": true,
 	}
 
+	ctx := context.Background()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = Validate(user, WithStrategy(ValidationTags), WithPartial(true), WithPresence(pm))
+		_ = ValidatePartial(ctx, user, pm, WithStrategy(StrategyTags))
 	}
 }
