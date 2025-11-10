@@ -5,19 +5,7 @@ import "errors"
 // Static errors for better error handling and testing.
 // These errors should be wrapped with fmt.Errorf and %w when context is needed.
 var (
-	// Binding errors
-	ErrUnsupportedContentType  = errors.New("unsupported content type")
-	ErrRequestBodyNil          = errors.New("request body is nil")
-	ErrOutMustBePointer        = errors.New("out must be a pointer to struct")
-	ErrOutPointerNil           = errors.New("out pointer is nil")
-	ErrInvalidIPAddress        = errors.New("invalid IP address")
-	ErrUnsupportedType         = errors.New("unsupported type")
-	ErrInvalidBooleanValue     = errors.New("invalid boolean value")
-	ErrEmptyTimeValue          = errors.New("empty time value")
-	ErrUnableToParseTime       = errors.New("unable to parse time")
-	ErrOnlyMapStringTSupported = errors.New("only map[string]T is supported")
-	ErrInvalidBracketNotation  = errors.New("invalid bracket notation in key")
-	ErrValueNotInAllowedValues = errors.New("value not in allowed values")
+	// Binding errors are now in rivaas.dev/router/binding package
 
 	// Context errors
 	ErrContextReleased       = errors.New("context has been released - cannot write response")
