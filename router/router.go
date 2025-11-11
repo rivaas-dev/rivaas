@@ -214,6 +214,12 @@ type Router struct {
 
 	// Problem Details base URL for RFC 9457 type URIs
 	problemBase string // Base URL for problem type resolution (e.g., "https://docs.rivaas.dev/problems")
+
+	// Route freezing and naming
+	frozen             atomic.Bool       // Routes are frozen (immutable) after freeze
+	namedRoutes        map[string]*Route // name -> route mapping
+	routeSnapshot      []Route           // Immutable snapshot built at freeze time
+	routeSnapshotMutex sync.RWMutex      // Protects routeSnapshot
 }
 
 // serverTimeouts holds HTTP server timeout configuration.
@@ -265,6 +271,7 @@ func New(opts ...Option) *Router {
 		bloomHashFunctions: defaultBloomHashFunctions,
 		checkCancellation:  true, // Enable cancellation checks by default
 		useTemplates:       true, // Enable template-based routing by default
+		namedRoutes:        make(map[string]*Route),
 	}
 
 	// Initialize the atomic route tree with an empty map

@@ -1,7 +1,7 @@
 package router
 
 // Standard problem type slugs.
-// Configure base URL via router.WithProblemBaseURL() or app.WithProblemBaseURL().
+// Configure base URL via router.WithProblemBaseURL().
 // Use with c.ProblemType(slug) to resolve to full URI.
 const (
 	PTBlank                = "about:blank"

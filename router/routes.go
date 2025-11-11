@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -29,6 +30,13 @@ type Route struct {
 	handlers    []HandlerFunc
 	constraints []RouteConstraint
 	finalized   bool // Prevents duplicate route registration
+
+	// Route metadata (immutable after registration)
+	name        string         // Human-readable name for reverse routing
+	description string         // Optional description
+	tags        []string       // Optional tags for categorization
+	template    *routeTemplate // Compiled template for reverse routing
+	group       *Group         // Reference to group for name prefixing
 }
 
 // RouteInfo contains comprehensive information about a registered route for introspection.
@@ -204,6 +212,10 @@ func (r *Router) HEAD(path string, handlers ...HandlerFunc) *Route {
 // Returns a Route object that can be used to add constraints and metadata.
 // This method is now lock-free and uses atomic operations for thread safety.
 func (r *Router) addRouteWithConstraints(method, path string, handlers []HandlerFunc) *Route {
+	// Check if router is frozen
+	if r.frozen.Load() {
+		panic("cannot register routes after router is frozen (call Freeze() before serving)")
+	}
 	// Analyze route for introspection
 	handlerName := "anonymous"
 	if len(handlers) > 0 {
@@ -442,6 +454,103 @@ func (route *Route) WhereUUID(param string) *Route {
 	return route.Where(param, `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 }
 
+// routeTemplate represents a compiled route pattern for efficient reverse routing.
+// It stores the positions of parameters to avoid string replacements and allocations.
+type routeTemplate struct {
+	segments []routeSegment
+}
+
+type routeSegment struct {
+	static bool   // true if static text, false if parameter
+	value  string // static text or parameter name
+}
+
+// SetName assigns a human-readable name to the route for reverse routing and introspection.
+// Names must be globally unique. Panics if the router is frozen or if the name is already taken.
+// Returns the route for method chaining.
+//
+// Example:
+//
+//	r.GET("/users/:id", getUserHandler).SetName("users.get")
+//	r.POST("/users", createUserHandler).SetName("users.create")
+func (route *Route) SetName(name string) *Route {
+	if route.router.frozen.Load() {
+		panic("cannot name routes after router is frozen")
+	}
+
+	// Auto-prefix with group name if in a group
+	if route.group != nil && route.group.namePrefix != "" {
+		name = route.group.namePrefix + name
+	}
+
+	// Check for duplicate names
+	route.router.routeTree.routesMutex.Lock()
+	if existing, ok := route.router.namedRoutes[name]; ok {
+		route.router.routeTree.routesMutex.Unlock()
+		panic(fmt.Sprintf("duplicate route name: %s (existing: %s %s, new: %s %s)",
+			name, existing.method, existing.path, route.method, route.path))
+	}
+	route.name = name
+	route.router.namedRoutes[name] = route
+	route.router.routeTree.routesMutex.Unlock()
+
+	return route
+}
+
+// SetDescription sets an optional description for the route.
+// Useful for API documentation generation.
+// Returns the route for method chaining.
+//
+// Example:
+//
+//	r.GET("/users/:id", getUserHandler).
+//	    SetName("users.get").
+//	    SetDescription("Retrieve a user by ID")
+func (route *Route) SetDescription(desc string) *Route {
+	route.description = desc
+	return route
+}
+
+// SetTags adds categorization tags to the route.
+// Useful for grouping routes in documentation and filtering.
+// Returns the route for method chaining.
+//
+// Example:
+//
+//	r.GET("/users/:id", getUserHandler).
+//	    SetName("users.get").
+//	    SetTags("users", "public", "read")
+func (route *Route) SetTags(tags ...string) *Route {
+	route.tags = append(route.tags, tags...)
+	return route
+}
+
+// Method returns the HTTP method for this route.
+func (route *Route) Method() string {
+	return route.method
+}
+
+// Path returns the route path pattern.
+func (route *Route) Path() string {
+	return route.path
+}
+
+// Name returns the route name (empty if not named).
+// This follows Go naming conventions: getters don't use a Get prefix.
+func (route *Route) Name() string {
+	return route.name
+}
+
+// Description returns the route description (empty if not set).
+func (route *Route) Description() string {
+	return route.description
+}
+
+// Tags returns the route tags.
+func (route *Route) Tags() []string {
+	return route.tags
+}
+
 // getHandlerName extracts the function name from a HandlerFunc using reflection.
 // This is used for route introspection and has zero performance impact on routing.
 func getHandlerName(handler HandlerFunc) string {
@@ -478,4 +587,191 @@ func getHandlerName(handler HandlerFunc) string {
 
 	// Add file location for better debugging
 	return fmt.Sprintf("%s (%s:%d)", fullName, fileName, line)
+}
+
+// parseRouteTemplate parses a route path into segments for efficient reverse routing.
+// Example: "/users/:id/posts/:postId" -> [{static:"users"}, {param:"id"}, {static:"posts"}, {param:"postId"}]
+func parseRouteTemplate(path string) *routeTemplate {
+	segments := make([]routeSegment, 0)
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		if strings.HasPrefix(part, ":") {
+			// Parameter
+			segments = append(segments, routeSegment{
+				static: false,
+				value:  part[1:], // Remove ":"
+			})
+		} else {
+			// Static text
+			segments = append(segments, routeSegment{
+				static: true,
+				value:  part,
+			})
+		}
+	}
+
+	return &routeTemplate{segments: segments}
+}
+
+// Frozen returns true if the router has been frozen (routes are immutable).
+func (r *Router) Frozen() bool {
+	return r.frozen.Load()
+}
+
+// Freeze freezes the router, making all routes immutable.
+// After freezing, no new routes can be registered and route names cannot be changed.
+// This enables lock-free route introspection and precompiles route templates.
+func (r *Router) Freeze() {
+	if r.frozen.CompareAndSwap(false, true) {
+		// Compile all route templates
+		r.routeTree.routesMutex.Lock()
+		for _, route := range r.namedRoutes {
+			if route.template == nil {
+				route.template = parseRouteTemplate(route.path)
+			}
+		}
+
+		// Build immutable snapshot
+		routes := make([]Route, 0, len(r.namedRoutes))
+		for _, route := range r.namedRoutes {
+			// Create a copy (immutable)
+			routeCopy := *route
+			routes = append(routes, routeCopy)
+		}
+
+		r.routeSnapshotMutex.Lock()
+		r.routeSnapshot = routes
+		r.routeSnapshotMutex.Unlock()
+
+		r.routeTree.routesMutex.Unlock()
+
+		// Compile routes for performance
+		r.CompileAllRoutes()
+	}
+}
+
+// GetRoute retrieves a route by name. Returns the route and true if found, or empty route and false.
+// Panics if the router is not frozen.
+//
+// Example:
+//
+//	route, ok := r.GetRoute("users.get")
+//	if ok {
+//	    fmt.Printf("Route: %s %s\n", route.Method(), route.Path())
+//	}
+func (r *Router) GetRoute(name string) (Route, bool) {
+	if !r.frozen.Load() {
+		panic("routes not frozen yet; call Freeze() before accessing routes")
+	}
+
+	r.routeTree.routesMutex.RLock()
+	route, ok := r.namedRoutes[name]
+	r.routeTree.routesMutex.RUnlock()
+
+	if !ok {
+		return Route{}, false
+	}
+
+	// Return a copy (immutable)
+	return *route, true
+}
+
+// GetRoutes returns an immutable snapshot of all named routes.
+// Panics if the router is not frozen.
+//
+// Example:
+//
+//	routes := r.GetRoutes()
+//	for _, route := range routes {
+//	    fmt.Printf("%s: %s %s\n", route.Name(), route.Method(), route.Path())
+//	}
+func (r *Router) GetRoutes() []Route {
+	if !r.frozen.Load() {
+		panic("routes not frozen yet; call Freeze() before accessing routes")
+	}
+
+	r.routeSnapshotMutex.RLock()
+	defer r.routeSnapshotMutex.RUnlock()
+
+	// Return a copy of the snapshot
+	result := make([]Route, len(r.routeSnapshot))
+	copy(result, r.routeSnapshot)
+	return result
+}
+
+// URLFor generates a URL from a route name and parameters.
+// Returns an error if the route is not found or if required parameters are missing.
+//
+// Example:
+//
+//	url, err := router.URLFor("users.get", map[string]string{"id": "123"}, nil)
+//	// Returns: "/users/123", nil
+//
+//	url, err := router.URLFor("users.get", map[string]string{"id": "123"},
+//	    url.Values{"include": []string{"posts"}})
+//	// Returns: "/users/123?include=posts", nil
+func (r *Router) URLFor(routeName string, params map[string]string, query url.Values) (string, error) {
+	if !r.frozen.Load() {
+		return "", fmt.Errorf("routes not frozen yet")
+	}
+
+	r.routeTree.routesMutex.RLock()
+	route, ok := r.namedRoutes[routeName]
+	r.routeTree.routesMutex.RUnlock()
+
+	if !ok {
+		return "", fmt.Errorf("route not found: %s", routeName)
+	}
+
+	// Compile template if not already compiled
+	if route.template == nil {
+		route.template = parseRouteTemplate(route.path)
+	}
+
+	// Build URL using template (zero-alloc for small param counts)
+	var buf strings.Builder
+	buf.WriteByte('/')
+
+	for i, seg := range route.template.segments {
+		if i > 0 {
+			buf.WriteByte('/')
+		}
+
+		if seg.static {
+			buf.WriteString(seg.value)
+		} else {
+			val, ok := params[seg.value]
+			if !ok {
+				return "", fmt.Errorf("missing required parameter: %s", seg.value)
+			}
+			buf.WriteString(url.PathEscape(val))
+		}
+	}
+
+	// Add query string if provided
+	if len(query) > 0 {
+		buf.WriteByte('?')
+		buf.WriteString(query.Encode())
+	}
+
+	return buf.String(), nil
+}
+
+// MustURLFor generates a URL from a route name and parameters, panicking on error.
+// Use this when you're certain the route exists and all parameters are provided.
+//
+// Example:
+//
+//	url := router.MustURLFor("users.get", map[string]string{"id": "123"}, nil)
+//	// Returns: "/users/123"
+func (r *Router) MustURLFor(routeName string, params map[string]string, query url.Values) string {
+	url, err := r.URLFor(routeName, params, query)
+	if err != nil {
+		panic(fmt.Sprintf("MustURLFor failed: %v", err))
+	}
+	return url
 }

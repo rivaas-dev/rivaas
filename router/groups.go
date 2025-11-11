@@ -21,6 +21,7 @@ type Group struct {
 	router     *Router       // Reference to the parent router
 	prefix     string        // Path prefix for all routes in this group
 	middleware []HandlerFunc // Group-specific middleware
+	namePrefix string        // Name prefix for all routes in this group (e.g., "api.v1.")
 }
 
 // Use adds middleware to the group that will be executed for all routes in this group.
@@ -34,6 +35,20 @@ type Group struct {
 //	api.GET("/users", getUsersHandler) // Will execute auth + logging + handler
 func (g *Group) Use(middleware ...HandlerFunc) {
 	g.middleware = append(g.middleware, middleware...)
+}
+
+// SetNamePrefix sets a prefix for all route names in this group.
+// This helps organize route names hierarchically and prevents collisions.
+// Returns the group for method chaining.
+//
+// Example:
+//
+//	api := r.Group("/api/v1").SetNamePrefix("api.v1.")
+//	api.GET("/users", handler).SetName("users.list")
+//	// Full route name becomes: "api.v1.users.list"
+func (g *Group) SetNamePrefix(prefix string) *Group {
+	g.namePrefix = prefix
+	return g
 }
 
 // Group creates a nested route group under the current group.
@@ -139,5 +154,8 @@ func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *Route {
 	allHandlers = append(allHandlers, g.middleware...)
 	allHandlers = append(allHandlers, handlers...)
 
-	return g.router.addRouteWithConstraints(method, fullPath, allHandlers)
+	route := g.router.addRouteWithConstraints(method, fullPath, allHandlers)
+	// Set group reference for name prefixing
+	route.group = g
+	return route
 }
