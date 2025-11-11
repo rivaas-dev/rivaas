@@ -43,7 +43,9 @@ func (h *Handler) GET(ctx *goskell.Context) {
 			Str("customerID", request.Path.CustomerID).
 			Str("accountID", request.Path.AccountID).
 			Msg("pricing plan not found for account")
-		goskell.JsonAPIError(ctx, "subscription information unavailable", err, http.StatusUnprocessableEntity)
+		goskell.JsonAPIError(ctx, "subscription information unavailable",
+			errors.New("subscription plan is not properly configured"),
+			http.StatusUnprocessableEntity)
 		return
 	}
 	if err != nil {

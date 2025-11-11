@@ -191,7 +191,13 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 	if errors.Is(err, customers.ErrPricingPlanNotFound) {
-		goskell.JsonAPIError(ctx, "API key creation failed", err, http.StatusUnprocessableEntity)
+		log.Error().Err(err).
+			Str("customerID", request.Body.Attributes.CustomerID).
+			Str("accountID", request.Body.Attributes.AccountID).
+			Msg("pricing plan not found for account")
+		goskell.JsonAPIError(ctx, "API key creation failed",
+			errors.New("subscription plan is not properly configured"),
+			http.StatusUnprocessableEntity)
 		return
 	}
 	if err != nil {
@@ -212,7 +218,13 @@ func (h *Handler) POST(ctx *goskell.Context) {
 
 	workflowRequest, err := h.postRequestToWorkflowInput(ctx, &request)
 	if errors.Is(err, customers.ErrPricingPlanNotFound) {
-		goskell.JsonAPIError(ctx, "API key creation failed", err, http.StatusUnprocessableEntity)
+		log.Error().Err(err).
+			Str("customerID", request.Body.Attributes.CustomerID).
+			Str("accountID", request.Body.Attributes.AccountID).
+			Msg("pricing plan not found for account")
+		goskell.JsonAPIError(ctx, "API key creation failed",
+			errors.New("subscription plan is not properly configured"),
+			http.StatusUnprocessableEntity)
 		return
 	}
 	if err != nil {
