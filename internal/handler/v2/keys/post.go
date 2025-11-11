@@ -79,10 +79,6 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 			}
 		}
 	}
-	// if not specified in the request, set prod as default environment
-	if i.Body.Attributes.Environment == "" {
-		i.Body.Attributes.Environment = apikey.ProdEnv
-	}
 	// validates if an environment is set to a valid environment
 	if !validation.ValidateEnvironment(i.Body.Attributes.Environment) {
 		return errors.New("environment should be either 'production' or 'sandbox'")
@@ -194,6 +190,10 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		goskell.JsonAPIError(ctx, "API key creation failed", ErrNoValidAPIPlan, http.StatusUnprocessableEntity)
 		return
 	}
+	if errors.Is(err, customers.ErrPricingPlanNotFound) {
+		goskell.JsonAPIError(ctx, "API key creation failed", err, http.StatusUnprocessableEntity)
+		return
+	}
 	if err != nil {
 		goskell.JsonAPIError(ctx, "getting an account", err, http.StatusBadRequest)
 		return
@@ -210,7 +210,11 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
-	workflowRequest, err := h.postRequestToWorkflowInput(&request)
+	workflowRequest, err := h.postRequestToWorkflowInput(ctx, &request)
+	if errors.Is(err, customers.ErrPricingPlanNotFound) {
+		goskell.JsonAPIError(ctx, "API key creation failed", err, http.StatusUnprocessableEntity)
+		return
+	}
 	if err != nil {
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusBadRequest), err, http.StatusBadRequest)
 		return
@@ -259,8 +263,23 @@ func (h *Handler) POSTWorker(ctx *goskell.Context, request WorkflowPostInput) (*
 }
 
 // requestToWorkflowInput converts request body into workflow's input.
-func (h *Handler) postRequestToWorkflowInput(request *PostInput) (WorkflowPostInput, error) {
+func (h *Handler) postRequestToWorkflowInput(ctx context.Context, request *PostInput) (WorkflowPostInput, error) {
 	var err error
+
+	// Get pricing plan ID from account extended info
+	accountExt, err := h.customerService.GetAccountExtended(ctx, request.Body.Attributes.CustomerID, request.Body.Attributes.AccountID)
+	if err != nil {
+		return WorkflowPostInput{}, err
+	}
+
+	quotaPolicyName, err := h.customerService.GetPricingPlanQuotaPolicyName(accountExt.Subscription.PricingPlanID)
+	if errors.Is(err, customers.ErrPricingPlanNotFound) {
+		return WorkflowPostInput{}, err
+	}
+	if err != nil {
+		return WorkflowPostInput{}, err
+	}
+
 	wInput := WorkflowPostInput{
 		Name:        request.Body.Attributes.Name,
 		CustomerID:  &request.Body.Attributes.CustomerID,
@@ -270,8 +289,7 @@ func (h *Handler) postRequestToWorkflowInput(request *PostInput) (WorkflowPostIn
 		Environment: request.Body.Attributes.Environment,
 		Labels:      request.Body.Attributes.Labels,
 
-		Policies:  h.apiKeyDefaults.Policies,
-		Quota:     int64(h.apiKeyDefaults.Quota), // FIXME placeholder before we implement quota based on the pricing plan
+		Policies:  append(h.apiKeyDefaults.Policies, quotaPolicyName),
 		ExpiresAt: nil,
 		RateLimit: apikey.RateLimit{}, // set to empty, no rate limit on key level
 	}
@@ -294,7 +312,7 @@ func (h *Handler) postRequestToWorkflowInput(request *PostInput) (WorkflowPostIn
 	return wInput, nil
 }
 
-// workflowOnputToResponse converts workflow response into API response.
+// workflowOutputToResponse converts workflow response into API response.
 func (h *Handler) workflowOutputToPostResponse(ctx context.Context, workflowOutput *WorkflowPostOutput) *PostOutput {
 	var labels map[string]string
 	if workflowOutput.Labels != nil {

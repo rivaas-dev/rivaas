@@ -1,14 +1,15 @@
 package accounts
 
 import (
+	"math"
+	"net/http"
+
 	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/pagination"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
-	"math"
-	"net/http"
 )
 
 type ListAccountsInput struct {
@@ -76,7 +77,7 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	goot.EndSpan(span)
 
 	// Parse the group data
-	parsedKeyCloakGroups, err := h.customerService.GroupsToAccount(group, subgroups)
+	parsedKeyCloakGroups, err := h.customerService.ListAccountsFromGroups(ctx.Request.Context(), group, subgroups)
 	if err != nil {
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return

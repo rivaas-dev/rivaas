@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
+	"os"
+
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
 	customerService "gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
@@ -27,9 +31,6 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/contrib/opentelemetry"
 	"go.temporal.io/sdk/interceptor"
-	"net/http"
-	"net/url"
-	"os"
 )
 
 const ProjectName = "admin_api"
@@ -195,31 +196,36 @@ func registerHandlers(
 	server.GET("/accounts", accountHandler.GET)
 	server.PUT("/accounts/:id", accountHandler.PUT)
 
-	// services for v2 handlers
-	customerSvc := customerService.New(dbClient, keyCloakClient, cfg.PricingPlans)
+	// group v2 endpoints
+	{
+		customerSvc := customerService.New(dbClient, keyCloakClient, cfg.PricingPlans)
+		keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig, customerSvc, cfg.APIKeyDefaults, cfg.Pagination)
 
-	// v2 endpoints - JSON:API compliant
-	keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig, customerSvc, cfg.APIKeyDefaults, cfg.Pagination)
-	server.POST("/v2/keys", keyV2Handler.POST)
-	server.GET("/v2/keys", keyV2Handler.LIST)
-	server.GET("/v2/keys/:id", keyV2Handler.GET)
-	server.PATCH("/v2/keys/:id", keyV2Handler.PATCH)
-	server.DELETE("/v2/keys/:id", keyV2Handler.DELETE)
+		v2 := server.GetRouter().Group("/v2")
+		// keys endpoints
+		v2.POST("/keys", keyV2Handler.POST)
+		v2.GET("/keys", keyV2Handler.LIST)
+		v2.GET("/keys/:id", keyV2Handler.GET)
+		v2.PATCH("/keys/:id", keyV2Handler.PATCH)
+		v2.DELETE("/keys/:id", keyV2Handler.DELETE)
 
-	policiesV2Handler := policiesV2.New(tykClient)
-	server.GET("/v2/policies", policiesV2Handler.LIST)
+		// policies endpoints
+		policiesV2Handler := policiesV2.New(tykClient)
+		v2.GET("/policies", policiesV2Handler.LIST)
 
-	customersV2Handler := customers.New(keyCloakClient, keyCloakConfig, omaClient, customerSvc, cfg.Pagination)
-	server.GET("/v2/customers", customersV2Handler.LIST)
-	server.GET("/v2/customers/:customerID", customersV2Handler.GET)
+		// customers endpoints
+		customersV2Handler := customers.New(keyCloakClient, keyCloakConfig, omaClient, customerSvc, cfg.Pagination)
+		v2.GET("/customers", customersV2Handler.LIST)
+		v2.GET("/customers/:customerID", customersV2Handler.GET)
 
-	accountsV2Handler := accountsV2.New(keyCloakClient, keyCloakConfig, solvimonClient, omaClient, customerSvc, cfg.Pagination, cfg.PricingPlans)
-	server.GET("/v2/customers/:customerID/accounts", accountsV2Handler.LIST)
-	server.GET("/v2/customers/:customerID/accounts/:accountID", accountsV2Handler.GET)
-	server.PUT("/v2/customers/:customerID/accounts/:accountID", accountsV2Handler.PUT)
+		// accounts endpoints
+		accountsV2Handler := accountsV2.New(keyCloakClient, keyCloakConfig, solvimonClient, omaClient, customerSvc, cfg.Pagination, cfg.PricingPlans)
+		v2.GET("/customers/:customerID/accounts", accountsV2Handler.LIST)
+		v2.GET("/customers/:customerID/accounts/:accountID", accountsV2Handler.GET)
+		v2.PUT("/customers/:customerID/accounts/:accountID", accountsV2Handler.PUT)
+	}
 }
 
-// {"level":"fatal","time":"2025-08-05T08:02:20Z","message":"Failed to load config: failed to read config: failed to get consul key: Unexpected response code: 400 (Missing key name)"}
 func loadConfig(ctx context.Context) (config.Config, error) {
 	var (
 		cfg        config.Config

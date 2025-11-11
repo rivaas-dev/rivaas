@@ -2,15 +2,12 @@ package customers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/companyinfo/jsonapi"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
-	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
-	"go.opentelemetry.io/otel/attribute"
 	"sort"
 	"strings"
+
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 )
 
 const (
@@ -20,54 +17,13 @@ const (
 
 var ErrInvalidGroup = errors.New("invalid group or sub group")
 
-type AccountExtended struct {
-	Account
-	Subscription Subscription `json:"subscription,omitempty" jsonapi:"attr,subscription,omitempty"`
-}
-
-// MarshalJSON helps marshal embedded struct as a part of Account JSONAPI object
-func (a *AccountExtended) MarshalJSON() ([]byte, error) {
-	payloaderAccount, err := jsonapi.Marshal(&a.Account)
-	if err != nil {
-		return nil, err
-	}
-
-	payloaderSubscription, err := jsonapi.Marshal(&a.Subscription)
-	if err != nil {
-		return nil, err
-	}
-
-	accountSerialized, ok := payloaderAccount.(*jsonapi.OnePayload)
-	if !ok {
-		return nil, errors.New("failed to assert jsonapi type")
-	}
-
-	subscriptionSerialized, ok := payloaderSubscription.(*jsonapi.OnePayload)
-	if !ok {
-		return nil, errors.New("failed to assert jsonapi type")
-	}
-
-	if len(subscriptionSerialized.Data.Attributes) > 0 {
-		accountSerialized.Data.Attributes["subscription"] = subscriptionSerialized.Data.Attributes
-	}
-	return json.Marshal(accountSerialized)
-}
-
-// Account is the base data element
-type Account struct {
-	ID                    string    `json:"id" jsonapi:"primary,accounts"`
-	Customers             *Customer `json:"customers" jsonapi:"relation,customers"`
-	Name                  string    `json:"name" jsonapi:"attr,name"`
-	AccountContactDetails []Contact `json:"contactDetails" jsonapi:"attr,contactDetails,omitempty"`
-}
-
 // KeycloakAccount is used to fetch all groups from Keycloak and later
 // parsed to Account / Customer json api structs for output
 type KeycloakAccount struct {
 	KeycloakAccountID            *string
-	KeycloakAccountSalesforceId  string
+	KeycloakAccountSalesforceID  string
 	KeycloakCustomerID           *string
-	KeycloakCustomerSalesforceId string
+	KeycloakCustomerSalesforceID string
 	CustomerName                 string
 	AccountName                  string
 	CustomerContactDetails       []Contact //customer level contacts
@@ -77,12 +33,12 @@ type KeycloakAccount struct {
 // GroupsToAccount looks at the first subgroup of the main and tries
 // to find groups that have attribute `type` = `api`. It only goes one level down
 // from the main group.
-func (s *Service) GroupsToAccount(group *keycloak.Group, subGroups []*keycloak.Group) ([]*Account, error) {
+func (s *Service) GroupsToAccount(group *keycloak.Group, subGroups []*keycloak.Group) ([]*AccountResource, error) {
 	sort.Slice(subGroups, func(i, j int) bool {
 		return *subGroups[i].Name < *subGroups[j].Name
 	})
 
-	var accounts []*Account
+	var accounts []*AccountResource
 	// iterate the main groups
 	for _, subGroup := range subGroups {
 		// Iterate subgroup
@@ -103,25 +59,26 @@ func (s *Service) GroupsToAccount(group *keycloak.Group, subGroups []*keycloak.G
 	return accounts, nil
 }
 
-func (s *Service) GroupToAccount(group, subGroup *keycloak.Group) (*Account, error) {
+// GroupToAccount converts a Keycloak group to an AccountResource
+func (s *Service) GroupToAccount(group, subGroup *keycloak.Group) (*AccountResource, error) {
 	// validate
-	if !isGroupValid(group) || !isGroupValid(subGroup) || !isApiAccount(*subGroup) {
+	if !isGroupValid(group) || !isGroupValid(subGroup) || !isAPIAccount(*subGroup) {
 		return nil, ErrInvalidGroup
 	}
 
 	// add an account
-	var account Account
+	var account AccountResource
 	account.ID = *subGroup.ID
 	account.Name = *subGroup.Name
 
-	account.AccountContactDetails = getCustomerContactDetails(*subGroup)
+	account.AccountContactDetails = extractContactDetails(*subGroup)
 
 	// Add relationship to api account -> customer
-	customer := Customer{}
+	customer := CustomerResource{}
 	customer.ID = *group.ID
 	customer.Name = *group.Name
-	customer.SalesforceID = getSalesforceId(*group)
-	customer.CustomerContactDetails = getCustomerContactDetails(*group)
+	customer.SalesforceID = extractSalesforceID(*group)
+	customer.CustomerContactDetails = extractContactDetails(*group)
 
 	// Add customer
 	account.Customers = &customer
@@ -129,11 +86,15 @@ func (s *Service) GroupToAccount(group, subGroup *keycloak.Group) (*Account, err
 	return &account, nil
 }
 
-// isApiAccount determines if the keycloak group is an api account
-func isApiAccount(group keycloak.Group) bool {
+// isAPIAccount determines if the keycloak group is an api account
+func isAPIAccount(group keycloak.Group) bool {
+	if group.Attributes == nil {
+		return false
+	}
+
 	attrMap := *group.Attributes
-	for key, value := range attrMap {
-		if strings.ToLower(key) == checkType && strings.ToLower(value[0]) == checkTypeValue {
+	for key, values := range attrMap {
+		if len(values) > 0 && strings.ToLower(key) == checkType && strings.ToLower(values[0]) == checkTypeValue {
 			return true
 		}
 	}
@@ -147,19 +108,19 @@ func (s *Service) GroupToAccountExtended(group, subGroup *keycloak.Group) (*Acco
 		return nil, err
 	}
 
-	accountExtended := &AccountExtended{Account: *account}
+	accountExtended := &AccountExtended{AccountResource: *account}
 
 	// Maximum and current number of API keys
 	pricingPlanIDs := (*subGroup.Attributes)[keycloak.PricingPlanIDAttributesKey]
 	if len(pricingPlanIDs) == 0 {
-		return nil, errors.New("no pricing plan found")
+		return nil, ErrPricingPlanNotFound
 	}
 
 	if len(pricingPlanIDs) > 1 {
 		return nil, fmt.Errorf("more than one pricing plan found: %d", len(pricingPlanIDs))
 	}
 
-	accountExtended.Subscription, err = s.GetSubscription(group, subGroup, pricingPlanIDs[0])
+	accountExtended.Subscription, err = s.GetSubscription(context.Background(), *group.ID, *subGroup.ID, pricingPlanIDs[0])
 	if err != nil {
 		return nil, err
 	}
@@ -167,35 +128,28 @@ func (s *Service) GroupToAccountExtended(group, subGroup *keycloak.Group) (*Acco
 	return accountExtended, nil
 }
 
-func (s *Service) GetAccountExtended(ctx context.Context, customerID, accountID string) (*AccountExtended, error) {
-	_, span := goot.Span(ctx, "get_group_from_keycloak",
-		attribute.String("customerID", customerID),
-	)
-	group, err := s.keycloakClient.GetGroupByID(ctx, customerID)
+// extractSalesforceID extracts Salesforce ID from Keycloak group attributes
+func extractSalesforceID(group keycloak.Group) string {
+	attr, err := keycloak.ToGroupAttributes(*group.Attributes)
 	if err != nil {
-		goot.EndSpanWithError(span, err, "failed to retrieve keycloak group")
-		return nil, err
+		return ""
 	}
-	goot.EndSpan(span)
+	return attr.SalesforceID
+}
 
-	_, span = goot.Span(ctx, "get_subgroup_from_keycloak",
-		attribute.String("accountID", accountID),
-	)
-	subgroup, err := s.keycloakClient.GetSubGroupByID(*group, accountID)
+// extractContactDetails extracts contact details from Keycloak group attributes
+func extractContactDetails(group keycloak.Group) []Contact {
+	var contacts []Contact
+	customer, err := keycloak.ToSubGroupAttributes(*group.Attributes)
 	if err != nil {
-		goot.EndSpanWithError(span, err, "failed to retrieve keycloak subgroup")
-		return nil, err
+		return contacts
 	}
-	goot.EndSpan(span)
 
-	//Parse the group data
-	_, span = goot.Span(ctx, "group_to_account")
-	account, err := s.GroupToAccountExtended(group, subgroup)
-	if err != nil {
-		goot.EndSpanWithError(span, err, "failed to convert groups to customer")
-		return nil, err
+	for contactID, contact := range customer.ContactDetails {
+		contacts = append(contacts, Contact{
+			ID:      contactID,
+			Contact: contact,
+		})
 	}
-	goot.EndSpan(span)
-
-	return account, nil
+	return contacts
 }
