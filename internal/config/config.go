@@ -80,5 +80,4 @@ type Pagination struct {
 
 type APIKeyDefaults struct {
 	Policies []string
-	Quota    int
 }

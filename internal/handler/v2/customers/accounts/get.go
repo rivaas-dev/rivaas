@@ -2,10 +2,13 @@ package accounts
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
+
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
-	"net/http"
 )
 
 type GetInput struct {
@@ -35,6 +38,14 @@ func (h *Handler) GET(ctx *goskell.Context) {
 
 	// Get and parse the group data, the spans are created inside the GetAccountExtended function
 	account, err := h.customerService.GetAccountExtended(ctx.Request.Context(), request.Path.CustomerID, request.Path.AccountID)
+	if errors.Is(err, customers.ErrPricingPlanNotFound) {
+		log.Error().Err(err).
+			Str("customerID", request.Path.CustomerID).
+			Str("accountID", request.Path.AccountID).
+			Msg("pricing plan not found for account")
+		goskell.JsonAPIError(ctx, "subscription information unavailable", err, http.StatusUnprocessableEntity)
+		return
+	}
 	if err != nil {
 		log.Error().Err(err).
 			Str("customerID", request.Path.CustomerID).

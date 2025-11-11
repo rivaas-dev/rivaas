@@ -221,7 +221,6 @@ func (h *Handler) postRequestToWorkflowInput(request *PostInput) (WorkflowPostIn
 		AccountID:   &request.AccountID,
 		Policies:    policies.FilterString(request.Policies),
 		ExpiresAt:   request.ExpiresAt,
-		Quota:       request.Quota,
 		Description: request.Description,
 		Active:      request.Active,
 		Environment: request.Environment,

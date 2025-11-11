@@ -1,11 +1,12 @@
 package customers
 
 import (
+	"net/http"
+
 	"github.com/companyinfo/jsonapi"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
-	"net/http"
 )
 
 type GetInput struct {
@@ -27,21 +28,18 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		return
 	}
 
-	// Fetch
-	_, span := goot.Span(ctx.Request.Context(), "get_from_keycloak")
-	group, err := h.keycloakClient.GetGroupByID(ctx, request.Path.CustomerID)
+	// Get customer using the new service method
+	_, span := goot.Span(ctx.Request.Context(), "get_customer")
+	customer, err := h.customerService.GetCustomer(ctx.Request.Context(), request.Path.CustomerID)
 	if err != nil {
-		goot.EndSpanWithError(span, err, "failed to call keycloak")
+		goot.EndSpanWithError(span, err, "failed to get customer")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
 	}
 	goot.EndSpan(span)
 
-	// Parse the group data
-	parsedKeyCloakGroups := h.customerService.ParseCustomerGroup(group)
-
-	// Build response from groups
-	response, err := jsonapi.Marshal(parsedKeyCloakGroups)
+	// Build response from customer
+	response, err := jsonapi.Marshal(customer)
 	if err != nil {
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
