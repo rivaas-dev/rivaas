@@ -61,19 +61,18 @@ func main() {
 				router.WithValidVersions("v1", "v2"), // Optional: validate versions
 			),
 		),
+		// Configure logging - service name/version are automatically injected
 		app.WithLogging(
 			logging.WithConsoleHandler(),
 			logging.WithDebugLevel(),
 		),
-		// Configure metrics
+		// Configure metrics - service name/version are automatically injected
 		app.WithMetrics(
 			metrics.WithProvider(metricsProvider),
 			metrics.WithPort(metricsPort),
 		),
-		// Configure tracing
+		// Configure tracing - service name/version are automatically injected
 		app.WithTracing(
-			tracing.WithServiceName(serviceName),
-			tracing.WithServiceVersion(serviceVersion),
 			tracing.WithProvider(tracingProvider),
 			tracing.WithOTLPEndpoint(otlpEndpoint),
 			tracing.WithOTLPInsecure(environment != "production"),

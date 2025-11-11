@@ -2,24 +2,11 @@
 package app
 
 import (
-	"context"
 	"fmt"
-	"io"
-	"log"
-	"log/slog"
 	"net/http"
-	"os"
-	"os/signal"
-	"runtime"
-	"strings"
-	"syscall"
+	"net/url"
 	"time"
-	"unsafe"
 
-	"github.com/charmbracelet/colorprofile"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
-	"github.com/common-nighthawk/go-figure"
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
@@ -48,11 +35,13 @@ const (
 // App represents the high-level application framework.
 // It wraps the router with integrated observability and common middleware.
 type App struct {
-	router  *router.Router
-	metrics *metrics.Config
-	tracing *tracing.Config
-	logging *logging.Config
-	config  *config
+	router    *router.Router
+	metrics   *metrics.Config
+	tracing   *tracing.Config
+	logging   *logging.Config
+	config    *config
+	hooks     *Hooks
+	readiness *ReadinessManager
 }
 
 // config holds the internal application configuration.
@@ -71,26 +60,20 @@ type config struct {
 
 // metricsConfig holds metrics configuration.
 type metricsConfig struct {
-	enabled     bool
-	options     []metrics.Option
-	config      *metrics.Config // Pre-initialized config
-	usePrebuilt bool            // Whether to use prebuilt config
+	enabled bool
+	options []metrics.Option
 }
 
 // tracingConfig holds tracing configuration.
 type tracingConfig struct {
-	enabled     bool
-	options     []tracing.Option
-	config      *tracing.Config // Pre-initialized config
-	usePrebuilt bool            // Whether to use prebuilt config
+	enabled bool
+	options []tracing.Option
 }
 
 // loggingConfig holds logging configuration.
 type loggingConfig struct {
-	enabled     bool
-	options     []logging.Option
-	config      *logging.Config // Pre-initialized config
-	usePrebuilt bool            // Whether to use prebuilt config
+	enabled bool
+	options []logging.Option
 }
 
 // serverConfig holds server configuration.
@@ -216,235 +199,6 @@ type routerConfig struct {
 	options []router.Option
 }
 
-// Option defines functional options for app configuration.
-type Option func(*config)
-
-// WithServiceName sets the service name.
-func WithServiceName(name string) Option {
-	return func(c *config) {
-		c.serviceName = name
-	}
-}
-
-// WithServiceVersion sets the service version.
-func WithServiceVersion(version string) Option {
-	return func(c *config) {
-		c.serviceVersion = version
-	}
-}
-
-// WithEnvironment sets the environment (development/production).
-// Valid values: "development", "production"
-func WithEnvironment(env string) Option {
-	return func(c *config) {
-		c.environment = env
-	}
-}
-
-// WithMetrics enables metrics with the given options.
-func WithMetrics(opts ...metrics.Option) Option {
-	return func(c *config) {
-		c.metrics = &metricsConfig{
-			enabled: true,
-			options: opts,
-		}
-	}
-}
-
-// WithTracing enables tracing with the given options.
-func WithTracing(opts ...tracing.Option) Option {
-	return func(c *config) {
-		c.tracing = &tracingConfig{
-			enabled: true,
-			options: opts,
-		}
-	}
-}
-
-// WithLogging enables logging with the given options.
-func WithLogging(opts ...logging.Option) Option {
-	return func(c *config) {
-		c.logging = &loggingConfig{
-			enabled: true,
-			options: opts,
-		}
-	}
-}
-
-// ServerOption configures server settings.
-type ServerOption func(*serverConfig)
-
-// WithReadTimeout sets the server read timeout.
-func WithReadTimeout(d time.Duration) ServerOption {
-	return func(sc *serverConfig) {
-		sc.readTimeout = d
-	}
-}
-
-// WithWriteTimeout sets the server write timeout.
-func WithWriteTimeout(d time.Duration) ServerOption {
-	return func(sc *serverConfig) {
-		sc.writeTimeout = d
-	}
-}
-
-// WithIdleTimeout sets the server idle timeout.
-func WithIdleTimeout(d time.Duration) ServerOption {
-	return func(sc *serverConfig) {
-		sc.idleTimeout = d
-	}
-}
-
-// WithReadHeaderTimeout sets the server read header timeout.
-func WithReadHeaderTimeout(d time.Duration) ServerOption {
-	return func(sc *serverConfig) {
-		sc.readHeaderTimeout = d
-	}
-}
-
-// WithMaxHeaderBytes sets the maximum size of request headers.
-func WithMaxHeaderBytes(n int) ServerOption {
-	return func(sc *serverConfig) {
-		sc.maxHeaderBytes = n
-	}
-}
-
-// WithShutdownTimeout sets the graceful shutdown timeout.
-func WithShutdownTimeout(d time.Duration) ServerOption {
-	return func(sc *serverConfig) {
-		sc.shutdownTimeout = d
-	}
-}
-
-// WithServerConfig configures server settings using functional options.
-// Defaults are already set in defaultConfig(), so options are applied in place.
-func WithServerConfig(opts ...ServerOption) Option {
-	return func(c *config) {
-		// Apply options to the existing server config (which already has defaults)
-		for _, opt := range opts {
-			opt(c.server)
-		}
-	}
-}
-
-// WithMiddleware adds middleware during app initialization.
-// Middleware provided here will be added before any middleware added via Use().
-// Multiple calls to WithMiddleware are supported and will accumulate.
-//
-// Example:
-//
-//	app.New(
-//	    app.WithServiceName("my-service"),
-//	    app.WithMiddleware(
-//	        middleware.Logger(),
-//	        middleware.Recovery(),
-//	    ),
-//	)
-func WithMiddleware(middlewares ...router.HandlerFunc) Option {
-	return func(c *config) {
-		if c.middleware == nil {
-			c.middleware = &middlewareConfig{}
-		}
-		c.middleware.explicitlySet = true
-		c.middleware.functions = append(c.middleware.functions, middlewares...)
-	}
-}
-
-// WithRouterOptions passes router options through to the underlying router.
-// This allows fine-tuning router performance settings like Bloom filter sizing,
-// cancellation checks, template routing, and versioning configuration.
-//
-// Example:
-//
-//	app := app.New(
-//	    app.WithServiceName("my-service"),
-//	    app.WithRouterOptions(
-//	        router.WithBloomFilterSize(2000),
-//	        router.WithCancellationCheck(false),
-//	        router.WithTemplateRouting(true),
-//	        router.WithVersioning(),
-//	    ),
-//	)
-//
-// Multiple calls to WithRouterOptions are supported and will accumulate options.
-func WithRouterOptions(opts ...router.Option) Option {
-	return func(c *config) {
-		if c.router == nil {
-			c.router = &routerConfig{}
-		}
-		c.router.options = append(c.router.options, opts...)
-	}
-}
-
-// WithLoggingConfig uses a pre-initialized logging configuration instead of
-// creating a new one. This allows you to manage the logger lifecycle yourself
-// and avoid global state registration conflicts.
-//
-// Example:
-//
-//	logger := logging.MustNew(logging.WithJSONHandler())
-//	app := app.New(
-//	    app.WithLoggingConfig(logger),
-//	)
-func WithLoggingConfig(logCfg *logging.Config) Option {
-	return func(c *config) {
-		if logCfg == nil {
-			return
-		}
-		c.logging = &loggingConfig{
-			enabled:     true,
-			config:      logCfg,
-			usePrebuilt: true,
-		}
-	}
-}
-
-// WithMetricsConfig uses a pre-initialized metrics configuration instead of
-// creating a new one. This allows you to manage the metrics lifecycle yourself
-// and avoid global state registration conflicts.
-//
-// Example:
-//
-//	metricsConfig := metrics.MustNew(metrics.WithProvider(metrics.PrometheusProvider))
-//	app := app.New(
-//	    app.WithMetricsConfig(metricsConfig),
-//	)
-func WithMetricsConfig(metricsCfg *metrics.Config) Option {
-	return func(c *config) {
-		if metricsCfg == nil {
-			return
-		}
-		c.metrics = &metricsConfig{
-			enabled:     true,
-			config:      metricsCfg,
-			usePrebuilt: true,
-		}
-	}
-}
-
-// WithTracingConfig uses a pre-initialized tracing configuration instead of
-// creating a new one. This allows you to manage the tracing lifecycle yourself
-// and avoid global state registration conflicts.
-//
-// Example:
-//
-//	tracingConfig := tracing.MustNew(tracing.WithProvider(tracing.OTLPProvider))
-//	app := app.New(
-//	    app.WithTracingConfig(tracingConfig),
-//	)
-func WithTracingConfig(tracingCfg *tracing.Config) Option {
-	return func(c *config) {
-		if tracingCfg == nil {
-			return
-		}
-		c.tracing = &tracingConfig{
-			enabled:     true,
-			config:      tracingCfg,
-			usePrebuilt: true,
-		}
-	}
-}
-
 // validate checks if the configuration is valid and returns structured errors.
 // It collects all validation errors before returning them, allowing users to
 // see all issues at once rather than one at a time.
@@ -541,57 +295,59 @@ func New(opts ...Option) (*App, error) {
 
 	// Create app
 	app := &App{
-		router: r,
-		config: cfg,
+		router:    r,
+		config:    cfg,
+		hooks:     &Hooks{},
+		readiness: &ReadinessManager{},
 	}
 
-	// Initialize observability
+	// Initialize observability with service metadata injected
 	if cfg.logging != nil && cfg.logging.enabled {
-		if cfg.logging.usePrebuilt {
-			// Use pre-provided logging config
-			app.logging = cfg.logging.config
-			r.SetLogger(app.logging)
-		} else {
-			// Initialize new logging config
-			loggingConfig, err := logging.New(cfg.logging.options...)
-			if err != nil {
-				return nil, fmt.Errorf("failed to initialize logging: %w", err)
-			}
-			app.logging = loggingConfig
-			r.SetLogger(app.logging)
+		// Prepend service metadata to user options
+		loggingOpts := []logging.Option{
+			logging.WithServiceName(cfg.serviceName),
+			logging.WithServiceVersion(cfg.serviceVersion),
 		}
+		loggingOpts = append(loggingOpts, cfg.logging.options...)
+
+		logCfg, err := logging.New(loggingOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize logging: %w", err)
+		}
+		app.logging = logCfg
+		r.SetLogger(app.logging)
 	}
 
 	if cfg.metrics != nil && cfg.metrics.enabled {
-		if cfg.metrics.usePrebuilt {
-			// Use pre-provided metrics config
-			app.metrics = cfg.metrics.config
-			r.SetMetricsRecorder(app.metrics)
-		} else {
-			// Initialize new metrics config
-			metricsConfig, err := metrics.New(cfg.metrics.options...)
-			if err != nil {
-				return nil, fmt.Errorf("failed to initialize metrics: %w", err)
-			}
-			app.metrics = metricsConfig
-			r.SetMetricsRecorder(app.metrics)
+		// Prepend service metadata to user options
+		metricsOpts := []metrics.Option{
+			metrics.WithServiceName(cfg.serviceName),
+			metrics.WithServiceVersion(cfg.serviceVersion),
 		}
+		metricsOpts = append(metricsOpts, cfg.metrics.options...)
+
+		metricsCfg, err := metrics.New(metricsOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize metrics: %w", err)
+		}
+		app.metrics = metricsCfg
+		r.SetMetricsRecorder(app.metrics)
 	}
 
 	if cfg.tracing != nil && cfg.tracing.enabled {
-		if cfg.tracing.usePrebuilt {
-			// Use pre-provided tracing config
-			app.tracing = cfg.tracing.config
-			r.SetTracingRecorder(app.tracing)
-		} else {
-			// Initialize new tracing config
-			tracingConfig, err := tracing.New(cfg.tracing.options...)
-			if err != nil {
-				return nil, fmt.Errorf("failed to initialize tracing: %w", err)
-			}
-			app.tracing = tracingConfig
-			r.SetTracingRecorder(app.tracing)
+		// Prepend service metadata to user options
+		tracingOpts := []tracing.Option{
+			tracing.WithServiceName(cfg.serviceName),
+			tracing.WithServiceVersion(cfg.serviceVersion),
 		}
+		tracingOpts = append(tracingOpts, cfg.tracing.options...)
+
+		tracingCfg, err := tracing.New(tracingOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize tracing: %w", err)
+		}
+		app.tracing = tracingCfg
+		r.SetTracingRecorder(app.tracing)
 	}
 
 	// Add middleware from configuration
@@ -626,39 +382,68 @@ func (a *App) Router() *router.Router {
 	return a.router
 }
 
-// GET registers a GET route.
-func (a *App) GET(path string, handler router.HandlerFunc) {
-	a.router.GET(path, handler)
+// Readiness returns the readiness manager for registering gates.
+//
+// Example:
+//
+//	type DatabaseGate struct {
+//	    db *sql.DB
+//	}
+//	func (g *DatabaseGate) Ready() bool { return g.db.Ping() == nil }
+//	func (g *DatabaseGate) Name() string { return "database" }
+//
+//	app.Readiness().Register("db", &DatabaseGate{db: db})
+func (a *App) Readiness() *ReadinessManager {
+	return a.readiness
 }
 
-// POST registers a POST route.
-func (a *App) POST(path string, handler router.HandlerFunc) {
-	a.router.POST(path, handler)
+// GET registers a GET route and returns the Route for chaining.
+func (a *App) GET(path string, handler router.HandlerFunc) *router.Route {
+	route := a.router.GET(path, handler)
+	a.fireRouteHook(*route)
+	return route
 }
 
-// PUT registers a PUT route.
-func (a *App) PUT(path string, handler router.HandlerFunc) {
-	a.router.PUT(path, handler)
+// POST registers a POST route and returns the Route for chaining.
+func (a *App) POST(path string, handler router.HandlerFunc) *router.Route {
+	route := a.router.POST(path, handler)
+	a.fireRouteHook(*route)
+	return route
 }
 
-// DELETE registers a DELETE route.
-func (a *App) DELETE(path string, handler router.HandlerFunc) {
-	a.router.DELETE(path, handler)
+// PUT registers a PUT route and returns the Route for chaining.
+func (a *App) PUT(path string, handler router.HandlerFunc) *router.Route {
+	route := a.router.PUT(path, handler)
+	a.fireRouteHook(*route)
+	return route
 }
 
-// PATCH registers a PATCH route.
-func (a *App) PATCH(path string, handler router.HandlerFunc) {
-	a.router.PATCH(path, handler)
+// DELETE registers a DELETE route and returns the Route for chaining.
+func (a *App) DELETE(path string, handler router.HandlerFunc) *router.Route {
+	route := a.router.DELETE(path, handler)
+	a.fireRouteHook(*route)
+	return route
 }
 
-// HEAD registers a HEAD route.
-func (a *App) HEAD(path string, handler router.HandlerFunc) {
-	a.router.HEAD(path, handler)
+// PATCH registers a PATCH route and returns the Route for chaining.
+func (a *App) PATCH(path string, handler router.HandlerFunc) *router.Route {
+	route := a.router.PATCH(path, handler)
+	a.fireRouteHook(*route)
+	return route
 }
 
-// OPTIONS registers an OPTIONS route.
-func (a *App) OPTIONS(path string, handler router.HandlerFunc) {
-	a.router.OPTIONS(path, handler)
+// HEAD registers a HEAD route and returns the Route for chaining.
+func (a *App) HEAD(path string, handler router.HandlerFunc) *router.Route {
+	route := a.router.HEAD(path, handler)
+	a.fireRouteHook(*route)
+	return route
+}
+
+// OPTIONS registers an OPTIONS route and returns the Route for chaining.
+func (a *App) OPTIONS(path string, handler router.HandlerFunc) *router.Route {
+	route := a.router.OPTIONS(path, handler)
+	a.fireRouteHook(*route)
+	return route
 }
 
 // Use adds middleware to the app.
@@ -672,6 +457,11 @@ func (a *App) Group(prefix string, middleware ...router.HandlerFunc) *router.Gro
 }
 
 // Static serves static files from the given directory.
+// This is a convenience wrapper that delegates to router.Static.
+//
+// Example:
+//
+//	app.Static("/static", "./public")
 func (a *App) Static(prefix, root string) {
 	a.router.Static(prefix, root)
 }
@@ -735,515 +525,6 @@ func (a *App) NoRoute(handler router.HandlerFunc) {
 	a.router.NoRoute(handler)
 }
 
-// serverStartFunc defines the function type for starting a server.
-type serverStartFunc func() error
-
-// logLifecycleEvent logs a lifecycle event using structured logging if available,
-// otherwise falls back to the standard library log package.
-func (a *App) logLifecycleEvent(level slog.Level, msg string, args ...any) {
-	if a.logging != nil {
-		logger := a.logging.Logger()
-		if logger.Enabled(context.Background(), level) {
-			logger.Log(context.Background(), level, msg, args...)
-		}
-	} else {
-		// Fall back to stdlib log for backwards compatibility
-		if len(args) == 0 {
-			log.Println(msg)
-		} else {
-			// Format key-value pairs for stdlib log
-			logMsg := msg
-			for i := 0; i < len(args)-1; i += 2 {
-				if key, ok := args[i].(string); ok {
-					logMsg += fmt.Sprintf(" %s=%v", key, args[i+1])
-				}
-			}
-			log.Println(logMsg)
-		}
-	}
-}
-
-// logStartupInfo logs startup information including address, environment, and observability status.
-func (a *App) logStartupInfo(addr, protocol string) {
-	attrs := []any{
-		"address", addr,
-		"environment", a.config.environment,
-		"protocol", protocol,
-	}
-
-	if a.metrics != nil {
-		attrs = append(attrs, "metrics_enabled", true, "metrics_address", a.metrics.GetServerAddress())
-	}
-
-	a.logLifecycleEvent(slog.LevelInfo, "server starting", attrs...)
-
-	if a.tracing != nil {
-		a.logLifecycleEvent(slog.LevelInfo, "tracing enabled")
-	}
-}
-
-// getColorWriter returns a colorprofile.Writer configured for the app's environment.
-// In production mode, ANSI colors are stripped. In development, colors are
-// automatically downsampled based on terminal capabilities.
-func (a *App) getColorWriter(w io.Writer) *colorprofile.Writer {
-	cpw := colorprofile.NewWriter(w, os.Environ())
-	// In production, explicitly strip all ANSI sequences
-	if a.config.environment == EnvironmentProduction {
-		cpw.Profile = colorprofile.NoTTY
-	}
-	return cpw
-}
-
-// printStartupBanner prints an eye-catching ASCII art startup banner with service information.
-// The banner displays dynamically generated ASCII art of the service name along with version, environment, address, and routes.
-func (a *App) printStartupBanner(addr, protocol string) {
-	w := a.getColorWriter(os.Stdout)
-
-	// Generate ASCII art from service name using go-figure
-	// Using "standard" font as default (can be customized), strict mode disabled for safety
-	myFigure := figure.NewFigure(a.config.serviceName, "", false)
-	asciiLines := myFigure.Slicify()
-
-	// Apply gradient color effect based on environment
-	var gradientColors []string
-	if a.config.environment == EnvironmentDevelopment {
-		gradientColors = []string{"12", "14", "10", "11"} // Blue, Cyan, Green, Yellow
-	} else {
-		gradientColors = []string{"10", "11"} // Green, Yellow
-	}
-
-	// Create styled ASCII art with gradient effect
-	var styledArt strings.Builder
-	for _, line := range asciiLines {
-		if strings.TrimSpace(line) == "" {
-			styledArt.WriteString("\n")
-			continue
-		}
-		for i, char := range line {
-			colorIndex := i % len(gradientColors)
-			color := gradientColors[colorIndex]
-			style := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(color)).
-				Bold(true)
-			styledArt.WriteString(style.Render(string(char)))
-		}
-		styledArt.WriteString("\n")
-	}
-
-	// Create a compact info box with vertical layout
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
-		Width(12).
-		Align(lipgloss.Right)
-
-	valueStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15")).
-		Bold(true)
-
-	// Normalize address display: ":8080" -> "0.0.0.0:8080"
-	displayAddr := addr
-	if strings.HasPrefix(addr, ":") {
-		displayAddr = "0.0.0.0" + addr
-	}
-
-	// Prepend scheme based on protocol
-	scheme := "http://"
-	if protocol == "HTTPS" {
-		scheme = "https://"
-	}
-	displayAddr = scheme + displayAddr
-
-	versionLabel := labelStyle.Render("Version:")
-	versionValue := valueStyle.Foreground(lipgloss.Color("14")).Render(a.config.serviceVersion)
-	envLabel := labelStyle.Render("Environment:")
-	envValue := valueStyle.Foreground(lipgloss.Color("11")).Render(a.config.environment)
-	addrLabel := labelStyle.Render("Address:")
-	addrValue := valueStyle.Foreground(lipgloss.Color("10")).Render(displayAddr)
-
-	// Build info box content
-	infoLines := []string{
-		versionLabel + "  " + versionValue,
-		envLabel + "  " + envValue,
-		addrLabel + "  " + addrValue,
-	}
-
-	// Always show observability info with status
-	metricsLabel := labelStyle.Render("Metrics:")
-	var metricsValue string
-	if a.metrics != nil {
-		metricsAddr := a.metrics.GetServerAddress()
-		// Normalize metrics address: ":9090" -> "0.0.0.0:9090"
-		if strings.HasPrefix(metricsAddr, ":") {
-			metricsAddr = "0.0.0.0" + metricsAddr
-		}
-		// Prepend scheme (metrics server is always HTTP) and append path
-		metricsPath := a.metrics.Path()
-		if metricsPath == "" {
-			metricsPath = "/metrics" // Default path
-		}
-		metricsAddr = "http://" + metricsAddr + metricsPath
-		metricsValue = valueStyle.Foreground(lipgloss.Color("13")).Render(metricsAddr)
-	} else {
-		metricsValue = valueStyle.Foreground(lipgloss.Color("240")).Render("Disabled")
-	}
-	infoLines = append(infoLines, metricsLabel+"  "+metricsValue)
-
-	tracingLabel := labelStyle.Render("Tracing:")
-	var tracingValue string
-	if a.tracing != nil {
-		tracingValue = valueStyle.Foreground(lipgloss.Color("12")).Render("Enabled")
-	} else {
-		tracingValue = valueStyle.Foreground(lipgloss.Color("240")).Render("Disabled")
-	}
-	infoLines = append(infoLines, tracingLabel+"  "+tracingValue)
-
-	// Create compact info box
-	infoContent := strings.Join(infoLines, "\n")
-
-	fmt.Fprintln(w)
-	fmt.Fprint(w, styledArt.String())
-	fmt.Fprintln(w)
-	fmt.Fprint(w, infoContent)
-	fmt.Fprintln(w)
-
-	// Add routes section (only in development mode)
-	if a.config.environment == EnvironmentDevelopment {
-		routes := a.router.Routes()
-		if len(routes) > 0 {
-			fmt.Fprintln(w)
-			a.renderRoutesTable(w, 80)
-		}
-	}
-
-	fmt.Fprintln(w)
-}
-
-// renderRoutesTable renders the routes table to the given writer.
-// This is an internal helper method used by both PrintRoutes and the startup banner.
-// width specifies the table width (80 for banner, 120 for standalone).
-func (a *App) renderRoutesTable(w io.Writer, width int) {
-	routes := a.router.Routes()
-	if len(routes) == 0 {
-		return
-	}
-
-	// Define styles for different HTTP methods
-	methodStyles := map[string]lipgloss.Style{
-		"GET":     lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true), // Green
-		"POST":    lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // Blue
-		"PUT":     lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true), // Yellow
-		"DELETE":  lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true),  // Red
-		"PATCH":   lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true), // Magenta
-		"HEAD":    lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true), // Cyan
-		"OPTIONS": lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),  // Gray
-	}
-
-	// Style for version column
-	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true) // Orange
-
-	// Determine if we should use colors (only in development, Writer checks terminal)
-	useColors := a.config.environment == EnvironmentDevelopment
-
-	// Build table rows and calculate content width
-	rows := make([][]string, 0, len(routes))
-	maxMethodWidth := len("Method")
-	maxVersionWidth := len("Version")
-	maxPathWidth := len("Path")
-	maxHandlerWidth := len("Handler")
-
-	for _, route := range routes {
-		method := route.Method
-		if useColors {
-			if style, ok := methodStyles[method]; ok {
-				method = style.Render(method)
-			}
-		}
-
-		// Format version field (show "-" if empty, style if present)
-		version := route.Version
-		if version == "" {
-			version = "-"
-		} else if useColors {
-			version = versionStyle.Render(version)
-		}
-
-		// Calculate content widths (use original values, not styled ones, for accurate measurement)
-		if len(route.Method) > maxMethodWidth {
-			maxMethodWidth = len(route.Method)
-		}
-
-		versionLen := len(route.Version)
-		if versionLen == 0 {
-			versionLen = 1 // "-" is 1 char
-		}
-		if versionLen > maxVersionWidth {
-			maxVersionWidth = versionLen
-		}
-
-		if len(route.Path) > maxPathWidth {
-			maxPathWidth = len(route.Path)
-		}
-
-		if len(route.HandlerName) > maxHandlerWidth {
-			maxHandlerWidth = len(route.HandlerName)
-		}
-
-		rows = append(rows, []string{
-			method,
-			version,
-			route.Path,
-			route.HandlerName,
-		})
-	}
-
-	// Calculate minimum width needed: borders + separators + padding + content
-	// Border chars: left (1) + right (1) = 2
-	// Separators: 3 vertical bars between 4 columns = 3
-	// Padding: 2 chars per column (left + right) * 4 columns = 8
-	// Content: sum of max widths for each column
-	minWidth := 2 + 3 + 8 + maxMethodWidth + maxVersionWidth + maxPathWidth + maxHandlerWidth
-
-	// Try to get terminal width if available
-	// First try to extract file from wrapped writer, then try os.Stdout directly
-	terminalWidth := width // Use provided width as fallback
-
-	var file *os.File
-	if f, ok := w.(*os.File); ok {
-		file = f
-	} else {
-		// Try os.Stdout as fallback (most common case)
-		file = os.Stdout
-	}
-
-	if termWidth, _, err := getTerminalSize(file); err == nil && termWidth > 0 {
-		terminalWidth = termWidth
-	}
-
-	// Determine final table width:
-	// - Use calculated minimum if it's larger than provided width
-	// - But don't exceed terminal width
-	// - Ensure minimum of 60 characters
-	tableWidth := minWidth
-	if width > tableWidth {
-		tableWidth = width
-	}
-	if terminalWidth > 0 && tableWidth > terminalWidth {
-		tableWidth = terminalWidth
-	}
-	if tableWidth < 60 {
-		tableWidth = 60
-	}
-
-	// Create table with lipgloss/table
-	t := table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(func() lipgloss.Style {
-			if useColors {
-				return lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Gray border
-			}
-			return lipgloss.NewStyle() // No color for border
-		}()).
-		StyleFunc(func(row, _ int) lipgloss.Style {
-			style := lipgloss.NewStyle().
-				Align(lipgloss.Left).
-				Padding(0, 1)
-
-			// Header row styling
-			if row == 0 && useColors {
-				style = style.
-					Bold(true).
-					Foreground(lipgloss.Color("230")) // Light yellow/white
-			}
-
-			return style
-		}).
-		Headers("Method", "Version", "Path", "Handler").
-		Rows(rows...).
-		Width(tableWidth)
-
-	// Write to writer
-	fmt.Fprintln(w, t.Render())
-}
-
-// getTerminalSize attempts to get the terminal size using platform-specific syscalls.
-//
-// Algorithm: Uses the TIOCGWINSZ ioctl on Unix-like systems to query terminal dimensions.
-// This is a low-level system call that directly interrogates the TTY driver for the
-// current window size.
-//
-// Platform behavior:
-//   - Unix/Linux/macOS: Uses ioctl(fd, TIOCGWINSZ, &winsize) syscall
-//   - Windows: Returns error (ioctl not available)
-//   - Non-TTY (pipes, redirects): Returns error (no terminal attached)
-//
-// Performance: This is a fast syscall (<1µs typically) suitable for synchronous use
-// during startup banner rendering. No caching needed as it's called once per startup.
-//
-// Returns width, height in character cells, or error if terminal size unavailable.
-func getTerminalSize(file *os.File) (int, int, error) {
-	if file == nil {
-		return 0, 0, fmt.Errorf("file is nil")
-	}
-
-	fd := int(file.Fd())
-
-	// For Unix-like systems (Linux, macOS, BSD), use TIOCGWINSZ ioctl
-	if runtime.GOOS != "windows" {
-		var dimensions struct {
-			rows    uint16
-			cols    uint16
-			xpixels uint16
-			ypixels uint16
-		}
-
-		// TIOCGWINSZ constant value (0x5413) - get window size
-		const TIOCGWINSZ = 0x5413
-
-		// Use syscall to get terminal size
-		_, _, errno := syscall.Syscall6(
-			syscall.SYS_IOCTL,
-			uintptr(fd),
-			uintptr(TIOCGWINSZ),
-			uintptr(unsafe.Pointer(&dimensions)),
-			0, 0, 0,
-		)
-
-		if errno == 0 {
-			return int(dimensions.cols), int(dimensions.rows), nil
-		}
-	}
-
-	// For Windows or if ioctl fails, return error
-	return 0, 0, fmt.Errorf("unable to get terminal size")
-}
-
-// PrintRoutes prints all registered routes to stdout in a formatted table.
-// This is useful for development and debugging to see all available routes.
-//
-// Uses lipgloss/table for beautiful terminal output with color-coded HTTP methods
-// and proper table formatting. A colorprofile.Writer automatically downsamples
-// ANSI colors to match the terminal's capabilities (TrueColor → ANSI256 → ANSI).
-// If output is not a TTY, ANSI sequences are stripped entirely. This respects
-// the NO_COLOR environment variable and handles all terminal capability detection
-// automatically.
-//
-// Colors are only enabled in development mode.
-//
-// Example output:
-//
-//	┌────────┬──────────────────┬──────────────────┐
-//	│ Method │ Path             │ Handler          │
-//	├────────┼──────────────────┼──────────────────┤
-//	│ GET    │ /                │ handler          │
-//	│ GET    │ /users/:id       │ handler          │
-//	│ POST   │ /users           │ handler          │
-//	└────────┴──────────────────┴──────────────────┘
-func (a *App) PrintRoutes() {
-	routes := a.router.Routes()
-	if len(routes) == 0 {
-		fmt.Println("No routes registered")
-		return
-	}
-
-	// Create a writer that automatically downsamples colors based on terminal capabilities
-	// Uses helper method that handles production mode (strips ANSI) and development mode (auto-detects)
-	w := a.getColorWriter(os.Stdout)
-
-	// Use internal helper with wider table for standalone use
-	a.renderRoutesTable(w, 120)
-}
-
-// shutdownObservability gracefully shuts down all enabled observability components.
-func (a *App) shutdownObservability(ctx context.Context) {
-	// Shutdown metrics if running
-	if a.metrics != nil {
-		if err := a.metrics.Shutdown(ctx); err != nil {
-			a.logLifecycleEvent(slog.LevelWarn, "metrics shutdown failed", "error", err)
-		}
-	}
-
-	// Shutdown tracing if running
-	if a.tracing != nil {
-		if err := a.tracing.Shutdown(ctx); err != nil {
-			a.logLifecycleEvent(slog.LevelWarn, "tracing shutdown failed", "error", err)
-		}
-	}
-}
-
-// runServer handles the common lifecycle logic for starting and shutting down an HTTP server.
-// It accepts an http.Server and a startFunc (either ListenAndServe or ListenAndServeTLS).
-func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol string) error {
-	// Start server in a goroutine
-	serverErr := make(chan error, 1)
-	go func() {
-		a.printStartupBanner(server.Addr, protocol)
-		a.logStartupInfo(server.Addr, protocol)
-		// Routes are now displayed as part of the startup banner
-
-		if err := startFunc(); err != nil && err != http.ErrServerClosed {
-			serverErr <- fmt.Errorf("%s server failed to start: %w", protocol, err)
-		}
-	}()
-
-	// Wait for interrupt signal or server error
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case err := <-serverErr:
-		return err
-	case <-quit:
-		a.logLifecycleEvent(slog.LevelInfo, "server shutting down", "protocol", protocol)
-	}
-
-	// Create a deadline for shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), a.config.server.shutdownTimeout)
-	defer cancel()
-
-	// Shutdown the server
-	if err := server.Shutdown(ctx); err != nil {
-		return fmt.Errorf("%s server forced to shutdown: %w", protocol, err)
-	}
-
-	// Shutdown observability components (metrics and tracing)
-	a.shutdownObservability(ctx)
-
-	a.logLifecycleEvent(slog.LevelInfo, "server exited", "protocol", protocol)
-	return nil
-}
-
-// Run starts the HTTP server with graceful shutdown.
-func (a *App) Run(addr string) error {
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           a.router,
-		ReadTimeout:       a.config.server.readTimeout,
-		WriteTimeout:      a.config.server.writeTimeout,
-		IdleTimeout:       a.config.server.idleTimeout,
-		ReadHeaderTimeout: a.config.server.readHeaderTimeout,
-		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
-	}
-
-	return a.runServer(server, server.ListenAndServe, "HTTP")
-}
-
-// RunTLS starts the HTTPS server with graceful shutdown.
-func (a *App) RunTLS(addr, certFile, keyFile string) error {
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           a.router,
-		ReadTimeout:       a.config.server.readTimeout,
-		WriteTimeout:      a.config.server.writeTimeout,
-		IdleTimeout:       a.config.server.idleTimeout,
-		ReadHeaderTimeout: a.config.server.readHeaderTimeout,
-		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
-	}
-
-	return a.runServer(server, func() error {
-		return server.ListenAndServeTLS(certFile, keyFile)
-	}, "HTTPS")
-}
-
 // GetMetricsHandler returns the metrics HTTP handler if metrics are enabled.
 // Returns an error if metrics are not enabled or if using a non-Prometheus provider.
 func (a *App) GetMetricsHandler() (http.Handler, error) {
@@ -1276,12 +557,82 @@ func (a *App) Environment() string {
 	return a.config.environment
 }
 
-// GetMetrics returns the metrics configuration if enabled.
-func (a *App) GetMetrics() *metrics.Config {
+// Metrics returns the metrics configuration if enabled.
+func (a *App) Metrics() *metrics.Config {
 	return a.metrics
 }
 
-// GetTracing returns the tracing configuration if enabled.
-func (a *App) GetTracing() *tracing.Config {
+// Tracing returns the tracing configuration if enabled.
+func (a *App) Tracing() *tracing.Config {
 	return a.tracing
+}
+
+// Route retrieves a route by name. Returns the route and true if found.
+// Panics if the router is not frozen (call after app.Run() or app.Router().Freeze()).
+//
+// Example:
+//
+//	route, ok := app.Route("users.get")
+//	if ok {
+//	    fmt.Printf("Route: %s %s\n", route.Method(), route.Path())
+//	}
+func (a *App) Route(name string) (router.Route, bool) {
+	return a.router.GetRoute(name)
+}
+
+// Routes returns an immutable snapshot of all named routes.
+// Panics if the router is not frozen (call after app.Run() or app.Router().Freeze()).
+//
+// Example:
+//
+//	routes := app.Routes()
+//	for _, route := range routes {
+//	    fmt.Printf("%s: %s %s\n", route.Name(), route.Method(), route.Path())
+//	}
+func (a *App) Routes() []router.Route {
+	return a.router.GetRoutes()
+}
+
+// URLFor generates a URL from a route name and parameters.
+// Returns an error if the route is not found or if required parameters are missing.
+//
+// Example:
+//
+//	url, err := app.URLFor("users.get", map[string]string{"id": "123"}, nil)
+//	// Returns: "/users/123", nil
+func (a *App) URLFor(routeName string, params map[string]string, query map[string][]string) (string, error) {
+	var urlValues map[string][]string
+	if query != nil {
+		urlValues = query
+	} else {
+		urlValues = make(map[string][]string)
+	}
+	// Convert to url.Values
+	vals := make(url.Values)
+	for k, v := range urlValues {
+		vals[k] = v
+	}
+	return a.router.URLFor(routeName, params, vals)
+}
+
+// MustURLFor generates a URL from a route name and parameters, panicking on error.
+// Use this when you're certain the route exists and all parameters are provided.
+//
+// Example:
+//
+//	url := app.MustURLFor("users.get", map[string]string{"id": "123"}, nil)
+//	// Returns: "/users/123"
+func (a *App) MustURLFor(routeName string, params map[string]string, query map[string][]string) string {
+	var urlValues map[string][]string
+	if query != nil {
+		urlValues = query
+	} else {
+		urlValues = make(map[string][]string)
+	}
+	// Convert to url.Values
+	vals := make(url.Values)
+	for k, v := range urlValues {
+		vals[k] = v
+	}
+	return a.router.MustURLFor(routeName, params, vals)
 }

@@ -333,28 +333,14 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("logging initialization with prebuilt config", func(t *testing.T) {
-		logCfg := logging.MustNew(logging.WithLevel(logging.LevelInfo))
-
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithLoggingConfig(logCfg),
+			WithLogging(logging.WithLevel(logging.LevelInfo)),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
 		assert.NotNil(t, app.logging)
-		assert.Equal(t, logCfg, app.logging)
-	})
-
-	t.Run("logging nil config is ignored", func(t *testing.T) {
-		app, err := New(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-			WithLoggingConfig(nil),
-		)
-		require.NoError(t, err)
-		require.NotNil(t, app)
-		assert.Nil(t, app.logging)
 	})
 
 	t.Run("metrics initialization with options", func(t *testing.T) {
@@ -369,28 +355,14 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("metrics initialization with prebuilt config", func(t *testing.T) {
-		metricsCfg := metrics.MustNew(metrics.WithProvider(metrics.PrometheusProvider))
-
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithMetricsConfig(metricsCfg),
+			WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
 		assert.NotNil(t, app.metrics)
-		assert.Equal(t, metricsCfg, app.metrics)
-	})
-
-	t.Run("metrics nil config is ignored", func(t *testing.T) {
-		app, err := New(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-			WithMetricsConfig(nil),
-		)
-		require.NoError(t, err)
-		require.NotNil(t, app)
-		assert.Nil(t, app.metrics)
 	})
 
 	t.Run("tracing initialization with options", func(t *testing.T) {
@@ -405,28 +377,14 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("tracing initialization with prebuilt config", func(t *testing.T) {
-		tracingCfg := tracing.MustNew(tracing.WithProvider(tracing.NoopProvider))
-
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithTracingConfig(tracingCfg),
+			WithTracing(tracing.WithProvider(tracing.NoopProvider)),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
 		assert.NotNil(t, app.tracing)
-		assert.Equal(t, tracingCfg, app.tracing)
-	})
-
-	t.Run("tracing nil config is ignored", func(t *testing.T) {
-		app, err := New(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-			WithTracingConfig(nil),
-		)
-		require.NoError(t, err)
-		require.NotNil(t, app)
-		assert.Nil(t, app.tracing)
 	})
 
 	t.Run("all observability components together", func(t *testing.T) {
@@ -445,22 +403,63 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("prebuilt observability configs together", func(t *testing.T) {
-		logCfg := logging.MustNew(logging.WithLevel(logging.LevelInfo))
-		metricsCfg := metrics.MustNew(metrics.WithProvider(metrics.PrometheusProvider))
-		tracingCfg := tracing.MustNew(tracing.WithProvider(tracing.NoopProvider))
-
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithLoggingConfig(logCfg),
-			WithMetricsConfig(metricsCfg),
-			WithTracingConfig(tracingCfg),
+			WithLogging(logging.WithLevel(logging.LevelInfo)),
+			WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+			WithTracing(tracing.WithProvider(tracing.NoopProvider)),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
-		assert.Equal(t, logCfg, app.logging)
-		assert.Equal(t, metricsCfg, app.metrics)
-		assert.Equal(t, tracingCfg, app.tracing)
+		assert.NotNil(t, app.logging)
+		assert.NotNil(t, app.metrics)
+		assert.NotNil(t, app.tracing)
+	})
+
+	t.Run("service metadata is automatically injected into observability", func(t *testing.T) {
+		app, err := New(
+			WithServiceName("payment-service"),
+			WithServiceVersion("v2.1.0"),
+			WithLogging(),
+			WithMetrics(),
+			WithTracing(),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, app)
+
+		// Verify logging has service metadata
+		assert.NotNil(t, app.logging)
+		assert.Equal(t, "payment-service", app.logging.ServiceName())
+		assert.Equal(t, "v2.1.0", app.logging.ServiceVersion())
+
+		// Verify metrics has service metadata
+		assert.NotNil(t, app.metrics)
+		assert.Equal(t, "payment-service", app.metrics.ServiceName())
+		assert.Equal(t, "v2.1.0", app.metrics.ServiceVersion())
+
+		// Verify tracing has service metadata
+		assert.NotNil(t, app.tracing)
+		assert.Equal(t, "payment-service", app.tracing.ServiceName())
+		assert.Equal(t, "v2.1.0", app.tracing.ServiceVersion())
+	})
+
+	t.Run("user-provided service metadata can override injected values", func(t *testing.T) {
+		app, err := New(
+			WithServiceName("payment-service"),
+			WithServiceVersion("v2.1.0"),
+			WithLogging(
+				logging.WithServiceName("custom-logger"),
+				logging.WithServiceVersion("v1.0.0"),
+			),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, app)
+		assert.NotNil(t, app.logging)
+
+		// User-provided values should override (they come after injected ones)
+		assert.Equal(t, "custom-logger", app.logging.ServiceName())
+		assert.Equal(t, "v1.0.0", app.logging.ServiceVersion())
 	})
 }
 
@@ -769,16 +768,17 @@ func TestApp_ServerConfigCustom(t *testing.T) {
 // uses provided values while falling back to defaults for zero values.
 func TestApp_ServerConfigPartial(t *testing.T) {
 	// Set only some values, others should use defaults
+	// Note: read timeout must not exceed write timeout (default 10s)
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
 		WithServerConfig(
-			WithReadTimeout(20*time.Second),
+			WithReadTimeout(5*time.Second),
 			// All other fields not set - should use defaults
 		),
 	)
 
-	assert.Equal(t, 20*time.Second, app.config.server.readTimeout)
+	assert.Equal(t, 5*time.Second, app.config.server.readTimeout)
 	assert.Equal(t, DefaultWriteTimeout, app.config.server.writeTimeout)
 	assert.Equal(t, DefaultIdleTimeout, app.config.server.idleTimeout)
 }
@@ -786,138 +786,306 @@ func TestApp_ServerConfigPartial(t *testing.T) {
 // TestApp_GetMetricsHandler tests that GetMetricsHandler returns
 // an error when metrics are not enabled and a handler when they are.
 func TestApp_GetMetricsHandler(t *testing.T) {
-	t.Run("returns error when metrics not enabled", func(t *testing.T) {
-		app := MustNew(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-		)
+	t.Parallel()
 
-		handler, err := app.GetMetricsHandler()
-		assert.Error(t, err)
-		assert.Nil(t, handler)
-		assert.Contains(t, err.Error(), "metrics not enabled")
-	})
+	tests := []struct {
+		name        string
+		setup       func() *App
+		wantError   bool
+		wantHandler bool
+		errorCheck  func(*testing.T, error)
+	}{
+		{
+			name: "returns error when metrics not enabled",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+				)
+			},
+			wantError:   true,
+			wantHandler: false,
+			errorCheck: func(t *testing.T, err error) {
+				assert.Contains(t, err.Error(), "metrics not enabled")
+			},
+		},
+		{
+			name: "returns handler when metrics enabled",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+					WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				)
+			},
+			wantError:   false,
+			wantHandler: true,
+		},
+	}
 
-	t.Run("returns handler when metrics enabled", func(t *testing.T) {
-		app := MustNew(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-			WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-		)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			app := tt.setup()
+			handler, err := app.GetMetricsHandler()
 
-		handler, err := app.GetMetricsHandler()
-		assert.NoError(t, err)
-		assert.NotNil(t, handler)
-	})
+			if tt.wantError {
+				assert.Error(t, err)
+				assert.Nil(t, handler)
+				if tt.errorCheck != nil {
+					tt.errorCheck(t, err)
+				}
+			} else {
+				assert.NoError(t, err)
+				if tt.wantHandler {
+					assert.NotNil(t, handler)
+				}
+			}
+		})
+	}
 }
 
 // TestApp_GetMetricsServerAddress tests that GetMetricsServerAddress
 // returns the correct address when metrics are enabled and empty when disabled.
 func TestApp_GetMetricsServerAddress(t *testing.T) {
-	t.Run("returns empty when metrics not enabled", func(t *testing.T) {
-		app := MustNew(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-		)
+	t.Parallel()
 
-		addr := app.GetMetricsServerAddress()
-		assert.Empty(t, addr)
-	})
+	tests := []struct {
+		name      string
+		setup     func() *App
+		wantEmpty bool
+	}{
+		{
+			name: "returns empty when metrics not enabled",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+				)
+			},
+			wantEmpty: true,
+		},
+		{
+			name: "returns address when metrics enabled",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+					WithMetrics(
+						metrics.WithProvider(metrics.PrometheusProvider),
+						metrics.WithPort(":9090"),
+					),
+				)
+			},
+			wantEmpty: false,
+		},
+	}
 
-	t.Run("returns address when metrics enabled", func(t *testing.T) {
-		app := MustNew(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-			WithMetrics(
-				metrics.WithProvider(metrics.PrometheusProvider),
-				metrics.WithPort(":9090"),
-			),
-		)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			app := tt.setup()
+			addr := app.GetMetricsServerAddress()
 
-		addr := app.GetMetricsServerAddress()
-		assert.NotEmpty(t, addr)
-	})
+			if tt.wantEmpty {
+				assert.Empty(t, addr)
+			} else {
+				assert.NotEmpty(t, addr)
+			}
+		})
+	}
 }
 
-// TestApp_ServiceName tests that ServiceName returns the configured service name.
-func TestApp_ServiceName(t *testing.T) {
-	app := MustNew(
-		WithServiceName("my-service"),
-		WithServiceVersion("1.0.0"),
-	)
+// TestApp_ConfigurationGetters tests that configuration getters return the correct values.
+func TestApp_ConfigurationGetters(t *testing.T) {
+	t.Parallel()
 
-	assert.Equal(t, "my-service", app.ServiceName())
+	tests := []struct {
+		name     string
+		setup    func() *App
+		getter   func(*App) interface{}
+		expected interface{}
+	}{
+		{
+			name: "ServiceName returns configured value",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("my-service"),
+					WithServiceVersion("1.0.0"),
+				)
+			},
+			getter: func(a *App) interface{} {
+				return a.ServiceName()
+			},
+			expected: "my-service",
+		},
+		{
+			name: "ServiceVersion returns configured value",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("2.3.4"),
+				)
+			},
+			getter: func(a *App) interface{} {
+				return a.ServiceVersion()
+			},
+			expected: "2.3.4",
+		},
+		{
+			name: "Environment returns configured value",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+					WithEnvironment(EnvironmentProduction),
+				)
+			},
+			getter: func(a *App) interface{} {
+				return a.Environment()
+			},
+			expected: EnvironmentProduction,
+		},
+		{
+			name: "Environment returns default development",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+				)
+			},
+			getter: func(a *App) interface{} {
+				return a.Environment()
+			},
+			expected: EnvironmentDevelopment,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			app := tt.setup()
+			got := tt.getter(app)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
 }
 
-// TestApp_ServiceVersion tests that ServiceVersion returns the configured service version.
-func TestApp_ServiceVersion(t *testing.T) {
-	app := MustNew(
-		WithServiceName("test"),
-		WithServiceVersion("2.3.4"),
-	)
-
-	assert.Equal(t, "2.3.4", app.ServiceVersion())
-}
-
-// TestApp_Environment tests that Environment returns the configured environment.
-func TestApp_Environment(t *testing.T) {
-	app := MustNew(
-		WithServiceName("test"),
-		WithServiceVersion("1.0.0"),
-		WithEnvironment(EnvironmentProduction),
-	)
-
-	assert.Equal(t, EnvironmentProduction, app.Environment())
-}
-
-// TestApp_GetMetrics tests that GetMetrics returns the metrics configuration
+// TestApp_Metrics tests that Metrics returns the metrics configuration
 // when enabled and nil when disabled.
-func TestApp_GetMetrics(t *testing.T) {
-	t.Run("returns nil when metrics not enabled", func(t *testing.T) {
-		app := MustNew(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-		)
+func TestApp_Metrics(t *testing.T) {
+	t.Parallel()
 
-		assert.Nil(t, app.GetMetrics())
-	})
+	tests := []struct {
+		name        string
+		setup       func() *App
+		wantNil     bool
+		validateCfg func(*testing.T, *App, *metrics.Config)
+	}{
+		{
+			name: "returns nil when metrics not enabled",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+				)
+			},
+			wantNil: true,
+		},
+		{
+			name: "returns config when metrics enabled",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+					WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				)
+			},
+			wantNil: false,
+			validateCfg: func(t *testing.T, app *App, cfg *metrics.Config) {
+				assert.NotNil(t, cfg)
+				assert.Equal(t, app.metrics, cfg)
+			},
+		},
+	}
 
-	t.Run("returns config when metrics enabled", func(t *testing.T) {
-		app := MustNew(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-			WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-		)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			app := tt.setup()
+			metricsCfg := app.Metrics()
 
-		metricsCfg := app.GetMetrics()
-		assert.NotNil(t, metricsCfg)
-		assert.Equal(t, app.metrics, metricsCfg)
-	})
+			if tt.wantNil {
+				assert.Nil(t, metricsCfg)
+			} else {
+				assert.NotNil(t, metricsCfg)
+				if tt.validateCfg != nil {
+					tt.validateCfg(t, app, metricsCfg)
+				}
+			}
+		})
+	}
 }
 
-// TestApp_GetTracing tests that GetTracing returns the tracing configuration
+// TestApp_Tracing tests that Tracing returns the tracing configuration
 // when enabled and nil when disabled.
-func TestApp_GetTracing(t *testing.T) {
-	t.Run("returns nil when tracing not enabled", func(t *testing.T) {
-		app := MustNew(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-		)
+func TestApp_Tracing(t *testing.T) {
+	t.Parallel()
 
-		assert.Nil(t, app.GetTracing())
-	})
+	tests := []struct {
+		name        string
+		setup       func() *App
+		wantNil     bool
+		validateCfg func(*testing.T, *App, *tracing.Config)
+	}{
+		{
+			name: "returns nil when tracing not enabled",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+				)
+			},
+			wantNil: true,
+		},
+		{
+			name: "returns config when tracing enabled",
+			setup: func() *App {
+				return MustNew(
+					WithServiceName("test"),
+					WithServiceVersion("1.0.0"),
+					WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+				)
+			},
+			wantNil: false,
+			validateCfg: func(t *testing.T, app *App, cfg *tracing.Config) {
+				assert.NotNil(t, cfg)
+				assert.Equal(t, app.tracing, cfg)
+			},
+		},
+	}
 
-	t.Run("returns config when tracing enabled", func(t *testing.T) {
-		app := MustNew(
-			WithServiceName("test"),
-			WithServiceVersion("1.0.0"),
-			WithTracing(tracing.WithProvider(tracing.NoopProvider)),
-		)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			app := tt.setup()
+			tracingCfg := app.Tracing()
 
-		tracingCfg := app.GetTracing()
-		assert.NotNil(t, tracingCfg)
-		assert.Equal(t, app.tracing, tracingCfg)
-	})
+			if tt.wantNil {
+				assert.Nil(t, tracingCfg)
+			} else {
+				assert.NotNil(t, tracingCfg)
+				if tt.validateCfg != nil {
+					tt.validateCfg(t, app, tracingCfg)
+				}
+			}
+		})
+	}
 }
 
 // TestNew_RouterOptionsAccumulation tests that multiple WithRouterOptions

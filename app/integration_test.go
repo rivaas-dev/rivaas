@@ -21,15 +21,14 @@ import (
 // TestIntegration_ConcurrentAppCreation tests creating multiple App instances concurrently.
 // This ensures that app creation is thread-safe and doesn't have race conditions.
 func TestIntegration_ConcurrentAppCreation(t *testing.T) {
+	t.Parallel()
+
 	const numGoroutines = 50
 	var wg sync.WaitGroup
 	errors := make(chan error, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func(_ int) {
-			defer wg.Done()
-
+	for range numGoroutines {
+		wg.Go(func() {
 			app, err := New(
 				WithServiceName("test-service"),
 				WithServiceVersion("1.0.0"),
@@ -58,7 +57,7 @@ func TestIntegration_ConcurrentAppCreation(t *testing.T) {
 			if w.Code != http.StatusOK {
 				errors <- assert.AnError
 			}
-		}(i)
+		})
 	}
 
 	wg.Wait()
@@ -73,6 +72,8 @@ func TestIntegration_ConcurrentAppCreation(t *testing.T) {
 // TestIntegration_ConcurrentRequests tests handling many concurrent requests
 // to ensure the app can handle high concurrency without issues.
 func TestIntegration_ConcurrentRequests(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -93,19 +94,15 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	const concurrency = 200
 	var wg sync.WaitGroup
 
-	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+	for range concurrency {
+		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			app.Router().ServeHTTP(w, req)
-
 			if w.Code == http.StatusOK {
 				successCount.Add(0) // Already counted in handler
-			}
-		}()
+			}	
+		})
 	}
 
 	wg.Wait()
@@ -117,6 +114,8 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 // TestIntegration_MiddlewareChain tests that middleware executes in the correct order
 // under concurrent load.
 func TestIntegration_MiddlewareChain(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -151,15 +150,13 @@ func TestIntegration_MiddlewareChain(t *testing.T) {
 	const numRequests = 100
 	var wg sync.WaitGroup
 
-	for i := 0; i < numRequests; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numRequests {
+		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			app.Router().ServeHTTP(w, req)
-			assert.Equal(t, http.StatusOK, w.Code)
-		}()
+			assert.Equal(t, http.StatusOK, w.Code)	
+		})
 	}
 
 	wg.Wait()
@@ -172,6 +169,8 @@ func TestIntegration_MiddlewareChain(t *testing.T) {
 // TestIntegration_ObservabilityConcurrent tests that observability components
 // (metrics, tracing, logging) work correctly under concurrent load.
 func TestIntegration_ObservabilityConcurrent(t *testing.T) {
+	t.Parallel()
+
 	app, err := New(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -197,15 +196,13 @@ func TestIntegration_ObservabilityConcurrent(t *testing.T) {
 	const concurrency = 50
 	var wg sync.WaitGroup
 
-	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range concurrency {
+		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			app.Router().ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code)
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -216,6 +213,8 @@ func TestIntegration_ObservabilityConcurrent(t *testing.T) {
 // TestIntegration_RouteRegistrationConcurrent tests registering routes concurrently
 // while handling requests.
 func TestIntegration_RouteRegistrationConcurrent(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -230,7 +229,7 @@ func TestIntegration_RouteRegistrationConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Register new routes concurrently
-	for i := 0; i < numNewRoutes; i++ {
+	for i := range numNewRoutes {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
@@ -243,15 +242,13 @@ func TestIntegration_RouteRegistrationConcurrent(t *testing.T) {
 
 	// Also handle requests concurrently
 	requestDone := make(chan bool, 100)
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 100 {
+		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/existing", nil)
 			w := httptest.NewRecorder()
 			app.Router().ServeHTTP(w, req)
 			requestDone <- (w.Code == http.StatusOK)
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -266,6 +263,8 @@ func TestIntegration_RouteRegistrationConcurrent(t *testing.T) {
 // TestIntegration_ServerLifecycle tests the complete server lifecycle
 // including startup and shutdown under various conditions.
 func TestIntegration_ServerLifecycle(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -316,6 +315,8 @@ func TestIntegration_ServerLifecycle(t *testing.T) {
 // TestIntegration_ErrorHandling tests that error handling works correctly
 // under concurrent load and various error conditions.
 func TestIntegration_ErrorHandling(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -342,41 +343,35 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Test panic recovery
-	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range concurrency {
+		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 			w := httptest.NewRecorder()
-			// Should not panic - recovery middleware should catch it
+			// Should not panic - recovery middleware should catch it	
 			assert.NotPanics(t, func() {
 				app.Router().ServeHTTP(w, req)
-			})
-		}()
+			})	
+		})
 	}
 
 	// Test error handling
-	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range concurrency {
+		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/error", nil)
 			w := httptest.NewRecorder()
 			app.Router().ServeHTTP(w, req)
-			assert.Equal(t, http.StatusInternalServerError, w.Code)
-		}()
+			assert.Equal(t, http.StatusInternalServerError, w.Code)	
+		})
 	}
 
 	// Test normal requests
-	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range concurrency {
+		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/ok", nil)
 			w := httptest.NewRecorder()
-			app.Router().ServeHTTP(w, req)
+			app.Router().ServeHTTP(w, req)	
 			assert.Equal(t, http.StatusOK, w.Code)
-		}()
+		})
 	}
 
 	wg.Wait()

@@ -1,0 +1,76 @@
+// Package app provides the main application implementation for Rivaas.
+package app
+
+import (
+	"sync"
+)
+
+// Gate represents a component that reports its readiness status.
+// Used for health checks and readiness probes.
+type Gate interface {
+	// Ready returns true if the component is ready to serve traffic.
+	Ready() bool
+	// Name returns the name of the gate for identification.
+	Name() string
+}
+
+// ReadinessManager manages readiness gates for health checks.
+type ReadinessManager struct {
+	gates map[string]Gate
+	mu    sync.RWMutex
+}
+
+// Register registers a readiness gate.
+// If a gate with the same name already exists, it is replaced.
+//
+// Example:
+//
+//	type DatabaseGate struct {
+//	    db *sql.DB
+//	}
+//	func (g *DatabaseGate) Ready() bool {
+//	    return g.db.Ping() == nil
+//	}
+//	func (g *DatabaseGate) Name() string { return "database" }
+//
+//	app.Readiness().Register("db", &DatabaseGate{db: db})
+func (rm *ReadinessManager) Register(name string, gate Gate) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	if rm.gates == nil {
+		rm.gates = make(map[string]Gate)
+	}
+	rm.gates[name] = gate
+}
+
+// Unregister removes a readiness gate by name.
+func (rm *ReadinessManager) Unregister(name string) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	delete(rm.gates, name)
+}
+
+// Check checks if all registered gates are ready.
+// Returns true if all gates are ready, false otherwise.
+// Also returns a map of gate names to their readiness status.
+func (rm *ReadinessManager) Check() (bool, map[string]bool) {
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
+
+	if len(rm.gates) == 0 {
+		return true, nil // No gates = always ready
+	}
+
+	status := make(map[string]bool, len(rm.gates))
+	allReady := true
+
+	for name, gate := range rm.gates {
+		ready := gate.Ready()
+		status[name] = ready
+		if !ready {
+			allReady = false
+		}
+	}
+
+	return allReady, status
+}

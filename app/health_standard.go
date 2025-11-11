@@ -1,3 +1,4 @@
+// Package app provides the main application implementation for Rivaas.
 package app
 
 import (

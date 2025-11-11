@@ -157,6 +157,7 @@ app.WithEnvironment("production") // or "development"
 
 ```go
 // Configure individually
+// Note: Service name and version are automatically injected from app-level configuration
 app.WithMetrics(
     metrics.WithProvider(metrics.PrometheusProvider),
     metrics.WithPort(":9090"),
@@ -169,6 +170,32 @@ app.WithTracing(
 
 app.WithLogging(
     logging.WithJSONHandler(),
+)
+```
+
+**Automatic Service Metadata Injection:**
+
+Service name and version set via `WithServiceName()` and `WithServiceVersion()` are automatically injected into all observability components (logging, metrics, and tracing). You don't need to pass them explicitly:
+
+```go
+app.New(
+    app.WithServiceName("my-service"),      // Set once
+    app.WithServiceVersion("v1.0.0"),       // Set once
+    app.WithLogging(),                       // Automatically gets service metadata
+    app.WithMetrics(),                       // Automatically gets service metadata
+    app.WithTracing(),                       // Automatically gets service metadata
+)
+```
+
+If you need to override the service metadata for a specific component, you can still pass it explicitly (your options will override the injected ones):
+
+```go
+app.New(
+    app.WithServiceName("my-service"),
+    app.WithServiceVersion("v1.0.0"),
+    app.WithLogging(
+        logging.WithServiceName("custom-logger"), // Overrides injected value
+    ),
 )
 ```
 
@@ -503,7 +530,7 @@ router := app.Router()
 ### Metrics
 
 ```go
-metrics := app.GetMetrics()
+metrics := app.Metrics()
 if metrics != nil {
     handler, err := app.GetMetricsHandler()
     if err != nil {
@@ -517,7 +544,7 @@ if metrics != nil {
 ### Tracing
 
 ```go
-tracing := app.GetTracing()
+tracing := app.Tracing()
 if tracing != nil {
     // Access tracing configuration
 }
@@ -634,6 +661,251 @@ if err != nil {
 - **Optimized Defaults**: Sensible defaults for production use
 - **Graceful Shutdown**: Proper resource cleanup
 - **Memory Efficient**: Reuses router's memory optimizations
+
+## Troubleshooting
+
+### Common Issues
+
+#### Server Won't Start
+
+**Problem:** `app.Run()` returns an error immediately.
+
+**Solutions:**
+
+- Check if the port is already in use: `lsof -i :8080` or `netstat -an | grep 8080`
+- Verify you have permission to bind to the port (ports < 1024 require root on Unix)
+- Check firewall rules if running in a container or cloud environment
+
+#### Configuration Validation Errors
+
+**Problem:** `app.New()` returns validation errors.
+
+**Solutions:**
+
+- Ensure all timeout values are positive: `WithReadTimeout(10 * time.Second)`
+- Read timeout must not exceed write timeout
+- Shutdown timeout must be at least 1 second
+- Max header bytes must be at least 1KB
+
+**Example:**
+
+```go
+// ❌ Invalid
+app.WithServerConfig(
+    app.WithReadTimeout(15 * time.Second),
+    app.WithWriteTimeout(10 * time.Second), // Read > Write
+)
+
+// ✅ Valid
+app.WithServerConfig(
+    app.WithReadTimeout(10 * time.Second),
+    app.WithWriteTimeout(15 * time.Second), // Write >= Read
+)
+```
+
+#### Metrics Not Appearing
+
+**Problem:** Metrics endpoint returns 404 or empty response.
+
+**Solutions:**
+
+- Ensure metrics are enabled: `app.WithMetrics()`
+- Check the metrics path: `app.Metrics().Path()` (default: `/metrics`)
+- Verify the metrics server is running: `app.Metrics().GetServerAddress()`
+- In development mode, check the startup banner for metrics address
+
+#### Tracing Not Working
+
+**Problem:** No traces appear in your tracing backend.
+
+**Solutions:**
+
+- Verify tracing is enabled: `app.WithTracing()`
+- Check OTLP endpoint configuration: `OTLP_ENDPOINT=jaeger:4317`
+- Ensure the tracing provider is correct: `tracing.WithProvider(tracing.OTLPProvider)`
+- Check network connectivity to the tracing backend
+- Review logs for tracing initialization errors
+
+#### Graceful Shutdown Not Working
+
+**Problem:** Server doesn't shut down cleanly or takes too long.
+
+**Solutions:**
+
+- Increase shutdown timeout: `app.WithServerConfig(app.WithShutdownTimeout(60 * time.Second))`
+- Ensure OnShutdown hooks complete quickly (they block shutdown)
+- Check for long-running requests that don't respect context cancellation
+- Verify OnStop hooks don't perform blocking operations
+
+#### Routes Not Registering
+
+**Problem:** Routes return 404 even though they're registered.
+
+**Solutions:**
+
+- Ensure routes are registered before calling `app.Run()` (router is frozen on startup)
+- Check route paths match exactly (case-sensitive, trailing slashes matter)
+- Verify HTTP method matches (GET vs POST)
+- Use `app.PrintRoutes()` to see all registered routes
+- Check middleware isn't blocking requests
+
+#### Middleware Not Executing
+
+**Problem:** Middleware functions aren't being called.
+
+**Solutions:**
+
+- Ensure middleware is added before routes: `app.Use(middleware.Logger())` before `app.GET(...)`
+- Check middleware calls `c.Next()` to continue the chain
+- Verify middleware isn't returning early without calling `c.Next()`
+- In development mode, check logs for middleware execution
+
+### Debugging Tips
+
+1. **Enable Development Mode:**
+
+   ```go
+   app.WithEnvironment(EnvironmentDevelopment)
+   ```
+
+   This enables verbose logging and route table display.
+
+2. **Print Registered Routes:**
+
+   ```go
+   app.PrintRoutes() // Shows all routes in a formatted table
+   ```
+
+3. **Check Observability Status:**
+
+   ```go
+   if app.Metrics() != nil {
+       fmt.Println("Metrics enabled:", app.Metrics().GetServerAddress())
+   }
+   if app.Tracing() != nil {
+       fmt.Println("Tracing enabled")
+   }
+   ```
+
+4. **Use Test Helpers:**
+
+   ```go
+   resp, err := app.Test(req) // Test requests without starting server
+   ```
+
+5. **Enable GC Tracing (for memory issues):**
+
+   ```bash
+   GODEBUG=gctrace=1 go run main.go
+   ```
+
+## API Reference
+
+### Core Functions
+
+| Function | Description | Returns |
+|----------|-------------|---------|
+| `New(...Option)` | Create a new App instance | `(*App, error)` |
+| `MustNew(...Option)` | Create a new App instance (panics on error) | `*App` |
+
+### App Methods
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `Run(addr string)` | Start HTTP server with graceful shutdown | `error` |
+| `RunTLS(addr, certFile, keyFile string)` | Start HTTPS server | `error` |
+| `RunMTLS(addr string, cert tls.Certificate, opts ...MTLSOption)` | Start mTLS server | `error` |
+| `GET(path string, handler HandlerFunc)` | Register GET route | - |
+| `POST(path string, handler HandlerFunc)` | Register POST route | - |
+| `PUT(path string, handler HandlerFunc)` | Register PUT route | - |
+| `DELETE(path string, handler HandlerFunc)` | Register DELETE route | - |
+| `PATCH(path string, handler HandlerFunc)` | Register PATCH route | - |
+| `HEAD(path string, handler HandlerFunc)` | Register HEAD route | - |
+| `OPTIONS(path string, handler HandlerFunc)` | Register OPTIONS route | - |
+| `Group(prefix string, middleware ...HandlerFunc)` | Create route group | `*Group` |
+| `Use(middleware ...HandlerFunc)` | Add middleware | - |
+| `Static(prefix, root string)` | Serve static files | - |
+| `Router()` | Get underlying router | `*router.Router` |
+| `Metrics()` | Get metrics configuration | `*metrics.Config` |
+| `Tracing()` | Get tracing configuration | `*tracing.Config` |
+| `Route(name string)` | Get route by name | `(router.Route, bool)` |
+| `Routes()` | Get all named routes | `[]router.Route` |
+| `PrintRoutes()` | Print all registered routes | - |
+
+### App Configuration Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithServiceName(name string)` | Set service name | `"rivaas-app"` |
+| `WithServiceVersion(version string)` | Set service version | `"1.0.0"` |
+| `WithEnvironment(env string)` | Set environment | `"development"` |
+| `WithMetrics(opts ...metrics.Option)` | Enable metrics | Disabled |
+| `WithTracing(opts ...tracing.Option)` | Enable tracing | Disabled |
+| `WithLogging(opts ...logging.Option)` | Enable logging | Disabled |
+| `WithServerConfig(opts ...ServerOption)` | Configure server settings | See defaults below |
+| `WithMiddleware(middlewares ...HandlerFunc)` | Add middleware | Auto-included in dev |
+| `WithRouterOptions(opts ...router.Option)` | Configure router | - |
+
+### Server Configuration Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithReadTimeout(d time.Duration)` | Request read timeout | `10s` |
+| `WithWriteTimeout(d time.Duration)` | Response write timeout | `10s` |
+| `WithIdleTimeout(d time.Duration)` | Idle connection timeout | `60s` |
+| `WithReadHeaderTimeout(d time.Duration)` | Header read timeout | `2s` |
+| `WithMaxHeaderBytes(n int)` | Max request header size | `1MB` |
+| `WithShutdownTimeout(d time.Duration)` | Graceful shutdown timeout | `30s` |
+
+### Lifecycle Hooks
+
+| Hook | Description | Execution |
+|------|-------------|-----------|
+| `OnStart(fn func(context.Context) error)` | Called before server starts | Sequential, fail-fast |
+| `OnReady(fn func())` | Called when server is ready | Async, non-blocking |
+| `OnShutdown(fn func(context.Context))` | Called during shutdown | LIFO order |
+| `OnStop(fn func())` | Called after shutdown | Best-effort |
+
+## Architecture
+
+The `app` package is built on top of the `router` package and adds:
+
+```text
+┌─────────────────────────────────────────┐
+│           Application Layer             │
+│  (app package - this package)           │
+│                                         │
+│  • Configuration Management             │
+│  • Lifecycle Hooks                      │
+│  • Observability Integration            │
+│  • Server Management                    │
+│  • Startup Banner                       │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│           Router Layer                  │
+│  (router package)                       │
+│                                         │
+│  • HTTP Routing                         │
+│  • Middleware Chain                     │
+│  • Request Context                      │
+│  • Path Parameters                      │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│        Standard Library                 │
+│  (net/http)                             │
+└─────────────────────────────────────────┘
+```
+
+**Key Design Principles:**
+
+1. **Separation of Concerns**: App handles configuration and lifecycle; router handles HTTP routing
+2. **Functional Options**: Clean, extensible configuration API
+3. **Graceful Degradation**: Works with or without observability components
+4. **Environment Awareness**: Different defaults for development vs production
 
 ## License
 
