@@ -280,6 +280,20 @@ func (h *Handler) postRequestToWorkflowInput(ctx context.Context, request *PostI
 		return WorkflowPostInput{}, err
 	}
 
+	log.Info().
+		Str("pricingPlanID", accountExt.Subscription.PricingPlanID).
+		Str("quotaPolicyName", quotaPolicyName).
+		Msg("retrieved quota policy name for API key creation")
+
+	policies := h.apiKeyDefaults.Policies
+	if quotaPolicyName != "" {
+		policies = append(policies, quotaPolicyName)
+	} else {
+		log.Warn().
+			Str("pricingPlanID", accountExt.Subscription.PricingPlanID).
+			Msg("quota policy name is empty, not adding to policies")
+	}
+
 	wInput := WorkflowPostInput{
 		Name:        request.Body.Attributes.Name,
 		CustomerID:  &request.Body.Attributes.CustomerID,
@@ -289,7 +303,7 @@ func (h *Handler) postRequestToWorkflowInput(ctx context.Context, request *PostI
 		Environment: request.Body.Attributes.Environment,
 		Labels:      request.Body.Attributes.Labels,
 
-		Policies:  append(h.apiKeyDefaults.Policies, quotaPolicyName),
+		Policies:  policies,
 		ExpiresAt: nil,
 		RateLimit: apikey.RateLimit{}, // set to empty, no rate limit on key level
 	}
