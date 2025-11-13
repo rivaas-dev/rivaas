@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 )
 
@@ -127,7 +128,15 @@ func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string
 
 	pricingPlan, exists := s.pricingPlans[pricingPlanID]
 	if !exists {
-		return "", fmt.Errorf("%w: pricing plan '%s' not found", ErrPricingPlanNotFound, pricingPlanID)
+		log.Warn().
+			Str("pricingPlanID", pricingPlanID).
+			Msg("pricing plan not found in configuration, falling back to 'custom'")
+
+		// Try to use 'custom' pricing plan as fallback
+		pricingPlan, exists = s.pricingPlans["custom"]
+		if !exists {
+			return "", fmt.Errorf("%w: pricing plan '%s' not found and 'custom' fallback not available", ErrPricingPlanNotFound, pricingPlanID)
+		}
 	}
 
 	if pricingPlan.QuotaPolicyName == "" {
@@ -149,7 +158,15 @@ func (s *SubscriptionService) getMaxAPIKeyCount(pricingPlanID string) (productio
 
 	pricingPlan, ok := s.pricingPlans[pricingPlanID]
 	if !ok {
-		return 0, 0, fmt.Errorf("%w: pricing plan '%s' not found", ErrPricingPlanNotFound, pricingPlanID)
+		log.Warn().
+			Str("pricingPlanID", pricingPlanID).
+			Msg("pricing plan not found in configuration, falling back to 'custom'")
+
+		// Try to use 'custom' pricing plan as fallback
+		pricingPlan, ok = s.pricingPlans["custom"]
+		if !ok {
+			return 0, 0, fmt.Errorf("%w: pricing plan '%s' not found and 'custom' fallback not available", ErrPricingPlanNotFound, pricingPlanID)
+		}
 	}
 
 	return pricingPlan.NumberOfAPIProductionKeys, pricingPlan.NumberOfAPISandboxKeys, nil

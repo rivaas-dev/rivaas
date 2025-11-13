@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/companyinfo/jsonapi"
+	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"go.opentelemetry.io/otel/attribute"
@@ -60,15 +61,19 @@ func (s *AccountService) GetAccountExtended(ctx context.Context, customerID, acc
 	account := s.accountToResource(accountData)
 
 	// Get subscription information
+	pricingPlanID := "custom" // Default fallback
 	if len(accountData.PricingPlanIDs) == 0 {
-		return nil, ErrPricingPlanNotFound
-	}
-
-	if len(accountData.PricingPlanIDs) > 1 {
+		log.Warn().
+			Str("customerID", customerID).
+			Str("accountID", accountID).
+			Msg("no pricing plan found in Keycloak, using 'custom' as fallback")
+	} else if len(accountData.PricingPlanIDs) > 1 {
 		return nil, fmt.Errorf("more than one pricing plan found: %d", len(accountData.PricingPlanIDs))
+	} else {
+		pricingPlanID = accountData.PricingPlanIDs[0]
 	}
 
-	subscription, err := s.subscriptionService.GetSubscription(ctx, customerID, accountID, accountData.PricingPlanIDs[0])
+	subscription, err := s.subscriptionService.GetSubscription(ctx, customerID, accountID, pricingPlanID)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to get subscription")
 		return nil, fmt.Errorf("failed to get subscription: %w", err)

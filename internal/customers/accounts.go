@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 )
 
@@ -112,15 +113,19 @@ func (s *Service) GroupToAccountExtended(group, subGroup *keycloak.Group) (*Acco
 
 	// Maximum and current number of API keys
 	pricingPlanIDs := (*subGroup.Attributes)[keycloak.PricingPlanIDAttributesKey]
+	pricingPlanID := "custom" // Default fallback
 	if len(pricingPlanIDs) == 0 {
-		return nil, ErrPricingPlanNotFound
-	}
-
-	if len(pricingPlanIDs) > 1 {
+		log.Warn().
+			Str("customerID", *group.ID).
+			Str("accountID", *subGroup.ID).
+			Msg("no pricing plan found in Keycloak, using 'custom' as fallback")
+	} else if len(pricingPlanIDs) > 1 {
 		return nil, fmt.Errorf("more than one pricing plan found: %d", len(pricingPlanIDs))
+	} else {
+		pricingPlanID = pricingPlanIDs[0]
 	}
 
-	accountExtended.Subscription, err = s.GetSubscription(context.Background(), *group.ID, *subGroup.ID, pricingPlanIDs[0])
+	accountExtended.Subscription, err = s.GetSubscription(context.Background(), *group.ID, *subGroup.ID, pricingPlanID)
 	if err != nil {
 		return nil, err
 	}
