@@ -127,48 +127,31 @@ func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string
 	}
 
 	pricingPlan, exists := s.pricingPlans[pricingPlanID]
-	usedFallback := false
 	if !exists {
-		log.Warn().
-			Str("pricingPlanID", pricingPlanID).
-			Msg("pricing plan not found in configuration, falling back to 'custom'")
-
-		// Try to use 'custom' pricing plan as fallback
-		pricingPlan, exists = s.pricingPlans["custom"]
-		if !exists {
+		// Only error out - no automatic fallback to "custom"
+		// The fallback to "custom" should happen in accounts.go/account_service.go
+		// when Keycloak doesn't provide a pricing plan ID at all
+		if pricingPlanID == "custom" {
 			log.Error().
 				Str("pricingPlanID", pricingPlanID).
-				Msg("'custom' fallback pricing plan not available in configuration")
-			return "", fmt.Errorf("%w: pricing plan '%s' not found and 'custom' fallback not available", ErrPricingPlanNotFound, pricingPlanID)
+				Msg("'custom' pricing plan not found in Consul configuration")
+			return "", fmt.Errorf("%w: 'custom' pricing plan not available in configuration", ErrPricingPlanNotFound)
 		}
-		usedFallback = true
-		log.Info().
-			Str("originalPricingPlanID", pricingPlanID).
-			Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
-			Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
-			Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
-			Msg("using 'custom' pricing plan as fallback")
+
+		log.Error().
+			Str("pricingPlanID", pricingPlanID).
+			Msg("pricing plan from Keycloak not found in Consul configuration")
+		return "", fmt.Errorf("%w: pricing plan '%s' is not configured in Consul", ErrPricingPlanNotFound, pricingPlanID)
 	}
 
 	if pricingPlan.QuotaPolicyName == "" {
-		planID := pricingPlanID
-		if usedFallback {
-			planID = "custom"
-			log.Error().
-				Str("originalPricingPlanID", pricingPlanID).
-				Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
-				Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
-				Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
-				Msg("'custom' fallback pricing plan has empty quota policy name - check Consul configuration and mapstructure tag")
-		} else {
-			log.Error().
-				Str("pricingPlanID", pricingPlanID).
-				Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
-				Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
-				Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
-				Msg("pricing plan has empty quota policy name - check Consul configuration and mapstructure tag")
-		}
-		return "", fmt.Errorf("%w: quota policy name is not configured for pricing plan '%s'", ErrPricingPlanNotFound, planID)
+		log.Error().
+			Str("pricingPlanID", pricingPlanID).
+			Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
+			Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
+			Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
+			Msg("pricing plan has empty quota policy name - check Consul configuration")
+		return "", fmt.Errorf("%w: quota policy name is not configured for pricing plan '%s'", ErrPricingPlanNotFound, pricingPlanID)
 	}
 
 	return pricingPlan.QuotaPolicyName, nil
@@ -186,15 +169,20 @@ func (s *SubscriptionService) getMaxAPIKeyCount(pricingPlanID string) (productio
 
 	pricingPlan, ok := s.pricingPlans[pricingPlanID]
 	if !ok {
-		log.Warn().
-			Str("pricingPlanID", pricingPlanID).
-			Msg("pricing plan not found in configuration, falling back to 'custom'")
-
-		// Try to use 'custom' pricing plan as fallback
-		pricingPlan, ok = s.pricingPlans["custom"]
-		if !ok {
-			return 0, 0, fmt.Errorf("%w: pricing plan '%s' not found and 'custom' fallback not available", ErrPricingPlanNotFound, pricingPlanID)
+		// Only error out - no automatic fallback to "custom"
+		// The fallback to "custom" should happen in accounts.go/account_service.go
+		// when Keycloak doesn't provide a pricing plan ID at all
+		if pricingPlanID == "custom" {
+			log.Error().
+				Str("pricingPlanID", pricingPlanID).
+				Msg("'custom' pricing plan not found in Consul configuration")
+			return 0, 0, fmt.Errorf("%w: 'custom' pricing plan not available in configuration", ErrPricingPlanNotFound)
 		}
+
+		log.Error().
+			Str("pricingPlanID", pricingPlanID).
+			Msg("pricing plan from Keycloak not found in Consul configuration")
+		return 0, 0, fmt.Errorf("%w: pricing plan '%s' is not configured in Consul", ErrPricingPlanNotFound, pricingPlanID)
 	}
 
 	return pricingPlan.NumberOfAPIProductionKeys, pricingPlan.NumberOfAPISandboxKeys, nil
