@@ -145,6 +145,8 @@ func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string
 		log.Info().
 			Str("originalPricingPlanID", pricingPlanID).
 			Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
+			Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
+			Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
 			Msg("using 'custom' pricing plan as fallback")
 	}
 
@@ -154,11 +156,17 @@ func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string
 			planID = "custom"
 			log.Error().
 				Str("originalPricingPlanID", pricingPlanID).
-				Msg("'custom' fallback pricing plan has empty quota policy name")
+				Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
+				Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
+				Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
+				Msg("'custom' fallback pricing plan has empty quota policy name - check Consul configuration and mapstructure tag")
 		} else {
 			log.Error().
 				Str("pricingPlanID", pricingPlanID).
-				Msg("pricing plan has empty quota policy name")
+				Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
+				Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
+				Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
+				Msg("pricing plan has empty quota policy name - check Consul configuration and mapstructure tag")
 		}
 		return "", fmt.Errorf("%w: quota policy name is not configured for pricing plan '%s'", ErrPricingPlanNotFound, planID)
 	}
