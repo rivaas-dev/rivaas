@@ -127,6 +127,7 @@ func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string
 	}
 
 	pricingPlan, exists := s.pricingPlans[pricingPlanID]
+	usedFallback := false
 	if !exists {
 		log.Warn().
 			Str("pricingPlanID", pricingPlanID).
@@ -135,12 +136,31 @@ func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string
 		// Try to use 'custom' pricing plan as fallback
 		pricingPlan, exists = s.pricingPlans["custom"]
 		if !exists {
+			log.Error().
+				Str("pricingPlanID", pricingPlanID).
+				Msg("'custom' fallback pricing plan not available in configuration")
 			return "", fmt.Errorf("%w: pricing plan '%s' not found and 'custom' fallback not available", ErrPricingPlanNotFound, pricingPlanID)
 		}
+		usedFallback = true
+		log.Info().
+			Str("originalPricingPlanID", pricingPlanID).
+			Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
+			Msg("using 'custom' pricing plan as fallback")
 	}
 
 	if pricingPlan.QuotaPolicyName == "" {
-		return "", fmt.Errorf("%w: quota policy name is not configured for pricing plan '%s'", ErrPricingPlanNotFound, pricingPlanID)
+		planID := pricingPlanID
+		if usedFallback {
+			planID = "custom"
+			log.Error().
+				Str("originalPricingPlanID", pricingPlanID).
+				Msg("'custom' fallback pricing plan has empty quota policy name")
+		} else {
+			log.Error().
+				Str("pricingPlanID", pricingPlanID).
+				Msg("pricing plan has empty quota policy name")
+		}
+		return "", fmt.Errorf("%w: quota policy name is not configured for pricing plan '%s'", ErrPricingPlanNotFound, planID)
 	}
 
 	return pricingPlan.QuotaPolicyName, nil
