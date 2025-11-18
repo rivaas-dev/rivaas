@@ -69,6 +69,11 @@ func (s *AccountService) GetAccountExtended(ctx context.Context, customerID, acc
 			Msg("no pricing plan found in Keycloak, using 'custom' as fallback")
 	} else if len(accountData.PricingPlanIDs) > 1 {
 		return nil, fmt.Errorf("more than one pricing plan found: %d", len(accountData.PricingPlanIDs))
+	} else if accountData.PricingPlanIDs[0] == "" {
+		log.Warn().
+			Str("customerID", customerID).
+			Str("accountID", accountID).
+			Msg("pricing plan attribute is empty in Keycloak, using 'custom' as fallback")
 	} else {
 		pricingPlanID = accountData.PricingPlanIDs[0]
 	}

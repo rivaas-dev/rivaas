@@ -121,6 +121,11 @@ func (s *Service) GroupToAccountExtended(group, subGroup *keycloak.Group) (*Acco
 			Msg("no pricing plan found in Keycloak, using 'custom' as fallback")
 	} else if len(pricingPlanIDs) > 1 {
 		return nil, fmt.Errorf("more than one pricing plan found: %d", len(pricingPlanIDs))
+	} else if pricingPlanIDs[0] == "" {
+		log.Warn().
+			Str("customerID", *group.ID).
+			Str("accountID", *subGroup.ID).
+			Msg("pricing plan attribute is empty in Keycloak, using 'custom' as fallback")
 	} else {
 		pricingPlanID = pricingPlanIDs[0]
 	}
