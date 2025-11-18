@@ -35,7 +35,7 @@ type APIKey struct {
 
 // PricingPlan represents a pricing plan configuration
 type PricingPlan struct {
-	QuotaPolicyName           string `yaml:"quota" mapstructure:"quota"`
+	QuotaPolicyName           string `conflex:"quota" mapstructure:"quota"`
 	NumberOfAPIProductionKeys int    `mapstructure:"number_of_api_production_keys"`
 	NumberOfAPISandboxKeys    int    `mapstructure:"number_of_api_sandbox_keys"`
 }
