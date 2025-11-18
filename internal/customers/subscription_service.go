@@ -42,6 +42,20 @@ type PricingPlan struct {
 
 // NewSubscriptionService creates a new SubscriptionService
 func NewSubscriptionService(keysRepository db.DatabaseExecer, pricingPlans map[string]PricingPlan) *SubscriptionService {
+	// Debug logging: Log all loaded pricing plans at initialization
+	log.Info().
+		Int("totalPlans", len(pricingPlans)).
+		Msg("initializing SubscriptionService with pricing plans")
+
+	for planID, plan := range pricingPlans {
+		log.Debug().
+			Str("planID", planID).
+			Str("quotaPolicyName", plan.QuotaPolicyName).
+			Int("numberOfAPIProductionKeys", plan.NumberOfAPIProductionKeys).
+			Int("numberOfAPISandboxKeys", plan.NumberOfAPISandboxKeys).
+			Msg("loaded pricing plan from config")
+	}
+
 	return &SubscriptionService{
 		keysRepository: keysRepository,
 		pricingPlans:   pricingPlans,
@@ -126,6 +140,12 @@ func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string
 		return "", fmt.Errorf("%w: pricing plan ID cannot be empty", ErrPricingPlanNotFound)
 	}
 
+	// Debug logging: Show what we're looking for and what's available
+	log.Debug().
+		Str("requestedPlanID", pricingPlanID).
+		Int("availablePlans", len(s.pricingPlans)).
+		Msg("attempting to retrieve pricing plan quota policy name")
+
 	pricingPlan, exists := s.pricingPlans[pricingPlanID]
 	if !exists {
 		// Only error out - no automatic fallback to "custom"
@@ -143,6 +163,15 @@ func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string
 			Msg("pricing plan from Keycloak not found in Consul configuration")
 		return "", fmt.Errorf("%w: pricing plan '%s' is not configured in Consul", ErrPricingPlanNotFound, pricingPlanID)
 	}
+
+	// Debug logging: Show the exact structure of the found pricing plan
+	log.Debug().
+		Str("pricingPlanID", pricingPlanID).
+		Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
+		Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
+		Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
+		Bool("quotaIsEmpty", pricingPlan.QuotaPolicyName == "").
+		Msg("retrieved pricing plan from map - checking quota policy name")
 
 	if pricingPlan.QuotaPolicyName == "" {
 		log.Error().

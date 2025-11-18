@@ -47,6 +47,20 @@ func run(ctx context.Context) error {
 		log.Fatal().Msgf("Failed to load config: %v", err)
 	}
 
+	// Debug logging: Show loaded pricing plans configuration
+	log.Info().
+		Int("pricingPlansCount", len(cfg.PricingPlans)).
+		Msg("configuration loaded from file and Consul")
+
+	for planID, plan := range cfg.PricingPlans {
+		log.Debug().
+			Str("planID", planID).
+			Str("quotaPolicyName", plan.QuotaPolicyName).
+			Int("numberOfAPIProductionKeys", plan.NumberOfAPIProductionKeys).
+			Int("numberOfAPISandboxKeys", plan.NumberOfAPISandboxKeys).
+			Msg("pricing plan in loaded config")
+	}
+
 	// initialize tracing
 	goot.SetTraceProvider(ProjectName)
 	tracer, err := goot.TracerProvider(ctx, cfg.OpenTelemetry.URL, ProjectName)
