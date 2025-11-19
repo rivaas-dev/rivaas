@@ -1,11 +1,27 @@
-// Package app provides the main application implementation for Rivaas.
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
+	"fmt"
+	"log/slog"
 	"time"
 
-	"rivaas.dev/logging"
+	"rivaas.dev/errors"
 	"rivaas.dev/metrics"
+	"rivaas.dev/openapi"
 	"rivaas.dev/router"
 	"rivaas.dev/tracing"
 )
@@ -73,22 +89,35 @@ func WithTracing(opts ...tracing.Option) Option {
 	}
 }
 
-// WithLogging enables logging with the given options.
-// Service name and version are automatically injected from app-level configuration.
+// WithLogger sets the base logger for the application.
+// The logger should be a configured *slog.Logger instance.
 //
-// Example:
+// If not provided, a no-op logger is used (logs are discarded).
 //
-//	app.New(
-//	    app.WithServiceName("my-service"),
-//	    app.WithServiceVersion("v1.0.0"),
-//	    app.WithLogging(logging.WithJSONHandler(), logging.WithLevel("debug")),
+// The app automatically derives request-scoped loggers that include:
+//   - HTTP metadata (method, route, target path, client IP)
+//   - Request ID (if X-Request-ID header is present)
+//   - Trace/span IDs (if OpenTelemetry tracing is enabled)
+//
+// Example with rivaas.dev/logging (recommended):
+//
+//	base := logging.MustNew(
+//	    logging.WithJSONHandler(),
+//	    logging.WithServiceName("orders-api"),
+//	    logging.WithServiceVersion("v1.4.2"),
+//	    logging.WithRedaction(logging.DefaultSensitiveKeys...),
 //	)
-func WithLogging(opts ...logging.Option) Option {
+//	app.New(app.WithLogger(base))
+//
+// Example with plain slog:
+//
+//	base := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+//	    Level: slog.LevelInfo,
+//	}))
+//	app.New(app.WithLogger(base))
+func WithLogger(logger *slog.Logger) Option {
 	return func(c *config) {
-		c.logging = &loggingConfig{
-			enabled: true,
-			options: opts,
-		}
+		c.baseLogger = logger
 	}
 }
 
@@ -161,7 +190,7 @@ func WithServerConfig(opts ...ServerOption) Option {
 //	        middleware.Recovery(),
 //	    ),
 //	)
-func WithMiddleware(middlewares ...router.HandlerFunc) Option {
+func WithMiddleware(middlewares ...HandlerFunc) Option {
 	return func(c *config) {
 		if c.middleware == nil {
 			c.middleware = &middlewareConfig{}
@@ -194,5 +223,136 @@ func WithRouterOptions(opts ...router.Option) Option {
 			c.router = &routerConfig{}
 		}
 		c.router.options = append(c.router.options, opts...)
+	}
+}
+
+// openapiConfig holds OpenAPI configuration for the app layer.
+type openapiConfig struct {
+	enabled bool
+	config  *openapi.Config
+	initErr error // Stores initialization error to be checked during validation
+}
+
+// WithOpenAPI enables OpenAPI specification generation with the given options.
+// Service name and version are automatically injected from app-level configuration if not provided.
+//
+// Example:
+//
+//	app.New(
+//	    app.WithServiceName("my-service"),
+//	    app.WithServiceVersion("v1.0.0"),
+//	    app.WithOpenAPI(
+//	        openapi.WithTitle("My API", "1.0.0"),
+//	        openapi.WithDescription("API description"),
+//	        openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
+//	        openapi.WithServer("http://localhost:8080", "Local development"),
+//	        openapi.WithSwaggerUI(true, "/docs"),
+//	        openapi.WithUIDocExpansion(openapi.DocExpansionList),
+//	        openapi.WithUISyntaxTheme(openapi.SyntaxThemeMonokai),
+//	    ),
+//	)
+func WithOpenAPI(opts ...openapi.Option) Option {
+	return func(c *config) {
+		// Create OpenAPI config with options
+		// Use New instead of MustNew to return errors during validation
+		openapiCfg, err := openapi.New(opts...)
+		if err != nil {
+			// Store error to be checked during config validation.
+			// We can't return errors from functional options (they're void functions),
+			// so we defer error reporting until config.validate() is called.
+			// This allows users to see all configuration errors at once rather than
+			// failing on the first error encountered.
+			c.openapi = &openapiConfig{
+				enabled: true,
+				initErr: fmt.Errorf("failed to initialize OpenAPI: %w", err),
+			}
+			return
+		}
+
+		// If title/version not set, use app-level defaults
+		if openapiCfg.Info.Title == "API" && c.serviceName != "" {
+			openapiCfg.Info.Title = c.serviceName
+		}
+		if openapiCfg.Info.Version == "1.0.0" && c.serviceVersion != "" {
+			openapiCfg.Info.Version = c.serviceVersion
+		}
+
+		c.openapi = &openapiConfig{
+			enabled: true,
+			config:  openapiCfg,
+		}
+	}
+}
+
+// WithErrorFormatter configures a single error formatter.
+// This is used for all error responses.
+//
+// Example:
+//
+//	app.New(
+//	    app.WithServiceName("my-service"),
+//	    app.WithErrorFormatter(&errors.RFC9457{
+//	        BaseURL: "https://api.example.com/problems",
+//	    }),
+//	)
+func WithErrorFormatter(formatter errors.Formatter) Option {
+	return func(c *config) {
+		if c.errors == nil {
+			c.errors = &errorsConfig{}
+		}
+		c.errors.formatter = formatter
+	}
+}
+
+// WithErrorFormatters configures multiple formatters with content negotiation.
+// The Accept header determines which formatter is used.
+//
+// Example:
+//
+//	app.New(
+//	    app.WithServiceName("my-service"),
+//	    app.WithErrorFormatters(map[string]errors.Formatter{
+//	        "application/problem+json": &errors.RFC9457{
+//	            BaseURL: "https://api.example.com/problems",
+//	        },
+//	        "application/json": &errors.Simple{},
+//	    }),
+//	    app.WithDefaultErrorFormat("application/problem+json"),
+//	)
+func WithErrorFormatters(formatters map[string]errors.Formatter) Option {
+	return func(c *config) {
+		if c.errors == nil {
+			c.errors = &errorsConfig{}
+		}
+		c.errors.formatters = formatters
+	}
+}
+
+// WithDefaultErrorFormat sets the default format when no Accept header matches.
+// Only used when WithErrorFormatters is configured.
+func WithDefaultErrorFormat(mediaType string) Option {
+	return func(c *config) {
+		if c.errors == nil {
+			c.errors = &errorsConfig{}
+		}
+		c.errors.defaultFormat = mediaType
+	}
+}
+
+// WithErrorLogger enables error logging with the provided logger.
+// Errors will be logged before formatting and returning to the client.
+//
+// Example:
+//
+//	app.New(
+//	    app.WithServiceName("my-service"),
+//	    app.WithErrorLogger(slog.Default()),
+//	)
+func WithErrorLogger(logger *slog.Logger) Option {
+	return func(c *config) {
+		if c.errors == nil {
+			c.errors = &errorsConfig{}
+		}
+		c.errors.logger = logger
 	}
 }

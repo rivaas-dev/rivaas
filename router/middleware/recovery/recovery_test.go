@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"rivaas.dev/router"
 )
 
 func TestRecovery_BasicPanic(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 
 	r.GET("/panic", func(_ *router.Context) {
@@ -23,26 +24,16 @@ func TestRecovery_BasicPanic(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
-
-	if response["error"] != "Internal server error" {
-		t.Errorf("Expected error message 'Internal server error', got %v", response["error"])
-	}
-
-	if response["code"] != "INTERNAL_ERROR" {
-		t.Errorf("Expected error code 'INTERNAL_ERROR', got %v", response["code"])
-	}
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "Internal server error", response["error"])
+	assert.Equal(t, "INTERNAL_ERROR", response["code"])
 }
 
 func TestRecovery_NoPanic(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 
 	r.GET("/safe", func(c *router.Context) {
@@ -54,13 +45,11 @@ func TestRecovery_NoPanic(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestRecovery_CustomHandler(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 
 	customHandlerCalled := false
 	r.Use(New(
@@ -82,32 +71,19 @@ func TestRecovery_CustomHandler(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if !customHandlerCalled {
-		t.Error("Custom handler was not called")
-	}
-
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500, got %d", w.Code)
-	}
+	assert.True(t, customHandlerCalled, "Custom handler should be called")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
 	var response map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
-
-	if response["custom_error"] != "Custom recovery" {
-		t.Errorf("Expected custom_error 'Custom recovery', got %v", response["custom_error"])
-	}
-
-	if response["panic_value"] != "custom panic" {
-		t.Errorf("Expected panic_value 'custom panic', got %v", response["panic_value"])
-	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "Custom recovery", response["custom_error"])
+	assert.Equal(t, "custom panic", response["panic_value"])
 }
 
 func TestRecovery_CustomLogger(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 
-	var loggedError interface{}
+	var loggedError any
 	var loggedStack []byte
 	loggerCalled := false
 
@@ -128,21 +104,13 @@ func TestRecovery_CustomLogger(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if !loggerCalled {
-		t.Error("Custom logger was not called")
-	}
-
-	if loggedError != "logger test panic" {
-		t.Errorf("Expected logged error 'logger test panic', got %v", loggedError)
-	}
-
-	if len(loggedStack) == 0 {
-		t.Error("Expected stack trace to be captured")
-	}
+	assert.True(t, loggerCalled, "Custom logger should be called")
+	assert.Equal(t, "logger test panic", loggedError)
+	assert.NotEmpty(t, loggedStack, "Expected stack trace to be captured")
 }
 
 func TestRecovery_DisableStackTrace(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 
 	var loggedStack []byte
 	r.Use(New(
@@ -161,13 +129,11 @@ func TestRecovery_DisableStackTrace(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if len(loggedStack) > 0 {
-		t.Error("Stack trace should not be captured when disabled")
-	}
+	assert.Empty(t, loggedStack, "Stack trace should not be captured when disabled")
 }
 
 func TestRecovery_CustomStackSize(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 
 	var loggedStack []byte
 	r.Use(New(
@@ -187,18 +153,14 @@ func TestRecovery_CustomStackSize(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Stack should be captured but within size limit
-	if len(loggedStack) == 0 {
-		t.Error("Stack trace should be captured")
-	}
+	assert.NotEmpty(t, loggedStack, "Stack trace should be captured")
 
 	// Note: Stack size might be less than buffer size depending on actual stack depth
-	if len(loggedStack) > 8192 {
-		t.Errorf("Stack trace should be limited, got %d bytes", len(loggedStack))
-	}
+	assert.LessOrEqual(t, len(loggedStack), 8192)
 }
 
 func TestRecovery_MultipleMiddleware(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 
 	middlewareCalled := false
 	r.Use(func(c *router.Context) {
@@ -217,17 +179,12 @@ func TestRecovery_MultipleMiddleware(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if !middlewareCalled {
-		t.Error("Middleware before Recovery should be called")
-	}
-
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500, got %d", w.Code)
-	}
+	assert.True(t, middlewareCalled, "Middleware before Recovery should be called")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRecovery_PanicInMiddleware(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 
 	r.Use(func(_ *router.Context) {
@@ -243,9 +200,7 @@ func TestRecovery_PanicInMiddleware(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRecovery_DifferentPanicTypes(t *testing.T) {
@@ -262,7 +217,7 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := router.New()
+			r := router.MustNew()
 
 			var capturedPanic any
 			r.Use(New(
@@ -283,22 +238,18 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 			// When panic(nil) is called, Go converts it to a runtime.PanicNilError
 			// We can't compare nil panics directly, so just check that something was captured
 			if tt.panicValue == nil {
-				if capturedPanic == nil {
-					t.Error("Expected to capture a panic, but got nil")
-				}
-			} else if capturedPanic != tt.panicValue {
-				t.Errorf("Expected panic value %v, got %v", tt.panicValue, capturedPanic)
+				assert.NotNil(t, capturedPanic, "Expected to capture a panic")
+			} else {
+				assert.Equal(t, tt.panicValue, capturedPanic)
 			}
 
-			if w.Code != http.StatusInternalServerError {
-				t.Errorf("Expected status 500, got %d", w.Code)
-			}
+			assert.Equal(t, http.StatusInternalServerError, w.Code)
 		})
 	}
 }
 
 func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 
 	loggerCalled := false
 	r.Use(New(
@@ -317,21 +268,16 @@ func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if !loggerCalled {
-		t.Error("Custom logger should be called")
-	}
-
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500, got %d", w.Code)
-	}
+	assert.True(t, loggerCalled, "Custom logger should be called")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRecovery_StackTraceContent(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 
 	var stackTrace []byte
 	r.Use(New(
-		WithLogger(func(_ *router.Context, _ interface{}, stack []byte) {
+		WithLogger(func(_ *router.Context, _ any, stack []byte) {
 			stackTrace = stack
 		}),
 	))
@@ -348,17 +294,12 @@ func TestRecovery_StackTraceContent(t *testing.T) {
 	stackStr := string(stackTrace)
 
 	// Verify stack trace contains expected information
-	if !strings.Contains(stackStr, "panic") {
-		t.Error("Stack trace should contain panic information")
-	}
-
-	if !strings.Contains(stackStr, "recovery_test.go") {
-		t.Error("Stack trace should contain file information")
-	}
+	assert.Contains(t, stackStr, "panic")
+	assert.Contains(t, stackStr, "recovery_test.go")
 }
 
 func TestRecovery_RouteGroups(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 
 	api := r.Group("/api")
@@ -371,13 +312,11 @@ func TestRecovery_RouteGroups(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRecovery_MultipleOptions(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 
 	loggerCalled := false
 	handlerCalled := false
@@ -403,54 +342,7 @@ func TestRecovery_MultipleOptions(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if !loggerCalled {
-		t.Error("Logger should be called")
-	}
-
-	if !handlerCalled {
-		t.Error("Handler should be called")
-	}
-
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500, got %d", w.Code)
-	}
-}
-
-// Benchmark tests
-func BenchmarkRecovery_NoPanic(b *testing.B) {
-	r := router.New()
-	r.Use(New())
-
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "success"})
-	})
-
-	req := httptest.NewRequest("GET", "/test", nil)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkRecovery_WithPanic(b *testing.B) {
-	r := router.New()
-	r.Use(New())
-
-	r.GET("/panic", func(_ *router.Context) {
-		panic("benchmark panic")
-	})
-
-	req := httptest.NewRequest("GET", "/panic", nil)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
+	assert.True(t, loggerCalled, "Logger should be called")
+	assert.True(t, handlerCalled, "Handler should be called")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

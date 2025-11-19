@@ -26,7 +26,7 @@ import (
 )
 
 func main() {
-	r := router.New()
+	r := router.MustNew()
 
 	// Public routes - no authentication required
 	r.GET("/", func(c *router.Context) {

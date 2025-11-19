@@ -17,7 +17,7 @@ type StressTestSuite struct {
 }
 
 func (suite *StressTestSuite) SetupTest() {
-	suite.router = New()
+	suite.router = MustNew()
 }
 
 func (suite *StressTestSuite) TearDownTest() {
@@ -74,7 +74,7 @@ func (suite *StressTestSuite) TestRouterStress() {
 
 // BenchmarkRouterConcurrent benchmarks concurrent requests
 func BenchmarkRouterConcurrent(b *testing.B) {
-	r := New()
+r := MustNew()
 	r.GET("/users/:id", func(c *Context) {
 		c.String(http.StatusOK, "User: %s", c.Param("id"))
 	})
@@ -91,7 +91,7 @@ func BenchmarkRouterConcurrent(b *testing.B) {
 
 // BenchmarkRouterMemoryAllocations tests memory efficiency
 func BenchmarkRouterMemoryAllocations(b *testing.B) {
-	r := New()
+r := MustNew()
 	r.GET("/users/:id", func(c *Context) {
 		c.String(http.StatusOK, "User: %s", c.Param("id"))
 	})

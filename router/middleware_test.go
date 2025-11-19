@@ -17,7 +17,7 @@ type MiddlewareTestSuite struct {
 }
 
 func (suite *MiddlewareTestSuite) SetupTest() {
-	suite.router = New()
+	suite.router = MustNew()
 }
 
 func (suite *MiddlewareTestSuite) TearDownTest() {
@@ -87,7 +87,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainCaching() {
 
 // TestMiddlewareChainConcurrency tests concurrent middleware chain execution
 func (suite *MiddlewareTestSuite) TestMiddlewareChainConcurrency() {
-	r := New()
+r := MustNew()
 
 	// Add middleware that tracks concurrent execution
 	r.Use(func(_ *Context) {
@@ -127,7 +127,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainConcurrency() {
 
 // TestMiddlewareChainPerformance tests middleware chain execution performance
 func (suite *MiddlewareTestSuite) TestMiddlewareChainPerformance() {
-	r := New()
+r := MustNew()
 
 	// Add multiple middleware layers
 	for range 5 {
@@ -162,7 +162,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainPerformance() {
 
 // TestMiddlewareChainMemorySafety tests memory safety of middleware chains
 func (suite *MiddlewareTestSuite) TestMiddlewareChainMemorySafety() {
-	r := New()
+r := MustNew()
 
 	// Add middleware that manipulates context
 	r.Use(func(c *Context) {
@@ -188,7 +188,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainMemorySafety() {
 
 // TestMiddlewareChainCacheEfficiency tests the efficiency of middleware chain caching
 func (suite *MiddlewareTestSuite) TestMiddlewareChainCacheEfficiency() {
-	r := New()
+r := MustNew()
 
 	// Add middleware
 	r.Use(func(c *Context) {

@@ -20,7 +20,7 @@ type ConcurrentTestSuite struct {
 // TestConcurrentRouteRegistration tests concurrent route registration
 // Run with: go test -race -run TestConcurrentRouteRegistration
 func (suite *ConcurrentTestSuite) TestConcurrentRouteRegistration() {
-	r := New()
+	r := MustNew()
 
 	// Register routes concurrently
 	var wg sync.WaitGroup
@@ -34,7 +34,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentRouteRegistration() {
 			for j := range routesPerGoroutine {
 				path := fmt.Sprintf("/route-%d-%d", id, j)
 				r.GET(path, func(c *Context) {
-					c.String(200, "OK")
+					c.String(http.StatusOK, "OK")
 				})
 			}
 		}(id)
@@ -49,20 +49,20 @@ func (suite *ConcurrentTestSuite) TestConcurrentRouteRegistration() {
 
 // TestConcurrentRequestHandling tests concurrent request handling
 func (suite *ConcurrentTestSuite) TestConcurrentRequestHandling() {
-	r := New()
+	r := MustNew()
 
 	// Register routes
 	r.GET("/fast", func(c *Context) {
-		c.String(200, "fast")
+		c.String(http.StatusOK, "fast")
 	})
 
 	r.GET("/slow", func(c *Context) {
 		time.Sleep(10 * time.Millisecond)
-		c.String(200, "slow")
+		c.String(http.StatusOK, "slow")
 	})
 
 	r.GET("/params/:id", func(c *Context) {
-		c.String(200, "%s", c.Param("id"))
+		c.String(http.StatusOK, "%s", c.Param("id"))
 	})
 
 	// Make concurrent requests
@@ -107,7 +107,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentRequestHandling() {
 // routes are registered. This test verifies that routes work correctly after compilation
 // even when registered concurrently.
 func (suite *ConcurrentTestSuite) TestConcurrentRouteCompilation() {
-	r := New()
+	r := MustNew()
 
 	// Register routes concurrently
 	var wg sync.WaitGroup
@@ -117,7 +117,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentRouteCompilation() {
 			defer wg.Done()
 			path := fmt.Sprintf("/route-%d", id)
 			r.GET(path, func(c *Context) {
-				c.String(200, "OK")
+				c.String(http.StatusOK, "OK")
 			})
 		}(id)
 	}
@@ -146,12 +146,12 @@ func (suite *ConcurrentTestSuite) TestConcurrentRouteCompilation() {
 
 // TestConcurrentContextPooling tests context pool under concurrent load
 func (suite *ConcurrentTestSuite) TestConcurrentContextPooling() {
-	r := New()
+	r := MustNew()
 
 	r.GET("/test", func(c *Context) {
 		// Simulate some work
 		_ = c.Param("nonexistent")
-		c.String(200, "OK")
+		c.String(http.StatusOK, "OK")
 	})
 
 	// Make many concurrent requests to test context pooling
@@ -174,7 +174,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentContextPooling() {
 
 // TestConcurrentMiddlewareExecution tests middleware execution under concurrent load
 func (suite *ConcurrentTestSuite) TestConcurrentMiddlewareExecution() {
-	r := New()
+	r := MustNew()
 
 	var counter int64
 
@@ -185,7 +185,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentMiddlewareExecution() {
 	})
 
 	r.GET("/test", func(c *Context) {
-		c.String(200, "OK")
+		c.String(http.StatusOK, "OK")
 	})
 
 	// Make concurrent requests
@@ -208,7 +208,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentMiddlewareExecution() {
 
 // TestConcurrentGroupRegistration tests concurrent route group registration
 func (suite *ConcurrentTestSuite) TestConcurrentGroupRegistration() {
-	r := New()
+	r := MustNew()
 
 	var wg sync.WaitGroup
 	numGroups := 50
@@ -222,11 +222,11 @@ func (suite *ConcurrentTestSuite) TestConcurrentGroupRegistration() {
 			group := r.Group(prefix)
 
 			group.GET("/users", func(c *Context) {
-				c.String(200, "users")
+				c.String(http.StatusOK, "users")
 			})
 
 			group.POST("/users", func(c *Context) {
-				c.String(201, "created")
+				c.String(http.StatusCreated, "created")
 			})
 		}(id)
 	}
@@ -244,14 +244,14 @@ func (suite *ConcurrentTestSuite) TestConcurrentGroupRegistration() {
 
 // TestConcurrentParameterExtraction tests parameter extraction under concurrent load
 func (suite *ConcurrentTestSuite) TestConcurrentParameterExtraction() {
-	r := New()
+	r := MustNew()
 
 	r.GET("/users/:id/posts/:postId/comments/:commentId", func(c *Context) {
 		id := c.Param("id")
 		postID := c.Param("postId")
 		commentID := c.Param("commentId")
 
-		c.JSON(200, map[string]string{
+		c.JSON(http.StatusOK, map[string]string{
 			"id":        id,
 			"postId":    postID,
 			"commentId": commentID,
@@ -281,13 +281,13 @@ func (suite *ConcurrentTestSuite) TestConcurrentParameterExtraction() {
 
 // TestConcurrentWarmup tests warmup under concurrent load
 func (suite *ConcurrentTestSuite) TestConcurrentWarmup() {
-	r := New()
+	r := MustNew()
 
 	// Register many routes
 	for i := range 100 {
 		path := fmt.Sprintf("/route-%d", i)
 		r.GET(path, func(c *Context) {
-			c.String(200, "OK")
+			c.String(http.StatusOK, "OK")
 		})
 	}
 
@@ -305,10 +305,10 @@ func (suite *ConcurrentTestSuite) TestConcurrentWarmup() {
 
 // TestConcurrentConstraintValidation tests constraint validation under concurrent load
 func (suite *ConcurrentTestSuite) TestConcurrentConstraintValidation() {
-	r := New()
+	r := MustNew()
 
 	r.GET("/users/:id", func(c *Context) {
-		c.String(200, "%s", c.Param("id"))
+		c.String(http.StatusOK, "%s", c.Param("id"))
 	}).WhereNumber("id")
 
 	var wg sync.WaitGroup
@@ -349,13 +349,13 @@ func (suite *ConcurrentTestSuite) TestConcurrentConstraintValidation() {
 
 // TestConcurrentStaticRoutes tests static route handling under concurrent load
 func (suite *ConcurrentTestSuite) TestConcurrentStaticRoutes() {
-	r := New()
+	r := MustNew()
 
 	// Register many static routes
 	for i := range 50 {
 		path := fmt.Sprintf("/static/route/%d", i)
 		r.GET(path, func(c *Context) {
-			c.String(200, "static")
+			c.String(http.StatusOK, "static")
 		})
 	}
 
@@ -394,7 +394,7 @@ func TestConcurrentTestSuite(t *testing.T) {
 // ============================================================================
 
 func TestAtomicRouteRegistration(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	var wg sync.WaitGroup
 	routeCount := 1000
@@ -436,7 +436,7 @@ func TestAtomicRouteRegistration(t *testing.T) {
 
 // TestAtomicRouteLookup tests that route lookup is lock-free and concurrent.
 func TestAtomicRouteLookup(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register test routes
 	routes := []string{
@@ -502,7 +502,7 @@ func TestAtomicRouteLookup(t *testing.T) {
 // TestConcurrentRegistrationAndLookup tests that route registration and lookup
 // can happen concurrently without issues.
 func TestConcurrentRegistrationAndLookup(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	var wg sync.WaitGroup
 	done := make(chan bool)
@@ -545,7 +545,7 @@ func TestConcurrentRegistrationAndLookup(t *testing.T) {
 
 // TestAtomicTreeConsistency tests that the atomic tree updates maintain consistency.
 func TestAtomicTreeConsistency(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register routes in a specific order
 	routes := []string{
@@ -583,7 +583,7 @@ func TestAtomicTreeConsistency(t *testing.T) {
 
 // TestAtomicTreeVersioning tests that the version counter is incremented correctly.
 func TestAtomicTreeVersioning(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	initialVersion := atomic.LoadUint64(&r.routeTree.version)
 
@@ -613,7 +613,7 @@ func TestAtomicTreeVersioning(t *testing.T) {
 // TestAtomicTreeMemorySafety tests that the atomic operations don't cause
 // memory leaks or unsafe access patterns.
 func TestAtomicTreeMemorySafety(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register many routes to test memory management
 	for i := range 1000 {

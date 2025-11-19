@@ -11,75 +11,98 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"rivaas.dev/router"
 )
 
-func TestBodyLimit_ContentLength_WithinLimit(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithLimit(1024))) // 1KB limit
-	r.POST("/test", func(c *router.Context) {
-		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
-			c.JSON(400, map[string]string{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, map[string]string{"message": "success"})
-	})
-
-	body := bytes.NewBufferString(`{"key": "value"}`)
-	req := httptest.NewRequest(http.MethodPost, "/test", body)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Length", "18")
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d. Body: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestBodyLimit_ContentLength_ExceedsLimit(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithLimit(1024))) // 1KB limit
-	r.POST("/test", func(c *router.Context) {
-		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
-			c.JSON(400, map[string]string{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, map[string]string{"message": "success"})
-	})
-
-	// Create body larger than limit
-	largeBody := bytes.NewBufferString(strings.Repeat("a", 2048))
-	req := httptest.NewRequest(http.MethodPost, "/test", largeBody)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Length", "2048")
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("Expected status 413, got %d. Body: %s", w.Code, w.Body.String())
+func TestBodyLimit_ContentLength(t *testing.T) {
+	tests := []struct {
+		name           string
+		limit          int64
+		bodySize       int
+		contentLength  string
+		expectedStatus int
+		checkError     bool
+	}{
+		{
+			name:           "within limit",
+			limit:          1024,
+			bodySize:       18,
+			contentLength:  "18",
+			expectedStatus: http.StatusOK,
+			checkError:     false,
+		},
+		{
+			name:           "exceeds limit",
+			limit:          1024,
+			bodySize:       2048,
+			contentLength:  "2048",
+			expectedStatus: http.StatusRequestEntityTooLarge,
+			checkError:     true,
+		},
+		{
+			name:           "exact limit",
+			limit:          100,
+			bodySize:       100,
+			contentLength:  "100",
+			expectedStatus: http.StatusOK,
+			checkError:     false,
+		},
+		{
+			name:           "one byte over",
+			limit:          100,
+			bodySize:       115,
+			contentLength:  "115",
+			expectedStatus: http.StatusRequestEntityTooLarge,
+			checkError:     false,
+		},
 	}
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := router.MustNew()
+			r.Use(New(WithLimit(tt.limit)))
+			r.POST("/test", func(c *router.Context) {
+				var data map[string]any
+				if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
+					c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, map[string]string{"message": "success"})
+			})
 
-	if response["error"] != "request entity too large" {
-		t.Errorf("Expected error message, got %v", response["error"])
+			var body *bytes.Buffer
+			if tt.bodySize <= 100 {
+				body = bytes.NewBufferString(`{"key": "value"}`)
+			} else {
+				body = bytes.NewBufferString(strings.Repeat("a", tt.bodySize))
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/test", body)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Content-Length", tt.contentLength)
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.checkError {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+				assert.Equal(t, "request entity too large", response["error"])
+			}
+		})
 	}
 }
 
 func TestBodyLimit_ActualBodyRead_ExceedsLimit(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithLimit(100))) // 100 byte limit
 	r.POST("/test", func(c *router.Context) {
-		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
+		var data map[string]any
+		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			// Body limit error should be caught here
 			if strings.Contains(err.Error(), "exceeds limit") {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
@@ -103,23 +126,21 @@ func TestBodyLimit_ActualBodyRead_ExceedsLimit(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Should get 413 from handler checking the error
-	if w.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("Expected status 413, got %d. Body: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
 }
 
 func TestBodyLimit_NoContentLength_WithinLimit(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithLimit(1024))) // 1KB limit
 	r.POST("/test", func(c *router.Context) {
 		// Read body directly
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
-			c.JSON(400, map[string]string{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 		if len(body) == 0 {
-			c.JSON(400, map[string]string{"error": "empty body"})
+			c.JSON(http.StatusBadRequest, map[string]string{"error": "empty body"})
 			return
 		}
 		c.JSON(http.StatusOK, map[string]string{"message": "success", "size": string(rune(len(body)))})
@@ -133,25 +154,23 @@ func TestBodyLimit_NoContentLength_WithinLimit(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d. Body: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestBodyLimit_SkipPaths(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithLimit(100),
 		WithSkipPaths("/upload"),
 	))
 	r.POST("/upload", func(c *router.Context) {
-		var data map[string]interface{}
-		c.BindJSON(&data)
+		var data map[string]any
+		json.NewDecoder(c.Request.Body).Decode(&data)
 		c.JSON(http.StatusOK, map[string]string{"message": "uploaded"})
 	})
 	r.POST("/normal", func(c *router.Context) {
-		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
+		var data map[string]any
+		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 				return
@@ -168,9 +187,7 @@ func TestBodyLimit_SkipPaths(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for skipped path, got %d. Body: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "Skipped path should succeed")
 
 	// Test normal path - should be limited
 	largeBody2 := bytes.NewBufferString(`{"data": "` + strings.Repeat("x", 500) + `"}`)
@@ -182,13 +199,11 @@ func TestBodyLimit_SkipPaths(t *testing.T) {
 	r.ServeHTTP(w2, req2)
 
 	// Should get 413 or error
-	if w2.Code == http.StatusOK {
-		t.Errorf("Expected error status for normal path with large body, got 200")
-	}
+	assert.NotEqual(t, http.StatusOK, w2.Code, "Normal path with large body should fail")
 }
 
 func TestBodyLimit_CustomErrorHandler(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithLimit(100),
 		WithErrorHandler(func(c *router.Context, limit int64) {
@@ -206,17 +221,12 @@ func TestBodyLimit_CustomErrorHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("Expected status 413, got %d", w.Code)
-	}
-
-	if !strings.Contains(w.Body.String(), "Custom: Body too large") {
-		t.Errorf("Expected custom error message, got: %s", w.Body.String())
-	}
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	assert.Contains(t, w.Body.String(), "Custom: Body too large")
 }
 
 func TestBodyLimit_EmptyBody(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithLimit(1024)))
 	r.POST("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -228,124 +238,80 @@ func TestBodyLimit_EmptyBody(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for empty body, got %d", w.Code)
-	}
-}
-
-func TestBodyLimit_ExactLimit(t *testing.T) {
-	r := router.New()
-	limit := int64(100)
-	r.Use(New(WithLimit(limit)))
-	r.POST("/test", func(c *router.Context) {
-		body, err := io.ReadAll(c.Request.Body)
-		if err != nil {
-			c.JSON(400, map[string]string{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, map[string]any{
-			"message": "ok",
-			"size":    len(body),
-		})
-	})
-
-	// Body exactly at limit
-	body := bytes.NewBufferString(strings.Repeat("a", int(limit)))
-	req := httptest.NewRequest(http.MethodPost, "/test", body)
-	req.Header.Set("Content-Length", "100")
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for body at exact limit, got %d. Body: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestBodyLimit_OneByteOver(t *testing.T) {
-	r := router.New()
-	limit := int64(100)
-	r.Use(New(WithLimit(limit)))
-	r.POST("/test", func(c *router.Context) {
-		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
-			if strings.Contains(err.Error(), "exceeds limit") {
-				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
-				return
-			}
-			c.JSON(400, map[string]string{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	// Body one byte over limit
-	body := bytes.NewBufferString(`{"data": "` + strings.Repeat("x", int(limit)) + `"}`)
-	req := httptest.NewRequest(http.MethodPost, "/test", body)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Length", "115") // Over limit
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("Expected status 413 for body over limit, got %d. Body: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "Empty body should be allowed")
 }
 
 func TestBodyLimit_FormData(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithLimit(1024))) // 1KB limit
 	r.POST("/form", func(c *router.Context) {
 		var form struct {
 			Name string `form:"name"`
 		}
-		if err := c.BindForm(&form); err != nil {
-			if strings.Contains(err.Error(), "exceeds limit") {
-				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
+		// Parse form first
+		contentType := c.Request.Header.Get("Content-Type")
+		if strings.HasPrefix(contentType, "multipart/form-data") {
+			if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
+				if strings.Contains(err.Error(), "exceeds limit") {
+					c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
+					return
+				}
+				c.JSON(400, map[string]string{"error": err.Error()})
 				return
 			}
-			c.JSON(400, map[string]string{"error": err.Error()})
-			return
+		} else {
+			if err := c.Request.ParseForm(); err != nil {
+				if strings.Contains(err.Error(), "exceeds limit") {
+					c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
+					return
+				}
+				c.JSON(400, map[string]string{"error": err.Error()})
+				return
+			}
 		}
+		// Extract form data directly
+		form.Name = c.Request.Form.Get("name")
 		c.JSON(http.StatusOK, map[string]string{"name": form.Name})
 	})
 
-	// Small form data
-	formData := "name=test&value=small"
-	body := bytes.NewBufferString(formData)
-	req := httptest.NewRequest(http.MethodPost, "/form", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Content-Length", "20")
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for small form, got %d. Body: %s", w.Code, w.Body.String())
+	tests := []struct {
+		name           string
+		formData       string
+		expectedStatus int
+	}{
+		{
+			name:           "small form data",
+			formData:       "name=test&value=small",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "large form data",
+			formData:       "name=" + strings.Repeat("x", 2000),
+			expectedStatus: http.StatusRequestEntityTooLarge,
+		},
 	}
 
-	// Large form data
-	largeFormData := "name=" + strings.Repeat("x", 2000)
-	largeBody := bytes.NewBufferString(largeFormData)
-	req2 := httptest.NewRequest(http.MethodPost, "/form", largeBody)
-	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req2.Header.Set("Content-Length", "2005")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := bytes.NewBufferString(tt.formData)
+			req := httptest.NewRequest(http.MethodPost, "/form", body)
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.ContentLength = int64(len(tt.formData))
 
-	w2 := httptest.NewRecorder()
-	r.ServeHTTP(w2, req2)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-	if w2.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("Expected status 413 for large form, got %d", w2.Code)
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
 	}
 }
 
 func TestBodyLimit_DefaultLimit(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New()) // Default 2MB limit
 	r.POST("/test", func(c *router.Context) {
-		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
+		var data map[string]any
+		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			c.JSON(400, map[string]string{"error": err.Error()})
 			return
 		}
@@ -361,17 +327,15 @@ func TestBodyLimit_DefaultLimit(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestBodyLimit_InvalidContentLength(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithLimit(100)))
 	r.POST("/test", func(c *router.Context) {
-		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
+		var data map[string]any
+		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 				return
@@ -392,54 +356,11 @@ func TestBodyLimit_InvalidContentLength(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Should still enforce limit on actual read
-	if w.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("Expected status 413, got %d. Body: %s", w.Code, w.Body.String())
-	}
-}
-
-func BenchmarkBodyLimit_ContentLengthCheck(b *testing.B) {
-	r := router.New()
-	r.Use(New(WithLimit(1024 * 1024)))
-	r.POST("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		// Create fresh request for each iteration
-		body := bytes.NewBufferString(`{"key": "value"}`)
-		req := httptest.NewRequest(http.MethodPost, "/test", body)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Content-Length", "18")
-
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkBodyLimit_NoContentLength(b *testing.B) {
-	r := router.New()
-	r.Use(New(WithLimit(1024 * 1024)))
-	r.POST("/test", func(c *router.Context) {
-		io.Copy(io.Discard, c.Request.Body)
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		// Create fresh request for each iteration
-		body := bytes.NewBufferString(`{"key": "value"}`)
-		req := httptest.NewRequest(http.MethodPost, "/test", body)
-		req.Header.Set("Content-Type", "application/json")
-		// No Content-Length header
-
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
 }
 
 func TestBodyLimit_ErrorTypeChecking(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithLimit(100)))
 	r.POST("/test", func(c *router.Context) {
 		body, err := io.ReadAll(c.Request.Body)
@@ -464,17 +385,15 @@ func TestBodyLimit_ErrorTypeChecking(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("Expected status 413, got %d. Body: %s", w.Code, w.Body.String())
-	}
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
 }
 
 func TestBodyLimit_ConcurrentRequests(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithLimit(1024)))
 	r.POST("/test", func(c *router.Context) {
-		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
+		var data map[string]any
+		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 				return
@@ -490,7 +409,7 @@ func TestBodyLimit_ConcurrentRequests(t *testing.T) {
 	wg.Add(numRequests)
 
 	// Run concurrent requests
-	for i := 0; i < numRequests; i++ {
+	for i := range numRequests {
 		go func(idx int) {
 			defer wg.Done()
 
@@ -510,9 +429,8 @@ func TestBodyLimit_ConcurrentRequests(t *testing.T) {
 			r.ServeHTTP(w, req)
 
 			// Verify response is one of the expected statuses
-			if w.Code != http.StatusOK && w.Code != http.StatusRequestEntityTooLarge && w.Code != 400 {
-				t.Errorf("Request %d: unexpected status %d", idx, w.Code)
-			}
+			validStatuses := []int{http.StatusOK, http.StatusRequestEntityTooLarge, http.StatusBadRequest}
+			assert.Contains(t, validStatuses, w.Code, "Request %d should have valid status", idx)
 		}(i)
 	}
 
@@ -520,31 +438,21 @@ func TestBodyLimit_ConcurrentRequests(t *testing.T) {
 }
 
 func TestBodyLimit_InvalidLimit_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Expected panic for invalid limit, but didn't panic")
-		}
-	}()
-
-	// This should panic
-	_ = New(WithLimit(-1))
+	assert.Panics(t, func() {
+		_ = New(WithLimit(-1))
+	}, "Expected panic for invalid limit")
 }
 
 func TestBodyLimit_ZeroLimit_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Expected panic for zero limit, but didn't panic")
-		}
-	}()
-
-	// This should panic
-	_ = New(WithLimit(0))
+	assert.Panics(t, func() {
+		_ = New(WithLimit(0))
+	}, "Expected panic for zero limit")
 }
 
 func TestBodyLimit_WithErrorHandlerFirst(t *testing.T) {
 	// This test ensures that WithErrorHandler can be called before WithLimit
 	// and the custom handler won't be overwritten
-	r := router.New()
+	r := router.MustNew()
 	customHandlerCalled := false
 
 	r.Use(New(
@@ -566,26 +474,14 @@ func TestBodyLimit_WithErrorHandlerFirst(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("Expected status 413, got %d", w.Code)
-	}
-
-	if !customHandlerCalled {
-		t.Error("Custom error handler was not called")
-	}
-
-	if !strings.Contains(w.Body.String(), "Custom handler") {
-		t.Errorf("Expected custom handler message, got: %s", w.Body.String())
-	}
-
-	if !strings.Contains(w.Body.String(), "100") {
-		t.Errorf("Expected limit value in message, got: %s", w.Body.String())
-	}
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	assert.True(t, customHandlerCalled, "Custom error handler should be called")
+	assert.Contains(t, w.Body.String(), "Custom handler")
+	assert.Contains(t, w.Body.String(), "100")
 }
 
 func TestBodyLimit_SkipMultiplePaths(t *testing.T) {
-	// Test that variadic parameters work with multiple paths
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithLimit(100),
 		WithSkipPaths("/upload", "/files", "/media"),
@@ -601,8 +497,8 @@ func TestBodyLimit_SkipMultiplePaths(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "media ok"})
 	})
 	r.POST("/api", func(c *router.Context) {
-		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
+		var data map[string]any
+		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 				return
@@ -611,31 +507,30 @@ func TestBodyLimit_SkipMultiplePaths(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "api ok"})
 	})
 
-	// Test all skipped paths with large bodies
-	skipPaths := []string{"/upload", "/files", "/media"}
-	for _, path := range skipPaths {
-		largeBody := bytes.NewBufferString(strings.Repeat("x", 500))
-		req := httptest.NewRequest(http.MethodPost, path, largeBody)
-		req.Header.Set("Content-Type", "application/json")
-
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("Path %s: Expected status 200, got %d", path, w.Code)
-		}
+	tests := []struct {
+		name           string
+		path           string
+		expectedStatus int
+	}{
+		{"skipped upload path", "/upload", http.StatusOK},
+		{"skipped files path", "/files", http.StatusOK},
+		{"skipped media path", "/media", http.StatusOK},
+		{"non-skipped api path", "/api", http.StatusRequestEntityTooLarge},
 	}
 
-	// Test non-skipped path with large body (should fail)
-	largeBody := bytes.NewBufferString(strings.Repeat("x", 500))
-	req := httptest.NewRequest(http.MethodPost, "/api", largeBody)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Length", "500")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			largeBody := bytes.NewBufferString(strings.Repeat("x", 500))
+			req := httptest.NewRequest(http.MethodPost, tt.path, largeBody)
+			req.Header.Set("Content-Type", "application/json")
+			if tt.path == "/api" {
+				req.Header.Set("Content-Length", "500")
+			}
 
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("/api: Expected status 413, got %d", w.Code)
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
 	}
 }

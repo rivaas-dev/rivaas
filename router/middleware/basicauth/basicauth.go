@@ -64,7 +64,7 @@ func defaultUnauthorizedHandler(c *router.Context) {
 //
 // Basic usage with static users:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.Use(basicauth.New(
 //	    basicauth.WithUsers(map[string]string{
 //	        "admin": "secretpass",
@@ -99,7 +99,7 @@ func defaultUnauthorizedHandler(c *router.Context) {
 //
 // Protect specific route groups:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	admin := r.Group("/admin", basicauth.New(
 //	    basicauth.WithUsers(map[string]string{"admin": "secret"}),
 //	))
@@ -202,7 +202,7 @@ func New(opts ...Option) router.HandlerFunc {
 //
 //	func handler(c *router.Context) {
 //	    username := basicauth.GetUsername(c)
-//	    c.JSON(200, map[string]string{"user": username})
+//	    c.JSON(http.StatusOK, map[string]string{"user": username})
 //	}
 func GetUsername(c *router.Context) string {
 	if username, ok := c.Request.Context().Value(middleware.AuthUsernameKey).(string); ok {

@@ -141,7 +141,7 @@ func (lr *limitedReader) Close() error {
 //
 // Basic usage:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.Use(bodylimit.New()) // Default 2MB limit
 //
 // Custom size limit:
@@ -160,8 +160,8 @@ func (lr *limitedReader) Close() error {
 //
 //	r.Use(bodylimit.New(
 //	    bodylimit.WithErrorHandler(func(c *router.Context, limit int64) {
-//	        c.Status(413)
-//	        c.JSON(413, map[string]string{
+//	        c.Status(http.StatusRequestEntityTooLarge)
+//	        c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
 //	            "error": "File too large",
 //	            "max_size": formatSize(limit),
 //	        })
@@ -185,7 +185,7 @@ func (lr *limitedReader) Close() error {
 //	    var data MyStruct
 //	    if err := c.BindJSON(&data); err != nil {
 //	        // If body limit exceeded, err will indicate this
-//	        c.JSON(413, map[string]string{"error": err.Error()})
+//	        c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": err.Error()})
 //	        return
 //	    }
 //	    // Process data...

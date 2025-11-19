@@ -11,7 +11,7 @@ import (
 // TestContextRelease verifies that Release() properly clears data and returns context to pool.
 func TestContextRelease(t *testing.T) {
 	// Create a context manually to test Release() without router interference
-	r := New()
+	r := MustNew()
 	req := httptest.NewRequest("GET", "/users/123?page=2", nil)
 	w := httptest.NewRecorder()
 
@@ -39,7 +39,6 @@ func TestContextRelease(t *testing.T) {
 	// The important thing is that sensitive data is cleared
 	assert.Nil(t, c.Request, "Request should be cleared after release")
 	assert.Nil(t, c.Response, "Response should be cleared after release")
-	assert.Nil(t, c.bindingMeta, "bindingMeta should be cleared after release")
 	assert.Equal(t, int32(0), c.paramCount, "paramCount should be reset after release")
 
 	// Verify original references are different (context was reset)
@@ -50,7 +49,7 @@ func TestContextRelease(t *testing.T) {
 // TestContextReleasePreventsUseAfterRelease verifies that released contexts cannot be used.
 func TestContextReleasePreventsUseAfterRelease(t *testing.T) {
 	// Create a context manually to test Release() without router interference
-	r := New()
+	r := MustNew()
 	req := httptest.NewRequest("GET", "/test?id=123", nil)
 	w := httptest.NewRecorder()
 
@@ -77,7 +76,7 @@ func TestContextReleasePreventsUseAfterRelease(t *testing.T) {
 	assert.Equal(t, "", c.Query("page"), "Query should return empty after release")
 
 	// Attempt to write response - should return error
-	err := c.JSON(200, map[string]string{"test": "value"})
+	err := c.JSON(http.StatusOK, map[string]string{"test": "value"})
 	assert.Error(t, err, "JSON should return error after release")
 	assert.Contains(t, err.Error(), "released", "Error should mention release")
 }
@@ -85,7 +84,7 @@ func TestContextReleasePreventsUseAfterRelease(t *testing.T) {
 // TestContextReleaseDoubleRelease verifies that double release is safe.
 func TestContextReleaseDoubleRelease(t *testing.T) {
 	// Create a context manually
-	r := New()
+	r := MustNew()
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
 
@@ -110,7 +109,7 @@ func TestContextReleaseDoubleRelease(t *testing.T) {
 
 // TestContextReleaseAsyncOperation demonstrates correct usage in async operations.
 func TestContextReleaseAsyncOperation(t *testing.T) {
-	r := New()
+	r := MustNew()
 	req := httptest.NewRequest("GET", "/async", nil)
 	w := httptest.NewRecorder()
 
@@ -137,7 +136,7 @@ func TestContextReleaseAsyncOperation(t *testing.T) {
 
 // TestContextReleaseNormalUsage verifies that normal usage doesn't require manual release.
 func TestContextReleaseNormalUsage(t *testing.T) {
-	r := New()
+	r := MustNew()
 	req := httptest.NewRequest("GET", "/normal", nil)
 	w := httptest.NewRecorder()
 

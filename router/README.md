@@ -75,7 +75,7 @@ Automatically bind request data to structs with **the most comprehensive type su
 
 **Methods**:
 
-- `BindBody()` - Auto-detect JSON/form from Content-Type
+- `Bind()` - Auto-detect JSON/form from Content-Type
 - `BindQuery()` - Query parameters → struct
 - `BindParams()` - URL parameters → struct
 - `BindCookies()` - Cookies → struct
@@ -276,17 +276,9 @@ func createProduct(c *router.Context) {
     var req ProductRequest
     err := c.BindAndValidate(&req)
     if err != nil {
-        if verrs, ok := err.(router.ValidationErrors); ok {
-            // Access structured errors
-            for _, e := range verrs.Errors {
-                log.Error("validation", 
-                    "path", e.Path, 
-                    "code", e.Code,
-                    "message", e.Message,
-                )
-            }
-        }
-        c.ValidationError(err, 400)
+        // Error formatting is handled by app.Context.Error() when router.Context is wrapped
+        // For router-only usage, write a simple error response
+        c.WriteErrorResponse(400, "Validation failed")
         return
     }
 }
@@ -513,7 +505,7 @@ if !ok {
 
 ### Middleware (Built-in)
 
-- **Logger** - Request/response logging
+- **AccessLog** - Structured HTTP access logging
 - **Recovery** - Panic recovery with graceful errors
 - **CORS** - Cross-Origin Resource Sharing
 - **Basic Auth** - HTTP Basic Authentication
@@ -781,7 +773,7 @@ func CORS() router.HandlerFunc {
 ## Installation
 
 ```bash
-go get rivass.dev/router
+go get rivaas.dev/router
 ```
 
 **Requirements**: Go 1.23.0 or higher
@@ -800,7 +792,7 @@ import (
     "fmt"
     "net/http"
     "time"
-    "rivass.dev/router"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -938,7 +930,7 @@ package main
 
 import (
     "net/http"
-    "rivass.dev/router"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -1255,7 +1247,7 @@ import (
     "net/http"
     "net/http/httptest"
     "testing"
-    "rivass.dev/router"
+    "rivaas.dev/router"
 )
 
 func TestGetUser(t *testing.T) {
@@ -1295,7 +1287,7 @@ package main
 
 import (
     "net/http"
-    "rivass.dev/router"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -1438,6 +1430,86 @@ r.GET("/users/me", currentUserHandler)      // Matches /users/me exactly
 r.GET("/users/:id", getUserHandler)         // Matches /users/123, /users/abc, etc.
 ```
 
+#### Parameter Design Best Practices
+
+The router optimizes parameter storage for routes with ≤8 parameters using fast array-based storage (zero allocations). Routes with >8 parameters fall back to map-based storage (one allocation per request).
+
+**Performance Characteristics:**
+
+- **≤8 parameters**: Zero allocations, array-based storage (fastest)
+- **>8 parameters**: One map allocation per request (still fast, but slower)
+
+**Best Practices:**
+
+1. **Keep parameter count ≤8** for optimal performance:
+
+   ```go
+   // ✅ GOOD: 2 parameters (zero allocations)
+   r.GET("/users/:id/posts/:post_id", handler)
+   
+   // ✅ GOOD: 4 parameters (zero allocations)
+   r.GET("/api/:version/users/:id/posts/:post_id/comments/:comment_id", handler)
+   
+   // ⚠️ WARNING: 9 parameters (requires map allocation)
+   r.GET("/a/:p1/b/:p2/c/:p3/d/:p4/e/:p5/f/:p6/g/:p7/h/:p8/i/:p9", handler)
+   ```
+
+2. **Use query parameters for additional data** instead of path parameters:
+
+   ```go
+   // ❌ BAD: Too many path parameters
+   r.GET("/search/:category/:subcategory/:type/:status/:sort/:order/:page/:limit", handler)
+   
+   // ✅ GOOD: Use query parameters for filters
+   r.GET("/search/:category", handler)
+   // Query: ?subcategory=electronics&type=product&status=active&sort=price&order=asc&page=1&limit=20
+   ```
+
+3. **Use request body for complex data** instead of many path parameters:
+
+   ```go
+   // ❌ BAD: Many path parameters
+   r.POST("/api/:version/:resource/:action/:target/:scope/:context/:mode/:format", handler)
+   
+   // ✅ GOOD: Use request body
+   r.POST("/api/v1/operations", handler)
+   // Body: {"resource": "...", "action": "...", "target": "...", ...}
+   ```
+
+4. **Restructure routes** to reduce parameter count:
+
+   ```go
+   // ❌ BAD: 10 parameters in path
+   r.GET("/:a/:b/:c/:d/:e/:f/:g/:h/:i/:j", handler)
+   
+   // ✅ GOOD: Flatten hierarchy or use query parameters
+   r.GET("/items", handler) // Use query: ?a=...&b=...&c=...
+   ```
+
+**Runtime Warnings:**
+
+The router automatically logs a warning when registering routes with >8 parameters:
+
+```text
+WARN: route has more than 8 parameters, using map storage instead of fast array
+  method=GET
+  path=/api/:v1/:r1/:r2/:r3/:r4/:r5/:r6/:r7/:r8/:r9
+  param_count=9
+  recommendation=consider restructuring route to use query parameters or request body for additional data
+```
+
+**When >8 Parameters Are Acceptable:**
+
+- Low-frequency endpoints (<100 req/s)
+- Legacy API compatibility requirements
+- Complex hierarchical resource structures that can't be flattened
+
+**Performance Impact:**
+
+- **≤8 params**: ~149ns/op, 0 allocations
+- **>8 params**: ~149ns/op, 1 allocation (~24 bytes)
+- **Real-world impact**: Negligible for most applications (<1% overhead)
+
 ### Middleware Usage
 
 Middleware functions execute before route handlers and can perform cross-cutting concerns like authentication, logging, rate limiting, and more.
@@ -1448,22 +1520,20 @@ Middleware functions execute before route handlers and can perform cross-cutting
 package main
 
 import (
-    "rivaas.dev/logging"
+    "log/slog"
+    "os"
     "rivaas.dev/router"
     "rivaas.dev/router/middleware/accesslog"
     "rivaas.dev/router/middleware/recovery"
 )
 
 func main() {
-    r := router.New(
-        logging.WithLogging(
-            logging.WithConsoleHandler(),
-            logging.WithDebugLevel(),
-        ),
-    )
+    logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+    r := router.New()
     
     // Apply middleware globally
-    r.Use(accesslog.New(), recovery.New())
+    r.Use(accesslog.New(accesslog.WithLogger(logger)))
+    r.Use(recovery.New())
     
     // Apply to specific routes
     r.GET("/admin", auth.Required(), adminHandler)
@@ -1882,7 +1952,7 @@ import (
     "net/http/httptest"
     "testing"
     
-    "rivass.dev/router"
+    "rivaas.dev/router"
 )
 
 func setupRouter() *router.Router {
@@ -2146,7 +2216,7 @@ package main
 
 import (
     "net/http"
-    "rivass.dev/router"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -2330,7 +2400,7 @@ import (
     "log"
     "net/http"
     
-    "rivass.dev/router"
+    "rivaas.dev/router"
     "go.opentelemetry.io/otel"
     "go.opentelemetry.io/otel/exporters/jaeger"
     "go.opentelemetry.io/otel/sdk/trace"
@@ -2410,6 +2480,79 @@ The tracing system works seamlessly with:
 - **Grafana Tempo** - Trace storage and visualization
 - **OpenTelemetry Collector** - Trace processing and export
 - **Cloud providers** - AWS X-Ray, GCP Cloud Trace, Azure Monitor
+
+## Diagnostics
+
+The router emits optional diagnostic events for security concerns, configuration issues, and performance characteristics. These events are informational only - the router functions correctly whether they are collected or not.
+
+### Enabling Diagnostics
+
+Use `WithDiagnostics()` to subscribe to diagnostic events:
+
+```go
+import (
+    "log/slog"
+    "rivaas.dev/router"
+)
+
+handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
+    slog.Warn(e.Message, "kind", e.Kind, "fields", e.Fields)
+})
+r := router.New(router.WithDiagnostics(handler))
+```
+
+### Diagnostic Event Types
+
+The router emits the following diagnostic events:
+
+- **`DiagXFFSuspicious`** - Suspicious X-Forwarded-For chain detected (>10 IPs)
+- **`DiagHeaderInjection`** - Header injection attempt blocked and sanitized
+- **`DiagInvalidProto`** - Invalid X-Forwarded-Proto value
+- **`DiagHighParamCount`** - Route has >8 parameters (uses map storage)
+- **`DiagH2CEnabled`** - H2C enabled (development warning)
+
+### Wiring Diagnostics
+
+**With Logging:**
+
+```go
+import "log/slog"
+
+handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
+    slog.Warn(e.Message, "kind", e.Kind, "fields", e.Fields)
+})
+r := router.New(router.WithDiagnostics(handler))
+```
+
+**With Metrics:**
+
+```go
+handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
+    metrics.Increment("router.diagnostics", "kind", string(e.Kind))
+})
+```
+
+**With OpenTelemetry:**
+
+```go
+import (
+    "go.opentelemetry.io/otel/attribute"
+    "go.opentelemetry.io/otel/trace"
+)
+
+handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
+    span := trace.SpanFromContext(ctx)
+    if span.IsRecording() {
+        attrs := []attribute.KeyValue{
+            attribute.String("diagnostic.kind", string(e.Kind)),
+        }
+        for k, v := range e.Fields {
+            attrs = append(attrs, attribute.String(k, fmt.Sprint(v)))
+        }
+        span.AddEvent(e.Message, trace.WithAttributes(attrs...))
+    }
+})
+```
 
 ## API Reference
 
@@ -3095,5 +3238,5 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](../LIC
 ## Links
 
 - [Examples](examples/)
-- [Go Package Documentation](https://pkg.go.dev/rivass.dev/router)
+- [Go Package Documentation](https://pkg.go.dev/rivaas.dev/router)
 - [GitHub Repository](https://github.com/rivaas-dev/rivaas)

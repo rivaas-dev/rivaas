@@ -7,52 +7,63 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"rivaas.dev/router"
 )
 
-func TestTimeout_CompletesWithinTimeout(t *testing.T) {
-	r := router.New()
-	r.Use(New(100 * time.Millisecond))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	w := httptest.NewRecorder()
-
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
+func TestTimeout_Behavior(t *testing.T) {
+	tests := []struct {
+		name           string
+		timeout        time.Duration
+		handlerDelay   time.Duration
+		expectedStatus int
+	}{
+		{
+			name:           "completes within timeout",
+			timeout:        100 * time.Millisecond,
+			handlerDelay:   0,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "exceeds timeout",
+			timeout:        50 * time.Millisecond,
+			handlerDelay:   200 * time.Millisecond,
+			expectedStatus: http.StatusRequestTimeout,
+		},
 	}
-}
 
-func TestTimeout_ExceedsTimeout(t *testing.T) {
-	r := router.New()
-	r.Use(New(50 * time.Millisecond))
-	r.GET("/slow", func(c *router.Context) {
-		// Properly respect context cancellation
-		select {
-		case <-time.After(200 * time.Millisecond):
-			c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-		case <-c.Request.Context().Done():
-			// Context cancelled due to timeout - don't write response
-			return
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := router.MustNew()
+			r.Use(New(tt.timeout))
+			r.GET("/test", func(c *router.Context) {
+				if tt.handlerDelay > 0 {
+					// Properly respect context cancellation
+					select {
+					case <-time.After(tt.handlerDelay):
+						c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+					case <-c.Request.Context().Done():
+						// Context cancelled due to timeout - don't write response
+						return
+					}
+				} else {
+					c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+				}
+			})
 
-	req := httptest.NewRequest(http.MethodGet, "/slow", nil)
-	w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			w := httptest.NewRecorder()
 
-	r.ServeHTTP(w, req)
+			r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusRequestTimeout {
-		t.Errorf("Expected status 408, got %d", w.Code)
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
 	}
 }
 
 func TestTimeout_RespectsContextCancellation(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(50 * time.Millisecond))
 
 	contextCancelled := make(chan bool, 1)
@@ -93,13 +104,11 @@ func TestTimeout_RespectsContextCancellation(t *testing.T) {
 		t.Error("Handler should detect context cancellation")
 	}
 
-	if w.Code != http.StatusRequestTimeout {
-		t.Errorf("Expected status 408, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusRequestTimeout, w.Code)
 }
 
 func TestTimeout_SkipPaths(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(50*time.Millisecond, WithSkipPaths("/long-running")))
 
 	r.GET("/long-running", func(c *router.Context) {
@@ -117,29 +126,30 @@ func TestTimeout_SkipPaths(t *testing.T) {
 		}
 	})
 
-	// Skipped path should complete even if slow
-	req := httptest.NewRequest(http.MethodGet, "/long-running", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200 for skipped path, got %d", w.Code)
+	tests := []struct {
+		name           string
+		path           string
+		expectedStatus int
+	}{
+		{"skipped path completes", "/long-running", http.StatusOK},
+		{"non-skipped path timeouts", "/fast", http.StatusRequestTimeout},
 	}
 
-	// Non-skipped path should timeout
-	req = httptest.NewRequest(http.MethodGet, "/fast", nil)
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusRequestTimeout {
-		t.Errorf("Expected status 408 for non-skipped path, got %d", w.Code)
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
 	}
 }
 
 func TestTimeout_CustomHandler(t *testing.T) {
 	customHandlerCalled := false
 
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(30*time.Millisecond,
 		WithHandler(func(c *router.Context) {
 			customHandlerCalled = true
@@ -168,17 +178,12 @@ func TestTimeout_CustomHandler(t *testing.T) {
 	// Give enough time for timeout to trigger
 	time.Sleep(50 * time.Millisecond)
 
-	if !customHandlerCalled {
-		t.Error("Custom timeout handler should be called")
-	}
-
-	if w.Code != http.StatusRequestTimeout {
-		t.Errorf("Expected status 408, got %d", w.Code)
-	}
+	assert.True(t, customHandlerCalled, "Custom timeout handler should be called")
+	assert.Equal(t, http.StatusRequestTimeout, w.Code)
 }
 
 func TestTimeout_ContextPropagation(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(100 * time.Millisecond))
 
 	var ctxWithTimeout context.Context
@@ -192,18 +197,15 @@ func TestTimeout_ContextPropagation(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if ctxWithTimeout == nil {
-		t.Fatal("Context should be set")
-	}
+	require.NotNil(t, ctxWithTimeout, "Context should be set")
 
 	// Check that context has deadline
-	if _, ok := ctxWithTimeout.Deadline(); !ok {
-		t.Error("Context should have deadline set")
-	}
+	_, ok := ctxWithTimeout.Deadline()
+	assert.True(t, ok, "Context should have deadline set")
 }
 
 func TestTimeout_MultipleRequests(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(100 * time.Millisecond))
 
 	fastPath := func(c *router.Context) {
@@ -223,64 +225,22 @@ func TestTimeout_MultipleRequests(t *testing.T) {
 	r.GET("/fast", fastPath)
 	r.GET("/slow", slowPath)
 
-	// Test fast request
-	req := httptest.NewRequest(http.MethodGet, "/fast", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Fast request: expected status 200, got %d", w.Code)
+	tests := []struct {
+		name           string
+		path           string
+		expectedStatus int
+	}{
+		{"fast request", "/fast", http.StatusOK},
+		{"slow request", "/slow", http.StatusRequestTimeout},
 	}
 
-	// Test slow request
-	req = httptest.NewRequest(http.MethodGet, "/slow", nil)
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusRequestTimeout {
-		t.Errorf("Slow request: expected status 408, got %d", w.Code)
-	}
-}
-
-// Benchmark tests
-func BenchmarkTimeout_NoTimeout(b *testing.B) {
-	r := router.New()
-	r.Use(New(1 * time.Second))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkTimeout_WithContextCheck(b *testing.B) {
-	r := router.New()
-	r.Use(New(1 * time.Second))
-	r.GET("/test", func(c *router.Context) {
-		// Simulate handler checking context
-		select {
-		case <-c.Request.Context().Done():
-			return
-		default:
-			c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-		}
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
 	}
 }

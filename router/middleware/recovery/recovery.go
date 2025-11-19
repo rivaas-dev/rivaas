@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"runtime/debug"
-	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -31,15 +30,6 @@ type config struct {
 
 	// disableStackAll disables full stack trace from all goroutines
 	disableStackAll bool
-
-	// useProblemDetails enables RFC 9457 Problem Details responses
-	useProblemDetails bool
-
-	// includeStackInProblem includes stack trace in problem details (dev/staging only!)
-	includeStackInProblem bool
-
-	// problemTypeURI is the problem type URI for RFC 9457 responses
-	problemTypeURI string
 }
 
 // defaultConfig returns the default configuration for recovery middleware.
@@ -66,37 +56,6 @@ func defaultHandler(c *router.Context, _ any) {
 	})
 }
 
-// problemDetailsHandler sends an RFC 9457 Problem Details response.
-func problemDetailsHandler(cfg *config) func(c *router.Context, err any, stack []byte) {
-	return func(c *router.Context, err any, stack []byte) {
-		// Resolve problem type URI if it's a slug
-		typeURI := cfg.problemTypeURI
-		if !strings.HasPrefix(typeURI, "http://") && !strings.HasPrefix(typeURI, "https://") && typeURI != "about:blank" {
-			typeURI = c.ProblemType(typeURI)
-		}
-
-		p := router.NewProblemDetail(http.StatusInternalServerError, "Internal Server Error").
-			WithType(typeURI).
-			WithDetail("An unexpected error occurred while processing your request.").
-			WithInstance(c.Request.URL.Path)
-
-		// Include panic details in dev/staging (never in production!)
-		if cfg.includeStackInProblem {
-			p.WithExtension("panic", fmt.Sprintf("%v", err))
-			if len(stack) > 0 {
-				// Limit stack size if configured
-				stackToInclude := stack
-				if cfg.stackSize > 0 && len(stack) > cfg.stackSize {
-					stackToInclude = stack[:cfg.stackSize]
-				}
-				p.WithExtension("stack", string(stackToInclude))
-			}
-		}
-
-		_ = c.ProblemDetail(p)
-	}
-}
-
 // New returns a middleware that recovers from panics in request handlers.
 // It logs the panic, optionally prints a stack trace, and returns a 500 error response.
 //
@@ -105,7 +64,7 @@ func problemDetailsHandler(cfg *config) func(c *router.Context, err any, stack [
 //
 // Basic usage:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.Use(recovery.New())
 //
 // With custom configuration:
@@ -120,7 +79,7 @@ func problemDetailsHandler(cfg *config) func(c *router.Context, err any, stack [
 //
 //	r.Use(recovery.New(
 //	    recovery.WithHandler(func(c *router.Context, err any) {
-//	        c.JSON(500, map[string]any{
+//	        c.JSON(http.StatusInternalServerError, map[string]any{
 //	            "error": "Internal server error",
 //	            "request_id": c.Param("request_id"),
 //	        })
@@ -176,12 +135,6 @@ func New(opts ...Option) router.HandlerFunc {
 				// Call logger (default or custom)
 				if cfg.logger != nil {
 					cfg.logger(c, err, stack)
-				}
-
-				// Use RFC 9457 Problem Details if enabled
-				if cfg.useProblemDetails {
-					problemDetailsHandler(cfg)(c, err, stack)
-					return
 				}
 
 				// Call custom handler or default

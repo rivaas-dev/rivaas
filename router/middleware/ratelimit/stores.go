@@ -13,8 +13,9 @@ type tokenBucketEntry struct {
 	mu         sync.Mutex
 }
 
-// tokenBucketStore implements in-memory token bucket storage.
-type tokenBucketStore struct {
+// InMemoryTokenBucketStore implements in-memory token bucket storage.
+// This is the default store implementation used by the token bucket rate limiter.
+type InMemoryTokenBucketStore struct {
 	rate        int // tokens per second
 	burst       int // max tokens
 	entries     map[string]*tokenBucketEntry
@@ -23,9 +24,18 @@ type tokenBucketStore struct {
 	stopCleanup chan struct{}
 }
 
-// newTokenBucketStore creates a new in-memory token bucket store.
-func newTokenBucketStore(rate, burst int) *tokenBucketStore {
-	store := &tokenBucketStore{
+// NewInMemoryTokenBucketStore creates a new in-memory token bucket store.
+// This is exposed to allow custom configuration of the default store.
+//
+// Example:
+//
+//	store := ratelimit.NewInMemoryTokenBucketStore(100, 20)
+//	r.Use(ratelimit.WithTokenBucket(
+//	    ratelimit.TokenBucket{Rate: 100, Burst: 20, Store: store},
+//	    ratelimit.CommonOptions{},
+//	))
+func NewInMemoryTokenBucketStore(rate, burst int) *InMemoryTokenBucketStore {
+	store := &InMemoryTokenBucketStore{
 		rate:        rate,
 		burst:       burst,
 		entries:     make(map[string]*tokenBucketEntry),
@@ -37,8 +47,13 @@ func newTokenBucketStore(rate, burst int) *tokenBucketStore {
 	return store
 }
 
+// newTokenBucketStore is an internal helper that creates the default store.
+func newTokenBucketStore(rate, burst int) *InMemoryTokenBucketStore {
+	return NewInMemoryTokenBucketStore(rate, burst)
+}
+
 // cleanupLoop periodically removes old entries.
-func (s *tokenBucketStore) cleanupLoop() {
+func (s *InMemoryTokenBucketStore) cleanupLoop() {
 	for {
 		select {
 		case <-s.cleanup.C:
@@ -60,7 +75,8 @@ func (s *tokenBucketStore) cleanupLoop() {
 }
 
 // Allow checks if a request is allowed and returns remaining tokens and reset time.
-func (s *tokenBucketStore) Allow(key string, now time.Time) (allowed bool, remaining int, resetSeconds int) {
+// This implements the TokenBucketStore interface.
+func (s *InMemoryTokenBucketStore) Allow(key string, now time.Time) (allowed bool, remaining int, resetSeconds int) {
 	s.mu.RLock()
 	entry, exists := s.entries[key]
 	s.mu.RUnlock()

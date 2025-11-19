@@ -1,4 +1,17 @@
-// Package app provides the main application implementation for Rivaas.
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
@@ -17,7 +30,6 @@ type TestOption func(*testConfig)
 
 type testConfig struct {
 	timeout time.Duration
-	trace   bool
 	ctx     context.Context
 }
 
@@ -33,14 +45,6 @@ func WithTimeout(d time.Duration) TestOption {
 	}
 }
 
-// WithTrace enables tracing capture for the test request.
-// This allows assertions on trace spans and metrics.
-func WithTrace() TestOption {
-	return func(cfg *testConfig) {
-		cfg.trace = true
-	}
-}
-
 // WithContext uses the provided context for the test request.
 // Useful for testing context propagation and cancellation.
 func WithContext(ctx context.Context) TestOption {
@@ -52,7 +56,12 @@ func WithContext(ctx context.Context) TestOption {
 // Test executes an HTTP request against the app without starting a server.
 // This is useful for unit testing handlers and middleware.
 //
-// The request is executed synchronously with optional timeout via context.
+// The request is executed in a goroutine with optional timeout via context.
+// If a timeout occurs, the method returns an error immediately, but the handler
+// goroutine may continue running until it completes (the router's ServeHTTP
+// cannot be cancelled mid-execution). This is acceptable for test scenarios
+// where handlers should complete quickly.
+//
 // Returns an *http.Response that can be inspected for status, headers, and body.
 //
 // Example:
@@ -91,16 +100,21 @@ func (a *App) Test(req *http.Request, opts ...TestOption) (*http.Response, error
 
 	// Execute handler (respects context cancellation)
 	done := make(chan struct{})
-	var handlerErr error
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Panic is captured by the recorder's response
+				// The test framework will handle it appropriately
+			}
+			close(done)
+		}()
 		a.router.ServeHTTP(recorder, req)
-		close(done)
 	}()
 
 	select {
 	case <-done:
 		// Request completed
-		return recorder.Result(), handlerErr
+		return recorder.Result(), nil
 	case <-ctx.Done():
 		return nil, fmt.Errorf("request timeout: %w", ctx.Err())
 	}

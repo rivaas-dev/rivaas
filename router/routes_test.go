@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net/http"
 	"reflect"
 	"runtime"
 	"testing"
@@ -24,7 +25,7 @@ func TestGetHandlerName_NilHandler(t *testing.T) {
 func TestGetHandlerName_InvalidPointer(t *testing.T) {
 	// Create a valid function to verify normal behavior
 	var validHandler HandlerFunc = func(c *Context) {
-		c.String(200, "test")
+		c.String(http.StatusOK, "test")
 	}
 
 	// Verify normal function works correctly
@@ -67,10 +68,10 @@ func TestGetHandlerName_InvalidPointer(t *testing.T) {
 // TestGetHandlerName_InvalidPointer_Alternative tests using empty handlers slice
 // to verify getHandlerName behavior through route registration
 func TestGetHandlerName_InvalidPointer_Alternative(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register route with empty handlers - this should use "anonymous" as default
-	r.addRouteWithConstraints("GET", "/test", []HandlerFunc{})
+	r.addRouteWithConstraints(http.MethodGet, "/test", []HandlerFunc{})
 
 	routes := r.Routes()
 	if len(routes) == 0 {
@@ -98,11 +99,11 @@ func TestGetHandlerName_InvalidPointer_Alternative(t *testing.T) {
 
 // TestGetHandlerName_NilHandlerThroughRoute tests nil handler through route registration
 func TestGetHandlerName_NilHandlerThroughRoute(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register route with nil handler explicitly
 	var nilHandler HandlerFunc
-	r.addRouteWithConstraints("GET", "/nil-test", []HandlerFunc{nilHandler})
+	r.addRouteWithConstraints(http.MethodGet, "/nil-test", []HandlerFunc{nilHandler})
 
 	routes := r.Routes()
 	if len(routes) == 0 {

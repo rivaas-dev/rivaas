@@ -1,16 +1,30 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package handlers
 
 import (
 	"net/http"
 	"time"
 
-	"rivaas.dev/router"
+	"rivaas.dev/app"
 )
 
 // ListProducts lists products with query parameter binding.
-func ListProducts(c *router.Context) {
+func ListProducts(c *app.Context) {
 	var params SearchParams
-	if err := c.BindQuery(&params); err != nil {
+	if err := c.Bind(&params); err != nil {
 		HandleError(c, WrapError(ErrInvalidInput, "%v", err))
 		return
 	}
@@ -39,9 +53,9 @@ func ListProducts(c *router.Context) {
 }
 
 // GetProductByID retrieves a product by ID with custom constraint.
-func GetProductByID(c *router.Context) {
+func GetProductByID(c *app.Context) {
 	var params ProductPathParams
-	if err := c.BindParams(&params); err != nil {
+	if err := c.Bind(&params); err != nil {
 		HandleError(c, WrapError(ErrInvalidInput, "%v", err))
 		return
 	}

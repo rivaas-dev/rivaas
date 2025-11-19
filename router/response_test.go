@@ -12,7 +12,7 @@ import (
 // Test AppendHeader
 func TestAppendHeader(t *testing.T) {
 	t.Run("append to new header", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -24,7 +24,7 @@ func TestAppendHeader(t *testing.T) {
 	})
 
 	t.Run("append to existing header", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -56,7 +56,7 @@ func TestContentType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
 			c := NewContext(w, req)
 
@@ -86,7 +86,7 @@ func TestLocation(t *testing.T) {
 // Test Vary
 func TestVary(t *testing.T) {
 	t.Run("single field", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -98,7 +98,7 @@ func TestVary(t *testing.T) {
 	})
 
 	t.Run("multiple fields", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -111,7 +111,7 @@ func TestVary(t *testing.T) {
 	})
 
 	t.Run("append to existing", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -125,7 +125,7 @@ func TestVary(t *testing.T) {
 	})
 
 	t.Run("no duplicates", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -144,7 +144,7 @@ func TestVary(t *testing.T) {
 // Test Link
 func TestLink(t *testing.T) {
 	t.Run("single link", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -157,7 +157,7 @@ func TestLink(t *testing.T) {
 	})
 
 	t.Run("multiple links", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -189,7 +189,7 @@ func TestDownload(t *testing.T) {
 	_ = tmpfile.Close()
 
 	t.Run("download with original filename", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -206,7 +206,7 @@ func TestDownload(t *testing.T) {
 	})
 
 	t.Run("download with custom filename", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -225,7 +225,7 @@ func TestDownload(t *testing.T) {
 // Test Send
 func TestSend(t *testing.T) {
 	t.Run("send raw bytes", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -246,7 +246,7 @@ func TestSend(t *testing.T) {
 	})
 
 	t.Run("send with existing content type", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -266,16 +266,16 @@ func TestSend(t *testing.T) {
 // Test SendStatus
 func TestSendStatus(t *testing.T) {
 	t.Run("send 404", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		err := c.SendStatus(404)
+		err := c.SendStatus(http.StatusNotFound)
 		if err != nil {
 			t.Fatalf("SendStatus failed: %v", err)
 		}
 
-		if w.Code != 404 {
+		if w.Code != http.StatusNotFound {
 			t.Errorf("Status code = %d, want 404", w.Code)
 		}
 		if w.Body.String() != "Not Found" {
@@ -284,11 +284,11 @@ func TestSendStatus(t *testing.T) {
 	})
 
 	t.Run("send 201", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		err := c.SendStatus(201)
+		err := c.SendStatus(http.StatusCreated)
 		if err != nil {
 			t.Fatalf("SendStatus failed: %v", err)
 		}
@@ -302,12 +302,12 @@ func TestSendStatus(t *testing.T) {
 // Test JSONP
 func TestJSONP(t *testing.T) {
 	t.Run("default callback", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		data := map[string]string{"message": "Hello"}
-		err := c.JSONP(200, data)
+		err := c.JSONP(http.StatusOK, data)
 		if err != nil {
 			t.Fatalf("JSONP failed: %v", err)
 		}
@@ -327,12 +327,12 @@ func TestJSONP(t *testing.T) {
 	})
 
 	t.Run("custom callback", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		data := map[string]int{"count": 42}
-		err := c.JSONP(200, data, "myCallback")
+		err := c.JSONP(http.StatusOK, data, "myCallback")
 		if err != nil {
 			t.Fatalf("JSONP failed: %v", err)
 		}
@@ -349,12 +349,12 @@ func TestFormat(t *testing.T) {
 	data := map[string]string{"message": "test"}
 
 	t.Run("format as JSON", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		err := c.Format(200, data)
+		err := c.Format(http.StatusOK, data)
 		if err != nil {
 			t.Fatalf("Format failed: %v", err)
 		}
@@ -365,12 +365,12 @@ func TestFormat(t *testing.T) {
 	})
 
 	t.Run("format as HTML", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "text/html")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		err := c.Format(200, data)
+		err := c.Format(http.StatusOK, data)
 		if err != nil {
 			t.Fatalf("Format failed: %v", err)
 		}
@@ -384,12 +384,12 @@ func TestFormat(t *testing.T) {
 	})
 
 	t.Run("format as plain text", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "text/plain")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		err := c.Format(200, "simple text")
+		err := c.Format(http.StatusOK, "simple text")
 		if err != nil {
 			t.Fatalf("Format failed: %v", err)
 		}
@@ -400,12 +400,12 @@ func TestFormat(t *testing.T) {
 	})
 
 	t.Run("format default to JSON", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		// No Accept header
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		err := c.Format(200, data)
+		err := c.Format(http.StatusOK, data)
 		if err != nil {
 			t.Fatalf("Format failed: %v", err)
 		}
@@ -420,7 +420,7 @@ func TestFormat(t *testing.T) {
 // Test Write and WriteString
 func TestWrite(t *testing.T) {
 	t.Run("write bytes", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -437,7 +437,7 @@ func TestWrite(t *testing.T) {
 	})
 
 	t.Run("write string", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -454,7 +454,7 @@ func TestWrite(t *testing.T) {
 	})
 
 	t.Run("use with fmt.Fprintf", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -484,7 +484,7 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 		c.Vary("Accept", "Accept-Language")
 
 		// Send response
-		c.JSON(200, map[string]string{"status": "ok"})
+		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 
 		// Verify headers
 		link := w.Header().Get("Link")
@@ -613,12 +613,12 @@ func TestFormat_MultipleAcceptTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Accept", tt.acceptHeader)
 			w := httptest.NewRecorder()
 			c := NewContext(w, req)
 
-			err := c.Format(200, map[string]string{"data": "value"})
+			err := c.Format(http.StatusOK, map[string]string{"data": "value"})
 
 			if err != nil {
 				t.Fatalf("Format failed: %v", err)
@@ -633,11 +633,11 @@ func TestFormat_MultipleAcceptTypes(t *testing.T) {
 
 // TestFormat_DifferentStatusCodes tests Format with various status codes
 func TestFormat_DifferentStatusCodes(t *testing.T) {
-	codes := []int{200, 201, 204, 400, 404, 500}
+	codes := []int{http.StatusOK, http.StatusCreated, http.StatusNoContent, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}
 
 	for _, code := range codes {
 		t.Run(string(rune('0'+code/100)), func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Accept", "application/json")
 			w := httptest.NewRecorder()
 			c := NewContext(w, req)
@@ -676,18 +676,18 @@ func TestFormat_ComplexData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Accept", "application/json")
 			w := httptest.NewRecorder()
 			c := NewContext(w, req)
 
-			err := c.Format(200, tt.data)
+			err := c.Format(http.StatusOK, tt.data)
 
 			if err != nil {
 				t.Fatalf("Format should handle %s: %v", tt.name, err)
 			}
 
-			if w.Code != 200 {
+			if w.Code != http.StatusOK {
 				t.Errorf("expected status 200, got %d", w.Code)
 			}
 		})
@@ -731,12 +731,12 @@ func TestFormat_XMLDifferentData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Accept", "application/xml")
 			w := httptest.NewRecorder()
 			c := NewContext(w, req)
 
-			err := c.Format(200, tt.data)
+			err := c.Format(http.StatusOK, tt.data)
 
 			if err != nil {
 				t.Fatalf("Format failed for %s: %v", tt.name, err)
@@ -771,9 +771,9 @@ func TestFormat_Fallback(t *testing.T) {
 
 // TestSendStatus_StandardCodes tests SendStatus with known status codes
 func TestSendStatus_StandardCodes(t *testing.T) {
-	r := New()
+	r := MustNew()
 
-	codes := []int{200, 201, 204, 404, 500}
+	codes := []int{http.StatusOK, http.StatusCreated, http.StatusNoContent, http.StatusNotFound, http.StatusInternalServerError}
 
 	for _, code := range codes {
 		r.GET("/test", func(c *Context) {
@@ -795,7 +795,7 @@ func TestSendStatus_StandardCodes(t *testing.T) {
 
 // TestSendStatus_UnknownCode tests SendStatus with unknown status code
 func TestSendStatus_UnknownCode(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	r.GET("/test", func(c *Context) {
 		err := c.SendStatus(999) // Unknown code

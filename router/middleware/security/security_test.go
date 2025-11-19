@@ -4,15 +4,15 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/requestid"
 )
 
 func TestSecurity_DefaultHeaders(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -24,29 +24,15 @@ func TestSecurity_DefaultHeaders(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Check all default security headers
-	if w.Header().Get("X-Frame-Options") != "DENY" {
-		t.Errorf("Expected X-Frame-Options: DENY, got %s", w.Header().Get("X-Frame-Options"))
-	}
-
-	if w.Header().Get("X-Content-Type-Options") != "nosniff" {
-		t.Error("Expected X-Content-Type-Options: nosniff")
-	}
-
-	if w.Header().Get("X-XSS-Protection") != "1; mode=block" {
-		t.Error("Expected X-XSS-Protection: 1; mode=block")
-	}
-
-	if w.Header().Get("Content-Security-Policy") != "default-src 'self'" {
-		t.Error("Expected Content-Security-Policy: default-src 'self'")
-	}
-
-	if w.Header().Get("Referrer-Policy") != "strict-origin-when-cross-origin" {
-		t.Error("Expected Referrer-Policy: strict-origin-when-cross-origin")
-	}
+	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "1; mode=block", w.Header().Get("X-XSS-Protection"))
+	assert.Equal(t, "default-src 'self'", w.Header().Get("Content-Security-Policy"))
+	assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"))
 }
 
 func TestSecurity_CustomFrameOptions(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithFrameOptions("SAMEORIGIN")))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -57,69 +43,75 @@ func TestSecurity_CustomFrameOptions(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Header().Get("X-Frame-Options") != "SAMEORIGIN" {
-		t.Errorf("Expected X-Frame-Options: SAMEORIGIN, got %s", w.Header().Get("X-Frame-Options"))
-	}
+	assert.Equal(t, "SAMEORIGIN", w.Header().Get("X-Frame-Options"))
 }
 
-func TestSecurity_HSTS_HTTPSOnly(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithHSTS(31536000, true, true)))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	// Test without TLS (HTTP)
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Header().Get("Strict-Transport-Security") != "" {
-		t.Error("HSTS should not be set on HTTP requests")
+func TestSecurity_HSTS(t *testing.T) {
+	tests := []struct {
+		name              string
+		maxAge            int
+		includeSubDomains bool
+		preload           bool
+		useTLS            bool
+		expectHSTS        bool
+		checkContains     []string
+	}{
+		{
+			name:              "HSTS on HTTPS with full options",
+			maxAge:            31536000,
+			includeSubDomains: true,
+			preload:           true,
+			useTLS:            true,
+			expectHSTS:        true,
+			checkContains:     []string{"max-age=31536000", "includeSubDomains", "preload"},
+		},
+		{
+			name:       "no HSTS on HTTP",
+			maxAge:     31536000,
+			useTLS:     false,
+			expectHSTS: false,
+		},
+		{
+			name:       "disabled HSTS",
+			maxAge:     0,
+			useTLS:     true,
+			expectHSTS: false,
+		},
 	}
 
-	// Test with TLS (HTTPS)
-	req = httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.TLS = &tls.ConnectionState{} // Simulate HTTPS
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := router.MustNew()
+			r.Use(New(WithHSTS(tt.maxAge, tt.includeSubDomains, tt.preload)))
+			r.GET("/test", func(c *router.Context) {
+				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+			})
 
-	hsts := w.Header().Get("Strict-Transport-Security")
-	if !strings.Contains(hsts, "max-age=31536000") {
-		t.Error("HSTS should contain max-age")
-	}
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			if tt.useTLS {
+				req.TLS = &tls.ConnectionState{}
+			}
+			w := httptest.NewRecorder()
 
-	if !strings.Contains(hsts, "includeSubDomains") {
-		t.Error("HSTS should contain includeSubDomains")
-	}
+			r.ServeHTTP(w, req)
 
-	if !strings.Contains(hsts, "preload") {
-		t.Error("HSTS should contain preload")
-	}
-}
-
-func TestSecurity_DisableHSTS(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithHSTS(0, false, false)))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.TLS = &tls.ConnectionState{}
-	w := httptest.NewRecorder()
-
-	r.ServeHTTP(w, req)
-
-	if w.Header().Get("Strict-Transport-Security") != "" {
-		t.Error("HSTS should not be set when maxAge is 0")
+			hsts := w.Header().Get("Strict-Transport-Security")
+			if tt.expectHSTS {
+				assert.NotEmpty(t, hsts)
+				for _, expected := range tt.checkContains {
+					assert.Contains(t, hsts, expected)
+				}
+			} else {
+				assert.Empty(t, hsts)
+			}
+		})
 	}
 }
 
 func TestSecurity_CustomCSP(t *testing.T) {
 	customCSP := "default-src 'self'; script-src 'self' https://cdn.example.com; style-src 'self' 'unsafe-inline'"
 
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithContentSecurityPolicy(customCSP)))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -130,9 +122,7 @@ func TestSecurity_CustomCSP(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Header().Get("Content-Security-Policy") != customCSP {
-		t.Errorf("Expected custom CSP, got %s", w.Header().Get("Content-Security-Policy"))
-	}
+	assert.Equal(t, customCSP, w.Header().Get("Content-Security-Policy"))
 }
 
 func TestSecurity_ReferrerPolicy(t *testing.T) {
@@ -145,7 +135,7 @@ func TestSecurity_ReferrerPolicy(t *testing.T) {
 
 	for _, policy := range policies {
 		t.Run(policy, func(t *testing.T) {
-			r := router.New()
+			r := router.MustNew()
 			r.Use(New(WithReferrerPolicy(policy)))
 			r.GET("/test", func(c *router.Context) {
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -156,9 +146,7 @@ func TestSecurity_ReferrerPolicy(t *testing.T) {
 
 			r.ServeHTTP(w, req)
 
-			if w.Header().Get("Referrer-Policy") != policy {
-				t.Errorf("Expected Referrer-Policy: %s, got %s", policy, w.Header().Get("Referrer-Policy"))
-			}
+			assert.Equal(t, policy, w.Header().Get("Referrer-Policy"))
 		})
 	}
 }
@@ -166,7 +154,7 @@ func TestSecurity_ReferrerPolicy(t *testing.T) {
 func TestSecurity_PermissionsPolicy(t *testing.T) {
 	policy := "geolocation=(), microphone=(), camera=()"
 
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithPermissionsPolicy(policy)))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -177,13 +165,11 @@ func TestSecurity_PermissionsPolicy(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Header().Get("Permissions-Policy") != policy {
-		t.Errorf("Expected Permissions-Policy: %s, got %s", policy, w.Header().Get("Permissions-Policy"))
-	}
+	assert.Equal(t, policy, w.Header().Get("Permissions-Policy"))
 }
 
 func TestSecurity_CustomHeaders(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithCustomHeader("X-Custom-Security", "custom-value"),
 		WithCustomHeader("X-Another-Header", "another-value"),
@@ -197,17 +183,12 @@ func TestSecurity_CustomHeaders(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Header().Get("X-Custom-Security") != "custom-value" {
-		t.Error("Expected custom header to be set")
-	}
-
-	if w.Header().Get("X-Another-Header") != "another-value" {
-		t.Error("Expected another custom header to be set")
-	}
+	assert.Equal(t, "custom-value", w.Header().Get("X-Custom-Security"))
+	assert.Equal(t, "another-value", w.Header().Get("X-Another-Header"))
 }
 
 func TestSecurity_DisableContentTypeNosniff(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithContentTypeNosniff(false)))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -218,13 +199,11 @@ func TestSecurity_DisableContentTypeNosniff(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Header().Get("X-Content-Type-Options") != "" {
-		t.Error("X-Content-Type-Options should not be set when disabled")
-	}
+	assert.Empty(t, w.Header().Get("X-Content-Type-Options"), "X-Content-Type-Options should not be set when disabled")
 }
 
 func TestSecurity_MultipleOptions(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithFrameOptions("SAMEORIGIN"),
 		WithContentTypeNosniff(true),
@@ -244,33 +223,16 @@ func TestSecurity_MultipleOptions(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Verify all headers are set
-	if w.Header().Get("X-Frame-Options") != "SAMEORIGIN" {
-		t.Error("X-Frame-Options not set correctly")
-	}
-
-	if w.Header().Get("X-Content-Type-Options") != "nosniff" {
-		t.Error("X-Content-Type-Options not set correctly")
-	}
-
-	if w.Header().Get("Content-Security-Policy") == "" {
-		t.Error("Content-Security-Policy should be set")
-	}
-
-	if w.Header().Get("Referrer-Policy") != "same-origin" {
-		t.Error("Referrer-Policy not set correctly")
-	}
-
-	if w.Header().Get("Permissions-Policy") != "geolocation=()" {
-		t.Error("Permissions-Policy not set correctly")
-	}
-
-	if w.Header().Get("X-Custom") != "value" {
-		t.Error("Custom header not set correctly")
-	}
+	assert.Equal(t, "SAMEORIGIN", w.Header().Get("X-Frame-Options"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.NotEmpty(t, w.Header().Get("Content-Security-Policy"))
+	assert.Equal(t, "same-origin", w.Header().Get("Referrer-Policy"))
+	assert.Equal(t, "geolocation=()", w.Header().Get("Permissions-Policy"))
+	assert.Equal(t, "value", w.Header().Get("X-Custom"))
 }
 
 func TestSecureHeaders_Convenience(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -282,17 +244,12 @@ func TestSecureHeaders_Convenience(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Should have default security headers
-	if w.Header().Get("X-Frame-Options") == "" {
-		t.Error("SecureHeaders should set X-Frame-Options")
-	}
-
-	if w.Header().Get("X-Content-Type-Options") == "" {
-		t.Error("SecureHeaders should set X-Content-Type-Options")
-	}
+	assert.NotEmpty(t, w.Header().Get("X-Frame-Options"))
+	assert.NotEmpty(t, w.Header().Get("X-Content-Type-Options"))
 }
 
 func TestDevelopmentSecurity(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(DevelopmentPreset()))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -305,23 +262,18 @@ func TestDevelopmentSecurity(t *testing.T) {
 
 	// Should have relaxed CSP
 	csp := w.Header().Get("Content-Security-Policy")
-	if !strings.Contains(csp, "unsafe-inline") || !strings.Contains(csp, "unsafe-eval") {
-		t.Error("Development security should allow unsafe-inline and unsafe-eval")
-	}
+	assert.Contains(t, csp, "unsafe-inline")
+	assert.Contains(t, csp, "unsafe-eval")
 
 	// Should not have HSTS
-	if w.Header().Get("Strict-Transport-Security") != "" {
-		t.Error("Development security should not set HSTS")
-	}
+	assert.Empty(t, w.Header().Get("Strict-Transport-Security"))
 
 	// Should have SAMEORIGIN instead of DENY
-	if w.Header().Get("X-Frame-Options") != "SAMEORIGIN" {
-		t.Error("Development security should use SAMEORIGIN")
-	}
+	assert.Equal(t, "SAMEORIGIN", w.Header().Get("X-Frame-Options"))
 }
 
 func TestNoSecurityHeaders(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(NoSecurityHeaders()))
 	r.GET("/test", func(c *router.Context) {
 		// Manually set a security header
@@ -334,25 +286,15 @@ func TestNoSecurityHeaders(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	// Security headers should not be set by middleware (but manually set ones remain)
-	// Note: HTTP middleware can't remove headers, only set them
-	// The middleware won't override manually set headers if options are empty
-
-	// Since we disabled all options, middleware shouldn't set X-Frame-Options
-	// But if the handler sets it manually, it will remain (this is HTTP behavior)
-	if w.Header().Get("X-Frame-Options") != "DENY" {
-		t.Error("Manually set X-Frame-Options should remain")
-	}
+	// Manually set X-Frame-Options should remain
+	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
 
 	// Middleware should not have set X-Content-Type-Options
-	// (handler doesn't set it, so it should be empty)
-	if w.Header().Get("X-Content-Type-Options") != "" {
-		t.Error("NoSecurityHeaders should not set X-Content-Type-Options")
-	}
+	assert.Empty(t, w.Header().Get("X-Content-Type-Options"))
 }
 
 func TestSecurity_CombinedWithOtherMiddleware(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(requestid.New())
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
@@ -365,112 +307,42 @@ func TestSecurity_CombinedWithOtherMiddleware(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Should have both request ID and security headers
-	if w.Header().Get("X-Request-ID") == "" {
-		t.Error("Should have request ID")
-	}
-
-	if w.Header().Get("X-Frame-Options") == "" {
-		t.Error("Should have security headers")
-	}
+	assert.NotEmpty(t, w.Header().Get("X-Request-ID"))
+	assert.NotEmpty(t, w.Header().Get("X-Frame-Options"))
 }
 
-func TestSecurity_EmptyCSP(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithContentSecurityPolicy("")))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	w := httptest.NewRecorder()
-
-	r.ServeHTTP(w, req)
-
-	if w.Header().Get("Content-Security-Policy") != "" {
-		t.Error("Empty CSP should not set header")
+func TestSecurity_EmptyOptions(t *testing.T) {
+	tests := []struct {
+		name       string
+		option     func() Option
+		headerName string
+	}{
+		{
+			name:       "empty CSP",
+			option:     func() Option { return WithContentSecurityPolicy("") },
+			headerName: "Content-Security-Policy",
+		},
+		{
+			name:       "empty frame options",
+			option:     func() Option { return WithFrameOptions("") },
+			headerName: "X-Frame-Options",
+		},
 	}
-}
 
-func TestSecurity_EmptyFrameOptions(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithFrameOptions("")))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := router.MustNew()
+			r.Use(New(tt.option()))
+			r.GET("/test", func(c *router.Context) {
+				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+			})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			w := httptest.NewRecorder()
 
-	r.ServeHTTP(w, req)
+			r.ServeHTTP(w, req)
 
-	if w.Header().Get("X-Frame-Options") != "" {
-		t.Error("Empty frame options should not set header")
-	}
-}
-
-// Benchmark tests
-func BenchmarkSecurity_Default(b *testing.B) {
-	r := router.New()
-	r.Use(New())
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkSecurity_HTTPS(b *testing.B) {
-	r := router.New()
-	r.Use(New())
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.TLS = &tls.ConnectionState{}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkSecurity_AllOptions(b *testing.B) {
-	r := router.New()
-	r.Use(New(
-		WithFrameOptions("SAMEORIGIN"),
-		WithContentTypeNosniff(true),
-		WithXSSProtection("1; mode=block"),
-		WithHSTS(31536000, true, true),
-		WithContentSecurityPolicy("default-src 'self'; script-src 'self' https://cdn.example.com"),
-		WithReferrerPolicy("same-origin"),
-		WithPermissionsPolicy("geolocation=(), microphone=()"),
-		WithCustomHeader("X-Custom-1", "value1"),
-		WithCustomHeader("X-Custom-2", "value2"),
-	))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.TLS = &tls.ConnectionState{}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+			assert.Empty(t, w.Header().Get(tt.headerName))
+		})
 	}
 }

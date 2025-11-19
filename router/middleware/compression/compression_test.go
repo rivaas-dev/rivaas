@@ -9,11 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"rivaas.dev/router"
 )
 
 func TestCompression_BasicGzip(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "Hello, World!"})
@@ -25,29 +27,20 @@ func TestCompression_BasicGzip(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Header().Get("Content-Encoding") != "gzip" {
-		t.Error("Expected Content-Encoding: gzip")
-	}
+	assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
 
 	// Verify response is actually gzipped
 	gr, err := gzip.NewReader(w.Body)
-	if err != nil {
-		t.Fatalf("Failed to create gzip reader: %v", err)
-	}
+	require.NoError(t, err, "Failed to create gzip reader")
 	defer gr.Close()
 
 	decompressed, err := io.ReadAll(gr)
-	if err != nil {
-		t.Fatalf("Failed to decompress response: %v", err)
-	}
-
-	if !strings.Contains(string(decompressed), "Hello, World!") {
-		t.Errorf("Decompressed response should contain original data, got: %s", string(decompressed))
-	}
+	require.NoError(t, err, "Failed to decompress response")
+	assert.Contains(t, string(decompressed), "Hello, World!")
 }
 
 func TestCompression_NoGzipSupport(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "Hello"})
@@ -59,14 +52,8 @@ func TestCompression_NoGzipSupport(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Header().Get("Content-Encoding") == "gzip" {
-		t.Error("Should not compress when client doesn't support gzip")
-	}
-
-	// Response should be uncompressed
-	if !strings.Contains(w.Body.String(), "Hello") {
-		t.Error("Response should be uncompressed")
-	}
+	assert.NotEqual(t, "gzip", w.Header().Get("Content-Encoding"), "Should not compress when client doesn't support gzip")
+	assert.Contains(t, w.Body.String(), "Hello", "Response should be uncompressed")
 }
 
 func TestCompression_MinSize(t *testing.T) {
@@ -78,7 +65,7 @@ func TestCompression_MinSize(t *testing.T) {
 }
 
 func TestCompression_ExcludePaths(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithExcludePaths("/metrics", "/health")))
 
 	r.GET("/metrics", func(c *router.Context) {
@@ -89,29 +76,33 @@ func TestCompression_ExcludePaths(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"api": "response"})
 	})
 
-	// Excluded path should not be compressed
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Header().Get("Content-Encoding") == "gzip" {
-		t.Error("Excluded path should not be compressed")
+	tests := []struct {
+		name               string
+		path               string
+		shouldBeCompressed bool
+	}{
+		{"excluded /metrics", "/metrics", false},
+		{"non-excluded /api", "/api", true},
 	}
 
-	// Non-excluded path should be compressed
-	req = httptest.NewRequest(http.MethodGet, "/api", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req.Header.Set("Accept-Encoding", "gzip")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-	if w.Header().Get("Content-Encoding") != "gzip" {
-		t.Error("Non-excluded path should be compressed")
+			if tt.shouldBeCompressed {
+				assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
+			} else {
+				assert.NotEqual(t, "gzip", w.Header().Get("Content-Encoding"))
+			}
+		})
 	}
 }
 
 func TestCompression_ExcludeExtensions(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithExcludeExtensions(".jpg", ".png", ".zip")))
 
 	r.GET("/image.jpg", func(c *router.Context) {
@@ -122,29 +113,33 @@ func TestCompression_ExcludeExtensions(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"data": "value"})
 	})
 
-	// Image should not be compressed
-	req := httptest.NewRequest(http.MethodGet, "/image.jpg", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Header().Get("Content-Encoding") == "gzip" {
-		t.Error("Image file should not be compressed")
+	tests := []struct {
+		name               string
+		path               string
+		shouldBeCompressed bool
+	}{
+		{"excluded .jpg", "/image.jpg", false},
+		{"non-excluded .json", "/data.json", true},
 	}
 
-	// JSON should be compressed
-	req = httptest.NewRequest(http.MethodGet, "/data.json", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req.Header.Set("Accept-Encoding", "gzip")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-	if w.Header().Get("Content-Encoding") != "gzip" {
-		t.Error("JSON file should be compressed")
+			if tt.shouldBeCompressed {
+				assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
+			} else {
+				assert.NotEqual(t, "gzip", w.Header().Get("Content-Encoding"))
+			}
+		})
 	}
 }
 
 func TestCompression_ExcludeContentTypes(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(WithExcludeContentTypes("image/jpeg", "application/zip")))
 
 	r.GET("/image", func(c *router.Context) {
@@ -159,24 +154,28 @@ func TestCompression_ExcludeContentTypes(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"data": "value"})
 	})
 
-	// Image content type should not be compressed
-	req := httptest.NewRequest(http.MethodGet, "/image", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Header().Get("Content-Encoding") == "gzip" {
-		t.Error("Image content type should not be compressed")
+	tests := []struct {
+		name               string
+		path               string
+		shouldBeCompressed bool
+	}{
+		{"excluded image/jpeg", "/image", false},
+		{"non-excluded json", "/json", true},
 	}
 
-	// JSON should be compressed
-	req = httptest.NewRequest(http.MethodGet, "/json", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req.Header.Set("Accept-Encoding", "gzip")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-	if w.Header().Get("Content-Encoding") != "gzip" {
-		t.Error("JSON should be compressed")
+			if tt.shouldBeCompressed {
+				assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
+			} else {
+				assert.NotEqual(t, "gzip", w.Header().Get("Content-Encoding"))
+			}
+		})
 	}
 }
 
@@ -190,7 +189,7 @@ func TestCompression_CompressionLevels(t *testing.T) {
 
 	for _, level := range levels {
 		t.Run(fmt.Sprintf("level-%d", level), func(t *testing.T) {
-			r := router.New()
+			r := router.MustNew()
 			r.Use(New(WithGzipLevel(level)))
 			r.GET("/test", func(c *router.Context) {
 				data := strings.Repeat("compress this ", 100)
@@ -205,16 +204,14 @@ func TestCompression_CompressionLevels(t *testing.T) {
 
 			// All levels should set the encoding header
 			if level != gzip.NoCompression {
-				if w.Header().Get("Content-Encoding") != "gzip" {
-					t.Errorf("Expected Content-Encoding: gzip for level %d", level)
-				}
+				assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"), "Level %d should set gzip encoding", level)
 			}
 		})
 	}
 }
 
 func TestCompression_LargeResponse(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 
 	largeData := strings.Repeat("This is a large response that should be compressed. ", 1000)
@@ -229,62 +226,46 @@ func TestCompression_LargeResponse(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Header().Get("Content-Encoding") != "gzip" {
-		t.Error("Large response should be compressed")
-	}
+	assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
 
 	// Compressed size should be significantly smaller
 	compressedSize := w.Body.Len()
 	originalSize := len(largeData)
 
-	if compressedSize >= originalSize {
-		t.Errorf("Compressed size (%d) should be smaller than original (%d)", compressedSize, originalSize)
-	}
+	assert.Less(t, compressedSize, originalSize, "Compressed size should be smaller than original")
 
 	// Verify decompression works
 	gr, err := gzip.NewReader(w.Body)
-	if err != nil {
-		t.Fatalf("Failed to create gzip reader: %v", err)
-	}
+	require.NoError(t, err, "Failed to create gzip reader")
 	defer gr.Close()
 
 	decompressed, err := io.ReadAll(gr)
-	if err != nil {
-		t.Fatalf("Failed to decompress: %v", err)
-	}
-
-	if !strings.Contains(string(decompressed), "This is a large response") {
-		t.Error("Decompressed data should contain original content")
-	}
+	require.NoError(t, err, "Failed to decompress")
+	assert.Contains(t, string(decompressed), "This is a large response")
 }
 
 func TestCompression_MultipleRequests(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "test"})
 	})
 
 	// Make multiple requests to verify pool reuse works
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept-Encoding", "gzip")
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
 
-		if w.Header().Get("Content-Encoding") != "gzip" {
-			t.Errorf("Request %d: expected compression", i)
-		}
-
-		if w.Code != http.StatusOK {
-			t.Errorf("Request %d: expected status 200, got %d", i, w.Code)
-		}
+		assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"), "Request %d should be compressed", i)
+		assert.Equal(t, http.StatusOK, w.Code, "Request %d should succeed", i)
 	}
 }
 
 func TestCompression_ContentLengthRemoved(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		c.Response.Header().Set("Content-Length", "100")
@@ -298,107 +279,5 @@ func TestCompression_ContentLengthRemoved(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Content-Length should be removed when compressing
-	if w.Header().Get("Content-Length") == "100" {
-		t.Error("Content-Length should be removed/updated when compressing")
-	}
-}
-
-// Benchmark tests
-func BenchmarkCompression_Enabled(b *testing.B) {
-	r := router.New()
-	r.Use(New())
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "test data"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkCompression_Disabled(b *testing.B) {
-	r := router.New()
-	r.Use(New())
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "test data"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	// No Accept-Encoding header
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkCompression_LargeResponse(b *testing.B) {
-	r := router.New()
-	r.Use(New())
-
-	largeData := strings.Repeat("benchmark data ", 1000)
-	r.GET("/large", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"data": largeData})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/large", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkCompression_BestSpeed(b *testing.B) {
-	r := router.New()
-	r.Use(New(WithGzipLevel(gzip.BestSpeed)))
-	r.GET("/test", func(c *router.Context) {
-		data := strings.Repeat("data ", 100)
-		c.JSON(http.StatusOK, map[string]string{"content": data})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkCompression_BestCompression(b *testing.B) {
-	r := router.New()
-	r.Use(New(WithGzipLevel(gzip.BestCompression)))
-	r.GET("/test", func(c *router.Context) {
-		data := strings.Repeat("data ", 100)
-		c.JSON(http.StatusOK, map[string]string{"content": data})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
+	assert.NotEqual(t, "100", w.Header().Get("Content-Length"))
 }

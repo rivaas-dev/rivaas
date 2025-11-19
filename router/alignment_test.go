@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net/http"
 	"testing"
 	"unsafe"
 )
@@ -172,11 +173,11 @@ func TestAtomicOperationsSafety(t *testing.T) {
 	// This test ensures atomic operations don't panic due to misalignment
 
 	t.Run("atomicRouteTree operations", func(t *testing.T) {
-		r := New()
+		r := MustNew()
 
 		// Register a route (triggers atomic operations)
 		r.GET("/test", func(c *Context) {
-			_ = c.String(200, "OK")
+			_ = c.String(http.StatusOK, "OK")
 		})
 
 		// The fact that this doesn't panic means alignment is correct
@@ -184,14 +185,14 @@ func TestAtomicOperationsSafety(t *testing.T) {
 	})
 
 	t.Run("atomicVersionTrees operations", func(t *testing.T) {
-		r := New(WithVersioning(
+		r := MustNew(WithVersioning(
 			WithQueryVersioning("version"),
 		))
 
 		// Register a versioned route
 		v1 := r.Version("v1")
 		v1.GET("/test", func(c *Context) {
-			_ = c.String(200, "OK")
+			_ = c.String(http.StatusOK, "OK")
 		})
 
 		// The fact that this doesn't panic means alignment is correct
@@ -202,7 +203,7 @@ func TestAtomicOperationsSafety(t *testing.T) {
 // BenchmarkAlignmentImpact measures if proper alignment provides any
 // measurable performance benefit.
 func BenchmarkAlignmentImpact(b *testing.B) {
-	r := New()
+	r := MustNew()
 	r.GET("/users/:id", func(_ *Context) {})
 
 	b.ResetTimer()

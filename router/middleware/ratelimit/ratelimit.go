@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -31,13 +32,23 @@ type CommonOptions struct {
 	Headers    bool                        // Emit RateLimit-* headers (IETF draft)
 	Enforce    bool                        // true = block on exceed (429), false = report-only
 	OnExceeded func(*router.Context, Meta) // Callback when limit exceeded
+	logger     *slog.Logger                // Optional slog logger for error logging
 }
 
 // TokenBucket implements token bucket rate limiting.
 // Allows bursts up to Burst size, refills at Rate tokens per second.
 type TokenBucket struct {
-	Rate  int // Tokens per second
-	Burst int // Maximum tokens (burst capacity)
+	Rate  int              // Tokens per second
+	Burst int              // Maximum tokens (burst capacity)
+	Store TokenBucketStore // Optional custom store (defaults to in-memory)
+}
+
+// TokenBucketStore provides storage for token bucket rate limiting.
+// This allows custom implementations (e.g., Redis-backed) for distributed systems.
+type TokenBucketStore interface {
+	// Allow checks if a request is allowed for the given key.
+	// Returns (allowed, remaining tokens, reset time in seconds).
+	Allow(key string, now time.Time) (allowed bool, remaining int, resetSeconds int)
 }
 
 // SlidingWindow implements sliding window rate limiting.
@@ -82,6 +93,7 @@ func New(opts ...Option) router.HandlerFunc {
 		Key:     cfg.keyFunc,
 		Headers: true,
 		Enforce: true,
+		logger:  cfg.logger,
 	}
 
 	// Convert onLimitExceeded handler if provided
@@ -108,8 +120,13 @@ func WithTokenBucket(tb TokenBucket, opts CommonOptions) router.HandlerFunc {
 		}
 	}
 
-	// In-memory token bucket store (simple implementation)
-	store := newTokenBucketStore(tb.Rate, tb.Burst)
+	// Use custom store if provided, otherwise default to in-memory
+	var store TokenBucketStore
+	if tb.Store != nil {
+		store = tb.Store
+	} else {
+		store = newTokenBucketStore(tb.Rate, tb.Burst)
+	}
 
 	return func(c *router.Context) {
 		key := opts.Key(c)
@@ -151,14 +168,8 @@ func WithTokenBucket(tb TokenBucket, opts CommonOptions) router.HandlerFunc {
 				// Set Retry-After header
 				c.Header("Retry-After", strconv.Itoa(resetSeconds))
 
-				// Return 429 Problem Details
-				_ = c.ProblemDetail(
-					router.NewProblemDetail(http.StatusTooManyRequests, "Too Many Requests").
-						WithType(c.ProblemType(router.PTRateLimit)).
-						WithDetail("Rate limit exceeded. Please try again later.").
-						WithExtension("limit", tb.Burst).
-						WithExtension("reset_in", resetSeconds),
-				)
+				// Return 429 response
+				c.WriteErrorResponse(http.StatusTooManyRequests, "Too Many Requests")
 				c.Abort()
 				return
 			}
@@ -189,8 +200,8 @@ func WithSlidingWindow(sw SlidingWindow, opts CommonOptions) router.HandlerFunc 
 		curr, prev, windowStart, err := sw.Store.GetCounts(c.Request.Context(), key, sw.Window)
 		if err != nil {
 			// Store error - allow request but log
-			if c.Logger() != nil {
-				c.Logger().Warn("rate limit store error", "error", err, "key", key)
+			if opts.logger != nil {
+				opts.logger.Warn("rate limit store error", "error", err, "key", key)
 			}
 			c.Next()
 			return
@@ -259,15 +270,8 @@ func WithSlidingWindow(sw SlidingWindow, opts CommonOptions) router.HandlerFunc 
 				// Set Retry-After header
 				c.Header("Retry-After", strconv.Itoa(resetSeconds))
 
-				// Return 429 Problem Details
-				_ = c.ProblemDetail(
-					router.NewProblemDetail(http.StatusTooManyRequests, "Too Many Requests").
-						WithType(c.ProblemType(router.PTRateLimit)).
-						WithDetail("Rate limit exceeded. Please try again later.").
-						WithExtension("limit", sw.Limit).
-						WithExtension("window", sw.Window.String()).
-						WithExtension("reset_in", resetSeconds),
-				)
+				// Return 429 response
+				c.WriteErrorResponse(http.StatusTooManyRequests, "Too Many Requests")
 				c.Abort()
 				return
 			}

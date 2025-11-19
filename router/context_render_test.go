@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -27,7 +28,7 @@ func TestIndentedJSON(t *testing.T) {
 				"id":   123,
 				"name": "John",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should be indented
 				if !strings.Contains(body, "  ") {
@@ -55,7 +56,7 @@ func TestIndentedJSON(t *testing.T) {
 					"notifications": true,
 				},
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should have proper indentation for nested objects
 				if !strings.Contains(body, "    ") {
@@ -66,7 +67,7 @@ func TestIndentedJSON(t *testing.T) {
 		{
 			name:           "empty object",
 			data:           map[string]string{},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				if !strings.Contains(body, "{}") {
 					t.Error("Expected empty object {}")
@@ -78,7 +79,7 @@ func TestIndentedJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			err := c.IndentedJSON(tt.expectedStatus, tt.data)
@@ -118,7 +119,7 @@ func TestPureJSON(t *testing.T) {
 			data: map[string]string{
 				"html": "<h1>Title</h1>",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedBody:   `{"html":"<h1>Title</h1>"}`,
 		},
 		{
@@ -126,7 +127,7 @@ func TestPureJSON(t *testing.T) {
 			data: map[string]string{
 				"url": "https://example.com?foo=bar&baz=qux",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedBody:   `{"url":"https://example.com?foo=bar&baz=qux"}`,
 		},
 		{
@@ -134,7 +135,7 @@ func TestPureJSON(t *testing.T) {
 			data: map[string]string{
 				"comparison": "x < 10 && y > 5",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedBody:   `{"comparison":"x < 10 && y > 5"}`,
 		},
 		{
@@ -142,7 +143,7 @@ func TestPureJSON(t *testing.T) {
 			data: map[string]string{
 				"content": "<script>alert('test')</script>",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedBody:   `{"content":"<script>alert('test')</script>"}`,
 		},
 	}
@@ -150,7 +151,7 @@ func TestPureJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			err := c.PureJSON(tt.expectedStatus, tt.data)
@@ -185,14 +186,14 @@ func TestPureJSON_vs_JSON_Escaping(t *testing.T) {
 	wJSON := httptest.NewRecorder()
 	reqJSON := httptest.NewRequest("GET", "/", nil)
 	cJSON := NewContext(wJSON, reqJSON)
-	_ = cJSON.JSON(200, data)
+	_ = cJSON.JSON(http.StatusOK, data)
 	jsonBody := wJSON.Body.String()
 
 	// Test PureJSON (should NOT escape)
 	wPure := httptest.NewRecorder()
 	reqPure := httptest.NewRequest("GET", "/", nil)
 	cPure := NewContext(wPure, reqPure)
-	_ = cPure.PureJSON(200, data)
+	_ = cPure.PureJSON(http.StatusOK, data)
 	pureBody := wPure.Body.String()
 
 	// Verify JSON() escapes HTML
@@ -239,28 +240,28 @@ func TestSecureJSON(t *testing.T) {
 			name:           "default prefix",
 			data:           []string{"secret1", "secret2"},
 			prefix:         nil,
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedPrefix: "while(1);",
 		},
 		{
 			name:           "custom prefix",
 			data:           map[string]string{"key": "value"},
 			prefix:         []string{"for(;;);"},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedPrefix: "for(;;);",
 		},
 		{
 			name:           "empty custom prefix uses default",
 			data:           map[string]int{"count": 42},
 			prefix:         []string{""},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedPrefix: "while(1);",
 		},
 		{
 			name:           "JSON array (hijacking target)",
 			data:           []int{1, 2, 3, 4, 5},
 			prefix:         nil,
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedPrefix: "while(1);",
 		},
 	}
@@ -268,7 +269,7 @@ func TestSecureJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			var err error
@@ -314,7 +315,7 @@ func TestASCIIJSON(t *testing.T) {
 			data: map[string]string{
 				"message": "Hello 世界",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should contain \u escape sequences
 				if !strings.Contains(body, "\\u") {
@@ -333,7 +334,7 @@ func TestASCIIJSON(t *testing.T) {
 			data: map[string]string{
 				"emoji": "🌍🎉",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should escape emoji to \uXXXX
 				if !strings.Contains(body, "\\u") {
@@ -356,7 +357,7 @@ func TestASCIIJSON(t *testing.T) {
 				"city":    "São Paulo",
 				"message": "Hello",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// ASCII part should be unchanged
 				if !strings.Contains(body, "Hello") {
@@ -373,7 +374,7 @@ func TestASCIIJSON(t *testing.T) {
 			data: map[string]string{
 				"text": "Plain ASCII text 123",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should not have escape sequences for pure ASCII
 				if strings.Count(body, "\\u") > 0 {
@@ -386,7 +387,7 @@ func TestASCIIJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			err := c.ASCIIJSON(tt.expectedStatus, tt.data)
@@ -426,7 +427,7 @@ func TestYAML(t *testing.T) {
 				},
 				"debug": true,
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should be valid YAML
 				var result map[string]any
@@ -442,7 +443,7 @@ func TestYAML(t *testing.T) {
 		{
 			name:           "array",
 			data:           []string{"item1", "item2", "item3"},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should be valid YAML
 				var result []string
@@ -462,7 +463,7 @@ func TestYAML(t *testing.T) {
 					"ports": []int{8080, 8081},
 				},
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				var result map[string]any
 				if err := yaml.Unmarshal([]byte(body), &result); err != nil {
@@ -475,7 +476,7 @@ func TestYAML(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			err := c.YAML(tt.expectedStatus, tt.data)
@@ -513,14 +514,14 @@ func TestDataFromReader(t *testing.T) {
 			contentLength:  13,
 			contentType:    "text/plain",
 			data:           "Hello, World!",
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "streaming without content length",
 			contentLength:  -1,
 			contentType:    "application/octet-stream",
 			data:           "Binary data here",
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 		},
 		{
 			name:          "streaming with extra headers",
@@ -531,21 +532,21 @@ func TestDataFromReader(t *testing.T) {
 				"Content-Disposition": `attachment; filename="document.pdf"`,
 				"Cache-Control":       "no-cache",
 			},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "large data stream",
 			contentLength:  1024,
 			contentType:    "application/octet-stream",
 			data:           strings.Repeat("A", 1024),
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			reader := strings.NewReader(tt.data)
@@ -625,28 +626,28 @@ func TestData(t *testing.T) {
 			name:           "PNG image",
 			contentType:    "image/png",
 			data:           []byte{0x89, 0x50, 0x4E, 0x47}, // PNG header
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedCT:     "image/png",
 		},
 		{
 			name:           "PDF document",
 			contentType:    "application/pdf",
 			data:           []byte("%PDF-1.4"),
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedCT:     "application/pdf",
 		},
 		{
 			name:           "custom binary",
 			contentType:    "application/octet-stream",
 			data:           []byte{0x00, 0x01, 0x02, 0x03},
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedCT:     "application/octet-stream",
 		},
 		{
 			name:           "empty content type defaults to octet-stream",
 			contentType:    "",
 			data:           []byte("data"),
-			expectedStatus: 200,
+			expectedStatus: http.StatusOK,
 			expectedCT:     "application/octet-stream",
 		},
 		{
@@ -661,7 +662,7 @@ func TestData(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			err := c.Data(tt.expectedStatus, tt.contentType, tt.data)
@@ -696,7 +697,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 		{
 			name: "JSON",
 			renderFunc: func(c *Context) error {
-				return c.JSON(200, data)
+				return c.JSON(http.StatusOK, data)
 			},
 			expectedCT: "application/json; charset=utf-8",
 		},
@@ -733,7 +734,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			_ = tt.renderFunc(c)
@@ -761,7 +762,7 @@ func TestJSON_Variants_ErrorHandling(t *testing.T) {
 		{
 			name: "JSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.JSON(200, bad)
+				return c.JSON(http.StatusOK, bad)
 			},
 		},
 		{
@@ -793,7 +794,7 @@ func TestJSON_Variants_ErrorHandling(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			err := tt.renderFunc(c)

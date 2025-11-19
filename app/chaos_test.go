@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
@@ -9,8 +23,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"rivaas.dev/router"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -38,7 +50,7 @@ func TestChaos_ConcurrentRouteRegistrationAndDeletion(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			path := "/route" + string(rune('0'+id%10))
-			app.GET(path, func(c *router.Context) {
+			app.GET(path, func(c *Context) {
 				c.String(http.StatusOK, "route-%d", id)
 			})
 		}(i)
@@ -88,7 +100,7 @@ func TestChaos_StressTestHighConcurrency(t *testing.T) {
 	var requestCount atomic.Int64
 	var errorCount atomic.Int64
 
-	app.GET("/stress", func(c *router.Context) {
+	app.GET("/stress", func(c *Context) {
 		requestCount.Add(1)
 		// Simulate variable work
 		time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
@@ -171,7 +183,7 @@ func TestChaos_RandomRoutePatterns(t *testing.T) {
 						panicCount.Add(1)
 					}
 				}()
-				app.GET(path, func(c *router.Context) {
+				app.GET(path, func(c *Context) {
 					c.String(http.StatusOK, "route-%d", id)
 				})
 			}()
@@ -212,14 +224,14 @@ func TestChaos_MiddlewareChainStress(t *testing.T) {
 	// Add many middleware
 	for i := range numMiddleware {
 		mwID := i
-		app.Use(func(c *router.Context) {
+		app.Use(func(c *Context) {
 			order := counter.Add(1)
 			executionOrder.Store(order, mwID)
 			c.Next()
 		})
 	}
 
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		order := counter.Add(1)
 		executionOrder.Store(order, -1) // -1 indicates handler
 		c.String(http.StatusOK, "ok")
@@ -257,7 +269,7 @@ func TestChaos_ContextPoolExhaustion(t *testing.T) {
 	)
 
 	// Handler that holds context briefly
-	app.GET("/slow", func(c *router.Context) {
+	app.GET("/slow", func(c *Context) {
 		time.Sleep(5 * time.Millisecond)
 		c.String(http.StatusOK, "ok")
 	})
@@ -302,7 +314,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 	var errors atomic.Int64
 
 	// Pre-register some routes
-	app.GET("/existing", func(c *router.Context) {
+	app.GET("/existing", func(c *Context) {
 		c.String(http.StatusOK, "existing")
 	})
 
@@ -320,7 +332,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 						errors.Add(1)
 					}
 				}()
-				app.GET(fmt.Sprintf("/new%d", id), func(c *router.Context) {
+				app.GET(fmt.Sprintf("/new%d", id), func(c *Context) {
 					c.String(http.StatusOK, "new-%d", id)
 				})
 			}()
@@ -336,7 +348,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 						errors.Add(1)
 					}
 				}()
-				app.Use(func(c *router.Context) {
+				app.Use(func(c *Context) {
 					c.Next()
 				})
 			}()

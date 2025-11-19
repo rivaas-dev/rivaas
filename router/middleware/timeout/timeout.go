@@ -50,14 +50,14 @@ func defaultErrorHandler(c *router.Context) {
 //
 // Basic usage:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.Use(timeout.New(30 * time.Second))
 //
 // With custom error handler:
 //
 //	r.Use(timeout.New(30*time.Second,
 //	    timeout.WithHandler(func(c *router.Context) {
-//	        c.JSON(408, map[string]any{
+//	        c.JSON(http.StatusRequestTimeout, map[string]any{
 //	            "error": "Operation timed out",
 //	            "timeout": "30s",
 //	        })
@@ -75,7 +75,7 @@ func defaultErrorHandler(c *router.Context) {
 //	r.GET("/slow", func(c *router.Context) {
 //	    select {
 //	    case <-time.After(2 * time.Second):
-//	        c.JSON(200, map[string]string{"message": "Done"})
+//	        c.JSON(http.StatusOK, map[string]string{"message": "Done"})
 //	    case <-c.Request.Context().Done():
 //	        // Request was cancelled or timed out
 //	        return

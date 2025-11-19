@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
@@ -5,8 +19,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"rivaas.dev/router"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -31,7 +43,7 @@ func (s *AppLifecycleSuite) TearDownTest() {
 	// Cleanup - app doesn't need explicit cleanup, but we can verify it's usable
 	if s.testApp != nil {
 		// Verify app is still functional
-		s.testApp.GET("/cleanup-check", func(c *router.Context) {
+		s.testApp.GET("/cleanup-check", func(c *Context) {
 			c.String(http.StatusOK, "ok")
 		})
 		req := httptest.NewRequest("GET", "/cleanup-check", nil)
@@ -73,7 +85,7 @@ func (s *AppLifecycleSuite) TestHooksExecutionOrder() {
 
 	// Note: In a real test, we'd start the server and trigger shutdown
 	// For this unit test, we just verify hooks are registered
-	s.testApp.GET("/test", func(c *router.Context) {
+	s.testApp.GET("/test", func(c *Context) {
 		c.String(http.StatusOK, "ok")
 	})
 
@@ -82,11 +94,11 @@ func (s *AppLifecycleSuite) TestHooksExecutionOrder() {
 }
 
 func (s *AppLifecycleSuite) TestRouteRegistration() {
-	s.testApp.GET("/users", func(c *router.Context) {
+	s.testApp.GET("/users", func(c *Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "users"})
 	})
 
-	s.testApp.POST("/users", func(c *router.Context) {
+	s.testApp.POST("/users", func(c *Context) {
 		c.JSON(http.StatusCreated, map[string]string{"message": "created"})
 	})
 
@@ -109,21 +121,21 @@ func (s *AppLifecycleSuite) TestMiddlewareChain() {
 	callOrder := make([]int, 0)
 	callMutex := make(chan struct{}, 1)
 
-	s.testApp.Use(func(c *router.Context) {
+	s.testApp.Use(func(c *Context) {
 		callMutex <- struct{}{}
 		callOrder = append(callOrder, 1)
 		<-callMutex
 		c.Next()
 	})
 
-	s.testApp.Use(func(c *router.Context) {
+	s.testApp.Use(func(c *Context) {
 		callMutex <- struct{}{}
 		callOrder = append(callOrder, 2)
 		<-callMutex
 		c.Next()
 	})
 
-	s.testApp.GET("/test", func(c *router.Context) {
+	s.testApp.GET("/test", func(c *Context) {
 		callMutex <- struct{}{}
 		callOrder = append(callOrder, 3)
 		<-callMutex

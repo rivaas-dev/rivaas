@@ -7,7 +7,7 @@ import (
 )
 
 func BenchmarkRouter(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	// Add many routes to test performance
 	routes := []string{
@@ -79,7 +79,7 @@ func BenchmarkRouter(b *testing.B) {
 }
 
 func BenchmarkRouterWithMiddleware(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	// Add middleware
 	r.Use(func(c *Context) {
@@ -135,7 +135,7 @@ func BenchmarkRouterWithMiddleware(b *testing.B) {
 }
 
 func BenchmarkRouterGroup(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	// Create groups
 	api := r.Group("/api/v1")
@@ -233,7 +233,7 @@ func BenchmarkRadixTree(b *testing.B) {
 
 // BenchmarkStaticRoutes tests the performance of compiled static routes
 func BenchmarkStaticRoutes(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	// Add static routes only
 	staticRoutes := []string{
@@ -328,7 +328,7 @@ func BenchmarkStaticRoutes(b *testing.B) {
 
 // BenchmarkContextPool tests the performance of context pooling
 func BenchmarkContextPool(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	// Add routes with different parameter counts
 	routes := []string{
@@ -377,7 +377,7 @@ func BenchmarkContextPool(b *testing.B) {
 
 // BenchmarkMemoryUsage tests memory usage with optimizations
 func BenchmarkMemoryUsage(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	// Add many routes to test memory efficiency
 	routes := []string{
@@ -484,7 +484,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 
 // BenchmarkBloomFilter tests the performance of bloom filter for negative lookups
 func BenchmarkBloomFilter(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	// Add many static routes
 	routes := []string{
@@ -591,7 +591,7 @@ func BenchmarkBloomFilter(b *testing.B) {
 // ============================================================================
 
 func BenchmarkAtomicRouteRegistration(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -608,7 +608,7 @@ func BenchmarkAtomicRouteRegistration(b *testing.B) {
 
 // BenchmarkAtomicRouteLookup benchmarks the performance of atomic route lookup
 func BenchmarkAtomicRouteLookup(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	// Register test routes
 	routes := []string{
@@ -660,7 +660,7 @@ func BenchmarkAtomicRouteLookup(b *testing.B) {
 
 // BenchmarkConcurrentRegistrationAndLookup benchmarks concurrent route registration and lookup
 func BenchmarkConcurrentRegistrationAndLookup(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {

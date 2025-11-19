@@ -16,7 +16,7 @@ type ExtendedTestSuite struct {
 }
 
 func (suite *ExtendedTestSuite) SetupTest() {
-	suite.router = New()
+	suite.router = MustNew()
 }
 
 func (suite *ExtendedTestSuite) TearDownTest() {
@@ -27,9 +27,9 @@ func (suite *ExtendedTestSuite) TearDownTest() {
 // TestRouteIntrospection tests route introspection functionality
 func (suite *ExtendedTestSuite) TestRouteIntrospection() {
 	// Add some routes
-	suite.router.GET("/", func(c *Context) { c.String(200, "home") })
-	suite.router.GET("/users/:id", func(c *Context) { c.String(200, "user") })
-	suite.router.POST("/users", func(c *Context) { c.String(200, "create") })
+	suite.router.GET("/", func(c *Context) { c.String(http.StatusOK, "home") })
+	suite.router.GET("/users/:id", func(c *Context) { c.String(http.StatusOK, "user") })
+	suite.router.POST("/users", func(c *Context) { c.String(http.StatusOK, "create") })
 
 	// Test Routes() method
 	routes := suite.router.Routes()
@@ -51,7 +51,7 @@ func (suite *ExtendedTestSuite) TestRouteIntrospection() {
 }
 
 func (suite *ExtendedTestSuite) TestRequestHelpers() {
-	r := New()
+	r := MustNew()
 
 	r.GET("/test", func(c *Context) {
 		// Test content type detection
@@ -86,7 +86,7 @@ func (suite *ExtendedTestSuite) TestRequestHelpers() {
 }
 
 func (suite *ExtendedTestSuite) TestAcceptsHelpers() {
-	r := New()
+	r := MustNew()
 
 	r.GET("/test", func(c *Context) {
 		if c.AcceptsJSON() {
@@ -119,7 +119,7 @@ func (suite *ExtendedTestSuite) TestAcceptsHelpers() {
 }
 
 func (suite *ExtendedTestSuite) TestClientIP() {
-	r := New(WithTrustedProxies(
+	r := MustNew(WithTrustedProxies(
 		WithProxies("10.0.0.0/8", "192.168.0.0/16"),
 	))
 
@@ -180,7 +180,7 @@ func (suite *ExtendedTestSuite) TestClientIP() {
 
 func (suite *ExtendedTestSuite) TestClientIP_CustomHeaders() {
 	// Test custom header support (e.g., Fastly, Akamai, etc.)
-	r := New(WithTrustedProxies(
+	r := MustNew(WithTrustedProxies(
 		WithProxies("10.0.0.0/8", "192.168.0.0/16"),
 		WithProxyHeaders(
 			HeaderXFF,
@@ -239,7 +239,7 @@ func (suite *ExtendedTestSuite) TestClientIP_CustomHeaders() {
 }
 
 func (suite *ExtendedTestSuite) TestRedirect() {
-	r := New()
+	r := MustNew()
 
 	r.GET("/redirect", func(c *Context) {
 		c.Redirect(http.StatusFound, "/target")
@@ -255,7 +255,7 @@ func (suite *ExtendedTestSuite) TestRedirect() {
 }
 
 func (suite *ExtendedTestSuite) TestRouteConstraints() {
-	r := New()
+	r := MustNew()
 
 	// Add route with numeric constraint
 	r.GET("/users/:id", func(c *Context) {
@@ -293,7 +293,7 @@ func (suite *ExtendedTestSuite) TestRouteConstraints() {
 }
 
 func (suite *ExtendedTestSuite) TestMultipleConstraints() {
-	r := New()
+	r := MustNew()
 
 	r.GET("/posts/:id/:slug", func(c *Context) {
 		c.String(200, "post %s %s", c.Param("id"), c.Param("slug"))
@@ -319,7 +319,7 @@ func (suite *ExtendedTestSuite) TestMultipleConstraints() {
 }
 
 func (suite *ExtendedTestSuite) TestStaticFileRoute() {
-	r := New()
+	r := MustNew()
 
 	// Test that static file routes are registered correctly
 	r.StaticFile("/favicon.ico", "./favicon.ico")
@@ -337,7 +337,7 @@ func (suite *ExtendedTestSuite) TestStaticFileRoute() {
 }
 
 func (suite *ExtendedTestSuite) TestQueryDefaults() {
-	r := New()
+	r := MustNew()
 
 	r.GET("/search", func(c *Context) {
 		limit := c.QueryDefault("limit", "10")
@@ -389,7 +389,7 @@ func TestExtendedSuite(t *testing.T) {
 
 // TestRoutes tests the Routes introspection function
 func TestRoutes(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	r.GET("/users", func(_ *Context) {})
 	r.POST("/users", func(_ *Context) {})

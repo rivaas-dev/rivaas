@@ -67,7 +67,7 @@ func WithPolicy(p Policy) Option {
 //
 // Example:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.GET("/users", handler)
 //	handler := trailingslash.Wrap(r, trailingslash.WithPolicy(trailingslash.PolicyRemove))
 //	http.ListenAndServe(":8080", handler)
@@ -131,7 +131,7 @@ func redirect308HTTP(w http.ResponseWriter, r *http.Request, newPath string) {
 //
 // Example (strict mode):
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.Use(trailingslash.New(trailingslash.WithPolicy(trailingslash.PolicyStrict)))
 //	r.GET("/users", handler) // /users/ returns 404
 func New(opts ...Option) router.HandlerFunc {

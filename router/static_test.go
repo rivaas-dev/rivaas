@@ -14,7 +14,7 @@ import (
 
 // TestStaticFileServing tests static file serving
 func TestStaticFileServing(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Create a temporary directory with test files
 	tmpDir := t.TempDir()
@@ -63,7 +63,7 @@ func TestStaticFileServing(t *testing.T) {
 
 // TestStaticFSWithCustomFileSystem tests StaticFS with custom file system
 func TestStaticFSWithCustomFileSystem(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Create a temporary directory with test files
 	tmpDir := t.TempDir()

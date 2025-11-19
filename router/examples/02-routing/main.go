@@ -25,7 +25,7 @@ import (
 )
 
 func main() {
-	r := router.New()
+	r := router.MustNew()
 
 	// Basic route: simple GET endpoint returning JSON
 	r.GET("/", func(c *router.Context) {

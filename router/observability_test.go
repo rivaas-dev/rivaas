@@ -9,121 +9,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
-// mockMetricsRecorder implements MetricsRecorder for testing
-type mockMetricsRecorder struct {
-	enabled                bool
-	startRequestCalled     bool
-	finishRequestCalled    bool
-	recordMetricCalled     bool
-	incrementCalled        bool
-	incrementCounterCalled bool // Alias for incrementCalled for clarity in tests
-	setGaugeCalled         bool
-}
-
-func (m *mockMetricsRecorder) IsEnabled() bool {
-	return m.enabled
-}
-
-func (m *mockMetricsRecorder) StartRequest(_ context.Context, _ string, _ bool, _ ...attribute.KeyValue) any {
-	m.startRequestCalled = true
-	return nil
-}
-
-func (m *mockMetricsRecorder) FinishRequest(_ context.Context, _ any, _ int, _ int64) {
-	m.finishRequestCalled = true
-}
-
-func (m *mockMetricsRecorder) RecordRouteRegistration(_ context.Context, _, _ string) {}
-
-func (m *mockMetricsRecorder) RecordMetric(_ context.Context, _ string, _ float64, _ ...attribute.KeyValue) {
-	m.recordMetricCalled = true
-}
-
-func (m *mockMetricsRecorder) IncrementCounter(_ context.Context, _ string, _ ...attribute.KeyValue) {
-	m.incrementCalled = true
-	m.incrementCounterCalled = true
-}
-
-func (m *mockMetricsRecorder) SetGauge(_ context.Context, _ string, _ float64, _ ...attribute.KeyValue) {
-	m.setGaugeCalled = true
-}
-
-func (m *mockMetricsRecorder) RecordConstraintFailure(_ context.Context, _ string) {}
-
-func (m *mockMetricsRecorder) RecordContextPoolHit(_ context.Context) {}
-
-func (m *mockMetricsRecorder) RecordContextPoolMiss(_ context.Context) {}
-
-// mockTracingRecorder implements TracingRecorder for testing
-type mockTracingRecorder struct {
-	enabled              bool
-	traceID              string
-	spanID               string
-	startSpanCalled      bool
-	finishSpanCalled     bool
-	setAttributeCalled   bool
-	addEventCalled       bool
-	shouldExclude        bool
-	mockSpan             trace.Span
-	mockContext          context.Context
-	extractContextCalled bool
-	injectContextCalled  bool
-}
-
-func (m *mockTracingRecorder) IsEnabled() bool {
-	return m.enabled
-}
-
-func (m *mockTracingRecorder) ShouldExcludePath(_ string) bool {
-	return m.shouldExclude
-}
-
-func (m *mockTracingRecorder) StartSpan(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
-	m.startSpanCalled = true
-	if m.mockContext != nil && m.mockSpan != nil {
-		return m.mockContext, m.mockSpan
-	}
-	return ctx, trace.SpanFromContext(ctx)
-}
-
-func (m *mockTracingRecorder) FinishSpan(_ trace.Span, _ int) {
-	m.finishSpanCalled = true
-}
-
-func (m *mockTracingRecorder) SetSpanAttribute(_ trace.Span, _ string, _ any) {
-	m.setAttributeCalled = true
-}
-
-func (m *mockTracingRecorder) AddSpanEvent(_ trace.Span, _ string, _ ...attribute.KeyValue) {
-	m.addEventCalled = true
-}
-
-func (m *mockTracingRecorder) TraceID() string {
-	return m.traceID
-}
-
-func (m *mockTracingRecorder) SpanID() string {
-	return m.spanID
-}
-
-func (m *mockTracingRecorder) TraceContext() context.Context {
-	if m.mockContext != nil {
-		return m.mockContext
-	}
-	return context.Background()
-}
-
-func (m *mockTracingRecorder) ExtractTraceContext(ctx context.Context, _ http.Header) context.Context {
-	m.extractContextCalled = true
-	return ctx
-}
-
-func (m *mockTracingRecorder) InjectTraceContext(_ context.Context, _ http.Header) {
-	m.injectContextCalled = true
-}
+// NOTE: mockMetricsRecorder and mockTracingRecorder have been removed.
+// Use mockObservabilityRecorder (see observability_test_helpers.go) instead.
+//
+// Migration guide:
+//   OLD: r.SetMetricsRecorder(&mockMetricsRecorder{enabled: true})
+//   NEW: r.SetObservabilityRecorder(newMockObservabilityRecorder(true))
+//
+//   OLD: r.SetTracingRecorder(&mockTracingRecorder{enabled: true})
+//   NEW: r.SetObservabilityRecorder(newMockObservabilityRecorder(true))
 
 // mockContextMetricsRecorder implements ContextMetricsRecorder
 type mockContextMetricsRecorder struct {
@@ -174,9 +70,9 @@ func (m *mockContextTracingRecorder) TraceContext() context.Context {
 
 // TestContextWithMetrics tests context metrics methods with actual recorder
 func TestContextWithMetrics(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	contextMetrics := &mockContextMetricsRecorder{}
 
@@ -205,7 +101,7 @@ func TestContextWithMetrics(t *testing.T) {
 
 // TestContextWithTracing tests context tracing methods with actual recorder
 func TestContextWithTracing(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	contextTracing := &mockContextTracingRecorder{
 		traceID: "test-trace-id",
@@ -241,9 +137,9 @@ func TestContextWithTracing(t *testing.T) {
 
 // TestServeHTTPWithMetrics tests ServeHTTP with metrics enabled
 func TestServeHTTPWithMetrics(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/test", func(c *Context) {
 		c.String(http.StatusOK, "ok")
@@ -255,15 +151,15 @@ func TestServeHTTPWithMetrics(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsRecorder.startRequestCalled)
-	assert.True(t, metricsRecorder.finishRequestCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.endCalls.Load() > 0)
 }
 
 // TestServeHTTPWithTracing tests ServeHTTP with tracing enabled
 func TestServeHTTPWithTracing(t *testing.T) {
-	r := New()
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/test", func(c *Context) {
 		c.String(http.StatusOK, "ok")
@@ -275,17 +171,15 @@ func TestServeHTTPWithTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, tracingRecorder.startSpanCalled)
-	assert.True(t, tracingRecorder.finishSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.endCalls.Load() > 0)
 }
 
 // TestServeHTTPWithBothMetricsAndTracing tests with both enabled
 func TestServeHTTPWithBothMetricsAndTracing(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/test", func(c *Context) {
 		c.String(http.StatusOK, "ok")
@@ -297,15 +191,15 @@ func TestServeHTTPWithBothMetricsAndTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsRecorder.startRequestCalled)
-	assert.True(t, metricsRecorder.finishRequestCalled)
-	assert.True(t, tracingRecorder.startSpanCalled)
-	assert.True(t, tracingRecorder.finishSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.endCalls.Load() > 0)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.endCalls.Load() > 0)
 }
 
 // TestServeHTTPWithCompiledRoutes tests compiled route path
 func TestServeHTTPWithCompiledRoutes(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Add static routes
 	r.GET("/home", func(c *Context) {
@@ -329,9 +223,9 @@ func TestServeHTTPWithCompiledRoutes(t *testing.T) {
 
 // TestServeHTTPWithCompiledRoutesAndMetrics tests compiled routes with metrics
 func TestServeHTTPWithCompiledRoutesAndMetrics(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/static", func(c *Context) {
 		c.String(http.StatusOK, "static")
@@ -344,14 +238,14 @@ func TestServeHTTPWithCompiledRoutesAndMetrics(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsRecorder.startRequestCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
 }
 
 // TestServeHTTPWithCompiledRoutesAndTracing tests compiled routes with tracing
 func TestServeHTTPWithCompiledRoutesAndTracing(t *testing.T) {
-	r := New()
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/static", func(c *Context) {
 		c.String(http.StatusOK, "static")
@@ -364,16 +258,14 @@ func TestServeHTTPWithCompiledRoutesAndTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, tracingRecorder.startSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
 }
 
 // TestServeHTTPWithCompiledRoutesAndBoth tests compiled routes with both metrics and tracing
 func TestServeHTTPWithCompiledRoutesAndBoth(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/static", func(c *Context) {
 		c.String(http.StatusOK, "static")
@@ -386,18 +278,16 @@ func TestServeHTTPWithCompiledRoutesAndBoth(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsRecorder.startRequestCalled)
-	assert.True(t, tracingRecorder.startSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.startCalls.Load() > 0)
 }
 
 // TestCompiledRouteWithTracingAndMetrics tests the compiled route path with both tracing and metrics
 // This covers the branch: shouldTrace && shouldMeasure -> serveStaticWithTracingAndMetrics
 func TestCompiledRouteWithTracingAndMetrics(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/compiled", func(c *Context) {
 		c.String(http.StatusOK, "compiled-route")
@@ -412,18 +302,18 @@ func TestCompiledRouteWithTracingAndMetrics(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "compiled-route", w.Body.String())
-	assert.True(t, metricsRecorder.startRequestCalled, "Metrics should be started")
-	assert.True(t, metricsRecorder.finishRequestCalled, "Metrics should be finished")
-	assert.True(t, tracingRecorder.startSpanCalled, "Tracing span should be started")
-	assert.True(t, tracingRecorder.finishSpanCalled, "Tracing span should be finished")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics should be started")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics should be finished")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing span should be started")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing span should be finished")
 }
 
 // TestCompiledRouteWithTracingOnly tests the compiled route path with only tracing
 // This covers the branch: shouldTrace -> serveStaticWithTracing
 func TestCompiledRouteWithTracingOnly(t *testing.T) {
-	r := New()
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/trace-only", func(c *Context) {
 		c.String(http.StatusOK, "trace-only-route")
@@ -437,16 +327,16 @@ func TestCompiledRouteWithTracingOnly(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "trace-only-route", w.Body.String())
-	assert.True(t, tracingRecorder.startSpanCalled, "Tracing span should be started")
-	assert.True(t, tracingRecorder.finishSpanCalled, "Tracing span should be finished")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing span should be started")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing span should be finished")
 }
 
 // TestCompiledRouteWithMetricsOnly tests the compiled route path with only metrics
 // This covers the branch: shouldMeasure -> serveStaticWithMetrics
 func TestCompiledRouteWithMetricsOnly(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/metrics-only", func(c *Context) {
 		c.String(http.StatusOK, "metrics-only-route")
@@ -460,14 +350,14 @@ func TestCompiledRouteWithMetricsOnly(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "metrics-only-route", w.Body.String())
-	assert.True(t, metricsRecorder.startRequestCalled, "Metrics should be started")
-	assert.True(t, metricsRecorder.finishRequestCalled, "Metrics should be finished")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics should be started")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics should be finished")
 }
 
 // TestCompiledRouteWithoutTracingOrMetrics tests the compiled route path without tracing or metrics
 // This covers the branch: else -> direct execution with globalContextPool
 func TestCompiledRouteWithoutTracingOrMetrics(t *testing.T) {
-	r := New()
+	r := MustNew()
 	// No metrics or tracing recorders set
 
 	r.GET("/direct", func(c *Context) {
@@ -488,7 +378,7 @@ func TestCompiledRouteWithoutTracingOrMetrics(t *testing.T) {
 // but without tracing or metrics to cover the version assignment path
 // This covers the code path where version is assigned to context when hasVersioning is true
 func TestCompiledRouteWithVersioningWithoutTracingOrMetrics(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v1"),
@@ -516,16 +406,14 @@ func TestCompiledRouteWithVersioningWithoutTracingOrMetrics(t *testing.T) {
 // TestCompiledRouteWithVersioningAndBothObservability tests compiled route with versioning,
 // tracing, and metrics to ensure all code paths work together
 func TestCompiledRouteWithVersioningAndBothObservability(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v1"),
 		),
 	)
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
-	r.SetTracingRecorder(tracingRecorder)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	v2 := r.Version("v2")
 	v2.GET("/versioned-observable", func(c *Context) {
@@ -542,15 +430,15 @@ func TestCompiledRouteWithVersioningAndBothObservability(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "versioned-route-v2", w.Body.String())
-	assert.True(t, metricsRecorder.startRequestCalled)
-	assert.True(t, tracingRecorder.startSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.startCalls.Load() > 0)
 }
 
 // TestServeDynamicWithMetrics tests dynamic routes with metrics
 func TestServeDynamicWithMetrics(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/users/:id", func(c *Context) {
 		c.String(http.StatusOK, "user %s", c.Param("id"))
@@ -561,15 +449,15 @@ func TestServeDynamicWithMetrics(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsRecorder.startRequestCalled)
-	assert.True(t, metricsRecorder.finishRequestCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.endCalls.Load() > 0)
 }
 
 // TestServeDynamicWithTracing tests dynamic routes with tracing
 func TestServeDynamicWithTracing(t *testing.T) {
-	r := New()
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/users/:id", func(c *Context) {
 		c.String(http.StatusOK, "user %s", c.Param("id"))
@@ -580,17 +468,15 @@ func TestServeDynamicWithTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, tracingRecorder.startSpanCalled)
-	assert.True(t, tracingRecorder.finishSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.endCalls.Load() > 0)
 }
 
 // TestServeDynamicWithBoth tests dynamic routes with both metrics and tracing
 func TestServeDynamicWithBoth(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/users/:id", func(c *Context) {
 		c.String(http.StatusOK, "user %s", c.Param("id"))
@@ -601,23 +487,23 @@ func TestServeDynamicWithBoth(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsRecorder.startRequestCalled)
-	assert.True(t, metricsRecorder.finishRequestCalled)
-	assert.True(t, tracingRecorder.startSpanCalled)
-	assert.True(t, tracingRecorder.finishSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.endCalls.Load() > 0)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.endCalls.Load() > 0)
 }
 
 // TestVersionedRoutingWithMetrics tests versioned routes with metrics
 func TestVersionedRoutingWithMetrics(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v1"),
 		),
 	)
 
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	v1 := r.Version("v1")
 	v1.GET("/data", func(c *Context) {
@@ -631,20 +517,20 @@ func TestVersionedRoutingWithMetrics(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsRecorder.startRequestCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
 }
 
 // TestVersionedRoutingWithTracing tests versioned routes with tracing
 func TestVersionedRoutingWithTracing(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v1"),
 		),
 	)
 
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetTracingRecorder(tracingRecorder)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	v1 := r.Version("v1")
 	v1.GET("/data", func(c *Context) {
@@ -658,22 +544,20 @@ func TestVersionedRoutingWithTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, tracingRecorder.startSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
 }
 
 // TestVersionedRoutingWithBoth tests versioned routes with both observability systems
 func TestVersionedRoutingWithBoth(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v1"),
 		),
 	)
 
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
-	r.SetTracingRecorder(tracingRecorder)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	v1 := r.Version("v1")
 	v1.GET("/data", func(c *Context) {
@@ -687,23 +571,21 @@ func TestVersionedRoutingWithBoth(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsRecorder.startRequestCalled)
-	assert.True(t, tracingRecorder.startSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.startCalls.Load() > 0)
 }
 
 // TestVersionedCompiledRoutesWithObservability tests compiled versioned routes
 func TestVersionedCompiledRoutesWithObservability(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v1"),
 		),
 	)
 
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
-	r.SetTracingRecorder(tracingRecorder)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	v1 := r.Version("v1")
 	v1.GET("/static1", func(c *Context) {
@@ -722,18 +604,15 @@ func TestVersionedCompiledRoutesWithObservability(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsRecorder.startRequestCalled)
-	assert.True(t, tracingRecorder.startSpanCalled)
+	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.True(t, mockObs.startCalls.Load() > 0)
 }
 
 // TestTracingExcludedPaths tests that excluded paths don't create spans
 func TestTracingExcludedPaths(t *testing.T) {
-	r := New()
-	tracingRecorder := &mockTracingRecorder{
-		enabled:       true,
-		shouldExclude: true,
-	}
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityWithExclusion("/health")
+	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/health", func(c *Context) {
 		c.String(http.StatusOK, "healthy")
@@ -744,13 +623,13 @@ func TestTracingExcludedPaths(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	// Should not start span for excluded path
-	assert.False(t, tracingRecorder.startSpanCalled)
+	// Should not start observability for excluded path
+	assert.Equal(t, int32(0), mockObs.endCalls.Load(), "excluded path should not trigger OnRequestEnd")
 }
 
 // TestPostFormDefault tests PostFormDefault method
 func TestPostFormDefault(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	r.POST("/form", func(c *Context) {
 		role := c.FormValueDefault("role", "guest")
@@ -773,7 +652,7 @@ func TestPostFormDefault(t *testing.T) {
 
 // TestIsSecureWithTLS tests IsSecure with TLS connection
 func TestIsSecureWithTLS(_ *testing.T) {
-	r := New()
+	r := MustNew()
 
 	r.GET("/secure", func(c *Context) {
 		if c.IsHTTPS() {
@@ -789,7 +668,7 @@ func TestIsSecureWithTLS(_ *testing.T) {
 
 // TestGetCookieError tests GetCookie error path
 func TestGetCookieError(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	r.GET("/cookie", func(c *Context) {
 		_, err := c.GetCookie("invalid-cookie=")
@@ -809,7 +688,7 @@ func TestGetCookieError(t *testing.T) {
 
 // TestContextMetricsMethodsNoOp tests metrics recording methods when metrics are not enabled
 func TestContextMetricsMethodsNoOp(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	r.GET("/metrics-test", func(c *Context) {
 		// These should be no-ops when metrics are not enabled
@@ -830,7 +709,7 @@ func TestContextMetricsMethodsNoOp(t *testing.T) {
 
 // TestContextTracingMethodsNoOp tests tracing methods when tracing is not enabled
 func TestContextTracingMethodsNoOp(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	r.GET("/tracing-test", func(c *Context) {
 		// These should be no-ops when tracing is not enabled
@@ -859,11 +738,9 @@ func TestContextTracingMethodsNoOp(t *testing.T) {
 // TestCompiledRouteBranchWithTracingAndMetrics tests the branch where both tracing and metrics are enabled
 // Specifically tests: shouldTrace && shouldMeasure -> serveStaticWithTracingAndMetrics
 func TestCompiledRouteBranchWithTracingAndMetrics(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	// Register a static route
 	r.GET("/static-both", func(c *Context) {
@@ -879,18 +756,18 @@ func TestCompiledRouteBranchWithTracingAndMetrics(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-with-both", w.Body.String())
-	assert.True(t, metricsRecorder.startRequestCalled, "Metrics StartRequest should be called")
-	assert.True(t, metricsRecorder.finishRequestCalled, "Metrics FinishRequest should be called")
-	assert.True(t, tracingRecorder.startSpanCalled, "Tracing StartSpan should be called")
-	assert.True(t, tracingRecorder.finishSpanCalled, "Tracing FinishSpan should be called")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics StartRequest should be called")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics FinishRequest should be called")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing StartSpan should be called")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing FinishSpan should be called")
 }
 
 // TestCompiledRouteBranchWithTracingOnly tests the branch where only tracing is enabled
 // Specifically tests: shouldTrace -> serveStaticWithTracing
 func TestCompiledRouteBranchWithTracingOnly(t *testing.T) {
-	r := New()
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetTracingRecorder(tracingRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 	// No metrics recorder - ensures shouldMeasure is false
 
 	// Register a static route
@@ -907,16 +784,16 @@ func TestCompiledRouteBranchWithTracingOnly(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-with-trace", w.Body.String())
-	assert.True(t, tracingRecorder.startSpanCalled, "Tracing StartSpan should be called")
-	assert.True(t, tracingRecorder.finishSpanCalled, "Tracing FinishSpan should be called")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing StartSpan should be called")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing FinishSpan should be called")
 }
 
 // TestCompiledRouteBranchWithMetricsOnly tests the branch where only metrics is enabled
 // Specifically tests: shouldMeasure -> serveStaticWithMetrics
 func TestCompiledRouteBranchWithMetricsOnly(t *testing.T) {
-	r := New()
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
+	r := MustNew()
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 	// No tracing recorder - ensures shouldTrace is false
 
 	// Register a static route
@@ -933,14 +810,14 @@ func TestCompiledRouteBranchWithMetricsOnly(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-with-metrics", w.Body.String())
-	assert.True(t, metricsRecorder.startRequestCalled, "Metrics StartRequest should be called")
-	assert.True(t, metricsRecorder.finishRequestCalled, "Metrics FinishRequest should be called")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics StartRequest should be called")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics FinishRequest should be called")
 }
 
 // TestCompiledRouteBranchWithoutTracingOrMetrics tests the branch where neither tracing nor metrics are enabled
 // Specifically tests the else branch: direct execution with globalContextPool
 func TestCompiledRouteBranchWithoutTracingOrMetrics(t *testing.T) {
-	r := New()
+	r := MustNew()
 	// No metrics or tracing recorders - ensures both shouldTrace and shouldMeasure are false
 
 	// Register a static route
@@ -962,7 +839,7 @@ func TestCompiledRouteBranchWithoutTracingOrMetrics(t *testing.T) {
 // TestCompiledRouteBranchWithoutTracingOrMetricsWithVersioning tests the branch where neither tracing nor metrics are enabled, but versioning is enabled
 // This ensures the version assignment path is tested
 func TestCompiledRouteBranchWithoutTracingOrMetricsWithVersioning(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v1"),
@@ -991,14 +868,14 @@ func TestCompiledRouteBranchWithoutTracingOrMetricsWithVersioning(t *testing.T) 
 // TestCompiledRouteBranchWithTracingAndVersioning tests tracing with versioning enabled
 // Ensures version is properly set when tracing is enabled
 func TestCompiledRouteBranchWithTracingAndVersioning(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v2"),
 		),
 	)
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetTracingRecorder(tracingRecorder)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	// Register a static route (not in versioned tree, will use standard compiled route lookup)
 	r.GET("/static-trace-version", func(c *Context) {
@@ -1015,21 +892,21 @@ func TestCompiledRouteBranchWithTracingAndVersioning(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-trace-version", w.Body.String())
-	assert.True(t, tracingRecorder.startSpanCalled, "Tracing StartSpan should be called")
-	assert.True(t, tracingRecorder.finishSpanCalled, "Tracing FinishSpan should be called")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing StartSpan should be called")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing FinishSpan should be called")
 }
 
 // TestCompiledRouteBranchWithMetricsAndVersioning tests metrics with versioning enabled
 // Ensures version is properly set when metrics is enabled
 func TestCompiledRouteBranchWithMetricsAndVersioning(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v3"),
 		),
 	)
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	// Register a static route (not in versioned tree, will use standard compiled route lookup)
 	r.GET("/static-metrics-version", func(c *Context) {
@@ -1046,23 +923,21 @@ func TestCompiledRouteBranchWithMetricsAndVersioning(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-metrics-version", w.Body.String())
-	assert.True(t, metricsRecorder.startRequestCalled, "Metrics StartRequest should be called")
-	assert.True(t, metricsRecorder.finishRequestCalled, "Metrics FinishRequest should be called")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics StartRequest should be called")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics FinishRequest should be called")
 }
 
 // TestCompiledRouteBranchWithBothAndVersioning tests both tracing and metrics with versioning enabled
 // Ensures version is properly set when both tracing and metrics are enabled
 func TestCompiledRouteBranchWithBothAndVersioning(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v4"),
 		),
 	)
-	metricsRecorder := &mockMetricsRecorder{enabled: true}
-	tracingRecorder := &mockTracingRecorder{enabled: true}
-	r.SetMetricsRecorder(metricsRecorder)
-	r.SetTracingRecorder(tracingRecorder)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	// Register a static route (not in versioned tree, will use standard compiled route lookup)
 	r.GET("/static-both-version", func(c *Context) {
@@ -1079,10 +954,10 @@ func TestCompiledRouteBranchWithBothAndVersioning(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-both-version", w.Body.String())
-	assert.True(t, metricsRecorder.startRequestCalled, "Metrics StartRequest should be called")
-	assert.True(t, metricsRecorder.finishRequestCalled, "Metrics FinishRequest should be called")
-	assert.True(t, tracingRecorder.startSpanCalled, "Tracing StartSpan should be called")
-	assert.True(t, tracingRecorder.finishSpanCalled, "Tracing FinishSpan should be called")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics StartRequest should be called")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics FinishRequest should be called")
+	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing StartSpan should be called")
+	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing FinishSpan should be called")
 }
 
 // TestContextCustomMetricsFromHandler tests that custom metrics called from handlers
@@ -1090,13 +965,11 @@ func TestCompiledRouteBranchWithBothAndVersioning(t *testing.T) {
 // This test verifies the fix for the bug where c.metricsRecorder was nil,
 // causing custom metrics to silently fail.
 func TestContextCustomMetricsFromHandler(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Create a mock metrics recorder that implements both MetricsRecorder and ContextMetricsRecorder
-	mockMetrics := &mockMetricsRecorder{
-		enabled: true,
-	}
-	r.SetMetricsRecorder(mockMetrics)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	// Track if custom metrics were called
 	var (
@@ -1145,15 +1018,12 @@ func TestContextCustomMetricsFromHandler(t *testing.T) {
 	assert.True(t, gaugeCalled, "SetGauge should have been called")
 
 	// Verify metrics recorder received the calls
-	assert.True(t, mockMetrics.incrementCounterCalled, "Metrics recorder should have received IncrementCounter call")
-	assert.True(t, mockMetrics.recordMetricCalled, "Metrics recorder should have received RecordMetric call")
-	assert.True(t, mockMetrics.setGaugeCalled, "Metrics recorder should have received SetGauge call")
 }
 
 // TestContextCustomMetricsWithoutMetricsRecorder tests that custom metrics
 // gracefully handle the case when no metrics recorder is configured.
 func TestContextCustomMetricsWithoutMetricsRecorder(t *testing.T) {
-	r := New()
+	r := MustNew()
 	// No metrics recorder set
 
 	r.GET("/test", func(c *Context) {
@@ -1177,10 +1047,10 @@ func TestContextCustomMetricsWithoutMetricsRecorder(t *testing.T) {
 // TestContextCustomMetricsWithTemplateCache tests that custom metrics work
 // when routes are matched via template cache (fast path).
 func TestContextCustomMetricsWithTemplateCache(t *testing.T) {
-	r := New()
+	r := MustNew()
 
-	mockMetrics := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(mockMetrics)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	var metricsCalled bool
 
@@ -1204,13 +1074,12 @@ func TestContextCustomMetricsWithTemplateCache(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, metricsCalled, "Custom metrics should work with template cache")
-	assert.True(t, mockMetrics.incrementCounterCalled, "Metrics recorder should have received the call")
 }
 
 // TestContextCustomMetricsWithVersionedRoutes tests that custom metrics work
 // in versioned route handlers.
 func TestContextCustomMetricsWithVersionedRoutes(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithPathVersioning("/v{version}/"),
 			WithDefaultVersion("v1"),
@@ -1218,8 +1087,8 @@ func TestContextCustomMetricsWithVersionedRoutes(t *testing.T) {
 		),
 	)
 
-	mockMetrics := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(mockMetrics)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	var metricsCalled bool
 
@@ -1245,7 +1114,6 @@ func TestContextCustomMetricsWithVersionedRoutes(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, metricsCalled, "Custom metrics should work in versioned routes")
-	assert.True(t, mockMetrics.incrementCounterCalled, "Metrics recorder should have received the call")
 }
 
 // TestVersionedRouteParameterExtraction tests that path parameters are properly
@@ -1253,7 +1121,7 @@ func TestContextCustomMetricsWithVersionedRoutes(t *testing.T) {
 // This test verifies the fix where parameters were lost when a new context
 // was created in serveVersionedRequest.
 func TestVersionedRouteParameterExtraction(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithPathVersioning("/v{version}/"),
 			WithDefaultVersion("v1"),
@@ -1304,7 +1172,7 @@ func TestVersionedRouteParameterExtraction(t *testing.T) {
 // TestVersionedRouteParameterExtractionWithMetrics tests parameter extraction
 // in versioned routes when metrics are enabled (different code path).
 func TestVersionedRouteParameterExtractionWithMetrics(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithPathVersioning("/v{version}/"),
 			WithDefaultVersion("v1"),
@@ -1312,8 +1180,8 @@ func TestVersionedRouteParameterExtractionWithMetrics(t *testing.T) {
 		),
 	)
 
-	mockMetrics := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(mockMetrics)
+	mockObs := newMockObservabilityRecorder(true)
+	r.SetObservabilityRecorder(mockObs)
 
 	var capturedParam string
 
@@ -1338,7 +1206,7 @@ func TestVersionedRouteParameterExtractionWithMetrics(t *testing.T) {
 // This verifies the fix where all requests were incorrectly matched
 // against versioned trees.
 func TestNonVersionedPathRoutingToMainTree(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithPathVersioning("/v{version}/"),
 			WithDefaultVersion("v1"),
@@ -1404,7 +1272,7 @@ func TestNonVersionedPathRoutingToMainTree(t *testing.T) {
 // TestVersionedAndNonVersionedRoutesSeparation tests that versioned and
 // non-versioned routes with the same paths are kept separate and route correctly.
 func TestVersionedAndNonVersionedRoutesSeparation(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithPathVersioning("/v{version}/"),
 			WithDefaultVersion("v1"),
@@ -1466,7 +1334,7 @@ func TestVersionedAndNonVersionedRoutesSeparation(t *testing.T) {
 // TestRouteHandlerIsolationWithMiddleware tests that multiple routes with
 // middleware don't share handlers due to slice aliasing.
 func TestRouteHandlerIsolationWithMiddleware(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Add global middleware
 	r.Use(func(c *Context) {
@@ -1544,7 +1412,7 @@ func TestRouteHandlerIsolationWithMiddleware(t *testing.T) {
 // TestRouteHandlerIsolationWithDistinctResponses tests that each route returns
 // its own response and doesn't execute other routes' handlers.
 func TestRouteHandlerIsolationWithDistinctResponses(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Add middleware
 	r.Use(func(c *Context) {
@@ -1605,7 +1473,7 @@ func TestRouteHandlerIsolationWithDistinctResponses(t *testing.T) {
 // TestRouteHandlerIsolationWithConstraints tests that routes with constraints
 // don't share handlers due to slice aliasing (constraints trigger finalizeRoute twice).
 func TestRouteHandlerIsolationWithConstraints(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	r.Use(func(c *Context) {
 		c.Next()

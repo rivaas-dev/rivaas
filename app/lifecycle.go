@@ -1,4 +1,17 @@
-// Package app provides the main application implementation for Rivaas.
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
@@ -146,6 +159,7 @@ func (a *App) executeStartHooks(ctx context.Context) error {
 }
 
 // executeReadyHooks runs all OnReady hooks asynchronously.
+// Hooks run in fire-and-forget mode with panic recovery to prevent silent failures.
 func (a *App) executeReadyHooks() {
 	a.hooks.mu.Lock()
 	hooks := make([]func(), len(a.hooks.onReady))
@@ -153,7 +167,15 @@ func (a *App) executeReadyHooks() {
 	a.hooks.mu.Unlock()
 
 	for _, hook := range hooks {
-		go hook() // Fire and forget
+		hook := hook // Capture for goroutine
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					a.logLifecycleEvent(slog.LevelError, "OnReady hook panic", "error", r)
+				}
+			}()
+			hook()
+		}()
 	}
 }
 

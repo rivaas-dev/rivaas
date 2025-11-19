@@ -8,46 +8,18 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Recorder interface for integration with router.
-// This is defined locally to avoid circular dependencies.
-type Recorder interface {
-	StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span)
-	FinishSpan(span trace.Span, statusCode int)
-	SetSpanAttribute(span trace.Span, key string, value interface{})
-	AddSpanEvent(span trace.Span, name string, attrs ...attribute.KeyValue)
-	ExtractTraceContext(ctx context.Context, headers http.Header) context.Context
-	InjectTraceContext(ctx context.Context, headers http.Header)
-	IsEnabled() bool
-	ShouldExcludePath(path string) bool
-}
-
-// RouterOption defines functional options for router configuration.
-type RouterOption func(interface{})
-
-// WithTracing creates a router option that enables tracing.
-// This is the main entry point for integrating tracing with the router.
-// Panics if tracing initialization fails. Use WithTracingOrError for error handling.
-func WithTracing(opts ...Option) RouterOption {
-	return func(router interface{}) {
-		// Create tracing configuration
-		config := MustNew(opts...)
-
-		// Try to set the tracing configuration on the router
-		// This uses interface{} to avoid circular dependencies
-		if setter, ok := router.(interface{ SetTracingRecorder(Recorder) }); ok {
-			setter.SetTracingRecorder(config)
-		}
-	}
-}
-
-// WithTracingFromConfig creates a router option from an existing tracing config.
-func WithTracingFromConfig(config *Config) RouterOption {
-	return func(router interface{}) {
-		if setter, ok := router.(interface{ SetTracingRecorder(Recorder) }); ok {
-			setter.SetTracingRecorder(config)
-		}
-	}
-}
+// NOTE: Router integration is now handled via app.ObservabilityRecorder.
+// The old Recorder interface and WithTracing functions have been removed.
+//
+// For standalone tracing (outside of the app/router framework), use:
+//   - tracing.MustNew() to create a Config
+//   - Config.StartSpan() and Config.FinishSpan() to create and complete spans
+//   - Config.SetSpanAttribute(), Config.AddSpanEvent() for span enrichment
+//   - Middleware() for manual HTTP middleware integration
+//
+// For app-integrated tracing, use:
+//   - app.WithTracing() to enable tracing in your app
+//   - The app package handles observability wiring automatically
 
 // Middleware creates a middleware function for manual integration.
 // This is useful when you want to add tracing to an existing router

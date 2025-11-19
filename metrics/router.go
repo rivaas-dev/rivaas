@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package metrics
 
 import (
@@ -7,71 +21,18 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// Recorder interface for integration with router.
-// This is defined locally to avoid circular dependencies.
-// It must match the Recorder interface in router/interfaces.go.
-type Recorder interface {
-	// RecordMetric records a custom histogram metric with the given name and value.
-	RecordMetric(ctx context.Context, name string, value float64, attributes ...attribute.KeyValue)
-
-	// IncrementCounter increments a custom counter metric with the given name.
-	IncrementCounter(ctx context.Context, name string, attributes ...attribute.KeyValue)
-
-	// SetGauge sets a custom gauge metric with the given name and value.
-	SetGauge(ctx context.Context, name string, value float64, attributes ...attribute.KeyValue)
-
-	// RecordRouteRegistration records route registration metrics.
-	RecordRouteRegistration(ctx context.Context, method, path string)
-
-	// RecordContextPoolHit records a context pool hit (reused context).
-	RecordContextPoolHit(ctx context.Context)
-
-	// RecordContextPoolMiss records a context pool miss (new allocation).
-	RecordContextPoolMiss(ctx context.Context)
-
-	// RecordConstraintFailure records a route constraint validation failure.
-	RecordConstraintFailure(ctx context.Context, constraint string, attributes ...attribute.KeyValue)
-
-	// StartRequest initializes metrics collection for a request.
-	// Returns a request metrics object (*requestMetrics) that should be passed to FinishRequest.
-	// The return type is interface{} to avoid circular dependencies with the router package.
-	// Returns nil if context is cancelled, path is excluded, or metrics are disabled.
-	StartRequest(ctx context.Context, path string, isStatic bool, attributes ...attribute.KeyValue) interface{}
-
-	// FinishRequest completes metrics collection for a request.
-	// Takes the request metrics object (interface{}) returned by StartRequest.
-	// If metrics is nil or invalid type, this is a no-op.
-	FinishRequest(ctx context.Context, metrics interface{}, statusCode int, responseSize int64)
-
-	// IsEnabled returns true if metrics are enabled.
-	IsEnabled() bool
-}
-
-// WithMetrics creates a router option that enables metrics collection.
-// This is the main entry point for integrating metrics with the router.
-// Returns a function that can be used with router.New().
-// Panics if metrics initialization fails. Use WithMetricsOrError for error handling.
-func WithMetrics(opts ...Option) interface{} {
-	return func(r interface{}) {
-		// Create metrics configuration
-		config := MustNew(opts...)
-
-		// Try to set the metrics configuration on the router
-		// This uses interface{} to avoid circular dependencies
-		if setter, ok := r.(interface{ SetMetricsRecorder(Recorder) }); ok {
-			setter.SetMetricsRecorder(config)
-		}
-	}
-}
-
-// WithMetricsFromConfig creates a router option from an existing metrics config.
-func WithMetricsFromConfig(config *Config) interface{} {
-	return func(r interface{}) {
-		if setter, ok := r.(interface{ SetMetricsRecorder(Recorder) }); ok {
-			setter.SetMetricsRecorder(config)
-		}
-	}
-}
+// NOTE: Router integration is now handled via app.ObservabilityRecorder.
+// The old Recorder interface and WithMetrics functions have been removed.
+//
+// For standalone metrics (outside of the app/router framework), use:
+//   - metrics.MustNew() to create a Config
+//   - Config.StartRequest() and Config.FinishRequest() to track HTTP requests
+//   - Config.RecordMetric(), Config.IncrementCounter(), etc. for custom metrics
+//   - Middleware() for manual HTTP middleware integration
+//
+// For app-integrated metrics, use:
+//   - app.WithMetrics() to enable metrics in your app
+//   - The app package handles observability wiring automatically
 
 // Middleware creates a middleware function for manual integration.
 // This is useful when you want to add metrics to an existing router
@@ -137,7 +98,8 @@ func Middleware(config *Config) func(http.Handler) http.Handler {
 			next.ServeHTTP(rw, r)
 
 			// Finish metrics collection
-			config.FinishRequest(ctx, requestMetrics, rw.StatusCode(), int64(rw.Size()))
+			// Use raw path as route pattern since middleware cannot determine actual route template
+			config.FinishRequest(ctx, requestMetrics, rw.StatusCode(), int64(rw.Size()), r.URL.Path)
 		})
 	}
 }

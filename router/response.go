@@ -172,8 +172,8 @@ func (c *Context) Send(data []byte) error {
 //
 // Example:
 //
-//	c.SendStatus(404) // Sends "404 Not Found"
-//	c.SendStatus(201) // Sends "201 Created"
+//	c.SendStatus(http.StatusNotFound) // Sends "404 Not Found"
+//	c.SendStatus(http.StatusCreated) // Sends "201 Created"
 func (c *Context) SendStatus(code int) error {
 	c.Status(code)
 
@@ -200,8 +200,8 @@ func (c *Context) SendStatus(code int) error {
 //
 // Example:
 //
-//	c.JSONP(200, data)              // callback({"key": "value"})
-//	c.JSONP(200, data, "myFunc")    // myFunc({"key": "value"})
+//	c.JSONP(http.StatusOK, data)              // callback({"key": "value"})
+//	c.JSONP(http.StatusOK, data, "myFunc")    // myFunc({"key": "value"})
 func (c *Context) JSONP(code int, obj any, callback ...string) error {
 	// Determine callback name
 	callbackName := "callback"
@@ -231,7 +231,7 @@ func (c *Context) JSONP(code int, obj any, callback ...string) error {
 //
 // Example:
 //
-//	c.Format(200, user)
+//	c.Format(http.StatusOK, user)
 //	// Accept: application/json → sends JSON
 //	// Accept: text/html → sends HTML representation
 //	// Accept: text/plain → sends string representation

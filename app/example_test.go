@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app_test
 
 import (
@@ -7,7 +21,6 @@ import (
 	"net/http/httptest"
 
 	"rivaas.dev/app"
-	"rivaas.dev/router"
 )
 
 // Example demonstrates basic app usage.
@@ -17,7 +30,7 @@ func Example() {
 		log.Fatal(err)
 	}
 
-	a.GET("/", func(c *router.Context) {
+	a.GET("/", func(c *app.Context) {
 		c.JSON(http.StatusOK, map[string]string{
 			"message": "Hello, World!",
 		})
@@ -34,7 +47,6 @@ func Example_withObservability() {
 		app.WithServiceVersion("v1.0.0"),
 		app.WithMetrics(),
 		app.WithTracing(),
-		app.WithLogging(),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -51,7 +63,7 @@ func Example_withObservability() {
 func Example_testing() {
 	a, _ := app.New()
 
-	a.GET("/health", func(c *router.Context) {
+	a.GET("/health", func(c *app.Context) {
 		c.String(http.StatusOK, "ok")
 	})
 
@@ -70,11 +82,11 @@ func Example_testing() {
 func Example_routing() {
 	a, _ := app.New()
 
-	a.GET("/users", func(c *router.Context) {
+	a.GET("/users", func(c *app.Context) {
 		c.JSON(http.StatusOK, map[string]string{"users": "list"})
 	})
 
-	a.POST("/users", func(c *router.Context) {
+	a.POST("/users", func(c *app.Context) {
 		c.JSON(http.StatusCreated, map[string]string{"user": "created"})
 	})
 
@@ -86,13 +98,13 @@ func Example_routing() {
 func Example_middleware() {
 	a, _ := app.New()
 
-	a.Use(func(c *router.Context) {
+	a.Use(func(c *app.Context) {
 		// Add custom header
 		c.Header("X-Custom", "value")
 		c.Next()
 	})
 
-	a.GET("/test", func(c *router.Context) {
+	a.GET("/test", func(c *app.Context) {
 		c.String(http.StatusOK, "ok")
 	})
 

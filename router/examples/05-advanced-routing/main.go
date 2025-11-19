@@ -26,7 +26,7 @@ import (
 
 func main() {
 	// Create router with versioning support
-	r := router.New(
+	r := router.MustNew(
 		router.WithVersioning(
 			router.WithHeaderVersioning("API-Version"),
 			router.WithQueryVersioning("version"),

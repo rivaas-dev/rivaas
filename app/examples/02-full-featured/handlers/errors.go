@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package handlers
 
 import (
@@ -5,7 +19,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"rivaas.dev/router"
+	"rivaas.dev/app"
 )
 
 // APIError represents a structured API error response.
@@ -36,7 +50,7 @@ var (
 )
 
 // HandleError processes errors and sends appropriate HTTP responses.
-func HandleError(c *router.Context, err error) {
+func HandleError(c *app.Context, err error) {
 	var apiErr APIError
 	if errors.As(err, &apiErr) {
 		status := getHTTPStatusForError(apiErr.Code)

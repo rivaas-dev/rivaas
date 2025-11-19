@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"rivaas.dev/router"
 )
 
@@ -139,7 +140,7 @@ func TestBasicAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := router.New()
+			r := router.MustNew()
 			r.Use(tt.setupAuth())
 			r.GET("/test", func(c *router.Context) {
 				c.String(http.StatusOK, "success")
@@ -153,19 +154,14 @@ func TestBasicAuth(t *testing.T) {
 
 			r.ServeHTTP(w, req)
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
-			if tt.expectedBody != "" && w.Body.String() != tt.expectedBody {
-				t.Errorf("expected body %q, got %q", tt.expectedBody, w.Body.String())
+			if tt.expectedBody != "" {
+				assert.Equal(t, tt.expectedBody, w.Body.String())
 			}
 
 			if tt.checkHeader {
-				wwwAuth := w.Header().Get("WWW-Authenticate")
-				if wwwAuth == "" {
-					t.Error("expected WWW-Authenticate header to be set")
-				}
+				assert.NotEmpty(t, w.Header().Get("WWW-Authenticate"))
 			}
 		})
 	}
@@ -177,7 +173,7 @@ func TestBasicAuthWithValidator(t *testing.T) {
 		"user":  "pass456",
 	}
 
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithValidator(func(username, password string) bool {
 			expectedPassword, exists := validUsers[username]
@@ -188,29 +184,29 @@ func TestBasicAuthWithValidator(t *testing.T) {
 		c.String(http.StatusOK, "success")
 	})
 
-	// Valid credentials
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("admin:password123")))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
+	tests := []struct {
+		name           string
+		credentials    string
+		expectedStatus int
+	}{
+		{"valid credentials", "admin:password123", http.StatusOK},
+		{"invalid credentials", "admin:wrong", http.StatusUnauthorized},
 	}
 
-	// Invalid credentials
-	req = httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("admin:wrong")))
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(tt.credentials)))
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected status 401, got %d", w.Code)
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
 	}
 }
 
 func TestBasicAuthSkipPaths(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithUsers(map[string]string{"admin": "secret"}),
 		WithSkipPaths("/health", "/public"),
@@ -227,23 +223,19 @@ func TestBasicAuthSkipPaths(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200 for skipped path, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "Skipped path should succeed")
 
 	// Protected path - auth required
 	req = httptest.NewRequest(http.MethodGet, "/protected", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected status 401 for protected path, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusUnauthorized, w.Code, "Protected path should require auth")
 }
 
 func TestBasicAuthCustomUnauthorizedHandler(t *testing.T) {
 	customCalled := false
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithUsers(map[string]string{"admin": "secret"}),
 		WithUnauthorizedHandler(func(c *router.Context) {
@@ -259,17 +251,12 @@ func TestBasicAuthCustomUnauthorizedHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if !customCalled {
-		t.Error("custom unauthorized handler was not called")
-	}
-
-	if w.Body.String() != "custom unauthorized" {
-		t.Errorf("expected custom response, got %q", w.Body.String())
-	}
+	assert.True(t, customCalled, "Custom unauthorized handler should be called")
+	assert.Equal(t, "custom unauthorized", w.Body.String())
 }
 
 func TestGetAuthUsername(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithUsers(map[string]string{"testuser": "testpass"}),
 	))
@@ -283,109 +270,45 @@ func TestGetAuthUsername(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
-
-	expectedBody := "user:testuser"
-	if w.Body.String() != expectedBody {
-		t.Errorf("expected body %q, got %q", expectedBody, w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "user:testuser", w.Body.String())
 }
 
-func TestBasicAuthEmptyPassword(t *testing.T) {
-	r := router.New()
-	r.Use(New(
-		WithUsers(map[string]string{
-			"user": "",
-		}),
-	))
-	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "success")
-	})
-
-	// Valid empty password
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("user:")))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200 for empty password, got %d", w.Code)
-	}
-}
-
-func TestBasicAuthSpecialCharacters(t *testing.T) {
-	r := router.New()
-	r.Use(New(
-		WithUsers(map[string]string{
-			"user@example.com": "p@ss:w0rd!",
-		}),
-	))
-	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "success")
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("user@example.com:p@ss:w0rd!")))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200 for special characters, got %d", w.Code)
-	}
-}
-
-// Benchmark BasicAuth middleware
-func BenchmarkBasicAuth(b *testing.B) {
-	r := router.New()
-	r.Use(New(
-		WithUsers(map[string]string{
-			"admin": "secret123",
-		}),
-	))
-	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "success")
-	})
-
-	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:secret123"))
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", authHeader)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkBasicAuthWithValidator(b *testing.B) {
-	validUsers := map[string]string{
-		"admin": "secret123",
+func TestBasicAuth_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		users          map[string]string
+		credentials    string
+		expectedStatus int
+	}{
+		{
+			name:           "empty password",
+			users:          map[string]string{"user": ""},
+			credentials:    "user:",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "special characters",
+			users:          map[string]string{"user@example.com": "p@ss:w0rd!"},
+			credentials:    "user@example.com:p@ss:w0rd!",
+			expectedStatus: http.StatusOK,
+		},
 	}
 
-	r := router.New()
-	r.Use(New(
-		WithValidator(func(username, password string) bool {
-			expectedPassword, exists := validUsers[username]
-			return exists && password == expectedPassword
-		}),
-	))
-	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "success")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := router.MustNew()
+			r.Use(New(WithUsers(tt.users)))
+			r.GET("/test", func(c *router.Context) {
+				c.String(http.StatusOK, "success")
+			})
 
-	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:secret123"))
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", authHeader)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(tt.credentials)))
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
 
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
 	}
 }

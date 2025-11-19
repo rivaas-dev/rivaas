@@ -27,8 +27,8 @@ import (
     "net/http"
     "time"
     
-    "rivass.dev/metrics"
-    "rivass.dev/router"
+    "rivaas.dev/metrics"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -67,7 +67,7 @@ package main
 import (
     "context"
     
-    "rivass.dev/metrics"
+    "rivaas.dev/metrics"
     "go.opentelemetry.io/otel/attribute"
 )
 
@@ -301,7 +301,7 @@ The package automatically reads configuration from environment variables:
 For manual integration with other HTTP frameworks:
 
 ```go
-import "rivass.dev/metrics"
+import "rivaas.dev/metrics"
 
 config := metrics.New(
     metrics.WithServiceName("my-service"),
@@ -382,52 +382,85 @@ For most applications, this trade-off strongly favors the lock-free approach. If
 
 ## Important Limitations
 
-### Global State (with Solution!)
+### Global State (Non-Issue with Current Design!)
 
-**⚠️ IMPORTANT**: By default, the metrics package sets the global OpenTelemetry meter provider via `otel.SetMeterProvider()`.
+**✅ GOOD NEWS**: By default, the metrics package does NOT set the global OpenTelemetry meter provider.
 
 This means:
 
-- **Only one metrics configuration should be active per process** when using built-in providers
-- Creating multiple metrics configurations will cause them to overwrite each other's global meter provider
+- **Multiple metrics configurations can coexist** in the same process without conflicts
+- The global meter provider is only set if you explicitly opt-in with `WithGlobalMeterProvider()`
+- You can use custom meter providers for complete control
 
-**✅ Solution: Use Custom Meter Providers**
+**Default Behavior (Recommended)**
 
-To avoid global state and support multiple independent metrics configurations, provide your own meter provider:
+Multiple independent configurations work out of the box:
 
 ```go
-// Create custom meter providers for each service
-provider1 := sdkmetric.NewMeterProvider(...)
-provider2 := sdkmetric.NewMeterProvider(...)
-
-// Create independent metrics configurations
+// Create independent metrics configurations (no global state!)
 config1, _ := metrics.New(
-    metrics.WithMeterProvider(provider1),
     metrics.WithServiceName("service-1"),
+    metrics.WithProvider(metrics.PrometheusProvider),
+    metrics.WithPort(":9090"),
 )
 
 config2, _ := metrics.New(
-    metrics.WithMeterProvider(provider2),
     metrics.WithServiceName("service-2"),
+    metrics.WithProvider(metrics.StdoutProvider),
 )
 
-// Both work independently without conflicts!
-defer provider1.Shutdown(context.Background())
-defer provider2.Shutdown(context.Background())
+// ✅ Both work independently without conflicts!
+// ✅ No global state, no overwriting
+defer config1.Shutdown(context.Background())
+defer config2.Shutdown(context.Background())
 ```
 
-**When to use custom providers:**
+**Opt-in to Global Registration**
 
-- ✅ Multiple independent metrics configurations in same process
-- ✅ Full control over meter provider lifecycle
-- ✅ Integration with existing OpenTelemetry setups
+If you need the meter provider to be globally registered (e.g., for third-party libraries that use the global OpenTelemetry provider):
+
+```go
+config := metrics.New(
+    metrics.WithServiceName("my-service"),
+    metrics.WithProvider(metrics.PrometheusProvider),
+    metrics.WithGlobalMeterProvider(),  // ✅ Explicit opt-in
+)
+```
+
+**Advanced: Custom Meter Provider**
+
+For complete control over the meter provider lifecycle:
+
+```go
+// Create your own meter provider
+provider := sdkmetric.NewMeterProvider(...)
+
+config := metrics.New(
+    metrics.WithMeterProvider(provider),  // Use custom provider
+    metrics.WithServiceName("service-1"),
+)
+
+// Manage provider lifecycle yourself
+defer provider.Shutdown(context.Background())
+```
+
+**When to use each approach:**
+
+**Default (non-global):**
+- ✅ Multiple services in one process
 - ✅ Testing with isolated metrics
+- ✅ Library code that shouldn't affect globals
+- ✅ Most applications (recommended)
 
-**When to use built-in providers:**
+**Global registration (`WithGlobalMeterProvider`):**
+- ✅ Single service application
+- ✅ Integration with third-party OpenTelemetry libraries
+- ✅ Existing code expects global provider
 
-- ✅ Single metrics configuration per process (most common)
-- ✅ Quick setup with sensible defaults
-- ✅ Don't need fine-grained control over meter provider
+**Custom provider (`WithMeterProvider`):**
+- ✅ Full control over provider lifecycle
+- ✅ Complex multi-provider setups
+- ✅ Integration with existing OpenTelemetry infrastructure
 
 ### Context Cancellation
 

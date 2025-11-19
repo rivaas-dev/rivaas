@@ -1,44 +1,41 @@
-// Package app provides the main application implementation for Rivaas.
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"rivaas.dev/router"
 )
 
 // serverStartFunc defines the function type for starting a server.
 type serverStartFunc func() error
 
-// logLifecycleEvent logs a lifecycle event using structured logging if available,
-// otherwise falls back to the standard library log package.
+// logLifecycleEvent logs a lifecycle event using the base logger.
 func (a *App) logLifecycleEvent(level slog.Level, msg string, args ...any) {
-	if a.logging != nil {
-		logger := a.logging.Logger()
-		if logger.Enabled(context.Background(), level) {
-			logger.Log(context.Background(), level, msg, args...)
-		}
-	} else {
-		// Fall back to stdlib log for backwards compatibility
-		if len(args) == 0 {
-			log.Println(msg)
-		} else {
-			// Format key-value pairs for stdlib log
-			logMsg := msg
-			for i := 0; i < len(args)-1; i += 2 {
-				if key, ok := args[i].(string); ok {
-					logMsg += fmt.Sprintf(" %s=%v", key, args[i+1])
-				}
-			}
-			log.Println(logMsg)
-		}
+	logger := a.BaseLogger()
+	if logger.Enabled(context.Background(), level) {
+		logger.Log(context.Background(), level, msg, args...)
 	}
 }
 
@@ -134,6 +131,68 @@ func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol
 	return nil
 }
 
+// registerOpenAPIEndpoints registers OpenAPI spec and UI endpoints.
+// This is the integration between router and openapi packages.
+func (a *App) registerOpenAPIEndpoints() {
+	if a.openapi == nil {
+		return
+	}
+
+	// Register spec endpoint
+	a.router.GET(a.openapi.SpecPath(), func(c *router.Context) {
+		specJSON, etag, err := a.openapi.GenerateSpec()
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Failed to generate OpenAPI specification: %v", err)
+			return
+		}
+
+		// Check If-None-Match header for caching
+		if match := c.Request.Header.Get("If-None-Match"); match != "" && match == etag {
+			c.Status(http.StatusNotModified)
+			return
+		}
+
+		c.Response.Header().Set("ETag", etag)
+		c.Response.Header().Set("Cache-Control", "public, max-age=3600")
+		c.Response.Header().Set("Content-Type", "application/json")
+		c.Response.Write(specJSON)
+	})
+
+	// Register UI endpoint if enabled
+	if a.openapi.ServeUI() {
+		a.router.GET(a.openapi.UIPath(), func(c *router.Context) {
+			ui := a.openapi.UIConfig()
+			configJSON, err := ui.ToJSON(a.openapi.SpecPath())
+			if err != nil {
+				// Fallback to basic config
+				configJSON = `{"url":"` + a.openapi.SpecPath() + `","dom_id":"#swagger-ui"}`
+			}
+
+			html := `<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="description" content="API Documentation" />
+	<title>API Documentation</title>
+	<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.30.2/swagger-ui.css" />
+</head>
+<body>
+	<div id="swagger-ui"></div>
+	<script src="https://unpkg.com/swagger-ui-dist@5.30.2/swagger-ui-bundle.js" crossorigin></script>
+	<script>
+		window.onload = () => {
+			window.ui = SwaggerUIBundle(` + configJSON + `);
+		};
+	</script>
+</body>
+</html>`
+
+			c.HTML(http.StatusOK, html)
+		})
+	}
+}
+
 // Run starts the HTTP server with graceful shutdown.
 // This automatically freezes the router before starting, making routes immutable.
 func (a *App) Run(addr string) error {
@@ -142,6 +201,9 @@ func (a *App) Run(addr string) error {
 	if err := a.executeStartHooks(ctx); err != nil {
 		return fmt.Errorf("startup failed: %w", err)
 	}
+
+	// Register OpenAPI endpoints before freezing
+	a.registerOpenAPIEndpoints()
 
 	// Freeze router before starting (point of no return)
 	a.router.Freeze()
@@ -167,6 +229,9 @@ func (a *App) RunTLS(addr, certFile, keyFile string) error {
 	if err := a.executeStartHooks(ctx); err != nil {
 		return fmt.Errorf("startup failed: %w", err)
 	}
+
+	// Register OpenAPI endpoints before freezing
+	a.registerOpenAPIEndpoints()
 
 	// Freeze router before starting (point of no return)
 	a.router.Freeze()
@@ -237,6 +302,9 @@ func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOptio
 		return fmt.Errorf("startup failed: %w", err)
 	}
 
+	// Register OpenAPI endpoints before freezing
+	a.registerOpenAPIEndpoints()
+
 	// Freeze router before starting (point of no return)
 	a.router.Freeze()
 
@@ -264,7 +332,8 @@ func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOptio
 		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
 	}
 
-	// Wrap ConnState callback to extract peer principal from client certificate
+	// Wrap ConnState callback to authorize client certificates
+	// Authorization happens at connection time; principal extraction happens per-request
 	originalConnState := server.ConnState
 	server.ConnState = func(conn net.Conn, state http.ConnState) {
 		if state == http.StateActive {
@@ -282,7 +351,6 @@ func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOptio
 							conn.Close()
 							return
 						}
-						// Principal can be extracted in handlers via request context if needed
 					}
 				}
 			}

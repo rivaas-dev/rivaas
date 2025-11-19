@@ -1,13 +1,14 @@
 package router
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"testing"
 )
 
 func TestConstraintValidationDebug(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register route with numeric constraint
 	r.GET("/users/:id", func(c *Context) {
@@ -15,7 +16,7 @@ func TestConstraintValidationDebug(t *testing.T) {
 	}).WhereNumber("id")
 
 	// Test valid request (should match)
-	req1 := httptest.NewRequest("GET", "/users/123", nil)
+	req1 := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 	t.Logf("Valid request /users/123: status=%d (expected 200)", w1.Code)
@@ -24,7 +25,7 @@ func TestConstraintValidationDebug(t *testing.T) {
 	}
 
 	// Test invalid request (should NOT match - return 404)
-	req2 := httptest.NewRequest("GET", "/users/invalid123", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/users/invalid123", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 	t.Logf("Invalid request /users/invalid123: status=%d (expected 404)", w2.Code)
@@ -59,7 +60,7 @@ func TestFastPathConstraintValidation(t *testing.T) {
 		{Param: "id", Pattern: mustCompile(`^\d+$`)},
 	}
 
-	tmpl := compileRouteTemplate("GET", "/users/:id", []HandlerFunc{func(_ *Context) {}}, constraints)
+	tmpl := compileRouteTemplate(http.MethodGet, "/users/:id", []HandlerFunc{func(_ *Context) {}}, constraints)
 
 	t.Logf("Template segmentCount: %d", tmpl.segmentCount)
 	t.Logf("Template paramPos: %v", tmpl.paramPos)
@@ -89,14 +90,14 @@ func mustCompile(pattern string) *regexp.Regexp {
 
 // TestRouteConstraints tests additional constraint validators
 func TestRouteConstraints(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	r.GET("/alpha/:name", func(c *Context) {
-		c.String(200, "name=%s", c.Param("name"))
+		c.String(http.StatusOK, "name=%s", c.Param("name"))
 	}).WhereAlpha("name")
 
 	r.GET("/uuid/:id", func(c *Context) {
-		c.String(200, "id=%s", c.Param("id"))
+		c.String(http.StatusOK, "id=%s", c.Param("id"))
 	}).WhereUUID("id")
 
 	tests := []struct {
@@ -113,21 +114,21 @@ func TestRouteConstraints(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.path, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
 
 			if tt.shouldPass {
-				if w.Code != 200 {
-					t.Errorf("Expected status 200, got %d", w.Code)
+				if w.Code != http.StatusOK {
+					t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
 				}
 				if w.Body.String() != tt.expected {
 					t.Errorf("Expected %q, got %q", tt.expected, w.Body.String())
 				}
 			} else {
-				if w.Code != 404 {
-					t.Errorf("Expected status 404, got %d", w.Code)
+				if w.Code != http.StatusNotFound {
+					t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
 				}
 			}
 		})

@@ -25,7 +25,7 @@ import (
 
 func main() {
 	// Create a new router
-	r := router.New()
+	r := router.MustNew()
 
 	// Define a simple GET route
 	r.GET("/", func(c *router.Context) {

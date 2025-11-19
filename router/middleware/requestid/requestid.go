@@ -3,8 +3,10 @@ package requestid
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
-	"fmt"
+	mathrand "math/rand/v2"
+	"os"
 	"time"
 
 	"rivaas.dev/router"
@@ -39,16 +41,19 @@ func defaultConfig() *config {
 func generateRandomID() string {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to timestamp-based ID if random fails
-		return fmt.Sprintf("%d", mustGetTimestamp())
+		// Fallback: combine timestamp + random number + process ID for better entropy
+		// This is extremely unlikely to happen (crypto/rand failure is rare), but when
+		// it does, we want collision resistance better than timestamp alone.
+		ts := time.Now().UnixNano()
+		rnd := mathrand.Uint64()
+		pid := os.Getpid()
+
+		// Layout: [8 bytes: timestamp][4 bytes: random][4 bytes: pid]
+		binary.BigEndian.PutUint64(bytes[0:8], uint64(ts))
+		binary.BigEndian.PutUint32(bytes[8:12], uint32(rnd))
+		binary.BigEndian.PutUint32(bytes[12:16], uint32(pid))
 	}
 	return hex.EncodeToString(bytes)
-}
-
-// mustGetTimestamp returns current timestamp in nanoseconds.
-// This is a fallback for ID generation if crypto/rand fails.
-func mustGetTimestamp() int64 {
-	return time.Now().UnixNano()
 }
 
 // New returns a middleware that adds a unique request ID to each request.
@@ -61,7 +66,7 @@ func mustGetTimestamp() int64 {
 //
 // Basic usage:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.Use(requestid.New())
 //
 // Custom header name:

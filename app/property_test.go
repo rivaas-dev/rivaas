@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
@@ -7,8 +21,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"rivaas.dev/router"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -49,19 +61,19 @@ func TestProperty_RouteMatchingCommutativity(t *testing.T) {
 				body := route.body // Capture for closure
 				switch route.method {
 				case "GET":
-					app.GET(route.path, func(c *router.Context) {
+					app.GET(route.path, func(c *Context) {
 						c.String(http.StatusOK, "%s", body)
 					})
 				case "POST":
-					app.POST(route.path, func(c *router.Context) {
+					app.POST(route.path, func(c *Context) {
 						c.String(http.StatusOK, "%s", body)
 					})
 				case "PUT":
-					app.PUT(route.path, func(c *router.Context) {
+					app.PUT(route.path, func(c *Context) {
 						c.String(http.StatusOK, "%s", body)
 					})
 				default:
-					app.GET(route.path, func(c *router.Context) {
+					app.GET(route.path, func(c *Context) {
 						c.String(http.StatusOK, "%s", body)
 					})
 				}
@@ -101,7 +113,7 @@ func TestProperty_MiddlewareIdempotency(t *testing.T) {
 
 	var callCount int
 
-	middleware := func(c *router.Context) {
+	middleware := func(c *Context) {
 		callCount++
 		c.Next()
 	}
@@ -111,7 +123,7 @@ func TestProperty_MiddlewareIdempotency(t *testing.T) {
 		app.Use(middleware)
 	}
 
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		c.String(http.StatusOK, "ok")
 	})
 
@@ -207,7 +219,7 @@ func TestProperty_RoutePathEquivalence(t *testing.T) {
 	)
 
 	// Register parameter route
-	app.GET("/users/:id", func(c *router.Context) {
+	app.GET("/users/:id", func(c *Context) {
 		id := c.Param("id")
 		c.String(http.StatusOK, "user-%s", id)
 	})

@@ -1,16 +1,31 @@
-// Package app provides the main application implementation for Rivaas.
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
 
-	"rivaas.dev/logging"
+	"rivaas.dev/errors"
 	"rivaas.dev/metrics"
+	"rivaas.dev/openapi"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/accesslog"
 	"rivaas.dev/router/middleware/recovery"
 	"rivaas.dev/tracing"
 )
@@ -32,16 +47,27 @@ const (
 	EnvironmentProduction  = "production"
 )
 
+// HandlerFunc defines a handler function that receives an app.Context.
+// This provides access to both router functionality and app-level features
+// like binding and validation.
+type HandlerFunc func(*Context)
+
+// noopLogger is a singleton no-op logger used when no logger is configured.
+// This avoids per-request allocations.
+var noopLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
 // App represents the high-level application framework.
 // It wraps the router with integrated observability and common middleware.
 type App struct {
-	router    *router.Router
-	metrics   *metrics.Config
-	tracing   *tracing.Config
-	logging   *logging.Config
-	config    *config
-	hooks     *Hooks
-	readiness *ReadinessManager
+	router      *router.Router
+	metrics     *metrics.Config
+	tracing     *tracing.Config
+	baseLogger  *slog.Logger // Base logger (can be nil, uses noopLogger fallback)
+	config      *config
+	hooks       *Hooks
+	readiness   *ReadinessManager
+	openapi     *openapi.Manager
+	contextPool *contextPool
 }
 
 // config holds the internal application configuration.
@@ -52,10 +78,12 @@ type config struct {
 	environment    string
 	metrics        *metricsConfig
 	tracing        *tracingConfig
-	logging        *loggingConfig
+	baseLogger     *slog.Logger // Base logger (can be nil)
 	server         *serverConfig
 	middleware     *middlewareConfig
 	router         *routerConfig
+	openapi        *openapiConfig
+	errors         *errorsConfig
 }
 
 // metricsConfig holds metrics configuration.
@@ -68,12 +96,6 @@ type metricsConfig struct {
 type tracingConfig struct {
 	enabled bool
 	options []tracing.Option
-}
-
-// loggingConfig holds logging configuration.
-type loggingConfig struct {
-	enabled bool
-	options []logging.Option
 }
 
 // serverConfig holds server configuration.
@@ -190,8 +212,21 @@ func (sc *serverConfig) Validate() *ValidationErrors {
 
 // middlewareConfig holds middleware configuration.
 type middlewareConfig struct {
-	functions     []router.HandlerFunc
+	functions     []HandlerFunc
 	explicitlySet bool // Tracks if WithMiddleware was called
+}
+
+// errorsConfig holds error formatting configuration.
+type errorsConfig struct {
+	// Single formatter mode
+	formatter errors.Formatter
+
+	// Multi-formatter mode with content negotiation
+	formatters    map[string]errors.Formatter
+	defaultFormat string
+
+	// Optional error logger
+	logger *slog.Logger
 }
 
 // routerConfig holds router configuration options.
@@ -231,8 +266,34 @@ func (c *config) validate() error {
 		}
 	}
 
+	// Validate OpenAPI configuration
+	if c.openapi != nil && c.openapi.enabled && c.openapi.initErr != nil {
+		errs.Add(newInvalidValueError("openapi", nil, c.openapi.initErr.Error()))
+	}
+
 	// Return all errors if any exist
 	return errs.ToError()
+}
+
+// shouldApplyDefaultMiddleware determines if default middleware should be applied.
+// Defaults are only applied if WithMiddleware() was never called.
+// If WithMiddleware() is called (even with empty args), no defaults are added.
+func shouldApplyDefaultMiddleware(cfg *config) bool {
+	return !cfg.middleware.explicitlySet
+}
+
+// applyDefaultMiddleware applies default router middleware based on environment.
+// Recovery middleware is always included for panic recovery.
+// Access log middleware is included in development mode for better debugging.
+//
+// Note: These are router middleware, applied directly to the router,
+// not through app.Use() to ensure they run at the correct position in the chain.
+func applyDefaultMiddleware(r *router.Router, environment string) {
+	// Always include recovery middleware by default (router middleware)
+	r.Use(recovery.New())
+
+	// NOTE: Access logging is now handled by the unified ObservabilityRecorder
+	// (see app.New() for configuration)
 }
 
 // defaultConfig returns a configuration with sensible defaults.
@@ -250,7 +311,10 @@ func defaultConfig() *config {
 			shutdownTimeout:   DefaultShutdownTimeout,
 		},
 		middleware: &middlewareConfig{
-			functions: []router.HandlerFunc{},
+			functions: []HandlerFunc{},
+		},
+		errors: &errorsConfig{
+			formatter: &errors.RFC9457{}, // Default to RFC 9457
 		},
 	}
 }
@@ -266,19 +330,6 @@ func New(opts ...Option) (*App, error) {
 		opt(cfg)
 	}
 
-	// Set default middleware based on environment if none explicitly provided
-	// Defaults are only applied if WithMiddleware() was never called.
-	// If WithMiddleware() is called (even with empty args), no defaults are added.
-	if !cfg.middleware.explicitlySet {
-		// Always include recovery middleware by default
-		cfg.middleware.functions = append(cfg.middleware.functions, recovery.New())
-
-		// Include accesslog in development mode by default
-		if cfg.environment == EnvironmentDevelopment {
-			cfg.middleware.functions = append(cfg.middleware.functions, accesslog.New())
-		}
-	}
-
 	// Validate configuration
 	if err := cfg.validate(); err != nil {
 		// Return validation errors as-is (they're already structured)
@@ -291,32 +342,39 @@ func New(opts ...Option) (*App, error) {
 	if cfg.router != nil {
 		routerOpts = cfg.router.options
 	}
-	r := router.New(routerOpts...)
+	r, err := router.New(routerOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create router: %w", err)
+	}
 
 	// Create app
+	var openapiMgr *openapi.Manager
+	if cfg.openapi != nil && cfg.openapi.enabled && cfg.openapi.config != nil {
+		openapiMgr = openapi.NewManager(cfg.openapi.config)
+	}
+
 	app := &App{
-		router:    r,
-		config:    cfg,
-		hooks:     &Hooks{},
-		readiness: &ReadinessManager{},
+		router: r,
+		config: cfg,
+		hooks:  &Hooks{},
+		readiness: &ReadinessManager{
+			gates: make(map[string]Gate),
+		},
+		openapi:     openapiMgr,
+		contextPool: newContextPool(),
 	}
 
-	// Initialize observability with service metadata injected
-	if cfg.logging != nil && cfg.logging.enabled {
-		// Prepend service metadata to user options
-		loggingOpts := []logging.Option{
-			logging.WithServiceName(cfg.serviceName),
-			logging.WithServiceVersion(cfg.serviceVersion),
-		}
-		loggingOpts = append(loggingOpts, cfg.logging.options...)
-
-		logCfg, err := logging.New(loggingOpts...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize logging: %w", err)
-		}
-		app.logging = logCfg
-		r.SetLogger(app.logging)
+	// Apply default router middleware if not explicitly set
+	if shouldApplyDefaultMiddleware(cfg) {
+		applyDefaultMiddleware(r, cfg.environment)
 	}
+
+	// Set base logger (can be nil, will use noopLogger fallback)
+	app.baseLogger = cfg.baseLogger
+
+	// Initialize observability components (metrics, tracing)
+	var metricsCfg *metrics.Config
+	var tracingCfg *tracing.Config
 
 	if cfg.metrics != nil && cfg.metrics.enabled {
 		// Prepend service metadata to user options
@@ -326,12 +384,11 @@ func New(opts ...Option) (*App, error) {
 		}
 		metricsOpts = append(metricsOpts, cfg.metrics.options...)
 
-		metricsCfg, err := metrics.New(metricsOpts...)
+		metricsCfg, err = metrics.New(metricsOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize metrics: %w", err)
 		}
 		app.metrics = metricsCfg
-		r.SetMetricsRecorder(app.metrics)
 	}
 
 	if cfg.tracing != nil && cfg.tracing.enabled {
@@ -342,12 +399,25 @@ func New(opts ...Option) (*App, error) {
 		}
 		tracingOpts = append(tracingOpts, cfg.tracing.options...)
 
-		tracingCfg, err := tracing.New(tracingOpts...)
+		tracingCfg, err = tracing.New(tracingOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize tracing: %w", err)
 		}
 		app.tracing = tracingCfg
-		r.SetTracingRecorder(app.tracing)
+	}
+
+	// Create unified observability recorder if any observability is enabled
+	if metricsCfg != nil || tracingCfg != nil || cfg.baseLogger != nil {
+		obsRecorder := newObservabilityRecorder(&observabilityConfig{
+			Metrics:           metricsCfg,
+			Tracing:           tracingCfg,
+			Logger:            cfg.baseLogger,
+			ExcludePaths:      []string{"/health", "/metrics", "/ready"},
+			LogAccessRequests: true,
+			LogErrorsOnly:     cfg.environment == EnvironmentProduction,
+			SlowThreshold:     time.Second, // Log requests slower than 1s as warnings
+		})
+		r.SetObservabilityRecorder(obsRecorder)
 	}
 
 	// Add middleware from configuration
@@ -397,63 +467,190 @@ func (a *App) Readiness() *ReadinessManager {
 	return a.readiness
 }
 
-// GET registers a GET route and returns the Route for chaining.
-func (a *App) GET(path string, handler router.HandlerFunc) *router.Route {
-	route := a.router.GET(path, handler)
-	a.fireRouteHook(*route)
-	return route
+// wrapRoute wraps a route with OpenAPI metadata.
+// This is the integration point between router and openapi packages.
+// Requires OpenAPI to be enabled via WithOpenAPI().
+// Returns nil if OpenAPI is not enabled (safe to ignore).
+func (a *App) wrapRoute(method, path string) *openapi.RouteWrapper {
+	if a.openapi == nil {
+		return nil
+	}
+	return a.openapi.Register(method, path)
 }
 
-// POST registers a POST route and returns the Route for chaining.
-func (a *App) POST(path string, handler router.HandlerFunc) *router.Route {
-	route := a.router.POST(path, handler)
-	a.fireRouteHook(*route)
-	return route
+// wrapRouteWithOpenAPI creates a RouteWrapper that combines router.Route and OpenAPI metadata.
+func (a *App) wrapRouteWithOpenAPI(route *router.Route, method, path string) *RouteWrapper {
+	var oapi *openapi.RouteWrapper
+	if a.openapi != nil {
+		// Register route with OpenAPI and get wrapper
+		oapi = a.openapi.OnRouteAdded(route)
+	}
+	return &RouteWrapper{
+		route:   route,
+		openapi: oapi,
+	}
 }
 
-// PUT registers a PUT route and returns the Route for chaining.
-func (a *App) PUT(path string, handler router.HandlerFunc) *router.Route {
-	route := a.router.PUT(path, handler)
-	a.fireRouteHook(*route)
-	return route
+// WrapHandler wraps an app.HandlerFunc to convert it to a router.HandlerFunc.
+// This creates an app.Context from the router.Context and manages pooling.
+//
+// The context is guaranteed to be returned to the pool even if the handler panics,
+// ensuring no context leaks occur. The recovery middleware will still catch panics
+// for proper error handling, but this ensures resource cleanup.
+//
+// This method is useful when you need to use router-level features (like route constraints)
+// while still using app.HandlerFunc with full app.Context support.
+//
+// Example:
+//
+//	a.Router().GET("/users/:id", a.WrapHandler(handlers.GetUserByID)).WhereNumber("id")
+func (a *App) WrapHandler(handler HandlerFunc) router.HandlerFunc {
+	return a.wrapHandler(handler)
 }
 
-// DELETE registers a DELETE route and returns the Route for chaining.
-func (a *App) DELETE(path string, handler router.HandlerFunc) *router.Route {
-	route := a.router.DELETE(path, handler)
-	a.fireRouteHook(*route)
-	return route
+// wrapHandler wraps an app.HandlerFunc to convert it to a router.HandlerFunc.
+// This creates an app.Context from the router.Context and manages pooling.
+//
+// The context is guaranteed to be returned to the pool even if the handler panics,
+// ensuring no context leaks occur. The recovery middleware will still catch panics
+// for proper error handling, but this ensures resource cleanup.
+func (a *App) wrapHandler(handler HandlerFunc) router.HandlerFunc {
+	return func(rc *router.Context) {
+		// Get app context from pool
+		ac := a.contextPool.Get()
+
+		// Ensure cleanup even on panic
+		defer func() {
+			// Clear references before returning to pool
+			ac.Context = nil
+			ac.app = nil
+			ac.bindingMeta = nil
+			ac.logger = nil
+			a.contextPool.Put(ac)
+		}()
+
+		// Initialize context
+		ac.Context = rc
+		ac.app = a
+		ac.bindingMeta = nil
+
+		// Build request-scoped logger (never nil)
+		ac.logger = buildRequestLogger(a.baseLogger, rc)
+
+		// Call the handler
+		handler(ac)
+	}
 }
 
-// PATCH registers a PATCH route and returns the Route for chaining.
-func (a *App) PATCH(path string, handler router.HandlerFunc) *router.Route {
-	route := a.router.PATCH(path, handler)
+// GET registers a GET route and returns an OpenAPI wrapper for documentation.
+//
+// If OpenAPI is enabled, returns a RouteWrapper for fluent documentation.
+// If OpenAPI is disabled, returns nil (safe to ignore).
+//
+// Example:
+//
+//	app.GET("/users/:id", handler).
+//	    Doc("Get user", "Retrieves a user by ID").
+//	    Response(200, UserResponse{})
+//
+// GET registers a GET route and returns a RouteWrapper for constraints and OpenAPI documentation.
+func (a *App) GET(path string, handler HandlerFunc) *RouteWrapper {
+	route := a.router.GET(path, a.wrapHandler(handler))
 	a.fireRouteHook(*route)
-	return route
+	return a.wrapRouteWithOpenAPI(route, http.MethodGet, path)
 }
 
-// HEAD registers a HEAD route and returns the Route for chaining.
-func (a *App) HEAD(path string, handler router.HandlerFunc) *router.Route {
-	route := a.router.HEAD(path, handler)
+// POST registers a POST route and returns a RouteWrapper for constraints and OpenAPI documentation.
+func (a *App) POST(path string, handler HandlerFunc) *RouteWrapper {
+	route := a.router.POST(path, a.wrapHandler(handler))
 	a.fireRouteHook(*route)
-	return route
+	return a.wrapRouteWithOpenAPI(route, http.MethodPost, path)
 }
 
-// OPTIONS registers an OPTIONS route and returns the Route for chaining.
-func (a *App) OPTIONS(path string, handler router.HandlerFunc) *router.Route {
-	route := a.router.OPTIONS(path, handler)
+// PUT registers a PUT route and returns a RouteWrapper for constraints and OpenAPI documentation.
+func (a *App) PUT(path string, handler HandlerFunc) *RouteWrapper {
+	route := a.router.PUT(path, a.wrapHandler(handler))
 	a.fireRouteHook(*route)
-	return route
+	return a.wrapRouteWithOpenAPI(route, http.MethodPut, path)
+}
+
+// DELETE registers a DELETE route and returns a RouteWrapper for constraints and OpenAPI documentation.
+func (a *App) DELETE(path string, handler HandlerFunc) *RouteWrapper {
+	route := a.router.DELETE(path, a.wrapHandler(handler))
+	a.fireRouteHook(*route)
+	return a.wrapRouteWithOpenAPI(route, http.MethodDelete, path)
+}
+
+// PATCH registers a PATCH route and returns a RouteWrapper for constraints and OpenAPI documentation.
+func (a *App) PATCH(path string, handler HandlerFunc) *RouteWrapper {
+	route := a.router.PATCH(path, a.wrapHandler(handler))
+	a.fireRouteHook(*route)
+	return a.wrapRouteWithOpenAPI(route, http.MethodPatch, path)
+}
+
+// HEAD registers a HEAD route and returns a RouteWrapper for constraints and OpenAPI documentation.
+func (a *App) HEAD(path string, handler HandlerFunc) *RouteWrapper {
+	route := a.router.HEAD(path, a.wrapHandler(handler))
+	a.fireRouteHook(*route)
+	return a.wrapRouteWithOpenAPI(route, http.MethodHead, path)
+}
+
+// OPTIONS registers an OPTIONS route and returns a RouteWrapper for constraints and OpenAPI documentation.
+func (a *App) OPTIONS(path string, handler HandlerFunc) *RouteWrapper {
+	route := a.router.OPTIONS(path, a.wrapHandler(handler))
+	a.fireRouteHook(*route)
+	return a.wrapRouteWithOpenAPI(route, http.MethodOptions, path)
 }
 
 // Use adds middleware to the app.
-func (a *App) Use(middleware ...router.HandlerFunc) {
-	a.router.Use(middleware...)
+func (a *App) Use(middleware ...HandlerFunc) {
+	routerMiddleware := make([]router.HandlerFunc, len(middleware))
+	for i, m := range middleware {
+		routerMiddleware[i] = a.wrapHandler(m)
+	}
+	a.router.Use(routerMiddleware...)
 }
 
 // Group creates a new route group.
-func (a *App) Group(prefix string, middleware ...router.HandlerFunc) *router.Group {
-	return a.router.Group(prefix, middleware...)
+// Groups created from App support app.HandlerFunc (with app.Context),
+// providing access to binding and validation features.
+//
+// Example:
+//
+//	api := app.Group("/api/v1", AuthMiddleware())
+//	api.GET("/users", handler)    // handler receives *app.Context
+//	api.POST("/users", handler)    // handler receives *app.Context
+func (a *App) Group(prefix string, middleware ...HandlerFunc) *Group {
+	routerMiddleware := make([]router.HandlerFunc, len(middleware))
+	for i, m := range middleware {
+		routerMiddleware[i] = a.wrapHandler(m)
+	}
+	routerGroup := a.router.Group(prefix, routerMiddleware...)
+	return &Group{
+		app:    a,
+		router: routerGroup,
+		prefix: prefix,
+	}
+}
+
+// Version creates a version group that supports app.HandlerFunc.
+// This allows using app.Context features (binding, validation, logging) with router versioning.
+//
+// Routes registered in a version group are automatically scoped to that version.
+// The version is detected from the request path, headers, query parameters, or other
+// configured versioning strategies.
+//
+// Example:
+//
+//	v1 := app.Version("v1")
+//	v1.GET("/status", handlers.Status)
+//	v1.POST("/users", handlers.CreateUser)
+func (a *App) Version(version string) *VersionGroup {
+	routerVersion := a.router.Version(version)
+	return &VersionGroup{
+		app:           a,
+		versionRouter: routerVersion,
+	}
 }
 
 // Static serves static files from the given directory.
@@ -477,15 +674,16 @@ func (a *App) Static(prefix, root string) {
 //
 //	app.Any("/health", healthCheckHandler)
 //	app.Any("/webhook/*", webhookProxyHandler)
-func (a *App) Any(path string, handler router.HandlerFunc) {
+func (a *App) Any(path string, handler HandlerFunc) {
 	// Register the handler for all standard HTTP methods
-	a.router.GET(path, handler)
-	a.router.POST(path, handler)
-	a.router.PUT(path, handler)
-	a.router.DELETE(path, handler)
-	a.router.PATCH(path, handler)
-	a.router.HEAD(path, handler)
-	a.router.OPTIONS(path, handler)
+	// Use the individual method helpers to ensure hooks and OpenAPI integration
+	a.GET(path, handler)
+	a.POST(path, handler)
+	a.PUT(path, handler)
+	a.DELETE(path, handler)
+	a.PATCH(path, handler)
+	a.HEAD(path, handler)
+	a.OPTIONS(path, handler)
 }
 
 // File serves a single file at the given path.
@@ -516,13 +714,19 @@ func (a *App) StaticFS(prefix string, fs http.FileSystem) {
 //
 // Example:
 //
-//	app.NoRoute(func(c *router.Context) {
-//	    c.JSON(404, map[string]string{"error": "route not found"})
+//	app.NoRoute(func(c *Context) {
+//	    c.JSON(http.StatusNotFound, map[string]string{"error": "route not found"})
 //	})
 //
 // Setting handler to nil will restore the default http.NotFound behavior.
-func (a *App) NoRoute(handler router.HandlerFunc) {
-	a.router.NoRoute(handler)
+func (a *App) NoRoute(handler HandlerFunc) {
+	// If handler is nil, pass nil directly to router to restore default behavior.
+	// Don't wrap nil handlers as wrapHandler will panic when trying to call them.
+	if handler == nil {
+		a.router.NoRoute(nil)
+		return
+	}
+	a.router.NoRoute(a.wrapHandler(handler))
 }
 
 // GetMetricsHandler returns the metrics HTTP handler if metrics are enabled.
@@ -567,6 +771,13 @@ func (a *App) Tracing() *tracing.Config {
 	return a.tracing
 }
 
+// BaseLogger returns the application's base logger.
+// This is an alias for BaseLogger() for convenience.
+// Deprecated: Use BaseLogger() instead.
+func (a *App) Logging() *slog.Logger {
+	return a.BaseLogger()
+}
+
 // Route retrieves a route by name. Returns the route and true if found.
 // Panics if the router is not frozen (call after app.Run() or app.Router().Freeze()).
 //
@@ -601,16 +812,9 @@ func (a *App) Routes() []router.Route {
 //	url, err := app.URLFor("users.get", map[string]string{"id": "123"}, nil)
 //	// Returns: "/users/123", nil
 func (a *App) URLFor(routeName string, params map[string]string, query map[string][]string) (string, error) {
-	var urlValues map[string][]string
-	if query != nil {
-		urlValues = query
-	} else {
-		urlValues = make(map[string][]string)
-	}
-	// Convert to url.Values
-	vals := make(url.Values)
-	for k, v := range urlValues {
-		vals[k] = v
+	vals := url.Values(query)
+	if vals == nil {
+		vals = make(url.Values)
 	}
 	return a.router.URLFor(routeName, params, vals)
 }
@@ -623,16 +827,34 @@ func (a *App) URLFor(routeName string, params map[string]string, query map[strin
 //	url := app.MustURLFor("users.get", map[string]string{"id": "123"}, nil)
 //	// Returns: "/users/123"
 func (a *App) MustURLFor(routeName string, params map[string]string, query map[string][]string) string {
-	var urlValues map[string][]string
-	if query != nil {
-		urlValues = query
-	} else {
-		urlValues = make(map[string][]string)
-	}
-	// Convert to url.Values
-	vals := make(url.Values)
-	for k, v := range urlValues {
-		vals[k] = v
+	vals := url.Values(query)
+	if vals == nil {
+		vals = make(url.Values)
 	}
 	return a.router.MustURLFor(routeName, params, vals)
+}
+
+// BaseLogger returns the application's base logger without request-specific context.
+// Use this for background jobs, startup/shutdown logging, or other non-request contexts.
+//
+// The logger is never nil - if no logger is configured, a no-op logger is returned.
+//
+// Example:
+//
+//	app := app.New(...)
+//	app.BaseLogger().Info("application started",
+//	    slog.String("port", "8080"),
+//	    slog.String("environment", "production"),
+//	)
+//
+//	// Background job
+//	go func() {
+//	    app.BaseLogger().Info("background job started")
+//	    // ... do work
+//	}()
+func (a *App) BaseLogger() *slog.Logger {
+	if a.baseLogger != nil {
+		return a.baseLogger
+	}
+	return noopLogger
 }

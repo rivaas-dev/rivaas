@@ -1,11 +1,24 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
 	"bytes"
+	"net/http"
 	"os"
 	"testing"
-
-	"rivaas.dev/router"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,14 +35,14 @@ func TestPrintRoutes_Output(t *testing.T) {
 	require.NoError(t, err)
 
 	// Register some test routes
-	app.GET("/", func(c *router.Context) {
-		c.String(200, "root")
+	app.GET("/", func(c *Context) {
+		c.String(http.StatusOK, "root")
 	})
-	app.GET("/users/:id", func(c *router.Context) {
-		c.String(200, "user")
+	app.GET("/users/:id", func(c *Context) {
+		c.String(http.StatusOK, "user")
 	})
-	app.POST("/users", func(c *router.Context) {
-		c.String(201, "created")
+	app.POST("/users", func(c *Context) {
+		c.String(http.StatusCreated, "created")
 	})
 
 	// Capture output
@@ -82,8 +95,8 @@ func TestRenderRoutesTable_WithRoutes(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	app.GET("/test", func(c *router.Context) {
-		c.String(200, "ok")
+	app.GET("/test", func(c *Context) {
+		c.String(http.StatusOK, "ok")
 	})
 
 	var buf bytes.Buffer

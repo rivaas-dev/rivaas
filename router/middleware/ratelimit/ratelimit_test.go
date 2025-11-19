@@ -7,11 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"rivaas.dev/router"
 )
 
 func TestRateLimit_Basic(t *testing.T) {
-	r := router.MustNew()
+	r, err := router.New()
+	require.NoError(t, err)
 
 	// Allow 5 requests per second with burst of 5
 	r.Use(New(
@@ -29,9 +32,7 @@ func TestRateLimit_Basic(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		if w.Code != http.StatusOK {
-			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
-		}
+		assert.Equal(t, http.StatusOK, w.Code, "Request %d should succeed", i+1)
 	}
 
 	// 6th request should be rate limited
@@ -39,13 +40,12 @@ func TestRateLimit_Basic(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusTooManyRequests {
-		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
 }
 
 func TestRateLimit_TokenRefill(t *testing.T) {
-	r := router.MustNew()
+	r, err := router.New()
+	require.NoError(t, err)
 
 	// Allow 10 requests per second
 	r.Use(New(
@@ -63,9 +63,7 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		if w.Code != http.StatusOK {
-			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
-		}
+		assert.Equal(t, http.StatusOK, w.Code, "Request %d should succeed", i+1)
 	}
 
 	// Next request should fail
@@ -73,9 +71,7 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusTooManyRequests {
-		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
 
 	// Wait for token refill (100ms should give us 1 token at 10 req/s)
 	time.Sleep(150 * time.Millisecond)
@@ -85,13 +81,12 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("After token refill: expected 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "Request should succeed after token refill")
 }
 
 func TestRateLimit_CustomKeyFunc(t *testing.T) {
-	r := router.MustNew()
+	r, err := router.New()
+	require.NoError(t, err)
 
 	// Rate limit by custom header
 	r.Use(New(
@@ -113,9 +108,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		if w.Code != http.StatusOK {
-			t.Errorf("User1 Request %d: expected 200, got %d", i+1, w.Code)
-		}
+		assert.Equal(t, http.StatusOK, w.Code, "User1 request %d should succeed", i+1)
 	}
 
 	// User 1: should be rate limited
@@ -124,9 +117,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusTooManyRequests {
-		t.Errorf("User1 rate limited: expected 429, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusTooManyRequests, w.Code, "User1 should be rate limited")
 
 	// User 2: should still have tokens
 	req = httptest.NewRequest("GET", "/test", nil)
@@ -134,13 +125,12 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("User2: expected 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "User2 should succeed")
 }
 
 func TestRateLimit_CustomLimitHandler(t *testing.T) {
-	r := router.MustNew()
+	r, err := router.New()
+	require.NoError(t, err)
 
 	customHandlerCalled := false
 
@@ -162,30 +152,21 @@ func TestRateLimit_CustomLimitHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("First request: expected 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Second request should trigger custom handler
 	req = httptest.NewRequest("GET", "/test", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if !customHandlerCalled {
-		t.Error("Custom limit handler was not called")
-	}
-
-	if w.Code != http.StatusTooManyRequests {
-		t.Errorf("Expected 429, got %d", w.Code)
-	}
-
-	if w.Body.String() != "custom rate limit message" {
-		t.Errorf("Expected custom message, got %q", w.Body.String())
-	}
+	assert.True(t, customHandlerCalled, "Custom limit handler should be called")
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Equal(t, "custom rate limit message", w.Body.String())
 }
 
 func TestRateLimit_Concurrent(t *testing.T) {
-	r := router.MustNew()
+	r, err := router.New()
+	require.NoError(t, err)
 
 	r.Use(New(
 		WithRequestsPerSecond(100),
@@ -223,19 +204,14 @@ func TestRateLimit_Concurrent(t *testing.T) {
 	wg.Wait()
 
 	// With burst of 50, we should have ~50 successful and ~50 rate limited
-	if successCount < 40 || successCount > 60 {
-		t.Errorf("Expected ~50 successful requests, got %d", successCount)
-	}
-
-	if rateLimitedCount < 40 || rateLimitedCount > 60 {
-		t.Errorf("Expected ~50 rate limited requests, got %d", rateLimitedCount)
-	}
-
+	assert.InDelta(t, 50, successCount, 10, "Expected ~50 successful requests")
+	assert.InDelta(t, 50, rateLimitedCount, 10, "Expected ~50 rate limited requests")
 	t.Logf("Concurrent test: %d succeeded, %d rate limited", successCount, rateLimitedCount)
 }
 
 func TestRateLimit_EmptyKey(t *testing.T) {
-	r := router.MustNew()
+	r, err := router.New()
+	require.NoError(t, err)
 
 	// Key function that returns empty string
 	r.Use(New(
@@ -253,13 +229,12 @@ func TestRateLimit_EmptyKey(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected 200 for empty key, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "Empty key should allow request")
 }
 
 func TestRateLimit_BurstBehavior(t *testing.T) {
-	r := router.MustNew()
+	r, err := router.New()
+	require.NoError(t, err)
 
 	// Allow 10 req/s with burst of 3
 	r.Use(New(
@@ -277,9 +252,7 @@ func TestRateLimit_BurstBehavior(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		if w.Code != http.StatusOK {
-			t.Errorf("Burst request %d: expected 200, got %d", i+1, w.Code)
-		}
+		assert.Equal(t, http.StatusOK, w.Code, "Burst request %d should succeed", i+1)
 	}
 
 	// 4th request should fail
@@ -287,87 +260,5 @@ func TestRateLimit_BurstBehavior(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusTooManyRequests {
-		t.Errorf("Expected 429 after burst, got %d", w.Code)
-	}
-}
-
-func BenchmarkRateLimit(b *testing.B) {
-	r := router.MustNew()
-
-	r.Use(New(
-		WithRequestsPerSecond(1000000), // Very high limit to avoid rate limiting in benchmark
-		WithBurst(1000000),
-	))
-
-	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
-	})
-
-	req := httptest.NewRequest("GET", "/test", nil)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkRateLimit_ParallelSameKey(b *testing.B) {
-	r := router.MustNew()
-
-	r.Use(New(
-		WithRequestsPerSecond(1000000),
-		WithBurst(1000000),
-	))
-
-	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
-	})
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	b.RunParallel(func(pb *testing.PB) {
-		req := httptest.NewRequest("GET", "/test", nil)
-
-		for pb.Next() {
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
-		}
-	})
-}
-
-func BenchmarkRateLimit_ParallelDifferentKeys(b *testing.B) {
-	r := router.MustNew()
-
-	r.Use(New(
-		WithRequestsPerSecond(1000000),
-		WithBurst(1000000),
-		WithKeyFunc(func(c *router.Context) string {
-			return c.Request.Header.Get("X-User-ID")
-		}),
-	))
-
-	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
-	})
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	b.RunParallel(func(pb *testing.PB) {
-		userID := 0
-
-		for pb.Next() {
-			req := httptest.NewRequest("GET", "/test", nil)
-			req.Header.Set("X-User-ID", string(rune(userID)))
-			userID++
-
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
-		}
-	})
+	assert.Equal(t, http.StatusTooManyRequests, w.Code, "Request after burst should be rate limited")
 }

@@ -29,7 +29,7 @@ func WithLimit(size int64) Option {
 //
 //	bodylimit.New(
 //	    bodylimit.WithErrorHandler(func(c *router.Context, limit int64) {
-//	        c.String(413, fmt.Sprintf("Request body exceeds maximum allowed size of %d bytes", limit))
+//	        c.String(http.StatusRequestEntityTooLarge, fmt.Sprintf("Request body exceeds maximum allowed size of %d bytes", limit))
 //	    }),
 //	)
 func WithErrorHandler(handler func(c *router.Context, limit int64)) Option {

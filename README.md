@@ -2,7 +2,7 @@
 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/rivass.dev)](https://goreportcard.com/report/rivass.dev)
+[![Go Report Card](https://goreportcard.com/badge/rivaas.dev)](https://goreportcard.com/report/rivaas.dev)
 
 A high-performance, modular web framework for Go with integrated observability. Rivaas provides both low-level building blocks and high-level batteries-included APIs for building modern web applications.
 
@@ -63,13 +63,13 @@ Like its namesake, it grows wherever the environment allows: locally, in the clo
 
 ```bash
 # Install the high-level API (recommended for most users)
-go get rivass.dev/app
+go get rivaas.dev/app
 
 # Or install individual packages
-go get rivass.dev/router
-go get rivass.dev/logging
-go get rivass.dev/metrics
-go get rivass.dev/tracing
+go get rivaas.dev/router
+go get rivaas.dev/logging
+go get rivaas.dev/metrics
+go get rivaas.dev/tracing
 ```
 
 ## 📦 Packages
@@ -134,8 +134,8 @@ package main
 
 import (
     "net/http"
-    "rivass.dev/app"
-    "rivass.dev/router"
+    "rivaas.dev/app"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -166,9 +166,9 @@ package main
 
 import (
     "net/http"
-    "rivass.dev/metrics"
-    "rivass.dev/router"
-    "rivass.dev/tracing"
+    "rivaas.dev/metrics"
+    "rivaas.dev/router"
+    "rivaas.dev/tracing"
 )
 
 func main() {
@@ -240,6 +240,49 @@ app := app.New(
         app.WithWriteTimeout(15 * time.Second),
     ),
 )
+```
+
+### Automatic Service Metadata Injection
+
+**The app package automatically propagates service metadata** to all observability components. Set your service information once, and it's automatically injected into logging, metrics, and tracing:
+
+```go
+app := app.New(
+    app.WithServiceName("my-api"),           // Set once
+    app.WithServiceVersion("v1.0.0"),        // Set once
+    app.WithEnvironment("production"),       // Set once
+    
+    // These automatically receive service metadata:
+    app.WithLogging(),   // No need to pass service name/version!
+    app.WithMetrics(),   // No need to pass service name/version!
+    app.WithTracing(),   // No need to pass service name/version!
+)
+
+// All logs, metrics, and traces will include:
+// - service.name: my-api
+// - service.version: v1.0.0
+// - environment: production
+```
+
+This eliminates repetitive configuration and ensures consistency across all observability signals.
+
+**Override when needed:**
+
+```go
+app := app.New(
+    app.WithServiceName("my-api"),
+    app.WithServiceVersion("v1.0.0"),
+    
+    // Override for a specific component if needed:
+    app.WithLogging(
+        logging.WithServiceName("custom-logger"),  // Overrides injection
+    ),
+)
+```
+
+### Individual Package Configuration
+
+When using packages independently (without the app layer):
 
 // Logging configuration
 logging.WithLogging(
@@ -460,8 +503,8 @@ package main
 
 import (
     "net/http"
-    "rivass.dev/app"
-    "rivass.dev/router"
+    "rivaas.dev/app"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -497,8 +540,8 @@ package main
 import (
     "database/sql"
     "net/http"
-    "rivass.dev/app"
-    "rivass.dev/router"
+    "rivaas.dev/app"
+    "rivaas.dev/router"
     _ "github.com/lib/pq"
 )
 

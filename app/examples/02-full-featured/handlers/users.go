@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package handlers
 
 import (
@@ -5,13 +19,13 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"rivaas.dev/router"
+	"rivaas.dev/app"
 )
 
 // GetUserByID retrieves a user by ID using path parameter binding.
-func GetUserByID(c *router.Context) {
+func GetUserByID(c *app.Context) {
 	var params UserPathParams
-	if err := c.BindParams(&params); err != nil {
+	if err := c.Bind(&params); err != nil {
 		HandleError(c, WrapError(ErrInvalidInput, "%v", err))
 		return
 	}
@@ -48,9 +62,9 @@ func GetUserByID(c *router.Context) {
 }
 
 // CreateUser creates a new user using request body binding.
-func CreateUser(c *router.Context) {
+func CreateUser(c *app.Context) {
 	var req CreateUserRequest
-	if err := c.BindBody(&req); err != nil {
+	if err := c.Bind(&req); err != nil {
 		HandleError(c, WrapError(ErrInvalidInput, "failed to parse request body: %v", err))
 		return
 	}
@@ -84,9 +98,9 @@ func CreateUser(c *router.Context) {
 }
 
 // GetUserOrders retrieves orders for a user.
-func GetUserOrders(c *router.Context) {
+func GetUserOrders(c *app.Context) {
 	var params UserPathParams
-	if err := c.BindParams(&params); err != nil {
+	if err := c.Bind(&params); err != nil {
 		HandleError(c, WrapError(ErrInvalidInput, "%v", err))
 		return
 	}

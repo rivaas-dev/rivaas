@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package handlers
 
 import (
@@ -6,13 +20,13 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"rivaas.dev/router"
+	"rivaas.dev/app"
 )
 
 // CreateOrder creates a new order with full request binding and validation.
-func CreateOrder(c *router.Context) {
+func CreateOrder(c *app.Context) {
 	var req CreateOrderRequest
-	if err := c.BindBody(&req); err != nil {
+	if err := c.Bind(&req); err != nil {
 		HandleError(c, WrapError(ErrInvalidInput, "failed to parse request body: %v", err))
 		return
 	}
@@ -68,11 +82,11 @@ func CreateOrder(c *router.Context) {
 }
 
 // GetOrderByID retrieves an order by ID.
-func GetOrderByID(c *router.Context) {
+func GetOrderByID(c *app.Context) {
 	var params struct {
 		ID int `params:"id"`
 	}
-	if err := c.BindParams(&params); err != nil {
+	if err := c.Bind(&params); err != nil {
 		HandleError(c, WrapError(ErrInvalidInput, "%v", err))
 		return
 	}

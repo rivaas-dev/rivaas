@@ -181,7 +181,7 @@ func sendUserResponse(writer ResponseWriter, userID string) error {
 // TestParameterReaderInterface demonstrates testing with ParameterReader interface.
 func TestParameterReaderInterface(t *testing.T) {
 	t.Run("with real Context", func(t *testing.T) {
-		r := New()
+		r := MustNew()
 		r.GET("/users/:id", func(c *Context) {
 			result, err := processUserRequest(c)
 			require.NoError(t, err)
@@ -224,7 +224,7 @@ func TestParameterReaderInterface(t *testing.T) {
 // TestResponseWriterInterface demonstrates testing with ResponseWriter interface.
 func TestResponseWriterInterface(t *testing.T) {
 	t.Run("with real Context", func(t *testing.T) {
-		r := New()
+		r := MustNew()
 		r.GET("/users/:id", func(c *Context) {
 			err := sendUserResponse(c, "789")
 			require.NoError(t, err)
@@ -253,7 +253,7 @@ func TestResponseWriterInterface(t *testing.T) {
 
 // TestContextImplementsInterfaces verifies that Context implements all interfaces.
 func TestContextImplementsInterfaces(t *testing.T) {
-	r := New()
+	r := MustNew()
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
 
@@ -268,7 +268,7 @@ func TestContextImplementsInterfaces(t *testing.T) {
 		// Test ResponseWriter interface
 		var writer ResponseWriter = c
 		assert.NotNil(t, writer)
-		assert.NoError(t, writer.String(200, "test"))
+		assert.NoError(t, writer.String(http.StatusOK, "test"))
 
 		// Test ContextReader interface
 		var contextReader ContextReader = c
@@ -279,7 +279,7 @@ func TestContextImplementsInterfaces(t *testing.T) {
 		// Test ContextWriter interface
 		var contextWriter ContextWriter = c
 		assert.NotNil(t, contextWriter)
-		assert.NoError(t, contextWriter.NotFoundProblem())
+		// ContextWriter now only extends ResponseWriter - error formatting is handled by app.Context
 	})
 
 	r.ServeHTTP(w, req)
@@ -299,13 +299,13 @@ func readParamsOnly(reader ParameterReader) {
 
 // writeResponseOnly demonstrates a function that only needs to write responses.
 func writeResponseOnly(writer ResponseWriter) error {
-	return writer.JSON(200, map[string]string{"status": "ok"})
+	return writer.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // processRequestBoth demonstrates a function that needs both reading and writing.
 func processRequestBoth(reader ParameterReader, writer ResponseWriter) error {
 	userID := reader.Param("id")
-	return writer.JSON(200, map[string]string{"user_id": userID})
+	return writer.JSON(http.StatusOK, map[string]string{"user_id": userID})
 }
 
 // TestComposition demonstrates how interfaces enable composition.

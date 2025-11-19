@@ -66,7 +66,7 @@ func defaultConfig() *config {
 //
 // Basic usage:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.Use(cors.New(
 //	    cors.WithAllowedOrigins("https://example.com"),
 //	))
@@ -144,14 +144,17 @@ func New(opts ...Option) router.HandlerFunc {
 		}
 
 		// Set CORS headers
-		c.Response.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-
-		if cfg.allowCredentials {
-			// Cannot use wildcard with credentials
-			if allowedOrigin == "*" {
-				c.Response.Header().Set("Access-Control-Allow-Origin", origin)
-			}
+		// Handle credentials + wildcard incompatibility first
+		if cfg.allowCredentials && allowedOrigin == "*" {
+			// Cannot use wildcard with credentials - use specific origin instead
+			c.Response.Header().Set("Access-Control-Allow-Origin", origin)
 			c.Response.Header().Set("Access-Control-Allow-Credentials", "true")
+		} else {
+			// Normal case: set allowed origin
+			c.Response.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			if cfg.allowCredentials {
+				c.Response.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 		}
 
 		if exposedHeadersHeader != "" {

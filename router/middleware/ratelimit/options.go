@@ -3,6 +3,7 @@
 package ratelimit
 
 import (
+	"log/slog"
 	"time"
 
 	"rivaas.dev/router"
@@ -13,6 +14,7 @@ type Option func(*config)
 
 // config holds the configuration for the rate limit middleware.
 type config struct {
+	logger            *slog.Logger
 	requestsPerSecond int
 	burst             int
 	keyFunc           func(*router.Context) string
@@ -77,7 +79,7 @@ func WithKeyFunc(fn func(*router.Context) string) Option {
 //
 //	ratelimit.New(
 //	    ratelimit.WithHandler(func(c *router.Context) {
-//	        c.String(429, "Slow down! Try again in a minute.")
+//	        c.String(http.StatusTooManyRequests, "Slow down! Try again in a minute.")
 //	    }),
 //	)
 func WithHandler(fn func(*router.Context)) Option {
@@ -103,5 +105,27 @@ func WithLimiterTTL(ttl time.Duration) Option {
 		if ttl > 0 {
 			cfg.limiterTTL = ttl
 		}
+	}
+}
+
+// WithLogger sets the slog.Logger for error logging.
+// If not provided, errors will be silently ignored.
+//
+// Uses the standard library's log/slog package for structured logging:
+//
+//	import "log/slog"
+//
+//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	ratelimit.New(ratelimit.WithLogger(logger))
+//
+// Example:
+//
+//	import "log/slog"
+//
+//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	r.Use(ratelimit.New(ratelimit.WithLogger(logger)))
+func WithLogger(logger *slog.Logger) Option {
+	return func(cfg *config) {
+		cfg.logger = logger
 	}
 }

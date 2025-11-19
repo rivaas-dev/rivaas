@@ -7,7 +7,7 @@ import (
 
 // TestWarmupDefault verifies default warmup behavior
 func TestWarmupDefault(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Warmup with defaults
 	r.contextPool.Warmup()
@@ -34,7 +34,7 @@ func TestWarmupDefault(t *testing.T) {
 
 // TestWarmupCustomConfig verifies custom warmup configuration
 func TestWarmupCustomConfig(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	config := &WarmupConfig{
 		SmallContexts:  50,
@@ -55,7 +55,7 @@ func TestWarmupCustomConfig(t *testing.T) {
 
 // TestWarmupZeroConfig verifies warmup handles zero values gracefully
 func TestWarmupZeroConfig(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	config := &WarmupConfig{
 		SmallContexts:  0,
@@ -76,7 +76,7 @@ func TestWarmupZeroConfig(t *testing.T) {
 
 // TestWarmupConcurrent verifies warmup is safe under concurrent access
 func TestWarmupConcurrent(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	var wg sync.WaitGroup
 	const goroutines = 10
@@ -121,7 +121,7 @@ func TestDefaultWarmupConfig(t *testing.T) {
 
 // TestWarmupMultipleTimes verifies warmup can be called multiple times
 func TestWarmupMultipleTimes(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Call warmup multiple times
 	for range 5 {
@@ -138,7 +138,7 @@ func TestWarmupMultipleTimes(t *testing.T) {
 
 // TestWarmupNilConfig verifies nil config uses defaults
 func TestWarmupNilConfig(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Passing nil should use defaults
 	r.contextPool.Warmup(nil)
@@ -153,7 +153,7 @@ func TestWarmupNilConfig(t *testing.T) {
 
 // BenchmarkWarmupDefault measures default warmup performance
 func BenchmarkWarmupDefault(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -163,7 +163,7 @@ func BenchmarkWarmupDefault(b *testing.B) {
 
 // BenchmarkWarmupLarge measures warmup with large config
 func BenchmarkWarmupLarge(b *testing.B) {
-	r := New()
+r := MustNew()
 	config := &WarmupConfig{
 		SmallContexts:  100,
 		MediumContexts: 50,
@@ -179,7 +179,7 @@ func BenchmarkWarmupLarge(b *testing.B) {
 // BenchmarkWarmupSequential compares parallel vs sequential warmup
 // This benchmark shows the benefit of parallel warmup implementation
 func BenchmarkWarmupSequential(b *testing.B) {
-	r := New()
+r := MustNew()
 	config := DefaultWarmupConfig()
 
 	b.ResetTimer()
@@ -202,7 +202,7 @@ func BenchmarkWarmupSequential(b *testing.B) {
 
 // BenchmarkWarmupParallel measures parallel warmup (current implementation)
 func BenchmarkWarmupParallel(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -212,7 +212,7 @@ func BenchmarkWarmupParallel(b *testing.B) {
 
 // BenchmarkGetPutAfterWarmup measures Get/Put performance with warmed pool
 func BenchmarkGetPutAfterWarmup(b *testing.B) {
-	r := New()
+r := MustNew()
 	r.contextPool.Warmup()
 
 	b.ResetTimer()
@@ -224,7 +224,7 @@ func BenchmarkGetPutAfterWarmup(b *testing.B) {
 
 // BenchmarkGetPutNoWarmup measures Get/Put performance without warmup (baseline)
 func BenchmarkGetPutNoWarmup(b *testing.B) {
-	r := New()
+r := MustNew()
 
 	b.ResetTimer()
 	for b.Loop() {

@@ -5,7 +5,7 @@ import (
 )
 
 func TestContextPool_Stats(t *testing.T) {
-	r := MustNew()
+r := MustNew()
 	pool := r.contextPool
 
 	// Reset stats to start fresh
@@ -53,7 +53,7 @@ func TestContextPool_Stats(t *testing.T) {
 }
 
 func TestContextPool_Stats_Distribution(t *testing.T) {
-	r := MustNew()
+r := MustNew()
 	pool := r.contextPool
 
 	pool.ResetStats()
@@ -119,7 +119,7 @@ func TestContextPool_Stats_Distribution(t *testing.T) {
 }
 
 func TestContextPool_ResetStats(t *testing.T) {
-	r := MustNew()
+r := MustNew()
 	pool := r.contextPool
 
 	// Generate some activity
@@ -160,7 +160,7 @@ func TestContextPool_ResetStats(t *testing.T) {
 }
 
 func TestContextPool_Stats_HitRate(t *testing.T) {
-	r := MustNew()
+r := MustNew()
 	pool := r.contextPool
 
 	pool.ResetStats()
@@ -190,7 +190,7 @@ func TestContextPool_Stats_HitRate(t *testing.T) {
 }
 
 func TestContextPool_Stats_ZeroGets(t *testing.T) {
-	r := MustNew()
+r := MustNew()
 	pool := r.contextPool
 
 	pool.ResetStats()
@@ -214,7 +214,7 @@ func TestContextPool_Stats_ZeroGets(t *testing.T) {
 }
 
 func TestContextPool_Stats_Concurrent(t *testing.T) {
-	r := MustNew()
+r := MustNew()
 	pool := r.contextPool
 
 	pool.ResetStats()
@@ -256,7 +256,7 @@ func TestContextPool_Stats_Concurrent(t *testing.T) {
 }
 
 func BenchmarkContextPool_Stats(b *testing.B) {
-	r := MustNew()
+r := MustNew()
 	pool := r.contextPool
 
 	pool.ResetStats()
@@ -276,7 +276,7 @@ func BenchmarkContextPool_Stats(b *testing.B) {
 }
 
 func BenchmarkContextPool_GetPut_WithStats(b *testing.B) {
-	r := MustNew()
+r := MustNew()
 	pool := r.contextPool
 
 	b.ResetTimer()

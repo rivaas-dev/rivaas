@@ -1,4 +1,17 @@
-// Package app provides the main application implementation for Rivaas.
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
@@ -72,9 +85,6 @@ type StandardEndpointsOpts struct {
 //	})
 func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 	prefix := o.MountPrefix
-	if prefix == "" {
-		prefix = ""
-	}
 
 	// Check for route collisions
 	healthzPath := prefix + "/healthz"
@@ -107,14 +117,8 @@ func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 		failures := runChecks(ctx, o.Liveness, timeout)
 
 		if len(failures) > 0 {
-			// 503 with problem details
-			_ = c.Problem(
-				http.StatusServiceUnavailable,
-				c.ProblemType("not-healthy"),
-				"Service Not Healthy",
-				"One or more liveness checks failed.",
-				map[string]any{"checks": failures},
-			)
+			// 503 response - error formatting handled by app.Context.Error() if wrapped
+			c.WriteErrorResponse(http.StatusServiceUnavailable, "Service Not Healthy: One or more liveness checks failed")
 			return
 		}
 
@@ -135,13 +139,8 @@ func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 		failures := runChecks(ctx, o.Readiness, timeout)
 
 		if len(failures) > 0 {
-			_ = c.Problem(
-				http.StatusServiceUnavailable,
-				c.ProblemType("not-ready"),
-				"Service Not Ready",
-				"One or more dependencies failed readiness.",
-				map[string]any{"checks": failures},
-			)
+			// 503 response - error formatting handled by app.Context.Error() if wrapped
+			c.WriteErrorResponse(http.StatusServiceUnavailable, "Service Not Ready: One or more dependencies failed readiness")
 			return
 		}
 

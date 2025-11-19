@@ -8,12 +8,13 @@ import (
 	"net/http"
 	"strings"
 
+	"rivaas.dev/binding"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/bodylimit"
 )
 
 func main() {
-	r := router.New()
+	r := router.MustNew()
 
 	// Apply body limit middleware globally
 	// Default limit is 2MB
@@ -26,7 +27,7 @@ func main() {
 			Email string `json:"email"`
 		}
 
-		if err := c.BindJSON(&user); err != nil {
+		if err := binding.BindJSON(&user, c.Request.Body); err != nil {
 			// Check if error is due to body limit
 			if strings.Contains(err.Error(), "exceeds limit") {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
@@ -56,7 +57,7 @@ func main() {
 			Content string `json:"content"`
 		}
 
-		if err := c.BindJSON(&doc); err != nil {
+		if err := binding.BindJSON(&doc, c.Request.Body); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
 					"error": "Document too large (max 1MB)",
@@ -99,7 +100,7 @@ func main() {
 		}),
 	), func(c *router.Context) {
 		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
+		if err := binding.BindJSON(&data, c.Request.Body); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
 				// Error handler already called, but we can add additional logic
 				return
@@ -125,7 +126,7 @@ func main() {
 		}),
 	), func(c *router.Context) {
 		var data map[string]interface{}
-		if err := c.BindJSON(&data); err != nil {
+		if err := binding.BindJSON(&data, c.Request.Body); err != nil {
 			c.JSON(http.StatusBadRequest, map[string]string{
 				"error": err.Error(),
 			})

@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"testing"
@@ -8,17 +9,17 @@ import (
 
 // BenchmarkTemplateStatic benchmarks static route lookup using templates
 func BenchmarkTemplateStatic(b *testing.B) {
-	r := New()
+	r := MustNew()
 
 	// Register static routes
 	r.GET("/api/users", func(c *Context) {
-		c.String(200, "users")
+		c.String(http.StatusOK, "users")
 	})
 	r.GET("/api/posts", func(c *Context) {
-		c.String(200, "posts")
+		c.String(http.StatusOK, "posts")
 	})
 	r.GET("/health", func(c *Context) {
-		c.String(200, "ok")
+		c.String(http.StatusOK, "ok")
 	})
 
 	// Warmup to compile templates
@@ -37,14 +38,14 @@ func BenchmarkTemplateStatic(b *testing.B) {
 
 // BenchmarkTemplateDynamic benchmarks dynamic route lookup using templates
 func BenchmarkTemplateDynamic(b *testing.B) {
-	r := New()
+	r := MustNew()
 
 	// Register routes with parameters
 	r.GET("/api/users/:id", func(c *Context) {
-		_ = c.JSON(200, map[string]string{"id": c.Param("id")})
+		_ = c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 	})
 	r.GET("/api/users/:id/posts/:pid", func(c *Context) {
-		_ = c.JSON(200, map[string]string{"id": c.Param("id"), "pid": c.Param("pid")})
+		_ = c.JSON(http.StatusOK, map[string]string{"id": c.Param("id"), "pid": c.Param("pid")})
 	})
 
 	// Warmup to compile templates
@@ -63,11 +64,11 @@ func BenchmarkTemplateDynamic(b *testing.B) {
 
 // BenchmarkTemplateWithConstraints benchmarks routes with parameter constraints
 func BenchmarkTemplateWithConstraints(b *testing.B) {
-	r := New()
+	r := MustNew()
 
 	// Register route with constraints
 	r.GET("/api/users/:id", func(c *Context) {
-		_ = c.JSON(200, map[string]string{"id": c.Param("id")})
+		_ = c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 	}).Where("id", `^\d+$`)
 
 	// Warmup to compile templates
@@ -87,10 +88,10 @@ func BenchmarkTemplateWithConstraints(b *testing.B) {
 // BenchmarkTemplateVsTree compares template matching vs tree traversal
 func BenchmarkTemplateVsTree(b *testing.B) {
 	b.Run("WithTemplates", func(b *testing.B) {
-		r := New(WithTemplateRouting(true))
+		r := MustNew(WithTemplateRouting(true))
 
 		r.GET("/api/users/:id/posts/:pid/comments/:cid", func(c *Context) {
-			_ = c.JSON(200, map[string]string{"status": "ok"})
+			_ = c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 		})
 
 		r.Warmup()
@@ -107,10 +108,10 @@ func BenchmarkTemplateVsTree(b *testing.B) {
 	})
 
 	b.Run("WithoutTemplates", func(b *testing.B) {
-		r := New(WithTemplateRouting(false))
+		r := MustNew(WithTemplateRouting(false))
 
 		r.GET("/api/users/:id/posts/:pid/comments/:cid", func(c *Context) {
-			_ = c.JSON(200, map[string]string{"status": "ok"})
+			_ = c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 		})
 
 		r.Warmup()
@@ -135,7 +136,7 @@ func BenchmarkTemplateCompilation(b *testing.B) {
 
 	handlers := []HandlerFunc{
 		func(c *Context) {
-			c.String(200, "ok")
+			c.String(http.StatusOK, "ok")
 		},
 	}
 
@@ -267,7 +268,7 @@ func TestTemplateWithConstraints(t *testing.T) {
 
 // TestTemplateCache_BuildFirstSegmentIndex tests first segment optimization
 func TestTemplateCache_BuildFirstSegmentIndex(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register routes with different first segments
 	r.GET("/users/:id", func(_ *Context) {})
@@ -305,7 +306,7 @@ func TestTemplateCache_BuildFirstSegmentIndex(t *testing.T) {
 
 // TestTemplateCache_BuildFirstSegmentIndex_EmptyCache tests building index on empty cache
 func TestTemplateCache_BuildFirstSegmentIndex_EmptyCache(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Build index with no routes
 	r.templateCache.buildFirstSegmentIndex()
@@ -318,7 +319,7 @@ func TestTemplateCache_BuildFirstSegmentIndex_EmptyCache(t *testing.T) {
 
 // TestTemplateCache_BuildFirstSegmentIndex_RootPath tests index with root path
 func TestTemplateCache_BuildFirstSegmentIndex_RootPath(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register root path
 	r.GET("/", func(_ *Context) {})
@@ -335,7 +336,7 @@ func TestTemplateCache_BuildFirstSegmentIndex_RootPath(t *testing.T) {
 
 // TestTemplateCache_BuildFirstSegmentIndex_NonASCII tests index with non-ASCII first char
 func TestTemplateCache_BuildFirstSegmentIndex_NonASCII(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register route with non-ASCII first character (should be ignored)
 	r.GET("/über/:id", func(_ *Context) {})
@@ -357,11 +358,11 @@ func TestTemplateCache_BuildFirstSegmentIndex_NonASCII(t *testing.T) {
 
 // TestTemplateCache_RemoveTemplate tests template removal
 func TestTemplateCache_RemoveTemplate(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register a route
 	r.GET("/test/:id", func(c *Context) {
-		c.String(200, "test")
+		c.String(http.StatusOK, "test")
 	})
 
 	// Count initial templates
@@ -384,7 +385,7 @@ func TestTemplateCache_RemoveTemplate(t *testing.T) {
 
 // TestTemplateCache_AddTemplate_Duplicate tests adding duplicate template
 func TestTemplateCache_AddTemplate_Duplicate(_ *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Add template manually
 	tmpl := compileRouteTemplate("GET", "/users/:id", []HandlerFunc{func(_ *Context) {}}, nil)
@@ -403,7 +404,7 @@ func TestTemplateCache_AddTemplate_Duplicate(_ *testing.T) {
 
 // TestTemplateCache_SortBySpecificity tests template sorting
 func TestTemplateCache_SortBySpecificity(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register routes in random order
 	r.GET("/api/*", func(_ *Context) {})               // Less specific
@@ -427,7 +428,7 @@ func TestTemplateCache_SortBySpecificity(t *testing.T) {
 
 // TestTemplateCache_Concurrent tests concurrent template operations
 func TestTemplateCache_Concurrent(_ *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Add routes concurrently
 	done := make(chan bool)
@@ -456,7 +457,7 @@ func TestTemplateCache_Concurrent(_ *testing.T) {
 
 // TestRadix_CompileStaticRoutes_NoRoutes tests compiling with no static routes
 func TestRadix_CompileStaticRoutes_NoRoutes(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Register only dynamic routes (no static routes)
 	r.GET("/users/:id", func(_ *Context) {})
@@ -477,7 +478,7 @@ func TestRadix_CompileStaticRoutes_NoRoutes(t *testing.T) {
 
 // TestRadix_CompileStaticRoutes_MixedRoutes tests compiling mixed static and dynamic
 func TestRadix_CompileStaticRoutes_MixedRoutes(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Mix of static and dynamic routes
 	r.GET("/static/path", func(_ *Context) {})

@@ -25,7 +25,7 @@ import (
 )
 
 func main() {
-	r := router.New()
+	r := router.MustNew()
 
 	// Example 1: Basic rate limiting
 	basicRateLimitExample(r)

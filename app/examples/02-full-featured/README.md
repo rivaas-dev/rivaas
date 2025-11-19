@@ -22,6 +22,7 @@ go run main.go
 ```
 
 **Default settings:**
+
 - Environment: `development`
 - Tracing: Stdout exporter (see traces in terminal)
 - Metrics: Prometheus on `:9090`
@@ -47,6 +48,7 @@ go run main.go
 ```
 
 **Production settings:**
+
 - Environment: `production`
 - Tracing: OTLP exporter to Jaeger/Tempo
 - Metrics: Prometheus on `:9090`
@@ -127,16 +129,19 @@ curl http://localhost:8080/error
 ### Metrics (Prometheus)
 
 View metrics at:
+
 ```
 http://localhost:9090/metrics
 ```
 
 **Built-in metrics:**
+
 - `http_request_duration_seconds` - Request latency histogram
 - `http_requests_total` - Total requests counter
 - `http_active_requests` - Active requests gauge
 
 **Custom metrics:**
+
 - `user_lookups_total` - User lookup counter
 - `orders_total` - Orders created counter
 - `order_processing_duration_seconds` - Order processing histogram
@@ -167,6 +172,7 @@ Traces appear in your terminal as pretty JSON:
 
 **Production (OTLP):**
 View traces in Jaeger UI:
+
 ```
 http://localhost:16686
 ```
@@ -178,6 +184,7 @@ Select "full-featured-api" from the service dropdown to see all traces.
 ### 1. Environment-Aware Configuration
 
 Automatically adapts based on `ENVIRONMENT`:
+
 - **Development**: Stdout tracing, logger enabled, 100% sampling
 - **Production**: OTLP tracing, logger disabled, 10% sampling
 - **Testing**: Noop tracing, minimal overhead
@@ -228,6 +235,7 @@ ENVIRONMENT=testing go run main.go
 ```
 
 This is exactly like switching metrics providers:
+
 ```go
 metrics.WithProvider(metrics.PrometheusProvider)  // or OTLPProvider, StdoutProvider
 tracing.WithExporter(tracing.StdoutExporter)      // or OTLPExporter, NoopExporter
@@ -236,11 +244,13 @@ tracing.WithExporter(tracing.StdoutExporter)      // or OTLPExporter, NoopExport
 ## Testing the Full Stack
 
 ### 1. Start the app
+
 ```bash
 go run main.go
 ```
 
 ### 2. Make requests
+
 ```bash
 curl http://localhost:8080/
 curl http://localhost:8080/users/123
@@ -248,6 +258,7 @@ curl -X POST http://localhost:8080/orders
 ```
 
 ### 3. Check metrics
+
 ```bash
 curl http://localhost:9090/metrics
 ```
@@ -256,7 +267,7 @@ curl http://localhost:9090/metrics
 
 **Development mode:** Check your terminal output
 
-**Production mode:** Open Jaeger UI at http://localhost:16686
+**Production mode:** Open Jaeger UI at <http://localhost:16686>
 
 ## Production Deployment Checklist
 
@@ -275,12 +286,14 @@ When deploying to production:
 ## Comparison with Basic Example
 
 **Example 01 (Quick Start):**
+
 - Minimal setup
 - No observability
 - No middleware
 - Good for learning basics
 
 **Example 02 (This Example):**
+
 - Full observability stack
 - Production-ready
 - Complete middleware
@@ -294,4 +307,3 @@ When deploying to production:
 - [Tracing Package](../../../tracing/README.md)
 - [Tracing Exporters](../../../tracing/EXPORTERS.md)
 - [OpenTelemetry Go](https://opentelemetry.io/docs/instrumentation/go/)
-

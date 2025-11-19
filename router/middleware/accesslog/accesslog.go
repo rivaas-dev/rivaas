@@ -24,13 +24,19 @@ type statusSizer interface {
 	Size() int
 }
 
-// New creates an access log middleware using logging.ContextLogger.
-// This provides structured logging with automatic trace_id/request_id correlation.
+// New creates an access log middleware with structured logging.
+//
+// The logger must be provided via WithLogger option. If no logger is configured,
+// the middleware will skip logging.
 //
 // Example:
 //
-//	r := router.New()
+//	import "log/slog"
+//
+//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	r := router.MustNew()
 //	r.Use(accesslog.New(
+//		accesslog.WithLogger(logger),
 //		accesslog.WithExcludePaths("/health", "/metrics"),
 //		accesslog.WithSlowThreshold(500 * time.Millisecond),
 //	))
@@ -106,8 +112,8 @@ func New(opts ...Option) router.HandlerFunc {
 			return
 		}
 
-		// Get logger from router (returns nil if not configured)
-		logger := c.Logger()
+		// Get logger from config (returns nil if not configured)
+		logger := cfg.logger
 		if logger == nil {
 			// No logger configured, skip logging
 			return

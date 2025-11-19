@@ -42,7 +42,8 @@ Production-ready HTTP middleware for rivaas/router. Each middleware is provided 
 package main
 
 import (
-    "rivaas.dev/logging"
+    "log/slog"
+    "os"
     "rivaas.dev/router"
     "rivaas.dev/router/middleware/accesslog"
     "rivaas.dev/router/middleware/recovery"
@@ -50,16 +51,12 @@ import (
 )
 
 func main() {
-    r := router.New(
-        logging.WithLogging(
-            logging.WithConsoleHandler(),
-            logging.WithDebugLevel(),
-        ),
-    )
+    logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+    r := router.New()
     
     // Apply middleware globally
     r.Use(requestid.New())
-    r.Use(accesslog.New())
+    r.Use(accesslog.New(accesslog.WithLogger(logger)))
     r.Use(recovery.New())
     
     r.GET("/", func(c *router.Context) {
@@ -76,9 +73,10 @@ func main() {
 package main
 
 import (
+    "log/slog"
+    "os"
     "time"
     
-    "rivaas.dev/logging"
     "rivaas.dev/router"
     "rivaas.dev/router/middleware/accesslog"
     "rivaas.dev/router/middleware/basicauth"
@@ -93,16 +91,13 @@ import (
 )
 
 func main() {
-    r := router.New(
-        logging.WithLogging(
-            logging.WithJSONHandler(),
-            logging.WithLevel(logging.LevelInfo),
-        ),
-    )
+    logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+    r := router.New()
     
     // Observability (apply first)
     r.Use(requestid.New())
     r.Use(accesslog.New(
+        accesslog.WithLogger(logger),
         accesslog.WithExcludePaths("/health", "/metrics"),
     ))
     
@@ -121,11 +116,12 @@ func main() {
     r.Use(ratelimit.New(
         ratelimit.WithRequestsPerSecond(1000),
         ratelimit.WithBurst(100),
+        ratelimit.WithLogger(logger),
     ))
     r.Use(bodylimit.New(bodylimit.WithLimit(10 * 1024 * 1024))) // 10MB
     
     // Performance
-    r.Use(compression.New())
+    r.Use(compression.New(compression.WithLogger(logger)))
     
     // Routes
     r.GET("/public", publicHandler)
@@ -199,7 +195,11 @@ Each middleware supports extensive configuration through functional options. See
 ### AccessLog with Custom Configuration
 
 ```go
+import "log/slog"
+
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 r.Use(accesslog.New(
+    accesslog.WithLogger(logger),
     accesslog.WithExcludePaths("/health", "/metrics"),
     accesslog.WithSampleRate(0.1), // Log 10% of requests
     accesslog.WithSlowThreshold(500 * time.Millisecond),

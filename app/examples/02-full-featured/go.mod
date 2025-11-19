@@ -7,6 +7,7 @@ require (
 	rivaas.dev/app v0.0.0-00010101000000-000000000000
 	rivaas.dev/logging v0.0.0-20251105094340-489794d48ce7
 	rivaas.dev/metrics v0.0.0-00010101000000-000000000000
+	rivaas.dev/openapi v0.0.0-00010101000000-000000000000
 	rivaas.dev/router v0.0.0-00010101000000-000000000000
 	rivaas.dev/tracing v0.0.0-00010101000000-000000000000
 )
@@ -18,10 +19,10 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.3.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
-	github.com/charmbracelet/x/ansi v0.11.0 // indirect
+	github.com/charmbracelet/x/ansi v0.11.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.14 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
-	github.com/clipperhouse/displaywidth v0.4.1 // indirect
+	github.com/clipperhouse/displaywidth v0.5.0 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be // indirect
@@ -60,15 +61,20 @@ require (
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/crypto v0.43.0 // indirect
-	golang.org/x/net v0.46.0 // indirect
+	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20251110190251-83f479183930 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251110190251-83f479183930 // indirect
+	golang.org/x/term v0.37.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20251111163417-95abcf5c77ba // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251111163417-95abcf5c77ba // indirect
 	google.golang.org/grpc v1.76.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	rivaas.dev/binding v0.0.0-00010101000000-000000000000 // indirect
+	rivaas.dev/errors v0.0.0-00010101000000-000000000000 // indirect
+	rivaas.dev/telemetry v0.0.0-00010101000000-000000000000 // indirect
+	rivaas.dev/validation v0.0.0-00010101000000-000000000000 // indirect
 )
 
 replace rivaas.dev/app => ../..
@@ -80,3 +86,13 @@ replace rivaas.dev/metrics => ../../../metrics
 replace rivaas.dev/tracing => ../../../tracing
 
 replace rivaas.dev/logging => ../../../logging
+
+replace rivaas.dev/openapi => ../../../openapi
+
+replace rivaas.dev/validation => ../../../validation
+
+replace rivaas.dev/binding => ../../../binding
+
+replace rivaas.dev/errors => ../../../errors
+
+replace rivaas.dev/telemetry => ../../../telemetry

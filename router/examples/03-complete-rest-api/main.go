@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"rivaas.dev/binding"
 	"rivaas.dev/logging"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/accesslog"
@@ -195,7 +196,7 @@ func (s *PostStore) GetByUser(userID int) []Post {
 }
 
 func main() {
-	r := router.New()
+	r := router.MustNew()
 
 	// Set up logging for accesslog middleware
 	logger := logging.MustNew(
@@ -225,7 +226,7 @@ func main() {
 		}
 
 		var params ListParams
-		if err := c.BindQuery(&params); err != nil {
+		if err := binding.Bind(&params, binding.NewQueryGetter(c.Request.URL.Query()), binding.TagQuery); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_QUERY",
 				Message: "Invalid query parameters",
@@ -260,7 +261,8 @@ func main() {
 		}
 
 		var params PathParams
-		if err := c.BindParams(&params); err != nil {
+		allParams := c.AllParams()
+		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -283,7 +285,7 @@ func main() {
 	})
 
 	// Create user with validation
-	// Uses BindBody to extract and parse JSON request body
+	// Uses Bind to extract and parse JSON request body
 	api.POST("/users", func(c *router.Context) {
 		type CreateUserRequest struct {
 			Name  string `json:"name"`
@@ -291,7 +293,7 @@ func main() {
 		}
 
 		var req CreateUserRequest
-		if err := c.BindBody(&req); err != nil {
+		if err := binding.BindJSON(&req, c.Request.Body); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_JSON",
 				Message: "Invalid JSON body",
@@ -336,7 +338,7 @@ func main() {
 	})
 
 	// Update user
-	// Uses BindParams for path parameter and BindBody for request body
+	// Uses BindParams for path parameter and Bind for request body
 	api.PUT("/users/:id", func(c *router.Context) {
 		type PathParams struct {
 			ID int `params:"id"`
@@ -348,7 +350,8 @@ func main() {
 		}
 
 		var params PathParams
-		if err := c.BindParams(&params); err != nil {
+		allParams := c.AllParams()
+		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -358,7 +361,7 @@ func main() {
 		}
 
 		var req UpdateUserRequest
-		if err := c.BindBody(&req); err != nil {
+		if err := binding.BindJSON(&req, c.Request.Body); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_JSON",
 				Message: "Invalid JSON body",
@@ -414,7 +417,8 @@ func main() {
 		}
 
 		var params PathParams
-		if err := c.BindParams(&params); err != nil {
+		allParams := c.AllParams()
+		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -444,7 +448,8 @@ func main() {
 		}
 
 		var params PathParams
-		if err := c.BindParams(&params); err != nil {
+		allParams := c.AllParams()
+		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -483,7 +488,8 @@ func main() {
 		}
 
 		var params PathParams
-		if err := c.BindParams(&params); err != nil {
+		allParams := c.AllParams()
+		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -503,7 +509,7 @@ func main() {
 		}
 
 		var req CreatePostRequest
-		if err := c.BindBody(&req); err != nil {
+		if err := binding.BindJSON(&req, c.Request.Body); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_JSON",
 				Message: "Invalid JSON body",

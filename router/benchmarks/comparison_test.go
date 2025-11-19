@@ -30,7 +30,7 @@ import (
 // ============================================================================
 
 func BenchmarkRivaasRouter(b *testing.B) {
-	r := router.New()
+	r := router.MustNew()
 	r.GET("/", func(c *router.Context) {
 		c.String(http.StatusOK, "Hello")
 	})

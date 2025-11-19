@@ -15,7 +15,7 @@
 //	defer config.Shutdown(context.Background())
 //
 //	// Use with router
-//	r := router.New()
+//	r := router.MustNew()
 //	r.SetTracingRecorder(config)
 //
 // # Thread Safety
@@ -24,11 +24,15 @@
 // with read-only maps and slices ensuring safe concurrent access without locks.
 // Span operations use OpenTelemetry's thread-safe primitives.
 //
-// # Global State Warning
+// # Global State
 //
-// This package sets the global OpenTelemetry tracer provider via otel.SetTracerProvider().
-// Only one tracing configuration should be active per process. Creating multiple
-// configurations will cause them to overwrite each other's global tracer provider.
+// By default, this package does NOT set the global OpenTelemetry tracer provider.
+// Use WithGlobalTracerProvider() option if you want to register the tracer provider
+// as the global default via otel.SetTracerProvider().
+//
+// This allows multiple tracing configurations to coexist in the same process,
+// and makes it easier to integrate Rivaas into larger binaries that already
+// manage their own global tracer provider.
 //
 // # Providers
 //
@@ -78,6 +82,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -109,6 +114,10 @@ const (
 )
 
 // Fast sampling multiplier (Knuth's multiplicative hash constant)
+// Used for deterministic sampling with uniform distribution.
+// The sampling counter wraps around at uint64 max (2^64-1), which ensures
+// uniform distribution continues even after overflow (which would take ~584 billion
+// years at 1 request per nanosecond, so overflow is not a practical concern).
 const samplingMultiplier = 2654435761
 
 // Provider represents the available tracing providers.
@@ -162,22 +171,23 @@ type SpanFinishHook func(span trace.Span, statusCode int)
 // and recordHeaders slice are read-only after initialization, making concurrent
 // access safe without additional synchronization.
 //
-// Global State Warning:
-// This package sets the global OpenTelemetry tracer provider via otel.SetTracerProvider().
-// Only one tracing configuration should be active per process. Creating multiple
-// configurations will cause them to overwrite each other's global tracer provider.
+// Global State:
+// By default, this package does NOT set the global OpenTelemetry tracer provider.
+// Use WithGlobalTracerProvider() option if you want global registration.
+// This allows multiple tracing configurations to coexist in the same process.
 type Config struct {
 	// Core tracing components (pointers and large types first for optimal memory layout)
-	tracer         trace.Tracer
-	propagator     propagation.TextMapPropagator
-	tracerProvider *sdktrace.TracerProvider
-	logger         logging.Logger
-	excludePaths   map[string]bool
-	recordHeaders  []string
-	serviceName    string
-	serviceVersion string
-	provider       Provider
-	otlpEndpoint   string
+	tracer          trace.Tracer
+	propagator      propagation.TextMapPropagator
+	tracerProvider  *sdktrace.TracerProvider
+	logger          logging.Logger
+	excludePaths    map[string]bool
+	excludePatterns []*regexp.Regexp // Compiled regex patterns for path exclusion
+	recordHeaders   []string
+	serviceName     string
+	serviceVersion  string
+	provider        Provider
+	otlpEndpoint    string
 
 	// Parameter recording configuration
 	recordParamsList []string        // Whitelist of params to record (nil = all)
@@ -191,9 +201,12 @@ type Config struct {
 	sampleRate float64
 
 	// Atomic types (must be 8-byte aligned)
-	isShuttingDown    atomic.Bool
 	samplingCounter   atomic.Uint64 // Fast sampling counter
 	samplingThreshold uint64        // Precomputed sampling threshold
+
+	// Shutdown synchronization
+	shutdownOnce sync.Once
+	shutdownErr  error
 
 	// Small types and booleans at end
 	recordParams         bool
@@ -201,6 +214,9 @@ type Config struct {
 	enabled              bool
 	customTracerProvider bool
 	registerGlobal       bool // If true, sets otel.SetTracerProvider()
+
+	// Validation errors (collected during option application)
+	validationErrors []error
 
 	// String pool for reducing allocations
 	spanNamePool sync.Pool
@@ -316,8 +332,8 @@ const MaxExcludedPaths = 1000
 // If more paths are provided, only the first 1000 will be excluded and a
 // warning will be logged if a logger is configured.
 //
-// Note: If you need to exclude more than 1000 paths, consider using a
-// pattern-based approach or implementing custom path filtering logic.
+// Note: If you need to exclude more than 1000 paths, consider using
+// WithExcludePathPattern() for regex-based matching.
 //
 // Example:
 //
@@ -331,11 +347,49 @@ func WithExcludePaths(paths ...string) Option {
 					"limit", MaxExcludedPaths,
 					"total_provided", len(paths),
 					"dropped", len(paths)-MaxExcludedPaths,
+					"hint", "consider using WithExcludePathPattern() for regex-based matching",
 				)
 				break
 			}
 			c.excludePaths[path] = true
 		}
+	}
+}
+
+// WithExcludePathPattern excludes paths matching the given regex pattern from tracing.
+// This is useful when you need to exclude many paths that follow a pattern,
+// or when the exact paths are not known at configuration time.
+//
+// The pattern is compiled once during configuration, so invalid regex patterns
+// will cause New() to return an error.
+//
+// Example:
+//
+//	// Exclude all paths starting with /internal/
+//	config := tracing.New(tracing.WithExcludePathPattern("^/internal/.*"))
+//
+//	// Exclude all health check endpoints
+//	config := tracing.New(tracing.WithExcludePathPattern("^/(health|ready|live)"))
+func WithExcludePathPattern(pattern string) Option {
+	return func(c *Config) {
+		compiled, err := regexp.Compile(pattern)
+		if err != nil {
+			// Store error to be returned during validation
+			// We can't return error from Option, so we'll validate later
+			if c.validationErrors == nil {
+				c.validationErrors = make([]error, 0, 1)
+			}
+			c.validationErrors = append(c.validationErrors, fmt.Errorf("invalid regex pattern for path exclusion %q: %w", pattern, err))
+			c.logError("Invalid regex pattern for path exclusion",
+				"pattern", pattern,
+				"error", err,
+			)
+			return
+		}
+		if c.excludePatterns == nil {
+			c.excludePatterns = make([]*regexp.Regexp, 0, 1)
+		}
+		c.excludePatterns = append(c.excludePatterns, compiled)
 	}
 }
 
@@ -624,16 +678,17 @@ func New(opts ...Option) (*Config, error) {
 // newDefaultConfig creates a new tracing configuration with default values.
 func newDefaultConfig() *Config {
 	config := &Config{
-		enabled:        true,
-		serviceName:    DefaultServiceName,
-		serviceVersion: DefaultServiceVersion,
-		propagator:     otel.GetTextMapPropagator(),
-		excludePaths:   make(map[string]bool),
-		excludeParams:  make(map[string]bool),
-		sampleRate:     DefaultSampleRate,
-		recordParams:   true,
-		provider:       NoopProvider,
-		otlpInsecure:   false,
+		enabled:         true,
+		serviceName:     DefaultServiceName,
+		serviceVersion:  DefaultServiceVersion,
+		propagator:      otel.GetTextMapPropagator(),
+		excludePaths:    make(map[string]bool),
+		excludePatterns: make([]*regexp.Regexp, 0),
+		excludeParams:   make(map[string]bool),
+		sampleRate:      DefaultSampleRate,
+		recordParams:    true,
+		provider:        NoopProvider,
+		otlpInsecure:    false,
 	}
 
 	// Initialize string pool for reusable string builders
@@ -667,6 +722,15 @@ func MustNew(opts ...Option) *Config {
 
 // validate checks that the configuration is valid.
 func (c *Config) validate() error {
+	// Check for validation errors collected during option application
+	if len(c.validationErrors) > 0 {
+		var errMsgs []string
+		for _, err := range c.validationErrors {
+			errMsgs = append(errMsgs, err.Error())
+		}
+		return fmt.Errorf("validation errors: %s", strings.Join(errMsgs, "; "))
+	}
+
 	// Validate service name
 	if c.serviceName == "" {
 		return fmt.Errorf("service name cannot be empty")
@@ -779,15 +843,29 @@ func (c *Config) GetProvider() Provider {
 }
 
 // ShouldExcludePath returns true if the given path should be excluded from tracing.
-// Safe for concurrent access as excludePaths is read-only after Config creation.
+// Checks both exact path matches and regex patterns.
+// Safe for concurrent access as excludePaths and excludePatterns are read-only after Config creation.
 func (c *Config) ShouldExcludePath(path string) bool {
-	return c.excludePaths[path]
+	// Check exact path matches first (fast path)
+	if c.excludePaths[path] {
+		return true
+	}
+
+	// Check regex patterns
+	for _, pattern := range c.excludePatterns {
+		if pattern.MatchString(path) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Shutdown gracefully shuts down the tracing system, flushing any pending spans.
 // This should be called before the application exits to ensure all spans are exported.
 // It shuts down the tracer provider if one was initialized.
 // This method is idempotent - calling it multiple times is safe and will only perform shutdown once.
+// All concurrent calls will wait for the same shutdown operation to complete.
 //
 // Example:
 //
@@ -804,26 +882,25 @@ func (c *Config) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	// Use CompareAndSwap to ensure only one goroutine performs shutdown
-	// If already shutting down or shut down, return immediately
-	if !c.isShuttingDown.CompareAndSwap(false, true) {
-		return nil // Already shutting down or shut down
-	}
-
-	// Shutdown the tracer provider if it exists and is NOT a custom provider
-	// User-provided providers should be managed by the user
-	if c.tracerProvider != nil && !c.customTracerProvider {
-		c.logDebug("Shutting down tracer provider")
-		if err := c.tracerProvider.Shutdown(ctx); err != nil {
-			c.logError("Error shutting down tracer provider", "error", err)
-			return fmt.Errorf("tracer provider shutdown: %w", err)
+	// Use sync.Once to ensure shutdown is performed exactly once
+	// All concurrent calls will wait for the same shutdown operation
+	c.shutdownOnce.Do(func() {
+		// Shutdown the tracer provider if it exists and is NOT a custom provider
+		// User-provided providers should be managed by the user
+		if c.tracerProvider != nil && !c.customTracerProvider {
+			c.logDebug("Shutting down tracer provider")
+			if err := c.tracerProvider.Shutdown(ctx); err != nil {
+				c.logError("Error shutting down tracer provider", "error", err)
+				c.shutdownErr = fmt.Errorf("tracer provider shutdown: %w", err)
+				return
+			}
+			c.logDebug("Tracer provider shut down successfully")
+		} else if c.customTracerProvider {
+			c.logDebug("Skipping shutdown of custom tracer provider (managed by user)")
 		}
-		c.logDebug("Tracer provider shut down successfully")
-	} else if c.customTracerProvider {
-		c.logDebug("Skipping shutdown of custom tracer provider (managed by user)")
-	}
+	})
 
-	return nil
+	return c.shutdownErr
 }
 
 // logError logs an error message if a logger is configured.
@@ -1024,6 +1101,14 @@ func (c *Config) StartRequestSpan(ctx context.Context, req *http.Request, path s
 		return ctx, trace.SpanFromContext(ctx)
 	}
 
+	// Fast path: check if context is already cancelled before proceeding
+	select {
+	case <-ctx.Done():
+		c.logDebug("Context cancelled before span creation", "path", path, "method", req.Method)
+		return ctx, trace.SpanFromContext(ctx)
+	default:
+	}
+
 	// Extract trace context from headers
 	ctx = c.ExtractTraceContext(ctx, req.Header)
 
@@ -1034,7 +1119,9 @@ func (c *Config) StartRequestSpan(ctx context.Context, req *http.Request, path s
 			c.logDebug("Request not sampled (0% sample rate)", "path", path, "method", req.Method)
 			return ctx, trace.SpanFromContext(ctx)
 		}
-		// Use atomic counter with multiplicative hash for better distribution
+		// Use atomic counter with multiplicative hash for better distribution.
+		// The counter wraps around at uint64 max, ensuring uniform distribution
+		// continues even after overflow (not a practical concern).
 		counter := c.samplingCounter.Add(1)
 		hash := counter * samplingMultiplier
 		if hash > c.samplingThreshold {

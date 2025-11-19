@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
@@ -11,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"rivaas.dev/router"
 	"rivaas.dev/tracing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,12 +54,12 @@ func TestApp_Test(t *testing.T) {
 				return MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
 			},
 			setupRoute: func(app *App) {
-				app.GET("/users/:id", func(c *router.Context) {
-					c.JSON(200, map[string]string{"id": c.Param("id")})
+				app.GET("/users/:id", func(c *Context) {
+					c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 				})
 			},
 			makeRequest: func() *http.Request {
-				return httptest.NewRequest("GET", "/users/123", nil)
+				return httptest.NewRequest(http.MethodGet, "/users/123", nil)
 			},
 			wantStatus: 200,
 		},
@@ -56,12 +69,12 @@ func TestApp_Test(t *testing.T) {
 				return MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
 			},
 			setupRoute: func(app *App) {
-				app.POST("/users", func(c *router.Context) {
-					c.String(201, "created")
+				app.POST("/users", func(c *Context) {
+					c.String(http.StatusCreated, "created")
 				})
 			},
 			makeRequest: func() *http.Request {
-				return httptest.NewRequest("POST", "/users", strings.NewReader(`{"name":"Alice"}`))
+				return httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(`{"name":"Alice"}`))
 			},
 			wantStatus: 201,
 		},
@@ -74,7 +87,7 @@ func TestApp_Test(t *testing.T) {
 				// No routes registered
 			},
 			makeRequest: func() *http.Request {
-				return httptest.NewRequest("GET", "/nonexistent", nil)
+				return httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
 			},
 			wantStatus: 404,
 		},
@@ -84,15 +97,15 @@ func TestApp_Test(t *testing.T) {
 				return MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
 			},
 			setupRoute: func(app *App) {
-				app.GET("/posts/:id/comments/:commentId", func(c *router.Context) {
-					c.JSON(200, map[string]string{
+				app.GET("/posts/:id/comments/:commentId", func(c *Context) {
+					c.JSON(http.StatusOK, map[string]string{
 						"postId":    c.Param("id"),
 						"commentId": c.Param("commentId"),
 					})
 				})
 			},
 			makeRequest: func() *http.Request {
-				return httptest.NewRequest("GET", "/posts/1/comments/2", nil)
+				return httptest.NewRequest(http.MethodGet, "/posts/1/comments/2", nil)
 			},
 			wantStatus: 200,
 			checkResponse: func(t *testing.T, resp *http.Response) {
@@ -177,12 +190,12 @@ func TestApp_Test_Timeout(t *testing.T) {
 			t.Parallel()
 			app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
 
-			app.GET("/slow", func(c *router.Context) {
+			app.GET("/slow", func(c *Context) {
 				time.Sleep(tt.handlerDelay)
-				c.String(200, "done")
+				c.String(http.StatusOK, "done")
 			})
 
-			req := httptest.NewRequest("GET", "/slow", nil)
+			req := httptest.NewRequest(http.MethodGet, "/slow", nil)
 			var opts []TestOption
 			if tt.timeout != 0 {
 				opts = append(opts, WithTimeout(tt.timeout))
@@ -256,15 +269,15 @@ func TestApp_Test_Context(t *testing.T) {
 			t.Parallel()
 			app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
 
-			app.GET("/test", func(c *router.Context) {
+			app.GET("/test", func(c *Context) {
 				if val := c.Request.Context().Value(contextKey("key")); val != nil {
-					c.String(200, "%s", val.(string))
+					c.String(http.StatusOK, "%s", val.(string))
 				} else {
-					c.String(200, "%s", "no value")
+					c.String(http.StatusOK, "%s", "no value")
 				}
 			})
 
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			resp, err := app.Test(req, WithContext(tt.setupCtx()))
 
 			if tt.wantErr {
@@ -301,17 +314,17 @@ func TestApp_TestJSON(t *testing.T) {
 	}{
 		{
 			name:   "POST JSON body",
-			method: "POST",
+			method: http.MethodPost,
 			path:   "/users",
 			body:   map[string]string{"name": "Alice", "email": "alice@example.com"},
 			setupRoute: func(app *App) {
-				app.POST("/users", func(c *router.Context) {
+				app.POST("/users", func(c *Context) {
 					var user map[string]string
-					if err := c.BindJSON(&user); err != nil {
-						c.String(400, "%s", err.Error())
+					if err := c.Bind(&user); err != nil {
+						c.String(http.StatusBadRequest, "%s", err.Error())
 						return
 					}
-					c.JSON(201, user)
+					c.JSON(http.StatusCreated, user)
 				})
 			},
 			wantStatus: 201,
@@ -322,19 +335,19 @@ func TestApp_TestJSON(t *testing.T) {
 		},
 		{
 			name:   "nil body",
-			method: "GET",
+			method: http.MethodGet,
 			path:   "/users",
 			body:   nil,
 			setupRoute: func(app *App) {
-				app.GET("/users", func(c *router.Context) {
-					c.JSON(200, []string{"user1", "user2"})
+				app.GET("/users", func(c *Context) {
+					c.JSON(http.StatusOK, []string{"user1", "user2"})
 				})
 			},
 			wantStatus: 200,
 		},
 		{
 			name:        "invalid JSON encoding",
-			method:      "POST",
+			method:      http.MethodPost,
 			path:        "/test",
 			body:        make(chan int), // channels can't be JSON encoded
 			wantErr:     true,
@@ -342,17 +355,17 @@ func TestApp_TestJSON(t *testing.T) {
 		},
 		{
 			name:   "PUT with JSON body",
-			method: "PUT",
+			method: http.MethodPut,
 			path:   "/users/:id",
 			body:   map[string]any{"name": "Bob", "age": 30},
 			setupRoute: func(app *App) {
-				app.PUT("/users/:id", func(c *router.Context) {
+				app.PUT("/users/:id", func(c *Context) {
 					var data map[string]any
-					if err := c.BindJSON(&data); err != nil {
-						c.String(400, "%s", err.Error())
+					if err := c.Bind(&data); err != nil {
+						c.String(http.StatusBadRequest, "%s", err.Error())
 						return
 					}
-					c.JSON(200, map[string]any{
+					c.JSON(http.StatusOK, map[string]any{
 						"id":   c.Param("id"),
 						"data": data,
 					})
@@ -362,17 +375,17 @@ func TestApp_TestJSON(t *testing.T) {
 		},
 		{
 			name:   "PATCH with JSON body",
-			method: "PATCH",
+			method: http.MethodPatch,
 			path:   "/users/:id",
 			body:   map[string]string{"status": "active"},
 			setupRoute: func(app *App) {
-				app.PATCH("/users/:id", func(c *router.Context) {
+				app.PATCH("/users/:id", func(c *Context) {
 					var data map[string]string
-					if err := c.BindJSON(&data); err != nil {
-						c.String(400, "%s", err.Error())
+					if err := c.Bind(&data); err != nil {
+						c.String(http.StatusBadRequest, "%s", err.Error())
 						return
 					}
-					c.JSON(200, data)
+					c.JSON(http.StatusOK, data)
 				})
 			},
 			wantStatus: 200,
@@ -556,7 +569,7 @@ func TestTestOptions(t *testing.T) {
 	t.Parallel()
 
 	app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		c.String(200, "ok")
 	})
 
@@ -571,7 +584,6 @@ func TestTestOptions(t *testing.T) {
 			opts: []TestOption{
 				WithTimeout(5 * time.Second),
 				WithContext(context.WithValue(context.Background(), contextKey("test"), "value")),
-				WithTrace(),
 			},
 			wantStatus: 200,
 			wantErr:    false,
@@ -581,14 +593,6 @@ func TestTestOptions(t *testing.T) {
 			opts: []TestOption{
 				WithTimeout(1 * time.Second),
 				WithContext(context.Background()),
-			},
-			wantStatus: 200,
-			wantErr:    false,
-		},
-		{
-			name: "trace only",
-			opts: []TestOption{
-				WithTrace(),
 			},
 			wantStatus: 200,
 			wantErr:    false,
@@ -606,7 +610,7 @@ func TestTestOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			resp, err := app.Test(req, tt.opts...)
 
 			if tt.wantErr {
@@ -624,8 +628,8 @@ func TestTestOptions(t *testing.T) {
 	}
 }
 
-// TestApp_Test_WithTrace tests the WithTrace option (basic functionality check).
-func TestApp_Test_WithTrace(t *testing.T) {
+// TestApp_Test_WithTracingEnabled tests that Test works correctly when tracing is enabled.
+func TestApp_Test_WithTracingEnabled(t *testing.T) {
 	t.Parallel()
 
 	app := MustNew(
@@ -634,12 +638,12 @@ func TestApp_Test_WithTrace(t *testing.T) {
 		WithTracing(tracing.WithProvider(tracing.NoopProvider)),
 	)
 
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		c.String(200, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	resp, err := app.Test(req, WithTrace())
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	resp, err := app.Test(req)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)

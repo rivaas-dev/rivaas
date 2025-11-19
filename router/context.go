@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"net/url"
@@ -16,11 +17,8 @@ import (
 	"unsafe"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
-	"rivaas.dev/logging"
-	"rivaas.dev/router/middleware"
 )
 
 // Context represents the context of the current HTTP request with optimizations
@@ -53,7 +51,7 @@ import (
 //
 //	func handler(c *router.Context) {
 //	    userID := c.Param("id")
-//	    c.JSON(200, map[string]string{"id": userID})
+//	    c.JSON(http.StatusOK, map[string]string{"id": userID})
 //	    // Context automatically returned to pool by router
 //	}
 //
@@ -104,14 +102,12 @@ type Context struct {
 	tracingRecorder ContextTracingRecorder // Tracing recorder for this context
 	version         string                 // Current API version (e.g., "v1", "v2")
 	routeTemplate   string                 // Matched route template (e.g., "/users/:id" or "_not_found")
+	logger          *slog.Logger           // Request-scoped logger (set by observability recorder)
 
 	// Header parsing cache (per-request)
 	cachedAcceptHeader string       // Cached Accept header value
 	cachedAcceptSpecs  []acceptSpec // Parsed Accept header specs
 	cachedArena        *headerArena // Arena allocator for spec buffers (pooled)
-
-	// Binding metadata (per-request)
-	bindingMeta *bindingMetadata // Cached body, presence tracking, etc.
 
 	// Abort flag to stop handler chain execution
 	aborted bool // Set to true when Abort() is called
@@ -119,6 +115,24 @@ type Context struct {
 	// Memory safety: Track if context has been released to prevent use-after-release
 	// Uses atomic.Bool for thread-safe access when context is used from multiple goroutines
 	released atomic.Bool // Set to true when Release() is called - DO NOT use after this
+}
+
+// checkReleased verifies that the context has not been released.
+// This is a safety check to prevent use-after-release bugs.
+//
+// Performance: ~5ns overhead per check (atomic read)
+// This is negligible compared to typical handler execution time (>1µs).
+//
+// When to use:
+//   - Call at the start of critical methods (JSON, Param, Query, etc.)
+//   - Only in methods that modify state or return data
+//   - Skip in read-only methods that are called very frequently
+//
+// Design decision: We use a simple atomic read rather than panicking immediately.
+// This allows graceful degradation (return empty/error) rather than crashing.
+// For debug builds, consider adding panic() for immediate bug detection.
+func (c *Context) checkReleased() bool {
+	return c.released.Load()
 }
 
 // HandlerFunc defines the handler function signature for route handlers and middleware.
@@ -166,7 +180,7 @@ func NewContext(w http.ResponseWriter, r *http.Request) *Context {
 //	func AuthMiddleware() router.HandlerFunc {
 //	    return func(c *router.Context) {
 //	        if !isAuthenticated(c.Request) {
-//	            c.JSON(401, map[string]string{"error": "Unauthorized"})
+//	            c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
 //	            c.Abort() // Stop the chain
 //	            return
 //	        }
@@ -218,7 +232,7 @@ func (c *Context) Next() {
 //	func AuthMiddleware() router.HandlerFunc {
 //	    return func(c *router.Context) {
 //	        if !isAuthenticated(c.Request) {
-//	            c.JSON(401, map[string]string{"error": "Unauthorized"})
+//	            c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
 //	            c.Abort()
 //	            return
 //	        }
@@ -252,7 +266,7 @@ func (c *Context) IsAborted() bool {
 //go:inline
 func (c *Context) Param(key string) string {
 	// Safety check: prevent use-after-release (thread-safe atomic read)
-	if c.released.Load() {
+	if c.checkReleased() {
 		return ""
 	}
 	// Fast array lookup first (zero allocations for ≤8 params)
@@ -282,7 +296,7 @@ func (c *Context) Param(key string) string {
 //	}
 func (c *Context) JSON(code int, obj any) error {
 	// Safety check: prevent use-after-release (thread-safe atomic read)
-	if c.released.Load() {
+	if c.checkReleased() {
 		return ErrContextReleased
 	}
 	// Encode to buffer first to catch errors before writing headers
@@ -585,9 +599,9 @@ func decodeRuneInJSON(b []byte) (rune, int) {
 //
 // For simple strings without formatting, zero allocations are achieved:
 //
-//	c.String(200, "Hello World")              // Zero allocations
-//	c.String(200, "User: %s", username)       // Efficient for single %s
-//	c.String(200, "Complex: %d %s", id, name) // Falls back to fmt.Fprintf
+//	c.String(http.StatusOK, "Hello World")              // Zero allocations
+//	c.String(http.StatusOK, "User: %s", username)       // Efficient for single %s
+//	c.String(http.StatusOK, "Complex: %d %s", id, name) // Falls back to fmt.Fprintf
 //
 // The method automatically optimizes single %s patterns when exactly one value is provided.
 func (c *Context) String(code int, format string, values ...any) error {
@@ -655,8 +669,8 @@ func (c *Context) String(code int, format string, values ...any) error {
 //
 // Example:
 //
-//	c.HTML(200, "<h1>Welcome</h1>")
-//	c.HTML(404, "<h1>Page Not Found</h1>")
+//	c.HTML(http.StatusOK, "<h1>Welcome</h1>")
+//	c.HTML(http.StatusNotFound, "<h1>Page Not Found</h1>")
 func (c *Context) HTML(code int, html string) error {
 	c.Response.Header().Set("Content-Type", "text/html")
 	c.Response.WriteHeader(code)
@@ -702,15 +716,15 @@ func (c *Context) Status(code int) {
 func (c *Context) Header(key, value string) {
 	// Detect and sanitize header injection attempts
 	if strings.ContainsAny(value, "\r\n") {
-		// Log security event if logger is configured
-		if c.router != nil && c.router.logger != nil {
-			c.router.logger.Warn("header injection attempt blocked and sanitized",
-				"key", key,
-				"original_value", value,
-				"path", c.Request.URL.Path,
-				"client_ip", c.ClientIP(),
-				"user_agent", c.Request.UserAgent(),
-			)
+		// Report security event if diagnostics handler is configured
+		if c.router != nil {
+			c.router.emit(DiagHeaderInjection, "header injection attempt blocked and sanitized", map[string]any{
+				"key":            key,
+				"original_value": value,
+				"path":           c.Request.URL.Path,
+				"client_ip":      c.ClientIP(),
+				"user_agent":     c.Request.UserAgent(),
+			})
 		}
 
 		// Sanitize by removing newline characters
@@ -731,7 +745,7 @@ func (c *Context) Header(key, value string) {
 //	missing := c.Query("xyz") // ""
 func (c *Context) Query(key string) string {
 	// Safety check: prevent use-after-release (thread-safe atomic read)
-	if c.released.Load() || c.Request == nil {
+	if c.checkReleased() || c.Request == nil {
 		return ""
 	}
 	return c.Request.URL.Query().Get(key)
@@ -823,6 +837,18 @@ func (c *Context) Version() string {
 		c.version = c.router.detectVersion(c.Request)
 	}
 	return c.version
+}
+
+// Logger returns the request-scoped logger for this context.
+// The logger is set by the observability recorder during request initialization
+// and includes request metadata like method, path, trace ID, etc.
+//
+// Returns a non-nil logger. If no logger was set, returns a no-op logger.
+func (c *Context) Logger() *slog.Logger {
+	if c.logger != nil {
+		return c.logger
+	}
+	return noopLogger
 }
 
 // IsVersion returns true if the current request is for the specified version.
@@ -1028,253 +1054,30 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 	return nil
 }
 
-// ProblemDetail writes an RFC 9457 Problem Details response.
-// Automatically negotiates content type, injects observability metadata,
-// and sets appropriate headers.
-//
-// RFC 9457 alignment:
-//   - Prefers application/problem+json content type
-//   - Adds Link header for non-blank types
-//   - Enforces 4xx/5xx status codes
-//   - Auto-injects trace_id and request_id for correlation
-//
-// Example:
-//
-//	problem := router.NewProblemDetail(404, "User Not Found").
-//		WithType(router.ProblemTypeNotFound).
-//		WithDetail("User with ID 12345 does not exist").
-//		WithExtension("user_id", "12345")
-//	return c.ProblemDetail(problem)
-func (c *Context) ProblemDetail(p *ProblemDetail) error {
-	if p == nil {
-		return ErrProblemDetailNil
+// WriteErrorResponse writes a simple HTTP error response.
+// Error formatting is handled by app.Context.Error() when router.Context is wrapped.
+func (c *Context) WriteErrorResponse(status int, message string) {
+	if rw, ok := c.Response.(*responseWriter); !ok || !rw.Written() {
+		c.Response.WriteHeader(status)
 	}
-
-	// RFC 9457: Set defaults
-	if p.Type == "" {
-		p.Type = PTBlank
-	}
-	if p.Title == "" {
-		if txt := http.StatusText(p.Status); txt != "" {
-			p.Title = txt
-		} else {
-			p.Title = "Error"
-		}
-	}
-
-	// RFC 9457: Problems are for errors (4xx/5xx), not success
-	if p.Status < 400 || p.Status >= 600 {
-		c.LogWarn("invalid problem status",
-			"status", p.Status,
-			"path", c.Request.URL.Path,
-		)
-		p.Status = http.StatusInternalServerError
-	}
-
-	// Auto-inject observability metadata (safe - checks for duplicates)
-	if p.Extensions == nil {
-		p.Extensions = make(map[string]any, 2)
-	}
-
-	// OpenTelemetry trace ID
-	if tid := c.TraceID(); tid != "" {
-		if _, exists := p.Extensions["trace_id"]; !exists {
-			p.Extensions["trace_id"] = tid
-		}
-	}
-
-	// Request ID from middleware (type-safe)
-	if v := c.Request.Context().Value(middleware.RequestIDKey); v != nil {
-		if rid, ok := v.(string); ok && rid != "" {
-			if _, exists := p.Extensions["request_id"]; !exists {
-				p.Extensions["request_id"] = rid
-			}
-		}
-	}
-
-	// RFC 9457: Link header for problem type documentation
-	if p.Type != "" && p.Type != PTBlank {
-		c.AppendHeader("Link", fmt.Sprintf("<%s>; rel=\"describedby\"", p.Type))
-	}
-
-	// Mark span on 5xx errors (server errors indicate problems worth investigating)
-	// Note: OTel doesn't expose span.Status() for reading, so we can't check
-	// if error was already set. Setting codes.Error multiple times is harmless.
-	if p.Status >= 500 && c.span != nil && c.span.SpanContext().IsValid() {
-		// Set error status (safe to call multiple times)
-		c.span.SetStatus(codes.Error, http.StatusText(p.Status))
-
-		// Add problem detail attributes
-		c.span.SetAttributes(
-			attribute.String("http.problem.type", p.Type),
-			attribute.Int("http.problem.status", p.Status),
-		)
-
-		// Add error_id if present
-		if errorID, ok := p.Extensions["error_id"].(string); ok && errorID != "" {
-			c.span.SetAttributes(attribute.String("error_id", errorID))
-		}
-
-		// Record error if we have an underlying cause (via WithCause)
-		if p.cause != nil {
-			c.span.RecordError(p.cause)
-		}
-
-		// NOTE: exception.escaped is NOT set here - that's only for panics
-	}
-
-	// Content negotiation (RFC 9457 prefers application/problem+json)
-	offer := c.Accepts("application/problem+json", "application/json", "text/plain")
-
-	switch offer {
-	case "text/plain":
-		// Minimal text representation for curl/simple clients
+	if message != "" {
 		c.Header("Content-Type", "text/plain; charset=utf-8")
-		if rw, ok := c.Response.(*responseWriter); !ok || !rw.Written() {
-			c.Response.WriteHeader(p.Status)
-		}
-
-		// Simple format: Title + Detail (no sensitive internals)
-		text := p.Title
-		if p.Detail != "" {
-			text += ": " + p.Detail
-		}
-		text += "\n"
-
-		_, err := io.WriteString(c.Response, text)
-		return err
-
-	default:
-		// JSON responses (application/problem+json or application/json)
-		ct := MediaTypeProblemJSON
-		if offer == "application/json" {
-			ct = "application/json; charset=utf-8"
-		}
-
-		// Use pooled buffer to reduce allocations
-		buf := bufferPool.Get().(*bytes.Buffer)
-		buf.Reset()
-		defer bufferPool.Put(buf)
-
-		enc := json.NewEncoder(buf)
-		if err := enc.Encode(p); err != nil {
-			return fmt.Errorf("ProblemDetail encoding failed: %w", err)
-		}
-
-		c.Header("Content-Type", ct)
-		if rw, ok := c.Response.(*responseWriter); !ok || !rw.Written() {
-			c.Response.WriteHeader(p.Status)
-		}
-
-		_, err := c.Response.Write(buf.Bytes())
-		return err
+		_, _ = io.WriteString(c.Response, message+"\n")
 	}
 }
 
-// Problem is a convenience to build and write a problem in one call.
-// Useful for simple error cases without needing the builder pattern.
-//
-// Example:
-//
-//	return c.Problem(404, router.ProblemTypeNotFound, "User Not Found",
-//		"User with the given ID does not exist",
-//		map[string]any{"user_id": userID})
-func (c *Context) Problem(status int, typeURI, title, detail string, ext map[string]any) error {
-	p := NewProblemDetail(status, title).
-		WithType(typeURI).
-		WithDetail(detail).
-		WithInstance(c.Request.URL.Path)
-
-	if len(ext) > 0 {
-		p.WithExtensions(ext)
-	}
-
-	return c.ProblemDetail(p)
+// NotFound writes a 404 Not Found response.
+func (c *Context) NotFound() {
+	c.WriteErrorResponse(http.StatusNotFound, "Not Found")
 }
 
-// NotFoundProblem sends a 404 Not Found problem response.
-// This is the standard RFC 9457 response for unmatched routes.
-//
-// Example:
-//
-//	return c.NotFoundProblem()
-func (c *Context) NotFoundProblem() error {
-	return c.ProblemDetail(
-		NewProblemDetail(http.StatusNotFound, "Not Found").
-			WithType(c.ProblemType(PTNotFound)).
-			WithInstance(c.Request.URL.Path),
-	)
-}
-
-// MethodNotAllowedProblem sends a 405 Method Not Allowed problem response.
-// This includes the required Allow header and lists allowed methods in the response.
-//
-// RFC 7231 requires the Allow header to be set for 405 responses.
-//
-// Example:
-//
-//	allowed := []string{"GET", "POST"}
-//	return c.MethodNotAllowedProblem(allowed)
-func (c *Context) MethodNotAllowedProblem(allowed []string) error {
+// MethodNotAllowed writes a 405 Method Not Allowed response.
+// Sets the required Allow header per RFC 7231.
+func (c *Context) MethodNotAllowed(allowed []string) {
 	// Sort for deterministic output
 	sort.Strings(allowed)
-
-	// RFC 7231: Must set Allow header
 	c.Header("Allow", strings.Join(allowed, ", "))
-
-	return c.ProblemDetail(
-		NewProblemDetail(http.StatusMethodNotAllowed, "Method Not Allowed").
-			WithType(c.ProblemType(PTMethodNotAllowed)).
-			WithDetail(fmt.Sprintf("The %s method is not allowed for this resource.", c.Request.Method)).
-			WithInstance(c.Request.URL.Path).
-			WithExtension("allowed_methods", allowed),
-	)
-}
-
-// UnauthorizedProblem sends a 401 Unauthorized problem response.
-func (c *Context) UnauthorizedProblem(detail string) error {
-	return c.Problem(http.StatusUnauthorized, c.ProblemType(PTUnauthorized), "Unauthorized", detail, nil)
-}
-
-// ForbiddenProblem sends a 403 Forbidden problem response.
-func (c *Context) ForbiddenProblem(detail string) error {
-	return c.Problem(http.StatusForbidden, c.ProblemType(PTForbidden), "Forbidden", detail, nil)
-}
-
-// ConflictProblem sends a 409 Conflict problem response.
-func (c *Context) ConflictProblem(detail string) error {
-	return c.Problem(http.StatusConflict, c.ProblemType(PTConflict), "Conflict", detail, nil)
-}
-
-// InternalProblem sends a 500 Internal Server Error problem response.
-func (c *Context) InternalProblem(detail string) error {
-	return c.Problem(http.StatusInternalServerError, c.ProblemType(PTInternal), "Internal Server Error", detail, nil)
-}
-
-// ProblemType resolves a problem type slug to a full URI.
-// If the slug is already an absolute URI (starts with "http"), it is returned as-is.
-// If a base URL is configured, the slug is appended to it.
-// Otherwise, returns "about:blank".
-//
-// Example:
-//
-//	// With base URL "https://docs.rivaas.dev/problems":
-//	c.ProblemType("validation-error") // Returns "https://docs.rivaas.dev/problems/validation-error"
-//	c.ProblemType("https://api.example.com/problems/custom") // Returns as-is
-//	c.ProblemType("") // Returns "about:blank"
-func (c *Context) ProblemType(slug string) string {
-	// Already absolute
-	if strings.HasPrefix(slug, "http://") || strings.HasPrefix(slug, "https://") {
-		return slug
-	}
-
-	// No base configured or empty slug
-	if c.router.problemBase == "" || slug == "" {
-		return "about:blank"
-	}
-
-	// Resolve relative slug
-	return c.router.problemBase + "/" + slug
+	c.WriteErrorResponse(http.StatusMethodNotAllowed, "Method Not Allowed")
 }
 
 // RecordMetric records a custom histogram metric by delegating to the metrics recorder.
@@ -1361,53 +1164,6 @@ func (c *Context) RouteTemplate() string {
 	return c.routeTemplate
 }
 
-// Logger returns the router's logger if available.
-// Returns nil if no logger is configured.
-//
-// Example:
-//
-//	if logger := c.Logger(); logger != nil {
-//	    logger.Info("processing request", "user_id", userID)
-//	}
-func (c *Context) Logger() logging.Logger {
-	if c.router != nil {
-		return c.router.logger
-	}
-	return nil
-}
-
-// LogDebug logs a debug message using the router's logger.
-// This is a no-op if no logger is configured.
-func (c *Context) LogDebug(msg string, args ...any) {
-	if logger := c.Logger(); logger != nil {
-		logger.Debug(msg, args...)
-	}
-}
-
-// LogInfo logs an info message using the router's logger.
-// This is a no-op if no logger is configured.
-func (c *Context) LogInfo(msg string, args ...any) {
-	if logger := c.Logger(); logger != nil {
-		logger.Info(msg, args...)
-	}
-}
-
-// LogWarn logs a warning message using the router's logger.
-// This is a no-op if no logger is configured.
-func (c *Context) LogWarn(msg string, args ...any) {
-	if logger := c.Logger(); logger != nil {
-		logger.Warn(msg, args...)
-	}
-}
-
-// LogError logs an error message using the router's logger.
-// This is a no-op if no logger is configured.
-func (c *Context) LogError(msg string, args ...any) {
-	if logger := c.Logger(); logger != nil {
-		logger.Error(msg, args...)
-	}
-}
-
 // SetETag sets an ETag header for the response.
 // Supports both strong (default) and weak ETags per RFC 7232.
 //
@@ -1434,7 +1190,7 @@ func (c *Context) RequireContentType(allowed ...string) bool {
 
 	// Only require Content-Type for methods that have bodies
 	if ct == "" {
-		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" {
+		if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPatch {
 			return c.unsupportedMediaTypeProblem("", allowed)
 		}
 		return true // GET/DELETE don't need Content-Type
@@ -1468,15 +1224,9 @@ func (c *Context) RequireContentType(allowed ...string) bool {
 	return c.unsupportedMediaTypeProblem(mediaType, allowed)
 }
 
-// unsupportedMediaTypeProblem sends a 415 Unsupported Media Type problem.
+// unsupportedMediaTypeProblem sends a 415 Unsupported Media Type response.
 func (c *Context) unsupportedMediaTypeProblem(received string, allowed []string) bool {
-	_ = c.ProblemDetail(
-		NewProblemDetail(http.StatusUnsupportedMediaType, "Unsupported Media Type").
-			WithType(c.ProblemType(PTUnsupportedMediaType)).
-			WithDetail("This endpoint only accepts specific media types.").
-			WithExtension("received", received).
-			WithExtension("supported_types", allowed),
-	)
+	c.WriteErrorResponse(http.StatusUnsupportedMediaType, "Unsupported Media Type")
 	return false
 }
 
@@ -1492,62 +1242,41 @@ func (c *Context) RequireContentTypeJSON() bool {
 	return c.RequireContentType("application/json", "application/*+json")
 }
 
-// writeJSONDecodeProblem converts JSON decode errors to RFC 9457 problems.
+// writeJSONDecodeProblem converts JSON decode errors to HTTP error responses.
 func (c *Context) writeJSONDecodeProblem(err error) error {
 	switch {
 	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
-		return c.ProblemDetail(
-			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(c.ProblemType(PTMalformedJSON)).
-				WithDetail("Unexpected end of JSON input."),
-		)
+		c.WriteErrorResponse(http.StatusBadRequest, "Malformed JSON: Unexpected end of JSON input")
+		return err
 
 	case errors.As(err, new(*json.SyntaxError)):
-		return c.ProblemDetail(
-			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(c.ProblemType(PTMalformedJSON)).
-				WithDetail(err.Error()),
-		)
+		c.WriteErrorResponse(http.StatusBadRequest, "Malformed JSON: "+err.Error())
+		return err
 
 	case errors.As(err, new(*json.UnmarshalTypeError)):
 		ute := err.(*json.UnmarshalTypeError)
 		// Valid JSON, wrong types -> 422
-		return c.ProblemDetail(
-			NewProblemDetail(http.StatusUnprocessableEntity, "Unprocessable Entity").
-				WithType(c.ProblemType(PTValidation)).
-				WithDetail(fmt.Sprintf("Invalid type for field %q: expected %s.", ute.Field, ute.Type)).
-				WithExtension("field", ute.Field).
-				WithExtension("expected_type", ute.Type.String()),
-		)
+		c.WriteErrorResponse(http.StatusUnprocessableEntity, fmt.Sprintf("Invalid type for field %q: expected %s", ute.Field, ute.Type))
+		return err
 
 	default:
 		errStr := err.Error()
 		// Unknown field string from DisallowUnknownFields()
 		if field, ok := strings.CutPrefix(errStr, "json: unknown field "); ok {
 			field = strings.Trim(field, `"`)
-			return c.ProblemDetail(
-				NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-					WithType(c.ProblemType(PTMalformedJSON)).
-					WithDetail(fmt.Sprintf("Unknown field %q.", field)).
-					WithExtension("unknown_field", field),
-			)
+			c.WriteErrorResponse(http.StatusBadRequest, fmt.Sprintf("Unknown field %q", field))
+			return err
 		}
 
 		// Too large body (http.MaxBytesReader returns this error)
 		if strings.Contains(errStr, "request body too large") || strings.Contains(errStr, "http: request body too large") {
-			return c.ProblemDetail(
-				NewProblemDetail(http.StatusRequestEntityTooLarge, "Payload Too Large").
-					WithType(c.ProblemType(PTTooLarge)).
-					WithDetail("Request body exceeds the maximum allowed size."),
-			)
+			c.WriteErrorResponse(http.StatusRequestEntityTooLarge, "Request body exceeds the maximum allowed size")
+			return err
 		}
 
 		// Fallback
-		return c.ProblemDetail(
-			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(c.ProblemType(PTMalformedJSON)).
-				WithDetail(err.Error()),
-		)
+		c.WriteErrorResponse(http.StatusBadRequest, "Malformed JSON: "+err.Error())
+		return err
 	}
 }
 
@@ -1587,11 +1316,8 @@ func (c *Context) BindStrict(dst any, opt BindOptions) error {
 
 	// 4) No trailing data
 	if dec.More() {
-		return c.ProblemDetail(
-			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(c.ProblemType(PTMalformedJSON)).
-				WithDetail("Request body must contain a single JSON value."),
-		)
+		c.WriteErrorResponse(http.StatusBadRequest, "Request body must contain a single JSON value")
+		return fmt.Errorf("request body must contain a single JSON value")
 	}
 
 	return nil
@@ -1623,22 +1349,16 @@ func StreamJSONArray[T any](c *Context, each func(T) error, maxItems int) error 
 		return c.writeJSONDecodeProblem(err)
 	}
 	if delim, ok := tok.(json.Delim); !ok || delim != '[' {
-		return c.ProblemDetail(
-			NewProblemDetail(http.StatusBadRequest, "Malformed JSON").
-				WithType(c.ProblemType(PTMalformedJSON)).
-				WithDetail("Expected a JSON array."),
-		)
+		c.WriteErrorResponse(http.StatusBadRequest, "Expected a JSON array")
+		return fmt.Errorf("expected a JSON array")
 	}
 
 	count := 0
 	for dec.More() {
 		count++
 		if maxItems > 0 && count > maxItems {
-			return c.ProblemDetail(
-				NewProblemDetail(http.StatusBadRequest, "Too Many Items").
-					WithType(c.ProblemType(PTTooLarge)).
-					WithDetail(fmt.Sprintf("Array exceeds maximum of %d items", maxItems)),
-			)
+			c.WriteErrorResponse(http.StatusBadRequest, fmt.Sprintf("Array exceeds maximum of %d items", maxItems))
+			return fmt.Errorf("array exceeds maximum of %d items", maxItems)
 		}
 
 		var v T
@@ -1717,9 +1437,6 @@ func (c *Context) reset() {
 		arenaPool.Put(c.cachedArena)
 		c.cachedArena = nil
 	}
-
-	// Clear binding metadata cache
-	c.bindingMeta = nil
 
 	// Clear parameter arrays efficiently - only clear used slots
 	// Optimization: Skip if no parameters were used (common case for static routes)
@@ -1812,7 +1529,6 @@ func (c *Context) Release() {
 	c.Request = nil
 	c.Response = nil
 	c.handlers = nil
-	c.bindingMeta = nil
 	c.span = nil
 	c.metricsRecorder = nil
 	c.tracingRecorder = nil
@@ -1879,10 +1595,8 @@ func (c *Context) initForRequest(req *http.Request, w http.ResponseWriter, handl
 	c.index = -1
 	c.paramCount = 0
 
-	// Set metrics recorder for handler access to custom metrics
-	if router.metrics != nil {
-		c.metricsRecorder = router.metrics
-	}
+	// NOTE: metricsRecorder is now set by app/observability if needed
+	// Handler-level custom metrics work through Context.RecordMetric(), IncrementCounter(), SetGauge()
 }
 
 // initForRequestWithParams initializes context WITHOUT resetting parameters.
@@ -1895,10 +1609,8 @@ func (c *Context) initForRequestWithParams(req *http.Request, w http.ResponseWri
 	c.index = -1
 	// Note: paramCount and param arrays NOT reset - already populated by template
 
-	// Set metrics recorder for handler access to custom metrics
-	if router.metrics != nil {
-		c.metricsRecorder = router.metrics
-	}
+	// NOTE: metricsRecorder is now set by app/observability if needed
+	// Handler-level custom metrics work through Context.RecordMetric(), IncrementCounter(), SetGauge()
 }
 
 // unsafeStringToBytes converts a string to a byte slice without allocation.

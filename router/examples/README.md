@@ -49,7 +49,7 @@ curl -X POST http://localhost:8080/api/v1/users -H 'Content-Type: application/js
 
 **Learn:**
 
-- Request binding (BindBody, BindQuery, BindParams)
+- Request binding (Bind, BindQuery, BindParams)
 - Structured error responses with proper HTTP codes
 - Input validation patterns
 - Business logic separation
@@ -257,7 +257,7 @@ type CreateUserRequest struct {
 }
 
 var req CreateUserRequest
-if err := c.BindBody(&req); err != nil {
+if err := c.Bind(&req); err != nil {
     c.JSON(http.StatusBadRequest, errorResponse)
     return
 }

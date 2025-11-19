@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"reflect"
@@ -21,15 +22,40 @@ type RouteConstraint struct {
 	Pattern *regexp.Regexp // Pre-compiled regex pattern
 }
 
+// ConstraintKind represents the type of constraint applied to a route parameter.
+type ConstraintKind uint8
+
+const (
+	ConstraintNone ConstraintKind = iota
+	ConstraintInt
+	ConstraintFloat
+	ConstraintUUID
+	ConstraintRegex
+	ConstraintEnum
+	ConstraintDate     // RFC3339 full-date
+	ConstraintDateTime // RFC3339 date-time
+)
+
+// ParamConstraint represents a typed constraint for a route parameter.
+// This provides semantic constraint types that map directly to OpenAPI schema types.
+type ParamConstraint struct {
+	Kind    ConstraintKind
+	Pattern string         // for ConstraintRegex
+	Enum    []string       // for ConstraintEnum
+	re      *regexp.Regexp // compiled regex for ConstraintRegex (lazy)
+}
+
 // Route represents a registered route with optional constraints.
 // This provides a fluent interface for adding constraints and metadata.
 type Route struct {
-	router      *Router
-	method      string
-	path        string
-	handlers    []HandlerFunc
-	constraints []RouteConstraint
-	finalized   bool // Prevents duplicate route registration
+	router           *Router
+	method           string
+	path             string
+	handlers         []HandlerFunc
+	constraints      []RouteConstraint          // Legacy regex-based constraints
+	typedConstraints map[string]ParamConstraint // New typed constraints
+	finalized        bool                       // Prevents duplicate route registration
+	compiled         bool                       // Whether typed constraints have been compiled
 
 	// Route metadata (immutable after registration)
 	name        string         // Human-readable name for reverse routing
@@ -144,7 +170,7 @@ func (r *Router) getTreeForMethodDirect(method string) *node {
 //	r.GET("/health", healthCheckHandler)
 //	r.GET("/users/:id", getUserHandler).Where("id", `\d+`) // With constraint
 func (r *Router) GET(path string, handlers ...HandlerFunc) *Route {
-	return r.addRouteWithConstraints("GET", path, handlers)
+	return r.addRouteWithConstraints(http.MethodGet, path, handlers)
 }
 
 // POST adds a route that matches POST requests to the specified path.
@@ -155,7 +181,7 @@ func (r *Router) GET(path string, handlers ...HandlerFunc) *Route {
 //	r.POST("/users", createUserHandler)
 //	r.POST("/login", loginHandler)
 func (r *Router) POST(path string, handlers ...HandlerFunc) *Route {
-	return r.addRouteWithConstraints("POST", path, handlers)
+	return r.addRouteWithConstraints(http.MethodPost, path, handlers)
 }
 
 // PUT adds a route that matches PUT requests to the specified path.
@@ -165,7 +191,7 @@ func (r *Router) POST(path string, handlers ...HandlerFunc) *Route {
 //
 //	r.PUT("/users/:id", updateUserHandler)
 func (r *Router) PUT(path string, handlers ...HandlerFunc) *Route {
-	return r.addRouteWithConstraints("PUT", path, handlers)
+	return r.addRouteWithConstraints(http.MethodPut, path, handlers)
 }
 
 // DELETE adds a route that matches DELETE requests to the specified path.
@@ -175,7 +201,7 @@ func (r *Router) PUT(path string, handlers ...HandlerFunc) *Route {
 //
 //	r.DELETE("/users/:id", deleteUserHandler)
 func (r *Router) DELETE(path string, handlers ...HandlerFunc) *Route {
-	return r.addRouteWithConstraints("DELETE", path, handlers)
+	return r.addRouteWithConstraints(http.MethodDelete, path, handlers)
 }
 
 // PATCH adds a route that matches PATCH requests to the specified path.
@@ -185,7 +211,7 @@ func (r *Router) DELETE(path string, handlers ...HandlerFunc) *Route {
 //
 //	r.PATCH("/users/:id", patchUserHandler)
 func (r *Router) PATCH(path string, handlers ...HandlerFunc) *Route {
-	return r.addRouteWithConstraints("PATCH", path, handlers)
+	return r.addRouteWithConstraints(http.MethodPatch, path, handlers)
 }
 
 // OPTIONS adds a route that matches OPTIONS requests to the specified path.
@@ -195,7 +221,7 @@ func (r *Router) PATCH(path string, handlers ...HandlerFunc) *Route {
 //
 //	r.OPTIONS("/api/*", corsHandler)
 func (r *Router) OPTIONS(path string, handlers ...HandlerFunc) *Route {
-	return r.addRouteWithConstraints("OPTIONS", path, handlers)
+	return r.addRouteWithConstraints(http.MethodOptions, path, handlers)
 }
 
 // HEAD adds a route that matches HEAD requests to the specified path.
@@ -205,7 +231,7 @@ func (r *Router) OPTIONS(path string, handlers ...HandlerFunc) *Route {
 //
 //	r.HEAD("/users/:id", checkUserExistsHandler)
 func (r *Router) HEAD(path string, handlers ...HandlerFunc) *Route {
-	return r.addRouteWithConstraints("HEAD", path, handlers)
+	return r.addRouteWithConstraints(http.MethodHead, path, handlers)
 }
 
 // addRouteWithConstraints adds a route with support for parameter constraints.
@@ -233,6 +259,17 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 
 	// Count parameters in path
 	paramCount := strings.Count(path, ":")
+
+	// Runtime warning for routes with excessive parameters (>8)
+	// Routes with >8 parameters require map allocation instead of fast array storage
+	if paramCount > 8 {
+		r.emit(DiagHighParamCount, "route has more than 8 parameters, using map storage instead of fast array", map[string]any{
+			"method":         method,
+			"path":           path,
+			"param_count":    paramCount,
+			"recommendation": "consider restructuring route to use query parameters or request body for additional data",
+		})
+	}
 
 	// Check if route is static (no parameters)
 	isStatic := !strings.Contains(path, ":") && !strings.HasSuffix(path, "*")
@@ -262,14 +299,8 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 	// Record route registration for metrics
 	r.recordRouteRegistration(method, path)
 
-	// IMPORTANT: Don't finalize immediately - wait for constraints to be added
-	// If user doesn't add constraints, finalize on first request
-	// This prevents creating duplicate templates (one without constraints, one with)
-
-	// For backward compatibility and immediate use, finalize if it's a simple route
-	// that clearly won't have constraints (static route or no chainable methods)
-	// Actually, always delay finalization until Where() is called or route is used
-	// Update: We need to finalize for the route to work, but we'll update templates if constraints change
+	// Finalize the route immediately so it's ready for use.
+	// If constraints are added later via Where(), the route template will be updated accordingly.
 	route.finalizeRoute()
 
 	return route
@@ -343,13 +374,17 @@ func (route *Route) finalizeRoute() {
 	allHandlers = append(allHandlers, route.router.middleware...)
 	allHandlers = append(allHandlers, route.handlers...)
 
+	// Convert typed constraints to regex constraints for validation
+	allConstraints := route.convertTypedConstraintsToRegex()
+	allConstraints = append(allConstraints, route.constraints...)
+
 	// Use efficient route addition that minimizes allocations
-	route.router.addRouteToTree(route.method, route.path, allHandlers, route.constraints)
+	route.router.addRouteToTree(route.method, route.path, allHandlers, allConstraints)
 
 	// Compile into template for fast matching (if enabled)
 	// Only add to template cache if not a wildcard (wildcards use tree)
 	if route.router.useTemplates && route.router.templateCache != nil {
-		tmpl := compileRouteTemplate(route.method, route.path, allHandlers, route.constraints)
+		tmpl := compileRouteTemplate(route.method, route.path, allHandlers, allConstraints)
 
 		// Remove any existing template for this route (in case constraints were added after initial registration)
 		route.router.templateCache.removeTemplate(route.method, route.path)
@@ -444,14 +479,291 @@ func (route *Route) WhereAlphaNumeric(param string) *Route {
 	return route.Where(param, `[a-zA-Z0-9]+`)
 }
 
-// WhereUUID adds a constraint that ensures the parameter is a valid UUID format.
-// This is a convenience method for UUID validation.
+// WhereUUID adds a typed constraint that ensures the parameter is a valid UUID.
+// This maps to OpenAPI schema type "string" with format "uuid".
 //
 // Example:
 //
-//	r.GET("/entities/:uuid", getEntityHandler).WhereUUID("uuid")
-func (route *Route) WhereUUID(param string) *Route {
-	return route.Where(param, `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
+//	r.GET("/entities/:uuid", handler).WhereUUID("uuid")
+func (r *Route) WhereUUID(name string) *Route {
+	r.ensureTypedConstraints()
+	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintUUID}
+	// Reset finalized flag and re-add the route to the tree with updated constraints
+	r.finalized = false
+	r.finalizeRoute()
+	return r
+}
+
+// ensureTypedConstraints initializes the typed constraints map if needed.
+func (r *Route) ensureTypedConstraints() {
+	if r.typedConstraints == nil {
+		r.typedConstraints = make(map[string]ParamConstraint)
+	}
+}
+
+// WhereInt adds a typed constraint that ensures the parameter is an integer.
+// This maps to OpenAPI schema type "integer" with format "int64".
+//
+// Example:
+//
+//	r.GET("/users/:id", handler).WhereInt("id")
+func (r *Route) WhereInt(name string) *Route {
+	r.ensureTypedConstraints()
+	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintInt}
+	// Reset finalized flag and re-add the route to the tree with updated constraints
+	r.finalized = false
+	r.finalizeRoute()
+	return r
+}
+
+// WhereFloat adds a typed constraint that ensures the parameter is a floating-point number.
+// This maps to OpenAPI schema type "number" with format "double".
+//
+// Example:
+//
+//	r.GET("/prices/:amount", handler).WhereFloat("amount")
+func (r *Route) WhereFloat(name string) *Route {
+	r.ensureTypedConstraints()
+	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintFloat}
+	// Reset finalized flag and re-add the route to the tree with updated constraints
+	r.finalized = false
+	r.finalizeRoute()
+	return r
+}
+
+// WhereRegex adds a typed constraint with a custom regex pattern.
+// This maps to OpenAPI schema type "string" with a pattern.
+//
+// Example:
+//
+//	r.GET("/files/:name", handler).WhereRegex("name", `[a-zA-Z0-9._-]+`)
+func (r *Route) WhereRegex(name, pattern string) *Route {
+	r.ensureTypedConstraints()
+	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintRegex, Pattern: pattern}
+	// Reset finalized flag and re-add the route to the tree with updated constraints
+	r.finalized = false
+	r.finalizeRoute()
+	return r
+}
+
+// WhereEnum adds a typed constraint that ensures the parameter matches one of the provided values.
+// This maps to OpenAPI schema type "string" with an enum.
+//
+// Example:
+//
+//	r.GET("/status/:state", handler).WhereEnum("state", "active", "pending", "deleted")
+func (r *Route) WhereEnum(name string, values ...string) *Route {
+	r.ensureTypedConstraints()
+	r.typedConstraints[name] = ParamConstraint{
+		Kind: ConstraintEnum,
+		Enum: append([]string(nil), values...),
+	}
+	// Reset finalized flag and re-add the route to the tree with updated constraints
+	r.finalized = false
+	r.finalizeRoute()
+	return r
+}
+
+// WhereDate adds a typed constraint that ensures the parameter is an RFC3339 full-date.
+// This maps to OpenAPI schema type "string" with format "date".
+//
+// Example:
+//
+//	r.GET("/orders/:date", handler).WhereDate("date")
+func (r *Route) WhereDate(name string) *Route {
+	r.ensureTypedConstraints()
+	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintDate}
+	// Reset finalized flag and re-add the route to the tree with updated constraints
+	r.finalized = false
+	r.finalizeRoute()
+	return r
+}
+
+// WhereDateTime adds a typed constraint that ensures the parameter is an RFC3339 date-time.
+// This maps to OpenAPI schema type "string" with format "date-time".
+//
+// Example:
+//
+//	r.GET("/events/:timestamp", handler).WhereDateTime("timestamp")
+func (r *Route) WhereDateTime(name string) *Route {
+	r.ensureTypedConstraints()
+	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintDateTime}
+	// Reset finalized flag and re-add the route to the tree with updated constraints
+	r.finalized = false
+	r.finalizeRoute()
+	return r
+}
+
+// TypedConstraints returns a copy of the typed constraints map.
+func (r *Route) TypedConstraints() map[string]ParamConstraint {
+	if len(r.typedConstraints) == 0 {
+		return nil
+	}
+	out := make(map[string]ParamConstraint, len(r.typedConstraints))
+	for k, v := range r.typedConstraints {
+		out[k] = v
+	}
+	return out
+}
+
+// compile compiles regex patterns in typed constraints (lazy compilation).
+func (r *Route) compile() {
+	if r.compiled {
+		return
+	}
+	for k, pc := range r.typedConstraints {
+		if pc.Kind == ConstraintRegex && pc.Pattern != "" && pc.re == nil {
+			if rx, err := regexp.Compile("^" + pc.Pattern + "$"); err == nil {
+				pc.re = rx
+				r.typedConstraints[k] = pc
+			}
+		}
+	}
+	r.compiled = true
+}
+
+// Pre-compiled regex patterns for typed constraints (package-level for reuse)
+var (
+	reInt      = regexp.MustCompile(`^-?\d+$`)
+	reFloat    = regexp.MustCompile(`^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$`)
+	reUUID     = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
+	reDate     = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+	reDateTime = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$`)
+)
+
+// convertTypedConstraintsToRegex converts typed constraints to regex-based RouteConstraint
+// for use with the existing validation system. This allows typed constraints to work
+// with the current router architecture while preserving semantic information for OpenAPI.
+func (r *Route) convertTypedConstraintsToRegex() []RouteConstraint {
+	if len(r.typedConstraints) == 0 {
+		return nil
+	}
+
+	r.compile()
+
+	var regexConstraints []RouteConstraint
+	for name, pc := range r.typedConstraints {
+		var pattern string
+		switch pc.Kind {
+		case ConstraintInt:
+			pattern = `\d+`
+		case ConstraintFloat:
+			pattern = `-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?`
+		case ConstraintUUID:
+			pattern = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}`
+		case ConstraintRegex:
+			pattern = pc.Pattern
+		case ConstraintEnum:
+			// Convert enum to regex: (value1|value2|value3)
+			escaped := make([]string, len(pc.Enum))
+			for i, v := range pc.Enum {
+				// Escape special regex characters in enum values
+				escaped[i] = regexp.QuoteMeta(v)
+			}
+			pattern = "(" + strings.Join(escaped, "|") + ")"
+		case ConstraintDate:
+			pattern = `\d{4}-\d{2}-\d{2}`
+		case ConstraintDateTime:
+			pattern = `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})`
+		default:
+			continue // Skip unknown constraint types
+		}
+
+		// Compile regex pattern
+		regex, err := regexp.Compile("^" + pattern + "$")
+		if err != nil {
+			// Should not happen for our predefined patterns, but handle gracefully
+			continue
+		}
+
+		regexConstraints = append(regexConstraints, RouteConstraint{
+			Param:   name,
+			Pattern: regex,
+		})
+	}
+
+	return regexConstraints
+}
+
+// validateTypedConstraints validates typed constraints against context parameters.
+// Returns false if any constraint fails.
+// NOTE: This method is kept for potential future use but is not currently called
+// since typed constraints are converted to regex constraints during finalization.
+func (r *Route) validateTypedConstraints(ctx *Context) bool {
+	if len(r.typedConstraints) == 0 {
+		return true
+	}
+
+	r.compile()
+
+	// Build enum lookup maps (reused for multiple enum constraints)
+	enumMaps := make(map[string]map[string]struct{})
+
+	for name, pc := range r.typedConstraints {
+		// Get parameter value
+		var value string
+		found := false
+
+		// Check fast array lookup first (up to 8 params)
+		for i := int32(0); i < ctx.paramCount; i++ {
+			if ctx.paramKeys[i] == name {
+				value = ctx.paramValues[i]
+				found = true
+				break
+			}
+		}
+
+		// Fallback to map for >8 parameters
+		if !found && ctx.Params != nil {
+			value, found = ctx.Params[name]
+		}
+
+		if !found {
+			return false // Parameter not found
+		}
+
+		// Validate based on constraint kind
+		switch pc.Kind {
+		case ConstraintInt:
+			if !reInt.MatchString(value) {
+				return false
+			}
+		case ConstraintFloat:
+			if !reFloat.MatchString(value) {
+				return false
+			}
+		case ConstraintUUID:
+			if !reUUID.MatchString(value) {
+				return false
+			}
+		case ConstraintRegex:
+			if pc.re == nil || !pc.re.MatchString(value) {
+				return false
+			}
+		case ConstraintEnum:
+			// Build enum lookup map if not already built
+			if _, exists := enumMaps[name]; !exists {
+				enumMap := make(map[string]struct{}, len(pc.Enum))
+				for _, v := range pc.Enum {
+					enumMap[v] = struct{}{}
+				}
+				enumMaps[name] = enumMap
+			}
+			if _, ok := enumMaps[name][value]; !ok {
+				return false
+			}
+		case ConstraintDate:
+			if !reDate.MatchString(value) {
+				return false
+			}
+		case ConstraintDateTime:
+			if !reDateTime.MatchString(value) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // routeTemplate represents a compiled route pattern for efficient reverse routing.

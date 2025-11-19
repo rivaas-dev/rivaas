@@ -8,7 +8,7 @@ import (
 
 // TestGroupPUT tests the PUT method on route groups
 func TestGroupPUT(t *testing.T) {
-	r := New()
+r := MustNew()
 	api := r.Group("/api")
 
 	called := false
@@ -39,7 +39,7 @@ func TestGroupPUT(t *testing.T) {
 
 // TestGroupDELETE tests the DELETE method on route groups
 func TestGroupDELETE(t *testing.T) {
-	r := New()
+r := MustNew()
 	api := r.Group("/api")
 
 	called := false
@@ -70,7 +70,7 @@ func TestGroupDELETE(t *testing.T) {
 
 // TestGroupPATCH tests the PATCH method on route groups
 func TestGroupPATCH(t *testing.T) {
-	r := New()
+r := MustNew()
 	api := r.Group("/api")
 
 	called := false
@@ -101,7 +101,7 @@ func TestGroupPATCH(t *testing.T) {
 
 // TestGroupOPTIONS tests the OPTIONS method on route groups
 func TestGroupOPTIONS(t *testing.T) {
-	r := New()
+r := MustNew()
 	api := r.Group("/api")
 
 	called := false
@@ -130,7 +130,7 @@ func TestGroupOPTIONS(t *testing.T) {
 
 // TestGroupHEAD tests the HEAD method on route groups
 func TestGroupHEAD(t *testing.T) {
-	r := New()
+r := MustNew()
 	api := r.Group("/api")
 
 	called := false
@@ -165,7 +165,7 @@ func TestGroupHEAD(t *testing.T) {
 
 // TestGroupNestedGroups tests nested route groups with all HTTP methods
 func TestGroupNestedGroups(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	api := r.Group("/api")
 	v1 := api.Group("/v1")
@@ -244,7 +244,7 @@ func TestGroupNestedGroups(t *testing.T) {
 
 // TestGroupMiddlewareInheritance tests that group middleware is properly inherited
 func TestGroupMiddlewareInheritance(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	var executionOrder []string
 
@@ -308,7 +308,7 @@ func TestGroupWithAllHTTPMethods(t *testing.T) {
 
 	for _, m := range methods {
 		t.Run(m.name, func(t *testing.T) {
-			r := New()
+r := MustNew()
 			group := r.Group("/api")
 
 			called := false
@@ -352,7 +352,7 @@ func TestGroupWithAllHTTPMethods(t *testing.T) {
 
 // TestGroupPUTWithMiddleware tests PUT with group-specific middleware
 func TestGroupPUTWithMiddleware(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	middlewareCalled := false
 	handlerCalled := false
@@ -387,7 +387,7 @@ func TestGroupPUTWithMiddleware(t *testing.T) {
 
 // TestGroupDELETEWithMiddleware tests DELETE with group-specific middleware
 func TestGroupDELETEWithMiddleware(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	authCalled := false
 	handlerCalled := false
@@ -422,7 +422,7 @@ func TestGroupDELETEWithMiddleware(t *testing.T) {
 
 // TestGroupPATCHWithParams tests PATCH with route parameters
 func TestGroupPATCHWithParams(t *testing.T) {
-	r := New()
+r := MustNew()
 	resources := r.Group("/resources")
 
 	resources.PATCH("/:type/:id", func(c *Context) {
@@ -451,7 +451,7 @@ func TestGroupPATCHWithParams(t *testing.T) {
 
 // TestGroupOPTIONSForCORS tests OPTIONS method for CORS preflight
 func TestGroupOPTIONSForCORS(t *testing.T) {
-	r := New()
+r := MustNew()
 	api := r.Group("/api")
 
 	api.OPTIONS("/*", func(c *Context) {
@@ -476,7 +476,7 @@ func TestGroupOPTIONSForCORS(t *testing.T) {
 
 // TestGroupHEADMatchesGET tests that HEAD requests work for HEAD-specific routes
 func TestGroupHEADMatchesGET(t *testing.T) {
-	r := New()
+r := MustNew()
 	api := r.Group("/api")
 
 	api.HEAD("/status", func(c *Context) {
@@ -505,7 +505,7 @@ func TestGroupHEADMatchesGET(t *testing.T) {
 
 // TestGroupMultipleHTTPMethodsSamePath tests registering multiple methods on same path
 func TestGroupMultipleHTTPMethodsSamePath(t *testing.T) {
-	r := New()
+r := MustNew()
 	api := r.Group("/api")
 
 	getCalled := false
@@ -556,7 +556,7 @@ func TestGroupMultipleHTTPMethodsSamePath(t *testing.T) {
 
 // TestGroupEmptyPath tests group with empty path parameter
 func TestGroupEmptyPath(t *testing.T) {
-	r := New()
+r := MustNew()
 	group := r.Group("/api")
 
 	// Test all methods with empty path
@@ -601,7 +601,7 @@ func TestGroupEmptyPath(t *testing.T) {
 
 // TestGroupMethodsWithConstraints tests HTTP methods with route constraints
 func TestGroupMethodsWithConstraints(t *testing.T) {
-	r := New()
+r := MustNew()
 	api := r.Group("/api")
 
 	// Test PUT with numeric constraint
@@ -649,7 +649,7 @@ func TestGroupMethodsWithConstraints(t *testing.T) {
 
 // TestGroup_EmptyPrefix tests creating group with empty prefix
 func TestGroup_EmptyPrefix(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Group with empty prefix
 	g := r.Group("")
@@ -669,7 +669,7 @@ func TestGroup_EmptyPrefix(t *testing.T) {
 
 // TestGroup_NestedEmptyPrefixes tests nested groups with empty prefixes
 func TestGroup_NestedEmptyPrefixes(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	g1 := r.Group("")
 	g2 := g1.Group("")
@@ -690,7 +690,7 @@ func TestGroup_NestedEmptyPrefixes(t *testing.T) {
 
 // TestGroup_WithMiddlewareInheritance tests middleware inheritance through nesting
 func TestGroup_WithMiddlewareInheritance(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	var order []string
 
@@ -725,7 +725,7 @@ func TestGroup_WithMiddlewareInheritance(t *testing.T) {
 // TestGroup_EmptyPrefixOnNestedGroup tests creating a nested group with empty prefix
 // when parent has a prefix. This covers the case where fullPrefix = g.prefix.
 func TestGroup_EmptyPrefixOnNestedGroup(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Parent group with prefix
 	api := r.Group("/api")

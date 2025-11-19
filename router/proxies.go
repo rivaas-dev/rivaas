@@ -142,14 +142,14 @@ func (cfg *realIPConfig) isTrusted(ip string) bool {
 //
 // Example:
 //
-//	r := router.New(
+//	r := router.MustNew(
 //	    router.WithTrustedProxies(
 //	        router.WithProxies("10.0.0.0/8", "192.168.0.0/16"),
 //	    ),
 //	)
 //
 //	// With custom headers and max hops:
-//	r := router.New(
+//	r := router.MustNew(
 //	    router.WithTrustedProxies(
 //	        router.WithProxies("10.0.0.0/8", "192.168.0.0/16"),
 //	        router.WithProxyHeaders(router.HeaderXFF, router.HeaderXRealIP),
@@ -191,7 +191,7 @@ func WithTrustedProxies(opts ...TrustedProxyOption) Option {
 //	func handler(c *router.Ctx) error {
 //	    clientIP := c.ClientIP()
 //	    // Use clientIP for rate limiting, logging, etc.
-//	    return c.JSON(200, map[string]string{"ip": clientIP})
+//	    return c.JSON(http.StatusOK, map[string]string{"ip": clientIP})
 //	}
 func (c *Context) ClientIP() string {
 	remote := clientIPFromRemoteAddr(c.Request.RemoteAddr)
@@ -213,16 +213,14 @@ func (c *Context) ClientIP() string {
 		switch h {
 		case HeaderXFF:
 			if ip := lastUntrustedXFF(c.Request.Header.Get("X-Forwarded-For"), cfg); ip != "" {
-				// Log suspicious long chains
+				// Report suspicious long chains
 				xff := c.Request.Header.Get("X-Forwarded-For")
 				if strings.Count(xff, ",") > 10 {
-					if c.router.logger != nil {
-						c.router.logger.Warn("suspicious X-Forwarded-For chain",
-							"remote", remote,
-							"xff_count", strings.Count(xff, ",")+1,
-							"xff", xff,
-						)
-					}
+					c.router.emit(DiagXFFSuspicious, "suspicious X-Forwarded-For chain detected", map[string]any{
+						"remote":    remote,
+						"xff_count": strings.Count(xff, ",") + 1,
+						"xff":       xff,
+					})
 				}
 				return ip
 			}

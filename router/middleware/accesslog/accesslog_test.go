@@ -1,72 +1,102 @@
 package accesslog
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/requestid"
 )
 
-// mockLogger implements the logging.Logger interface for testing
-type mockLogger struct {
-	errorCalls []call
-	warnCalls  []call
-	infoCalls  []call
-	debugCalls []call
+// testHandler is a slog.Handler implementation for testing that captures log records.
+type testHandler struct {
+	mu      sync.Mutex
+	records []testRecord
 }
 
-type call struct {
-	msg    string
-	fields []any
+type testRecord struct {
+	level slog.Level
+	msg   string
+	attrs map[string]any
 }
 
-func (m *mockLogger) Error(msg string, args ...any) {
-	m.errorCalls = append(m.errorCalls, call{msg: msg, fields: args})
-}
-
-func (m *mockLogger) Warn(msg string, args ...any) {
-	m.warnCalls = append(m.warnCalls, call{msg: msg, fields: args})
-}
-
-func (m *mockLogger) Info(msg string, args ...any) {
-	m.infoCalls = append(m.infoCalls, call{msg: msg, fields: args})
-}
-
-func (m *mockLogger) Debug(msg string, args ...any) {
-	m.debugCalls = append(m.debugCalls, call{msg: msg, fields: args})
-}
-
-func (m *mockLogger) reset() {
-	m.errorCalls = nil
-	m.warnCalls = nil
-	m.infoCalls = nil
-	m.debugCalls = nil
-}
-
-func (m *mockLogger) getFields(calls []call) map[string]any {
-	if len(calls) == 0 {
-		return nil
+func newTestHandler() *testHandler {
+	return &testHandler{
+		records: make([]testRecord, 0),
 	}
-	// Convert key-value pairs to map
-	fields := make(map[string]any)
-	for i := 0; i < len(calls[0].fields); i += 2 {
-		if i+1 < len(calls[0].fields) {
-			key, ok := calls[0].fields[i].(string)
-			if ok {
-				fields[key] = calls[0].fields[i+1]
-			}
+}
+
+func (h *testHandler) Enabled(_ context.Context, _ slog.Level) bool {
+	return true
+}
+
+func (h *testHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	attrs := make(map[string]any)
+	r.Attrs(func(a slog.Attr) bool {
+		attrs[a.Key] = a.Value.Any()
+		return true
+	})
+
+	h.records = append(h.records, testRecord{
+		level: r.Level,
+		msg:   r.Message,
+		attrs: attrs,
+	})
+	return nil
+}
+
+func (h *testHandler) WithAttrs(_ []slog.Attr) slog.Handler {
+	return h
+}
+
+func (h *testHandler) WithGroup(_ string) slog.Handler {
+	return h
+}
+
+func (h *testHandler) reset() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = nil
+}
+
+func (h *testHandler) getRecords(level slog.Level) []testRecord {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	var result []testRecord
+	for _, r := range h.records {
+		if r.level == level {
+			result = append(result, r)
 		}
 	}
-	return fields
+	return result
+}
+
+func (h *testHandler) getFields(level slog.Level) map[string]any {
+	records := h.getRecords(level)
+	if len(records) == 0 {
+		return nil
+	}
+	// Return attributes from the first matching record
+	return records[0].attrs
 }
 
 func TestAccessLog_BasicLogging(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New())
+	handler := newTestHandler()
+	logger := slog.New(handler)
+
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
@@ -75,65 +105,64 @@ func TestAccessLog_BasicLogging(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if len(logger.infoCalls) != 1 {
-		t.Fatalf("Expected 1 info log call, got %d", len(logger.infoCalls))
-	}
+	records := handler.getRecords(slog.LevelInfo)
+	require.Len(t, records, 1, "Expected exactly 1 info log")
+	assert.Equal(t, "access", records[0].msg)
 
-	if logger.infoCalls[0].msg != "access" {
-		t.Errorf("Expected log message 'access', got %s", logger.infoCalls[0].msg)
-	}
-
-	fields := logger.getFields(logger.infoCalls)
-	if fields["method"] != "GET" {
-		t.Errorf("Expected method 'GET', got %v", fields["method"])
-	}
-	if fields["path"] != "/test" {
-		t.Errorf("Expected path '/test', got %v", fields["path"])
-	}
-	if fields["status"] != http.StatusOK {
-		t.Errorf("Expected status 200, got %v", fields["status"])
-	}
+	fields := handler.getFields(slog.LevelInfo)
+	assert.Equal(t, "GET", fields["method"])
+	assert.Equal(t, "/test", fields["path"])
+	assert.Equal(t, int64(http.StatusOK), fields["status"])
 }
 
 func TestAccessLog_ExcludePaths(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New(
-		WithExcludePaths("/health", "/metrics"),
-	))
-
-	r.GET("/health", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"status": "healthy"})
-	})
-	r.GET("/api", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	// Request to excluded path
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if len(logger.infoCalls) > 0 || len(logger.warnCalls) > 0 || len(logger.errorCalls) > 0 {
-		t.Errorf("Excluded path should not be logged, got %d info, %d warn, %d error calls",
-			len(logger.infoCalls), len(logger.warnCalls), len(logger.errorCalls))
+	tests := []struct {
+		name      string
+		path      string
+		shouldLog bool
+	}{
+		{"excluded /health", "/health", false},
+		{"excluded /metrics", "/metrics", false},
+		{"non-excluded /api", "/api", true},
 	}
 
-	// Request to non-excluded path
-	logger.reset()
-	req = httptest.NewRequest(http.MethodGet, "/api", nil)
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := newTestHandler()
+			logger := slog.New(handler)
 
-	if len(logger.infoCalls) == 0 {
-		t.Error("Non-excluded path should be logged")
+			r := router.MustNew()
+			r.Use(New(
+				WithLogger(logger),
+				WithExcludePaths("/health", "/metrics"),
+			))
+			r.GET(tt.path, func(c *router.Context) {
+				c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+			})
+
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			totalLogs := len(handler.getRecords(slog.LevelInfo)) +
+				len(handler.getRecords(slog.LevelWarn)) +
+				len(handler.getRecords(slog.LevelError))
+
+			if tt.shouldLog {
+				assert.Greater(t, totalLogs, 0, "Path should be logged")
+			} else {
+				assert.Equal(t, 0, totalLogs, "Path should not be logged")
+			}
+		})
 	}
 }
 
 func TestAccessLog_ExcludePrefixes(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
 	r.Use(New(
+		WithLogger(logger),
 		WithExcludePrefixes("/metrics", "/debug"),
 	))
 
@@ -160,12 +189,12 @@ func TestAccessLog_ExcludePrefixes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			logger.reset()
+			handler.reset()
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			hasLogs := len(logger.infoCalls) > 0 || len(logger.warnCalls) > 0 || len(logger.errorCalls) > 0
+			hasLogs := len(handler.getRecords(slog.LevelInfo)) > 0 || len(handler.getRecords(slog.LevelWarn)) > 0 || len(handler.getRecords(slog.LevelError)) > 0
 			if tc.shouldLog && !hasLogs {
 				t.Errorf("Path %s should be logged, but wasn't", tc.path)
 			}
@@ -177,9 +206,10 @@ func TestAccessLog_ExcludePrefixes(t *testing.T) {
 }
 
 func TestAccessLog_StatusCodes(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New())
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 
 	testCases := []struct {
 		name          string
@@ -196,7 +226,7 @@ func TestAccessLog_StatusCodes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			logger.reset()
+			handler.reset()
 			r.GET("/test", func(c *router.Context) {
 				c.Status(tc.statusCode)
 				c.JSON(tc.statusCode, map[string]string{"status": "test"})
@@ -206,35 +236,34 @@ func TestAccessLog_StatusCodes(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			var calls []call
+			var level slog.Level
 			switch tc.expectedLevel {
 			case "error":
-				calls = logger.errorCalls
+				level = slog.LevelError
 			case "warn":
-				calls = logger.warnCalls
+				level = slog.LevelWarn
 			case "info":
-				calls = logger.infoCalls
+				level = slog.LevelInfo
 			}
 
-			if len(calls) != 1 {
-				t.Errorf("Expected 1 %s log call, got %d", tc.expectedLevel, len(calls))
-			}
+			records := handler.getRecords(level)
+			require.Len(t, records, 1, "Expected 1 %s log call", tc.expectedLevel)
 
-			if len(calls) > 0 {
-				fields := logger.getFields(calls)
-				if fields["status"] != tc.statusCode {
-					t.Errorf("Expected status %d, got %v", tc.statusCode, fields["status"])
-				}
+			if len(records) > 0 {
+				fields := handler.getFields(level)
+				assert.Equal(t, int64(tc.statusCode), fields["status"])
 			}
 		})
 	}
 }
 
 func TestAccessLog_SlowRequest(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
 	r.Use(New(
-		WithSlowThreshold(100 * time.Millisecond),
+		WithLogger(logger),
+		WithSlowThreshold(100*time.Millisecond),
 	))
 
 	r.GET("/fast", func(c *router.Context) {
@@ -251,35 +280,27 @@ func TestAccessLog_SlowRequest(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if len(logger.infoCalls) != 1 {
-		t.Errorf("Fast request should log at info level, got %d calls", len(logger.infoCalls))
-	}
-	if len(logger.warnCalls) > 0 {
-		t.Error("Fast request should not log at warn level")
-	}
+	assert.Len(t, handler.getRecords(slog.LevelInfo), 1, "Fast request should log at info level")
+	assert.Empty(t, handler.getRecords(slog.LevelWarn), "Fast request should not log at warn level")
 
 	// Slow request
-	logger.reset()
+	handler.reset()
 	req = httptest.NewRequest(http.MethodGet, "/slow", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if len(logger.warnCalls) != 1 {
-		t.Errorf("Slow request should log at warn level, got %d warn calls", len(logger.warnCalls))
-	}
+	assert.Len(t, handler.getRecords(slog.LevelWarn), 1, "Slow request should log at warn level")
 
-	if len(logger.warnCalls) > 0 {
-		fields := logger.getFields(logger.warnCalls)
-		if fields["slow"] != true {
-			t.Error("Slow request should have 'slow' field set to true")
-		}
-	}
+	fields := handler.getFields(slog.LevelWarn)
+	assert.Equal(t, true, fields["slow"])
 }
 
 func TestAccessLog_ErrorsOnly(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
 	r.Use(New(
+		WithLogger(logger),
 		WithErrorsOnly(),
 	))
 
@@ -296,25 +317,24 @@ func TestAccessLog_ErrorsOnly(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if len(logger.infoCalls) > 0 || len(logger.warnCalls) > 0 || len(logger.errorCalls) > 0 {
-		t.Error("Success request should not be logged when errorsOnly is enabled")
-	}
+	totalLogs := len(handler.getRecords(slog.LevelInfo)) + len(handler.getRecords(slog.LevelWarn)) + len(handler.getRecords(slog.LevelError))
+	assert.Equal(t, 0, totalLogs, "Success request should not be logged when errorsOnly is enabled")
 
 	// Error request should be logged
-	logger.reset()
+	handler.reset()
 	req = httptest.NewRequest(http.MethodGet, "/error", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if len(logger.warnCalls) == 0 {
-		t.Error("Error request should be logged when errorsOnly is enabled")
-	}
+	assert.NotEmpty(t, handler.getRecords(slog.LevelWarn), "Error request should be logged when errorsOnly is enabled")
 }
 
 func TestAccessLog_Sampling(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
 	r.Use(New(
+		WithLogger(logger),
 		WithSampleRate(0.5), // 50% sampling
 	))
 
@@ -332,10 +352,10 @@ func TestAccessLog_Sampling(t *testing.T) {
 	// Run multiple times - all should make the same decision
 	decisions := make([]bool, 10)
 	for i := 0; i < 10; i++ {
-		logger.reset()
+		handler.reset()
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
-		decisions[i] = len(logger.infoCalls) > 0
+		decisions[i] = len(handler.getRecords(slog.LevelInfo)) > 0
 	}
 
 	// All decisions should be the same (deterministic)
@@ -348,9 +368,11 @@ func TestAccessLog_Sampling(t *testing.T) {
 }
 
 func TestAccessLog_SlowRequestBypassesSampling(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
 	r.Use(New(
+		WithLogger(logger),
 		WithSampleRate(0.0), // Sample 0% (should skip all)
 		WithSlowThreshold(50*time.Millisecond),
 	))
@@ -365,14 +387,14 @@ func TestAccessLog_SlowRequestBypassesSampling(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Slow request should bypass sampling and be logged
-	if len(logger.warnCalls) == 0 {
-		t.Error("Slow request should bypass sampling and be logged")
-	}
+	assert.NotEmpty(t, handler.getRecords(slog.LevelWarn), "Slow request should bypass sampling and be logged")
 }
 
 func TestAccessLog_ErrorBypassesSampling(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 	r.Use(New(
 		WithSampleRate(0.0), // Sample 0% (should skip all)
 	))
@@ -386,15 +408,14 @@ func TestAccessLog_ErrorBypassesSampling(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Error request should bypass sampling and be logged
-	if len(logger.warnCalls) == 0 {
-		t.Error("Error request should bypass sampling and be logged")
-	}
+	assert.NotEmpty(t, handler.getRecords(slog.LevelWarn), "Error request should bypass sampling and be logged")
 }
 
 func TestAccessLog_RouteTemplate(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New())
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 
 	r.GET("/users/:id", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"user_id": c.Param("id")})
@@ -404,27 +425,25 @@ func TestAccessLog_RouteTemplate(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if len(logger.infoCalls) != 1 {
-		t.Fatalf("Expected 1 info log call, got %d", len(logger.infoCalls))
+	if len(handler.getRecords(slog.LevelInfo)) != 1 {
+		t.Fatalf("Expected 1 info log call, got %d", len(handler.getRecords(slog.LevelInfo)))
 	}
 
-	fields := logger.getFields(logger.infoCalls)
-	if fields["route"] != "/users/:id" {
-		t.Errorf("Expected route template '/users/:id', got %v", fields["route"])
-	}
+	fields := handler.getFields(slog.LevelInfo)
+	assert.Equal(t, "/users/:id", fields["route"])
 }
 
 func TestAccessLog_ClientIP(t *testing.T) {
-	logger := &mockLogger{}
+	handler := newTestHandler()
+	logger := slog.New(handler)
 	// Configure trusted proxies to test X-Forwarded-For header trust
 	// 10.0.0.0/8 covers the test proxy IPs (10.0.0.1)
-	r := router.New(
-		router.WithLogger(logger),
+	r := router.MustNew(
 		router.WithTrustedProxies(
 			router.WithProxies("10.0.0.0/8", "192.168.0.0/16"),
 		),
 	)
-	r.Use(New())
+	r.Use(New(WithLogger(logger)))
 
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -445,7 +464,7 @@ func TestAccessLog_ClientIP(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			logger.reset()
+			handler.reset()
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			if tc.remoteAddr != "" {
 				req.RemoteAddr = tc.remoteAddr
@@ -457,7 +476,7 @@ func TestAccessLog_ClientIP(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			fields := logger.getFields(logger.infoCalls)
+			fields := handler.getFields(slog.LevelInfo)
 			if fields["client_ip"] != tc.expectedIP {
 				t.Errorf("Expected client_ip '%s', got '%v'", tc.expectedIP, fields["client_ip"])
 			}
@@ -466,10 +485,11 @@ func TestAccessLog_ClientIP(t *testing.T) {
 }
 
 func TestAccessLog_AllFields(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
 	r.Use(requestid.New())
-	r.Use(New())
+	r.Use(New(WithLogger(logger)))
 
 	r.GET("/users/:id", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"user_id": c.Param("id")})
@@ -481,11 +501,11 @@ func TestAccessLog_AllFields(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if len(logger.infoCalls) != 1 {
-		t.Fatalf("Expected 1 info log call, got %d", len(logger.infoCalls))
+	if len(handler.getRecords(slog.LevelInfo)) != 1 {
+		t.Fatalf("Expected 1 info log call, got %d", len(handler.getRecords(slog.LevelInfo)))
 	}
 
-	fields := logger.getFields(logger.infoCalls)
+	fields := handler.getFields(slog.LevelInfo)
 	requiredFields := []string{"method", "path", "status", "duration_ms", "bytes_sent", "user_agent", "client_ip", "host", "proto", "route"}
 
 	for _, field := range requiredFields {
@@ -511,8 +531,8 @@ func TestAccessLog_AllFields(t *testing.T) {
 
 func TestAccessLog_NoLogger(t *testing.T) {
 	// Test that middleware works even when no logger is configured
-	r := router.New() // No logger set
-	r.Use(New())
+	r := router.MustNew() // No logger set
+	r.Use(New())          // No logger option provided
 
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -524,15 +544,14 @@ func TestAccessLog_NoLogger(t *testing.T) {
 	// Should not panic
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestAccessLog_ResponseWriterInterfaces(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New())
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 
 	// Test that responseWriter preserves optional interfaces
 	// This is tested indirectly - if interfaces weren't preserved, certain operations would fail
@@ -548,15 +567,14 @@ func TestAccessLog_ResponseWriterInterfaces(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestAccessLog_BytesSent(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New())
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 
 	responseBody := `{"message": "hello world"}`
 	r.GET("/test", func(c *router.Context) {
@@ -568,10 +586,8 @@ func TestAccessLog_BytesSent(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	fields := logger.getFields(logger.infoCalls)
-	if fields["bytes_sent"] != len(responseBody) {
-		t.Errorf("Expected bytes_sent %d, got %v", len(responseBody), fields["bytes_sent"])
-	}
+	fields := handler.getFields(slog.LevelInfo)
+	assert.Equal(t, int64(len(responseBody)), fields["bytes_sent"])
 }
 
 func TestSampleByHash(t *testing.T) {
@@ -612,9 +628,11 @@ func TestSampleByHash(t *testing.T) {
 // tests of the trusted proxy functionality.
 
 func TestAccessLog_CombinedOptions(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
 	r.Use(New(
+		WithLogger(logger),
 		WithExcludePaths("/health"),
 		WithExcludePrefixes("/metrics"),
 		WithSlowThreshold(100*time.Millisecond),
@@ -652,12 +670,12 @@ func TestAccessLog_CombinedOptions(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			logger.reset()
+			handler.reset()
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			hasLogs := len(logger.infoCalls) > 0 || len(logger.warnCalls) > 0 || len(logger.errorCalls) > 0
+			hasLogs := len(handler.getRecords(slog.LevelInfo)) > 0 || len(handler.getRecords(slog.LevelWarn)) > 0 || len(handler.getRecords(slog.LevelError)) > 0
 			if tc.shouldLog && !hasLogs {
 				t.Errorf("Path %s should be logged, but wasn't", tc.path)
 			}
@@ -669,9 +687,10 @@ func TestAccessLog_CombinedOptions(t *testing.T) {
 }
 
 func TestAccessLog_Duration(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New())
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 
 	r.GET("/test", func(c *router.Context) {
 		time.Sleep(50 * time.Millisecond)
@@ -682,7 +701,7 @@ func TestAccessLog_Duration(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	fields := logger.getFields(logger.infoCalls)
+	fields := handler.getFields(slog.LevelInfo)
 	durationMs, ok := fields["duration_ms"].(int64)
 	if !ok {
 		t.Fatal("duration_ms field should be present and be int64")
@@ -705,9 +724,10 @@ func TestAccessLog_ResponseWriterPreservation(t *testing.T) {
 		_ interface{ Size() int }       = (*responseWriter)(nil)
 	)
 
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New())
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 
 	r.GET("/test", func(c *router.Context) {
 		// Test that we can check for interfaces
@@ -727,9 +747,10 @@ func TestAccessLog_ResponseWriterPreservation(t *testing.T) {
 }
 
 func TestAccessLog_StatusCodeTracking(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New())
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 
 	testCases := []struct {
 		statusCode int
@@ -745,7 +766,7 @@ func TestAccessLog_StatusCodeTracking(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			logger.reset()
+			handler.reset()
 			r.GET("/test", func(c *router.Context) {
 				c.Status(tc.statusCode)
 				c.Response.Write([]byte("test response"))
@@ -760,18 +781,19 @@ func TestAccessLog_StatusCodeTracking(t *testing.T) {
 			}
 
 			// Check that status was logged correctly
-			var calls []call
+			var level slog.Level
 			if tc.statusCode >= 500 {
-				calls = logger.errorCalls
+				level = slog.LevelError
 			} else if tc.statusCode >= 400 {
-				calls = logger.warnCalls
+				level = slog.LevelWarn
 			} else {
-				calls = logger.infoCalls
+				level = slog.LevelInfo
 			}
 
-			if len(calls) > 0 {
-				fields := logger.getFields(calls)
-				if fields["status"] != tc.statusCode {
+			records := handler.getRecords(level)
+			if len(records) > 0 {
+				fields := handler.getFields(level)
+				if fields["status"] != int64(tc.statusCode) {
 					t.Errorf("Expected logged status %d, got %v", tc.statusCode, fields["status"])
 				}
 			}
@@ -780,10 +802,12 @@ func TestAccessLog_StatusCodeTracking(t *testing.T) {
 }
 
 func TestAccessLog_RequestIDSampling(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
 	r.Use(requestid.New())
 	r.Use(New(
+		WithLogger(logger),
 		WithSampleRate(0.5), // 50% sampling
 	))
 
@@ -799,15 +823,15 @@ func TestAccessLog_RequestIDSampling(t *testing.T) {
 	req2.Header.Set("X-Request-ID", "same-id-123")
 
 	// Both should make the same decision
-	logger.reset()
+	handler.reset()
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
-	decision1 := len(logger.infoCalls) > 0
+	decision1 := len(handler.getRecords(slog.LevelInfo)) > 0
 
-	logger.reset()
+	handler.reset()
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
-	decision2 := len(logger.infoCalls) > 0
+	decision2 := len(handler.getRecords(slog.LevelInfo)) > 0
 
 	if decision1 != decision2 {
 		t.Error("Same request ID should produce same sampling decision")
@@ -815,8 +839,10 @@ func TestAccessLog_RequestIDSampling(t *testing.T) {
 }
 
 func TestAccessLog_NoRequestIDSampling(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 	// Don't use requestid middleware - no request ID available
 	r.Use(New(
 		WithSampleRate(0.0), // 0% sampling
@@ -831,15 +857,14 @@ func TestAccessLog_NoRequestIDSampling(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// Without request ID, should always log (sampling returns true for empty ID)
-	if len(logger.infoCalls) == 0 {
-		t.Error("Request without request ID should always log (no sampling)")
-	}
+	assert.NotEmpty(t, handler.getRecords(slog.LevelInfo), "Request without request ID should always log (no sampling)")
 }
 
 func TestAccessLog_HostAndProto(t *testing.T) {
-	logger := &mockLogger{}
-	r := router.New(router.WithLogger(logger))
-	r.Use(New())
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	r := router.MustNew()
+	r.Use(New(WithLogger(logger)))
 
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -849,11 +874,7 @@ func TestAccessLog_HostAndProto(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	fields := logger.getFields(logger.infoCalls)
-	if fields["host"] != "example.com:8080" {
-		t.Errorf("Expected host 'example.com:8080', got %v", fields["host"])
-	}
-	if fields["proto"] != "HTTP/1.1" {
-		t.Errorf("Expected proto 'HTTP/1.1', got %v", fields["proto"])
-	}
+	fields := handler.getFields(slog.LevelInfo)
+	assert.Equal(t, "example.com:8080", fields["host"])
+	assert.Equal(t, "HTTP/1.1", fields["proto"])
 }

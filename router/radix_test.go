@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -182,14 +183,14 @@ func TestRadixSuite(t *testing.T) {
 
 // TestEdgeCasesInRadixTree tests edge cases in radix tree matching
 func TestEdgeCasesInRadixTree(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	t.Run("Empty segments", func(t *testing.T) {
 		r.GET("/a//b", func(c *Context) {
-			c.String(200, "ok")
+			c.String(http.StatusOK, "ok")
 		})
 
-		req := httptest.NewRequest("GET", "/a//b", nil)
+		req := httptest.NewRequest(http.MethodGet, "/a//b", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -201,14 +202,14 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 
 	t.Run("Trailing slash handling", func(t *testing.T) {
 		r.GET("/users/", func(c *Context) {
-			c.String(200, "users with slash")
+			c.String(http.StatusOK, "users with slash")
 		})
 		r.GET("/posts", func(c *Context) {
-			c.String(200, "posts without slash")
+			c.String(http.StatusOK, "posts without slash")
 		})
 
 		// Test exact match with trailing slash
-		req := httptest.NewRequest("GET", "/users/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users/", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 		if w.Code != 200 {
@@ -232,10 +233,10 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 
 	t.Run("Multiple parameters in path", func(t *testing.T) {
 		r.GET("/a/:p1/b/:p2/c/:p3", func(c *Context) {
-			c.String(200, "%s-%s-%s", c.Param("p1"), c.Param("p2"), c.Param("p3"))
+			c.String(http.StatusOK, "%s-%s-%s", c.Param("p1"), c.Param("p2"), c.Param("p3"))
 		})
 
-		req := httptest.NewRequest("GET", "/a/x/b/y/c/z", nil)
+		req := httptest.NewRequest(http.MethodGet, "/a/x/b/y/c/z", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -250,10 +251,10 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 
 	t.Run("Parameter at end of path", func(t *testing.T) {
 		r.GET("/items/:id", func(c *Context) {
-			c.String(200, "item %s", c.Param("id"))
+			c.String(http.StatusOK, "item %s", c.Param("id"))
 		})
 
-		req := httptest.NewRequest("GET", "/items/abc123", nil)
+		req := httptest.NewRequest(http.MethodGet, "/items/abc123", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -277,7 +278,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 
 			// Verify Params map was created
 			if c.Params == nil {
-				c.String(500, "Params map not created")
+				c.String(http.StatusInternalServerError, "Params map not created")
 				return
 			}
 
@@ -286,10 +287,10 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 			p1 := c.Param("p1")
 			p8 := c.Param("p8")
 			p9 := c.Param("p9") // Should retrieve from Params map
-			c.String(200, "count=%d,p1=%s,p8=%s,p9=%s", c.paramCount, p1, p8, p9)
+			c.String(http.StatusOK, "count=%d,p1=%s,p8=%s,p9=%s", c.paramCount, p1, p8, p9)
 		})
 
-		req := httptest.NewRequest("GET", "/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9", nil)
+		req := httptest.NewRequest(http.MethodGet, "/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -341,10 +342,10 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 			// Also verify via Param() method
 			p9Param := c.Param("p9")
 			p10Param := c.Param("p10")
-			c.String(200, "p9=%s,p10=%s,p9Param=%s,p10Param=%s", p9Value, p10Value, p9Param, p10Param)
+			c.String(http.StatusOK, "p9=%s,p10=%s,p9Param=%s,p10Param=%s", p9Value, p10Value, p9Param, p10Param)
 		})
 
-		req := httptest.NewRequest("GET", "/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9/j/v10", nil)
+		req := httptest.NewRequest(http.MethodGet, "/a/v1/b/v2/c/v3/d/v4/e/v5/f/v6/g/v7/h/v8/i/v9/j/v10", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)

@@ -73,14 +73,14 @@ type ParameterReader interface {
 // Example usage:
 //
 //	func sendResponse(writer ResponseWriter) error {
-//	    return writer.JSON(200, map[string]string{"status": "ok"})
+//	    return writer.JSON(http.StatusOK, map[string]string{"status": "ok"})
 //	}
 type ResponseWriter interface {
 	// JSON sends a JSON response with the specified status code.
 	// Automatically sets Content-Type header to "application/json; charset=utf-8".
 	//
 	// Example:
-	//   c.JSON(200, map[string]string{"message": "success"})
+	//   c.JSON(http.StatusOK, map[string]string{"message": "success"})
 	JSON(code int, obj any) error
 
 	// IndentedJSON sends a JSON response with indentation for readability.
@@ -115,14 +115,14 @@ type ResponseWriter interface {
 	// Supports format strings similar to fmt.Printf.
 	//
 	// Example:
-	//   c.String(200, "Hello, %s", name)
-	//   c.String(200, "Simple message")
+	//   c.String(http.StatusOK, "Hello, %s", name)
+	//   c.String(http.StatusOK, "Simple message")
 	String(code int, format string, values ...any) error
 
 	// HTML sends an HTML response with the specified status code.
 	//
 	// Example:
-	//   c.HTML(200, "<h1>Welcome</h1>")
+	//   c.HTML(http.StatusOK, "<h1>Welcome</h1>")
 	HTML(code int, html string) error
 
 	// YAML sends a YAML response with the specified status code.
@@ -141,7 +141,7 @@ type ResponseWriter interface {
 	// Should be called before writing any response body.
 	//
 	// Example:
-	//   c.Status(204) // No Content
+	//   c.Status(http.StatusNoContent) // No Content
 	Status(code int)
 
 	// Header sets a response header with automatic security sanitization.
@@ -199,50 +199,9 @@ type ContextReader interface {
 
 // ContextWriter combines ResponseWriter with additional context writing methods.
 // This interface extends ResponseWriter with methods that write context-specific
-// responses like problem details and error responses.
-//
-// Example usage:
-//
-//	func sendError(writer ContextWriter) error {
-//	    return writer.NotFoundProblem()
-//	}
+// responses.
 type ContextWriter interface {
 	ResponseWriter
-
-	// ProblemDetail sends a problem detail response (RFC 7807).
-	//
-	// Example:
-	//   c.ProblemDetail(&ProblemDetail{
-	//       Status: 400,
-	//       Type:   "validation_error",
-	//       Title:  "Validation Failed",
-	//       Detail: "The email field is required",
-	//   })
-	ProblemDetail(p *ProblemDetail) error
-
-	// Problem sends a problem detail response with convenience parameters.
-	//
-	// Example:
-	//   c.Problem(400, "validation_error", "Validation Failed", "Email is required", nil)
-	Problem(status int, typeURI, title, detail string, ext map[string]any) error
-
-	// NotFoundProblem sends a 404 Not Found problem detail response.
-	NotFoundProblem() error
-
-	// MethodNotAllowedProblem sends a 405 Method Not Allowed problem detail response.
-	MethodNotAllowedProblem(allowed []string) error
-
-	// UnauthorizedProblem sends a 401 Unauthorized problem detail response.
-	UnauthorizedProblem(detail string) error
-
-	// ForbiddenProblem sends a 403 Forbidden problem detail response.
-	ForbiddenProblem(detail string) error
-
-	// ConflictProblem sends a 409 Conflict problem detail response.
-	ConflictProblem(detail string) error
-
-	// InternalProblem sends a 500 Internal Server Error problem detail response.
-	InternalProblem(detail string) error
 }
 
 // Ensure Context implements all interfaces at compile time.

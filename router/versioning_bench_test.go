@@ -75,7 +75,7 @@ func BenchmarkFastAcceptVersion(b *testing.B) {
 
 // BenchmarkVersionDetection benchmarks the version detection function with validation
 func BenchmarkVersionDetection(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithHeaderVersioning("X-API-Version"),
 		WithValidVersions("v1", "v2", "v3"),
 		WithDefaultVersion("v1"),
@@ -92,7 +92,7 @@ func BenchmarkVersionDetection(b *testing.B) {
 
 // BenchmarkVersionDetectionNoValidation benchmarks the version detection function without validation
 func BenchmarkVersionDetectionNoValidation(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithHeaderVersioning("X-API-Version"),
 		WithDefaultVersion("v1"),
 	))
@@ -109,7 +109,7 @@ func BenchmarkVersionDetectionNoValidation(b *testing.B) {
 // BenchmarkVersionDetectionWithObserver benchmarks the version detection function with observer
 func BenchmarkVersionDetectionWithObserver(b *testing.B) {
 	detectedCount := 0
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithHeaderVersioning("X-API-Version"),
 		WithDefaultVersion("v1"),
 		WithVersionObserver(
@@ -130,7 +130,7 @@ func BenchmarkVersionDetectionWithObserver(b *testing.B) {
 
 // BenchmarkVersionDetectionPathPriority benchmarks the version detection function with path priority
 func BenchmarkVersionDetectionPathPriority(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithPathVersioning("/v{version}/"),
 		WithHeaderVersioning("X-API-Version"),
 		WithQueryVersioning("v"),
@@ -152,7 +152,7 @@ func BenchmarkVersionDetectionPathPriority(b *testing.B) {
 
 // BenchmarkVersionDetectionHeaderPriority benchmarks the version detection function with header priority
 func BenchmarkVersionDetectionHeaderPriority(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithHeaderVersioning("X-API-Version"),
 		WithQueryVersioning("v"),
 		WithDefaultVersion("v1"),
@@ -173,7 +173,7 @@ func BenchmarkVersionDetectionHeaderPriority(b *testing.B) {
 
 // BenchmarkAcceptVersioning benchmarks the accept versioning function
 func BenchmarkAcceptVersioning(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithAcceptVersioning("application/vnd.myapi.{version}+json"),
 		WithDefaultVersion("v1"),
 	))
@@ -192,7 +192,7 @@ func BenchmarkAcceptVersioning(b *testing.B) {
 
 // BenchmarkAcceptVersioningMultipleValues benchmarks the accept versioning function with multiple values
 func BenchmarkAcceptVersioningMultipleValues(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithAcceptVersioning("application/vnd.myapi.{version}+json"),
 		WithDefaultVersion("v1"),
 	))
@@ -211,19 +211,19 @@ func BenchmarkAcceptVersioningMultipleValues(b *testing.B) {
 
 // BenchmarkVersionedRequest benchmarks the versioned request handling function
 func BenchmarkVersionedRequest(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithHeaderVersioning("X-API-Version"),
 		WithDefaultVersion("v1"),
 	))
 
 	v1 := r.Version("v1")
 	v1.GET("/users", func(c *Context) {
-		c.String(200, "v1 users")
+		c.String(http.StatusOK, "v1 users")
 	})
 
 	v2 := r.Version("v2")
 	v2.GET("/users", func(c *Context) {
-		c.String(200, "v2 users")
+		c.String(http.StatusOK, "v2 users")
 	})
 
 	req := httptest.NewRequest("GET", "/users", nil)
@@ -238,7 +238,7 @@ func BenchmarkVersionedRequest(b *testing.B) {
 
 // BenchmarkVersionedRequestWithDeprecation benchmarks the versioned request handling function with deprecation
 func BenchmarkVersionedRequestWithDeprecation(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithHeaderVersioning("X-API-Version"),
 		WithDefaultVersion("v1"),
 		WithDeprecatedVersion("v1", time.Now().Add(30*24*time.Hour)),
@@ -246,7 +246,7 @@ func BenchmarkVersionedRequestWithDeprecation(b *testing.B) {
 
 	v1 := r.Version("v1")
 	v1.GET("/users", func(c *Context) {
-		c.String(200, "v1 users")
+		c.String(http.StatusOK, "v1 users")
 	})
 
 	req := httptest.NewRequest("GET", "/users", nil)
@@ -261,19 +261,19 @@ func BenchmarkVersionedRequestWithDeprecation(b *testing.B) {
 
 // BenchmarkPathVersioning benchmarks the path versioning function
 func BenchmarkPathVersioning(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithPathVersioning("/v{version}/"),
 		WithDefaultVersion("v1"),
 	))
 
 	v1 := r.Version("v1")
 	v1.GET("/users", func(c *Context) {
-		c.String(200, "v1 users")
+		c.String(http.StatusOK, "v1 users")
 	})
 
 	v2 := r.Version("v2")
 	v2.GET("/users", func(c *Context) {
-		c.String(200, "v2 users")
+		c.String(http.StatusOK, "v2 users")
 	})
 
 	req := httptest.NewRequest("GET", "/v2/users", nil)
@@ -287,14 +287,14 @@ func BenchmarkPathVersioning(b *testing.B) {
 
 // BenchmarkPathVersioningWithApiPrefix benchmarks the path versioning function with API prefix
 func BenchmarkPathVersioningWithApiPrefix(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithPathVersioning("/api/v{version}/"),
 		WithDefaultVersion("v1"),
 	))
 
 	v2 := r.Version("v2")
 	v2.GET("/users", func(c *Context) {
-		c.String(200, "v2 users")
+		c.String(http.StatusOK, "v2 users")
 	})
 
 	req := httptest.NewRequest("GET", "/api/v2/users", nil)
@@ -368,9 +368,9 @@ func BenchmarkSetDeprecationHeadersWithDeprecation(b *testing.B) {
 
 // BenchmarkNonVersionedRouting benchmarks the non-versioned routing function
 func BenchmarkNonVersionedRouting(b *testing.B) {
-	r := New()
+	r := MustNew()
 	r.GET("/users", func(c *Context) {
-		c.String(200, "users")
+		c.String(http.StatusOK, "users")
 	})
 
 	req := httptest.NewRequest("GET", "/users", nil)
@@ -384,14 +384,14 @@ func BenchmarkNonVersionedRouting(b *testing.B) {
 
 // BenchmarkVersionedRoutingOverhead benchmarks the versioned routing overhead
 func BenchmarkVersionedRoutingOverhead(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithHeaderVersioning("X-API-Version"),
 		WithDefaultVersion("v1"),
 	))
 
 	v1 := r.Version("v1")
 	v1.GET("/users", func(c *Context) {
-		c.String(200, "users")
+		c.String(http.StatusOK, "users")
 	})
 
 	req := httptest.NewRequest("GET", "/users", nil)
@@ -406,7 +406,7 @@ func BenchmarkVersionedRoutingOverhead(b *testing.B) {
 
 // BenchmarkComplexVersioningScenario benchmarks the complex versioning scenario
 func BenchmarkComplexVersioningScenario(b *testing.B) {
-	r := New(WithVersioning(
+	r := MustNew(WithVersioning(
 		WithPathVersioning("/v{version}/"),
 		WithHeaderVersioning("X-API-Version"),
 		WithAcceptVersioning("application/vnd.myapi.{version}+json"),
@@ -425,7 +425,7 @@ func BenchmarkComplexVersioningScenario(b *testing.B) {
 		version := ver
 		vr := r.Version(version)
 		vr.GET("/users", func(c *Context) {
-			c.String(200, "%s users", version)
+			c.String(http.StatusOK, "%s users", version)
 		})
 	}
 

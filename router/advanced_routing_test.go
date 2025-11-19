@@ -16,7 +16,7 @@ type AdvancedRoutingTestSuite struct {
 }
 
 func (suite *AdvancedRoutingTestSuite) SetupTest() {
-	suite.router = New()
+	suite.router = MustNew()
 }
 
 func (suite *AdvancedRoutingTestSuite) TearDownTest() {
@@ -24,13 +24,13 @@ func (suite *AdvancedRoutingTestSuite) TearDownTest() {
 }
 
 func (suite *AdvancedRoutingTestSuite) TestWildcardRoutes() {
-	r := New()
+	r := MustNew()
 	t := suite.T()
 
 	// Test default wildcard parameter
 	r.GET("/files/*", func(c *Context) {
 		filepath := c.Param("filepath")
-		if err := c.JSON(200, map[string]string{"filepath": filepath}); err != nil {
+		if err := c.JSON(http.StatusOK, map[string]string{"filepath": filepath}); err != nil {
 			t.Errorf("failed to send JSON response: %v", err)
 		}
 	})
@@ -38,7 +38,7 @@ func (suite *AdvancedRoutingTestSuite) TestWildcardRoutes() {
 	// Test custom wildcard parameter (still uses filepath parameter name)
 	r.GET("/static/*", func(c *Context) {
 		asset := c.Param("filepath") // Still uses "filepath" parameter name
-		if err := c.JSON(200, map[string]string{"asset": asset}); err != nil {
+		if err := c.JSON(http.StatusOK, map[string]string{"asset": asset}); err != nil {
 			t.Errorf("failed to send JSON response: %v", err)
 		}
 	})
@@ -69,7 +69,7 @@ func (suite *AdvancedRoutingTestSuite) TestWildcardRoutes() {
 }
 
 func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("API-Version"),
 			WithQueryVersioning("version"),
@@ -82,14 +82,14 @@ func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
 	t := suite.T()
 	v1 := r.Version("v1")
 	v1.GET("/users", func(c *Context) {
-		if err := c.JSON(200, map[string]string{"version": "v1", "endpoint": "users"}); err != nil {
+		if err := c.JSON(http.StatusOK, map[string]string{"version": "v1", "endpoint": "users"}); err != nil {
 			t.Errorf("failed to send JSON response: %v", err)
 		}
 	})
 
 	v2 := r.Version("v2")
 	v2.GET("/users", func(c *Context) {
-		if err := c.JSON(200, map[string]string{"version": "v2", "endpoint": "users"}); err != nil {
+		if err := c.JSON(http.StatusOK, map[string]string{"version": "v2", "endpoint": "users"}); err != nil {
 			t.Errorf("failed to send JSON response: %v", err)
 		}
 	})
@@ -133,7 +133,7 @@ func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
 }
 
 func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("API-Version"),
 			WithDefaultVersion("v1"),
@@ -147,7 +147,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
 	})
 	t := suite.T()
 	v1API.GET("/profile", func(c *Context) {
-		if err := c.JSON(200, map[string]string{"version": "v1", "endpoint": "profile"}); err != nil {
+		if err := c.JSON(http.StatusOK, map[string]string{"version": "v1", "endpoint": "profile"}); err != nil {
 			t.Errorf("failed to send JSON response: %v", err)
 		}
 	})
@@ -157,7 +157,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
 		c.Next()
 	})
 	v2API.GET("/profile", func(c *Context) {
-		if err := c.JSON(200, map[string]string{"version": "v2", "endpoint": "profile"}); err != nil {
+		if err := c.JSON(http.StatusOK, map[string]string{"version": "v2", "endpoint": "profile"}); err != nil {
 			t.Errorf("failed to send JSON response: %v", err)
 		}
 	})
@@ -175,7 +175,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
 }
 
 func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithCustomVersionDetector(func(req *http.Request) string {
 				// Custom logic: check subdomain
@@ -196,14 +196,14 @@ func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
 	t := suite.T()
 	v1 := r.Version("v1")
 	v1.GET("/test", func(c *Context) {
-		if err := c.JSON(200, map[string]string{"version": "v1"}); err != nil {
+		if err := c.JSON(http.StatusOK, map[string]string{"version": "v1"}); err != nil {
 			t.Errorf("failed to send JSON response: %v", err)
 		}
 	})
 
 	v2 := r.Version("v2")
 	v2.GET("/test", func(c *Context) {
-		if err := c.JSON(200, map[string]string{"version": "v2"}); err != nil {
+		if err := c.JSON(http.StatusOK, map[string]string{"version": "v2"}); err != nil {
 			t.Errorf("failed to send JSON response: %v", err)
 		}
 	})
@@ -221,7 +221,7 @@ func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
 }
 
 func (suite *AdvancedRoutingTestSuite) TestContextVersionMethods() {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("API-Version"),
 			WithDefaultVersion("v1"),
@@ -234,7 +234,7 @@ func (suite *AdvancedRoutingTestSuite) TestContextVersionMethods() {
 		isV1 := c.IsVersion("v1")
 		isV2 := c.IsVersion("v2")
 
-		if err := c.JSON(200, map[string]any{
+		if err := c.JSON(http.StatusOK, map[string]any{
 			"version": version,
 			"is_v1":   isV1,
 			"is_v2":   isV2,
@@ -257,7 +257,7 @@ func (suite *AdvancedRoutingTestSuite) TestContextVersionMethods() {
 }
 
 func (suite *AdvancedRoutingTestSuite) TestPerformance() {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("API-Version"),
 			WithDefaultVersion("v1"),
@@ -269,7 +269,7 @@ func (suite *AdvancedRoutingTestSuite) TestPerformance() {
 	for i := range 100 {
 		v1 := r.Version("v1")
 		v1.GET("/test"+string(rune(i)), func(c *Context) {
-			if err := c.JSON(200, map[string]string{"version": "v1"}); err != nil {
+			if err := c.JSON(http.StatusOK, map[string]string{"version": "v1"}); err != nil {
 				t.Errorf("failed to send JSON response: %v", err)
 			}
 		})
@@ -287,7 +287,7 @@ func (suite *AdvancedRoutingTestSuite) TestPerformance() {
 }
 
 func (suite *AdvancedRoutingTestSuite) TestWildcardParameterNames() {
-	r := New()
+	r := MustNew()
 
 	// Test different wildcard routes (all use "filepath" parameter name)
 	routes := []struct {
@@ -305,7 +305,7 @@ func (suite *AdvancedRoutingTestSuite) TestWildcardParameterNames() {
 	for _, route := range routes {
 		r.GET(route.path, func(c *Context) {
 			param := c.Param(route.param)
-			if err := c.JSON(200, map[string]string{route.param: param}); err != nil {
+			if err := c.JSON(http.StatusOK, map[string]string{route.param: param}); err != nil {
 				t.Errorf("failed to send JSON response: %v", err)
 			}
 		})
@@ -381,13 +381,13 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 
 	for _, cfg := range configs {
 		suite.Run(cfg.name, func() {
-			r := New(WithVersioning(cfg.config...))
+			r := MustNew(WithVersioning(cfg.config...))
 
 			// Register version-specific route
 			t := suite.T()
 			version := r.Version(cfg.expected)
 			version.GET("/test", func(c *Context) {
-				if err := c.JSON(200, map[string]string{"version": c.Version()}); err != nil {
+				if err := c.JSON(http.StatusOK, map[string]string{"version": c.Version()}); err != nil {
 					t.Errorf("failed to send JSON response: %v", err)
 				}
 			})

@@ -28,7 +28,7 @@ import (
 )
 
 func main() {
-	r := router.New()
+	r := router.MustNew()
 
 	// Content Negotiation: respond with different formats based on Accept header
 
@@ -95,7 +95,7 @@ func main() {
 			"url":     "https://example.com?a=1&b=2",
 			"message": "Standard JSON escapes HTML characters",
 		}
-		c.JSON(200, data)
+		c.JSON(http.StatusOK, data)
 	})
 
 	// IndentedJSON: human-readable format for development and debugging
@@ -180,7 +180,7 @@ func main() {
 	r.GET("/stream/file", func(c *router.Context) {
 		file, err := os.Open("README.md")
 		if err != nil {
-			c.JSON(500, map[string]string{"error": "File not found"})
+			c.JSON(http.StatusInternalServerError, map[string]string{"error": "File not found"})
 			return
 		}
 		defer func() {
@@ -214,7 +214,7 @@ func main() {
 		if callback == "" {
 			callback = "callback"
 		}
-		_ = c.JSONP(200, data, callback)
+		_ = c.JSONP(http.StatusOK, data, callback)
 	})
 
 	// Performance comparison: test different rendering methods
@@ -229,7 +229,7 @@ func main() {
 
 		switch format {
 		case "json":
-			c.JSON(200, benchData)
+			c.JSON(http.StatusOK, benchData)
 		case "pure":
 			_ = c.PureJSON(200, benchData)
 		case "indented":
@@ -241,7 +241,7 @@ func main() {
 		case "yaml":
 			_ = c.YAML(200, benchData)
 		default:
-			c.JSON(200, map[string]string{
+			c.JSON(http.StatusOK, map[string]string{
 				"error": "Unknown format. Use: json, pure, indented, secure, ascii, yaml",
 			})
 		}

@@ -65,7 +65,7 @@ func TestContext_Header_Injection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := New()
+			r := MustNew()
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest("GET", "/test", nil)
 
@@ -76,11 +76,11 @@ func TestContext_Header_Injection(t *testing.T) {
 				}, "Expected no panic for header value: %q", tt.headerValue)
 
 				// Verify header was sanitized correctly
-				c.String(200, "ok")
+				c.String(http.StatusOK, "ok")
 			})
 
 			r.ServeHTTP(w, req)
-			assert.Equal(t, 200, w.Code)
+			assert.Equal(t, http.StatusOK, w.Code)
 
 			// Verify the header value was sanitized correctly
 			actualValue := w.Header().Get("X-Custom-Header")
@@ -101,7 +101,7 @@ func TestContext_Header_Injection(t *testing.T) {
 // TestContext_Header_InjectionRealWorldAttack tests a real-world header injection attack scenario
 // UPDATED: Now tests sanitization instead of panic (breaking change for safer production behavior)
 func TestContext_Header_InjectionRealWorldAttack(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Simulated attack: User-provided value with CRLF injection
 	attackValue := "normal-value\r\nX-Admin: true\r\nX-Auth: bypass"
@@ -123,7 +123,7 @@ func TestContext_Header_InjectionRealWorldAttack(t *testing.T) {
 		// Should only contain the safe part
 		assert.Equal(t, "normal-valueX-Admin: trueX-Auth: bypass", location)
 
-		c.String(200, "OK")
+		c.String(http.StatusOK, "OK")
 	})
 
 	req := httptest.NewRequest("GET", "/redirect", nil)
@@ -131,7 +131,7 @@ func TestContext_Header_InjectionRealWorldAttack(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// The request should complete successfully after sanitization
-	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 // TestBloomFilter_DifferentSeeds tests that bloom filter uses different hash functions
@@ -196,7 +196,7 @@ func TestBloomFilter_FalsePositives(t *testing.T) {
 
 // TestRouter_ConcurrentVersionRegistration tests concurrent version route registration
 func TestRouter_ConcurrentVersionRegistration(t *testing.T) {
-	r := New(
+	r := MustNew(
 		WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v1"),
@@ -220,7 +220,7 @@ func TestRouter_ConcurrentVersionRegistration(t *testing.T) {
 			for j := range routesPerGoroutine {
 				path := fmt.Sprintf("/test/%d/%d", goroutineID, j)
 				vr.GET(path, func(c *Context) {
-					c.JSON(200, map[string]string{"ok": "true"})
+					c.JSON(http.StatusOK, map[string]string{"ok": "true"})
 				})
 			}
 		}(i)
@@ -245,7 +245,7 @@ func TestRouter_ConcurrentVersionRegistration(t *testing.T) {
 
 // TestRouter_ConcurrentRouteRegistration tests concurrent standard route registration
 func TestRouter_ConcurrentRouteRegistration(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	const numGoroutines = 100
 
@@ -281,7 +281,7 @@ func TestRouter_ConcurrentRouteRegistration(t *testing.T) {
 
 // TestContext_JSON_EncodingError tests JSON encoding error handling
 func TestContext_JSON_EncodingError(t *testing.T) {
-	r := New()
+	r := MustNew()
 
 	// Create a type that fails to marshal
 	type BadType struct {
@@ -333,7 +333,7 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 
 // TestContext_JSON_ValidData tests JSON encoding with valid data
 func TestContext_JSON_ValidData(t *testing.T) {
-	r := New()
+	r := MustNew()
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/test", nil)
 
@@ -349,23 +349,23 @@ func TestContext_JSON_ValidData(t *testing.T) {
 			Age:    30,
 			Active: true,
 		}
-		err := c.JSON(200, data)
+		err := c.JSON(http.StatusOK, data)
 		assert.NoError(t, err, "Should not return error for valid data")
 	})
 
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "John Doe")
 	assert.Contains(t, w.Body.String(), `"age":30`)
 }
 
 // BenchmarkContext_Header_Validation benchmarks header validation overhead
 func BenchmarkContext_Header_Validation(b *testing.B) {
-	r := New()
+	r := MustNew()
 	r.GET("/test", func(c *Context) {
 		c.Header("X-Custom", "safe-value")
-		c.String(200, "ok")
+		c.String(http.StatusOK, "ok")
 	})
 
 	req := httptest.NewRequest("GET", "/test", nil)

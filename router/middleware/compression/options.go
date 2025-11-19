@@ -1,5 +1,7 @@
 package compression
 
+import "log/slog"
+
 // WithGzipLevel sets the gzip compression level.
 // Valid values: 0 (no compression) to 9 (best compression).
 // Default: gzip.DefaultCompression (-1, which is typically level 6)
@@ -127,5 +129,27 @@ func WithExcludeContentTypes(contentTypes ...string) Option {
 		for _, ct := range contentTypes {
 			cfg.excludeContentTypes[ct] = true
 		}
+	}
+}
+
+// WithLogger sets the slog.Logger for error logging.
+// If not provided, errors will be silently ignored.
+//
+// Uses the standard library's log/slog package for structured logging:
+//
+//	import "log/slog"
+//
+//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	compression.New(compression.WithLogger(logger))
+//
+// Example:
+//
+//	import "log/slog"
+//
+//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	r.Use(compression.New(compression.WithLogger(logger)))
+func WithLogger(logger *slog.Logger) Option {
+	return func(cfg *config) {
+		cfg.logger = logger
 	}
 }

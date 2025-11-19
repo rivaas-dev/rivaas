@@ -31,7 +31,8 @@ Performance:
 Basic setup with common middlewares:
 
 	import (
-	    "rivaas.dev/logging"
+	    "log/slog"
+	    "os"
 	    "rivaas.dev/router"
 	    "rivaas.dev/router/middleware/accesslog"
 	    "rivaas.dev/router/middleware/requestid"
@@ -39,14 +40,10 @@ Basic setup with common middlewares:
 	    "rivaas.dev/router/middleware/security"
 	)
 
-	r := router.New(
-	    logging.WithLogging(
-	        logging.WithConsoleHandler(),
-	        logging.WithDebugLevel(),
-	    ),
-	)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	r := router.MustNew()
 	r.Use(requestid.New())
-	r.Use(accesslog.New())
+	r.Use(accesslog.New(accesslog.WithLogger(logger)))
 	r.Use(recovery.New())
 	r.Use(security.New())
 
@@ -62,7 +59,8 @@ Rate limiting with custom configuration:
 Production setup:
 
 	import (
-	    "rivaas.dev/logging"
+	    "log/slog"
+	    "os"
 	    "rivaas.dev/router"
 	    "rivaas.dev/router/middleware/accesslog"
 	    "rivaas.dev/router/middleware/requestid"
@@ -73,16 +71,13 @@ Production setup:
 	    "rivaas.dev/router/middleware/compression"
 	)
 
-	r := router.New(
-	    logging.WithLogging(
-	        logging.WithJSONHandler(),
-	        logging.WithLevel(logging.LevelInfo),
-	    ),
-	)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	r := router.MustNew()
 
 	// Observability
 	r.Use(requestid.New())
 	r.Use(accesslog.New(
+	    accesslog.WithLogger(logger),
 	    accesslog.WithExcludePaths("/health"),
 	))
 
@@ -96,10 +91,11 @@ Production setup:
 	r.Use(recovery.New())
 	r.Use(ratelimit.New(
 	    ratelimit.WithRequestsPerSecond(1000),
+	    ratelimit.WithLogger(logger),
 	))
 
 	// Performance
-	r.Use(compression.New())
+	r.Use(compression.New(compression.WithLogger(logger)))
 
 # Middleware Ordering
 

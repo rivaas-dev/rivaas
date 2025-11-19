@@ -27,7 +27,7 @@ import (
 )
 
 func main() {
-	r := router.New()
+	r := router.MustNew()
 
 	// Set up logging for accesslog middleware
 	logCfg := logging.MustNew(

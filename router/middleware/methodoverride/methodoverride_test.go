@@ -5,216 +5,247 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"rivaas.dev/router"
 )
 
-func TestMethodOverride_Header(t *testing.T) {
-	// Test middleware directly
-	handler := New()
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "DELETE")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	// Verify method was overridden
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
+func TestMethodOverride_Basic(t *testing.T) {
+	tests := []struct {
+		name             string
+		originalMethod   string
+		overrideHeader   string
+		overrideQuery    string
+		expectedMethod   string
+		expectedOriginal string
+	}{
+		{
+			name:             "header override",
+			originalMethod:   "POST",
+			overrideHeader:   "DELETE",
+			expectedMethod:   "DELETE",
+			expectedOriginal: "POST",
+		},
+		{
+			name:             "query param override",
+			originalMethod:   "POST",
+			overrideQuery:    "PATCH",
+			expectedMethod:   "PATCH",
+			expectedOriginal: "POST",
+		},
+		{
+			name:             "header takes precedence over query",
+			originalMethod:   "POST",
+			overrideHeader:   "PUT",
+			overrideQuery:    "PATCH",
+			expectedMethod:   "PUT",
+			expectedOriginal: "POST",
+		},
 	}
 
-	// Verify original method is stored
-	originalMethod := GetOriginalMethod(c)
-	if originalMethod != "POST" {
-		t.Errorf("Expected original method POST, got %s", originalMethod)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New()
 
-func TestMethodOverride_QueryParam(t *testing.T) {
-	handler := New()
-	req := httptest.NewRequest("POST", "/test?_method=PATCH", nil)
-	w := httptest.NewRecorder()
+			url := "/test"
+			if tt.overrideQuery != "" {
+				url += "?_method=" + tt.overrideQuery
+			}
 
-	c := router.NewContext(w, req)
-	handler(c)
+			req := httptest.NewRequest(tt.originalMethod, url, nil)
+			if tt.overrideHeader != "" {
+				req.Header.Set("X-HTTP-Method-Override", tt.overrideHeader)
+			}
+			w := httptest.NewRecorder()
 
-	// Verify method was overridden
-	if c.Request.Method != "PATCH" {
-		t.Errorf("Expected method PATCH, got %s", c.Request.Method)
-	}
-}
+			c := router.NewContext(w, req)
+			handler(c)
 
-func TestMethodOverride_HeaderTakesPrecedence(t *testing.T) {
-	handler := New()
-
-	// POST request with both header and query param - header should win
-	req := httptest.NewRequest("POST", "/test?_method=PATCH", nil)
-	req.Header.Set("X-HTTP-Method-Override", "PUT")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	// Verify method was overridden to PUT (header takes precedence)
-	if c.Request.Method != "PUT" {
-		t.Errorf("Expected method PUT, got %s", c.Request.Method)
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+			assert.Equal(t, tt.expectedOriginal, GetOriginalMethod(c))
+		})
 	}
 }
 
 func TestMethodOverride_OnlyOnFiltering(t *testing.T) {
-	handler := New(WithOnlyOn("POST"))
-
-	// GET request should not trigger override (not in OnlyOn list)
-	req := httptest.NewRequest("GET", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "PUT")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	// Method should not be overridden
-	if c.Request.Method != "GET" {
-		t.Errorf("Expected method GET (not overridden), got %s", c.Request.Method)
+	tests := []struct {
+		name           string
+		originalMethod string
+		override       string
+		shouldOverride bool
+		expectedMethod string
+	}{
+		{
+			name:           "GET request not in OnlyOn list",
+			originalMethod: "GET",
+			override:       "PUT",
+			shouldOverride: false,
+			expectedMethod: "GET",
+		},
+		{
+			name:           "POST request in OnlyOn list",
+			originalMethod: "POST",
+			override:       "PUT",
+			shouldOverride: true,
+			expectedMethod: "PUT",
+		},
 	}
 
-	// POST request should trigger override
-	req = httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "PUT")
-	w = httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New(WithOnlyOn("POST"))
+			req := httptest.NewRequest(tt.originalMethod, "/test", nil)
+			req.Header.Set("X-HTTP-Method-Override", tt.override)
+			w := httptest.NewRecorder()
 
-	c = router.NewContext(w, req)
-	handler(c)
+			c := router.NewContext(w, req)
+			handler(c)
 
-	// Method should be overridden
-	if c.Request.Method != "PUT" {
-		t.Errorf("Expected method PUT, got %s", c.Request.Method)
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+		})
 	}
 }
 
 func TestMethodOverride_AllowList(t *testing.T) {
-	handler := New(WithAllow("PUT", "DELETE"))
-
-	// POST with PATCH override - should be ignored (not in allow list)
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "PATCH")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	// Method should not be overridden (PATCH not in allow list)
-	if c.Request.Method != "POST" {
-		t.Errorf("Expected method POST (not overridden), got %s", c.Request.Method)
+	tests := []struct {
+		name           string
+		override       string
+		shouldOverride bool
+		expectedMethod string
+	}{
+		{
+			name:           "PATCH not in allow list",
+			override:       "PATCH",
+			shouldOverride: false,
+			expectedMethod: "POST",
+		},
+		{
+			name:           "PUT in allow list",
+			override:       "PUT",
+			shouldOverride: true,
+			expectedMethod: "PUT",
+		},
+		{
+			name:           "DELETE in allow list",
+			override:       "DELETE",
+			shouldOverride: true,
+			expectedMethod: "DELETE",
+		},
 	}
 
-	// POST with PUT override - should work (in allow list)
-	req = httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "PUT")
-	w = httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New(WithAllow("PUT", "DELETE"))
+			req := httptest.NewRequest("POST", "/test", nil)
+			req.Header.Set("X-HTTP-Method-Override", tt.override)
+			w := httptest.NewRecorder()
 
-	c = router.NewContext(w, req)
-	handler(c)
+			c := router.NewContext(w, req)
+			handler(c)
 
-	// Method should be overridden
-	if c.Request.Method != "PUT" {
-		t.Errorf("Expected method PUT, got %s", c.Request.Method)
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+		})
 	}
 }
 
 func TestMethodOverride_CaseInsensitive(t *testing.T) {
-	handler := New()
-
-	// Lowercase override method
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "delete")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
+	tests := []struct {
+		name           string
+		override       string
+		expectedMethod string
+	}{
+		{"lowercase", "delete", "DELETE"},
+		{"uppercase", "DELETE", "DELETE"},
+		{"mixed case", "DeLeTe", "DELETE"},
 	}
 
-	// Mixed case
-	req = httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "DeLeTe")
-	w = httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New()
+			req := httptest.NewRequest("POST", "/test", nil)
+			req.Header.Set("X-HTTP-Method-Override", tt.override)
+			w := httptest.NewRecorder()
 
-	c = router.NewContext(w, req)
-	handler(c)
+			c := router.NewContext(w, req)
+			handler(c)
 
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+		})
 	}
 }
 
 func TestMethodOverride_RespectBody(t *testing.T) {
-	handler := New(WithRespectBody(true))
-
-	// POST request without body - should not override
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "PUT")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	// Method should not be overridden (no body)
-	if c.Request.Method != "POST" {
-		t.Errorf("Expected method POST (not overridden), got %s", c.Request.Method)
+	tests := []struct {
+		name           string
+		contentLength  int64
+		expectedMethod string
+	}{
+		{
+			name:           "POST without body - should not override",
+			contentLength:  0,
+			expectedMethod: "POST",
+		},
+		{
+			name:           "POST with body - should override",
+			contentLength:  10,
+			expectedMethod: "PUT",
+		},
 	}
 
-	// POST request with body - should override
-	req = httptest.NewRequest("POST", "/test", nil)
-	req.ContentLength = 10
-	req.Header.Set("X-HTTP-Method-Override", "PUT")
-	w = httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New(WithRespectBody(true))
+			req := httptest.NewRequest("POST", "/test", nil)
+			req.ContentLength = tt.contentLength
+			req.Header.Set("X-HTTP-Method-Override", "PUT")
+			w := httptest.NewRecorder()
 
-	c = router.NewContext(w, req)
-	handler(c)
+			c := router.NewContext(w, req)
+			handler(c)
 
-	// Method should be overridden
-	if c.Request.Method != "PUT" {
-		t.Errorf("Expected method PUT, got %s", c.Request.Method)
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+		})
 	}
 }
 
 func TestMethodOverride_CSRFRequired(t *testing.T) {
-	handler := New(WithRequireCSRFToken(true))
-
-	// POST request without CSRF verification - should not override
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "DELETE")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	// Method should not be overridden (CSRF not verified)
-	if c.Request.Method != "POST" {
-		t.Errorf("Expected method POST (not overridden), got %s", c.Request.Method)
+	tests := []struct {
+		name           string
+		csrfVerified   bool
+		expectedMethod string
+	}{
+		{
+			name:           "without CSRF verification - should not override",
+			csrfVerified:   false,
+			expectedMethod: "POST",
+		},
+		{
+			name:           "with CSRF verification - should override",
+			csrfVerified:   true,
+			expectedMethod: "DELETE",
+		},
 	}
 
-	// POST request with CSRF verification - should override
-	req = httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "DELETE")
-	req = req.WithContext(context.WithValue(req.Context(), CSRFVerifiedKey, true))
-	w = httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New(WithRequireCSRFToken(true))
+			req := httptest.NewRequest("POST", "/test", nil)
+			req.Header.Set("X-HTTP-Method-Override", "DELETE")
 
-	c = router.NewContext(w, req)
-	handler(c)
+			if tt.csrfVerified {
+				req = req.WithContext(context.WithValue(req.Context(), CSRFVerifiedKey, true))
+			}
 
-	// Method should be overridden
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
+			w := httptest.NewRecorder()
+			c := router.NewContext(w, req)
+			handler(c)
+
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+		})
 	}
 }
 
 func TestMethodOverride_CustomHeader(t *testing.T) {
 	handler := New(WithHeader("X-HTTP-Method"))
-
-	// POST request with custom header
 	req := httptest.NewRequest("POST", "/test", nil)
 	req.Header.Set("X-HTTP-Method", "DELETE")
 	w := httptest.NewRecorder()
@@ -222,155 +253,168 @@ func TestMethodOverride_CustomHeader(t *testing.T) {
 	c := router.NewContext(w, req)
 	handler(c)
 
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
-	}
+	assert.Equal(t, "DELETE", c.Request.Method)
 }
 
 func TestMethodOverride_DisabledQueryParam(t *testing.T) {
-	handler := New(WithQueryParam(""))
-
-	// POST request with query param - should be ignored
-	req := httptest.NewRequest("POST", "/test?_method=DELETE", nil)
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	// Method should not be overridden (query param disabled)
-	if c.Request.Method != "POST" {
-		t.Errorf("Expected method POST (not overridden), got %s", c.Request.Method)
+	tests := []struct {
+		name           string
+		url            string
+		header         string
+		expectedMethod string
+	}{
+		{
+			name:           "query param ignored when disabled",
+			url:            "/test?_method=DELETE",
+			header:         "",
+			expectedMethod: "POST",
+		},
+		{
+			name:           "header still works when query disabled",
+			url:            "/test",
+			header:         "DELETE",
+			expectedMethod: "DELETE",
+		},
 	}
 
-	// POST request with header - should work
-	req = httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "DELETE")
-	w = httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New(WithQueryParam(""))
+			req := httptest.NewRequest("POST", tt.url, nil)
+			if tt.header != "" {
+				req.Header.Set("X-HTTP-Method-Override", tt.header)
+			}
+			w := httptest.NewRecorder()
 
-	c = router.NewContext(w, req)
-	handler(c)
+			c := router.NewContext(w, req)
+			handler(c)
 
-	// Method should be overridden
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
-	}
-}
-
-func TestMethodOverride_EmptyOverride(t *testing.T) {
-	handler := New()
-
-	// POST request with empty override header
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	// Should remain as POST (empty override)
-	if c.Request.Method != "POST" {
-		t.Errorf("Expected method POST, got %s", c.Request.Method)
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+		})
 	}
 }
 
-func TestMethodOverride_WhitespaceTrimmed(t *testing.T) {
-	handler := New()
+func TestMethodOverride_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		override       string
+		expectedMethod string
+	}{
+		{
+			name:           "empty override",
+			override:       "",
+			expectedMethod: "POST",
+		},
+		{
+			name:           "whitespace trimmed",
+			override:       "  DELETE  ",
+			expectedMethod: "DELETE",
+		},
+	}
 
-	// POST request with whitespace in override
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "  DELETE  ")
-	w := httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New()
+			req := httptest.NewRequest("POST", "/test", nil)
+			req.Header.Set("X-HTTP-Method-Override", tt.override)
+			w := httptest.NewRecorder()
 
-	c := router.NewContext(w, req)
-	handler(c)
+			c := router.NewContext(w, req)
+			handler(c)
 
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+		})
 	}
 }
 
 func TestGetOriginalMethod(t *testing.T) {
-	handler := New()
-
-	// Test with original method in context (POST overridden to DELETE)
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "DELETE")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	// Verify method was overridden
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
+	tests := []struct {
+		name           string
+		originalMethod string
+		override       string
+		expectedMethod string
+		expectedOrig   string
+	}{
+		{
+			name:           "overridden method",
+			originalMethod: "POST",
+			override:       "DELETE",
+			expectedMethod: "DELETE",
+			expectedOrig:   "POST",
+		},
+		{
+			name:           "no override",
+			originalMethod: "GET",
+			override:       "",
+			expectedMethod: "GET",
+			expectedOrig:   "GET",
+		},
 	}
 
-	// Verify original method is stored
-	originalMethod := GetOriginalMethod(c)
-	if originalMethod != "POST" {
-		t.Errorf("Expected original method POST, got %s", originalMethod)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New()
+			req := httptest.NewRequest(tt.originalMethod, "/test", nil)
+			if tt.override != "" {
+				req.Header.Set("X-HTTP-Method-Override", tt.override)
+			}
+			w := httptest.NewRecorder()
 
-	// Test without override (should return current method)
-	req = httptest.NewRequest("GET", "/test2", nil)
-	w = httptest.NewRecorder()
+			c := router.NewContext(w, req)
+			handler(c)
 
-	c = router.NewContext(w, req)
-	handler(c)
-
-	// Since GET is not in OnlyOn list, method won't be overridden
-	originalMethod = GetOriginalMethod(c)
-	if originalMethod != "GET" {
-		t.Errorf("Expected GET, got %s", originalMethod)
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+			assert.Equal(t, tt.expectedOrig, GetOriginalMethod(c))
+		})
 	}
 }
 
 func TestMethodOverride_DefaultConfig(t *testing.T) {
-	handler := New()
-
-	// Test default header
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-HTTP-Method-Override", "DELETE")
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	handler(c)
-
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
+	tests := []struct {
+		name           string
+		url            string
+		header         string
+		expectedMethod string
+	}{
+		{
+			name:           "default header",
+			url:            "/test",
+			header:         "DELETE",
+			expectedMethod: "DELETE",
+		},
+		{
+			name:           "default query param",
+			url:            "/test?_method=DELETE",
+			header:         "",
+			expectedMethod: "DELETE",
+		},
+		{
+			name:           "default allow list - PUT",
+			url:            "/put",
+			header:         "PUT",
+			expectedMethod: "PUT",
+		},
+		{
+			name:           "default allow list - PATCH",
+			url:            "/patch",
+			header:         "PATCH",
+			expectedMethod: "PATCH",
+		},
 	}
 
-	// Test default query param
-	req = httptest.NewRequest("POST", "/test?_method=DELETE", nil)
-	w = httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New()
+			req := httptest.NewRequest("POST", tt.url, nil)
+			if tt.header != "" {
+				req.Header.Set("X-HTTP-Method-Override", tt.header)
+			}
+			w := httptest.NewRecorder()
 
-	c = router.NewContext(w, req)
-	handler(c)
+			c := router.NewContext(w, req)
+			handler(c)
 
-	if c.Request.Method != "DELETE" {
-		t.Errorf("Expected method DELETE, got %s", c.Request.Method)
-	}
-
-	// Test default allow list (PUT, PATCH, DELETE)
-	// PUT should work
-	req = httptest.NewRequest("POST", "/put", nil)
-	req.Header.Set("X-HTTP-Method-Override", "PUT")
-	w = httptest.NewRecorder()
-
-	c = router.NewContext(w, req)
-	handler(c)
-	if c.Request.Method != "PUT" {
-		t.Errorf("Expected method PUT, got %s", c.Request.Method)
-	}
-
-	// PATCH should work
-	req = httptest.NewRequest("POST", "/patch", nil)
-	req.Header.Set("X-HTTP-Method-Override", "PATCH")
-	w = httptest.NewRecorder()
-
-	c = router.NewContext(w, req)
-	handler(c)
-	if c.Request.Method != "PATCH" {
-		t.Errorf("Expected method PATCH, got %s", c.Request.Method)
+			assert.Equal(t, tt.expectedMethod, c.Request.Method)
+		})
 	}
 }

@@ -19,7 +19,7 @@ The tracing package provides two ways to use OpenTelemetry tracing:
 1. **Built-in providers** (Stdout, OTLP, Noop) - Easy setup with `New()`
 2. **Custom providers** - Full control with `WithTracerProvider()` for advanced use cases
 
-By default, the package uses built-in providers which set the global OpenTelemetry tracer provider. To avoid global state, use custom providers (see "Avoiding Global State" section below).
+By default, the package does NOT set the global OpenTelemetry tracer provider. Use `WithGlobalTracerProvider()` if you want global registration. This allows multiple tracing configurations to coexist in the same process.
 
 ## Quick Start
 
@@ -39,7 +39,7 @@ The tracing package provides a unified API consistent with the metrics package, 
 import (
     "context"
     "log"
-    "rivass.dev/tracing"
+    "rivaas.dev/tracing"
 )
 
 func main() {
@@ -133,6 +133,7 @@ defer config.Shutdown(context.Background())
 ```
 
 Supported environment variables:
+
 - `OTEL_TRACES_EXPORTER`: Provider type (`otlp`, `stdout`, `noop`)
 - `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT`: OTLP endpoint
 - `OTEL_SERVICE_NAME`: Service name
@@ -192,8 +193,8 @@ import (
     "context"
     "log"
     "net/http"
-    "rivass.dev/tracing"
-    "rivass.dev/router"
+    "rivaas.dev/tracing"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -228,8 +229,8 @@ import (
     "context"
     "log"
     "net/http"
-    "rivass.dev/tracing"
-    "rivass.dev/router"
+    "rivaas.dev/tracing"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -275,7 +276,7 @@ package main
 import (
     "context"
     "log"
-    "rivass.dev/tracing"
+    "rivaas.dev/tracing"
     "go.opentelemetry.io/otel/attribute"
 )
 
@@ -340,6 +341,7 @@ config := tracing.New(
 ```
 
 **What gets logged:**
+
 - **Warning**: Excluded paths limit exceeded, provider initialization issues
 - **Debug**: Sampling decisions (when requests are not sampled), provider setup details
 - **Error**: Shutdown failures, provider errors
@@ -389,11 +391,29 @@ tracing.MaxExcludedPaths        // 1000
 
 ### Path Filtering
 
+Exclude specific paths from tracing:
+
 ```go
 tracing.WithExcludePaths("/health", "/metrics")
 ```
 
 **Note**: Maximum 1000 paths can be excluded. If more paths are provided, only the first 1000 will be excluded and a warning will be logged (if logger is configured).
+
+For excluding many paths that follow a pattern, use regex patterns:
+
+```go
+// Exclude all paths starting with /internal/
+tracing.WithExcludePathPattern("^/internal/.*")
+
+// Exclude all health check endpoints
+tracing.WithExcludePathPattern("^/(health|ready|live)")
+
+// Combine exact paths and patterns
+tracing.WithExcludePaths("/exact/path"),
+tracing.WithExcludePathPattern("^/pattern/.*"),
+```
+
+Regex patterns are compiled once during configuration, so invalid patterns will cause `New()` to return an error.
 
 ### Header Recording
 
@@ -436,6 +456,7 @@ config := tracing.New(
 ```
 
 **Logic:**
+
 - If parameter is in blacklist (`WithExcludeParams`), it's **never** recorded
 - If whitelist is configured (`WithRecordParams`), only listed parameters are recorded
 - Otherwise, all parameters are recorded (default behavior)
@@ -553,6 +574,7 @@ config := tracing.New(
 ```
 
 **Use cases:**
+
 - Adding tenant/organization context from request headers
 - Recording custom metrics based on span data
 - Integration with external monitoring systems
@@ -659,7 +681,7 @@ config.InjectTraceContext(ctx, resp.Header)
 For manual integration with other HTTP frameworks:
 
 ```go
-import "rivass.dev/tracing"
+import "rivaas.dev/tracing"
 
 config := tracing.MustNew(
     tracing.WithServiceName("my-service"),
@@ -955,7 +977,7 @@ When using the exporter setup functions, always shutdown the tracer provider bef
 import (
     "context"
     "time"
-    "rivass.dev/tracing"
+    "rivaas.dev/tracing"
 )
 
 // During application initialization
@@ -1073,7 +1095,7 @@ Switch exporters based on environment or configuration:
 ```go
 import (
     "os"
-    "rivass.dev/tracing"
+    "rivaas.dev/tracing"
 )
 
 func setupTracing() (*tracing.TracerProvider, error) {
@@ -1119,7 +1141,7 @@ By default, the tracing package sets the global OpenTelemetry tracer provider. T
 
 ```go
 import (
-    "rivass.dev/tracing"
+    "rivaas.dev/tracing"
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
     "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 )
@@ -1340,19 +1362,58 @@ To add a new exporter (e.g., Zipkin, Jaeger native):
 
 ### No Traces Appearing
 
-1. **Check exporter setup**: Ensure `SetupExporter` was called before creating Config
-2. **Check sampling rate**: With `WithSampleRate(0.1)`, only 10% of requests are traced
-3. **Check excluded paths**: Verify your route isn't in `WithExcludePaths()`
-4. **Check OTLP connection**: For OTLP, ensure collector is running and accessible
+1. **Check provider configuration**: Ensure provider is set correctly (StdoutProvider, OTLPProvider, etc.)
+2. **Check sampling rate**: With `WithSampleRate(0.1)`, only 10% of requests are traced. Default is 100% (1.0).
+3. **Check excluded paths**: Verify your route isn't in `WithExcludePaths()` or matching a pattern in `WithExcludePathPattern()`
+4. **Check OTLP connection**: For OTLP, ensure collector is running and accessible. Provider creation may succeed even with unreachable endpoints (connection failures happen during span export).
+5. **Check context cancellation**: If the request context is cancelled before span creation, no span will be created.
+6. **Verify global tracer provider**: If using `WithGlobalTracerProvider()`, ensure only one configuration is active per process.
 
 ### Performance Impact
 
 If tracing is causing performance issues:
 
-1. **Lower sample rate**: Use `WithSampleRate(0.1)` or lower in production
-2. **Exclude health checks**: Use `WithExcludePaths("/health", "/metrics")`
-3. **Disable params**: Use `WithDisableParams()` to reduce attribute count
-4. **Check exporter**: Ensure OTLP collector can handle the load
+1. **Lower sample rate**: Use `WithSampleRate(0.1)` or lower in production (recommended: 10% for high-traffic services)
+2. **Exclude health checks**: Use `WithExcludePaths("/health", "/metrics")` or `WithExcludePathPattern("^/(health|metrics|ready|live)")`
+3. **Disable parameter recording**: Use `WithDisableParams()` if query parameters contain sensitive data or are high-cardinality
+4. **Use regex patterns**: For many paths, use `WithExcludePathPattern()` instead of listing individual paths
+5. **Monitor span creation overhead**: Use benchmarks to measure impact (see Performance Benchmarks section)
+
+### Common Errors
+
+#### `"validation errors: invalid regex pattern"`
+
+- Check regex patterns passed to `WithExcludePathPattern()` for syntax errors
+- Test patterns with Go's `regexp.Compile()` before using
+
+#### `"unsupported tracing provider"`
+
+- Ensure provider is one of: `NoopProvider`, `StdoutProvider`, `OTLPProvider`
+- Check for typos in provider names
+
+#### `"service name cannot be empty"`
+
+- Provide service name via `WithServiceName()` or `OTEL_SERVICE_NAME` environment variable
+
+#### `"tracer provider shutdown: ..."`
+
+- This error occurs during `Shutdown()` if the tracer provider fails to flush pending spans
+- Ensure shutdown context has sufficient timeout (recommended: 5-10 seconds)
+- Check OTLP collector connectivity if using OTLP provider
+
+### Memory Usage Growing
+
+1. **Ensure `Shutdown()` is called**: Always call `config.Shutdown(ctx)` on application exit
+2. **Check for goroutine leaks**: Custom hooks should not spawn long-running goroutines
+3. **Monitor span pool usage**: String pool for span names is automatically managed
+
+### Context Cancellation
+
+The package handles context cancellation gracefully:
+
+- If context is cancelled before span creation, no span is created (no-op)
+- Cancelled contexts are preserved and returned to callers
+- This prevents unnecessary work when requests are already cancelled
 
 ### Context Propagation Not Working
 

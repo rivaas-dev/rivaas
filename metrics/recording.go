@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package metrics
 
 import (
@@ -50,6 +64,12 @@ func (e *LimitError) Error() string {
 		e.MetricName, e.Current, e.Limit)
 }
 
+// Unwrap returns nil as LimitError is a leaf error type.
+// This allows errors.Is() and errors.As() to work correctly.
+func (e *LimitError) Unwrap() error {
+	return nil
+}
+
 // UpdateError is returned when atomic map update fails after max retries.
 type UpdateError struct {
 	Operation string
@@ -58,6 +78,12 @@ type UpdateError struct {
 
 func (e *UpdateError) Error() string {
 	return fmt.Sprintf("failed to update metrics map after %d retries: %s", e.Retries, e.Operation)
+}
+
+// Unwrap returns nil as UpdateError is a leaf error type.
+// This allows errors.Is() and errors.As() to work correctly.
+func (e *UpdateError) Unwrap() error {
+	return nil
 }
 
 const (
@@ -132,23 +158,13 @@ func (c *Config) StartRequest(ctx context.Context, path string, isStatic bool, a
 	c.recordActiveRequestAtomically()
 	c.activeRequests.Add(ctx, 1, metric.WithAttributes(metrics.attributes...))
 
-	// OPTIMIZATION: If caller provides request size as first attribute (router convention),
-	// extract it without scanning all attributes. Falls back to full scan for compatibility.
+	// OPTIMIZATION: Extract request size from first attribute (router convention).
+	// The router always provides http.request.size as the first attribute.
 	if len(attributes) > 0 {
 		if attributes[0].Key == "http.request.size" && attributes[0].Value.Type() == attribute.INT64 {
 			size := attributes[0].Value.AsInt64()
 			metrics.requestSize = size
 			c.requestSize.Record(ctx, size, metric.WithAttributes(metrics.attributes...))
-		} else {
-			// Fallback: scan all attributes for backward compatibility
-			for _, attr := range attributes {
-				if attr.Key == "http.request.size" && attr.Value.Type() == attribute.INT64 {
-					size := attr.Value.AsInt64()
-					metrics.requestSize = size
-					c.requestSize.Record(ctx, size, metric.WithAttributes(metrics.attributes...))
-					break
-				}
-			}
 		}
 	}
 
@@ -156,7 +172,7 @@ func (c *Config) StartRequest(ctx context.Context, path string, isStatic bool, a
 }
 
 // FinishRequest completes metrics collection for a request.
-func (c *Config) FinishRequest(ctx context.Context, metrics interface{}, statusCode int, responseSize int64) {
+func (c *Config) FinishRequest(ctx context.Context, metrics interface{}, statusCode int, responseSize int64, routePattern string) {
 	requestMetrics, ok := metrics.(*requestMetrics)
 	if !ok || requestMetrics == nil {
 		return
@@ -165,10 +181,12 @@ func (c *Config) FinishRequest(ctx context.Context, metrics interface{}, statusC
 	// Calculate duration
 	duration := time.Since(requestMetrics.startTime).Seconds()
 
-	// Add status code to attributes
+	// Add status code and route pattern to attributes
+	// Use routePattern (template) instead of raw path to prevent cardinality explosion
 	finalAttributes := append(requestMetrics.attributes,
 		attribute.Int("http.status_code", statusCode),
 		attribute.String("http.status_class", getStatusClass(statusCode)),
+		attribute.String("http.route", routePattern), // Add route template for cardinality control
 	)
 
 	// Record duration

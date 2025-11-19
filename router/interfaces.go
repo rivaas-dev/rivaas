@@ -2,68 +2,21 @@ package router
 
 import (
 	"context"
-	"net/http"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
-// MetricsRecorder interface for recording metrics from external packages.
-// This interface allows the router to work with any metrics implementation
-// without tight coupling to specific packages.
-type MetricsRecorder interface {
-	// RecordMetric records a custom histogram metric with the given name and value.
-	RecordMetric(ctx context.Context, name string, value float64, attributes ...attribute.KeyValue)
-
-	// IncrementCounter increments a custom counter metric with the given name.
-	IncrementCounter(ctx context.Context, name string, attributes ...attribute.KeyValue)
-
-	// SetGauge sets a custom gauge metric with the given name and value.
-	SetGauge(ctx context.Context, name string, value float64, attributes ...attribute.KeyValue)
-
-	// RecordRouteRegistration records route registration metrics.
-	RecordRouteRegistration(ctx context.Context, method, path string)
-
-	// StartRequest initializes metrics collection for a request.
-	// Returns a request metrics object that should be passed to FinishRequest.
-	StartRequest(ctx context.Context, path string, isStatic bool, attributes ...attribute.KeyValue) any
-
-	// FinishRequest completes metrics collection for a request.
-	// Takes the request metrics object returned by StartRequest.
-	FinishRequest(ctx context.Context, metrics any, statusCode int, responseSize int64)
-
-	// IsEnabled returns true if metrics are enabled.
-	IsEnabled() bool
-}
-
-// TracingRecorder interface for recording traces from external packages.
-// This interface allows the router to work with any tracing implementation
-// without tight coupling to specific packages.
-type TracingRecorder interface {
-	// StartSpan starts a new span with the given name and options.
-	StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span)
-
-	// FinishSpan completes the span with the given status code.
-	FinishSpan(span trace.Span, statusCode int)
-
-	// SetSpanAttribute adds an attribute to the span.
-	SetSpanAttribute(span trace.Span, key string, value any)
-
-	// AddSpanEvent adds an event to the span with optional attributes.
-	AddSpanEvent(span trace.Span, name string, attrs ...attribute.KeyValue)
-
-	// ExtractTraceContext extracts trace context from HTTP headers.
-	ExtractTraceContext(ctx context.Context, headers http.Header) context.Context
-
-	// InjectTraceContext injects trace context into HTTP headers.
-	InjectTraceContext(ctx context.Context, headers http.Header)
-
-	// IsEnabled returns true if tracing is enabled.
-	IsEnabled() bool
-
-	// ShouldExcludePath returns true if the given path should be excluded from tracing.
-	ShouldExcludePath(path string) bool
-}
+// NOTE: MetricsRecorder and TracingRecorder interfaces have been removed.
+// Observability is now unified through the ObservabilityRecorder interface (see observability.go).
+//
+// For request-level observability, use ObservabilityRecorder which combines:
+//   - Metrics collection
+//   - Distributed tracing
+//   - Access logging
+//   - Request-scoped logger creation
+//
+// For handler-level custom metrics and tracing, use ContextMetricsRecorder and
+// ContextTracingRecorder which remain available through router.Context.
 
 // ContextMetricsRecorder interface for context-level metrics recording.
 // This interface provides methods that can be called from router.Context

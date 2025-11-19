@@ -6,11 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"rivaas.dev/router"
 )
 
 func TestRequestID_GeneratesID(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -22,146 +23,168 @@ func TestRequestID_GeneratesID(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	requestID := w.Header().Get("X-Request-ID")
-	if requestID == "" {
-		t.Error("Expected X-Request-ID header to be set")
-	}
+	assert.NotEmpty(t, requestID, "Expected X-Request-ID header to be set")
 
 	// Default generator produces 32 character hex string (16 bytes * 2)
-	if len(requestID) != 32 {
-		t.Errorf("Expected request ID length 32, got %d", len(requestID))
-	}
+	assert.Equal(t, 32, len(requestID))
 }
 
-func TestRequestID_AllowClientID(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithAllowClientID(true)))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
+func TestRequestID_ClientIDHandling(t *testing.T) {
 	clientID := "client-provided-id-123"
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-Request-ID", clientID)
-	w := httptest.NewRecorder()
 
-	r.ServeHTTP(w, req)
+	tests := []struct {
+		name         string
+		allowClient  bool
+		setClientID  bool
+		expectClient bool
+	}{
+		{
+			name:         "allow client ID",
+			allowClient:  true,
+			setClientID:  true,
+			expectClient: true,
+		},
+		{
+			name:         "disallow client ID",
+			allowClient:  false,
+			setClientID:  true,
+			expectClient: false,
+		},
+	}
 
-	requestID := w.Header().Get("X-Request-ID")
-	if requestID != clientID {
-		t.Errorf("Expected request ID %s, got %s", clientID, requestID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := router.MustNew()
+			r.Use(New(WithAllowClientID(tt.allowClient)))
+			r.GET("/test", func(c *router.Context) {
+				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			if tt.setClientID {
+				req.Header.Set("X-Request-ID", clientID)
+			}
+			w := httptest.NewRecorder()
+
+			r.ServeHTTP(w, req)
+
+			requestID := w.Header().Get("X-Request-ID")
+			assert.NotEmpty(t, requestID, "Request ID should be set")
+
+			if tt.expectClient {
+				assert.Equal(t, clientID, requestID)
+			} else {
+				assert.NotEqual(t, clientID, requestID)
+			}
+		})
 	}
 }
 
-func TestRequestID_DisallowClientID(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithAllowClientID(false)))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	clientID := "client-provided-id-123"
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-Request-ID", clientID)
-	w := httptest.NewRecorder()
-
-	r.ServeHTTP(w, req)
-
-	requestID := w.Header().Get("X-Request-ID")
-	if requestID == clientID {
-		t.Error("Should not use client-provided ID when disabled")
-	}
-
-	if requestID == "" {
-		t.Error("Should generate new ID when client ID is disallowed")
-	}
-}
-
-func TestRequestID_CustomHeader(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithHeader("X-Correlation-ID")))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	w := httptest.NewRecorder()
-
-	r.ServeHTTP(w, req)
-
-	requestID := w.Header().Get("X-Correlation-ID")
-	if requestID == "" {
-		t.Error("Expected X-Correlation-ID header to be set")
-	}
-
-	// Default header should not be set
-	if w.Header().Get("X-Request-ID") != "" {
-		t.Error("Default X-Request-ID header should not be set")
-	}
-}
-
-func TestRequestID_CustomGenerator(t *testing.T) {
+func TestRequestID_Configuration(t *testing.T) {
 	counter := 0
-	r := router.New()
-	r.Use(New(WithGenerator(func() string {
+	customGenerator := func() string {
 		counter++
 		return "custom-id-" + string(rune('0'+counter))
-	})))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	// First request
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	requestID1 := w.Header().Get("X-Request-ID")
-	if !strings.HasPrefix(requestID1, "custom-id-") {
-		t.Errorf("Expected custom ID format, got %s", requestID1)
 	}
 
-	// Second request
-	req = httptest.NewRequest(http.MethodGet, "/test", nil)
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	requestID2 := w.Header().Get("X-Request-ID")
-	if requestID1 == requestID2 {
-		t.Error("Each request should get unique ID")
+	tests := []struct {
+		name              string
+		options           []func() Option
+		expectedHeader    string
+		headerShouldExist bool
+		checkUnique       bool
+		checkPrefix       string
+		requestCount      int
+	}{
+		{
+			name: "custom header",
+			options: []func() Option{
+				func() Option { return WithHeader("X-Correlation-ID") },
+			},
+			expectedHeader:    "X-Correlation-ID",
+			headerShouldExist: true,
+		},
+		{
+			name: "custom generator produces unique IDs",
+			options: []func() Option{
+				func() Option { return WithGenerator(customGenerator) },
+			},
+			expectedHeader: "X-Request-ID",
+			checkPrefix:    "custom-id-",
+			checkUnique:    true,
+			requestCount:   2,
+		},
+		{
+			name:              "multiple requests generate unique IDs",
+			options:           []func() Option{},
+			expectedHeader:    "X-Request-ID",
+			headerShouldExist: true,
+			checkUnique:       true,
+			requestCount:      100,
+		},
 	}
-}
 
-func TestRequestID_MultipleRequests(t *testing.T) {
-	r := router.New()
-	r.Use(New())
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := make([]Option, len(tt.options))
+			for i, optFunc := range tt.options {
+				opts[i] = optFunc()
+			}
 
-	ids := make(map[string]bool)
-	for i := 0; i < 100; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+			r := router.MustNew()
+			r.Use(New(opts...))
+			r.GET("/test", func(c *router.Context) {
+				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+			})
 
-		requestID := w.Header().Get("X-Request-ID")
-		if requestID == "" {
-			t.Error("Request ID should be generated")
-		}
+			if tt.checkUnique {
+				ids := make(map[string]bool)
+				count := tt.requestCount
+				if count == 0 {
+					count = 1
+				}
 
-		if ids[requestID] {
-			t.Errorf("Duplicate request ID: %s", requestID)
-		}
-		ids[requestID] = true
-	}
+				for range count {
+					req := httptest.NewRequest(http.MethodGet, "/test", nil)
+					w := httptest.NewRecorder()
+					r.ServeHTTP(w, req)
 
-	if len(ids) != 100 {
-		t.Errorf("Expected 100 unique IDs, got %d", len(ids))
+					requestID := w.Header().Get(tt.expectedHeader)
+					assert.NotEmpty(t, requestID, "Request ID should be generated")
+
+					if tt.checkPrefix != "" {
+						assert.True(t, strings.HasPrefix(requestID, tt.checkPrefix))
+					}
+
+					if count > 1 {
+						assert.False(t, ids[requestID], "Duplicate request ID: %s", requestID)
+						ids[requestID] = true
+					}
+				}
+
+				if count > 1 {
+					assert.Equal(t, count, len(ids), "Expected %d unique IDs", count)
+				}
+			} else {
+				req := httptest.NewRequest(http.MethodGet, "/test", nil)
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, req)
+
+				if tt.headerShouldExist {
+					assert.NotEmpty(t, w.Header().Get(tt.expectedHeader))
+				}
+
+				// Verify default header is not set when custom header is used
+				if tt.expectedHeader != "X-Request-ID" {
+					assert.Empty(t, w.Header().Get("X-Request-ID"))
+				}
+			}
+		})
 	}
 }
 
 func TestRequestID_CombinedOptions(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New(
 		WithHeader("X-Trace-ID"),
 		WithAllowClientID(false),
@@ -181,45 +204,5 @@ func TestRequestID_CombinedOptions(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	requestID := w.Header().Get("X-Trace-ID")
-	if requestID != "generated-123" {
-		t.Errorf("Expected generated-123, got %s", requestID)
-	}
-}
-
-// Benchmark tests
-func BenchmarkRequestID_Generate(b *testing.B) {
-	r := router.New()
-	r.Use(New(WithAllowClientID(false)))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
-}
-
-func BenchmarkRequestID_UseClientID(b *testing.B) {
-	r := router.New()
-	r.Use(New(WithAllowClientID(true)))
-	r.GET("/test", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-Request-ID", "client-provided-id")
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-	}
+	assert.Equal(t, "generated-123", requestID)
 }

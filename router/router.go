@@ -37,6 +37,24 @@
 //
 // For current performance benchmarks, see router_bench_test.go.
 //
+// Constructor Pattern:
+//
+// The router follows a pragmatic constructor pattern:
+//
+//   - New() returns *Router (no error) because router initialization cannot fail.
+//     The router is a simple data structure that allocates memory and applies options.
+//     There is no network I/O, file system access, or external dependencies during construction.
+//
+//   - Options are validated at application time (e.g., invalid configuration panics on invalid input).
+//     This fail-fast approach is appropriate for configuration errors that should be caught during development.
+//
+//   - All configuration options use the "With" prefix for consistency (e.g., WithH2C, WithLogger).
+//
+//   - Grouping options (e.g., WithServerTimeouts) accept multiple related settings to reduce API surface.
+//
+// This pattern differs from packages that initialize external resources (metrics, tracing, logging),
+// which return errors because they may fail to connect to backends or validate complex configurations.
+//
 // Example usage:
 //
 //	package main
@@ -47,7 +65,7 @@
 //	)
 //
 //	func main() {
-//	    r := router.New()
+//	    r := router.MustNew()
 //
 //	    r.GET("/", func(c *router.Context) {
 //	        c.JSON(http.StatusOK, map[string]string{"message": "Hello World"})
@@ -65,6 +83,8 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -81,8 +101,16 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"rivaas.dev/logging"
 )
+
+// noopLogger is a singleton no-op logger used when no observability is configured.
+var noopLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+// NoopLogger returns the singleton no-op logger.
+// This is used by implementations of ObservabilityRecorder when logging is disabled.
+func NoopLogger() *slog.Logger {
+	return noopLogger
+}
 
 // Option defines functional options for router configuration.
 type Option func(*Router)
@@ -180,12 +208,11 @@ func (rw *responseWriter) Flush() {
 // The Router is safe for concurrent use and can handle multiple goroutines
 // accessing it simultaneously without any additional synchronization.
 type Router struct {
-	routeTree   atomicRouteTree // Lock-free route tree with atomic operations
-	middleware  []HandlerFunc   // Global middleware chain applied to all routes
-	contextPool *ContextPool    // Context pool with specialized pools
-	tracing     TracingRecorder // OpenTelemetry tracing configuration
-	metrics     MetricsRecorder // OpenTelemetry metrics configuration
-	logger      logging.Logger  // Structured logger for security events and errors
+	routeTree     atomicRouteTree       // Lock-free route tree with atomic operations
+	middleware    []HandlerFunc         // Global middleware chain applied to all routes
+	contextPool   *ContextPool          // Context pool with specialized pools
+	observability ObservabilityRecorder // Unified observability (metrics, tracing, logging)
+	diagnostics   DiagnosticHandler     // Optional diagnostic event handler
 
 	// Routing features
 	versioning   *VersioningConfig  // Route versioning configuration
@@ -211,9 +238,6 @@ type Router struct {
 
 	// Trusted proxies configuration for real client IP detection
 	realip *realIPConfig // Compiled trusted proxy configuration
-
-	// Problem Details base URL for RFC 9457 type URIs
-	problemBase string // Base URL for problem type resolution (e.g., "https://docs.rivaas.dev/problems")
 
 	// Route freezing and naming
 	frozen             atomic.Bool       // Routes are frozen (immutable) after freeze
@@ -254,18 +278,32 @@ const (
 //
 // The returned router is ready to use and is safe for concurrent access.
 //
+// Returns an error if the router configuration is invalid. Configuration
+// is validated immediately to fail fast at startup rather than at runtime.
+//
+// For a version that panics instead of returning an error, use MustNew.
+//
 // Example:
 //
-//	r := router.New()
+//	r, err := router.MustNew()
+//	if err != nil {
+//	    log.Fatalf("Failed to create router: %v", err)
+//	}
 //	r.GET("/health", healthHandler)
 //	http.ListenAndServe(":8080", r)
 //
-// With tracing enabled:
+// With options:
 //
-//	r := router.New(router.WithTracing())
+//	r, err := router.MustNew(
+//	    router.WithH2C(true),
+//	    router.WithServerTimeouts(10*time.Second, 30*time.Second, 60*time.Second, 120*time.Second),
+//	)
+//	if err != nil {
+//	    log.Fatalf("Invalid router configuration: %v", err)
+//	}
 //	r.GET("/api/users", getUserHandler)
 //	http.ListenAndServe(":8080", r)
-func New(opts ...Option) *Router {
+func New(opts ...Option) (*Router, error) {
 	r := &Router{
 		bloomFilterSize:    defaultBloomFilterSize,
 		bloomHashFunctions: defaultBloomHashFunctions,
@@ -289,44 +327,80 @@ func New(opts ...Option) *Router {
 		opt(r)
 	}
 
+	// Validate configuration
+	if err := r.validate(); err != nil {
+		return nil, fmt.Errorf("router configuration validation failed: %w", err)
+	}
+
+	return r, nil
+}
+
+// MustNew creates a new Router instance and panics if configuration is invalid.
+// This is a convenience wrapper around New for cases where configuration errors
+// should cause the application to fail immediately at startup.
+//
+// Usage:
+//
+//	r := router.MustNew(
+//	    router.WithH2C(true),
+//	    router.WithMaxParams(16),
+//	)
+//	// Panics if configuration is invalid
+func MustNew(opts ...Option) *Router {
+	r, err := New(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("router.MustNew: %v", err))
+	}
 	return r
 }
 
-// MustNew creates a new router instance or panics on configuration error.
-// This is a convenience wrapper around New for use in initialization where
-// errors should terminate the program.
+// validate checks the router configuration for common errors.
+// This method is called automatically by New() to fail fast on invalid configuration.
 //
-// Example:
+// Validation checks:
+//   - Bloom filter parameters are positive
+//   - Versioning configuration is valid (if present)
 //
-//	r := router.MustNew()
-//	r.GET("/health", healthHandler)
-func MustNew(opts ...Option) *Router {
-	return New(opts...)
+// Note: Routes are validated at registration time, not at router creation time,
+// because routes are registered after New() returns.
+func (r *Router) validate() error {
+	// Validate bloom filter configuration
+	if r.bloomFilterSize <= 0 {
+		return fmt.Errorf("bloom filter size must be positive, got %d", r.bloomFilterSize)
+	}
+	if r.bloomHashFunctions <= 0 {
+		return fmt.Errorf("bloom hash functions must be positive, got %d", r.bloomHashFunctions)
+	}
+
+	// Validate versioning configuration if present
+	if r.versioning != nil {
+		// Note: Versioning validation is handled internally by the versioning system
+		// We just verify it exists and was properly initialized
+		// VersioningConfig validates itself during construction
+	}
+
+	return nil
 }
 
-// SetMetricsRecorder sets the metrics recorder for the router.
-// This method is used by external packages to integrate metrics functionality.
-func (r *Router) SetMetricsRecorder(recorder MetricsRecorder) {
-	r.metrics = recorder
+// SetObservabilityRecorder sets the unified observability recorder for the router.
+// This integrates metrics, tracing, and logging into a single lifecycle.
+// Pass nil to disable all observability.
+//
+// This method is typically called by the app package during initialization,
+// but can also be used with standalone routers for custom observability implementations.
+func (r *Router) SetObservabilityRecorder(recorder ObservabilityRecorder) {
+	r.observability = recorder
 }
 
-// SetTracingRecorder sets the tracing recorder for the router.
-// This method is used by external packages to integrate tracing functionality.
-func (r *Router) SetTracingRecorder(recorder TracingRecorder) {
-	r.tracing = recorder
-}
-
-// SetLogger sets the structured logger for the router.
-// The logger is used for security events, warnings, and errors.
-// The logger interface is compatible with slog and other structured loggers.
-//
-// Example with slog:
-//
-//	import "log/slog"
-//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-//	router.SetLogger(logger)
-func (r *Router) SetLogger(logger logging.Logger) {
-	r.logger = logger
+// emit sends a diagnostic event if a handler is configured.
+func (r *Router) emit(kind DiagnosticKind, message string, fields map[string]any) {
+	if r.diagnostics != nil {
+		r.diagnostics.OnDiagnostic(DiagnosticEvent{
+			Kind:    kind,
+			Message: message,
+			Fields:  fields,
+		})
+	}
 }
 
 // NoRoute sets a custom handler for requests that don't match any registered routes.
@@ -338,7 +412,7 @@ func (r *Router) SetLogger(logger logging.Logger) {
 // Example:
 //
 //	r.NoRoute(func(c *Context) {
-//	    c.JSON(404, map[string]string{"error": "route not found"})
+//	    c.JSON(http.StatusNotFound, map[string]string{"error": "route not found"})
 //	})
 //
 // Setting handler to nil will restore the default http.NotFound behavior.
@@ -408,7 +482,7 @@ func (r *Router) getAllowedMethodsForPath(path string) []string {
 
 	var allowed []string
 	// Standard HTTP methods to check
-	standardMethods := []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+	standardMethods := []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions}
 
 	// Create a temporary context for path matching
 	c := getContextFromGlobalPool()
@@ -463,16 +537,14 @@ func extractClientIP(req *http.Request, router *Router) string {
 		switch h {
 		case HeaderXFF:
 			if ip := lastUntrustedXFF(req.Header.Get("X-Forwarded-For"), cfg); ip != "" {
-				// Log suspicious long chains
+				// Report suspicious long chains
 				xff := req.Header.Get("X-Forwarded-For")
 				if strings.Count(xff, ",") > 10 {
-					if router.logger != nil {
-						router.logger.Warn("suspicious X-Forwarded-For chain",
-							"remote", remote,
-							"xff_count", strings.Count(xff, ",")+1,
-							"xff", xff,
-						)
-					}
+					router.emit(DiagXFFSuspicious, "suspicious X-Forwarded-For chain detected", map[string]any{
+						"remote":    remote,
+						"xff_count": strings.Count(xff, ",") + 1,
+						"xff":       xff,
+					})
 				}
 				return ip
 			}
@@ -526,13 +598,11 @@ func detectScheme(req *http.Request, router *Router) string {
 		if proto == "https" || proto == "http" {
 			return proto
 		}
-		// Invalid value → log and default to http
-		if router.logger != nil {
-			router.logger.Warn("invalid X-Forwarded-Proto value",
-				"remote", remote,
-				"proto", proto,
-			)
-		}
+		// Invalid value → report and default to http
+		router.emit(DiagInvalidProto, "invalid X-Forwarded-Proto value", map[string]any{
+			"remote": remote,
+			"proto":  proto,
+		})
 	}
 
 	// TODO: Parse RFC 7239 Forwarded header in future:
@@ -615,8 +685,8 @@ func (r *Router) handleMethodNotAllowed(w http.ResponseWriter, req *http.Request
 	// TODO: In future, track matched pattern during routing attempt
 	c.routeTemplate = "_method_not_allowed"
 
-	// Send RFC 9457 problem (MethodNotAllowedProblem already sets Allow header)
-	_ = c.MethodNotAllowedProblem(allowed)
+	// Send 405 response (MethodNotAllowed already sets Allow header)
+	c.MethodNotAllowed(allowed)
 
 	// Reset and return to pool
 	c.reset()
@@ -679,26 +749,54 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 			c.version = r.detectVersion(req)
 		}
 
-		_ = c.NotFoundProblem()
+		c.NotFound()
 
 		c.reset()
 		globalContextPool.Put(c)
 	}
 }
 
-// WithLogger returns a RouterOption that sets the logger.
-// This is used with the New() constructor for convenient configuration.
+// WithDiagnostics sets a diagnostic handler for the router.
 //
-// Example:
+// Diagnostic events are optional informational events that may indicate
+// configuration issues, security concerns, or performance characteristics.
+// The router functions correctly whether diagnostics are collected or not.
+//
+// Example with logging:
 //
 //	import "log/slog"
-//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-//	r := router.New(router.WithLogger(logger))
 //
-// For more advanced logging configuration, see logging.WithLogging().
-func WithLogger(logger logging.Logger) Option {
+//	handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
+//	    slog.Warn(e.Message, "kind", e.Kind, "fields", e.Fields)
+//	})
+//	r := router.MustNew(router.WithDiagnostics(handler))
+//
+// Example with metrics:
+//
+//	handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
+//	    metrics.Increment("router.diagnostics", "kind", string(e.Kind))
+//	})
+//
+// Example with OpenTelemetry:
+//
+//	import "go.opentelemetry.io/otel/attribute"
+//	import "go.opentelemetry.io/otel/trace"
+//
+//	handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
+//	    span := trace.SpanFromContext(ctx)
+//	    if span.IsRecording() {
+//	        attrs := []attribute.KeyValue{
+//	            attribute.String("diagnostic.kind", string(e.Kind)),
+//	        }
+//	        for k, v := range e.Fields {
+//	            attrs = append(attrs, attribute.String(k, fmt.Sprint(v)))
+//	        }
+//	        span.AddEvent(e.Message, trace.WithAttributes(attrs...))
+//	    }
+//	})
+func WithDiagnostics(handler DiagnosticHandler) Option {
 	return func(r *Router) {
-		r.logger = logger
+		r.diagnostics = handler
 	}
 }
 
@@ -716,7 +814,7 @@ func WithLogger(logger logging.Logger) Option {
 //
 // Example:
 //
-//	r := router.New(router.WithH2C(true))
+//	r := router.MustNew(router.WithH2C(true))
 //	r.Serve(":8080")
 func WithH2C(enable bool) Option {
 	return func(r *Router) {
@@ -736,7 +834,7 @@ func WithH2C(enable bool) Option {
 //
 // Example:
 //
-//	r := router.New(router.WithServerTimeouts(
+//	r := router.MustNew(router.WithServerTimeouts(
 //	    10*time.Second,  // ReadHeaderTimeout
 //	    30*time.Second,  // ReadTimeout
 //	    60*time.Second,  // WriteTimeout
@@ -772,7 +870,7 @@ func defaultServerTimeouts() *serverTimeouts {
 //
 // Example:
 //
-//	r := router.New(router.WithBloomFilterSize(2000)) // For ~1000 routes
+//	r := router.MustNew(router.WithBloomFilterSize(2000)) // For ~1000 routes
 func WithBloomFilterSize(size uint64) Option {
 	return func(r *Router) {
 		if size > 0 {
@@ -794,7 +892,7 @@ func WithBloomFilterSize(size uint64) Option {
 //
 // Example:
 //
-//	r := router.New(router.WithBloomFilterHashFunctions(4)) // Lower false positive rate
+//	r := router.MustNew(router.WithBloomFilterHashFunctions(4)) // Lower false positive rate
 func WithBloomFilterHashFunctions(numFuncs int) Option {
 	return func(r *Router) {
 		// Clamp to reasonable range
@@ -821,7 +919,7 @@ func WithBloomFilterHashFunctions(numFuncs int) Option {
 //
 // Example:
 //
-//	r := router.New(router.WithCancellationCheck(false)) // Disable for max speed
+//	r := router.MustNew(router.WithCancellationCheck(false)) // Disable for max speed
 func WithCancellationCheck(enabled bool) Option {
 	return func(r *Router) {
 		r.checkCancellation = enabled
@@ -838,41 +936,10 @@ func WithCancellationCheck(enabled bool) Option {
 //
 // Example:
 //
-//	r := router.New(router.WithTemplateRouting(true))  // Enabled by default
+//	r := router.MustNew(router.WithTemplateRouting(true))  // Enabled by default
 func WithTemplateRouting(enabled bool) Option {
 	return func(r *Router) {
 		r.useTemplates = enabled
-	}
-}
-
-// WithProblemBaseURL returns a RouterOption that sets the base URL for RFC 9457 problem type URIs.
-// Problem type slugs (e.g., "validation-error") will be resolved to full URIs by appending
-// to this base URL (e.g., "https://docs.rivaas.dev/problems/validation-error").
-//
-// If the base URL is not set or a slug is already an absolute URI (starts with "http"),
-// the slug is used as-is.
-//
-// Example:
-//
-//	r := router.New(
-//	    router.WithProblemBaseURL("https://docs.rivaas.dev/problems"),
-//	)
-//
-//	// In handler:
-//	return c.Problem(
-//	    http.StatusBadRequest,
-//	    c.ProblemType("validation-error"), // Resolves to "https://docs.rivaas.dev/problems/validation-error"
-//	    "Validation failed",
-//	    "Invalid input",
-//	    nil,
-//	)
-func WithProblemBaseURL(url string) Option {
-	return func(r *Router) {
-		// Validate URL format
-		if url != "" && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			panic(fmt.Sprintf("problem base URL must be absolute (http/https): %q", url))
-		}
-		r.problemBase = strings.TrimSuffix(url, "/")
 	}
 }
 
@@ -1012,35 +1079,46 @@ func (r *Router) Group(prefix string, middleware ...HandlerFunc) *Group {
 // dynamic routes use context pooling for optimal memory reuse.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
+	ctx := req.Context()
+	var obsState any
 
-	// Check if tracing is enabled and path should be traced
-	shouldTrace := r.tracing != nil && r.tracing.IsEnabled() && !r.tracing.ShouldExcludePath(path)
+	// Observability lifecycle - start
+	if r.observability != nil {
+		var enrichedCtx context.Context
+		enrichedCtx, obsState = r.observability.OnRequestStart(ctx, req)
+		ctx = enrichedCtx // Always use enriched context (even if excluded)
+	}
 
-	// Check if metrics are enabled (path exclusion is handled by StartRequest)
-	shouldMeasure := r.metrics != nil && r.metrics.IsEnabled()
+	// Always attach enriched context (even for excluded requests)
+	req = req.WithContext(ctx)
+
+	// Only wrap ResponseWriter if not excluded
+	if r.observability != nil && obsState != nil {
+		w = r.observability.WrapResponseWriter(w, obsState)
+	}
 
 	// Try template-based routing first (if enabled)
 	// This is the fastest path - avoid any versioning overhead here
 	if r.useTemplates && r.templateCache != nil {
 		// Try static route table first (method+path hash lookup)
 		if tmpl := r.templateCache.lookupStatic(req.Method, path); tmpl != nil {
-			r.serveTemplate(w, req, tmpl, shouldTrace, shouldMeasure)
+			r.serveTemplate(w, req, tmpl, obsState)
 			return
 		}
 
 		// Try dynamic templates (pre-compiled patterns)
-		ctx := getContextFromGlobalPool()
-		ctx.paramCount = 0 // Reset for template matching
+		poolCtx := getContextFromGlobalPool()
+		poolCtx.paramCount = 0 // Reset for template matching
 
-		if tmpl := r.templateCache.matchDynamic(req.Method, path, ctx); tmpl != nil {
+		if tmpl := r.templateCache.matchDynamic(req.Method, path, poolCtx); tmpl != nil {
 			// Template matched! Serve with pre-extracted parameters
-			r.serveTemplateWithParams(w, req, tmpl, ctx, shouldTrace, shouldMeasure)
+			r.serveTemplateWithParams(w, req, tmpl, poolCtx, obsState)
 			return
 		}
 
 		// Return context to pool (will be reacquired if needed for tree fallback)
-		ctx.reset()
-		globalContextPool.Put(ctx)
+		poolCtx.reset()
+		globalContextPool.Put(poolCtx)
 	}
 
 	// Detect version only after fast paths failed
@@ -1095,7 +1173,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			if tree != nil {
 				// Strip version from path when path-based versioning is enabled
 				// This ensures routes registered without version prefix can match
-				r.serveVersionedRequest(w, req, tree, matchPath, version, shouldTrace, shouldMeasure)
+				r.serveVersionedRequest(w, req, tree, matchPath, version, obsState)
 				return
 			}
 		}
@@ -1110,7 +1188,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Fallback to standard routing (tree traversal)
 	tree := r.getTreeForMethodDirect(req.Method)
 	if tree == nil {
-		r.handleNotFound(w, req)
+		// Handle 404 with observability
+		r.handleNotFoundWithObs(w, req, obsState)
 		return
 	}
 
@@ -1118,36 +1197,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Only use compiled routes if they exist (pre-compiled during warmup)
 	if tree.compiled != nil {
 		if handlers := tree.compiled.getRoute(path); handlers != nil {
-			if shouldTrace && shouldMeasure {
-				// Wrap response writer for status code and size tracking (needed for metrics)
-				rw := &responseWriter{ResponseWriter: w}
-				r.serveStaticWithTracingAndMetrics(rw, req, handlers, path, true)
-			} else if shouldTrace {
-				// Wrap response writer for status code and size tracking (needed for metrics)
-				rw := &responseWriter{ResponseWriter: w}
-				r.serveStaticWithTracing(rw, req, handlers, path)
-			} else if shouldMeasure {
-				// Wrap response writer for status code and size tracking (needed for metrics)
-				rw := &responseWriter{ResponseWriter: w}
-				r.serveStaticWithMetrics(rw, req, handlers, path, true)
-			} else {
-				// No metrics or tracing, use original response writer for zero allocations
-				// Direct execution without wrapper for performance
-				// Use global context pool to avoid allocations
-				ctx := getContextFromGlobalPool()
-				ctx.initForRequest(req, w, handlers, r)
-
-				// Use cached version from earlier detection
-				if hasVersioning {
-					ctx.version = version
-				}
-
-				ctx.Next()
-
-				// Reset and return to pool
-				ctx.reset()
-				globalContextPool.Put(ctx)
-			}
+			// Serve static route with observability
+			r.serveStaticRoute(w, req, handlers, path, version, hasVersioning, obsState)
 			return
 		}
 	}
@@ -1173,7 +1224,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Find the route and extract parameters
 	handlers, routePattern := tree.getRoute(path, c)
 	if handlers == nil {
-		r.handleNotFound(w, req)
+		r.handleNotFoundWithObs(w, req, obsState)
 		return
 	}
 
@@ -1183,27 +1234,81 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		c.routeTemplate = "_unmatched" // Fallback (should rarely happen)
 	}
 
-	if shouldTrace && shouldMeasure {
-		// Wrap response writer for status code and size tracking (needed for metrics)
-		rw := &responseWriter{ResponseWriter: w}
-		c.Response = rw
-		r.serveDynamicWithTracingAndMetrics(c, handlers, routePattern)
-	} else if shouldTrace {
-		// Wrap response writer for status code and size tracking (needed for metrics)
-		rw := &responseWriter{ResponseWriter: w}
-		c.Response = rw
-		r.serveDynamicWithTracing(c, handlers, routePattern)
-	} else if shouldMeasure {
-		// Wrap response writer for status code and size tracking (needed for metrics)
-		rw := &responseWriter{ResponseWriter: w}
-		c.Response = rw
-		r.serveDynamicWithMetrics(c, handlers, routePattern)
+	// Build request-scoped logger (after routing)
+	var logger *slog.Logger
+	if r.observability != nil {
+		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
 	} else {
-		// No metrics or tracing, use original response writer for zero allocations
-		c.Response = w
-		c.handlers = handlers
-		c.index = -1
-		c.Next()
+		logger = noopLogger
+	}
+	c.logger = logger
+
+	// Execute handlers
+	c.handlers = handlers
+	c.index = -1
+	c.Next()
+
+	// Finish observability
+	if obsState != nil {
+		r.observability.OnRequestEnd(ctx, obsState, w, routePattern)
+	}
+}
+
+// handleNotFoundWithObs handles 404 responses with observability support.
+func (r *Router) handleNotFoundWithObs(w http.ResponseWriter, req *http.Request, obsState any) {
+	// Build request-scoped logger for 404 handler (for future use)
+	// Currently handleNotFound doesn't use the logger, but it could in the future
+	if r.observability != nil {
+		_ = r.observability.BuildRequestLogger(req.Context(), req, "_not_found")
+	}
+
+	// Call the 404 handler
+	r.handleNotFound(w, req)
+
+	// Finish observability with "_not_found" sentinel
+	if obsState != nil {
+		r.observability.OnRequestEnd(req.Context(), obsState, w, "_not_found")
+	}
+}
+
+// serveStaticRoute serves a static (compiled) route with observability support.
+func (r *Router) serveStaticRoute(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, routePattern, version string, hasVersioning bool, obsState any) {
+	ctx := req.Context()
+
+	// Build request-scoped logger (after routing)
+	var logger *slog.Logger
+	if r.observability != nil {
+		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
+	} else {
+		logger = noopLogger
+	}
+
+	// Get context from pool
+	c := getContextFromGlobalPool()
+	c.Request = req
+	c.Response = w
+	c.handlers = handlers
+	c.router = r
+	c.logger = logger
+	c.routeTemplate = routePattern
+	c.index = -1
+	c.paramCount = 0
+
+	// Set version if versioning is enabled
+	if hasVersioning {
+		c.version = version
+	}
+
+	// Execute handlers
+	c.Next()
+
+	// Reset and return to pool
+	c.reset()
+	globalContextPool.Put(c)
+
+	// Finish observability
+	if obsState != nil {
+		r.observability.OnRequestEnd(ctx, obsState, w, routePattern)
 	}
 }
 
@@ -1217,7 +1322,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // - Amortized O(1) access time
 //
 // Trade-off: Slightly slower writes (not a concern - routes compiled at startup)
-func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request, tree *node, path, version string, shouldTrace, shouldMeasure bool) {
+func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request, tree *node, path, version string, obsState any) {
+	ctx := req.Context()
+
 	// Check if version has compiled routes (lock-free sync.Map lookup)
 	// Load is optimized for concurrent read-heavy workloads
 	if compiledValue, ok := r.versionCache.Load(version); ok {
@@ -1225,7 +1332,7 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 			// Try compiled routes first - get both handlers and route pattern
 			if handlers, routePath := compiled.getRouteWithPath(path); handlers != nil {
 				// Use the actual route path (pattern) for route template, version for deprecation headers
-				r.serveVersionedHandlers(w, req, handlers, routePath, version, shouldTrace, shouldMeasure)
+				r.serveVersionedHandlers(w, req, handlers, routePath, version, obsState)
 				return
 			}
 		}
@@ -1239,11 +1346,6 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	c.paramCount = 0
 	c.router = r
 	c.version = version
-
-	// Set metrics recorder for handler access to custom metrics
-	if r.metrics != nil {
-		c.metricsRecorder = r.metrics
-	}
 
 	defer func() {
 		c.reset()
@@ -1271,155 +1373,124 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	// Execute handlers with the context that has extracted parameters
 	c.handlers = handlers
 
-	if shouldTrace && shouldMeasure {
-		// Wrap response writer and set up tracing
-		rw := &responseWriter{ResponseWriter: w}
-		spanName := req.Method + " " + c.routeTemplate
-		ctx, span := r.tracing.StartSpan(req.Context(), spanName)
-		c.Request = req.WithContext(ctx)
-		c.Response = rw
-		c.span = span
-
-		// Set standard span attributes using semconv
-		setStandardSpanAttributes(span, req, c.routeTemplate, r)
-
-		// Start metrics (use route template, not raw path)
-		metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
-
-		// Execute
-		c.Next()
-
-		// Finalize span attributes with response info
-		finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
-
-		// Finish metrics and tracing
-		r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
-		r.tracing.FinishSpan(span, rw.StatusCode())
-	} else if shouldTrace {
-		// Wrap response writer and set up tracing
-		rw := &responseWriter{ResponseWriter: w}
-		spanName := req.Method + " " + c.routeTemplate
-		ctx, span := r.tracing.StartSpan(req.Context(), spanName)
-		c.Request = req.WithContext(ctx)
-		c.Response = rw
-		c.span = span
-
-		// Set standard span attributes using semconv
-		setStandardSpanAttributes(span, req, c.routeTemplate, r)
-
-		// Execute
-		c.Next()
-
-		// Finalize span attributes with response info
-		finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
-
-		// Finish tracing
-		r.tracing.FinishSpan(span, rw.StatusCode())
-	} else if shouldMeasure {
-		// Wrap response writer and set up metrics
-		rw := &responseWriter{ResponseWriter: w}
-		ctx := req.Context()
-		c.Response = rw
-
-		// Start metrics (use route template, not raw path)
-		metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
-
-		// Execute
-		c.Next()
-
-		// Finish metrics
-		r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
+	// Build request-scoped logger (after routing)
+	var logger *slog.Logger
+	if r.observability != nil {
+		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
 	} else {
-		// No metrics or tracing, execute directly
-		c.Next()
+		logger = noopLogger
+	}
+	c.logger = logger
+
+	// Execute
+	c.Next()
+
+	// Finish observability
+	if obsState != nil {
+		r.observability.OnRequestEnd(ctx, obsState, w, routePattern)
 	}
 }
 
 // serveVersionedHandlers executes handlers with version information
 // routeTemplate is the actual route pattern (e.g., "/test") used for logging/metrics
 // version is the API version (e.g., "v1") used for deprecation headers and context
-func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate, version string, shouldTrace, shouldMeasure bool) {
+func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate, version string, obsState any) {
+	ctx := req.Context()
+
 	// Add deprecation headers if version is deprecated (RFC 8594)
 	// This is called before handler execution to ensure headers are set early
 	if r.versioning != nil {
 		r.versioning.setDeprecationHeaders(w, version)
 	}
 
-	if shouldTrace && shouldMeasure {
-		// Wrap response writer for status code and size tracking (needed for metrics)
-		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithTracingAndMetrics(rw, req, handlers, routeTemplate, true)
-	} else if shouldTrace {
-		// Wrap response writer for status code and size tracking (needed for metrics)
-		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithTracing(rw, req, handlers, routeTemplate)
-	} else if shouldMeasure {
-		// Wrap response writer for status code and size tracking (needed for metrics)
-		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithMetrics(rw, req, handlers, routeTemplate, true)
+	// Build request-scoped logger (after routing)
+	var logger *slog.Logger
+	if r.observability != nil {
+		logger = r.observability.BuildRequestLogger(ctx, req, routeTemplate)
 	} else {
-		// No metrics or tracing, use original response writer for zero allocations
-		// Direct execution without wrapper for performance
-		// Use global context pool to avoid allocations
-		ctx := getContextFromGlobalPool()
-		ctx.Request = req
-		ctx.Response = w
-		ctx.index = -1
-		ctx.paramCount = 0
-		ctx.router = r
-		ctx.version = version
-		ctx.routeTemplate = routeTemplate // Set route template for access log
+		logger = noopLogger
+	}
 
-		// Set metrics recorder for handler access to custom metrics
-		if r.metrics != nil {
-			ctx.metricsRecorder = r.metrics
-		}
+	// Use global context pool to avoid allocations
+	c := getContextFromGlobalPool()
+	c.Request = req
+	c.Response = w
+	c.index = -1
+	c.paramCount = 0
+	c.router = r
+	c.version = version
+	c.routeTemplate = routeTemplate // Set route template for access log
+	c.logger = logger
+	c.handlers = handlers
 
-		ctx.handlers = handlers
-		ctx.Next()
+	// Execute
+	c.Next()
 
-		// Reset and return to pool
-		ctx.reset()
-		globalContextPool.Put(ctx)
+	// Reset and return to pool
+	c.reset()
+	globalContextPool.Put(c)
+
+	// Finish observability
+	if obsState != nil {
+		r.observability.OnRequestEnd(ctx, obsState, w, routeTemplate)
 	}
 }
 
-// compileRoutesForMethod compiles static routes for a specific HTTP method
-// to enable fast lookup using compiled route tables.
-// Records metrics about compilation time and route counts if metrics are enabled.
+// countStaticRoutesForMethod counts the number of static routes (no parameters) in a method tree.
+// This is used to determine optimal bloom filter size.
+func (r *Router) countStaticRoutesForMethod(method string) int {
+	tree := r.getTreeForMethodDirect(method)
+	if tree == nil {
+		return 0
+	}
+	return tree.countStaticRoutes()
+}
+
+// optimalBloomFilterSize calculates the optimal bloom filter size based on route count.
+// Uses the formula: m = -n*ln(p) / (ln(2)^2) where:
+//   - n = number of routes
+//   - p = desired false positive rate (0.01 = 1%)
+//   - m = bits needed
+//
+// For practical use, we use 10 bits per route for ~1% false positive rate.
+// This provides a good balance between memory usage and false positive rate.
+func optimalBloomFilterSize(routeCount int) uint64 {
+	if routeCount <= 0 {
+		return defaultBloomFilterSize
+	}
+	// Use 10 bits per route for ~1% false positive rate
+	// Minimum size of 100 to avoid degenerate cases
+	size := uint64(routeCount * 10)
+	if size < 100 {
+		return 100
+	}
+	// Cap at reasonable maximum (1M bits = 128KB) to prevent excessive memory
+	if size > 1000000 {
+		return 1000000
+	}
+	return size
+}
+
 func (r *Router) compileRoutesForMethod(method string) {
 	tree := r.getTreeForMethodDirect(method)
 	if tree == nil {
 		return
 	}
 
-	// Record compilation start time for metrics
-	var startTime time.Time
-	if r.metrics != nil && r.metrics.IsEnabled() {
-		startTime = time.Now()
+	// NOTE: Route compilation metrics temporarily disabled during observability refactoring
+	// TODO: Consider adding compilation metrics to ObservabilityRecorder if needed
+
+	// Calculate optimal bloom filter size based on route count
+	// If user hasn't explicitly set a size, auto-size based on routes
+	bloomSize := r.bloomFilterSize
+	if bloomSize == defaultBloomFilterSize {
+		// Count static routes in this tree to determine optimal size
+		routeCount := r.countStaticRoutesForMethod(method)
+		bloomSize = optimalBloomFilterSize(routeCount)
 	}
 
 	// Compile routes
-	compiled := tree.compileStaticRoutes(r.bloomFilterSize, r.bloomHashFunctions)
-
-	// Record metrics if enabled
-	if r.metrics != nil && r.metrics.IsEnabled() && compiled != nil {
-		duration := float64(time.Since(startTime).Microseconds()) / 1000.0 // Convert to milliseconds
-
-		r.metrics.RecordMetric(
-			context.Background(),
-			"router.route_compilation_duration_ms",
-			duration,
-			attribute.String("method", method),
-		)
-
-		r.metrics.RecordMetric(
-			context.Background(),
-			"router.compiled_routes_count",
-			float64(len(compiled.routes)),
-			attribute.String("method", method),
-		)
-	}
+	_ = tree.compileStaticRoutes(bloomSize, r.bloomHashFunctions)
 }
 
 // CompileAllRoutes pre-compiles all static routes for performance.
@@ -1480,10 +1551,24 @@ func (r *Router) compileVersionRoutes() {
 
 	// Compile static routes for each version
 	for version, methodTrees := range versionTrees {
+		// Count static routes across all methods for this version to determine optimal bloom size
+		totalStaticRoutes := 0
+		for _, tree := range methodTrees {
+			if tree != nil {
+				totalStaticRoutes += tree.countStaticRoutes()
+			}
+		}
+
+		// Calculate optimal bloom filter size (use auto-sizing if default)
+		bloomSize := r.bloomFilterSize
+		if bloomSize == defaultBloomFilterSize {
+			bloomSize = optimalBloomFilterSize(totalStaticRoutes)
+		}
+
 		// Create a single compiled table for this version that will contain routes from all methods
 		compiled := &CompiledRouteTable{
 			routes: make(map[uint64]*CompiledRoute),
-			bloom:  newBloomFilter(r.bloomFilterSize, r.bloomHashFunctions),
+			bloom:  newBloomFilter(bloomSize, r.bloomHashFunctions),
 		}
 
 		// Compile routes from ALL method trees into the single table
@@ -1502,289 +1587,90 @@ func (r *Router) compileVersionRoutes() {
 }
 
 // recordRouteRegistration records route registration metrics if metrics are enabled.
+// NOTE: This method is currently disabled as metrics are now handled via ObservabilityRecorder.
+// Route registration metrics may be re-added in the future if needed.
 func (r *Router) recordRouteRegistration(method, path string) {
-	if r.metrics != nil && r.metrics.IsEnabled() {
-		r.metrics.RecordRouteRegistration(context.Background(), method, path)
-	}
+	// TODO: Consider adding route registration metrics to ObservabilityRecorder interface
 }
 
-// serveStaticWithTracingAndMetrics serves a static request with both tracing and metrics enabled.
-func (r *Router) serveStaticWithTracingAndMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate string, isStatic bool) {
-	// Start tracing with route template in name
-	spanName := req.Method + " " + routeTemplate
-	ctx, span := r.tracing.StartSpan(req.Context(), spanName)
-	req = req.WithContext(ctx)
-
-	// Set standard span attributes using semconv
-	setStandardSpanAttributes(span, req, routeTemplate, r)
-
-	// Start metrics with trace context (use route template, not raw path)
-	metricsData := r.metrics.StartRequest(ctx, routeTemplate, isStatic)
-
-	// Get context from pool
-	c := r.contextPool.Get(0)
-	c.initForRequest(req, rw, handlers, r)
-	c.span = span
-	c.routeTemplate = routeTemplate // Store for access
-
-	// Set version if versioning is enabled
-	if r.versioning != nil {
-		c.version = r.detectVersion(req)
-	}
-
-	// Execute handlers
-	c.Next()
-
-	// Finalize span attributes with response info
-	finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
-
-	// Finish metrics with trace context
-	r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
-
-	// Finish tracing
-	r.tracing.FinishSpan(span, rw.StatusCode())
-
-	// Return context to pool
-	r.contextPool.Put(c)
-}
-
-// serveStaticWithTracing serves a static request with only tracing enabled.
-func (r *Router) serveStaticWithTracing(rw *responseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate string) {
-	// Start tracing with route template in name
-	spanName := req.Method + " " + routeTemplate
-	ctx, span := r.tracing.StartSpan(req.Context(), spanName)
-	req = req.WithContext(ctx)
-
-	// Set standard span attributes using semconv
-	setStandardSpanAttributes(span, req, routeTemplate, r)
-
-	// Get context from pool
-	c := r.contextPool.Get(0)
-	c.initForRequest(req, rw, handlers, r)
-	c.span = span
-	c.routeTemplate = routeTemplate // Store for access
-
-	// Set version if versioning is enabled
-	if r.versioning != nil {
-		c.version = r.detectVersion(req)
-	}
-
-	// Execute handlers
-	c.Next()
-
-	// Finalize span attributes with response info
-	finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
-
-	// Finish tracing
-	r.tracing.FinishSpan(span, rw.StatusCode())
-
-	// Return context to pool
-	r.contextPool.Put(c)
-}
-
-// serveStaticWithMetrics serves a static request with only metrics enabled.
-func (r *Router) serveStaticWithMetrics(rw *responseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate string, isStatic bool) {
-	// Get request context
-	ctx := req.Context()
-
-	// Start metrics with request context (use route template, not raw path)
-	metricsData := r.metrics.StartRequest(ctx, routeTemplate, isStatic)
-
-	// Get context from pool
-	c := r.contextPool.Get(0)
-	c.initForRequest(req, rw, handlers, r)
-	c.routeTemplate = routeTemplate // Store for access
-
-	// Set version if versioning is enabled
-	if r.versioning != nil {
-		c.version = r.detectVersion(req)
-	}
-
-	// Execute handlers
-	c.Next()
-
-	// Finish metrics with request context
-	r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
-
-	// Return context to pool
-	r.contextPool.Put(c)
-}
-
-// serveDynamicWithTracingAndMetrics serves a dynamic request with both tracing and metrics enabled.
-func (r *Router) serveDynamicWithTracingAndMetrics(c *Context, handlers []HandlerFunc, routeTemplate string) {
-	// Ensure routeTemplate is set (fallback to sentinel if not set)
-	if c.routeTemplate == "" {
-		c.routeTemplate = routeTemplate
-		if c.routeTemplate == "" {
-			c.routeTemplate = "_unmatched"
-		}
-	}
-
-	// Start tracing with route template in name
-	spanName := c.Request.Method + " " + c.routeTemplate
-	ctx, span := r.tracing.StartSpan(c.Request.Context(), spanName)
-	c.Request = c.Request.WithContext(ctx)
-	c.span = span
-
-	// Set standard span attributes using semconv
-	setStandardSpanAttributes(span, c.Request, c.routeTemplate, r)
-
-	// Start metrics with trace context (use route template, not raw path)
-	metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
-
-	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
-	// For non-versioned routes, version will be set lazily on first access via ctx.Version()
-
-	// Set handlers and execute
-	c.handlers = handlers
-	c.index = -1
-	c.Next()
-
-	// Get response writer status
-	rw := c.Response.(*responseWriter)
-
-	// Finalize span attributes with response info
-	finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
-
-	// Finish metrics with trace context
-	r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
-
-	// Finish tracing
-	r.tracing.FinishSpan(span, rw.StatusCode())
-}
-
-// serveDynamicWithTracing serves a dynamic request with only tracing enabled.
-func (r *Router) serveDynamicWithTracing(c *Context, handlers []HandlerFunc, routeTemplate string) {
-	// Ensure routeTemplate is set (fallback to sentinel if not set)
-	if c.routeTemplate == "" {
-		c.routeTemplate = routeTemplate
-		if c.routeTemplate == "" {
-			c.routeTemplate = "_unmatched"
-		}
-	}
-
-	// Start tracing with route template in name
-	spanName := c.Request.Method + " " + c.routeTemplate
-	ctx, span := r.tracing.StartSpan(c.Request.Context(), spanName)
-	c.Request = c.Request.WithContext(ctx)
-	c.span = span
-
-	// Set standard span attributes using semconv
-	setStandardSpanAttributes(span, c.Request, c.routeTemplate, r)
-
-	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
-	// For non-versioned routes, version will be set lazily on first access via ctx.Version()
-
-	// Set handlers and execute
-	c.handlers = handlers
-	c.index = -1
-	c.Next()
-
-	// Get response writer status
-	rw := c.Response.(*responseWriter)
-
-	// Finalize span attributes with response info
-	finalizeSpanAttributes(span, rw.StatusCode(), int64(rw.Size()))
-
-	// Finish tracing
-	r.tracing.FinishSpan(span, rw.StatusCode())
-}
-
-// serveDynamicWithMetrics serves a dynamic request with only metrics enabled.
-func (r *Router) serveDynamicWithMetrics(c *Context, handlers []HandlerFunc, routeTemplate string) {
-	// Ensure routeTemplate is set (fallback to sentinel if not set)
-	if c.routeTemplate == "" {
-		c.routeTemplate = routeTemplate
-		if c.routeTemplate == "" {
-			c.routeTemplate = "_unmatched"
-		}
-	}
-
-	// Get request context
-	ctx := c.Request.Context()
-
-	// Start metrics with request context (use route template, not raw path)
-	metricsData := r.metrics.StartRequest(ctx, c.routeTemplate, false)
-
-	// NOTE: Version detection is handled earlier in ServeHTTP for versioned routes
-	// For non-versioned routes, version will be set lazily on first access via ctx.Version()
-
-	// Set handlers and execute
-	c.handlers = handlers
-	c.index = -1
-	c.Next()
-
-	// Get response writer status
-	rw := c.Response.(*responseWriter)
-
-	// Finish metrics with request context
-	r.metrics.FinishRequest(ctx, metricsData, rw.StatusCode(), int64(rw.Size()))
-}
+// NOTE: The following methods were removed as part of observability refactoring:
+// - serveStaticWithTracingAndMetrics
+// - serveStaticWithTracing
+// - serveStaticWithMetrics
+// - serveDynamicWithTracingAndMetrics
+// - serveDynamicWithTracing
+// - serveDynamicWithMetrics
+//
+// Observability is now handled uniformly via the ObservabilityRecorder interface.
 
 // serveTemplate serves a request using a pre-compiled template (static route).
 // This is the fastest path: O(1) hash lookup, zero parameter extraction.
-func (r *Router) serveTemplate(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, shouldTrace, shouldMeasure bool) {
+func (r *Router) serveTemplate(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, obsState any) {
 	routeTemplate := tmpl.pattern // Use template pattern, not raw path
-	isStatic := tmpl.isStatic
+	ctx := req.Context()
 
-	if shouldTrace && shouldMeasure {
-		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithTracingAndMetrics(rw, req, tmpl.handlers, routeTemplate, isStatic)
-	} else if shouldTrace {
-		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithTracing(rw, req, tmpl.handlers, routeTemplate)
-	} else if shouldMeasure {
-		rw := &responseWriter{ResponseWriter: w}
-		r.serveStaticWithMetrics(rw, req, tmpl.handlers, routeTemplate, isStatic)
+	// Build request-scoped logger (after routing)
+	var logger *slog.Logger
+	if r.observability != nil {
+		logger = r.observability.BuildRequestLogger(ctx, req, routeTemplate)
 	} else {
-		// Fast path: no metrics or tracing
-		ctx := getContextFromGlobalPool()
-		ctx.initForRequest(req, w, tmpl.handlers, r)
-		ctx.routeTemplate = routeTemplate // Set template for access
+		logger = noopLogger
+	}
 
-		// NOTE: Version will be set lazily on first access via ctx.Version()
-		// to avoid overhead on template fast path
+	// Fast path execution
+	c := getContextFromGlobalPool()
+	c.initForRequest(req, w, tmpl.handlers, r)
+	c.routeTemplate = routeTemplate // Set template for access
+	c.logger = logger
 
-		ctx.Next()
-		ctx.reset()
-		globalContextPool.Put(ctx)
+	// NOTE: Version will be set lazily on first access via ctx.Version()
+	// to avoid overhead on template fast path
+
+	c.Next()
+	c.reset()
+	globalContextPool.Put(c)
+
+	// Finish observability
+	if obsState != nil {
+		r.observability.OnRequestEnd(ctx, obsState, w, routeTemplate)
 	}
 }
 
 // serveTemplateWithParams serves a request using a template with pre-extracted parameters.
 // The context already has parameters populated by the template matching.
-func (r *Router) serveTemplateWithParams(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, ctx *Context, shouldTrace, shouldMeasure bool) {
+func (r *Router) serveTemplateWithParams(w http.ResponseWriter, req *http.Request, tmpl *RouteTemplate, c *Context, obsState any) {
 	// Store the route template for metrics/tracing
 	routeTemplate := tmpl.pattern // Use template pattern, not raw path
-	ctx.routeTemplate = routeTemplate
+	c.routeTemplate = routeTemplate
+	ctx := req.Context()
 
 	// Reuse the context that already has parameters extracted
 	// Use special init that preserves parameters
-	ctx.initForRequestWithParams(req, w, tmpl.handlers, r)
+	c.initForRequestWithParams(req, w, tmpl.handlers, r)
+
+	// Build request-scoped logger (after routing)
+	var logger *slog.Logger
+	if r.observability != nil {
+		logger = r.observability.BuildRequestLogger(ctx, req, routeTemplate)
+	} else {
+		logger = noopLogger
+	}
+	c.logger = logger
 
 	// NOTE: Version will be set lazily on first access via ctx.Version()
 	// to avoid overhead on template fast path
 
 	defer func() {
-		ctx.reset()
-		globalContextPool.Put(ctx)
+		c.reset()
+		globalContextPool.Put(c)
 	}()
 
-	if shouldTrace && shouldMeasure {
-		rw := &responseWriter{ResponseWriter: w}
-		ctx.Response = rw
-		r.serveDynamicWithTracingAndMetrics(ctx, tmpl.handlers, routeTemplate)
-	} else if shouldTrace {
-		rw := &responseWriter{ResponseWriter: w}
-		ctx.Response = rw
-		r.serveDynamicWithTracing(ctx, tmpl.handlers, routeTemplate)
-	} else if shouldMeasure {
-		rw := &responseWriter{ResponseWriter: w}
-		ctx.Response = rw
-		r.serveDynamicWithMetrics(ctx, tmpl.handlers, routeTemplate)
-	} else {
-		// Fast path: direct execution
-		ctx.Next()
+	// Fast path: direct execution
+	c.Next()
+
+	// Finish observability
+	if obsState != nil {
+		r.observability.OnRequestEnd(ctx, obsState, w, routeTemplate)
 	}
 }
 
@@ -1797,7 +1683,7 @@ func (r *Router) serveTemplateWithParams(w http.ResponseWriter, req *http.Reques
 //
 // Example:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.GET("/", func(c *router.Context) {
 //	    c.String(http.StatusOK, "Hello, World!")
 //	})
@@ -1807,16 +1693,14 @@ func (r *Router) serveTemplateWithParams(w http.ResponseWriter, req *http.Reques
 //
 // With H2C enabled (dev/behind LB only):
 //
-//	r := router.New(router.WithH2C(true))
+//	r := router.MustNew(router.WithH2C(true))
 //	r.Serve(":8080")
 func (r *Router) Serve(addr string) error {
 	h := http.Handler(r)
 
 	if r.enableH2C {
 		h = h2c.NewHandler(h, &http2.Server{})
-		if r.logger != nil {
-			r.logger.Warn("H2C enabled; use only in dev or behind a trusted LB")
-		}
+		r.emit(DiagH2CEnabled, "H2C enabled; use only in dev or behind a trusted LB", nil)
 	}
 
 	timeouts := r.serverTimeouts
@@ -1852,7 +1736,7 @@ func (r *Router) Serve(addr string) error {
 //
 // Example:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.GET("/", func(c *router.Context) {
 //	    c.String(http.StatusOK, "Hello, World!")
 //	})

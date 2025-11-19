@@ -212,11 +212,11 @@ func (c *Context) HandleConditionals(o CondOpts) bool {
 
 // sendPreconditionFailed sends a 412 Precondition Failed response.
 func (c *Context) sendPreconditionFailed(detail string) bool {
-	_ = c.ProblemDetail(
-		NewProblemDetail(http.StatusPreconditionFailed, "Precondition Failed").
-			WithType(c.ProblemType(PTPreconditionFailed)).
-			WithDetail(detail),
-	)
+	message := "Precondition Failed"
+	if detail != "" {
+		message += ": " + detail
+	}
+	c.WriteErrorResponse(http.StatusPreconditionFailed, message)
 	return true
 }
 

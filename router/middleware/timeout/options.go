@@ -10,7 +10,7 @@ import "rivaas.dev/router"
 //
 //	timeout.New(30*time.Second,
 //	    timeout.WithHandler(func(c *router.Context) {
-//	        c.JSON(408, map[string]string{
+//	        c.JSON(http.StatusRequestTimeout, map[string]string{
 //	            "error": "Request took too long",
 //	            "request_id": c.Response.Header().Get("X-Request-ID"),
 //	        })

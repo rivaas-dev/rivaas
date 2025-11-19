@@ -2,9 +2,12 @@ go 1.25.0
 
 use (
 	./app
+	./binding
+	./errors
 	./logging
 	./metrics
 	./router
 	./router/benchmarks
 	./tracing
+	./validation
 )

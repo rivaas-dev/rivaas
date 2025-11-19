@@ -67,7 +67,7 @@ func defaultConfig() *config {
 //
 // Basic usage with secure defaults:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.Use(security.New())
 //
 // Custom configuration:

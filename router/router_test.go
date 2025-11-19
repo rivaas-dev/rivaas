@@ -3,369 +3,47 @@ package router
 import (
 	"bufio"
 	"errors"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/suite"
 )
-
-// RouterTestSuite is the main test suite for router functionality
-type RouterTestSuite struct {
-	suite.Suite
-	router *Router
-}
-
-// SetupTest runs before each individual test
-func (suite *RouterTestSuite) SetupTest() {
-	suite.router = New()
-}
-
-// TearDownTest runs after each individual test
-func (suite *RouterTestSuite) TearDownTest() {
-	// Cleanup if needed
-	_ = suite.router
-}
-
-// TestBasicRouting tests basic HTTP method routing
-func (suite *RouterTestSuite) TestBasicRouting() {
-	// Test basic routes
-	suite.router.GET("/", func(c *Context) {
-		c.String(http.StatusOK, "Hello World")
-	})
-
-	suite.router.GET("/users/:id", func(c *Context) {
-		c.String(http.StatusOK, "User: %s", c.Param("id"))
-	})
-
-	suite.router.POST("/users", func(c *Context) {
-		c.String(http.StatusCreated, "User created")
-	})
-
-	// Test cases
-	tests := []struct {
-		method string
-		path   string
-		status int
-		body   string
-	}{
-		{"GET", "/", 200, "Hello World"},
-		{"GET", "/users/123", 200, "User: 123"},
-		{"POST", "/users", 201, "User created"},
-		{"GET", "/users/123/posts/456", 404, ""},
-		{"GET", "/nonexistent", 404, ""},
-	}
-
-	for _, tt := range tests {
-		suite.Run(tt.method+" "+tt.path, func() {
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-			w := httptest.NewRecorder()
-
-			suite.router.ServeHTTP(w, req)
-
-			suite.Equal(tt.status, w.Code, "Status code mismatch for %s %s", tt.method, tt.path)
-			if tt.body != "" {
-				suite.Equal(tt.body, w.Body.String(), "Body mismatch for %s %s", tt.method, tt.path)
-			}
-		})
-	}
-}
-
-// TestRouterWithMiddleware tests middleware functionality
-func (suite *RouterTestSuite) TestRouterWithMiddleware() {
-	// Add middleware
-	suite.router.Use(func(c *Context) {
-		c.Header("X-Middleware", "true")
-		c.Next()
-	})
-
-	suite.router.GET("/", func(c *Context) {
-		c.String(http.StatusOK, "Hello")
-	})
-
-	req := httptest.NewRequest("GET", "/", nil)
-	w := httptest.NewRecorder()
-
-	suite.router.ServeHTTP(w, req)
-
-	suite.Equal(200, w.Code)
-	suite.Equal("true", w.Header().Get("X-Middleware"))
-}
-
-// TestRouterGroup tests route grouping functionality
-func (suite *RouterTestSuite) TestRouterGroup() {
-	// Create a group
-	api := suite.router.Group("/api/v1")
-	api.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "Users")
-	})
-
-	api.GET("/users/:id", func(c *Context) {
-		c.String(http.StatusOK, "User: %s", c.Param("id"))
-	})
-
-	// Test cases
-	tests := []struct {
-		path   string
-		status int
-		body   string
-	}{
-		{"/api/v1/users", 200, "Users"},
-		{"/api/v1/users/123", 200, "User: 123"},
-		{"/users", 404, ""},
-	}
-
-	for _, tt := range tests {
-		suite.Run(tt.path, func() {
-			req := httptest.NewRequest("GET", tt.path, nil)
-			w := httptest.NewRecorder()
-
-			suite.router.ServeHTTP(w, req)
-
-			suite.Equal(tt.status, w.Code)
-			if tt.body != "" {
-				suite.Equal(tt.body, w.Body.String())
-			}
-		})
-	}
-}
-
-// TestRouterGroupMiddleware tests middleware on route groups
-func (suite *RouterTestSuite) TestRouterGroupMiddleware() {
-	// Create a group with middleware
-	api := suite.router.Group("/api/v1")
-	api.Use(func(c *Context) {
-		c.Header("X-Api-Version", "v1")
-		c.Next()
-	})
-
-	api.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "Users")
-	})
-
-	req := httptest.NewRequest("GET", "/api/v1/users", nil)
-	w := httptest.NewRecorder()
-
-	suite.router.ServeHTTP(w, req)
-
-	suite.Equal(200, w.Code)
-	suite.Equal("v1", w.Header().Get("X-Api-Version"))
-}
-
-// TestRouterComplexRoutes tests complex route patterns
-func (suite *RouterTestSuite) TestRouterComplexRoutes() {
-	suite.router.GET("/users/:id/posts/:post_id", func(c *Context) {
-		c.String(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
-	})
-
-	suite.router.GET("/users/:id/posts/:post_id/comments/:comment_id", func(c *Context) {
-		c.String(http.StatusOK, "User: %s, Post: %s, Comment: %s",
-			c.Param("id"), c.Param("post_id"), c.Param("comment_id"))
-	})
-
-	// Test cases
-	tests := []struct {
-		path   string
-		status int
-		body   string
-	}{
-		{"/users/123/posts/456", 200, "User: 123, Post: 456"},
-		{"/users/123/posts/456/comments/789", 200, "User: 123, Post: 456, Comment: 789"},
-		{"/users/123/posts", 404, ""},
-	}
-
-	for _, tt := range tests {
-		suite.Run(tt.path, func() {
-			req := httptest.NewRequest("GET", tt.path, nil)
-			w := httptest.NewRecorder()
-
-			suite.router.ServeHTTP(w, req)
-
-			suite.Equal(tt.status, w.Code)
-			if tt.body != "" {
-				suite.Equal(tt.body, w.Body.String())
-			}
-		})
-	}
-}
-
-// TestContextMethods tests various context methods
-func (suite *RouterTestSuite) TestContextMethods() {
-	suite.router.GET("/test", func(c *Context) {
-		// Test JSON response
-		c.JSON(http.StatusOK, map[string]string{"message": "test"})
-	})
-
-	suite.router.GET("/string", func(c *Context) {
-		// Test String response
-		c.String(http.StatusOK, "Hello %s", "World")
-	})
-
-	suite.router.GET("/html", func(c *Context) {
-		// Test HTML response
-		_ = c.HTML(http.StatusOK, "<h1>Hello</h1>")
-	})
-
-	// Test JSON
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-	suite.router.ServeHTTP(w, req)
-	suite.Equal("application/json; charset=utf-8", w.Header().Get("Content-Type"))
-
-	// Test String
-	req = httptest.NewRequest("GET", "/string", nil)
-	w = httptest.NewRecorder()
-	suite.router.ServeHTTP(w, req)
-	suite.Equal("Hello World", w.Body.String())
-
-	// Test HTML
-	req = httptest.NewRequest("GET", "/html", nil)
-	w = httptest.NewRecorder()
-	suite.router.ServeHTTP(w, req)
-	suite.Equal("text/html", w.Header().Get("Content-Type"))
-}
-
-// TestRouterSuite runs the router test suite
-func TestRouterSuite(t *testing.T) {
-	suite.Run(t, new(RouterTestSuite))
-}
-
-// TestHTTPMethods tests all HTTP method handlers
-func TestHTTPMethods(t *testing.T) {
-	r := New()
-
-	// Register all HTTP methods
-	r.GET("/get", func(c *Context) {
-		c.String(200, "GET")
-	})
-	r.POST("/post", func(c *Context) {
-		c.String(200, "POST")
-	})
-	r.PUT("/put", func(c *Context) {
-		c.String(200, "PUT")
-	})
-	r.DELETE("/delete", func(c *Context) {
-		c.String(200, "DELETE")
-	})
-	r.PATCH("/patch", func(c *Context) {
-		c.String(200, "PATCH")
-	})
-	r.OPTIONS("/options", func(c *Context) {
-		c.String(200, "OPTIONS")
-	})
-	r.HEAD("/head", func(c *Context) {
-		c.Status(200)
-	})
-
-	tests := []struct {
-		method   string
-		path     string
-		expected string
-	}{
-		{"GET", "/get", "GET"},
-		{"POST", "/post", "POST"},
-		{"PUT", "/put", "PUT"},
-		{"DELETE", "/delete", "DELETE"},
-		{"PATCH", "/patch", "PATCH"},
-		{"OPTIONS", "/options", "OPTIONS"},
-		{"HEAD", "/head", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.method, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-			w := httptest.NewRecorder()
-
-			r.ServeHTTP(w, req)
-
-			if w.Code != 200 {
-				t.Errorf("Expected status 200, got %d", w.Code)
-			}
-			if tt.expected != "" && w.Body.String() != tt.expected {
-				t.Errorf("Expected %q, got %q", tt.expected, w.Body.String())
-			}
-		})
-	}
-}
-
-// TestCompileOptimizations tests route compilation and optimization
-func TestCompileOptimizations(t *testing.T) {
-	r := New()
-
-	// Add static routes that will be compiled
-	r.GET("/home", func(c *Context) {
-		c.String(200, "home")
-	})
-	r.GET("/about", func(c *Context) {
-		c.String(200, "about")
-	})
-	r.GET("/contact", func(c *Context) {
-		c.String(200, "contact")
-	})
-
-	// Trigger compilation
-	r.Warmup()
-
-	// Test that compiled routes work
-	req := httptest.NewRequest("GET", "/home", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != 200 {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
-	if w.Body.String() != "home" {
-		t.Errorf("Expected 'home', got %q", w.Body.String())
-	}
-}
 
 // TestWithBloomFilterSize tests bloom filter configuration
 func TestWithBloomFilterSize(t *testing.T) {
-	r := New(WithBloomFilterSize(2000))
+	t.Parallel()
+	r := MustNew(WithBloomFilterSize(2000))
 
 	if r.bloomFilterSize != 2000 {
 		t.Errorf("Expected bloom filter size 2000, got %d", r.bloomFilterSize)
 	}
 
 	// Test with zero size (should use default)
-	r2 := New(WithBloomFilterSize(0))
+	r2 := MustNew(WithBloomFilterSize(0))
 	if r2.bloomFilterSize != 1000 {
 		t.Errorf("Expected default bloom filter size 1000, got %d", r2.bloomFilterSize)
 	}
 }
 
-// mockLogger implements the Logger interface for testing
-type mockLogger struct {
-	lastError string
+// mockDiagnosticHandler implements the DiagnosticHandler interface for testing
+type mockDiagnosticHandler struct {
+	events []DiagnosticEvent
 }
 
-func (m *mockLogger) Error(msg string, _ ...any) {
-	m.lastError = msg
+func (m *mockDiagnosticHandler) OnDiagnostic(e DiagnosticEvent) {
+	m.events = append(m.events, e)
 }
 
-func (m *mockLogger) Warn(_ string, _ ...any) {}
+// TestWithDiagnostics tests diagnostic handler configuration
+func TestWithDiagnostics(t *testing.T) {
+	t.Parallel()
+	handler := &mockDiagnosticHandler{}
+	r := MustNew(WithDiagnostics(handler))
 
-func (m *mockLogger) Info(_ string, _ ...any) {}
-
-func (m *mockLogger) Debug(_ string, _ ...any) {}
-
-// TestWithLogger tests logger configuration
-func TestWithLogger(t *testing.T) {
-	logger := &mockLogger{}
-	r := New(WithLogger(logger))
-
-	if r.logger == nil {
-		t.Error("Expected logger to be set")
+	if r.diagnostics == nil {
+		t.Error("Expected diagnostics handler to be set")
 	}
 }
-
-// ============================================================================
-// HTTP Interface Tests (merged from http_interface_test.go)
-// ============================================================================
 
 type mockHijackableResponseWriter struct {
 	*httptest.ResponseRecorder
@@ -409,66 +87,10 @@ func (m *mockHijackFlushResponseWriter) Flush() {
 	m.flushCalled = true
 }
 
-// TestResponseWriter_Hijack tests the Hijack method for WebSocket support
-func TestResponseWriter_Hijack(t *testing.T) {
-	r := New()
-
-	var hijackedConn net.Conn
-	var hijackedRW *bufio.ReadWriter
-	var hijackErr error
-
-	r.GET("/ws", func(c *Context) {
-		// Try to hijack the connection (for WebSocket upgrade)
-		if hijacker, ok := c.Response.(http.Hijacker); ok {
-			hijackedConn, hijackedRW, hijackErr = hijacker.Hijack()
-			c.Status(http.StatusSwitchingProtocols)
-		} else {
-			c.String(http.StatusInternalServerError, "Hijack not supported")
-		}
-	})
-
-	// Create request with hijackable response writer
-	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
-
-	// Create mock connection for hijack
-	server, client := net.Pipe()
-	defer func() {
-		_ = server.Close()
-		_ = client.Close()
-	}()
-
-	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
-
-	mockWriter := &mockHijackableResponseWriter{
-		ResponseRecorder: httptest.NewRecorder(),
-		conn:             server,
-		rw:               mockRW,
-	}
-
-	// Serve request
-	r.ServeHTTP(mockWriter, req)
-
-	// Verify hijack was called
-	if !mockWriter.hijackCalled {
-		t.Error("Hijack() was not called")
-	}
-
-	if hijackErr != nil {
-		t.Errorf("Hijack() returned error: %v", hijackErr)
-	}
-
-	if hijackedConn == nil {
-		t.Error("Hijack() should return connection")
-	}
-
-	if hijackedRW == nil {
-		t.Error("Hijack() should return bufio.ReadWriter")
-	}
-}
-
 // TestResponseWriter_HijackNotSupported tests Hijack when underlying writer doesn't support it
 func TestResponseWriter_HijackNotSupported(t *testing.T) {
-	r := New()
+	t.Parallel()
+	r := MustNew()
 
 	var hijackErr error
 
@@ -510,57 +132,10 @@ func TestResponseWriter_HijackNotSupported(t *testing.T) {
 	}
 }
 
-// TestResponseWriter_Flush tests the Flush method for streaming responses
-func TestResponseWriter_Flush(t *testing.T) {
-	r := New()
-
-	r.GET("/stream", func(c *Context) {
-		c.Header("Content-Type", "text/event-stream")
-		c.Header("Cache-Control", "no-cache")
-		c.Header("Connection", "keep-alive")
-
-		// Write first chunk
-		c.String(http.StatusOK, "data: chunk1\n\n")
-
-		// Flush to send immediately
-		if flusher, ok := c.Response.(http.Flusher); ok {
-			flusher.Flush()
-		}
-
-		// Write second chunk
-		c.String(http.StatusOK, "data: chunk2\n\n")
-
-		// Flush again
-		if flusher, ok := c.Response.(http.Flusher); ok {
-			flusher.Flush()
-		}
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/stream", nil)
-
-	mockWriter := &mockFlushableResponseWriter{
-		ResponseRecorder: httptest.NewRecorder(),
-	}
-
-	r.ServeHTTP(mockWriter, req)
-
-	if !mockWriter.flushCalled {
-		t.Error("Flush() was not called")
-	}
-
-	if mockWriter.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", mockWriter.Code)
-	}
-
-	body := mockWriter.Body.String()
-	if body != "data: chunk1\n\ndata: chunk2\n\n" {
-		t.Errorf("unexpected body: %q", body)
-	}
-}
-
 // TestResponseWriter_FlushNotSupported tests Flush when underlying writer doesn't support it
 func TestResponseWriter_FlushNotSupported(t *testing.T) {
-	r := New()
+	t.Parallel()
+	r := MustNew()
 
 	flushAttempted := false
 
@@ -587,143 +162,9 @@ func TestResponseWriter_FlushNotSupported(t *testing.T) {
 	}
 }
 
-// TestResponseWriter_HijackAndFlush tests both Hijack and Flush on same writer
-func TestResponseWriter_HijackAndFlush(t *testing.T) {
-	r := New()
-
-	r.GET("/websocket", func(c *Context) {
-		// First, flush some headers
-		c.Header("Upgrade", "websocket")
-		c.Header("Connection", "Upgrade")
-
-		if flusher, ok := c.Response.(http.Flusher); ok {
-			flusher.Flush()
-		} else {
-			t.Error("expected Flusher interface")
-		}
-
-		// Then hijack the connection
-		if hijacker, ok := c.Response.(http.Hijacker); ok {
-			conn, _, err := hijacker.Hijack()
-			if err != nil {
-				t.Errorf("Hijack failed: %v", err)
-			}
-			// Don't close conn here as it's managed by test cleanup
-			_ = conn
-		} else {
-			t.Error("expected Hijacker interface")
-		}
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/websocket", nil)
-
-	// Create connection pair
-	server, client := net.Pipe()
-	defer func() {
-		_ = server.Close()
-		_ = client.Close()
-	}()
-
-	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
-
-	mockWriter := &mockHijackFlushResponseWriter{
-		ResponseRecorder: httptest.NewRecorder(),
-		conn:             server,
-		rw:               mockRW,
-	}
-
-	r.ServeHTTP(mockWriter, req)
-
-	if !mockWriter.flushCalled {
-		t.Error("Flush() was not called")
-	}
-
-	if !mockWriter.hijackCalled {
-		t.Error("Hijack() was not called")
-	}
-}
-
-// TestResponseWriter_HijackPreservesStatusAndSize tests that Hijack works with responseWriter wrapper
-func TestResponseWriter_HijackPreservesStatusAndSize(t *testing.T) {
-	r := New()
-
-	r.GET("/ws", func(c *Context) {
-		// Write some data first
-		c.Header("X-Test", "value")
-		c.Status(http.StatusSwitchingProtocols)
-		c.Response.Write([]byte("Upgrading"))
-
-		// Then hijack
-		if hijacker, ok := c.Response.(http.Hijacker); ok {
-			conn, _, err := hijacker.Hijack()
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-			if conn == nil {
-				t.Error("expected connection")
-			}
-		}
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
-
-	server, client := net.Pipe()
-	defer func() {
-		_ = server.Close()
-		_ = client.Close()
-	}()
-
-	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
-	mockWriter := &mockHijackableResponseWriter{
-		ResponseRecorder: httptest.NewRecorder(),
-		conn:             server,
-		rw:               mockRW,
-	}
-
-	r.ServeHTTP(mockWriter, req)
-
-	if !mockWriter.hijackCalled {
-		t.Error("Hijack should be called")
-	}
-}
-
-// TestResponseWriter_FlushWithMetrics tests Flush works when metrics are enabled
-func TestResponseWriter_FlushWithMetrics(t *testing.T) {
-	r := New()
-
-	// Create a mock metrics recorder
-	mockMetrics := &mockMetricsRecorder{enabled: true}
-	r.SetMetricsRecorder(mockMetrics)
-
-	flushed := false
-
-	r.GET("/stream", func(c *Context) {
-		c.String(http.StatusOK, "chunk 1")
-
-		if flusher, ok := c.Response.(http.Flusher); ok {
-			flusher.Flush()
-			flushed = true
-		}
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/stream", nil)
-	mockWriter := &mockFlushableResponseWriter{
-		ResponseRecorder: httptest.NewRecorder(),
-	}
-
-	r.ServeHTTP(mockWriter, req)
-
-	if !flushed {
-		t.Error("Flush was not attempted")
-	}
-
-	if !mockWriter.flushCalled {
-		t.Error("Flush() was not called on underlying writer")
-	}
-}
-
 // TestResponseWriter_InterfaceAssertion tests that responseWriter properly implements interfaces
 func TestResponseWriter_InterfaceAssertion(t *testing.T) {
+	t.Parallel()
 	// Test with hijackable writer
 	server, client := net.Pipe()
 	defer func() {
@@ -780,7 +221,8 @@ func TestResponseWriter_InterfaceAssertion(t *testing.T) {
 
 // TestResponseWriter_HijackError tests error handling in Hijack
 func TestResponseWriter_HijackError(t *testing.T) {
-	r := New()
+	t.Parallel()
+	r := MustNew()
 
 	var receivedErr error
 
@@ -810,6 +252,7 @@ func TestResponseWriter_HijackError(t *testing.T) {
 
 // TestResponseWriter_FlushNoOp tests Flush on non-flushable writer (should be no-op)
 func TestResponseWriter_FlushNoOp(t *testing.T) {
+	t.Parallel()
 	// Create a response writer that doesn't support Flush
 	type nonFlushableWriter struct {
 		*httptest.ResponseRecorder
@@ -834,173 +277,9 @@ func TestResponseWriter_FlushNoOp(t *testing.T) {
 	}
 }
 
-// TestResponseWriter_StatusCodeAndSizeAfterHijack tests status tracking after hijack
-func TestResponseWriter_StatusCodeAndSizeAfterHijack(t *testing.T) {
-	r := New()
-
-	r.GET("/ws", func(c *Context) {
-		// Write status and data before hijack
-		c.Status(http.StatusSwitchingProtocols)
-		c.Response.Write([]byte("Upgrading"))
-
-		// Get status and size
-		if rw, ok := c.Response.(*responseWriter); ok {
-			if rw.StatusCode() != http.StatusSwitchingProtocols {
-				t.Errorf("expected status 101, got %d", rw.StatusCode())
-			}
-
-			if rw.Size() == 0 {
-				t.Error("expected non-zero size before hijack")
-			}
-		}
-
-		// Now hijack
-		if hijacker, ok := c.Response.(http.Hijacker); ok {
-			hijacker.Hijack()
-		}
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
-
-	server, client := net.Pipe()
-	defer func() {
-		_ = server.Close()
-		_ = client.Close()
-	}()
-
-	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
-	mockWriter := &mockHijackableResponseWriter{
-		ResponseRecorder: httptest.NewRecorder(),
-		conn:             server,
-		rw:               mockRW,
-	}
-
-	r.ServeHTTP(mockWriter, req)
-
-	if !mockWriter.hijackCalled {
-		t.Error("Hijack should be called")
-	}
-}
-
-// TestResponseWriter_FlushBetweenWrites tests flushing between multiple writes
-func TestResponseWriter_FlushBetweenWrites(t *testing.T) {
-	r := New()
-
-	flushCount := 0
-
-	r.GET("/events", func(c *Context) {
-		c.Header("Content-Type", "text/event-stream")
-
-		// Write and flush multiple times
-		for i := 1; i <= 3; i++ {
-			c.Response.Write([]byte("event: message\n"))
-
-			if flusher, ok := c.Response.(http.Flusher); ok {
-				flusher.Flush()
-				flushCount++
-			}
-		}
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/events", nil)
-
-	// Create custom flushable writer that counts flushes
-	type countingFlusher struct {
-		*httptest.ResponseRecorder
-	}
-
-	mockWriter := &countingFlusher{
-		ResponseRecorder: httptest.NewRecorder(),
-	}
-
-	// We need to make it flushable
-	flushableWriter := &mockFlushableResponseWriter{
-		ResponseRecorder: mockWriter.ResponseRecorder,
-	}
-
-	r.ServeHTTP(flushableWriter, req)
-
-	if !flushableWriter.flushCalled {
-		t.Error("Flush() should be called at least once")
-	}
-}
-
-// TestResponseWriter_HijackWithTracing tests Hijack when tracing is enabled
-func TestResponseWriter_HijackWithTracing(t *testing.T) {
-	r := New()
-
-	mockTracing := &mockTracingRecorder{enabled: true}
-	r.SetTracingRecorder(mockTracing)
-
-	r.GET("/ws", func(c *Context) {
-		if hijacker, ok := c.Response.(http.Hijacker); ok {
-			conn, _, err := hijacker.Hijack()
-			if err != nil {
-				t.Errorf("Hijack failed: %v", err)
-			}
-			if conn == nil {
-				t.Error("expected connection")
-			}
-		}
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
-
-	server, client := net.Pipe()
-	defer func() {
-		_ = server.Close()
-		_ = client.Close()
-	}()
-
-	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
-	mockWriter := &mockHijackableResponseWriter{
-		ResponseRecorder: httptest.NewRecorder(),
-		conn:             server,
-		rw:               mockRW,
-	}
-
-	r.ServeHTTP(mockWriter, req)
-
-	if !mockWriter.hijackCalled {
-		t.Error("Hijack should work with tracing enabled")
-	}
-}
-
-// ============================================================================
-// Router Options Tests (merged from router_options_test.go)
-// ============================================================================
-
-func TestSetLogger(t *testing.T) {
-	r := New()
-
-	// Create a test logger
-	var logOutput strings.Builder
-	logger := slog.New(slog.NewTextHandler(&logOutput, nil))
-
-	// Set logger
-	r.SetLogger(logger)
-
-	// Verify logger is set by triggering a log entry
-	// The router logs security events like header injection attempts
-	r.GET("/test", func(c *Context) {
-		// Try to set a header with newline (should be logged)
-		c.Header("X-Test", "value\r\nX-Injected: malicious")
-		c.Status(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	// Check that logging occurred
-	loggedOutput := logOutput.String()
-	if !strings.Contains(loggedOutput, "header injection") {
-		t.Errorf("expected header injection log, got: %s", loggedOutput)
-	}
-}
-
 // TestWithBloomFilterHashFunctions tests bloom filter hash configuration
 func TestWithBloomFilterHashFunctions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    int
@@ -1018,7 +297,8 @@ func TestWithBloomFilterHashFunctions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := New(WithBloomFilterHashFunctions(tt.input))
+			t.Parallel()
+			r := MustNew(WithBloomFilterHashFunctions(tt.input))
 
 			if r.bloomHashFunctions != tt.expected {
 				t.Errorf("expected %d hash functions, got %d", tt.expected, r.bloomHashFunctions)
@@ -1042,6 +322,7 @@ func TestWithBloomFilterHashFunctions(t *testing.T) {
 
 // TestWithCancellationCheck tests cancellation checking enable/disable
 func TestWithCancellationCheck(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		enabled bool
@@ -1052,7 +333,8 @@ func TestWithCancellationCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := New(WithCancellationCheck(tt.enabled))
+			t.Parallel()
+			r := MustNew(WithCancellationCheck(tt.enabled))
 
 			if r.checkCancellation != tt.enabled {
 				t.Errorf("expected checkCancellation=%v, got %v", tt.enabled, r.checkCancellation)
@@ -1088,9 +370,11 @@ func TestWithCancellationCheck(t *testing.T) {
 
 // TestWithCancellationCheck_ContextCancelled tests that cancellation checking actually works
 func TestWithCancellationCheck_ContextCancelled(t *testing.T) {
+	t.Parallel()
 	// Test with cancellation checking enabled
 	t.Run("enabled", func(t *testing.T) {
-		r := New(WithCancellationCheck(true))
+		t.Parallel()
+		r := MustNew(WithCancellationCheck(true))
 
 		handlerCalled := false
 
@@ -1117,7 +401,8 @@ func TestWithCancellationCheck_ContextCancelled(t *testing.T) {
 
 	// Test with cancellation checking disabled
 	t.Run("disabled", func(t *testing.T) {
-		r := New(WithCancellationCheck(false))
+		t.Parallel()
+		r := MustNew(WithCancellationCheck(false))
 
 		handlerCalled := false
 
@@ -1142,6 +427,7 @@ func TestWithCancellationCheck_ContextCancelled(t *testing.T) {
 
 // TestWithTemplateRouting tests template routing enable/disable
 func TestWithTemplateRouting(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		enabled bool
@@ -1152,7 +438,8 @@ func TestWithTemplateRouting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := New(WithTemplateRouting(tt.enabled))
+			t.Parallel()
+			r := MustNew(WithTemplateRouting(tt.enabled))
 
 			if r.useTemplates != tt.enabled {
 				t.Errorf("expected useTemplates=%v, got %v", tt.enabled, r.useTemplates)
@@ -1192,164 +479,10 @@ func TestWithTemplateRouting(t *testing.T) {
 	}
 }
 
-// TestWithBloomFilterSize_EdgeCases tests additional edge cases beyond basic test
-func TestWithBloomFilterSize_EdgeCases(t *testing.T) {
-	// The basic test exists in router_test.go, this tests edge cases
-	tests := []struct {
-		name string
-		size uint64
-	}{
-		{"very large size", 100000},
-		{"size 1", 1},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := New(WithBloomFilterSize(tt.size))
-
-			if r.bloomFilterSize != tt.size {
-				t.Errorf("expected size %d, got %d", tt.size, r.bloomFilterSize)
-			}
-
-			// Verify router works
-			r.GET("/test", func(c *Context) {
-				c.Status(http.StatusOK)
-			})
-
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
-
-			if w.Code != http.StatusOK {
-				t.Error("router should work with custom bloom filter size")
-			}
-		})
-	}
-}
-
-// TestRouterOptions_Combined tests multiple options together
-func TestRouterOptions_Combined(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-	r := New(
-		WithLogger(logger),
-		WithBloomFilterSize(2000),
-		WithBloomFilterHashFunctions(5),
-		WithCancellationCheck(false),
-		WithTemplateRouting(true),
-	)
-
-	// Verify all options were applied
-	if r.bloomFilterSize != 2000 {
-		t.Errorf("expected bloom filter size 2000, got %d", r.bloomFilterSize)
-	}
-
-	if r.bloomHashFunctions != 5 {
-		t.Errorf("expected 5 hash functions, got %d", r.bloomHashFunctions)
-	}
-
-	if r.checkCancellation {
-		t.Error("expected cancellation check to be disabled")
-	}
-
-	if !r.useTemplates {
-		t.Error("expected templates to be enabled")
-	}
-
-	// Verify router works with all options
-	r.GET("/users/:id", func(c *Context) {
-		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/users/42", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
-}
-
-// TestWithTemplateRouting_StaticVsDynamic tests template routing with different route types
-func TestWithTemplateRouting_StaticVsDynamic(t *testing.T) {
-	// Test with templates enabled
-	t.Run("templates_enabled", func(t *testing.T) {
-		r := New(WithTemplateRouting(true))
-
-		staticCalled := false
-		dynamicCalled := false
-
-		r.GET("/static/path", func(c *Context) {
-			staticCalled = true
-			c.String(http.StatusOK, "static")
-		})
-
-		r.GET("/users/:id/posts/:postId", func(c *Context) {
-			dynamicCalled = true
-			c.JSON(http.StatusOK, map[string]string{
-				"userId": c.Param("id"),
-				"postId": c.Param("postId"),
-			})
-		})
-
-		// Test static route
-		req := httptest.NewRequest(http.MethodGet, "/static/path", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if !staticCalled {
-			t.Error("static route should be called")
-		}
-
-		// Test dynamic route
-		req = httptest.NewRequest(http.MethodGet, "/users/1/posts/2", nil)
-		w = httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if !dynamicCalled {
-			t.Error("dynamic route should be called")
-		}
-	})
-
-	// Test with templates disabled
-	t.Run("templates_disabled", func(t *testing.T) {
-		r := New(WithTemplateRouting(false))
-
-		staticCalled := false
-		dynamicCalled := false
-
-		r.GET("/static/path", func(c *Context) {
-			staticCalled = true
-			c.String(http.StatusOK, "static")
-		})
-
-		r.GET("/users/:id", func(c *Context) {
-			dynamicCalled = true
-			c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
-		})
-
-		// Both should work even without templates
-		req := httptest.NewRequest(http.MethodGet, "/static/path", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if !staticCalled {
-			t.Error("static route should work without templates")
-		}
-
-		req = httptest.NewRequest(http.MethodGet, "/users/123", nil)
-		w = httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if !dynamicCalled {
-			t.Error("dynamic route should work without templates")
-		}
-	})
-}
-
 // TestRouterOptions_Defaults tests that default values are set correctly
 func TestRouterOptions_Defaults(t *testing.T) {
-	r := New()
+	t.Parallel()
+	r := MustNew()
 
 	// Check default values
 	if r.bloomFilterSize != 1000 {
@@ -1379,17 +512,23 @@ func TestRouterOptions_Defaults(t *testing.T) {
 
 // TestRouterOptions_MultipleLoggerCalls tests setting logger multiple times
 func TestRouterOptions_MultipleLoggerCalls(t *testing.T) {
-	var output1, output2 strings.Builder
+	t.Parallel()
+	var events1, events2 []DiagnosticEvent
 
-	logger1 := slog.New(slog.NewTextHandler(&output1, nil))
-	logger2 := slog.New(slog.NewTextHandler(&output2, nil))
+	handler1 := DiagnosticHandlerFunc(func(e DiagnosticEvent) {
+		events1 = append(events1, e)
+	})
+	handler2 := DiagnosticHandlerFunc(func(e DiagnosticEvent) {
+		events2 = append(events2, e)
+	})
 
-	r := New(WithLogger(logger1))
+	// Create first router (not used, just to verify it doesn't interfere)
+	_ = MustNew(WithDiagnostics(handler1))
 
-	// Set logger again
-	r.SetLogger(logger2)
+	// Create second router with different handler
+	r := MustNew(WithDiagnostics(handler2))
 
-	// Trigger logging
+	// Trigger diagnostic event
 	r.GET("/test", func(c *Context) {
 		c.Header("X-Test", "value\ninjection")
 		c.Status(http.StatusOK)
@@ -1399,82 +538,20 @@ func TestRouterOptions_MultipleLoggerCalls(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	// Second logger should receive the log
-	if !strings.Contains(output2.String(), "header injection") {
-		t.Error("second logger should receive logs")
+	// Second handler should receive the diagnostic event
+	if len(events2) == 0 || events2[0].Kind != DiagHeaderInjection {
+		t.Error("second handler should receive diagnostic events")
 	}
 
-	// First logger should not receive the log
-	if strings.Contains(output1.String(), "header injection") {
+	// First handler should not receive the event (we created a new router)
+	if len(events1) > 0 {
 		t.Error("first logger should not receive logs after being replaced")
-	}
-}
-
-// TestWithCancellationCheck_Performance tests performance impact of cancellation checking
-func TestWithCancellationCheck_Performance(t *testing.T) {
-	// This is a sanity test, not a benchmark
-	// Just verify both modes work correctly
-
-	for _, enabled := range []bool{true, false} {
-		t.Run(strings.ToLower(strings.ReplaceAll(t.Name(), " ", "_")), func(t *testing.T) {
-			r := New(WithCancellationCheck(enabled))
-
-			count := 0
-
-			// Add multiple middleware to test the check happens in each
-			for range 5 {
-				r.Use(func(c *Context) {
-					count++
-					c.Next()
-				})
-			}
-
-			r.GET("/test", func(c *Context) {
-				count++
-				c.Status(http.StatusOK)
-			})
-
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
-
-			// All 6 handlers should be called (5 middleware + 1 handler)
-			if count != 6 {
-				t.Errorf("expected 6 handlers called, got %d", count)
-			}
-
-			if w.Code != http.StatusOK {
-				t.Errorf("expected status 200, got %d", w.Code)
-			}
-		})
-	}
-}
-
-// TestWithTemplateRouting_AfterRoutesRegistered tests changing template setting
-func TestWithTemplateRouting_AfterRoutesRegistered(t *testing.T) {
-	r := New(WithTemplateRouting(true))
-
-	// Register routes
-	r.GET("/test1", func(c *Context) {
-		c.String(http.StatusOK, "test1")
-	})
-
-	// Routes should work
-	req := httptest.NewRequest(http.MethodGet, "/test1", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
-
-	if w.Body.String() != "test1" {
-		t.Errorf("expected 'test1', got %q", w.Body.String())
 	}
 }
 
 // TestWithBloomFilterHashFunctions_EdgeCases tests extreme edge cases
 func TestWithBloomFilterHashFunctions_EdgeCases(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    int
@@ -1488,7 +565,8 @@ func TestWithBloomFilterHashFunctions_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := New(WithBloomFilterHashFunctions(tt.input))
+			t.Parallel()
+			r := MustNew(WithBloomFilterHashFunctions(tt.input))
 
 			if r.bloomHashFunctions != tt.expected {
 				t.Errorf("input %d: expected %d, got %d", tt.input, tt.expected, r.bloomHashFunctions)

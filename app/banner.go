@@ -1,19 +1,30 @@
-// Package app provides the main application implementation for Rivaas.
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strings"
-	"syscall"
-	"unsafe"
 
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/common-nighthawk/go-figure"
+	"golang.org/x/term"
 )
 
 // getColorWriter returns a colorprofile.Writer configured for the app's environment.
@@ -299,18 +310,17 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 	fmt.Fprintln(w, t.Render())
 }
 
-// getTerminalSize attempts to get the terminal size using platform-specific syscalls.
+// getTerminalSize attempts to get the terminal size using the golang.org/x/term package.
 //
-// Algorithm: Uses the TIOCGWINSZ ioctl on Unix-like systems to query terminal dimensions.
-// This is a low-level system call that directly interrogates the TTY driver for the
-// current window size.
+// This uses a cross-platform API that works on Unix-like systems (Linux, macOS, BSD)
+// and Windows. The package handles platform-specific syscalls internally.
 //
 // Platform behavior:
-//   - Unix/Linux/macOS: Uses ioctl(fd, TIOCGWINSZ, &winsize) syscall
-//   - Windows: Returns error (ioctl not available)
+//   - Unix/Linux/macOS: Uses TIOCGWINSZ ioctl
+//   - Windows: Uses GetConsoleScreenBufferInfo
 //   - Non-TTY (pipes, redirects): Returns error (no terminal attached)
 //
-// Performance: This is a fast syscall (<1µs typically) suitable for synchronous use
+// Performance: This is a fast operation (<1µs typically) suitable for synchronous use
 // during startup banner rendering. No caching needed as it's called once per startup.
 //
 // Returns width, height in character cells, or error if terminal size unavailable.
@@ -319,36 +329,11 @@ func getTerminalSize(file *os.File) (int, int, error) {
 		return 0, 0, fmt.Errorf("file is nil")
 	}
 
-	fd := int(file.Fd())
-
-	// For Unix-like systems (Linux, macOS, BSD), use TIOCGWINSZ ioctl
-	if runtime.GOOS != "windows" {
-		var dimensions struct {
-			rows    uint16
-			cols    uint16
-			xpixels uint16
-			ypixels uint16
-		}
-
-		// TIOCGWINSZ constant value (0x5413) - get window size
-		const TIOCGWINSZ = 0x5413
-
-		// Use syscall to get terminal size
-		_, _, errno := syscall.Syscall6(
-			syscall.SYS_IOCTL,
-			uintptr(fd),
-			uintptr(TIOCGWINSZ),
-			uintptr(unsafe.Pointer(&dimensions)),
-			0, 0, 0,
-		)
-
-		if errno == 0 {
-			return int(dimensions.cols), int(dimensions.rows), nil
-		}
+	width, height, err := term.GetSize(int(file.Fd()))
+	if err != nil {
+		return 0, 0, fmt.Errorf("unable to get terminal size: %w", err)
 	}
-
-	// For Windows or if ioctl fails, return error
-	return 0, 0, fmt.Errorf("unable to get terminal size")
+	return width, height, nil
 }
 
 // PrintRoutes prints all registered routes to stdout in a formatted table.

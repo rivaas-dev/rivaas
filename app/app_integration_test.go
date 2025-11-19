@@ -1,5 +1,18 @@
 //go:build !short
-// +build !short
+
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package app
 
@@ -9,8 +22,6 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"rivaas.dev/router"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -30,7 +41,7 @@ func TestApp_ServerLifecycle(t *testing.T) {
 			),
 		)
 
-		app.GET("/health", func(c *router.Context) {
+		app.GET("/health", func(c *Context) {
 			c.String(http.StatusOK, "ok")
 		})
 
@@ -81,7 +92,7 @@ func TestApp_HTTPServerConfiguration(t *testing.T) {
 	)
 
 	// Register a route
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		c.String(http.StatusOK, "test")
 	})
 
@@ -144,16 +155,16 @@ func TestApp_RouteHandling(t *testing.T) {
 	)
 
 	// Register multiple routes
-	app.GET("/", func(c *router.Context) {
+	app.GET("/", func(c *Context) {
 		c.String(http.StatusOK, "home")
 	})
 
-	app.GET("/users/:id", func(c *router.Context) {
+	app.GET("/users/:id", func(c *Context) {
 		userID := c.Param("id")
 		c.String(http.StatusOK, "user-%s", userID)
 	})
 
-	app.POST("/users", func(c *router.Context) {
+	app.POST("/users", func(c *Context) {
 		c.String(http.StatusCreated, "created")
 	})
 
@@ -194,18 +205,18 @@ func TestApp_MiddlewareExecution(t *testing.T) {
 	executionOrder := []string{}
 
 	// Add middleware
-	app.Use(func(c *router.Context) {
+	app.Use(func(c *Context) {
 		executionOrder = append(executionOrder, "middleware1")
 		c.Next()
 	})
 
-	app.Use(func(c *router.Context) {
+	app.Use(func(c *Context) {
 		executionOrder = append(executionOrder, "middleware2")
 		c.Next()
 	})
 
 	// Add route
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		executionOrder = append(executionOrder, "handler")
 		c.String(http.StatusOK, "ok")
 	})
@@ -229,9 +240,19 @@ func TestApp_DefaultMiddlewareBehavior(t *testing.T) {
 			WithEnvironment(EnvironmentDevelopment),
 		)
 
-		// In development, should have both logger and recovery middleware
-		assert.GreaterOrEqual(t, len(app.config.middleware.functions), 2)
+		// Default middleware (recovery and accesslog) are router-level, not app-level.
+		// They are applied directly to the router, not stored in app.config.middleware.functions.
+		// Verify that defaults are enabled by checking explicitlySet is false.
 		assert.False(t, app.config.middleware.explicitlySet)
+		// Verify recovery middleware works by testing panic recovery
+		app.GET("/panic", func(c *Context) {
+			panic("test panic")
+		})
+		req := httptest.NewRequest("GET", "/panic", nil)
+		rec := httptest.NewRecorder()
+		app.Router().ServeHTTP(rec, req)
+		// Recovery middleware should catch the panic and return 500
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 
 	t.Run("production includes only recovery middleware by default", func(t *testing.T) {
@@ -241,9 +262,18 @@ func TestApp_DefaultMiddlewareBehavior(t *testing.T) {
 			WithEnvironment(EnvironmentProduction),
 		)
 
-		// In production, should have only recovery middleware
-		assert.Equal(t, 1, len(app.config.middleware.functions))
+		// Default middleware (recovery) is router-level, not app-level.
+		// Verify that defaults are enabled by checking explicitlySet is false.
 		assert.False(t, app.config.middleware.explicitlySet)
+		// Verify recovery middleware works by testing panic recovery
+		app.GET("/panic", func(c *Context) {
+			panic("test panic")
+		})
+		req := httptest.NewRequest("GET", "/panic", nil)
+		rec := httptest.NewRecorder()
+		app.Router().ServeHTTP(rec, req)
+		// Recovery middleware should catch the panic and return 500
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 }
 
@@ -255,14 +285,15 @@ func TestApp_ComplexRouteScenarios(t *testing.T) {
 	)
 
 	// Create nested groups
+	// Groups from app support app.HandlerFunc with app.Context
 	api := app.Group("/api")
 	v1 := api.Group("/v1")
-	v1.GET("/users", func(c *router.Context) {
+	v1.GET("/users", func(c *Context) {
 		c.String(http.StatusOK, "v1-users")
 	})
 
 	v2 := api.Group("/v2")
-	v2.GET("/users", func(c *router.Context) {
+	v2.GET("/users", func(c *Context) {
 		c.String(http.StatusOK, "v2-users")
 	})
 

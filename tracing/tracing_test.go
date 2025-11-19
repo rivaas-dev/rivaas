@@ -159,21 +159,6 @@ func TestContextHelpers(t *testing.T) {
 	assert.Equal(t, "", spanID)
 }
 
-func TestTracingRecorderInterface(t *testing.T) {
-	config := MustNew(
-		WithServiceName("test-service"),
-	)
-
-	// Test that config implements router.Recorder interface
-	var recorder interface{} = config
-	_, ok := recorder.(interface {
-		IsEnabled() bool
-		ShouldExcludePath(string) bool
-	})
-	assert.True(t, ok, "Config should implement Recorder interface")
-	assert.True(t, config.IsEnabled())
-}
-
 func TestSamplingRate(t *testing.T) {
 	t.Run("SampleRateValidation", func(t *testing.T) {
 		// Test clamping of sample rate
@@ -1384,4 +1369,172 @@ func (l *testLogger) Debug(msg string, keysAndValues ...any) {
 	if l.debugFunc != nil {
 		l.debugFunc(msg, keysAndValues...)
 	}
+}
+
+// TestConcurrentShutdown tests that shutdown is safe to call concurrently
+func TestConcurrentShutdown(t *testing.T) {
+	config, err := New(
+		WithServiceName("test-service"),
+		WithServiceVersion("v1.0.0"),
+		WithProvider(StdoutProvider),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, config)
+
+	// Test concurrent shutdown calls
+	const numGoroutines = 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			err := config.Shutdown(ctx)
+			// All calls should succeed (idempotent)
+			assert.NoError(t, err)
+		}()
+	}
+
+	wg.Wait()
+
+	// Verify shutdown was called (subsequent calls should also succeed)
+	err = config.Shutdown(ctx)
+	assert.NoError(t, err)
+}
+
+// TestProviderFailure tests that provider initialization failures are handled gracefully
+func TestProviderFailure(t *testing.T) {
+	t.Run("OTLPProvider_InvalidEndpoint", func(t *testing.T) {
+		// Test with invalid endpoint format (should still create config but may fail on connection)
+		// Note: OTLP provider creation doesn't fail on invalid endpoint, it just won't connect
+		// So we test with a valid but unreachable endpoint
+		config, err := New(
+			WithServiceName("test"),
+			WithServiceVersion("v1.0.0"),
+			WithProvider(OTLPProvider),
+			WithOTLPEndpoint("localhost:99999"), // Invalid/unreachable port
+			WithOTLPInsecure(true),
+		)
+		// Provider creation may succeed even with unreachable endpoint
+		// The actual connection failure happens during span export
+		if err != nil {
+			assert.Error(t, err)
+		} else {
+			require.NotNil(t, config)
+			defer config.Shutdown(context.Background())
+		}
+	})
+
+	t.Run("InvalidProvider", func(t *testing.T) {
+		config, err := New(
+			WithServiceName("test"),
+			WithServiceVersion("v1.0.0"),
+			WithProvider(Provider("invalid")),
+		)
+		assert.Error(t, err)
+		assert.Nil(t, config)
+		assert.Contains(t, err.Error(), "unsupported tracing provider")
+	})
+}
+
+// TestContextCancellationInStartRequestSpan tests context cancellation handling
+func TestContextCancellationInStartRequestSpan(t *testing.T) {
+	config := MustNew(
+		WithServiceName("test-service"),
+		WithSampleRate(1.0),
+	)
+	defer config.Shutdown(context.Background())
+
+	t.Run("CancelledContext", func(t *testing.T) {
+		// Create cancelled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		ctx, span := config.StartRequestSpan(ctx, req, "/test", false)
+
+		// Should return non-recording span and preserve cancellation
+		assert.Error(t, ctx.Err())
+		assert.Equal(t, context.Canceled, ctx.Err())
+		assert.NotNil(t, span)
+	})
+
+	t.Run("TimeoutContext", func(t *testing.T) {
+		// Create context with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+
+		// Wait for timeout
+		time.Sleep(10 * time.Millisecond)
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		ctx, span := config.StartRequestSpan(ctx, req, "/test", false)
+
+		// Should return non-recording span and preserve timeout
+		assert.Error(t, ctx.Err())
+		assert.NotNil(t, span)
+	})
+}
+
+// TestExcludePathPattern tests regex pattern support for path exclusion
+func TestExcludePathPattern(t *testing.T) {
+	t.Run("ValidPattern", func(t *testing.T) {
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludePathPattern("^/internal/.*"),
+			WithExcludePathPattern("^/(health|ready|live)"),
+		)
+		defer config.Shutdown(context.Background())
+
+		// Test pattern matching
+		assert.True(t, config.ShouldExcludePath("/internal/api"))
+		assert.True(t, config.ShouldExcludePath("/internal/status"))
+		assert.True(t, config.ShouldExcludePath("/health"))
+		assert.True(t, config.ShouldExcludePath("/ready"))
+		assert.True(t, config.ShouldExcludePath("/live"))
+		assert.False(t, config.ShouldExcludePath("/api/users"))
+		assert.False(t, config.ShouldExcludePath("/public"))
+	})
+
+	t.Run("InvalidPattern", func(t *testing.T) {
+		config, err := New(
+			WithServiceName("test"),
+			WithExcludePathPattern("[invalid-regex"), // Invalid regex
+		)
+		assert.Error(t, err)
+		assert.Nil(t, config)
+		assert.Contains(t, err.Error(), "invalid regex pattern")
+	})
+
+	t.Run("PatternAndExactPath", func(t *testing.T) {
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludePaths("/exact"),
+			WithExcludePathPattern("^/pattern/.*"),
+		)
+		defer config.Shutdown(context.Background())
+
+		// Both should work
+		assert.True(t, config.ShouldExcludePath("/exact"))
+		assert.True(t, config.ShouldExcludePath("/pattern/anything"))
+		assert.False(t, config.ShouldExcludePath("/other"))
+	})
+
+	t.Run("MultiplePatterns", func(t *testing.T) {
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludePathPattern("^/v1/.*"),
+			WithExcludePathPattern("^/v2/.*"),
+			WithExcludePathPattern("^/admin/.*"),
+		)
+		defer config.Shutdown(context.Background())
+
+		assert.True(t, config.ShouldExcludePath("/v1/users"))
+		assert.True(t, config.ShouldExcludePath("/v2/posts"))
+		assert.True(t, config.ShouldExcludePath("/admin/settings"))
+		assert.False(t, config.ShouldExcludePath("/v3/api"))
+	})
 }

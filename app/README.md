@@ -42,8 +42,8 @@ package main
 import (
     "log"
     "net/http"
-    "rivass.dev/app"
-    "rivass.dev/router"
+    "rivaas.dev/app"
+    "rivaas.dev/router"
 )
 
 func main() {
@@ -77,8 +77,8 @@ import (
     "net/http"
     "time"
     
-    "rivass.dev/app"
-    "rivass.dev/router"
+    "rivaas.dev/app"
+    "rivaas.dev/router"
     "rivass.dev/router/middleware"
     "go.opentelemetry.io/otel/attribute"
 )
@@ -212,7 +212,7 @@ The `trace_id` will be empty and no traces will appear in stdout because:
 **Quick Start - Stdout Tracing (Development):**
 
 ```go
-import "rivass.dev/tracing"
+import "rivaas.dev/tracing"
 
 // Set up stdout exporter BEFORE creating app
 tp, err := tracing.SetupStdout("my-service", "v1.0.0")
@@ -374,7 +374,7 @@ a.Use(middleware.Logger())  // Additional middleware
 The app package provides access to high-quality middleware from `router/middleware`:
 
 ```go
-import "rivass.dev/router/middleware"
+import "rivaas.dev/router/middleware"
 ```
 
 ### Logger

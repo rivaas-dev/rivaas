@@ -9,56 +9,62 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/stretchr/testify/assert"
 	"rivaas.dev/router"
 )
 
-func TestValidateVersions_EmptyVersion(t *testing.T) {
-	versions := []VersionInfo{
-		{Version: ""},
-	}
-
-	err := ValidateVersions(versions)
-	if err == nil {
-		t.Error("Expected error for empty version string")
-	}
-}
-
-func TestValidateVersions_DuplicateVersions(t *testing.T) {
-	versions := []VersionInfo{
-		{Version: "v1"},
-		{Version: "v2"},
-		{Version: "v1"}, // Duplicate
-	}
-
-	err := ValidateVersions(versions)
-	if err == nil {
-		t.Error("Expected error for duplicate versions")
-	}
-
-	if err.Error() != "duplicate version: v1" {
-		t.Errorf("Expected duplicate version error, got %v", err)
-	}
-}
-
-func TestValidateVersions_SunsetBeforeDeprecated(t *testing.T) {
+func TestValidateVersions_Errors(t *testing.T) {
 	deprecated := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 	sunset := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC) // Before deprecated
 
-	versions := []VersionInfo{
+	tests := []struct {
+		name     string
+		versions []VersionInfo
+		wantErr  bool
+		errMsg   string
+	}{
 		{
-			Version:    "v1",
-			Deprecated: &deprecated,
-			Sunset:     &sunset,
+			name: "empty version",
+			versions: []VersionInfo{
+				{Version: ""},
+			},
+			wantErr: true,
+		},
+		{
+			name: "duplicate versions",
+			versions: []VersionInfo{
+				{Version: "v1"},
+				{Version: "v2"},
+				{Version: "v1"},
+			},
+			wantErr: true,
+			errMsg:  "duplicate version: v1",
+		},
+		{
+			name: "sunset before deprecated",
+			versions: []VersionInfo{
+				{
+					Version:    "v1",
+					Deprecated: &deprecated,
+					Sunset:     &sunset,
+				},
+			},
+			wantErr: true,
 		},
 	}
 
-	err := ValidateVersions(versions)
-	if err == nil {
-		t.Error("Expected error for sunset before deprecated")
-	}
-
-	if err.Error() == "" {
-		t.Error("Expected detailed error message")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateVersions(tt.versions)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Equal(t, tt.errMsg, err.Error())
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }
 
@@ -124,9 +130,7 @@ func TestValidateVersions_ValidConfigurations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateVersions(tt.versions)
-			if err != nil {
-				t.Errorf("Expected no error, got %v", err)
-			}
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -150,9 +154,7 @@ func TestWithVersioning_NoVersionDetected(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestWithVersioning_UnknownVersion(t *testing.T) {
@@ -177,82 +179,74 @@ func TestWithVersioning_UnknownVersion(t *testing.T) {
 	handler(c)
 
 	// Should continue to next handler (no version-related headers set for unknown version)
-	if w.Header().Get("X-API-Version") != "" {
-		t.Errorf("Expected no X-API-Version header for unknown version, got %s", w.Header().Get("X-API-Version"))
-	}
-	if w.Header().Get("Deprecation") != "" {
-		t.Errorf("Expected no Deprecation header for unknown version, got %s", w.Header().Get("Deprecation"))
-	}
+	assert.Empty(t, w.Header().Get("X-API-Version"))
+	assert.Empty(t, w.Header().Get("Deprecation"))
 }
 
-func TestWithVersioning_XAPIVersionHeader(t *testing.T) {
+func TestWithVersioning_Headers(t *testing.T) {
+	deprecated := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	handler := WithVersioning(Options{
-		Versions: []VersionInfo{
-			{Version: "v1"},
+	tests := []struct {
+		name              string
+		versionInfo       VersionInfo
+		sendVersionHeader bool
+		emitWarning299    bool
+		expectHeaders     map[string]string
+		checkHeaderExists []string
+	}{
+		{
+			name: "X-API-Version header",
+			versionInfo: VersionInfo{
+				Version: "v1",
+			},
+			sendVersionHeader: true,
+			expectHeaders: map[string]string{
+				"X-API-Version": "v1",
+			},
 		},
-		Now:               func() time.Time { return now },
-		SendVersionHeader: true,
-	})
-
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	r := router.MustNew()
-	setRouter(c, r)
-	setVersion(c, "v1")
-
-	handler(c)
-
-	if w.Header().Get("X-API-Version") != "v1" {
-		t.Errorf("Expected X-API-Version: v1, got %s", w.Header().Get("X-API-Version"))
-	}
-}
-
-func TestWithVersioning_DeprecatedVersion(t *testing.T) {
-	deprecated := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC) // After deprecated
-
-	handler := WithVersioning(Options{
-		Versions: []VersionInfo{
-			{
+		{
+			name: "deprecated version",
+			versionInfo: VersionInfo{
 				Version:    "v1",
 				Deprecated: &deprecated,
 				DocsURL:    "https://docs.example.com/v1",
 			},
+			emitWarning299: true,
+			expectHeaders: map[string]string{
+				"Link": "<https://docs.example.com/v1>; rel=\"deprecation\"",
+			},
+			checkHeaderExists: []string{"Deprecation", "Warning"},
 		},
-		Now:            func() time.Time { return now },
-		EmitWarning299: true,
-	})
-
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-
-	c := router.NewContext(w, req)
-	r := router.MustNew()
-	setRouter(c, r)
-	setVersion(c, "v1")
-
-	handler(c)
-
-	// Check Deprecation header
-	depHeader := w.Header().Get("Deprecation")
-	if depHeader == "" {
-		t.Error("Expected Deprecation header to be set")
 	}
 
-	// Check Link header with deprecation relation
-	linkHeader := w.Header().Get("Link")
-	if linkHeader != "<https://docs.example.com/v1>; rel=\"deprecation\"" {
-		t.Errorf("Expected Link header with deprecation, got %s", linkHeader)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := WithVersioning(Options{
+				Versions:          []VersionInfo{tt.versionInfo},
+				Now:               func() time.Time { return now },
+				SendVersionHeader: tt.sendVersionHeader,
+				EmitWarning299:    tt.emitWarning299,
+			})
 
-	// Check Warning header
-	warningHeader := w.Header().Get("Warning")
-	if warningHeader == "" {
-		t.Error("Expected Warning header to be set")
+			req := httptest.NewRequest("GET", "/test", nil)
+			w := httptest.NewRecorder()
+
+			c := router.NewContext(w, req)
+			r := router.MustNew()
+			setRouter(c, r)
+			setVersion(c, "v1")
+
+			handler(c)
+
+			for header, expected := range tt.expectHeaders {
+				assert.Equal(t, expected, w.Header().Get(header))
+			}
+
+			for _, header := range tt.checkHeaderExists {
+				assert.NotEmpty(t, w.Header().Get(header), "Expected %s header to be set", header)
+			}
+		})
 	}
 }
 
@@ -282,13 +276,7 @@ func TestWithVersioning_SunsetVersion(t *testing.T) {
 	handler(c)
 
 	// Should return 410 Gone when past sunset
-	if w.Code != http.StatusGone {
-		t.Errorf("Expected 410 Gone, got %d", w.Code)
-	}
-
-	// When past sunset, middleware returns early (before setting Sunset header)
-	// This is expected behavior - the 410 response indicates the version is gone
-	// The Sunset header would be set if the version wasn't past sunset yet
+	assert.Equal(t, http.StatusGone, w.Code)
 }
 
 func TestWithVersioning_SunsetWithDeprecation(t *testing.T) {
@@ -320,21 +308,9 @@ func TestWithVersioning_SunsetWithDeprecation(t *testing.T) {
 	handler(c)
 
 	// Check both Deprecation and Sunset headers
-	depHeader := w.Header().Get("Deprecation")
-	if depHeader == "" {
-		t.Error("Expected Deprecation header")
-	}
-
-	sunsetHeader := w.Header().Get("Sunset")
-	if sunsetHeader == "" {
-		t.Error("Expected Sunset header")
-	}
-
-	// Check Link header contains both relations
-	linkHeader := w.Header().Get("Link")
-	if linkHeader == "" {
-		t.Error("Expected Link header")
-	}
+	assert.NotEmpty(t, w.Header().Get("Deprecation"))
+	assert.NotEmpty(t, w.Header().Get("Sunset"))
+	assert.NotEmpty(t, w.Header().Get("Link"))
 }
 
 func TestWithVersioning_OnDeprecatedUseCallback(t *testing.T) {
@@ -373,17 +349,9 @@ func TestWithVersioning_OnDeprecatedUseCallback(t *testing.T) {
 	// Wait a bit for async callback
 	time.Sleep(100 * time.Millisecond)
 
-	if !callbackCalled {
-		t.Error("Expected OnDeprecatedUse callback to be called")
-	}
-
-	if callbackVersion != "v1" {
-		t.Errorf("Expected callback version v1, got %s", callbackVersion)
-	}
-
-	if callbackRoute != "/test" {
-		t.Errorf("Expected callback route /test, got %s", callbackRoute)
-	}
+	assert.True(t, callbackCalled, "Expected OnDeprecatedUse callback to be called")
+	assert.Equal(t, "v1", callbackVersion)
+	assert.Equal(t, "/test", callbackRoute)
 }
 
 func TestWithVersioning_NotDeprecatedYet(t *testing.T) {
@@ -411,10 +379,7 @@ func TestWithVersioning_NotDeprecatedYet(t *testing.T) {
 	handler(c)
 
 	// Should not have deprecation headers
-	depHeader := w.Header().Get("Deprecation")
-	if depHeader != "" {
-		t.Errorf("Expected no Deprecation header, got %s", depHeader)
-	}
+	assert.Empty(t, w.Header().Get("Deprecation"))
 }
 
 func TestWithVersioning_Warning299WithSunset(t *testing.T) {
@@ -445,15 +410,11 @@ func TestWithVersioning_Warning299WithSunset(t *testing.T) {
 	handler(c)
 
 	warningHeader := w.Header().Get("Warning")
-	if warningHeader == "" {
-		t.Error("Expected Warning header")
-	}
+	assert.NotEmpty(t, warningHeader, "Expected Warning header")
 
 	// Should contain sunset date
 	expectedDate := sunset.Format("2006-01-02")
-	if warningHeader == "" || !contains(warningHeader, expectedDate) {
-		t.Errorf("Expected Warning header to contain sunset date %s, got %s", expectedDate, warningHeader)
-	}
+	assert.Contains(t, warningHeader, expectedDate)
 }
 
 func TestWithVersioning_Warning299WithoutSunset(t *testing.T) {
@@ -482,14 +443,10 @@ func TestWithVersioning_Warning299WithoutSunset(t *testing.T) {
 	handler(c)
 
 	warningHeader := w.Header().Get("Warning")
-	if warningHeader == "" {
-		t.Error("Expected Warning header")
-	}
+	assert.NotEmpty(t, warningHeader, "Expected Warning header")
 
 	// Should not contain sunset date
-	if contains(warningHeader, "removed on") {
-		t.Errorf("Warning header should not contain sunset date when not configured, got %s", warningHeader)
-	}
+	assert.NotContains(t, warningHeader, "removed on")
 }
 
 func TestWithVersioning_DefaultNowFunction(t *testing.T) {
@@ -501,23 +458,17 @@ func TestWithVersioning_DefaultNowFunction(t *testing.T) {
 		},
 	})
 
-	if handler == nil {
-		t.Error("Expected handler to be created")
-	}
+	assert.NotNil(t, handler, "Expected handler to be created")
 }
 
 func TestWithVersioning_InvalidVersionConfigPanics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Expected panic for invalid version configuration")
-		}
-	}()
-
-	WithVersioning(Options{
-		Versions: []VersionInfo{
-			{Version: ""}, // Invalid
-		},
-	})
+	assert.Panics(t, func() {
+		WithVersioning(Options{
+			Versions: []VersionInfo{
+				{Version: ""}, // Invalid
+			},
+		})
+	}, "Expected panic for invalid version configuration")
 }
 
 // Helper function to create time pointer

@@ -300,7 +300,7 @@ func (c *Context) IsXML() bool {
 // Example:
 //
 //	if c.AcceptsJSON() {
-//	    c.JSON(200, data)
+//	    c.JSON(http.StatusOK, data)
 //	}
 func (c *Context) AcceptsJSON() bool {
 	accept := c.Request.Header.Get("Accept")
@@ -313,7 +313,7 @@ func (c *Context) AcceptsJSON() bool {
 // Example:
 //
 //	if c.AcceptsHTML() {
-//	    c.HTML(200, htmlContent)
+//	    c.HTML(http.StatusOK, htmlContent)
 //	}
 func (c *Context) AcceptsHTML() bool {
 	accept := c.Request.Header.Get("Accept")
@@ -490,7 +490,7 @@ func (c *Context) IsStale() bool {
 //
 //	file, err := c.FormFile("document")
 //	if err != nil {
-//	    c.JSON(400, map[string]string{"error": "File required"})
+//	    c.JSON(http.StatusBadRequest, map[string]string{"error": "File required"})
 //	    return
 //	}
 //

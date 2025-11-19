@@ -4,6 +4,7 @@ package compression
 import (
 	"compress/gzip"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,6 +19,9 @@ type Option func(*config)
 
 // config holds the configuration for the compression middleware.
 type config struct {
+	// logger is the structured logger for error logging (slog from standard library)
+	logger *slog.Logger
+
 	// gzipLevel is the gzip compression level (0-9, where 0=no compression, 9=best compression)
 	gzipLevel int
 
@@ -410,7 +414,7 @@ func parseQValue(accept, encoding string) float64 {
 //
 // Basic usage:
 //
-//	r := router.New()
+//	r := router.MustNew()
 //	r.Use(compression.New())
 //
 // With custom compression levels:
@@ -513,8 +517,8 @@ func New(opts ...Option) router.HandlerFunc {
 
 		// Finalize
 		if err := cw.Close(); err != nil {
-			if logger := c.Logger(); logger != nil {
-				logger.Error("compression finalization failed", "error", err)
+			if cfg.logger != nil {
+				cfg.logger.Error("compression finalization failed", "error", err)
 			}
 		}
 

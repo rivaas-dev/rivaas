@@ -74,7 +74,7 @@ func WithNotFound(h HandlerFunc) MountOption {
 //
 // Example:
 //
-//	admin := router.New()
+//	admin := router.MustNew()
 //	admin.GET("/:id", getAdmin)
 //
 //	r.Mount("/admin", admin,

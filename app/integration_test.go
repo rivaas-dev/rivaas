@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package app
 
 import (
@@ -11,7 +25,6 @@ import (
 
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
-	"rivaas.dev/router"
 	"rivaas.dev/tracing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +59,7 @@ func TestIntegration_ConcurrentAppCreation(t *testing.T) {
 			}
 
 			// Register a route and test it
-			app.GET("/test", func(c *router.Context) {
+			app.GET("/test", func(c *Context) {
 				c.String(http.StatusOK, "ok")
 			})
 
@@ -82,7 +95,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	var requestCount atomic.Int64
 	var successCount atomic.Int64
 
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		requestCount.Add(1)
 		time.Sleep(1 * time.Millisecond) // Simulate work
 		successCount.Add(1)
@@ -101,7 +114,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 			app.Router().ServeHTTP(w, req)
 			if w.Code == http.StatusOK {
 				successCount.Add(0) // Already counted in handler
-			}	
+			}
 		})
 	}
 
@@ -126,21 +139,21 @@ func TestIntegration_MiddlewareChain(t *testing.T) {
 	var counter atomic.Int64
 
 	// Add multiple middleware that track execution order
-	app.Use(func(c *router.Context) {
+	app.Use(func(c *Context) {
 		orderMutex.Lock()
 		executionOrder = append(executionOrder, counter.Add(1))
 		orderMutex.Unlock()
 		c.Next()
 	})
 
-	app.Use(func(c *router.Context) {
+	app.Use(func(c *Context) {
 		orderMutex.Lock()
 		executionOrder = append(executionOrder, counter.Add(1))
 		orderMutex.Unlock()
 		c.Next()
 	})
 
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		orderMutex.Lock()
 		executionOrder = append(executionOrder, counter.Add(1))
 		orderMutex.Unlock()
@@ -155,7 +168,7 @@ func TestIntegration_MiddlewareChain(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			app.Router().ServeHTTP(w, req)
-			assert.Equal(t, http.StatusOK, w.Code)	
+			assert.Equal(t, http.StatusOK, w.Code)
 		})
 	}
 
@@ -171,23 +184,24 @@ func TestIntegration_MiddlewareChain(t *testing.T) {
 func TestIntegration_ObservabilityConcurrent(t *testing.T) {
 	t.Parallel()
 
+	logger := logging.MustNew(logging.WithLevel(logging.LevelInfo))
 	app, err := New(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
 		WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
 		WithTracing(tracing.WithProvider(tracing.NoopProvider)),
-		WithLogging(logging.WithLevel(logging.LevelInfo)),
+		WithLogger(logger.Logger()),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, app)
 
 	var successCount atomic.Int64
 
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		// Use observability features
 		c.IncrementCounter("test_requests_total")
 		c.SetSpanAttribute("test.key", "test.value")
-		c.LogInfo("test request", "request_id", "123")
+		c.Logger().Info("test request", "request_id", "123")
 
 		successCount.Add(1)
 		c.String(http.StatusOK, "ok")
@@ -221,7 +235,7 @@ func TestIntegration_RouteRegistrationConcurrent(t *testing.T) {
 	)
 
 	// Pre-register some routes
-	app.GET("/existing", func(c *router.Context) {
+	app.GET("/existing", func(c *Context) {
 		c.String(http.StatusOK, "existing")
 	})
 
@@ -234,7 +248,7 @@ func TestIntegration_RouteRegistrationConcurrent(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			path := "/route" + string(rune('0'+id%10))
-			app.GET(path, func(c *router.Context) {
+			app.GET(path, func(c *Context) {
 				c.String(http.StatusOK, "route-%d", id)
 			})
 		}(i)
@@ -275,7 +289,7 @@ func TestIntegration_ServerLifecycle(t *testing.T) {
 		),
 	)
 
-	app.GET("/test", func(c *router.Context) {
+	app.GET("/test", func(c *Context) {
 		c.String(http.StatusOK, "ok")
 	})
 
@@ -323,19 +337,19 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 	)
 
 	// Route that panics
-	app.GET("/panic", func(_ *router.Context) {
+	app.GET("/panic", func(_ *Context) {
 		panic("test panic")
 	})
 
 	// Route that returns error
-	app.GET("/error", func(c *router.Context) {
+	app.GET("/error", func(c *Context) {
 		c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "test error",
 		})
 	})
 
 	// Route that works
-	app.GET("/ok", func(c *router.Context) {
+	app.GET("/ok", func(c *Context) {
 		c.String(http.StatusOK, "ok")
 	})
 
@@ -347,10 +361,10 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 			w := httptest.NewRecorder()
-			// Should not panic - recovery middleware should catch it	
+			// Should not panic - recovery middleware should catch it
 			assert.NotPanics(t, func() {
 				app.Router().ServeHTTP(w, req)
-			})	
+			})
 		})
 	}
 
@@ -360,7 +374,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/error", nil)
 			w := httptest.NewRecorder()
 			app.Router().ServeHTTP(w, req)
-			assert.Equal(t, http.StatusInternalServerError, w.Code)	
+			assert.Equal(t, http.StatusInternalServerError, w.Code)
 		})
 	}
 
@@ -369,7 +383,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/ok", nil)
 			w := httptest.NewRecorder()
-			app.Router().ServeHTTP(w, req)	
+			app.Router().ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code)
 		})
 	}

@@ -123,13 +123,7 @@ func WithVersioning(opts Options) router.HandlerFunc {
 		// Check if past sunset date
 		if info.Sunset != nil && now.After(*info.Sunset) {
 			// Version has been removed - return 410 Gone
-			_ = c.ProblemDetail(
-				router.NewProblemDetail(http.StatusGone, "Version Discontinued").
-					WithType(c.ProblemType("version-gone")).
-					WithDetail(fmt.Sprintf("API %s was removed on %s. Please upgrade to a supported version.", version, info.Sunset.Format(time.RFC3339))).
-					WithExtension("removed_version", version).
-					WithExtension("removed_on", info.Sunset.Format(time.RFC3339)),
-			)
+			c.WriteErrorResponse(http.StatusGone, fmt.Sprintf("API %s was removed on %s. Please upgrade to a supported version.", version, info.Sunset.Format(time.RFC3339)))
 			c.Abort()
 			return
 		}

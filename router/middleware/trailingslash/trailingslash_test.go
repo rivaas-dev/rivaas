@@ -6,95 +6,66 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"rivaas.dev/router"
 )
 
-func TestTrailingSlashRemove(t *testing.T) {
-	r := router.New()
-	r.GET("/users", func(c *router.Context) {
-		c.String(http.StatusOK, "users")
-	})
-
-	// Wrap router with trailing slash handler
-	handler := Wrap(r, WithPolicy(PolicyRemove))
-
-	// Test redirect from /users/ to /users
-	req := httptest.NewRequest("GET", "/users/", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusPermanentRedirect {
-		t.Errorf("expected 308, got %d", w.Code)
-	}
-
-	location := w.Header().Get("Location")
-	if location != "/users" {
-		t.Errorf("expected Location /users, got %s", location)
-	}
-
-	// Test that /users works correctly
-	req2 := httptest.NewRequest("GET", "/users", nil)
-	w2 := httptest.NewRecorder()
-	handler.ServeHTTP(w2, req2)
-
-	if w2.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w2.Code)
-	}
-}
-
-func TestTrailingSlashQueryPreserved(t *testing.T) {
-	r := router.New()
+func TestTrailingSlash_RemovePolicy(t *testing.T) {
+	r := router.MustNew()
 	r.GET("/users", func(c *router.Context) {
 		c.String(http.StatusOK, "users")
 	})
 
 	handler := Wrap(r, WithPolicy(PolicyRemove))
 
-	req := httptest.NewRequest("GET", "/users/?page=2&sort=name", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusPermanentRedirect {
-		t.Errorf("expected 308, got %d", w.Code)
+	tests := []struct {
+		name             string
+		url              string
+		expectedStatus   int
+		expectedLocation string
+		expectedBody     string
+	}{
+		{
+			name:             "redirect from /users/ to /users",
+			url:              "/users/",
+			expectedStatus:   http.StatusPermanentRedirect,
+			expectedLocation: "/users",
+		},
+		{
+			name:           "/users works correctly",
+			url:            "/users",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "users",
+		},
+		{
+			name:             "query params preserved",
+			url:              "/users/?page=2&sort=name",
+			expectedStatus:   http.StatusPermanentRedirect,
+			expectedLocation: "/users?page=2&sort=name",
+		},
 	}
 
-	location := w.Header().Get("Location")
-	expected := "/users?page=2&sort=name"
-	if location != expected {
-		t.Errorf("expected Location %s, got %s", expected, location)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.url, nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
 
-func TestTrailingSlashNoLoop(t *testing.T) {
-	r := router.New()
-	r.GET("/users", func(c *router.Context) {
-		c.String(http.StatusOK, "users")
-	})
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
-	handler := Wrap(r, WithPolicy(PolicyRemove))
+			if tt.expectedLocation != "" {
+				assert.Equal(t, tt.expectedLocation, w.Header().Get("Location"))
+			}
 
-	// First request: /users/ → redirects to /users
-	req1 := httptest.NewRequest("GET", "/users/", nil)
-	w1 := httptest.NewRecorder()
-	handler.ServeHTTP(w1, req1)
-	if w1.Code != http.StatusPermanentRedirect {
-		t.Errorf("expected 308, got %d", w1.Code)
-	}
-
-	// Second request: /users → no redirect, should work
-	req2 := httptest.NewRequest("GET", "/users", nil)
-	w2 := httptest.NewRecorder()
-	handler.ServeHTTP(w2, req2)
-	if w2.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w2.Code)
-	}
-	if w2.Body.String() != "users" {
-		t.Errorf("expected body 'users', got %s", w2.Body.String())
+			if tt.expectedBody != "" {
+				assert.Equal(t, tt.expectedBody, w.Body.String())
+			}
+		})
 	}
 }
 
 func TestTrailingSlashRootPath(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.Use(New())
 
 	r.GET("/", func(c *router.Context) {
@@ -106,75 +77,88 @@ func TestTrailingSlashRootPath(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if w.Body.String() != "root" {
-		t.Errorf("expected body 'root', got %s", w.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "root", w.Body.String())
 }
 
-func TestTrailingSlashAdd(t *testing.T) {
-	r := router.New()
-	r.GET("/users/", func(c *router.Context) {
-		c.String(http.StatusOK, "users")
-	})
-
-	handler := Wrap(r, WithPolicy(PolicyAdd))
-
-	// /users should redirect to /users/
-	req := httptest.NewRequest("GET", "/users", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusPermanentRedirect {
-		t.Errorf("expected 308, got %d", w.Code)
+func TestTrailingSlash_Policies(t *testing.T) {
+	tests := []struct {
+		name             string
+		policy           Policy
+		route            string
+		requestURL       string
+		expectedStatus   int
+		expectedLocation string
+		expectedBody     string
+	}{
+		{
+			name:             "PolicyAdd - redirect to add slash",
+			policy:           PolicyAdd,
+			route:            "/users/",
+			requestURL:       "/users",
+			expectedStatus:   http.StatusPermanentRedirect,
+			expectedLocation: "/users/",
+		},
+		{
+			name:           "PolicyAdd - with slash works",
+			policy:         PolicyAdd,
+			route:          "/users/",
+			requestURL:     "/users/",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "users",
+		},
+		{
+			name:           "PolicyStrict - rejects trailing slash",
+			policy:         PolicyStrict,
+			route:          "/users",
+			requestURL:     "/users/",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "PolicyStrict - without slash works",
+			policy:         PolicyStrict,
+			route:          "/users",
+			requestURL:     "/users",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "users",
+		},
 	}
 
-	location := w.Header().Get("Location")
-	if location != "/users/" {
-		t.Errorf("expected Location /users/, got %s", location)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := router.MustNew()
+			if tt.policy == PolicyStrict {
+				r.Use(New(WithPolicy(tt.policy)))
+			}
 
-	// /users/ should work
-	req2 := httptest.NewRequest("GET", "/users/", nil)
-	w2 := httptest.NewRecorder()
-	handler.ServeHTTP(w2, req2)
+			r.GET(tt.route, func(c *router.Context) {
+				c.String(http.StatusOK, "users")
+			})
 
-	if w2.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w2.Code)
-	}
-}
+			var handler http.Handler = r
+			if tt.policy == PolicyAdd {
+				handler = Wrap(r, WithPolicy(PolicyAdd))
+			}
 
-func TestTrailingSlashStrict(t *testing.T) {
-	r := router.New()
-	r.Use(New(WithPolicy(PolicyStrict)))
+			req := httptest.NewRequest("GET", tt.requestURL, nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
 
-	r.GET("/users", func(c *router.Context) {
-		c.String(http.StatusOK, "users")
-	})
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
-	// /users/ should return 404 in strict mode
-	req := httptest.NewRequest("GET", "/users/", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+			if tt.expectedLocation != "" {
+				assert.Equal(t, tt.expectedLocation, w.Header().Get("Location"))
+			}
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-
-	// /users should work
-	req2 := httptest.NewRequest("GET", "/users", nil)
-	w2 := httptest.NewRecorder()
-	r.ServeHTTP(w2, req2)
-
-	if w2.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w2.Code)
+			if tt.expectedBody != "" {
+				assert.Equal(t, tt.expectedBody, w.Body.String())
+			}
+		})
 	}
 }
 
 func TestTrailingSlashTrimSuffixNotTrimRight(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.GET("/users", func(c *router.Context) {
 		c.String(http.StatusOK, "users")
 	})
@@ -189,19 +173,15 @@ func TestTrailingSlashTrimSuffixNotTrimRight(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	// Should redirect to /users/ (one slash removed)
-	if w.Code != http.StatusPermanentRedirect {
-		t.Errorf("expected 308, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusPermanentRedirect, w.Code)
 
 	location := w.Header().Get("Location")
 	// TrimSuffix removes exactly one slash, so /users// → /users/
-	if location != "/users/" {
-		t.Errorf("expected Location /users/, got %s", location)
-	}
+	assert.Equal(t, "/users/", location)
 }
 
 func TestTrailingSlashPreservesMethod(t *testing.T) {
-	r := router.New()
+	r := router.MustNew()
 	r.POST("/users", func(c *router.Context) {
 		c.String(http.StatusOK, "created")
 	})
@@ -214,13 +194,9 @@ func TestTrailingSlashPreservesMethod(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusPermanentRedirect {
-		t.Errorf("expected 308, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusPermanentRedirect, w.Code)
 
 	// 308 preserves method, so client should retry POST to /users
 	location := w.Header().Get("Location")
-	if location != "/users" {
-		t.Errorf("expected Location /users, got %s", location)
-	}
+	assert.Equal(t, "/users", location)
 }

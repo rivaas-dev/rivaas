@@ -4,275 +4,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestVersionedRouting tests version-specific routing
-func TestVersionedRouting(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithHeaderVersioning("X-API-Version"),
-			WithDefaultVersion("v1"),
-			WithValidVersions("v1", "v2"),
-		),
-	)
-
-	// Add v1 routes - using static routes for PUT/DELETE/PATCH to ensure they're tested
-	v1 := r.Version("v1")
-	v1.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 users")
-	})
-	v1.POST("/users", func(c *Context) {
-		c.String(http.StatusCreated, "v1 user created")
-	})
-	// Use static paths for these to avoid parameter extraction issues with versioned routes
-	v1.PUT("/users/123", func(c *Context) {
-		c.String(http.StatusOK, "v1 updated user 123")
-	})
-	v1.DELETE("/users/456", func(c *Context) {
-		c.String(http.StatusOK, "v1 deleted user 456")
-	})
-	v1.PATCH("/users/789", func(c *Context) {
-		c.String(http.StatusOK, "v1 patched user 789")
-	})
-	v1.OPTIONS("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 options")
-	})
-	v1.HEAD("/users", func(c *Context) {
-		c.Status(http.StatusOK)
-	})
-
-	// Add v2 routes
-	v2 := r.Version("v2")
-	v2.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v2 users")
-	})
-	v2.POST("/users", func(c *Context) {
-		c.String(http.StatusCreated, "v2 user created")
-	})
-
-	tests := []struct {
-		name     string
-		method   string
-		path     string
-		version  string
-		expected string
-		status   int
-	}{
-		{"v1 GET", "GET", "/users", "v1", "v1 users", http.StatusOK},
-		{"v2 GET", "GET", "/users", "v2", "v2 users", http.StatusOK},
-		{"v1 POST", "POST", "/users", "v1", "v1 user created", http.StatusCreated},
-		{"v2 POST", "POST", "/users", "v2", "v2 user created", http.StatusCreated},
-		{"v1 PUT", "PUT", "/users/123", "v1", "v1 updated user 123", http.StatusOK},
-		{"v1 DELETE", "DELETE", "/users/456", "v1", "v1 deleted user 456", http.StatusOK},
-		{"v1 PATCH", "PATCH", "/users/789", "v1", "v1 patched user 789", http.StatusOK},
-		{"v1 OPTIONS", "OPTIONS", "/users", "v1", "v1 options", http.StatusOK},
-		{"v1 HEAD", "HEAD", "/users", "v1", "", http.StatusOK},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-			req.Header.Set("X-API-Version", tt.version)
-			w := httptest.NewRecorder()
-
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.status, w.Code)
-			if tt.expected != "" {
-				assert.Equal(t, tt.expected, w.Body.String())
-			}
-		})
-	}
-}
-
-// TestVersionedGroups tests versioned route groups
-func TestVersionedGroups(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithHeaderVersioning("X-API-Version"),
-			WithDefaultVersion("v1"),
-		),
-	)
-
-	// Create versioned groups - using static paths to ensure they work
-	v1 := r.Version("v1")
-	v1Group := v1.Group("/api")
-	v1Group.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 api users")
-	})
-	v1Group.POST("/users", func(c *Context) {
-		c.String(http.StatusCreated, "v1 api user created")
-	})
-	v1Group.PUT("/users/123", func(c *Context) {
-		c.String(http.StatusOK, "v1 api updated 123")
-	})
-	v1Group.DELETE("/users/456", func(c *Context) {
-		c.String(http.StatusOK, "v1 api deleted 456")
-	})
-	v1Group.PATCH("/users/789", func(c *Context) {
-		c.String(http.StatusOK, "v1 api patched 789")
-	})
-	v1Group.OPTIONS("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 api options")
-	})
-	v1Group.HEAD("/users", func(c *Context) {
-		c.Status(http.StatusOK)
-	})
-
-	tests := []struct {
-		name     string
-		method   string
-		path     string
-		expected string
-		status   int
-	}{
-		{"GET", "GET", "/api/users", "v1 api users", http.StatusOK},
-		{"POST", "POST", "/api/users", "v1 api user created", http.StatusCreated},
-		{"PUT", "PUT", "/api/users/123", "v1 api updated 123", http.StatusOK},
-		{"DELETE", "DELETE", "/api/users/456", "v1 api deleted 456", http.StatusOK},
-		{"PATCH", "PATCH", "/api/users/789", "v1 api patched 789", http.StatusOK},
-		{"OPTIONS", "OPTIONS", "/api/users", "v1 api options", http.StatusOK},
-		{"HEAD", "HEAD", "/api/users", "", http.StatusOK},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-			req.Header.Set("X-API-Version", "v1")
-			w := httptest.NewRecorder()
-
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.status, w.Code)
-			if tt.expected != "" {
-				assert.Equal(t, tt.expected, w.Body.String())
-			}
-		})
-	}
-}
-
-// TestQueryVersioning tests query parameter-based versioning
-func TestQueryVersioning(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithQueryVersioning("version"),
-			WithDefaultVersion("v1"),
-			WithValidVersions("v1", "v2"),
-		),
-	)
-
-	v1 := r.Version("v1")
-	v1.GET("/data", func(c *Context) {
-		c.String(http.StatusOK, "v1 data")
-	})
-
-	v2 := r.Version("v2")
-	v2.GET("/data", func(c *Context) {
-		c.String(http.StatusOK, "v2 data")
-	})
-
-	tests := []struct {
-		name     string
-		url      string
-		expected string
-	}{
-		{"default version", "/data", "v1 data"},
-		{"v1 explicit", "/data?version=v1", "v1 data"},
-		{"v2 explicit", "/data?version=v2", "v2 data"},
-		{"invalid version defaults to v1", "/data?version=v3", "v1 data"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.url, nil)
-			w := httptest.NewRecorder()
-
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, http.StatusOK, w.Code)
-			assert.Equal(t, tt.expected, w.Body.String())
-		})
-	}
-}
-
-// TestCustomVersionDetector tests custom version detection function
-func TestCustomVersionDetector(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithCustomVersionDetector(func(req *http.Request) string {
-				// Custom logic: extract version from user-agent
-				ua := req.UserAgent()
-				if ua == "ClientV2" {
-					return "v2"
-				}
-				return "v1"
-			}),
-		),
-	)
-
-	v1 := r.Version("v1")
-	v1.GET("/data", func(c *Context) {
-		c.String(http.StatusOK, "v1 data")
-	})
-
-	v2 := r.Version("v2")
-	v2.GET("/data", func(c *Context) {
-		c.String(http.StatusOK, "v2 data")
-	})
-
-	// Test v1 (default)
-	req := httptest.NewRequest("GET", "/data", nil)
-	req.Header.Set("User-Agent", "ClientV1")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	assert.Equal(t, "v1 data", w.Body.String())
-
-	// Test v2 (custom detector)
-	req = httptest.NewRequest("GET", "/data", nil)
-	req.Header.Set("User-Agent", "ClientV2")
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	assert.Equal(t, "v2 data", w.Body.String())
-}
-
-// TestVersionedRoutingWithCompilation tests versioned routes with compilation
-func TestVersionedRoutingWithCompilation(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithHeaderVersioning("X-API-Version"),
-			WithDefaultVersion("v1"),
-		),
-	)
-
-	v1 := r.Version("v1")
-	v1.GET("/static1", func(c *Context) {
-		c.String(http.StatusOK, "v1 static1")
-	})
-	v1.GET("/static2", func(c *Context) {
-		c.String(http.StatusOK, "v1 static2")
-	})
-
-	// Compile routes
-	r.Warmup()
-
-	// Test compiled versioned routes
-	req := httptest.NewRequest("GET", "/static1", nil)
-	req.Header.Set("X-API-Version", "v1")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "v1 static1", w.Body.String())
-}
-
-// ============================================================================
-// Fast Path Tests (merged from versioning_fast_test.go)
-// ============================================================================
-
 func TestFastQueryVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		rawQuery  string
@@ -322,32 +60,28 @@ func TestFastQueryVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gotValue, gotFound := fastQueryVersion(tt.rawQuery, tt.param)
-			if gotValue != tt.wantValue {
-				t.Errorf("fastQueryVersion(%q, %q) value = %q, want %q",
-					tt.rawQuery, tt.param, gotValue, tt.wantValue)
-			}
-			if gotFound != tt.wantFound {
-				t.Errorf("fastQueryVersion(%q, %q) found = %v, want %v",
-					tt.rawQuery, tt.param, gotFound, tt.wantFound)
-			}
+			assert.Equal(t, tt.wantValue, gotValue, "fastQueryVersion(%q, %q) value mismatch", tt.rawQuery, tt.param)
+			assert.Equal(t, tt.wantFound, gotFound, "fastQueryVersion(%q, %q) found mismatch", tt.rawQuery, tt.param)
 		})
 	}
 }
 
 // TestFastQueryVersion_ZeroAlloc verifies zero allocations
+// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 func TestFastQueryVersion_ZeroAlloc(t *testing.T) {
 	allocs := testing.AllocsPerRun(100, func() {
 		_, _ = fastQueryVersion("foo=bar&v=v1&baz=qux", "v")
 	})
 
-	if allocs != 0 {
-		t.Errorf("fastQueryVersion allocated %f times, want 0", allocs)
-	}
+	assert.Equal(t, float64(0), allocs, "fastQueryVersion allocated %f times, want 0", allocs)
 }
 
 // TestFastHeaderVersion tests the fast header extraction
 func TestFastHeaderVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		headers    map[string][]string
@@ -363,15 +97,15 @@ func TestFastHeaderVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := fastHeaderVersion(tt.headers, tt.headerName)
-			if got != tt.want {
-				t.Errorf("fastHeaderVersion() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
 // TestFastHeaderVersion_ZeroAlloc verifies zero allocations
+// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 func TestFastHeaderVersion_ZeroAlloc(t *testing.T) {
 	headers := map[string][]string{"API-Version": {"v1"}}
 
@@ -379,76 +113,100 @@ func TestFastHeaderVersion_ZeroAlloc(t *testing.T) {
 		_ = fastHeaderVersion(headers, "API-Version")
 	})
 
-	if allocs != 0 {
-		t.Errorf("fastHeaderVersion allocated %f times, want 0", allocs)
-	}
+	assert.Equal(t, float64(0), allocs, "fastHeaderVersion allocated %f times, want 0", allocs)
 }
 
-// TestDetectVersion_Integration tests version detection with fast paths
-func TestDetectVersion_Integration(t *testing.T) {
-	t.Run("query_fast_path", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithQueryVersioning("v"),
-			WithDefaultVersion("v1"),
-		))
+// TestDetectVersion_Query tests version detection via query parameters
+func TestDetectVersion_Query(t *testing.T) {
+	t.Parallel()
 
-		// Create request with query parameter
-		req := httptest.NewRequest("GET", "/test?v=v2", nil)
+	tests := []struct {
+		name           string
+		setupRouter    func() *Router
+		setupRequest   func(*http.Request)
+		url            string
+		wantVersion    string
+		wantErrMessage string
+	}{
+		{
+			name: "query_fast_path",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithQueryVersioning("v"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest: func(*http.Request) {},
+			url:          "/test?v=v2",
+			wantVersion:  "v2",
+		},
+		{
+			name: "query_with_validation",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithQueryVersioning("version"),
+					WithValidVersions("v1", "v2", "v3"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest: func(*http.Request) {},
+			url:          "/test?version=v2",
+			wantVersion:  "v2",
+		},
+		{
+			name: "query_invalid_version",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithQueryVersioning("v"),
+					WithValidVersions("v1", "v2"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest:   func(*http.Request) {},
+			url:            "/test?v=invalid",
+			wantVersion:    "v1",
+			wantErrMessage: "should use default version",
+		},
+		{
+			name: "header_priority",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithHeaderVersioning("API-Version"),
+					WithQueryVersioning("v"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest: func(req *http.Request) {
+				req.Header.Set("API-Version", "v2")
+			},
+			url:            "/test?v=v3",
+			wantVersion:    "v2",
+			wantErrMessage: "header should take priority over query",
+		},
+	}
 
-		version := r.detectVersion(req)
-		if version != "v2" {
-			t.Errorf("detectVersion() = %q, want %q", version, "v2")
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("query_with_validation", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithQueryVersioning("version"),
-			WithValidVersions("v1", "v2", "v3"),
-			WithDefaultVersion("v1"),
-		))
+			r := tt.setupRouter()
+			req := httptest.NewRequest("GET", tt.url, nil)
+			tt.setupRequest(req)
 
-		req := httptest.NewRequest("GET", "/test?version=v2", nil)
-		version := r.detectVersion(req)
-		if version != "v2" {
-			t.Errorf("detectVersion() = %q, want %q", version, "v2")
-		}
-	})
-
-	t.Run("query_invalid_version", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithQueryVersioning("v"),
-			WithValidVersions("v1", "v2"),
-			WithDefaultVersion("v1"),
-		))
-
-		req := httptest.NewRequest("GET", "/test?v=invalid", nil)
-		version := r.detectVersion(req)
-		if version != "v1" {
-			t.Errorf("detectVersion() = %q, want %q (default)", version, "v1")
-		}
-	})
-
-	t.Run("header_priority", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithHeaderVersioning("API-Version"),
-			WithQueryVersioning("v"),
-			WithDefaultVersion("v1"),
-		))
-
-		req := httptest.NewRequest("GET", "/test?v=v3", nil)
-		req.Header.Set("API-Version", "v2")
-
-		// Header should take priority over query
-		version := r.detectVersion(req)
-		if version != "v2" {
-			t.Errorf("detectVersion() = %q, want %q (header priority)", version, "v2")
-		}
-	})
+			version := r.detectVersion(req)
+			if tt.wantErrMessage != "" {
+				assert.Equal(t, tt.wantVersion, version, tt.wantErrMessage)
+			} else {
+				assert.Equal(t, tt.wantVersion, version)
+			}
+		})
+	}
 }
 
 // TestFastPathVersion tests the fast path version extraction
 func TestFastPathVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		path      string
@@ -499,503 +257,145 @@ func TestFastPathVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gotValue, gotFound := fastPathVersion(tt.path, tt.prefix)
-			if gotValue != tt.wantValue {
-				t.Errorf("fastPathVersion(%q, %q) value = %q, want %q",
-					tt.path, tt.prefix, gotValue, tt.wantValue)
-			}
-			if gotFound != tt.wantFound {
-				t.Errorf("fastPathVersion(%q, %q) found = %v, want %v",
-					tt.path, tt.prefix, gotFound, tt.wantFound)
-			}
+			assert.Equal(t, tt.wantValue, gotValue, "fastPathVersion(%q, %q) value mismatch", tt.path, tt.prefix)
+			assert.Equal(t, tt.wantFound, gotFound, "fastPathVersion(%q, %q) found mismatch", tt.path, tt.prefix)
 		})
 	}
 }
 
 // TestFastPathVersion_ZeroAlloc verifies zero allocations
+// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 func TestFastPathVersion_ZeroAlloc(t *testing.T) {
 	allocs := testing.AllocsPerRun(100, func() {
 		_, _ = fastPathVersion("/v1/users", "/v")
 	})
 
-	if allocs != 0 {
-		t.Errorf("fastPathVersion allocated %f times, want 0", allocs)
-	}
+	assert.Equal(t, float64(0), allocs, "fastPathVersion allocated %f times, want 0", allocs)
 }
 
-// TestPathVersioning tests path-based version detection
-func TestPathVersioning(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithDefaultVersion("v1"),
-			WithValidVersions("v1", "v2", "v3"),
-		),
-	)
-
-	v1 := r.Version("v1")
-	v1.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 users")
-	})
-	v1.GET("/posts", func(c *Context) {
-		c.String(http.StatusOK, "v1 posts")
-	})
-
-	v2 := r.Version("v2")
-	v2.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v2 users")
-	})
-	v2.GET("/posts", func(c *Context) {
-		c.String(http.StatusOK, "v2 posts")
-	})
+// TestDetectVersion_Path tests path version detection (internal implementation)
+func TestDetectVersion_Path(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
-		name     string
-		path     string
-		expected string
-		status   int
-	}{
-		{"v1 users", "/v1/users", "v1 users", http.StatusOK},
-		{"v2 users", "/v2/users", "v2 users", http.StatusOK},
-		{"v1 posts", "/v1/posts", "v1 posts", http.StatusOK},
-		{"v2 posts", "/v2/posts", "v2 posts", http.StatusOK},
-		{"default when no version", "/users", "v1 users", http.StatusOK},
-		{"invalid version defaults", "/v99/users", "v1 users", http.StatusOK},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.path, nil)
-			w := httptest.NewRecorder()
-
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.status, w.Code)
-			assert.Equal(t, tt.expected, w.Body.String())
-		})
-	}
-}
-
-// TestPathVersioningWithApiPrefix tests path versioning with API prefix
-func TestPathVersioningWithApiPrefix(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithPathVersioning("/api/v{version}/"),
-			WithDefaultVersion("v1"),
-		),
-	)
-
-	v1 := r.Version("v1")
-	v1.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 api users")
-	})
-
-	v2 := r.Version("v2")
-	v2.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v2 api users")
-	})
-
-	tests := []struct {
-		name     string
-		path     string
-		expected string
-		status   int
-	}{
-		{"v1 with api prefix", "/api/v1/users", "v1 api users", http.StatusOK},
-		{"v2 with api prefix", "/api/v2/users", "v2 api users", http.StatusOK},
-		// Note: "/api/users" without version doesn't match pattern "/api/v{version}/"
-		// and would fall through to standard routing (which would 404 if no such route exists)
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.path, nil)
-			w := httptest.NewRecorder()
-
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.status, w.Code)
-			assert.Equal(t, tt.expected, w.Body.String())
-		})
-	}
-}
-
-// TestPathVersioningPriority tests that path versioning takes priority over other methods
-func TestPathVersioningPriority(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithHeaderVersioning("X-API-Version"),
-			WithQueryVersioning("version"),
-			WithDefaultVersion("v1"),
-		),
-	)
-
-	v1 := r.Version("v1")
-	v1.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 users")
-	})
-
-	v2 := r.Version("v2")
-	v2.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v2 users")
-	})
-
-	v3 := r.Version("v3")
-	v3.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v3 users")
-	})
-
-	tests := []struct {
-		name     string
-		path     string
-		header   string
-		query    string
-		expected string
+		name           string
+		setupRouter    func() *Router
+		setupRequest   func(*http.Request)
+		url            string
+		wantVersion    string
+		wantErrMessage string
 	}{
 		{
-			name:     "path overrides header",
-			path:     "/v2/users",
-			header:   "v3",
-			expected: "v2 users", // Path takes priority
+			name: "path_fast_path",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithPathVersioning("/v{version}/"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest: func(*http.Request) {},
+			url:          "/v2/users",
+			wantVersion:  "v2",
 		},
 		{
-			name:     "path overrides query",
-			path:     "/v2/users?version=v3",
-			expected: "v2 users", // Path takes priority
+			name: "path_with_validation",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithPathVersioning("/v{version}/"),
+					WithValidVersions("v1", "v2", "v3"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest: func(*http.Request) {},
+			url:          "/v2/users",
+			wantVersion:  "v2",
 		},
 		{
-			name:     "path overrides both header and query",
-			path:     "/v2/users?version=v1",
-			header:   "v3",
-			expected: "v2 users", // Path takes priority
+			name: "path_invalid_version",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithPathVersioning("/v{version}/"),
+					WithValidVersions("v1", "v2"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest:   func(*http.Request) {},
+			url:            "/v99/users",
+			wantVersion:    "v1",
+			wantErrMessage: "should use default version",
+		},
+		{
+			name: "path_priority_over_header",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithPathVersioning("/v{version}/"),
+					WithHeaderVersioning("API-Version"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest: func(req *http.Request) {
+				req.Header.Set("API-Version", "v3")
+			},
+			url:            "/v2/users",
+			wantVersion:    "v2",
+			wantErrMessage: "path should take priority over header",
+		},
+		{
+			name: "path_priority_over_query",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithPathVersioning("/v{version}/"),
+					WithQueryVersioning("v"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest:   func(*http.Request) {},
+			url:            "/v2/users?v=v3",
+			wantVersion:    "v2",
+			wantErrMessage: "path should take priority over query",
+		},
+		{
+			name: "path_with_api_prefix",
+			setupRouter: func() *Router {
+				return MustNew(WithVersioning(
+					WithPathVersioning("/api/v{version}/"),
+					WithDefaultVersion("v1"),
+				))
+			},
+			setupRequest: func(*http.Request) {},
+			url:          "/api/v2/users",
+			wantVersion:  "v2",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.path, nil)
-			if tt.header != "" {
-				req.Header.Set("X-API-Version", tt.header)
-			}
-			w := httptest.NewRecorder()
+			t.Parallel()
 
-			r.ServeHTTP(w, req)
+			r := tt.setupRouter()
+			req := httptest.NewRequest("GET", tt.url, nil)
+			tt.setupRequest(req)
 
-			assert.Equal(t, http.StatusOK, w.Code)
-			assert.Equal(t, tt.expected, w.Body.String())
-		})
-	}
-}
-
-// TestPathVersioningWithValidation tests path versioning with version validation
-func TestPathVersioningWithValidation(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithValidVersions("v1", "v2"),
-			WithDefaultVersion("v1"),
-		),
-	)
-
-	v1 := r.Version("v1")
-	v1.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 users")
-	})
-
-	v2 := r.Version("v2")
-	v2.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v2 users")
-	})
-
-	tests := []struct {
-		name     string
-		path     string
-		expected string
-		status   int
-	}{
-		{"valid v1", "/v1/users", "v1 users", http.StatusOK},
-		{"valid v2", "/v2/users", "v2 users", http.StatusOK},
-		{"invalid v3 defaults", "/v3/users", "v1 users", http.StatusOK},
-		{"invalid v99 defaults", "/v99/users", "v1 users", http.StatusOK},
-		{"no version defaults", "/users", "v1 users", http.StatusOK},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.path, nil)
-			w := httptest.NewRecorder()
-
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.status, w.Code)
-			assert.Equal(t, tt.expected, w.Body.String())
-		})
-	}
-}
-
-// TestPathVersionedGroups tests path versioning with route groups
-func TestPathVersionedGroups(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithDefaultVersion("v1"),
-		),
-	)
-
-	v1 := r.Version("v1")
-	v1Group := v1.Group("/api")
-	v1Group.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 api users")
-	})
-
-	v2 := r.Version("v2")
-	v2Group := v2.Group("/api")
-	v2Group.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v2 api users")
-	})
-
-	tests := []struct {
-		name     string
-		path     string
-		expected string
-		status   int
-	}{
-		{"v1 api group", "/v1/api/users", "v1 api users", http.StatusOK},
-		{"v2 api group", "/v2/api/users", "v2 api users", http.StatusOK},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.path, nil)
-			w := httptest.NewRecorder()
-
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.status, w.Code)
-			assert.Equal(t, tt.expected, w.Body.String())
-		})
-	}
-}
-
-// TestPathVersioningWithAllMethods tests all HTTP methods with path versioning
-func TestPathVersioningWithAllMethods(t *testing.T) {
-	r := New(
-		WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithDefaultVersion("v1"),
-		),
-	)
-
-	v1 := r.Version("v1")
-	v1.GET("/resource", func(c *Context) {
-		c.String(http.StatusOK, "v1 GET")
-	})
-	v1.POST("/resource", func(c *Context) {
-		c.String(http.StatusCreated, "v1 POST")
-	})
-	v1.PUT("/resource/123", func(c *Context) {
-		c.String(http.StatusOK, "v1 PUT")
-	})
-	v1.DELETE("/resource/456", func(c *Context) {
-		c.String(http.StatusOK, "v1 DELETE")
-	})
-	v1.PATCH("/resource/789", func(c *Context) {
-		c.String(http.StatusOK, "v1 PATCH")
-	})
-	v1.OPTIONS("/resource", func(c *Context) {
-		c.String(http.StatusOK, "v1 OPTIONS")
-	})
-	v1.HEAD("/resource", func(c *Context) {
-		c.Status(http.StatusOK)
-	})
-
-	tests := []struct {
-		name     string
-		method   string
-		path     string
-		expected string
-		status   int
-	}{
-		{"GET", "GET", "/v1/resource", "v1 GET", http.StatusOK},
-		{"POST", "POST", "/v1/resource", "v1 POST", http.StatusCreated},
-		{"PUT", "PUT", "/v1/resource/123", "v1 PUT", http.StatusOK},
-		{"DELETE", "DELETE", "/v1/resource/456", "v1 DELETE", http.StatusOK},
-		{"PATCH", "PATCH", "/v1/resource/789", "v1 PATCH", http.StatusOK},
-		{"OPTIONS", "OPTIONS", "/v1/resource", "v1 OPTIONS", http.StatusOK},
-		{"HEAD", "HEAD", "/v1/resource", "", http.StatusOK},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-			w := httptest.NewRecorder()
-
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.status, w.Code)
-			if tt.expected != "" {
-				assert.Equal(t, tt.expected, w.Body.String())
+			version := r.detectVersion(req)
+			if tt.wantErrMessage != "" {
+				assert.Equal(t, tt.wantVersion, version, tt.wantErrMessage)
+			} else {
+				assert.Equal(t, tt.wantVersion, version)
 			}
 		})
 	}
 }
 
-// TestDetectVersion_PathIntegration tests path version detection integration
-func TestDetectVersion_PathIntegration(t *testing.T) {
-	t.Run("path_fast_path", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithDefaultVersion("v1"),
-		))
-
-		req := httptest.NewRequest("GET", "/v2/users", nil)
-		version := r.detectVersion(req)
-		if version != "v2" {
-			t.Errorf("detectVersion() = %q, want %q", version, "v2")
-		}
-	})
-
-	t.Run("path_with_validation", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithValidVersions("v1", "v2", "v3"),
-			WithDefaultVersion("v1"),
-		))
-
-		req := httptest.NewRequest("GET", "/v2/users", nil)
-		version := r.detectVersion(req)
-		if version != "v2" {
-			t.Errorf("detectVersion() = %q, want %q", version, "v2")
-		}
-	})
-
-	t.Run("path_invalid_version", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithValidVersions("v1", "v2"),
-			WithDefaultVersion("v1"),
-		))
-
-		req := httptest.NewRequest("GET", "/v99/users", nil)
-		version := r.detectVersion(req)
-		if version != "v1" {
-			t.Errorf("detectVersion() = %q, want %q (default)", version, "v1")
-		}
-	})
-
-	t.Run("path_priority_over_header", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithHeaderVersioning("API-Version"),
-			WithDefaultVersion("v1"),
-		))
-
-		req := httptest.NewRequest("GET", "/v2/users", nil)
-		req.Header.Set("API-Version", "v3")
-
-		// Path should take priority over header
-		version := r.detectVersion(req)
-		if version != "v2" {
-			t.Errorf("detectVersion() = %q, want %q (path priority)", version, "v2")
-		}
-	})
-
-	t.Run("path_priority_over_query", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithQueryVersioning("v"),
-			WithDefaultVersion("v1"),
-		))
-
-		req := httptest.NewRequest("GET", "/v2/users?v=v3", nil)
-
-		// Path should take priority over query
-		version := r.detectVersion(req)
-		if version != "v2" {
-			t.Errorf("detectVersion() = %q, want %q (path priority)", version, "v2")
-		}
-	})
-
-	t.Run("path_with_api_prefix", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithPathVersioning("/api/v{version}/"),
-			WithDefaultVersion("v1"),
-		))
-
-		req := httptest.NewRequest("GET", "/api/v2/users", nil)
-		version := r.detectVersion(req)
-		if version != "v2" {
-			t.Errorf("detectVersion() = %q, want %q", version, "v2")
-		}
-	})
-}
-
 // ============================================================================
-// Accept Header Content Negotiation Tests
+// Accept Header Fast Path Tests
 // ============================================================================
 
-func TestAcceptVersioning(t *testing.T) {
-	t.Run("basic_accept_versioning", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithAcceptVersioning("application/vnd.myapi.{version}+json"),
-			WithDefaultVersion("v1"),
-		))
-
-		v2 := r.Version("v2")
-		v2.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "v2 users")
-		})
-
-		req := httptest.NewRequest("GET", "/users", nil)
-		req.Header.Set("Accept", "application/vnd.myapi.v2+json")
-		w := httptest.NewRecorder()
-
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, "v2 users", w.Body.String())
-	})
-
-	t.Run("accept_with_multiple_media_types", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithAcceptVersioning("application/vnd.myapi.{version}+json"),
-			WithDefaultVersion("v1"),
-		))
-
-		v3 := r.Version("v3")
-		v3.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "v3 users")
-		})
-
-		req := httptest.NewRequest("GET", "/users", nil)
-		req.Header.Set("Accept", "text/html, application/json, application/vnd.myapi.v3+json, */*")
-		w := httptest.NewRecorder()
-
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, "v3 users", w.Body.String())
-	})
-
-	t.Run("accept_priority_over_query", func(t *testing.T) {
-		r := New(WithVersioning(
-			WithAcceptVersioning("application/vnd.myapi.{version}+json"),
-			WithQueryVersioning("v"),
-			WithDefaultVersion("v1"),
-		))
-
-		// Accept should take priority over query in the detection order
-		// But based on our detection order: Path > Header > Accept > Query
-		// So Accept comes before Query
-		req := httptest.NewRequest("GET", "/users?v=v1", nil)
-		req.Header.Set("Accept", "application/vnd.myapi.v2+json")
-
-		version := r.detectVersion(req)
-		assert.Equal(t, "v2", version)
-	})
-
+func TestFastAcceptVersion(t *testing.T) {
+	// Note: Cannot use t.Parallel() at top level because subtests use AllocsPerRun
 	t.Run("fastAcceptVersion_basic", func(t *testing.T) {
+		t.Parallel()
 		tests := []struct {
 			name    string
 			accept  string
@@ -1035,6 +435,7 @@ func TestAcceptVersioning(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				got, ok := fastAcceptVersion(tt.accept, tt.pattern)
 				assert.Equal(t, tt.wantOk, ok)
 				assert.Equal(t, tt.want, got)
@@ -1043,6 +444,7 @@ func TestAcceptVersioning(t *testing.T) {
 	})
 
 	t.Run("fastAcceptVersion_zero_alloc", func(t *testing.T) {
+		// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 		accept := "application/vnd.myapi.v2+json, text/html"
 		pattern := "application/vnd.myapi.{version}+json"
 
@@ -1051,196 +453,163 @@ func TestAcceptVersioning(t *testing.T) {
 		})
 
 		// Should have minimal allocations (string split may allocate)
-		if allocs > 2 {
-			t.Errorf("fastAcceptVersion allocated %f times, want <= 2", allocs)
-		}
+		assert.LessOrEqual(t, allocs, float64(2), "fastAcceptVersion allocated %f times, want <= 2", allocs)
 	})
 }
 
 // ============================================================================
-// Deprecation Tests
-// ============================================================================
-
-func TestDeprecation(t *testing.T) {
-	t.Run("deprecated_version_headers", func(t *testing.T) {
-		sunsetTime := time.Now().Add(30 * 24 * time.Hour)
-		r := New(WithVersioning(
-			WithHeaderVersioning("X-API-Version"),
-			WithDefaultVersion("v1"),
-			WithDeprecatedVersion("v1", sunsetTime),
-		))
-
-		v1 := r.Version("v1")
-		v1.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "v1 users")
-		})
-
-		req := httptest.NewRequest("GET", "/users", nil)
-		req.Header.Set("X-API-Version", "v1")
-		w := httptest.NewRecorder()
-
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, "true", w.Header().Get("Deprecation"))
-		assert.NotEmpty(t, w.Header().Get("Sunset"))
-	})
-
-	t.Run("non_deprecated_version_no_headers", func(t *testing.T) {
-		sunsetTime := time.Now().Add(30 * 24 * time.Hour)
-		r := New(WithVersioning(
-			WithHeaderVersioning("X-API-Version"),
-			WithDefaultVersion("v1"),
-			WithDeprecatedVersion("v1", sunsetTime),
-		))
-
-		v2 := r.Version("v2")
-		v2.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "v2 users")
-		})
-
-		req := httptest.NewRequest("GET", "/users", nil)
-		req.Header.Set("X-API-Version", "v2")
-		w := httptest.NewRecorder()
-
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Empty(t, w.Header().Get("Deprecation"))
-		assert.Empty(t, w.Header().Get("Sunset"))
-	})
-
-	t.Run("multiple_deprecated_versions", func(t *testing.T) {
-		sunset1 := time.Now().Add(30 * 24 * time.Hour)
-		sunset2 := time.Now().Add(60 * 24 * time.Hour)
-
-		r := New(WithVersioning(
-			WithHeaderVersioning("X-API-Version"),
-			WithDefaultVersion("v3"),
-			WithDeprecatedVersion("v1", sunset1),
-			WithDeprecatedVersion("v2", sunset2),
-		))
-
-		v1 := r.Version("v1")
-		v1.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "v1 users")
-		})
-
-		v2 := r.Version("v2")
-		v2.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "v2 users")
-		})
-
-		// Test v1 deprecation
-		req1 := httptest.NewRequest("GET", "/users", nil)
-		req1.Header.Set("X-API-Version", "v1")
-		w1 := httptest.NewRecorder()
-		r.ServeHTTP(w1, req1)
-
-		assert.Equal(t, "true", w1.Header().Get("Deprecation"))
-		assert.NotEmpty(t, w1.Header().Get("Sunset"))
-
-		// Test v2 deprecation
-		req2 := httptest.NewRequest("GET", "/users", nil)
-		req2.Header.Set("X-API-Version", "v2")
-		w2 := httptest.NewRecorder()
-		r.ServeHTTP(w2, req2)
-
-		assert.Equal(t, "true", w2.Header().Get("Deprecation"))
-		assert.NotEmpty(t, w2.Header().Get("Sunset"))
-	})
-}
-
-// ============================================================================
-// Observability Hooks Tests
+// Observability Hooks Tests (Internal Implementation)
 // ============================================================================
 
 func TestObservabilityHooks(t *testing.T) {
-	t.Run("on_version_detected", func(t *testing.T) {
-		var detectedVersion string
-		var detectedMethod string
-		callCount := 0
+	t.Parallel()
 
-		r := New(WithVersioning(
-			WithHeaderVersioning("X-API-Version"),
-			WithDefaultVersion("v1"),
-			WithVersionObserver(
-				func(version string, method string) {
-					detectedVersion = version
-					detectedMethod = method
-					callCount++
-				},
-				nil,
-				nil,
-			),
-		))
+	tests := []struct {
+		name            string
+		setupRouter     func() (*Router, *string, *string, *int, *int, *string, *int)
+		setupRequest    func(*http.Request)
+		wantVersion     string
+		wantDetectedVer string
+		wantDetectedMet string
+		wantCallCount   int
+		wantMissingCnt  int
+		wantInvalidVer  string
+		wantInvalidCnt  int
+	}{
+		{
+			name: "on_version_detected",
+			setupRouter: func() (*Router, *string, *string, *int, *int, *string, *int) {
+				var detectedVersion string
+				var detectedMethod string
+				callCount := 0
+				var invalidVersion string
+				invalidCount := 0
+				missingCount := 0
 
-		req := httptest.NewRequest("GET", "/users", nil)
-		req.Header.Set("X-API-Version", "v2")
+				r := MustNew(WithVersioning(
+					WithHeaderVersioning("X-API-Version"),
+					WithDefaultVersion("v1"),
+					WithVersionObserver(
+						func(version string, method string) {
+							detectedVersion = version
+							detectedMethod = method
+							callCount++
+						},
+						nil,
+						nil,
+					),
+				))
+				return r, &detectedVersion, &detectedMethod, &callCount, &missingCount, &invalidVersion, &invalidCount
+			},
+			setupRequest: func(req *http.Request) {
+				req.Header.Set("X-API-Version", "v2")
+			},
+			wantDetectedVer: "v2",
+			wantDetectedMet: "header",
+			wantCallCount:   1,
+		},
+		{
+			name: "on_version_missing",
+			setupRouter: func() (*Router, *string, *string, *int, *int, *string, *int) {
+				var detectedVersion string
+				var detectedMethod string
+				callCount := 0
+				missingCount := 0
+				var invalidVersion string
+				invalidCount := 0
 
-		_ = r.detectVersion(req)
+				r := MustNew(WithVersioning(
+					WithHeaderVersioning("X-API-Version"),
+					WithDefaultVersion("v1"),
+					WithVersionObserver(
+						nil,
+						func() {
+							missingCount++
+						},
+						nil,
+					),
+				))
+				return r, &detectedVersion, &detectedMethod, &callCount, &missingCount, &invalidVersion, &invalidCount
+			},
+			setupRequest: func(*http.Request) {
+				// No X-API-Version header set
+			},
+			wantVersion:    "v1",
+			wantMissingCnt: 1,
+		},
+		{
+			name: "on_version_invalid",
+			setupRouter: func() (*Router, *string, *string, *int, *int, *string, *int) {
+				var detectedVersion string
+				var detectedMethod string
+				callCount := 0
+				invalidCount := 0
+				var invalidVersion string
+				missingCount := 0
 
-		assert.Equal(t, "v2", detectedVersion)
-		assert.Equal(t, "header", detectedMethod)
-		assert.Equal(t, 1, callCount)
-	})
+				r := MustNew(WithVersioning(
+					WithHeaderVersioning("X-API-Version"),
+					WithValidVersions("v1", "v2"),
+					WithDefaultVersion("v1"),
+					WithVersionObserver(
+						nil,
+						nil,
+						func(attempted string) {
+							invalidVersion = attempted
+							invalidCount++
+						},
+					),
+				))
+				return r, &detectedVersion, &detectedMethod, &callCount, &missingCount, &invalidVersion, &invalidCount
+			},
+			setupRequest: func(req *http.Request) {
+				req.Header.Set("X-API-Version", "v99") // Invalid version
+			},
+			wantVersion:    "v1",
+			wantInvalidVer: "v99",
+			wantInvalidCnt: 1,
+		},
+	}
 
-	t.Run("on_version_missing", func(t *testing.T) {
-		missingCount := 0
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		r := New(WithVersioning(
-			WithHeaderVersioning("X-API-Version"),
-			WithDefaultVersion("v1"),
-			WithVersionObserver(
-				nil,
-				func() {
-					missingCount++
-				},
-				nil,
-			),
-		))
+			r, detectedVersion, detectedMethod, callCount, missingCount, invalidVersion, invalidCount := tt.setupRouter()
+			req := httptest.NewRequest("GET", "/users", nil)
+			tt.setupRequest(req)
 
-		req := httptest.NewRequest("GET", "/users", nil)
-		// No X-API-Version header set
+			version := r.detectVersion(req)
 
-		version := r.detectVersion(req)
-
-		assert.Equal(t, "v1", version) // Should use default
-		assert.Equal(t, 1, missingCount)
-	})
-
-	t.Run("on_version_invalid", func(t *testing.T) {
-		var invalidVersion string
-		invalidCount := 0
-
-		r := New(WithVersioning(
-			WithHeaderVersioning("X-API-Version"),
-			WithValidVersions("v1", "v2"),
-			WithDefaultVersion("v1"),
-			WithVersionObserver(
-				nil,
-				nil,
-				func(attempted string) {
-					invalidVersion = attempted
-					invalidCount++
-				},
-			),
-		))
-
-		req := httptest.NewRequest("GET", "/users", nil)
-		req.Header.Set("X-API-Version", "v99") // Invalid version
-
-		version := r.detectVersion(req)
-
-		assert.Equal(t, "v1", version) // Should use default
-		assert.Equal(t, "v99", invalidVersion)
-		assert.Equal(t, 1, invalidCount)
-	})
+			if tt.wantVersion != "" {
+				assert.Equal(t, tt.wantVersion, version)
+			}
+			if tt.wantDetectedVer != "" {
+				assert.Equal(t, tt.wantDetectedVer, *detectedVersion)
+			}
+			if tt.wantDetectedMet != "" {
+				assert.Equal(t, tt.wantDetectedMet, *detectedMethod)
+			}
+			if tt.wantCallCount > 0 {
+				assert.Equal(t, tt.wantCallCount, *callCount)
+			}
+			if tt.wantMissingCnt > 0 {
+				assert.Equal(t, tt.wantMissingCnt, *missingCount)
+			}
+			if tt.wantInvalidVer != "" {
+				assert.Equal(t, tt.wantInvalidVer, *invalidVersion)
+			}
+			if tt.wantInvalidCnt > 0 {
+				assert.Equal(t, tt.wantInvalidCnt, *invalidCount)
+			}
+		})
+	}
 
 	t.Run("multiple_detection_methods", func(t *testing.T) {
+		t.Parallel()
 		methods := []string{}
 
-		r := New(WithVersioning(
+		r := MustNew(WithVersioning(
 			WithPathVersioning("/v{version}/"),
 			WithHeaderVersioning("X-API-Version"),
 			WithAcceptVersioning("application/vnd.api.{version}+json"),
@@ -1287,295 +656,70 @@ func TestObservabilityHooks(t *testing.T) {
 // ============================================================================
 
 func TestValidateVersion(t *testing.T) {
-	t.Run("no_validation_configured", func(t *testing.T) {
-		cfg := &VersioningConfig{}
-		result := cfg.validateVersion("anyversion")
-		assert.Equal(t, "anyversion", result)
-	})
+	t.Parallel()
 
-	t.Run("valid_version", func(t *testing.T) {
-		cfg := &VersioningConfig{
-			ValidVersions: []string{"v1", "v2", "v3"},
-		}
-		result := cfg.validateVersion("v2")
-		assert.Equal(t, "v2", result)
-	})
-
-	t.Run("invalid_version", func(t *testing.T) {
-		invalidAttempted := ""
-		cfg := &VersioningConfig{
-			ValidVersions: []string{"v1", "v2", "v3"},
-			OnVersionInvalid: func(attempted string) {
-				invalidAttempted = attempted
+	tests := []struct {
+		name            string
+		cfg             *VersioningConfig
+		input           string
+		wantResult      string
+		wantInvalidCall bool
+		wantInvalidArg  string
+	}{
+		{
+			name:       "no_validation_configured",
+			cfg:        &VersioningConfig{},
+			input:      "anyversion",
+			wantResult: "anyversion",
+		},
+		{
+			name: "valid_version",
+			cfg: &VersioningConfig{
+				ValidVersions: []string{"v1", "v2", "v3"},
 			},
-		}
-		result := cfg.validateVersion("v99")
-		assert.Equal(t, "", result)
-		assert.Equal(t, "v99", invalidAttempted)
-	})
+			input:      "v2",
+			wantResult: "v2",
+		},
+		{
+			name: "invalid_version",
+			cfg: &VersioningConfig{
+				ValidVersions: []string{"v1", "v2", "v3"},
+			},
+			input:           "v99",
+			wantResult:      "",
+			wantInvalidCall: true,
+			wantInvalidArg:  "v99",
+		},
+		{
+			name: "empty_version",
+			cfg: &VersioningConfig{
+				ValidVersions: []string{"v1", "v2"},
+			},
+			input:      "",
+			wantResult: "",
+		},
+	}
 
-	t.Run("empty_version", func(t *testing.T) {
-		cfg := &VersioningConfig{
-			ValidVersions: []string{"v1", "v2"},
-		}
-		result := cfg.validateVersion("")
-		assert.Equal(t, "", result)
-	})
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-// ============================================================================
-// Integration Tests - Complex Scenarios
-// ============================================================================
+			// Setup callback if needed for invalid version test
+			var invalidAttempted string
+			if tt.wantInvalidCall {
+				tt.cfg.OnVersionInvalid = func(attempted string) {
+					invalidAttempted = attempted
+				}
+			}
 
-func TestComplexVersioningScenarios(t *testing.T) {
-	t.Run("all_features_combined", func(t *testing.T) {
-		sunsetV1 := time.Now().Add(30 * 24 * time.Hour)
-		detectedVersions := []string{}
-		invalidVersions := []string{}
+			got := tt.cfg.validateVersion(tt.input)
 
-		r := New(WithVersioning(
-			WithPathVersioning("/v{version}/"),
-			WithHeaderVersioning("X-API-Version"),
-			WithAcceptVersioning("application/vnd.api.{version}+json"),
-			WithQueryVersioning("v"),
-			WithValidVersions("v1", "v2", "v3"),
-			WithDefaultVersion("v1"),
-			WithDeprecatedVersion("v1", sunsetV1),
-			WithVersionObserver(
-				func(version string, _ string) {
-					detectedVersions = append(detectedVersions, version)
-				},
-				nil,
-				func(attempted string) {
-					invalidVersions = append(invalidVersions, attempted)
-				},
-			),
-		))
-
-		// Register versioned routes
-		for _, ver := range []string{"v1", "v2", "v3"} {
-			version := ver
-			vr := r.Version(version)
-			vr.GET("/users", func(c *Context) {
-				c.String(http.StatusOK, "%s users", c.Version())
-			})
-		}
-
-		// Test 1: Path-based with deprecated v1
-		req1 := httptest.NewRequest("GET", "/v1/users", nil)
-		w1 := httptest.NewRecorder()
-		r.ServeHTTP(w1, req1)
-
-		assert.Equal(t, http.StatusOK, w1.Code)
-		assert.Equal(t, "v1 users", w1.Body.String())
-		assert.Equal(t, "true", w1.Header().Get("Deprecation"))
-		assert.NotEmpty(t, w1.Header().Get("Sunset"))
-
-		// Test 2: Accept-based with v2 (not deprecated)
-		req2 := httptest.NewRequest("GET", "/users", nil)
-		req2.Header.Set("Accept", "application/vnd.api.v2+json")
-		w2 := httptest.NewRecorder()
-		r.ServeHTTP(w2, req2)
-
-		assert.Equal(t, http.StatusOK, w2.Code)
-		assert.Equal(t, "v2 users", w2.Body.String())
-		assert.Empty(t, w2.Header().Get("Deprecation"))
-
-		// Test 3: Invalid version should fallback to default
-		req3 := httptest.NewRequest("GET", "/users", nil)
-		req3.Header.Set("X-API-Version", "v99")
-		w3 := httptest.NewRecorder()
-		r.ServeHTTP(w3, req3)
-
-		// Should use default version (v1)
-		assert.Equal(t, http.StatusOK, w3.Code)
-		assert.Contains(t, invalidVersions, "v99")
-	})
-}
-
-// TestStripPathVersion_EdgeCases tests edge cases in stripPathVersion function
-// to cover all code paths including early returns and boundary conditions.
-func TestStripPathVersion_EdgeCases(t *testing.T) {
-	t.Run("no_path_based_versioning", func(t *testing.T) {
-		// Test: No path-based versioning or no version detected
-		// Router without path versioning enabled - PathEnabled will be false
-		r := New(
-			WithVersioning(
-				WithHeaderVersioning("X-API-Version"), // Only header versioning
-				WithDefaultVersion("v1"),
-			),
-		)
-
-		v1 := r.Version("v1")
-		v1.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "users")
+			assert.Equal(t, tt.wantResult, got)
+			if tt.wantInvalidCall {
+				assert.Equal(t, tt.wantInvalidArg, invalidAttempted)
+			}
 		})
-
-		// Path versioning not enabled, so path should remain unchanged
-		// Route registered as "/users" should match "/users" (not "/v1/users")
-		req := httptest.NewRequest("GET", "/users", nil)
-		req.Header.Set("X-API-Version", "v1")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		// Should match route (versioning works via header, path not modified)
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, "users", w.Body.String())
-	})
-
-	t.Run("no_version_detected", func(t *testing.T) {
-		// Test: Empty version detected (version == "")
-		r := New(
-			WithVersioning(
-				WithPathVersioning("/v{version}/"),
-				WithDefaultVersion("v1"),
-			),
-		)
-
-		// Register a route without version prefix
-		r.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "users")
-		})
-
-		// Request with no version in path
-		req := httptest.NewRequest("GET", "/users", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
-	t.Run("prefix_extends_beyond_path", func(t *testing.T) {
-		// Test: Invalid case where prefix extends beyond path
-		// This tests the condition where versionStart >= len(path)
-		r2 := New(
-			WithVersioning(
-				WithPathVersioning("/very/long/prefix/v{version}/"),
-				WithDefaultVersion("v1"),
-			),
-		)
-
-		v1_2 := r2.Version("v1")
-		v1_2.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "v1 users")
-		})
-
-		// Request with path that exactly matches prefix (no version segment)
-		// This should trigger the condition where prefix length >= path length
-		req := httptest.NewRequest("GET", "/very/long/prefix/v", nil)
-		w := httptest.NewRecorder()
-		r2.ServeHTTP(w, req)
-
-		// Should still attempt to process (path doesn't match any route)
-		// The stripPathVersion returns the path unchanged in this case
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("version_at_end_of_path", func(t *testing.T) {
-		// Test: Version is at end of path (e.g., "/v1")
-		// This also tests: Version at end, strip everything, return "/"
-		r := New(
-			WithVersioning(
-				WithPathVersioning("/v{version}/"),
-				WithDefaultVersion("v1"),
-			),
-		)
-
-		// Register route at root
-		v1 := r.Version("v1")
-		v1.GET("/", func(c *Context) {
-			c.String(http.StatusOK, "root")
-		})
-
-		// Request with version at end: "/v1"
-		req := httptest.NewRequest("GET", "/v1", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		// Should strip to "/" and match root route
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, "root", w.Body.String())
-	})
-
-	t.Run("version_doesnt_match", func(t *testing.T) {
-		// Test: Version doesn't match, don't strip
-		// This tests the condition where version segment doesn't match detected version
-		r := New(
-			WithVersioning(
-				WithPathVersioning("/v{version}/"),
-				WithDefaultVersion("v1"),
-			),
-		)
-
-		v1 := r.Version("v1")
-		v1.GET("/users", func(c *Context) {
-			c.String(http.StatusOK, "v1 users")
-		})
-
-		// Request with path "/v2/users" but detected version is "v1"
-		// This happens when version detection fails but path has different version
-		// The stripPathVersion will check if version matches, and if not, return path unchanged
-		req := httptest.NewRequest("GET", "/v2/users", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		// Since v2 is not valid, should default to v1
-		// But the path stripping logic may still be involved
-		// Let's verify the behavior - should use default version v1
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, "v1 users", w.Body.String())
-	})
-
-	t.Run("path_becomes_root_after_stripping", func(t *testing.T) {
-		// Test: Path becomes root after stripping
-		// This tests the condition where strippedStart >= len(path)
-		r := New(
-			WithVersioning(
-				WithPathVersioning("/api/v{version}/"),
-				WithDefaultVersion("v1"),
-			),
-		)
-
-		v1 := r.Version("v1")
-		v1.GET("/", func(c *Context) {
-			c.String(http.StatusOK, "root")
-		})
-
-		// Request: "/api/v1/" - after stripping prefix "/api/v" and version "1",
-		// we should get "/" (root)
-		req := httptest.NewRequest("GET", "/api/v1/", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		// Should match root route
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, "root", w.Body.String())
-	})
-
-	t.Run("version_at_end_with_trailing_slash", func(t *testing.T) {
-		// Additional test: version at end with trailing slash
-		// This also tests: Version at end, strip everything, return "/"
-		r := New(
-			WithVersioning(
-				WithPathVersioning("/v{version}/"),
-				WithDefaultVersion("v1"),
-			),
-		)
-
-		v1 := r.Version("v1")
-		v1.GET("/", func(c *Context) {
-			c.String(http.StatusOK, "root")
-		})
-
-		// Request "/v1/" - version at end (after trailing slash handling)
-		req := httptest.NewRequest("GET", "/v1/", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		// Should strip to "/" and match root
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, "root", w.Body.String())
-	})
+	}
 }
 
 // ============================================================================
@@ -1583,12 +727,14 @@ func TestStripPathVersion_EdgeCases(t *testing.T) {
 // ============================================================================
 
 func TestVersioningPerformance(t *testing.T) {
+	// Note: Cannot use t.Parallel() because subtest uses AllocsPerRun
 	if testing.Short() {
 		t.Skip("skipping performance test in short mode")
 	}
 
 	t.Run("detection_overhead", func(t *testing.T) {
-		r := New(WithVersioning(
+		// Note: Cannot use t.Parallel() with testing.AllocsPerRun
+		r := MustNew(WithVersioning(
 			WithHeaderVersioning("X-API-Version"),
 			WithDefaultVersion("v1"),
 		))
@@ -1602,8 +748,6 @@ func TestVersioningPerformance(t *testing.T) {
 		})
 
 		// Should have minimal allocations
-		if allocs > 1 {
-			t.Errorf("detectVersion allocated %f times, want <= 1", allocs)
-		}
+		assert.LessOrEqual(t, allocs, float64(1), "detectVersion allocated %f times, want <= 1", allocs)
 	})
 }

@@ -12,7 +12,7 @@ import (
 
 // TestContextHelpers tests context helper methods
 func TestContextHelpers(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	t.Run("PostForm", func(t *testing.T) {
 		r.POST("/form", func(c *Context) {
@@ -142,7 +142,7 @@ func TestNewContext(t *testing.T) {
 
 // TestStatusMethod tests the Status method edge cases
 func TestStatusMethod(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	t.Run("Status with wrapped responseWriter", func(t *testing.T) {
 		r.GET("/status-wrapped", func(c *Context) {
@@ -171,7 +171,7 @@ func TestStatusMethod(t *testing.T) {
 
 // TestContext_String_MultipleFormatValues tests String method with complex formatting
 func TestContext_String_MultipleFormatValues(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	r.GET("/test", func(c *Context) {
 		err := c.String(http.StatusOK, "Name: %s, Age: %d, Score: %.2f", "Bob", 28, 88.5)
@@ -193,7 +193,7 @@ func TestContext_HTML_DifferentStatusCodes(t *testing.T) {
 	codes := []int{200, 201, 404, 500}
 
 	for _, code := range codes {
-		r := New()
+r := MustNew()
 
 		r.GET("/test", func(c *Context) {
 			err := c.HTML(code, "<div>Content</div>")
@@ -213,7 +213,7 @@ func TestContext_HTML_DifferentStatusCodes(t *testing.T) {
 // ============================================================================
 
 func TestContext_Status_WithResponseWriter(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	r.GET("/test", func(c *Context) {
 		c.Status(http.StatusCreated)
@@ -231,7 +231,7 @@ func TestContext_Status_WithResponseWriter(t *testing.T) {
 
 // TestContext_Status_AlreadyWritten tests Status when headers already written
 func TestContext_Status_AlreadyWritten(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	r.GET("/test", func(c *Context) {
 		// Write something first (sets status to 200)
@@ -253,7 +253,7 @@ func TestContext_Status_AlreadyWritten(t *testing.T) {
 
 // TestContext_Next_WithCancellation tests Next with cancelled context
 func TestContext_Next_WithCancellation(_ *testing.T) {
-	r := New(WithCancellationCheck(true))
+r := MustNew(WithCancellationCheck(true))
 
 	handlerCalled := false
 
@@ -283,7 +283,7 @@ func TestContext_Next_WithCancellation(_ *testing.T) {
 
 // TestContext_Next_WithTimeout tests Next with timeout context
 func TestContext_Next_WithTimeout(t *testing.T) {
-	r := New(WithCancellationCheck(true))
+r := MustNew(WithCancellationCheck(true))
 
 	var callOrder []int
 
@@ -319,7 +319,7 @@ func TestContext_Next_WithTimeout(t *testing.T) {
 
 // TestContext_Next_Abort tests that Abort stops the chain
 func TestContext_Next_Abort(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	handler1Called := false
 	handler2Called := false
@@ -359,7 +359,7 @@ func TestContext_Next_Abort(t *testing.T) {
 
 // TestContext_IsAborted tests the IsAborted method
 func TestContext_IsAborted(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	var abortedInMiddleware bool
 	var abortedInHandler bool
@@ -391,7 +391,7 @@ func TestContext_IsAborted(t *testing.T) {
 
 // TestContextPool_Get_ParameterCounts tests pool with different parameter counts
 func TestContextPool_Get_ParameterCounts(t *testing.T) {
-	r := New()
+r := MustNew()
 	pool := r.contextPool
 
 	// Test getting contexts with different parameter counts
@@ -413,7 +413,7 @@ func TestContextPool_Get_ParameterCounts(t *testing.T) {
 
 // TestContextPool_Put_Reuse tests that contexts are properly reused
 func TestContextPool_Put_Reuse(t *testing.T) {
-	r := New()
+r := MustNew()
 	pool := r.contextPool
 
 	// Get a context
@@ -444,7 +444,7 @@ func TestContextPool_Put_Reuse(t *testing.T) {
 
 // TestContextPool_Warmup tests pool warmup
 func TestContextPool_Warmup(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Warmup should not panic
 	r.contextPool.Warmup()
@@ -459,7 +459,7 @@ func TestContextPool_Warmup(t *testing.T) {
 
 // TestContextPool_ConcurrentAccess tests concurrent pool access
 func TestContextPool_ConcurrentAccess(t *testing.T) {
-	r := New()
+r := MustNew()
 	pool := r.contextPool
 
 	// Run concurrent gets and puts
@@ -487,7 +487,7 @@ func TestContextPool_ConcurrentAccess(t *testing.T) {
 
 // TestContext_Reset_ClearsAllFields tests that reset properly clears all fields
 func TestContext_Reset_ClearsAllFields(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Create and populate a context
 	req := httptest.NewRequest(http.MethodGet, "/test?param=value", nil)
@@ -549,7 +549,7 @@ func TestContext_Reset_ClearsAllFields(t *testing.T) {
 
 // TestContext_InitForRequest tests context initialization
 func TestContext_InitForRequest(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
@@ -581,7 +581,7 @@ func TestContext_InitForRequest(t *testing.T) {
 
 // TestContext_InitForRequestWithParams tests init that preserves parameters
 func TestContext_InitForRequestWithParams(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
@@ -618,7 +618,7 @@ func TestContext_InitForRequestWithParams(t *testing.T) {
 
 // TestContextPool_GetPut_DifferentSizes tests pool with different context sizes
 func TestContextPool_GetPut_DifferentSizes(t *testing.T) {
-	r := New()
+r := MustNew()
 	pool := r.contextPool
 
 	// Test with 0 params (uses general pool)
@@ -647,7 +647,7 @@ func TestContextPool_GetPut_DifferentSizes(t *testing.T) {
 
 // TestContext_Abort_Multiple tests calling Abort multiple times
 func TestContext_Abort_Multiple(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	callCount := 0
 
@@ -688,7 +688,7 @@ func TestContext_Next_EmptyHandlers(t *testing.T) {
 
 // TestContext_Abort_BeforeNext tests aborting before calling Next
 func TestContext_Abort_BeforeNext(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	middlewareCalled := false
 	handlerCalled := false
@@ -719,7 +719,7 @@ func TestContext_Abort_BeforeNext(t *testing.T) {
 
 // TestContextPool_ResetBeforeReuse tests contexts are reset before reuse
 func TestContextPool_ResetBeforeReuse(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// First request sets some data
 	r.GET("/first", func(c *Context) {
@@ -752,7 +752,7 @@ func TestContextPool_ResetBeforeReuse(t *testing.T) {
 
 // TestContext_Next_NestedCalls tests nested Next calls
 func TestContext_Next_NestedCalls(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	var callOrder []string
 
@@ -798,7 +798,7 @@ func TestContext_Next_NestedCalls(t *testing.T) {
 
 // TestContext_Status_MultipleWriters tests Status with plain ResponseWriter
 func TestContext_Status_MultipleWriters(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	statusSet := false
 
@@ -823,7 +823,7 @@ func TestContext_Status_MultipleWriters(t *testing.T) {
 
 // TestContextPool_WarmupMultipleTimes tests calling warmup multiple times
 func TestContextPool_WarmupMultipleTimes(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	// Warmup multiple times should not panic or cause issues
 	r.contextPool.Warmup()
@@ -840,7 +840,7 @@ func TestContextPool_WarmupMultipleTimes(t *testing.T) {
 
 // TestContext_Next_WithAbortAndCancellation tests Abort takes precedence
 func TestContext_Next_WithAbortAndCancellation(t *testing.T) {
-	r := New(WithCancellationCheck(true))
+r := MustNew(WithCancellationCheck(true))
 
 	handler1Called := false
 	handler2Called := false
@@ -871,7 +871,7 @@ func TestContext_Next_WithAbortAndCancellation(t *testing.T) {
 
 // TestContext_Abort_InHandler tests aborting from final handler
 func TestContext_Abort_InHandler(t *testing.T) {
-	r := New()
+r := MustNew()
 
 	handlerCalled := false
 
@@ -896,7 +896,7 @@ func TestContext_Abort_InHandler(t *testing.T) {
 
 // TestContextPool_Put_AllPools tests returning to all pool sizes
 func TestContextPool_Put_AllPools(_ *testing.T) {
-	r := New()
+r := MustNew()
 	pool := r.contextPool
 
 	// Test small pool (paramCount <= 4)
@@ -920,7 +920,7 @@ func TestContextPool_Put_AllPools(_ *testing.T) {
 
 // TestContextPool_Put_BoundaryCases tests Put boundary cases for medium and large pools
 func TestContextPool_Put_BoundaryCases(t *testing.T) {
-	r := New()
+r := MustNew()
 	pool := r.contextPool
 
 	t.Run("medium pool lower boundary", func(t *testing.T) {
@@ -993,7 +993,7 @@ func TestContextPool_Put_BoundaryCases(t *testing.T) {
 
 // TestContextPool_WarmupPool_New tests the warmupPool.New function
 func TestContextPool_WarmupPool_New(t *testing.T) {
-	r := New()
+r := MustNew()
 	pool := r.contextPool
 
 	// Access warmupPool directly (same package, so unexported fields are accessible)

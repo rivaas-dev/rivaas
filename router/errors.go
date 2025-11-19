@@ -5,12 +5,9 @@ import "errors"
 // Static errors for better error handling and testing.
 // These errors should be wrapped with fmt.Errorf and %w when context is needed.
 var (
-	// Binding errors are now in rivaas.dev/router/binding package
-
 	// Context errors
 	ErrContextReleased       = errors.New("context has been released - cannot write response")
 	ErrContextResponseNil    = errors.New("context has been released - Response is nil")
-	ErrProblemDetailNil      = errors.New("ProblemDetail called with nil problem")
 	ErrContentTypeNotAllowed = errors.New("content type not allowed")
 
 	// Request errors
@@ -25,7 +22,6 @@ var (
 	ErrCannotValidateInvalidValue = errors.New("cannot validate invalid value")
 	ErrUnknownValidationStrategy  = errors.New("unknown validation strategy")
 	ErrCannotRegisterValidators   = errors.New("cannot register validators after first use")
-	ErrValidationErrorNil         = errors.New("ValidationErrorRFC7807 called with nil error")
 
 	// Test errors (for test files)
 	ErrInvalidUUIDFormat    = errors.New("invalid UUID format: must be 36 characters")

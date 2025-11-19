@@ -540,6 +540,29 @@ func validateConstraints(constraints []RouteConstraint, ctx *Context) bool {
 	return true
 }
 
+// countStaticRoutes recursively counts the number of static routes (no parameters) in this node and its children.
+// Static routes are those without ':' parameters or '*' wildcards.
+func (n *node) countStaticRoutes() int {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	count := 0
+	// Count this node if it has handlers and is static (no parameters in path)
+	if n.handlers != nil && n.path != "" && !strings.Contains(n.path, ":") && !strings.HasSuffix(n.path, "*") {
+		count++
+	}
+
+	// Count static routes in children
+	if n.children != nil {
+		for _, child := range n.children {
+			count += child.countStaticRoutes()
+		}
+	}
+
+	// Don't count param or wildcard nodes (they're not static)
+	return count
+}
+
 // compileStaticRoutes compiles all static routes in this node and its children
 // into a lookup table with bloom filter for fast matching.
 // This method should only be called after all routes are registered.
