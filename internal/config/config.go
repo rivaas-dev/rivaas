@@ -29,6 +29,7 @@ type Database struct {
 	Username string
 	Password string
 	Name     string
+	SSLMode  string
 }
 
 // Tyk represents Tyk configuration.

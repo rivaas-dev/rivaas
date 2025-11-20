@@ -96,6 +96,7 @@ func run(ctx context.Context) error {
 		cfg.Database.Username,
 		cfg.Database.Password,
 		cfg.Database.Name,
+		cfg.Database.SSLMode,
 	)
 	if err != nil {
 		log.Err(err).Msg("could not connect to database")

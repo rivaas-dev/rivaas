@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -15,14 +16,18 @@ type DBClient struct {
 }
 
 // New constructs a new database client.
-func New(host string, port uint16, username string, password string, database string) (*DBClient, error) {
+func New(host string, port uint16, username string, password string, database string, sslMode string) (*DBClient, error) {
+	if sslMode == "" {
+		sslMode = "disable"
+	}
 	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
+		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 		host,
 		username,
 		password,
 		database,
 		port,
+		sslMode,
 	)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	return &DBClient{
