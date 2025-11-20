@@ -100,10 +100,10 @@ func (c *Context) Bind(out any) error {
 	// For structs, bind from non-body sources (params, query, header, cookie)
 	if !isMap {
 		sources := []binding.SourceConfig{
-			{Tag: binding.TagParams, Getter: binding.NewParamsGetter(c.Context.AllParams())},
-			{Tag: binding.TagQuery, Getter: binding.NewQueryGetter(c.Context.Request.URL.Query())},
-			{Tag: binding.TagHeader, Getter: binding.NewHeaderGetter(c.Context.Request.Header)},
-			{Tag: binding.TagCookie, Getter: binding.NewCookieGetter(c.Context.Request.Cookies())},
+			{Tag: binding.TagParams, Getter: binding.NewParamsGetter(c.AllParams())},
+			{Tag: binding.TagQuery, Getter: binding.NewQueryGetter(c.Request.URL.Query())},
+			{Tag: binding.TagHeader, Getter: binding.NewHeaderGetter(c.Request.Header)},
+			{Tag: binding.TagCookie, Getter: binding.NewCookieGetter(c.Request.Cookies())},
 		}
 
 		// Bind from non-body sources
@@ -116,7 +116,7 @@ func (c *Context) Bind(out any) error {
 	// For maps, always try to bind body (maps don't have struct tags)
 	// For structs, check if they have json/form tags
 	if isMap || hasJSONOrFormTag(elemType) {
-		contentType := c.Context.Request.Header.Get("Content-Type")
+		contentType := c.Request.Header.Get("Content-Type")
 
 		// Extract base content type (remove parameters)
 		if idx := strings.Index(contentType, ";"); idx != -1 {
@@ -152,7 +152,7 @@ func hasJSONOrFormTag(t reflect.Type) bool {
 // bindJSON binds JSON request body to a struct.
 // Private helper used by Bind().
 func (c *Context) bindJSON(out any) error {
-	req := c.Context.Request
+	req := c.Request
 	if req.Body == nil {
 		return binding.ErrRequestBodyNil
 	}
@@ -171,7 +171,7 @@ func (c *Context) bindJSON(out any) error {
 		c.bindingMeta.bodyRead = true
 
 		// Refill for downstream middleware
-		c.Context.Request.Body = io.NopCloser(bytes.NewReader(body))
+		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
 		// Track presence using validation package
 		if pm, err := validation.ComputePresence(body); err == nil {
@@ -179,8 +179,8 @@ func (c *Context) bindJSON(out any) error {
 		}
 
 		// Store raw JSON in context for schema validation optimization
-		c.Context.Request = c.Context.Request.WithContext(
-			validation.InjectRawJSONCtx(c.Context.Request.Context(), body),
+		c.Request = c.Request.WithContext(
+			validation.InjectRawJSONCtx(c.Request.Context(), body),
 		)
 	}
 
@@ -198,7 +198,7 @@ func (c *Context) bindJSON(out any) error {
 //	    return err
 //	}
 func (c *Context) BindJSONStrict(out any) error {
-	req := c.Context.Request
+	req := c.Request
 	if req.Body == nil {
 		return binding.ErrRequestBodyNil
 	}
@@ -216,15 +216,15 @@ func (c *Context) BindJSONStrict(out any) error {
 		c.bindingMeta.rawBody = body
 		c.bindingMeta.bodyRead = true
 
-		c.Context.Request.Body = io.NopCloser(bytes.NewReader(body))
+		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
 		// Track presence using validation package
 		if pm, err := validation.ComputePresence(body); err == nil {
 			c.bindingMeta.presence = pm
 		}
 
-		c.Context.Request = c.Context.Request.WithContext(
-			validation.InjectRawJSONCtx(c.Context.Request.Context(), body),
+		c.Request = c.Request.WithContext(
+			validation.InjectRawJSONCtx(c.Request.Context(), body),
 		)
 	}
 
@@ -262,7 +262,7 @@ func (c *Context) ResetBinding() {
 // bindForm binds form data to a struct.
 // Private helper used by Bind().
 func (c *Context) bindForm(out any) error {
-	req := c.Context.Request
+	req := c.Request
 	contentType := req.Header.Get("Content-Type")
 
 	// Parse the appropriate form type
@@ -308,7 +308,7 @@ func (c *Context) BindAndValidate(out any, opts ...validation.Option) error {
 		return fmt.Errorf("binding failed: %w", err)
 	}
 
-	ctx := c.Context.Request.Context()
+	ctx := c.Request.Context()
 	// Inject raw JSON if available
 	if c.bindingMeta != nil && len(c.bindingMeta.rawBody) > 0 {
 		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)
@@ -343,7 +343,7 @@ func (c *Context) BindAndValidateStrict(out any, opts ...validation.Option) erro
 		return err
 	}
 
-	ctx := c.Context.Request.Context()
+	ctx := c.Request.Context()
 	// Inject raw JSON if available
 	if c.bindingMeta != nil && len(c.bindingMeta.rawBody) > 0 {
 		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)

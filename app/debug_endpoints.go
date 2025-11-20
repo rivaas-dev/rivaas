@@ -148,9 +148,8 @@ func registerPprof(r *router.Router, base string) {
 	// Named profiles
 	profiles := []string{"allocs", "block", "goroutine", "heap", "mutex", "threadcreate"}
 	for _, p := range profiles {
-		pp := p // Capture for closure
-		r.GET(base+"/"+pp, func(c *router.Context) {
-			pprof.Handler(pp).ServeHTTP(c.Response, c.Request)
+		r.GET(base+"/"+p, func(c *router.Context) {
+			pprof.Handler(p).ServeHTTP(c.Response, c.Request)
 		})
 	}
 }

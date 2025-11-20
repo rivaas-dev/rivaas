@@ -37,15 +37,13 @@ var _ = Describe("Router Stress Tests", func() {
 
 			// Register routes from multiple goroutines
 			for i := range routeCount {
-				wg.Add(1)
-				go func(id int) {
-					defer wg.Done()
-
+				id := i
+				wg.Go(func() {
 					path := "/route" + string(rune('0'+id%10))
 					r.GET(path, func(c *router.Context) {
 						c.Status(http.StatusOK)
 					})
-				}(i)
+				})
 			}
 
 			wg.Wait()
@@ -80,16 +78,13 @@ var _ = Describe("Router Stress Tests", func() {
 			concurrency := 100
 
 			for range concurrency {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-
+				wg.Go(func() {
 					req := httptest.NewRequest(http.MethodGet, "/test", nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
 					Expect(w.Code).To(Equal(http.StatusOK))
-				}()
+				})
 			}
 
 			wg.Wait()
@@ -205,11 +200,8 @@ var _ = Describe("Router Stress Tests", func() {
 			concurrency := 1000
 			requestsPerRoutine := 100
 
-			for i := range concurrency {
-				wg.Add(1)
-				go func(_ int) {
-					defer wg.Done()
-
+			for range concurrency {
+				wg.Go(func() {
 					for j := range requestsPerRoutine {
 						path := "/api/resource" + string(rune('0'+j%10)) + "/123"
 						req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -223,7 +215,7 @@ var _ = Describe("Router Stress Tests", func() {
 							errorCount.Add(1)
 						}
 					}
-				}(i)
+				})
 			}
 
 			wg.Wait()
@@ -265,7 +257,7 @@ var _ = Describe("Router Stress Tests", func() {
 			Expect(w.Body.String()).To(Equal("route"))
 
 			// Test multiple routes to verify compilation worked
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				path := "/route" + string(rune('0'+i%10)) + "/" + string(rune('a'+i%26)) + "/" + string(rune('A'+(i/26)%26))
 				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
@@ -306,10 +298,7 @@ var _ = Describe("Router Stress Tests", func() {
 				requestsPerRoutine := 50
 
 				for range concurrency {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-
+					wg.Go(func() {
 						for range requestsPerRoutine {
 							req := httptest.NewRequest(http.MethodGet, "/test", nil)
 							w := httptest.NewRecorder()
@@ -319,7 +308,7 @@ var _ = Describe("Router Stress Tests", func() {
 								successCount.Add(1)
 							}
 						}
-					}()
+					})
 				}
 
 				wg.Wait()
@@ -355,10 +344,8 @@ var _ = Describe("Router Stress Tests", func() {
 			requestsPerRoutine := 100
 
 			for i := range concurrency {
-				wg.Add(1)
-				go func(id int) {
-					defer wg.Done()
-
+				id := i
+				wg.Go(func() {
 					for j := range requestsPerRoutine {
 						path := "/api/resource" + string(rune('0'+(id+j)%10)) + "/" + string(rune('a'+(id+j)%26))
 						req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -369,7 +356,7 @@ var _ = Describe("Router Stress Tests", func() {
 							successCount.Add(1)
 						}
 					}
-				}(i)
+				})
 			}
 
 			wg.Wait()
@@ -379,11 +366,3 @@ var _ = Describe("Router Stress Tests", func() {
 		})
 	})
 })
-
-func TestRouterStress(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Router Stress Suite")
-}

@@ -121,7 +121,6 @@ func TestApp_Test(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := tt.setupApp()
@@ -185,7 +184,6 @@ func TestApp_Test_Timeout(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
@@ -197,9 +195,9 @@ func TestApp_Test_Timeout(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/slow", nil)
 			var opts []TestOption
-			if tt.timeout != 0 {
-				opts = append(opts, WithTimeout(tt.timeout))
-			}
+			// Always add timeout option, even for -1 (no timeout) and 0 (default)
+			// This tests that WithTimeout properly handles all cases
+			opts = append(opts, WithTimeout(tt.timeout))
 
 			resp, err := app.Test(req, opts...)
 
@@ -264,7 +262,6 @@ func TestApp_Test_Context(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
@@ -393,7 +390,6 @@ func TestApp_TestJSON(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
@@ -433,7 +429,7 @@ type mockTestingT struct {
 	errorMsg    string
 }
 
-func (m *mockTestingT) Errorf(format string, args ...interface{}) {
+func (m *mockTestingT) Errorf(format string, args ...any) {
 	m.errorCalled = true
 	m.errorMsg = fmt.Sprintf(format, args...)
 }
@@ -541,7 +537,6 @@ func TestExpectJSON(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -606,7 +601,6 @@ func TestTestOptions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

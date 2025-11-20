@@ -127,8 +127,8 @@ type serverConfig struct {
 //	if err := cfg.Validate(); err != nil {
 //	    // Handle validation errors
 //	}
-func (sc *serverConfig) Validate() *ValidationErrors {
-	var errs ValidationErrors
+func (sc *serverConfig) Validate() *ValidationError {
+	var errs ValidationError
 
 	// Validate timeouts are positive
 	if sc.readTimeout <= 0 {
@@ -238,7 +238,7 @@ type routerConfig struct {
 // It collects all validation errors before returning them, allowing users to
 // see all issues at once rather than one at a time.
 func (c *config) validate() error {
-	var errs ValidationErrors
+	var errs ValidationError
 
 	// Validate service name
 	if c.serviceName == "" {
@@ -465,17 +465,6 @@ func (a *App) Router() *router.Router {
 //	app.Readiness().Register("db", &DatabaseGate{db: db})
 func (a *App) Readiness() *ReadinessManager {
 	return a.readiness
-}
-
-// wrapRoute wraps a route with OpenAPI metadata.
-// This is the integration point between router and openapi packages.
-// Requires OpenAPI to be enabled via WithOpenAPI().
-// Returns nil if OpenAPI is not enabled (safe to ignore).
-func (a *App) wrapRoute(method, path string) *openapi.RouteWrapper {
-	if a.openapi == nil {
-		return nil
-	}
-	return a.openapi.Register(method, path)
 }
 
 // wrapRouteWithOpenAPI creates a RouteWrapper that combines router.Route and OpenAPI metadata.

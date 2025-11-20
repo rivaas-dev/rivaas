@@ -37,9 +37,9 @@ func FuzzConfigValidation(f *testing.F) {
 
 		// Either succeeds or returns structured error
 		if err != nil {
-			var ve *ValidationErrors
+			var ve *ValidationError
 			if !errors.As(err, &ve) {
-				t.Errorf("expected ValidationErrors, got %T: %v", err, err)
+				t.Errorf("expected ValidationError, got %T: %v", err, err)
 			}
 		}
 	})
@@ -66,9 +66,9 @@ func FuzzServerTimeouts(f *testing.F) {
 
 		// Should handle any duration gracefully
 		if err != nil {
-			var ve *ValidationErrors
+			var ve *ValidationError
 			if !errors.As(err, &ve) {
-				t.Errorf("expected ValidationErrors, got %T: %v", err, err)
+				t.Errorf("expected ValidationError, got %T: %v", err, err)
 			}
 		}
 	})
@@ -87,11 +87,11 @@ func FuzzServiceName(f *testing.F) {
 			WithServiceVersion("1.0.0"),
 		)
 
-		// Should either succeed or return ValidationErrors
+		// Should either succeed or return ValidationError
 		if err != nil {
-			var ve *ValidationErrors
+			var ve *ValidationError
 			if !errors.As(err, &ve) {
-				t.Errorf("expected ValidationErrors, got %T: %v", err, err)
+				t.Errorf("expected ValidationError, got %T: %v", err, err)
 			}
 		}
 	})

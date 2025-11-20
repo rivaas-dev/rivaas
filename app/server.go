@@ -32,10 +32,10 @@ import (
 type serverStartFunc func() error
 
 // logLifecycleEvent logs a lifecycle event using the base logger.
-func (a *App) logLifecycleEvent(level slog.Level, msg string, args ...any) {
+func (a *App) logLifecycleEvent(ctx context.Context, level slog.Level, msg string, args ...any) {
 	logger := a.BaseLogger()
-	if logger.Enabled(context.Background(), level) {
-		logger.Log(context.Background(), level, msg, args...)
+	if logger.Enabled(ctx, level) {
+		logger.Log(ctx, level, msg, args...)
 	}
 }
 
@@ -51,10 +51,10 @@ func (a *App) logStartupInfo(addr, protocol string) {
 		attrs = append(attrs, "metrics_enabled", true, "metrics_address", a.metrics.GetServerAddress())
 	}
 
-	a.logLifecycleEvent(slog.LevelInfo, "server starting", attrs...)
+	a.logLifecycleEvent(context.Background(), slog.LevelInfo, "server starting", attrs...)
 
 	if a.tracing != nil {
-		a.logLifecycleEvent(slog.LevelInfo, "tracing enabled")
+		a.logLifecycleEvent(context.Background(), slog.LevelInfo, "tracing enabled")
 	}
 }
 
@@ -63,14 +63,14 @@ func (a *App) shutdownObservability(ctx context.Context) {
 	// Shutdown metrics if running
 	if a.metrics != nil {
 		if err := a.metrics.Shutdown(ctx); err != nil {
-			a.logLifecycleEvent(slog.LevelWarn, "metrics shutdown failed", "error", err)
+			a.logLifecycleEvent(ctx, slog.LevelWarn, "metrics shutdown failed", "error", err)
 		}
 	}
 
 	// Shutdown tracing if running
 	if a.tracing != nil {
 		if err := a.tracing.Shutdown(ctx); err != nil {
-			a.logLifecycleEvent(slog.LevelWarn, "tracing shutdown failed", "error", err)
+			a.logLifecycleEvent(ctx, slog.LevelWarn, "tracing shutdown failed", "error", err)
 		}
 	}
 }
@@ -106,7 +106,7 @@ func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol
 	case err := <-serverErr:
 		return err
 	case <-quit:
-		a.logLifecycleEvent(slog.LevelInfo, "server shutting down", "protocol", protocol)
+		a.logLifecycleEvent(context.Background(), slog.LevelInfo, "server shutting down", "protocol", protocol)
 	}
 
 	// Create a deadline for shutdown
@@ -127,7 +127,7 @@ func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol
 	// Execute OnStop hooks (best-effort)
 	a.executeStopHooks()
 
-	a.logLifecycleEvent(slog.LevelInfo, "server exited", "protocol", protocol)
+	a.logLifecycleEvent(ctx, slog.LevelInfo, "server exited", "protocol", protocol)
 	return nil
 }
 

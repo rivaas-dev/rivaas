@@ -1,7 +1,22 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -600,9 +615,7 @@ func (r *Route) TypedConstraints() map[string]ParamConstraint {
 		return nil
 	}
 	out := make(map[string]ParamConstraint, len(r.typedConstraints))
-	for k, v := range r.typedConstraints {
-		out[k] = v
-	}
+	maps.Copy(out, r.typedConstraints)
 	return out
 }
 
@@ -621,15 +634,6 @@ func (r *Route) compile() {
 	}
 	r.compiled = true
 }
-
-// Pre-compiled regex patterns for typed constraints (package-level for reuse)
-var (
-	reInt      = regexp.MustCompile(`^-?\d+$`)
-	reFloat    = regexp.MustCompile(`^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$`)
-	reUUID     = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
-	reDate     = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-	reDateTime = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$`)
-)
 
 // convertTypedConstraintsToRegex converts typed constraints to regex-based RouteConstraint
 // for use with the existing validation system. This allows typed constraints to work
@@ -683,87 +687,6 @@ func (r *Route) convertTypedConstraintsToRegex() []RouteConstraint {
 	}
 
 	return regexConstraints
-}
-
-// validateTypedConstraints validates typed constraints against context parameters.
-// Returns false if any constraint fails.
-// NOTE: This method is kept for potential future use but is not currently called
-// since typed constraints are converted to regex constraints during finalization.
-func (r *Route) validateTypedConstraints(ctx *Context) bool {
-	if len(r.typedConstraints) == 0 {
-		return true
-	}
-
-	r.compile()
-
-	// Build enum lookup maps (reused for multiple enum constraints)
-	enumMaps := make(map[string]map[string]struct{})
-
-	for name, pc := range r.typedConstraints {
-		// Get parameter value
-		var value string
-		found := false
-
-		// Check fast array lookup first (up to 8 params)
-		for i := int32(0); i < ctx.paramCount; i++ {
-			if ctx.paramKeys[i] == name {
-				value = ctx.paramValues[i]
-				found = true
-				break
-			}
-		}
-
-		// Fallback to map for >8 parameters
-		if !found && ctx.Params != nil {
-			value, found = ctx.Params[name]
-		}
-
-		if !found {
-			return false // Parameter not found
-		}
-
-		// Validate based on constraint kind
-		switch pc.Kind {
-		case ConstraintInt:
-			if !reInt.MatchString(value) {
-				return false
-			}
-		case ConstraintFloat:
-			if !reFloat.MatchString(value) {
-				return false
-			}
-		case ConstraintUUID:
-			if !reUUID.MatchString(value) {
-				return false
-			}
-		case ConstraintRegex:
-			if pc.re == nil || !pc.re.MatchString(value) {
-				return false
-			}
-		case ConstraintEnum:
-			// Build enum lookup map if not already built
-			if _, exists := enumMaps[name]; !exists {
-				enumMap := make(map[string]struct{}, len(pc.Enum))
-				for _, v := range pc.Enum {
-					enumMap[v] = struct{}{}
-				}
-				enumMaps[name] = enumMap
-			}
-			if _, ok := enumMaps[name][value]; !ok {
-				return false
-			}
-		case ConstraintDate:
-			if !reDate.MatchString(value) {
-				return false
-			}
-		case ConstraintDateTime:
-			if !reDateTime.MatchString(value) {
-				return false
-			}
-		}
-	}
-
-	return true
 }
 
 // routeTemplate represents a compiled route pattern for efficient reverse routing.
@@ -905,9 +828,9 @@ func getHandlerName(handler HandlerFunc) string {
 // Example: "/users/:id/posts/:postId" -> [{static:"users"}, {param:"id"}, {static:"posts"}, {param:"postId"}]
 func parseRouteTemplate(path string) *routeTemplate {
 	segments := make([]routeSegment, 0)
-	parts := strings.Split(strings.Trim(path, "/"), "/")
+	trimmed := strings.Trim(path, "/")
 
-	for _, part := range parts {
+	for part := range strings.SplitSeq(trimmed, "/") {
 		if part == "" {
 			continue
 		}

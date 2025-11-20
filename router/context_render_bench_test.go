@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
@@ -29,7 +43,7 @@ func BenchmarkJSON_Baseline(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		_ = c.JSON(200, benchData)
+		c.JSON(200, benchData)
 	}
 }
 
@@ -44,7 +58,7 @@ func BenchmarkIndentedJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		_ = c.IndentedJSON(200, benchData)
+		c.IndentedJSON(200, benchData)
 	}
 }
 
@@ -59,7 +73,7 @@ func BenchmarkPureJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		_ = c.PureJSON(200, benchData)
+		c.PureJSON(200, benchData)
 	}
 }
 
@@ -74,7 +88,7 @@ func BenchmarkSecureJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		_ = c.SecureJSON(200, benchData)
+		c.SecureJSON(200, benchData)
 	}
 }
 
@@ -95,7 +109,7 @@ func BenchmarkASCIIJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		_ = c.ASCIIJSON(200, unicodeData)
+		c.ASCIIJSON(200, unicodeData)
 	}
 }
 
@@ -110,7 +124,7 @@ func BenchmarkYAML(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		_ = c.YAML(200, benchData)
+		c.YAML(200, benchData)
 	}
 }
 
@@ -165,7 +179,7 @@ func BenchmarkData(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		_ = c.Data(200, "text/plain", data)
+		c.Data(200, "text/plain", data)
 	}
 }
 
@@ -186,7 +200,7 @@ func BenchmarkData_Binary(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		_ = c.Data(200, "application/octet-stream", data)
+		c.Data(200, "application/octet-stream", data)
 	}
 }
 
@@ -202,7 +216,7 @@ func BenchmarkJSON_vs_IndentedJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			_ = c.JSON(200, benchData)
+			c.JSON(200, benchData)
 		}
 	})
 
@@ -216,7 +230,7 @@ func BenchmarkJSON_vs_IndentedJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			_ = c.IndentedJSON(200, benchData)
+			c.IndentedJSON(200, benchData)
 		}
 	})
 }
@@ -239,7 +253,7 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			_ = c.JSON(200, htmlData)
+			c.JSON(200, htmlData)
 		}
 	})
 
@@ -253,7 +267,7 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			_ = c.PureJSON(200, htmlData)
+			c.PureJSON(200, htmlData)
 		}
 	})
 }
@@ -270,7 +284,7 @@ func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			_ = c.JSON(200, benchData)
+			c.JSON(200, benchData)
 		}
 	})
 
@@ -284,7 +298,7 @@ func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			_ = c.SecureJSON(200, benchData)
+			c.SecureJSON(200, benchData)
 		}
 	})
 }
@@ -301,7 +315,7 @@ func BenchmarkJSON_vs_YAML_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			_ = c.JSON(200, benchData)
+			c.JSON(200, benchData)
 		}
 	})
 
@@ -315,7 +329,7 @@ func BenchmarkJSON_vs_YAML_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			_ = c.YAML(200, benchData)
+			c.YAML(200, benchData)
 		}
 	})
 }
@@ -358,15 +372,15 @@ func BenchmarkAllRenderingMethods(b *testing.B) {
 		name string
 		fn   func(*Context) error
 	}{
-		{"JSON", func(c *Context) error { return c.JSON(200, benchData) }},
-		{"IndentedJSON", func(c *Context) error { return c.IndentedJSON(200, benchData) }},
-		{"PureJSON", func(c *Context) error { return c.PureJSON(200, benchData) }},
-		{"SecureJSON", func(c *Context) error { return c.SecureJSON(200, benchData) }},
+		{"JSON", func(c *Context) error { return c.WriteJSON(200, benchData) }},
+		{"IndentedJSON", func(c *Context) error { return c.WriteIndentedJSON(200, benchData) }},
+		{"PureJSON", func(c *Context) error { return c.WritePureJSON(200, benchData) }},
+		{"SecureJSON", func(c *Context) error { return c.WriteSecureJSON(200, benchData) }},
 		{"ASCIIJSON", func(c *Context) error {
-			return c.ASCIIJSON(200, map[string]string{"msg": "Hello 世界"})
+			return c.WriteASCIIJSON(200, map[string]string{"msg": "Hello 世界"})
 		}},
-		{"YAML", func(c *Context) error { return c.YAML(200, benchData) }},
-		{"Data", func(c *Context) error { return c.Data(200, "text/plain", []byte("test")) }},
+		{"YAML", func(c *Context) error { return c.WriteYAML(200, benchData) }},
+		{"Data", func(c *Context) error { return c.WriteData(200, "text/plain", []byte("test")) }},
 	}
 
 	for _, method := range methods {
@@ -417,7 +431,7 @@ func BenchmarkDataFromReader_vs_Data(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			_ = c.Data(200, "application/octet-stream", data)
+			c.Data(200, "application/octet-stream", data)
 		}
 	})
 }
@@ -445,7 +459,7 @@ func BenchmarkSecureJSON_PrefixSizes(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				w.Body.Reset()
-				_ = c.SecureJSON(200, benchData, p.prefix)
+				c.SecureJSON(200, benchData, p.prefix)
 			}
 		})
 	}
@@ -498,9 +512,9 @@ func BenchmarkJSON_Variants_Parallel(b *testing.B) {
 		name string
 		fn   func(*Context) error
 	}{
-		{"JSON", func(c *Context) error { return c.JSON(200, benchData) }},
-		{"PureJSON", func(c *Context) error { return c.PureJSON(200, benchData) }},
-		{"SecureJSON", func(c *Context) error { return c.SecureJSON(200, benchData) }},
+		{"JSON", func(c *Context) error { return c.WriteJSON(200, benchData) }},
+		{"PureJSON", func(c *Context) error { return c.WritePureJSON(200, benchData) }},
+		{"SecureJSON", func(c *Context) error { return c.WriteSecureJSON(200, benchData) }},
 	}
 
 	for _, method := range methods {
@@ -556,7 +570,7 @@ func BenchmarkASCIIJSON_UnicodeComplexity(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				w.Body.Reset()
-				_ = c.ASCIIJSON(200, tt.data)
+				c.ASCIIJSON(200, tt.data)
 			}
 		})
 	}

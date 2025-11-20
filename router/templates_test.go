@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
@@ -5,6 +19,9 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // BenchmarkTemplateStatic benchmarks static route lookup using templates
@@ -42,10 +59,10 @@ func BenchmarkTemplateDynamic(b *testing.B) {
 
 	// Register routes with parameters
 	r.GET("/api/users/:id", func(c *Context) {
-		_ = c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
+		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 	})
 	r.GET("/api/users/:id/posts/:pid", func(c *Context) {
-		_ = c.JSON(http.StatusOK, map[string]string{"id": c.Param("id"), "pid": c.Param("pid")})
+		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id"), "pid": c.Param("pid")})
 	})
 
 	// Warmup to compile templates
@@ -68,7 +85,7 @@ func BenchmarkTemplateWithConstraints(b *testing.B) {
 
 	// Register route with constraints
 	r.GET("/api/users/:id", func(c *Context) {
-		_ = c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
+		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 	}).Where("id", `^\d+$`)
 
 	// Warmup to compile templates
@@ -91,7 +108,7 @@ func BenchmarkTemplateVsTree(b *testing.B) {
 		r := MustNew(WithTemplateRouting(true))
 
 		r.GET("/api/users/:id/posts/:pid/comments/:cid", func(c *Context) {
-			_ = c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 		})
 
 		r.Warmup()
@@ -111,7 +128,7 @@ func BenchmarkTemplateVsTree(b *testing.B) {
 		r := MustNew(WithTemplateRouting(false))
 
 		r.GET("/api/users/:id/posts/:pid/comments/:cid", func(c *Context) {
-			_ = c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 		})
 
 		r.Warmup()
@@ -168,6 +185,8 @@ func BenchmarkTemplateMatching(b *testing.B) {
 
 // TestTemplateMatching tests template matching correctness
 func TestTemplateMatching(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		pattern     string
@@ -219,21 +238,19 @@ func TestTemplateMatching(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tmpl := compileRouteTemplate("GET", tt.pattern, []HandlerFunc{func(_ *Context) {}}, nil)
 			ctx := &Context{}
 
 			matched := tmpl.matchAndExtract(tt.path, ctx)
 
-			if matched != tt.shouldMatch {
-				t.Errorf("Expected match=%v, got %v", tt.shouldMatch, matched)
-			}
+			assert.Equal(t, tt.shouldMatch, matched)
 
 			if matched && tt.params != nil {
 				for key, expectedValue := range tt.params {
 					actualValue := ctx.Param(key)
-					if actualValue != expectedValue {
-						t.Errorf("Param %q: expected %q, got %q", key, expectedValue, actualValue)
-					}
+					assert.Equal(t, expectedValue, actualValue, "Param %q", key)
 				}
 			}
 		})
@@ -242,6 +259,8 @@ func TestTemplateMatching(t *testing.T) {
 
 // TestTemplateWithConstraints tests template matching with constraints
 func TestTemplateWithConstraints(t *testing.T) {
+	t.Parallel()
+
 	constraints := []RouteConstraint{
 		{Param: "id", Pattern: regexp.MustCompile(`^\d+$`)},
 	}
@@ -249,25 +268,30 @@ func TestTemplateWithConstraints(t *testing.T) {
 	tmpl := compileRouteTemplate("GET", "/users/:id", []HandlerFunc{func(_ *Context) {}}, constraints)
 
 	tests := []struct {
+		name        string
 		path        string
 		shouldMatch bool
 	}{
-		{"/users/123", true},
-		{"/users/abc", false},   // Constraint violation
-		{"/users/12abc", false}, // Constraint violation
+		{"valid numeric id", "/users/123", true},
+		{"invalid alphabetic id", "/users/abc", false}, // Constraint violation
+		{"invalid mixed id", "/users/12abc", false},    // Constraint violation
 	}
 
 	for _, tt := range tests {
-		ctx := &Context{}
-		matched := tmpl.matchAndExtract(tt.path, ctx)
-		if matched != tt.shouldMatch {
-			t.Errorf("Path %q: expected match=%v, got %v", tt.path, tt.shouldMatch, matched)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := &Context{}
+			matched := tmpl.matchAndExtract(tt.path, ctx)
+			assert.Equal(t, tt.shouldMatch, matched, "Path %q", tt.path)
+		})
 	}
 }
 
 // TestTemplateCache_BuildFirstSegmentIndex tests first segment optimization
 func TestTemplateCache_BuildFirstSegmentIndex(t *testing.T) {
+	t.Parallel()
+
 	r := MustNew()
 
 	// Register routes with different first segments
@@ -280,45 +304,35 @@ func TestTemplateCache_BuildFirstSegmentIndex(t *testing.T) {
 	r.templateCache.buildFirstSegmentIndex()
 
 	// Verify index is built
-	if !r.templateCache.hasFirstSegmentIndex {
-		t.Error("hasFirstSegmentIndex should be true after building")
-	}
+	assert.True(t, r.templateCache.hasFirstSegmentIndex)
 
 	// Index should have entries for 'u', 'p', 'a'
-	if r.templateCache.firstSegmentIndex['u'] == nil {
-		t.Error("should have index entry for 'u' (users)")
-	}
-
-	if r.templateCache.firstSegmentIndex['p'] == nil {
-		t.Error("should have index entry for 'p' (posts)")
-	}
-
-	if r.templateCache.firstSegmentIndex['a'] == nil {
-		t.Error("should have index entry for 'a' (admin, api)")
-	}
+	assert.NotNil(t, r.templateCache.firstSegmentIndex['u'], "should have index entry for 'u' (users)")
+	assert.NotNil(t, r.templateCache.firstSegmentIndex['p'], "should have index entry for 'p' (posts)")
+	assert.NotNil(t, r.templateCache.firstSegmentIndex['a'], "should have index entry for 'a' (admin, api)")
 
 	// Verify 'a' has 2 entries (admin and api)
 	aEntries := r.templateCache.firstSegmentIndex['a']
-	if len(aEntries) < 2 {
-		t.Errorf("expected at least 2 entries for 'a', got %d", len(aEntries))
-	}
+	assert.GreaterOrEqual(t, len(aEntries), 2, "expected at least 2 entries for 'a'")
 }
 
 // TestTemplateCache_BuildFirstSegmentIndex_EmptyCache tests building index on empty cache
 func TestTemplateCache_BuildFirstSegmentIndex_EmptyCache(t *testing.T) {
+	t.Parallel()
+
 	r := MustNew()
 
 	// Build index with no routes
 	r.templateCache.buildFirstSegmentIndex()
 
 	// Should not panic
-	if r.templateCache.hasFirstSegmentIndex != true {
-		t.Error("index should be marked as built even if empty")
-	}
+	assert.True(t, r.templateCache.hasFirstSegmentIndex, "index should be marked as built even if empty")
 }
 
 // TestTemplateCache_BuildFirstSegmentIndex_RootPath tests index with root path
 func TestTemplateCache_BuildFirstSegmentIndex_RootPath(t *testing.T) {
+	t.Parallel()
+
 	r := MustNew()
 
 	// Register root path
@@ -329,13 +343,13 @@ func TestTemplateCache_BuildFirstSegmentIndex_RootPath(t *testing.T) {
 	r.templateCache.buildFirstSegmentIndex()
 
 	// Root path shouldn't cause issues
-	if !r.templateCache.hasFirstSegmentIndex {
-		t.Error("should build index successfully with root path")
-	}
+	assert.True(t, r.templateCache.hasFirstSegmentIndex, "should build index successfully with root path")
 }
 
 // TestTemplateCache_BuildFirstSegmentIndex_NonASCII tests index with non-ASCII first char
 func TestTemplateCache_BuildFirstSegmentIndex_NonASCII(t *testing.T) {
+	t.Parallel()
+
 	r := MustNew()
 
 	// Register route with non-ASCII first character (should be ignored)
@@ -346,18 +360,16 @@ func TestTemplateCache_BuildFirstSegmentIndex_NonASCII(t *testing.T) {
 	r.templateCache.buildFirstSegmentIndex()
 
 	// Should build successfully
-	if !r.templateCache.hasFirstSegmentIndex {
-		t.Error("should build index even with non-ASCII paths")
-	}
+	assert.True(t, r.templateCache.hasFirstSegmentIndex, "should build index even with non-ASCII paths")
 
 	// ASCII route should be indexed
-	if r.templateCache.firstSegmentIndex['u'] == nil {
-		t.Error("should have index for ASCII 'u'")
-	}
+	assert.NotNil(t, r.templateCache.firstSegmentIndex['u'], "should have index for ASCII 'u'")
 }
 
 // TestTemplateCache_RemoveTemplate tests template removal
 func TestTemplateCache_RemoveTemplate(t *testing.T) {
+	t.Parallel()
+
 	r := MustNew()
 
 	// Register a route
@@ -368,9 +380,7 @@ func TestTemplateCache_RemoveTemplate(t *testing.T) {
 	// Count initial templates
 	initialCount := len(r.templateCache.dynamicTemplates)
 
-	if initialCount == 0 {
-		t.Fatal("should have templates after route registration")
-	}
+	require.Greater(t, initialCount, 0, "should have templates after route registration")
 
 	// Remove the template
 	r.templateCache.removeTemplate("GET", "/test/:id")
@@ -378,9 +388,7 @@ func TestTemplateCache_RemoveTemplate(t *testing.T) {
 	// Should have fewer templates now
 	afterCount := len(r.templateCache.dynamicTemplates)
 
-	if afterCount >= initialCount {
-		t.Error("template count should decrease after removal")
-	}
+	assert.Less(t, afterCount, initialCount, "template count should decrease after removal")
 }
 
 // TestTemplateCache_AddTemplate_Duplicate tests adding duplicate template
@@ -404,6 +412,8 @@ func TestTemplateCache_AddTemplate_Duplicate(_ *testing.T) {
 
 // TestTemplateCache_SortBySpecificity tests template sorting
 func TestTemplateCache_SortBySpecificity(t *testing.T) {
+	t.Parallel()
+
 	r := MustNew()
 
 	// Register routes in random order
@@ -421,9 +431,7 @@ func TestTemplateCache_SortBySpecificity(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != 200 {
-		t.Error("specific route should match")
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "specific route should match")
 }
 
 // TestTemplateCache_Concurrent tests concurrent template operations
@@ -457,6 +465,8 @@ func TestTemplateCache_Concurrent(_ *testing.T) {
 
 // TestRadix_CompileStaticRoutes_NoRoutes tests compiling with no static routes
 func TestRadix_CompileStaticRoutes_NoRoutes(t *testing.T) {
+	t.Parallel()
+
 	r := MustNew()
 
 	// Register only dynamic routes (no static routes)
@@ -471,13 +481,13 @@ func TestRadix_CompileStaticRoutes_NoRoutes(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != 200 {
-		t.Error("dynamic routes should still work")
-	}
+	assert.Equal(t, http.StatusOK, w.Code, "dynamic routes should still work")
 }
 
 // TestRadix_CompileStaticRoutes_MixedRoutes tests compiling mixed static and dynamic
 func TestRadix_CompileStaticRoutes_MixedRoutes(t *testing.T) {
+	t.Parallel()
+
 	r := MustNew()
 
 	// Mix of static and dynamic routes
@@ -494,15 +504,11 @@ func TestRadix_CompileStaticRoutes_MixedRoutes(t *testing.T) {
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 
-	if w1.Code != 200 {
-		t.Error("static route should work after compilation")
-	}
+	assert.Equal(t, http.StatusOK, w1.Code, "static route should work after compilation")
 
 	req2 := httptest.NewRequest("GET", "/users/789", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 
-	if w2.Code != 200 {
-		t.Error("dynamic route should work after compilation")
-	}
+	assert.Equal(t, http.StatusOK, w2.Code, "dynamic route should work after compilation")
 }

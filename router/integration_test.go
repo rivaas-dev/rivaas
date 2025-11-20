@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -683,7 +682,7 @@ var _ = Describe("Router Integration", func() {
 			})
 
 			r.GET("/html", func(c *router.Context) {
-				_ = c.HTML(http.StatusOK, "<h1>Hello</h1>")
+				c.HTML(http.StatusOK, "<h1>Hello</h1>")
 			})
 
 			// Test JSON
@@ -1168,11 +1167,3 @@ var _ = Describe("Router Integration", func() {
 		})
 	})
 })
-
-func TestRouterIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Router Integration Suite")
-}

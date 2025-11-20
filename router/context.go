@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
@@ -115,6 +129,10 @@ type Context struct {
 	// Memory safety: Track if context has been released to prevent use-after-release
 	// Uses atomic.Bool for thread-safe access when context is used from multiple goroutines
 	released atomic.Bool // Set to true when Release() is called - DO NOT use after this
+
+	// Error collection: Slice of errors collected during request processing.
+	// Errors are collected via Error() method and can be processed later.
+	errors []error // Lazy allocation - only allocated when Error() is called
 }
 
 // checkReleased verifies that the context has not been released.
@@ -280,21 +298,30 @@ func (c *Context) Param(key string) string {
 }
 
 // JSON sends a JSON response with the specified status code.
-// The object will be marshaled to JSON and written to the response.
-// Returns an error if JSON encoding fails.
+// If encoding or writing fails, the error is collected via Error().
 //
-// This method encodes to a buffer first to catch errors before writing headers,
-// ensuring responses are never left in an inconsistent state. This adds a small
-// overhead but provides better error handling and reliability.
+// This is the high-level helper most users call. For fine-grained error
+// handling, use WriteJSON() instead.
 //
 // Example:
 //
-//	if err := c.JSON(http.StatusOK, map[string]string{"message": "Hello World"}); err != nil {
-//		// Handle encoding error (headers not yet written)
-//		c.JSON(http.StatusInternalServerError, map[string]string{"error": "encoding failed"})
-//		return
+//	c.JSON(http.StatusOK, user)  // Error collected if encoding fails
+func (c *Context) JSON(code int, obj any) {
+	if err := c.WriteJSON(code, obj); err != nil {
+		c.Error(err)
+	}
+}
+
+// WriteJSON is the low-level primitive that writes JSON and returns any error.
+// Use this when you need fine-grained control over write failures.
+//
+// Example:
+//
+//	if err := c.WriteJSON(200, user); err != nil {
+//	    c.Logger().Error("failed to write json", "err", err)
+//	    c.Error(err)  // Still collect it if desired
 //	}
-func (c *Context) JSON(code int, obj any) error {
+func (c *Context) WriteJSON(code int, obj any) error {
 	// Safety check: prevent use-after-release (thread-safe atomic read)
 	if c.checkReleased() {
 		return ErrContextReleased
@@ -331,26 +358,19 @@ func (c *Context) JSON(code int, obj any) error {
 }
 
 // IndentedJSON sends a JSON response with indentation for readability.
+// If encoding or writing fails, the error is collected via Error().
+//
 // This is useful for debugging, development, and human-readable API responses.
-//
-// Performance characteristics:
-// - Slower than JSON() due to formatting overhead (indentation, newlines)
-// - Not recommended for high-frequency production endpoints
-// - Use JSON() for production, IndentedJSON() for debugging/development
-//
-// Example:
-//
-//	// Development/debugging endpoint
-//	c.IndentedJSON(http.StatusOK, user)
-//	// Output:
-//	// {
-//	//   "id": 123,
-//	//   "name": "John"
-//	// }
-//
-//	// Production: Use JSON() instead for better performance
-//	c.JSON(http.StatusOK, user)
-func (c *Context) IndentedJSON(code int, obj any) error {
+// Performance: Slower than JSON() due to formatting overhead.
+// Use JSON() for production, IndentedJSON() for debugging/development.
+func (c *Context) IndentedJSON(code int, obj any) {
+	if err := c.WriteIndentedJSON(code, obj); err != nil {
+		c.Error(err)
+	}
+}
+
+// WriteIndentedJSON writes indented JSON and returns any error.
+func (c *Context) WriteIndentedJSON(code int, obj any) error {
 	// Use MarshalIndent for pretty-printing
 	jsonBytes, err := json.MarshalIndent(obj, "", "  ")
 	if err != nil {
@@ -375,28 +395,18 @@ func (c *Context) IndentedJSON(code int, obj any) error {
 }
 
 // PureJSON sends a JSON response without escaping HTML characters.
+// If encoding or writing fails, the error is collected via Error().
+//
 // Unlike JSON(), this does not escape <, >, &, and other HTML characters.
-//
-// Performance: Identical to JSON() - only changes encoder flag.
-// Safe for production use when HTML escaping breaks functionality.
-//
-// Use cases:
-//   - Responses containing HTML/markdown content
-//   - URLs with query parameters
-//   - Code snippets in JSON responses
-//
-// Example:
-//
-//	data := map[string]string{
-//	    "html": "<h1>Title</h1>",
-//	    "url":  "https://example.com?foo=bar&baz=qux",
-//	}
-//	c.PureJSON(200, data)
-//	// Output: {"html":"<h1>Title</h1>","url":"https://example.com?foo=bar&baz=qux"}
-//
-//	// Compare with JSON() which would escape:
-//	// {"html":"\u003ch1\u003eTitle\u003c/h1\u003e","url":"https://example.com?foo=bar\u0026baz=qux"}
-func (c *Context) PureJSON(code int, obj any) error {
+// Use cases: HTML/markdown content, URLs with query parameters, code snippets.
+func (c *Context) PureJSON(code int, obj any) {
+	if err := c.WritePureJSON(code, obj); err != nil {
+		c.Error(err)
+	}
+}
+
+// WritePureJSON writes JSON without HTML escaping and returns any error.
+func (c *Context) WritePureJSON(code int, obj any) error {
 	// Encode without HTML escaping
 	var buf strings.Builder
 	buf.Grow(256)
@@ -426,28 +436,18 @@ func (c *Context) PureJSON(code int, obj any) error {
 }
 
 // SecureJSON sends a JSON response with a security prefix to prevent JSON hijacking.
-// The prefix prevents the response from being executed as JavaScript in old browsers.
+// If encoding or writing fails, the error is collected via Error().
 //
-// Performance characteristics:
-// - Minimal overhead: only prepends a small prefix string
-// - Safe for production use with negligible performance impact
-// - Overhead is constant regardless of response size
-//
-// Default prefix: "while(1);" (matches Gin's default)
+// Default prefix: "while(1);" (matches Gin's default).
 // The client must strip this prefix before parsing JSON.
-//
-// Background: Prevents ancient JSON hijacking attack where malicious sites
-// could override Array constructor and steal JSON array responses via <script> tags.
-// Modern browsers are not vulnerable, but some compliance requirements still mandate this.
-//
-// Example:
-//
-//	c.SecureJSON(200, []string{"secret1", "secret2"})
-//	// Output: while(1);["secret1","secret2"]
-//
-//	c.SecureJSON(200, data, "for(;;);")
-//	// Output: for(;;);{"key":"value"}
-func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
+func (c *Context) SecureJSON(code int, obj any, prefix ...string) {
+	if err := c.WriteSecureJSON(code, obj, prefix...); err != nil {
+		c.Error(err)
+	}
+}
+
+// WriteSecureJSON writes JSON with security prefix and returns any error.
+func (c *Context) WriteSecureJSON(code int, obj any, prefix ...string) error {
 	// Determine security prefix
 	securityPrefix := "while(1);"
 	if len(prefix) > 0 && prefix[0] != "" {
@@ -482,25 +482,18 @@ func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 }
 
 // ASCIIJSON sends a JSON response with all non-ASCII characters escaped to \uXXXX.
+// If encoding or writing fails, the error is collected via Error().
+//
 // This ensures the response is pure ASCII, useful for legacy systems or strict compatibility.
-//
-// Performance characteristics:
-// - Higher overhead than JSON() due to Unicode character escaping
-// - Overhead scales with the number of non-ASCII characters in the response
-// - Only use when legacy client compatibility requires pure ASCII
-//
-// All non-ASCII characters (including emoji, Chinese, Japanese, etc.) are escaped
-// to their Unicode code point representation (\uXXXX).
-//
-// Example:
-//
-//	data := map[string]string{
-//	    "message": "Hello 世界 🌍",
-//	    "name":    "José",
-//	}
-//	c.ASCIIJSON(200, data)
-//	// Output: {"message":"Hello \u4e16\u754c \ud83c\udf0d","name":"Jos\u00e9"}
-func (c *Context) ASCIIJSON(code int, obj any) error {
+// All non-ASCII characters are escaped to their Unicode code point representation (\uXXXX).
+func (c *Context) ASCIIJSON(code int, obj any) {
+	if err := c.WriteASCIIJSON(code, obj); err != nil {
+		c.Error(err)
+	}
+}
+
+// WriteASCIIJSON writes JSON with non-ASCII escaped and returns any error.
+func (c *Context) WriteASCIIJSON(code int, obj any) error {
 	// Use json.Marshal which already escapes non-ASCII to \uXXXX by default
 	// when using the default encoder settings
 	var buf bytes.Buffer
@@ -594,17 +587,18 @@ func decodeRuneInJSON(b []byte) (rune, int) {
 }
 
 // String sends a plain text response with optional formatting.
+// If writing fails, the error is collected via Error().
+//
 // This method minimizes allocations for common patterns.
-// Returns an error if writing to the response fails.
-//
-// For simple strings without formatting, zero allocations are achieved:
-//
-//	c.String(http.StatusOK, "Hello World")              // Zero allocations
-//	c.String(http.StatusOK, "User: %s", username)       // Efficient for single %s
-//	c.String(http.StatusOK, "Complex: %d %s", id, name) // Falls back to fmt.Fprintf
-//
-// The method automatically optimizes single %s patterns when exactly one value is provided.
-func (c *Context) String(code int, format string, values ...any) error {
+// For simple strings without formatting, zero allocations are achieved.
+func (c *Context) String(code int, format string, values ...any) {
+	if err := c.WriteString(code, format, values...); err != nil {
+		c.Error(err)
+	}
+}
+
+// WriteString writes a plain text response and returns any error.
+func (c *Context) WriteString(code int, format string, values ...any) error {
 	if c.Response.Header().Get("Content-Type") == "" {
 		c.Response.Header().Set("Content-Type", "text/plain")
 	}
@@ -665,13 +659,15 @@ func (c *Context) String(code int, format string, values ...any) error {
 }
 
 // HTML sends an HTML response with the specified status code.
-// Returns an error if writing to the response fails.
-//
-// Example:
-//
-//	c.HTML(http.StatusOK, "<h1>Welcome</h1>")
-//	c.HTML(http.StatusNotFound, "<h1>Page Not Found</h1>")
-func (c *Context) HTML(code int, html string) error {
+// If writing fails, the error is collected via Error().
+func (c *Context) HTML(code int, html string) {
+	if err := c.WriteHTML(code, html); err != nil {
+		c.Error(err)
+	}
+}
+
+// WriteHTML writes an HTML response and returns any error.
+func (c *Context) WriteHTML(code int, html string) error {
 	c.Response.Header().Set("Content-Type", "text/html")
 	c.Response.WriteHeader(code)
 	_, err := c.Response.Write([]byte(html))
@@ -899,31 +895,18 @@ func (c *Context) GetCookie(name string) (string, error) {
 }
 
 // YAML sends a YAML response with the specified status code.
+// If encoding or writing fails, the error is collected via Error().
+//
 // This is useful for configuration APIs, DevOps tools, and Kubernetes-style services.
-//
-// Performance characteristics:
-// - Significantly slower than JSON() due to YAML marshaling complexity
-// - Not suitable for high-frequency production endpoints
-// - Reserve for configuration/admin APIs where YAML format is required
-//
-// Requires: gopkg.in/yaml.v3 dependency
-//
-// Example:
-//
-//	config := map[string]interface{}{
-//	    "database": map[string]string{
-//	        "host": "localhost",
-//	        "port": "5432",
-//	    },
-//	    "debug": true,
-//	}
-//	c.YAML(200, config)
-//	// Output:
-//	// database:
-//	//   host: localhost
-//	//   port: "5432"
-//	// debug: true
-func (c *Context) YAML(code int, obj any) error {
+// Performance: Significantly slower than JSON() due to YAML marshaling complexity.
+func (c *Context) YAML(code int, obj any) {
+	if err := c.WriteYAML(code, obj); err != nil {
+		c.Error(err)
+	}
+}
+
+// WriteYAML writes a YAML response and returns any error.
+func (c *Context) WriteYAML(code int, obj any) error {
 	// Marshal to YAML
 	yamlBytes, err := yaml.Marshal(obj)
 	if err != nil {
@@ -1009,26 +992,18 @@ func (c *Context) DataFromReader(code int, contentLength int64, contentType stri
 }
 
 // Data sends raw bytes with a custom content type.
+// If writing fails, the error is collected via Error().
+//
 // This is useful for sending binary data, images, PDFs, or any custom format.
-//
-// Performance characteristics:
-// - Minimal overhead: direct byte write with no encoding/formatting
-// - Suitable for all use cases including high-frequency endpoints
-// - Zero encoding overhead compared to JSON/YAML responses
-//
-// Example:
-//
-//	// Send PNG image
-//	imageData := loadImage()
-//	c.Data(200, "image/png", imageData)
-//
-//	// Send PDF
-//	pdfData := generatePDF()
-//	c.Data(200, "application/pdf", pdfData)
-//
-//	// Send custom binary format
-//	c.Data(200, "application/octet-stream", binaryData)
-func (c *Context) Data(code int, contentType string, data []byte) error {
+// Performance: Minimal overhead - direct byte write with no encoding/formatting.
+func (c *Context) Data(code int, contentType string, data []byte) {
+	if err := c.WriteData(code, contentType, data); err != nil {
+		c.Error(err)
+	}
+}
+
+// WriteData writes raw bytes with a custom content type and returns any error.
+func (c *Context) WriteData(code int, contentType string, data []byte) error {
 	// Set Content-Type
 	if contentType != "" {
 		c.Response.Header().Set("Content-Type", contentType)
@@ -1052,6 +1027,66 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 	}
 
 	return nil
+}
+
+// Error collects an error without immediately writing a response.
+// This allows multiple errors to be collected during request processing
+// and handled later by middleware or handlers.
+//
+// Example:
+//
+//	func handler(c *router.Context) {
+//	    if err := validateUser(c); err != nil {
+//	        c.Error(err)
+//	    }
+//	    if err := validateEmail(c); err != nil {
+//	        c.Error(err)
+//	    }
+//
+//	    // Process all errors using standard library functions
+//	    if c.HasErrors() {
+//	        joinedErr := errors.Join(c.Errors()...)
+//	        if errors.Is(joinedErr, router.ErrContextReleased) {
+//	            // Handle specific error
+//	        }
+//	        c.JSON(400, map[string]any{"errors": c.Errors()})
+//	        return
+//	    }
+//	}
+func (c *Context) Error(err error) {
+	if err == nil {
+		return
+	}
+	if c.errors == nil {
+		c.errors = make([]error, 0, 4)
+	}
+	c.errors = append(c.errors, err)
+}
+
+// Errors returns all errors collected during request processing.
+// Returns nil if no errors were collected.
+//
+// Users can combine errors using errors.Join() or iterate individually.
+//
+// Example:
+//
+//	// Combine all errors
+//	joinedErr := errors.Join(c.Errors()...)
+//
+//	// Iterate individually
+//	for _, err := range c.Errors() {
+//	    // Process each error
+//	}
+func (c *Context) Errors() []error {
+	if c.errors == nil {
+		return nil
+	}
+	return c.errors
+}
+
+// HasErrors returns true if any errors were collected during request processing.
+func (c *Context) HasErrors() bool {
+	return len(c.errors) > 0
 }
 
 // WriteErrorResponse writes a simple HTTP error response.
@@ -1084,7 +1119,7 @@ func (c *Context) MethodNotAllowed(allowed []string) {
 // Thread-safety depends on the underlying metrics recorder implementation.
 func (c *Context) RecordMetric(name string, value float64, attributes ...attribute.KeyValue) {
 	if c.metricsRecorder != nil {
-		c.metricsRecorder.RecordMetric(c.Request.Context(), name, value, attributes...)
+		c.metricsRecorder.RecordMetric(c.RequestContext(), name, value, attributes...)
 	}
 }
 
@@ -1092,7 +1127,7 @@ func (c *Context) RecordMetric(name string, value float64, attributes ...attribu
 // Thread-safety depends on the underlying metrics recorder implementation.
 func (c *Context) IncrementCounter(name string, attributes ...attribute.KeyValue) {
 	if c.metricsRecorder != nil {
-		c.metricsRecorder.IncrementCounter(c.Request.Context(), name, attributes...)
+		c.metricsRecorder.IncrementCounter(c.RequestContext(), name, attributes...)
 	}
 }
 
@@ -1100,7 +1135,7 @@ func (c *Context) IncrementCounter(name string, attributes ...attribute.KeyValue
 // Thread-safety depends on the underlying metrics recorder implementation.
 func (c *Context) SetGauge(name string, value float64, attributes ...attribute.KeyValue) {
 	if c.metricsRecorder != nil {
-		c.metricsRecorder.SetGauge(c.Request.Context(), name, value, attributes...)
+		c.metricsRecorder.SetGauge(c.RequestContext(), name, value, attributes...)
 	}
 }
 
@@ -1138,6 +1173,38 @@ func (c *Context) AddSpanEvent(name string, attrs ...attribute.KeyValue) {
 	}
 }
 
+// RequestContext returns the request's context.Context.
+// This is a convenience method for passing to functions expecting context.Context.
+//
+// Use this method when you need the raw request context for:
+//   - Database queries: db.Query(c.RequestContext(), ...)
+//   - HTTP client calls: httpClient.Do(c.RequestContext(), req)
+//   - Any function expecting context.Context
+//
+// For tracing-aware context propagation, use TraceContext() instead.
+//
+// Example:
+//
+//	// Database query
+//	users, err := db.QueryUsers(c.RequestContext())
+//
+//	// HTTP client call
+//	resp, err := httpClient.Get(c.RequestContext(), "https://api.example.com")
+//
+//	// Long-running operation with cancellation
+//	select {
+//	case <-c.RequestContext().Done():
+//		return // Request cancelled
+//	case result := <-longOperation():
+//		c.JSON(200, result)
+//	}
+func (c *Context) RequestContext() context.Context {
+	if c.Request != nil {
+		return c.Request.Context()
+	}
+	return context.Background()
+}
+
 // TraceContext returns the OpenTelemetry trace context.
 // This can be used for manual span creation or context propagation.
 // If tracing is not enabled, it returns the request context for proper cancellation support.
@@ -1146,10 +1213,7 @@ func (c *Context) TraceContext() context.Context {
 		return c.tracingRecorder.TraceContext()
 	}
 	// Use request context as parent for proper cancellation support
-	if c.Request != nil {
-		return c.Request.Context()
-	}
-	return context.Background()
+	return c.RequestContext()
 }
 
 // Span returns the OpenTelemetry span for this request, if tracing is enabled.
@@ -1428,6 +1492,7 @@ func (c *Context) reset() {
 	c.metricsRecorder = nil
 	c.tracingRecorder = nil
 	c.aborted = false
+	c.errors = nil
 
 	// Clear header parsing cache and return arena to pool
 	c.cachedAcceptHeader = ""
@@ -1470,6 +1535,7 @@ func (c *Context) reset() {
 	c.version = ""
 	c.routeTemplate = ""
 	c.aborted = false
+	c.errors = nil
 	c.released.Store(false) // Reset released flag for reuse (thread-safe atomic write)
 }
 
@@ -1559,6 +1625,7 @@ func (c *Context) Release() {
 	c.version = ""
 	c.routeTemplate = ""
 	c.aborted = false
+	c.errors = nil
 	c.index = -1
 
 	// Mark as released BEFORE returning to pool (already done by Swap above)

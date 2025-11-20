@@ -50,7 +50,7 @@ func (s *AppLifecycleSuite) TearDownTest() {
 		resp, err := s.testApp.Test(req)
 		s.NoError(err)
 		s.Equal(http.StatusOK, resp.StatusCode)
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck // Test cleanup
 	}
 }
 
@@ -107,14 +107,14 @@ func (s *AppLifecycleSuite) TestRouteRegistration() {
 	resp, err := s.testApp.Test(req)
 	s.NoError(err)
 	s.Equal(http.StatusOK, resp.StatusCode)
-	resp.Body.Close()
+	_ = resp.Body.Close() //nolint:errcheck // Test cleanup
 
 	// Test POST route
 	req = httptest.NewRequest("POST", "/users", nil)
 	resp, err = s.testApp.Test(req)
 	s.NoError(err)
 	s.Equal(http.StatusCreated, resp.StatusCode)
-	resp.Body.Close()
+	_ = resp.Body.Close() //nolint:errcheck // Test cleanup
 }
 
 func (s *AppLifecycleSuite) TestMiddlewareChain() {
@@ -146,7 +146,7 @@ func (s *AppLifecycleSuite) TestMiddlewareChain() {
 	resp, err := s.testApp.Test(req)
 	s.NoError(err)
 	s.Equal(http.StatusOK, resp.StatusCode)
-	resp.Body.Close()
+	_ = resp.Body.Close() //nolint:errcheck // Test cleanup
 
 	// Verify execution order: middleware 1, middleware 2, handler
 	s.Equal([]int{1, 2, 3}, callOrder)

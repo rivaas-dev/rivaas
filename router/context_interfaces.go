@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 // ParameterReader defines the interface for reading request parameters,
@@ -65,108 +79,54 @@ type ParameterReader interface {
 
 // ResponseWriter defines the interface for writing HTTP responses.
 //
-// This interface enables:
-//   - Easier testing by allowing mock implementations
-//   - Clearer separation of concerns
-//   - Composition with other interfaces
+// Response helpers follow a consistent pattern:
 //
-// Example usage:
+//   - WriteXxx(...) error
+//     Low-level primitive. Writes directly to the underlying http.ResponseWriter
+//     and returns an error if anything fails (encoding, write failure, etc.).
 //
-//	func sendResponse(writer ResponseWriter) error {
-//	    return writer.JSON(http.StatusOK, map[string]string{"status": "ok"})
+//   - Xxx(...)
+//     High-level helper. Calls WriteXxx(...) and, if an error occurs, adds it
+//     to the context's error stack via Error(err). Never returns an error.
+//
+// Typical handlers use the high-level form:
+//
+//	c.JSON(200, user)
+//
+// If you need fine-grained control over write failures, use the WriteXxx variant:
+//
+//	if err := c.WriteJSON(200, user); err != nil {
+//	    c.Logger().Error("failed to write json", "err", err)
+//	    c.Error(err)  // Still collect it if desired
 //	}
 type ResponseWriter interface {
-	// JSON sends a JSON response with the specified status code.
-	// Automatically sets Content-Type header to "application/json; charset=utf-8".
-	//
-	// Example:
-	//   c.JSON(http.StatusOK, map[string]string{"message": "success"})
-	JSON(code int, obj any) error
+	// High-level helpers (collect errors automatically)
+	JSON(code int, obj any)
+	IndentedJSON(code int, obj any)
+	PureJSON(code int, obj any)
+	SecureJSON(code int, obj any, prefix ...string)
+	ASCIIJSON(code int, obj any)
+	String(code int, format string, values ...any)
+	HTML(code int, html string)
+	YAML(code int, obj any)
+	Data(code int, contentType string, data []byte)
 
-	// IndentedJSON sends a JSON response with indentation for readability.
-	// Slower than JSON() but useful for debugging and development.
-	//
-	// Example:
-	//   c.IndentedJSON(200, user)
-	IndentedJSON(code int, obj any) error
+	// Low-level primitives (return errors)
+	WriteJSON(code int, obj any) error
+	WriteIndentedJSON(code int, obj any) error
+	WritePureJSON(code int, obj any) error
+	WriteSecureJSON(code int, obj any, prefix ...string) error
+	WriteASCIIJSON(code int, obj any) error
+	WriteString(code int, format string, values ...any) error
+	WriteHTML(code int, html string) error
+	WriteYAML(code int, obj any) error
+	WriteData(code int, contentType string, data []byte) error
 
-	// PureJSON sends a JSON response without HTML escaping.
-	// Useful when JSON contains HTML content that should not be escaped.
-	//
-	// Example:
-	//   c.PureJSON(200, map[string]string{"html": "<div>content</div>"})
-	PureJSON(code int, obj any) error
-
-	// SecureJSON sends a JSON response with a security prefix to prevent JSON hijacking.
-	// Default prefix: "while(1);"
-	//
-	// Example:
-	//   c.SecureJSON(200, data)
-	SecureJSON(code int, obj any, prefix ...string) error
-
-	// ASCIIJSON sends a JSON response with all non-ASCII characters escaped to \uXXXX.
-	// Useful for legacy systems requiring pure ASCII.
-	//
-	// Example:
-	//   c.ASCIIJSON(200, map[string]string{"message": "Hello 世界"})
-	ASCIIJSON(code int, obj any) error
-
-	// String sends a plain text response with the specified status code.
-	// Supports format strings similar to fmt.Printf.
-	//
-	// Example:
-	//   c.String(http.StatusOK, "Hello, %s", name)
-	//   c.String(http.StatusOK, "Simple message")
-	String(code int, format string, values ...any) error
-
-	// HTML sends an HTML response with the specified status code.
-	//
-	// Example:
-	//   c.HTML(http.StatusOK, "<h1>Welcome</h1>")
-	HTML(code int, html string) error
-
-	// YAML sends a YAML response with the specified status code.
-	//
-	// Example:
-	//   c.YAML(200, config)
-	YAML(code int, obj any) error
-
-	// Data sends raw data with the specified content type and status code.
-	//
-	// Example:
-	//   c.Data(200, "image/png", imageBytes)
-	Data(code int, contentType string, data []byte) error
-
-	// Status sets the HTTP status code for the response.
-	// Should be called before writing any response body.
-	//
-	// Example:
-	//   c.Status(http.StatusNoContent) // No Content
+	// Status and headers
 	Status(code int)
-
-	// Header sets a response header with automatic security sanitization.
-	// Headers must be set before writing the response body.
-	//
-	// Example:
-	//   c.Header("Cache-Control", "no-cache")
 	Header(key, value string)
-
-	// Redirect sends a redirect response to the specified location.
-	//
-	// Example:
-	//   c.Redirect(301, "https://example.com/new-location")
 	Redirect(code int, location string)
-
-	// NoContent sends a 204 No Content response.
-	//
-	// Example:
-	//   c.NoContent()
 	NoContent()
-
-	// SetCookie sets a cookie in the response.
-	//
-	// Example:
-	//   c.SetCookie("session", "abc123", 3600, "/", "example.com", true, true)
 	SetCookie(name, value string, maxAge int, path, domain string, secure, httpOnly bool)
 }
 

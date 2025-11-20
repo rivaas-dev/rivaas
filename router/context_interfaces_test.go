@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
@@ -73,54 +87,95 @@ type mockResponseWriter struct {
 	cookies    []http.Cookie
 }
 
-func (m *mockResponseWriter) JSON(code int, _ any) error {
+func (m *mockResponseWriter) JSON(code int, _ any) {
 	m.statusCode = code
 	m.headers["Content-Type"] = "application/json; charset=utf-8"
 	// In real implementation, would marshal obj to JSON
 	m.body = []byte(`{"test":"data"}`)
-	return nil
 }
 
-func (m *mockResponseWriter) IndentedJSON(code int, obj any) error {
-	return m.JSON(code, obj)
+func (m *mockResponseWriter) IndentedJSON(code int, obj any) {
+	m.JSON(code, obj)
 }
 
-func (m *mockResponseWriter) PureJSON(code int, obj any) error {
-	return m.JSON(code, obj)
+func (m *mockResponseWriter) PureJSON(code int, obj any) {
+	m.JSON(code, obj)
 }
 
-func (m *mockResponseWriter) SecureJSON(code int, obj any, _ ...string) error {
-	return m.JSON(code, obj)
+func (m *mockResponseWriter) SecureJSON(code int, obj any, _ ...string) {
+	m.JSON(code, obj)
 }
 
-func (m *mockResponseWriter) ASCIIJSON(code int, obj any) error {
-	return m.JSON(code, obj)
+func (m *mockResponseWriter) ASCIIJSON(code int, obj any) {
+	m.JSON(code, obj)
 }
 
-func (m *mockResponseWriter) String(code int, format string, _ ...any) error {
+func (m *mockResponseWriter) String(code int, format string, _ ...any) {
 	m.statusCode = code
 	m.headers["Content-Type"] = "text/plain"
 	m.body = []byte(format)
-	return nil
 }
 
-func (m *mockResponseWriter) HTML(code int, html string) error {
+func (m *mockResponseWriter) HTML(code int, html string) {
 	m.statusCode = code
 	m.headers["Content-Type"] = "text/html"
 	m.body = []byte(html)
-	return nil
 }
 
-func (m *mockResponseWriter) YAML(code int, _ any) error {
+func (m *mockResponseWriter) YAML(code int, _ any) {
 	m.statusCode = code
 	m.headers["Content-Type"] = "application/x-yaml"
-	return nil
 }
 
-func (m *mockResponseWriter) Data(code int, contentType string, data []byte) error {
+func (m *mockResponseWriter) Data(code int, contentType string, data []byte) {
 	m.statusCode = code
 	m.headers["Content-Type"] = contentType
 	m.body = data
+}
+
+// WriteXxx methods for mock (not used in tests but required by interface)
+func (m *mockResponseWriter) WriteJSON(code int, _ any) error {
+	m.JSON(code, nil)
+	return nil
+}
+
+func (m *mockResponseWriter) WriteIndentedJSON(code int, obj any) error {
+	m.IndentedJSON(code, obj)
+	return nil
+}
+
+func (m *mockResponseWriter) WritePureJSON(code int, obj any) error {
+	m.PureJSON(code, obj)
+	return nil
+}
+
+func (m *mockResponseWriter) WriteSecureJSON(code int, obj any, prefix ...string) error {
+	m.SecureJSON(code, obj, prefix...)
+	return nil
+}
+
+func (m *mockResponseWriter) WriteASCIIJSON(code int, obj any) error {
+	m.ASCIIJSON(code, obj)
+	return nil
+}
+
+func (m *mockResponseWriter) WriteString(code int, format string, values ...any) error {
+	m.String(code, format, values...)
+	return nil
+}
+
+func (m *mockResponseWriter) WriteHTML(code int, html string) error {
+	m.HTML(code, html)
+	return nil
+}
+
+func (m *mockResponseWriter) WriteYAML(code int, obj any) error {
+	m.YAML(code, obj)
+	return nil
+}
+
+func (m *mockResponseWriter) WriteData(code int, contentType string, data []byte) error {
+	m.Data(code, contentType, data)
 	return nil
 }
 
@@ -171,8 +226,8 @@ func processUserRequest(reader ParameterReader) (string, error) {
 
 // Example business logic function that uses ResponseWriter interface.
 // This demonstrates how interfaces enable easier testing.
-func sendUserResponse(writer ResponseWriter, userID string) error {
-	return writer.JSON(http.StatusOK, map[string]string{
+func sendUserResponse(writer ResponseWriter, userID string) {
+	writer.JSON(http.StatusOK, map[string]string{
 		"user_id": userID,
 		"status":  "active",
 	})
@@ -226,8 +281,7 @@ func TestResponseWriterInterface(t *testing.T) {
 	t.Run("with real Context", func(t *testing.T) {
 		r := MustNew()
 		r.GET("/users/:id", func(c *Context) {
-			err := sendUserResponse(c, "789")
-			require.NoError(t, err)
+			sendUserResponse(c, "789")
 		})
 
 		req := httptest.NewRequest("GET", "/users/789", nil)
@@ -244,8 +298,7 @@ func TestResponseWriterInterface(t *testing.T) {
 			headers: make(map[string]string),
 		}
 
-		err := sendUserResponse(mock, "999")
-		require.NoError(t, err)
+		sendUserResponse(mock, "999")
 		assert.Equal(t, http.StatusOK, mock.statusCode)
 		assert.Equal(t, "application/json; charset=utf-8", mock.headers["Content-Type"])
 	})
@@ -268,7 +321,7 @@ func TestContextImplementsInterfaces(t *testing.T) {
 		// Test ResponseWriter interface
 		var writer ResponseWriter = c
 		assert.NotNil(t, writer)
-		assert.NoError(t, writer.String(http.StatusOK, "test"))
+		writer.String(http.StatusOK, "test")
 
 		// Test ContextReader interface
 		var contextReader ContextReader = c
@@ -298,14 +351,14 @@ func readParamsOnly(reader ParameterReader) {
 }
 
 // writeResponseOnly demonstrates a function that only needs to write responses.
-func writeResponseOnly(writer ResponseWriter) error {
-	return writer.JSON(http.StatusOK, map[string]string{"status": "ok"})
+func writeResponseOnly(writer ResponseWriter) {
+	writer.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // processRequestBoth demonstrates a function that needs both reading and writing.
-func processRequestBoth(reader ParameterReader, writer ResponseWriter) error {
+func processRequestBoth(reader ParameterReader, writer ResponseWriter) {
 	userID := reader.Param("id")
-	return writer.JSON(http.StatusOK, map[string]string{"user_id": userID})
+	writer.JSON(http.StatusOK, map[string]string{"user_id": userID})
 }
 
 // TestComposition demonstrates how interfaces enable composition.
@@ -325,11 +378,11 @@ func TestComposition(t *testing.T) {
 
 	// Test with real Context
 	readParamsOnly(c)
-	assert.NoError(t, writeResponseOnly(c))
-	assert.NoError(t, processRequestBoth(c, c))
+	writeResponseOnly(c)
+	processRequestBoth(c, c)
 
 	// Test with mocks
 	readParamsOnly(mockReader)
-	assert.NoError(t, writeResponseOnly(mockWriter))
-	assert.NoError(t, processRequestBoth(mockReader, mockWriter))
+	writeResponseOnly(mockWriter)
+	processRequestBoth(mockReader, mockWriter)
 }

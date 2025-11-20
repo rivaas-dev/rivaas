@@ -48,14 +48,15 @@ func TestPrintRoutes_Output(t *testing.T) {
 	// Capture output
 	var buf bytes.Buffer
 	originalStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 	os.Stdout = w
 
 	// Print routes
 	app.PrintRoutes()
 
 	// Restore stdout
-	w.Close()
+	_ = w.Close() //nolint:errcheck // Test cleanup
 	os.Stdout = originalStdout
 
 	// Read captured output
@@ -127,7 +128,6 @@ func TestGetColorWriter(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app, err := New(

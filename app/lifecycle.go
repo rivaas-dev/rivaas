@@ -167,11 +167,10 @@ func (a *App) executeReadyHooks() {
 	a.hooks.mu.Unlock()
 
 	for _, hook := range hooks {
-		hook := hook // Capture for goroutine
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					a.logLifecycleEvent(slog.LevelError, "OnReady hook panic", "error", r)
+					a.logLifecycleEvent(context.Background(), slog.LevelError, "OnReady hook panic", "error", r)
 				}
 			}()
 			hook()
@@ -203,7 +202,7 @@ func (a *App) executeStopHooks() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					a.logLifecycleEvent(slog.LevelWarn, "OnStop hook panic", "error", r)
+					a.logLifecycleEvent(context.Background(), slog.LevelWarn, "OnStop hook panic", "error", r)
 				}
 			}()
 			hook()

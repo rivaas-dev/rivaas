@@ -31,6 +31,7 @@ func TestProperty_RouteMatchingCommutativity(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping property test in short mode")
 	}
+	t.Parallel()
 
 	// Generate test routes
 	routes := []struct {
@@ -50,6 +51,8 @@ func TestProperty_RouteMatchingCommutativity(t *testing.T) {
 
 	for _, perm := range permutations {
 		t.Run(fmt.Sprintf("permutation_%v", perm), func(t *testing.T) {
+			t.Parallel()
+
 			app := MustNew(
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
@@ -105,6 +108,7 @@ func TestProperty_MiddlewareIdempotency(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping property test in short mode")
 	}
+	t.Parallel()
 
 	app := MustNew(
 		WithServiceName("test"),
@@ -119,7 +123,7 @@ func TestProperty_MiddlewareIdempotency(t *testing.T) {
 	}
 
 	// Add same middleware multiple times
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		app.Use(middleware)
 	}
 
@@ -139,6 +143,8 @@ func TestProperty_MiddlewareIdempotency(t *testing.T) {
 // TestProperty_ConfigurationDefaults tests that default configuration values
 // satisfy all validation constraints (defaults should always be valid).
 func TestProperty_ConfigurationDefaults(t *testing.T) {
+	t.Parallel()
+
 	// Test that default config is always valid
 	cfg := defaultConfig()
 
@@ -159,6 +165,8 @@ func TestProperty_ConfigurationDefaults(t *testing.T) {
 // TestProperty_ErrorMessagesCompleteness tests that all validation errors
 // provide complete information (field, value, message, constraint).
 func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name  string
 		opts  []Option
@@ -171,7 +179,7 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 			},
 			check: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				assert.ErrorAs(t, err, &ve)
 				for _, e := range ve.Errors {
 					assert.NotEmpty(t, e.Field, "error should have field name")
@@ -187,7 +195,7 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 				WithServerConfig(WithReadTimeout(-1 * time.Second)),
 			},
 			check: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				assert.ErrorAs(t, err, &ve)
 				for _, e := range ve.Errors {
 					if e.Field == "server.readTimeout" {
@@ -201,6 +209,8 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := New(tc.opts...)
 			assert.Error(t, err)
 			if tc.check != nil {
@@ -213,6 +223,8 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 // TestProperty_RoutePathEquivalence tests that equivalent route paths
 // (e.g., "/users/:id" and "/users/123") match correctly.
 func TestProperty_RoutePathEquivalence(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -234,6 +246,8 @@ func TestProperty_RoutePathEquivalence(t *testing.T) {
 
 	for _, path := range testPaths {
 		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 			app.Router().ServeHTTP(w, req)
@@ -275,6 +289,8 @@ func generatePermutations(n int) [][]int {
 // TestProperty_ConfigurationComposition tests that configuration options
 // can be composed in any order (commutativity of options).
 func TestProperty_ConfigurationComposition(t *testing.T) {
+	t.Parallel()
+
 	opts1 := []Option{
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),

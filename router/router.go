@@ -1,82 +1,17 @@
-// Package router provides an HTTP router for Go with minimal memory allocations.
+// Copyright 2025 The Rivaas Authors
 //
-// The router implements a radix tree-based routing algorithm optimized for
-// cloud-native applications. It features efficient path matching, zero-allocation
-// parameter extraction, and comprehensive middleware support.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// Architecture:
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
-// The router uses a lock-free, copy-on-write architecture for concurrent
-// route registration and request handling:
-//   - Route tree: Atomic pointer with CAS loops (no global mutex)
-//   - Version trees: Atomic pointer with CAS loops (no global mutex)
-//   - Version cache: sync.Map for lock-free compiled route lookups
-//   - Per-node locks: Fine-grained RWMutex for concurrent tree modifications
-//
-// This design ensures:
-//   - Request handling never blocks on locks (fully lock-free read path)
-//   - Route registration uses optimistic concurrency (minimal contention)
-//   - Linear scalability with CPU cores for read operations
-//
-// Key Features:
-//   - Fast radix tree routing with O(k) path matching where k is path length
-//   - O(1) hash-based lookup for static routes (after compilation)
-//   - Zero-allocation parameter extraction for routes with ≤8 parameters
-//   - Context pooling with specialized pools for different parameter counts
-//   - Route grouping for hierarchical API organization
-//   - Template-based routing for pre-compiled route patterns
-//   - API versioning support (path, header, query, Accept-based)
-//   - OpenTelemetry tracing and metrics integration
-//
-// Performance characteristics:
-//   - Static routes: O(1) lookup after compilation (hash table)
-//   - Parameterized routes: O(k) where k is number of path segments
-//   - Memory: Zero allocations for routes with ≤8 parameters
-//   - Scalability: Lookup time remains constant regardless of route count
-//   - Concurrency: Lock-free read path scales linearly with CPU cores
-//
-// For current performance benchmarks, see router_bench_test.go.
-//
-// Constructor Pattern:
-//
-// The router follows a pragmatic constructor pattern:
-//
-//   - New() returns *Router (no error) because router initialization cannot fail.
-//     The router is a simple data structure that allocates memory and applies options.
-//     There is no network I/O, file system access, or external dependencies during construction.
-//
-//   - Options are validated at application time (e.g., invalid configuration panics on invalid input).
-//     This fail-fast approach is appropriate for configuration errors that should be caught during development.
-//
-//   - All configuration options use the "With" prefix for consistency (e.g., WithH2C, WithLogger).
-//
-//   - Grouping options (e.g., WithServerTimeouts) accept multiple related settings to reduce API surface.
-//
-// This pattern differs from packages that initialize external resources (metrics, tracing, logging),
-// which return errors because they may fail to connect to backends or validate complex configurations.
-//
-// Example usage:
-//
-//	package main
-//
-//	import (
-//	    "net/http"
-//	    "rivaas.dev/router"
-//	)
-//
-//	func main() {
-//	    r := router.MustNew()
-//
-//	    r.GET("/", func(c *router.Context) {
-//	        c.JSON(http.StatusOK, map[string]string{"message": "Hello World"})
-//	    })
-//
-//	    r.GET("/users/:id", func(c *router.Context) {
-//	        c.JSON(http.StatusOK, map[string]string{"user_id": c.Param("id")})
-//	    })
-//
-//	    http.ListenAndServe(":8080", r)
-//	}
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
@@ -97,10 +32,6 @@ import (
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
-
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // noopLogger is a singleton no-op logger used when no observability is configured.
@@ -373,10 +304,11 @@ func (r *Router) validate() error {
 	}
 
 	// Validate versioning configuration if present
+	// Note: Versioning validation is handled internally by the versioning system
+	// We just verify it exists and was properly initialized
+	// VersioningConfig validates itself during construction
 	if r.versioning != nil {
-		// Note: Versioning validation is handled internally by the versioning system
-		// We just verify it exists and was properly initialized
-		// VersioningConfig validates itself during construction
+		_ = r.versioning // Verify it exists
 	}
 
 	return nil
@@ -510,159 +442,6 @@ func (r *Router) getAllowedMethodsForPath(path string) []string {
 	}
 
 	return allowed
-}
-
-// extractClientIP extracts the real client IP from request, respecting trusted proxy headers.
-// Only trusts proxy headers when the immediate peer (RemoteAddr) is in the configured trusted proxy CIDR list.
-// This prevents IP spoofing attacks by untrusted clients.
-func extractClientIP(req *http.Request, router *Router) string {
-	// Extract peer IP from RemoteAddr
-	remote := clientIPFromRemoteAddr(req.RemoteAddr)
-
-	// Fast path: no router or no proxy config → return peer IP (ignore headers)
-	if router == nil || router.realip == nil {
-		return remote
-	}
-
-	cfg := router.realip
-
-	// Security: peer must be trusted to consult headers
-	// This prevents attackers from spoofing their IP by sending forged headers
-	if !cfg.isTrusted(remote) {
-		return remote
-	}
-
-	// Peer is trusted → consult headers in order of preference
-	for _, h := range cfg.headers {
-		switch h {
-		case HeaderXFF:
-			if ip := lastUntrustedXFF(req.Header.Get("X-Forwarded-For"), cfg); ip != "" {
-				// Report suspicious long chains
-				xff := req.Header.Get("X-Forwarded-For")
-				if strings.Count(xff, ",") > 10 {
-					router.emit(DiagXFFSuspicious, "suspicious X-Forwarded-For chain detected", map[string]any{
-						"remote":    remote,
-						"xff_count": strings.Count(xff, ",") + 1,
-						"xff":       xff,
-					})
-				}
-				return ip
-			}
-		case HeaderXRealIP:
-			if ip := parseOneIP(req.Header.Get("X-Real-IP")); ip != "" {
-				return ip
-			}
-		case HeaderCFConnecting:
-			if ip := parseOneIP(req.Header.Get("Cf-Connecting-Ip")); ip != "" {
-				return ip
-			}
-		default:
-			// Support custom header names (e.g., Fastly-Client-IP, True-Client-IP, etc.)
-			// RealIPHeader is a string type, so any header name can be used
-			if ip := parseOneIP(req.Header.Get(string(h))); ip != "" {
-				return ip
-			}
-		}
-	}
-
-	// No trusted header found → return peer IP
-	return remote
-}
-
-// detectScheme determines http vs https, respecting trusted proxy headers.
-// Only trusts X-Forwarded-Proto when the immediate peer is in the configured trusted proxy CIDR list.
-// This prevents protocol spoofing attacks by untrusted clients.
-func detectScheme(req *http.Request, router *Router) string {
-	// Direct TLS connection (most reliable indicator)
-	if req.TLS != nil {
-		return "https"
-	}
-
-	// Fast path: no router or no proxy config → default to http
-	if router == nil || router.realip == nil {
-		return "http"
-	}
-
-	// Extract peer IP from RemoteAddr
-	remote := clientIPFromRemoteAddr(req.RemoteAddr)
-
-	// Security: peer must be trusted to consult X-Forwarded-Proto
-	if !router.realip.isTrusted(remote) {
-		return "http"
-	}
-
-	// Peer is trusted → honor X-Forwarded-Proto header
-	if proto := req.Header.Get("X-Forwarded-Proto"); proto != "" {
-		// Normalize to lowercase for consistency
-		proto = strings.ToLower(proto)
-		if proto == "https" || proto == "http" {
-			return proto
-		}
-		// Invalid value → report and default to http
-		router.emit(DiagInvalidProto, "invalid X-Forwarded-Proto value", map[string]any{
-			"remote": remote,
-			"proto":  proto,
-		})
-	}
-
-	// TODO: Parse RFC 7239 Forwarded header in future:
-	// Forwarded: for=192.0.2.60;proto=https;by=203.0.113.43
-	// This would require parsing the Forwarded header format
-
-	return "http"
-}
-
-// setStandardSpanAttributes uses OpenTelemetry semantic conventions.
-func setStandardSpanAttributes(span trace.Span, req *http.Request, routeTemplate string, router *Router) {
-	if span == nil {
-		return
-	}
-
-	// Detect scheme (req.URL.Scheme is empty server-side)
-	scheme := detectScheme(req, router)
-
-	// Use semconv constants (fewer typos, future-safe)
-	attrs := []attribute.KeyValue{
-		attribute.String("http.request.method", req.Method),
-		attribute.String("http.route", routeTemplate),           // /users/:id or _unmatched
-		attribute.String("url.path", req.URL.Path),              // /users/123
-		attribute.String("url.scheme", scheme),                  // http or https
-		attribute.String("network.protocol.version", req.Proto), // HTTP/1.1, HTTP/2
-		attribute.String("user_agent.original", req.UserAgent()),
-	}
-
-	// Client address (respects trusted proxy configuration)
-	if clientIP := extractClientIP(req, router); clientIP != "" {
-		attrs = append(attrs, attribute.String("client.address", clientIP))
-	}
-
-	// Server details
-	if req.Host != "" {
-		attrs = append(attrs, attribute.String("server.address", req.Host))
-	}
-
-	span.SetAttributes(attrs...)
-}
-
-// finalizeSpanAttributes adds response attributes before span ends.
-func finalizeSpanAttributes(span trace.Span, statusCode int, responseSize int64) {
-	if span == nil {
-		return
-	}
-
-	span.SetAttributes(
-		attribute.Int("http.response.status_code", statusCode),
-		attribute.Int64("http.response.body.size", responseSize),
-	)
-
-	// Set span status based on HTTP status
-	// 4xx = client errors (not span errors)
-	// 5xx = server errors (span errors)
-	if statusCode >= 500 {
-		span.SetStatus(codes.Error, http.StatusText(statusCode))
-	} else {
-		span.SetStatus(codes.Ok, "")
-	}
 }
 
 // handleMethodNotAllowed handles requests where the path matches but the method doesn't.

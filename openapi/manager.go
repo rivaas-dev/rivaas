@@ -17,6 +17,7 @@ package openapi
 import (
 	"crypto/sha256"
 	"fmt"
+	"maps"
 	"reflect"
 	"sync"
 
@@ -75,9 +76,7 @@ func NewManager(cfg *Config) *Manager {
 	}
 	if len(cfg.Info.Extensions) > 0 {
 		info.Extensions = make(map[string]any, len(cfg.Info.Extensions))
-		for k, v := range cfg.Info.Extensions {
-			info.Extensions[k] = v
-		}
+		maps.Copy(info.Extensions, cfg.Info.Extensions)
 	}
 	if cfg.Info.Contact != nil {
 		info.Contact = &model.Contact{
@@ -87,9 +86,7 @@ func NewManager(cfg *Config) *Manager {
 		}
 		if len(cfg.Info.Contact.Extensions) > 0 {
 			info.Contact.Extensions = make(map[string]any, len(cfg.Info.Contact.Extensions))
-			for k, v := range cfg.Info.Contact.Extensions {
-				info.Contact.Extensions[k] = v
-			}
+			maps.Copy(info.Contact.Extensions, cfg.Info.Contact.Extensions)
 		}
 	}
 	if cfg.Info.License != nil {
@@ -100,9 +97,7 @@ func NewManager(cfg *Config) *Manager {
 		}
 		if len(cfg.Info.License.Extensions) > 0 {
 			info.License.Extensions = make(map[string]any, len(cfg.Info.License.Extensions))
-			for k, v := range cfg.Info.License.Extensions {
-				info.License.Extensions[k] = v
-			}
+			maps.Copy(info.License.Extensions, cfg.Info.License.Extensions)
 		}
 	}
 
@@ -116,9 +111,7 @@ func NewManager(cfg *Config) *Manager {
 		}
 		if len(cfg.ExternalDocs.Extensions) > 0 {
 			extDocs.Extensions = make(map[string]any, len(cfg.ExternalDocs.Extensions))
-			for k, v := range cfg.ExternalDocs.Extensions {
-				extDocs.Extensions[k] = v
-			}
+			maps.Copy(extDocs.Extensions, cfg.ExternalDocs.Extensions)
 		}
 		b.SetExternalDocs(extDocs)
 	}
@@ -135,9 +128,7 @@ func NewManager(cfg *Config) *Manager {
 				}
 				if len(v.Extensions) > 0 {
 					sv.Extensions = make(map[string]any, len(v.Extensions))
-					for k, val := range v.Extensions {
-						sv.Extensions[k] = val
-					}
+					maps.Copy(sv.Extensions, v.Extensions)
 				}
 				b.AddServerVariable(name, sv)
 			}
@@ -152,9 +143,7 @@ func NewManager(cfg *Config) *Manager {
 			}
 			if len(t.ExternalDocs.Extensions) > 0 {
 				extDocs.Extensions = make(map[string]any, len(t.ExternalDocs.Extensions))
-				for k, v := range t.ExternalDocs.Extensions {
-					extDocs.Extensions[k] = v
-				}
+				maps.Copy(extDocs.Extensions, t.ExternalDocs.Extensions)
 			}
 			b.AddTagWithExternalDocs(t.Name, t.Description, extDocs, t.Extensions)
 		} else {
@@ -265,7 +254,7 @@ func (m *Manager) Register(method, path string) *RouteWrapper {
 //
 // The route parameter should be a *router.Route. We use an interface to avoid
 // circular dependencies between openapi and router packages.
-func (m *Manager) OnRouteAdded(route interface{}) *RouteWrapper {
+func (m *Manager) OnRouteAdded(route any) *RouteWrapper {
 	if m == nil {
 		return nil
 	}
@@ -394,9 +383,7 @@ func (m *Manager) GenerateSpec() ([]byte, string, error) {
 	// Copy extensions from Config to model Spec
 	if len(m.cfg.Extensions) > 0 {
 		spec.Extensions = make(map[string]any, len(m.cfg.Extensions))
-		for k, v := range m.cfg.Extensions {
-			spec.Extensions[k] = v
-		}
+		maps.Copy(spec.Extensions, m.cfg.Extensions)
 	}
 
 	// Project to target version

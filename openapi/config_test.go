@@ -22,6 +22,8 @@ import (
 )
 
 func TestConfig_Validation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		options   []Option
@@ -107,6 +109,7 @@ func TestConfig_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg, err := New(tt.options...)
 
 			if tt.wantError != "" {
@@ -123,6 +126,8 @@ func TestConfig_Validation(t *testing.T) {
 }
 
 func TestConfig_Defaults(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 	)
@@ -135,6 +140,8 @@ func TestConfig_Defaults(t *testing.T) {
 }
 
 func TestConfig_WithVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		version  string
@@ -146,6 +153,7 @@ func TestConfig_WithVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := MustNew(
 				WithTitle("Test API", "1.0.0"),
 				WithVersion(tt.version),
@@ -157,6 +165,8 @@ func TestConfig_WithVersion(t *testing.T) {
 }
 
 func TestConfig_WithStrictDownlevel(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithStrictDownlevel(true),
@@ -166,6 +176,8 @@ func TestConfig_WithStrictDownlevel(t *testing.T) {
 }
 
 func TestConfig_WithSwaggerUI(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		enabled      bool
@@ -180,6 +192,7 @@ func TestConfig_WithSwaggerUI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := MustNew(
 				WithTitle("Test API", "1.0.0"),
 				WithSwaggerUI(tt.enabled, tt.path...),
@@ -192,6 +205,8 @@ func TestConfig_WithSwaggerUI(t *testing.T) {
 }
 
 func TestConfig_WithServers(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithServer("https://api.example.com", "Production"),
@@ -206,6 +221,8 @@ func TestConfig_WithServers(t *testing.T) {
 }
 
 func TestConfig_WithTags(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithTag("users", "User management operations"),
@@ -220,6 +237,8 @@ func TestConfig_WithTags(t *testing.T) {
 }
 
 func TestConfig_WithSecuritySchemes(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithBearerAuth("bearerAuth", "JWT authentication"),
@@ -242,6 +261,8 @@ func TestConfig_WithSecuritySchemes(t *testing.T) {
 }
 
 func TestConfig_WithDefaultSecurity(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithDefaultSecurity("bearerAuth"),
@@ -262,6 +283,8 @@ func TestConfig_WithDefaultSecurity(t *testing.T) {
 }
 
 func TestConfig_InvalidVersion(t *testing.T) {
+	t.Parallel()
+
 	// Invalid versions should still be accepted (validation happens at export time)
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
@@ -272,6 +295,8 @@ func TestConfig_InvalidVersion(t *testing.T) {
 }
 
 func TestConfig_EmptyTitle(t *testing.T) {
+	t.Parallel()
+
 	// Empty title should fail validation
 	_, err := New(
 		WithTitle("", "1.0.0"),
@@ -282,6 +307,8 @@ func TestConfig_EmptyTitle(t *testing.T) {
 }
 
 func TestConfig_EmptyVersion(t *testing.T) {
+	t.Parallel()
+
 	// Empty version should fail validation
 	_, err := New(
 		WithTitle("Test API", ""),
@@ -292,6 +319,8 @@ func TestConfig_EmptyVersion(t *testing.T) {
 }
 
 func TestConfig_MultipleServers(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithServer("https://api1.example.com", "Server 1"),
@@ -306,6 +335,8 @@ func TestConfig_MultipleServers(t *testing.T) {
 }
 
 func TestConfig_DuplicateSecuritySchemes(t *testing.T) {
+	t.Parallel()
+
 	// Adding the same security scheme twice should overwrite
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
@@ -320,6 +351,8 @@ func TestConfig_DuplicateSecuritySchemes(t *testing.T) {
 }
 
 func TestConfig_EmptyServerURL(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithServer("", "Empty URL"),
@@ -330,6 +363,8 @@ func TestConfig_EmptyServerURL(t *testing.T) {
 }
 
 func TestConfig_MustNewPanic(t *testing.T) {
+	t.Parallel()
+
 	// MustNew should panic on error, but New should return error
 	// Since we don't have validation errors currently, this test verifies MustNew doesn't panic on valid config
 	assert.NotPanics(t, func() {
@@ -338,6 +373,8 @@ func TestConfig_MustNewPanic(t *testing.T) {
 }
 
 func TestConfig_AllOptions(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithDescription("A comprehensive test"),
@@ -371,6 +408,7 @@ func TestConfig_AllOptions(t *testing.T) {
 }
 
 func TestConfig_WithExtension(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
 		name    string
@@ -412,6 +450,7 @@ func TestConfig_WithExtension(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := MustNew(
 				WithTitle("Test API", "1.0.0"),
 				WithExtension(tt.key, tt.value),
@@ -426,6 +465,7 @@ func TestConfig_WithExtension(t *testing.T) {
 
 	// Test multiple extensions
 	t.Run("multiple extensions", func(t *testing.T) {
+		t.Parallel()
 		cfg := MustNew(
 			WithTitle("Test API", "1.0.0"),
 			WithExtension("x-field1", "value1"),
@@ -440,6 +480,8 @@ func TestConfig_WithExtension(t *testing.T) {
 }
 
 func TestConfig_ExtensionValidation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		options   []Option
@@ -493,6 +535,7 @@ func TestConfig_ExtensionValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg, err := New(tt.options...)
 
 			if tt.wantError != "" {
@@ -507,6 +550,8 @@ func TestConfig_ExtensionValidation(t *testing.T) {
 }
 
 func TestConfig_WithSummary(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithSummary("A brief summary"),
@@ -516,6 +561,8 @@ func TestConfig_WithSummary(t *testing.T) {
 }
 
 func TestConfig_WithTermsOfService(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithTermsOfService("https://example.com/terms"),
@@ -525,6 +572,8 @@ func TestConfig_WithTermsOfService(t *testing.T) {
 }
 
 func TestConfig_WithExternalDocs(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithExternalDocs("https://example.com/docs", "API Documentation"),
@@ -536,6 +585,8 @@ func TestConfig_WithExternalDocs(t *testing.T) {
 }
 
 func TestConfig_WithLicenseIdentifier(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithLicenseIdentifier("MIT License", "MIT"),
@@ -548,6 +599,8 @@ func TestConfig_WithLicenseIdentifier(t *testing.T) {
 }
 
 func TestConfig_WithServerVariable(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithServer("https://{host}.example.com", "Server with variable"),
@@ -564,6 +617,8 @@ func TestConfig_WithServerVariable(t *testing.T) {
 }
 
 func TestConfig_WithOAuth2(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithOAuth2("oauth2", "OAuth2 authentication",
@@ -591,6 +646,8 @@ func TestConfig_WithOAuth2(t *testing.T) {
 }
 
 func TestConfig_WithOpenIDConnect(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithOpenIDConnect("openId", "https://example.com/.well-known/openid-configuration", "OpenID Connect"),

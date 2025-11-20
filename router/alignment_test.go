@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
@@ -177,7 +191,7 @@ func TestAtomicOperationsSafety(t *testing.T) {
 
 		// Register a route (triggers atomic operations)
 		r.GET("/test", func(c *Context) {
-			_ = c.String(http.StatusOK, "OK")
+			c.String(http.StatusOK, "OK")
 		})
 
 		// The fact that this doesn't panic means alignment is correct
@@ -192,7 +206,7 @@ func TestAtomicOperationsSafety(t *testing.T) {
 		// Register a versioned route
 		v1 := r.Version("v1")
 		v1.GET("/test", func(c *Context) {
-			_ = c.String(http.StatusOK, "OK")
+			c.String(http.StatusOK, "OK")
 		})
 
 		// The fact that this doesn't panic means alignment is correct

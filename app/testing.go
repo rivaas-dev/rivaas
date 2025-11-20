@@ -30,7 +30,7 @@ type TestOption func(*testConfig)
 
 type testConfig struct {
 	timeout time.Duration
-	ctx     context.Context
+	ctx     context.Context //nolint:containedctx // Intentional: test configuration struct
 }
 
 // WithTimeout sets the test request timeout.
@@ -102,10 +102,8 @@ func (a *App) Test(req *http.Request, opts ...TestOption) (*http.Response, error
 	done := make(chan struct{})
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
-				// Panic is captured by the recorder's response
-				// The test framework will handle it appropriately
-			}
+			_ = recover() // Panic is captured by the recorder's response
+			// The test framework will handle it appropriately
 			close(done)
 		}()
 		a.router.ServeHTTP(recorder, req)
@@ -175,5 +173,5 @@ func ExpectJSON(t testingT, resp *http.Response, statusCode int, out any) {
 
 // testingT is a minimal interface for testing.T to allow use with other test frameworks.
 type testingT interface {
-	Errorf(format string, args ...interface{})
+	Errorf(format string, args ...any)
 }

@@ -61,7 +61,7 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	var styledArt strings.Builder
 	for _, line := range asciiLines {
 		if strings.TrimSpace(line) == "" {
-			styledArt.WriteString("\n")
+			_, _ = styledArt.WriteString("\n") //nolint:errcheck // strings.Builder.WriteString rarely fails
 			continue
 		}
 		for i, char := range line {
@@ -70,9 +70,9 @@ func (a *App) printStartupBanner(addr, protocol string) {
 			style := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(color)).
 				Bold(true)
-			styledArt.WriteString(style.Render(string(char)))
+			_, _ = styledArt.WriteString(style.Render(string(char))) //nolint:errcheck // strings.Builder.WriteString rarely fails
 		}
-		styledArt.WriteString("\n")
+		_, _ = styledArt.WriteString("\n") //nolint:errcheck // strings.Builder.WriteString rarely fails
 	}
 
 	// Create a compact info box with vertical layout
@@ -145,22 +145,22 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	// Create compact info box
 	infoContent := strings.Join(infoLines, "\n")
 
-	fmt.Fprintln(w)
-	fmt.Fprint(w, styledArt.String())
-	fmt.Fprintln(w)
-	fmt.Fprint(w, infoContent)
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)                   //nolint:errcheck // Display output, errors are non-critical
+	_, _ = fmt.Fprint(w, styledArt.String()) //nolint:errcheck // Display output, errors are non-critical
+	_, _ = fmt.Fprintln(w)                   //nolint:errcheck // Display output, errors are non-critical
+	_, _ = fmt.Fprint(w, infoContent)        //nolint:errcheck // Display output, errors are non-critical
+	_, _ = fmt.Fprintln(w)                   //nolint:errcheck // Display output, errors are non-critical
 
 	// Add routes section (only in development mode)
 	if a.config.environment == EnvironmentDevelopment {
 		routes := a.router.Routes()
 		if len(routes) > 0 {
-			fmt.Fprintln(w)
+			_, _ = fmt.Fprintln(w) //nolint:errcheck // Display output, errors are non-critical
 			a.renderRoutesTable(w, 80)
 		}
 	}
 
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w) //nolint:errcheck // Display output, errors are non-critical
 }
 
 // renderRoutesTable renders the routes table to the given writer.
@@ -268,16 +268,11 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 	// - Use calculated minimum if it's larger than provided width
 	// - But don't exceed terminal width
 	// - Ensure minimum of 60 characters
-	tableWidth := minWidth
-	if width > tableWidth {
-		tableWidth = width
+	tableWidth := max(minWidth, width)
+	if terminalWidth > 0 {
+		tableWidth = min(tableWidth, terminalWidth)
 	}
-	if terminalWidth > 0 && tableWidth > terminalWidth {
-		tableWidth = terminalWidth
-	}
-	if tableWidth < 60 {
-		tableWidth = 60
-	}
+	tableWidth = max(60, tableWidth)
 
 	// Create table with lipgloss/table
 	t := table.New().
@@ -307,7 +302,7 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 		Width(tableWidth)
 
 	// Write to writer
-	fmt.Fprintln(w, t.Render())
+	_, _ = fmt.Fprintln(w, t.Render()) //nolint:errcheck // Display output, errors are non-critical
 }
 
 // getTerminalSize attempts to get the terminal size using the golang.org/x/term package.
@@ -360,7 +355,7 @@ func getTerminalSize(file *os.File) (int, int, error) {
 func (a *App) PrintRoutes() {
 	routes := a.router.Routes()
 	if len(routes) == 0 {
-		fmt.Println("No routes registered")
+		_, _ = fmt.Println("No routes registered") //nolint:errcheck // Display output, errors are non-critical
 		return
 	}
 

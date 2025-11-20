@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 // This file contains advanced response helper methods for the Context type.
@@ -202,7 +216,17 @@ func (c *Context) SendStatus(code int) error {
 //
 //	c.JSONP(http.StatusOK, data)              // callback({"key": "value"})
 //	c.JSONP(http.StatusOK, data, "myFunc")    // myFunc({"key": "value"})
-func (c *Context) JSONP(code int, obj any, callback ...string) error {
+//
+// JSONP sends a JSONP response with the specified status code.
+// If encoding or writing fails, the error is collected via Error().
+func (c *Context) JSONP(code int, obj any, callback ...string) {
+	if err := c.WriteJSONP(code, obj, callback...); err != nil {
+		c.Error(err)
+	}
+}
+
+// WriteJSONP writes a JSONP response and returns any error.
+func (c *Context) WriteJSONP(code int, obj any, callback ...string) error {
 	// Determine callback name
 	callbackName := "callback"
 	if len(callback) > 0 && callback[0] != "" {
@@ -241,12 +265,12 @@ func (c *Context) Format(code int, data any) error {
 
 	switch format {
 	case "json":
-		return c.JSON(code, data)
+		return c.WriteJSON(code, data)
 
 	case "html":
 		// Try to convert to HTML
 		html := fmt.Sprintf("<p>%v</p>", data)
-		return c.HTML(code, html)
+		return c.WriteHTML(code, html)
 
 	case "xml":
 		// Simple XML formatting
@@ -258,11 +282,11 @@ func (c *Context) Format(code int, data any) error {
 
 	case "txt", "":
 		// Plain text fallback
-		return c.String(code, "%v", data)
+		return c.WriteString(code, "%v", data)
 
 	default:
 		// Default to JSON
-		return c.JSON(code, data)
+		return c.WriteJSON(code, data)
 	}
 }
 
@@ -277,13 +301,16 @@ func (c *Context) Write(data []byte) (int, error) {
 	return c.Response.Write(data)
 }
 
-// WriteString writes a string to the response body.
+// WriteStringBody writes a string directly to the response body.
 // More efficient than Write([]byte(str)) as it avoids the byte slice allocation.
+// This is for low-level writing after headers are already set.
+//
+// For sending HTTP responses with status codes, use String() or WriteString() instead.
 //
 // Example:
 //
-//	c.WriteString("Hello, World!")
-//	c.WriteString(fmt.Sprintf("Count: %d", count))
-func (c *Context) WriteString(str string) (int, error) {
+//	c.WriteStringBody("Hello, World!")
+//	c.WriteStringBody(fmt.Sprintf("Count: %d", count))
+func (c *Context) WriteStringBody(str string) (int, error) {
 	return io.WriteString(c.Response, str)
 }

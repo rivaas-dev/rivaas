@@ -36,7 +36,10 @@ func BenchmarkNew(b *testing.B) {
 }
 
 func BenchmarkTestJSON(b *testing.B) {
-	app, _ := New()
+	app, err := New()
+	if err != nil {
+		b.Fatal(err)
+	}
 	app.GET("/test", func(c *Context) {
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -51,13 +54,16 @@ func BenchmarkTestJSON(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck // Benchmark cleanup
 	}
 }
 
 func BenchmarkHealthCheckConcurrent(b *testing.B) {
-	app, _ := New()
-	_ = app.WithStandardEndpoints(StandardEndpointsOpts{
+	app, err := New()
+	if err != nil {
+		b.Fatal(err)
+	}
+	_ = app.WithStandardEndpoints(StandardEndpointsOpts{ //nolint:errcheck // Benchmark setup
 		Readiness: map[string]CheckFunc{
 			"always_ready": func(ctx context.Context) error {
 				return nil
@@ -73,13 +79,16 @@ func BenchmarkHealthCheckConcurrent(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close() //nolint:errcheck // Benchmark cleanup
 		}
 	})
 }
 
 func BenchmarkRouteRegistration(b *testing.B) {
-	app, _ := New()
+	app, err := New()
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -92,7 +101,10 @@ func BenchmarkRouteRegistration(b *testing.B) {
 }
 
 func BenchmarkRequestHandling(b *testing.B) {
-	app, _ := New()
+	app, err := New()
+	if err != nil {
+		b.Fatal(err)
+	}
 	app.GET("/test", func(c *Context) {
 		c.String(http.StatusOK, "ok")
 	})
@@ -107,12 +119,15 @@ func BenchmarkRequestHandling(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck // Benchmark cleanup
 	}
 }
 
 func BenchmarkMiddlewareChain(b *testing.B) {
-	app, _ := New()
+	app, err := New()
+	if err != nil {
+		b.Fatal(err)
+	}
 	app.Use(func(c *Context) {
 		c.Next()
 	})
@@ -133,6 +148,6 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck // Benchmark cleanup
 	}
 }

@@ -16,6 +16,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -61,15 +62,15 @@ func (e *ConfigError) Unwrap() error {
 	return nil
 }
 
-// ValidationErrors represents multiple configuration validation errors.
+// ValidationError represents multiple configuration validation errors.
 // This allows collecting all validation errors before returning them.
-type ValidationErrors struct {
+type ValidationError struct {
 	Errors []*ConfigError
 }
 
 // Error implements the error interface and returns a formatted error message
 // listing all validation errors.
-func (ve *ValidationErrors) Error() string {
+func (ve *ValidationError) Error() string {
 	if len(ve.Errors) == 0 {
 		return "validation errors: (no errors)"
 	}
@@ -77,26 +78,27 @@ func (ve *ValidationErrors) Error() string {
 		return ve.Errors[0].Error()
 	}
 
-	msg := fmt.Sprintf("validation errors (%d):", len(ve.Errors))
+	var msg strings.Builder
+	msg.WriteString(fmt.Sprintf("validation errors (%d):", len(ve.Errors)))
 	for i, err := range ve.Errors {
-		msg += fmt.Sprintf("\n  %d. %s", i+1, err.Error())
+		msg.WriteString(fmt.Sprintf("\n  %d. %s", i+1, err.Error()))
 	}
-	return msg
+	return msg.String()
 }
 
-// Add appends a new ConfigError to the ValidationErrors.
-func (ve *ValidationErrors) Add(err *ConfigError) {
+// Add appends a new ConfigError to the ValidationError.
+func (ve *ValidationError) Add(err *ConfigError) {
 	ve.Errors = append(ve.Errors, err)
 }
 
 // HasErrors returns true if there are any validation errors.
-func (ve *ValidationErrors) HasErrors() bool {
+func (ve *ValidationError) HasErrors() bool {
 	return len(ve.Errors) > 0
 }
 
-// ToError returns nil if there are no errors, otherwise returns the ValidationErrors
+// ToError returns nil if there are no errors, otherwise returns the ValidationError
 // as an error. This is useful for returning from validation functions.
-func (ve *ValidationErrors) ToError() error {
+func (ve *ValidationError) ToError() error {
 	if !ve.HasErrors() {
 		return nil
 	}

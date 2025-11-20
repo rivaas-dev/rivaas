@@ -23,7 +23,10 @@ import (
 )
 
 func TestManager_Extensions_Integration(t *testing.T) {
+	t.Parallel()
+
 	t.Run("root-level extensions", func(t *testing.T) {
+		t.Parallel()
 		cfg := MustNew(
 			WithTitle("Test API", "1.0.0"),
 			WithExtension("x-api-id", "api-123"),
@@ -47,6 +50,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 	})
 
 	t.Run("info extensions", func(t *testing.T) {
+		t.Parallel()
 		cfg := MustNew(
 			WithTitle("Test API", "1.0.0"),
 			WithInfoExtension("x-api-category", "public"),
@@ -66,6 +70,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 	})
 
 	t.Run("server extensions", func(t *testing.T) {
+		t.Parallel()
 		cfg := MustNew(
 			WithTitle("Test API", "1.0.0"),
 			WithServer("https://api.example.com", "Production"),
@@ -92,6 +97,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 	})
 
 	t.Run("tag extensions", func(t *testing.T) {
+		t.Parallel()
 		cfg := MustNew(
 			WithTitle("Test API", "1.0.0"),
 			WithTag("users", "User operations"),
@@ -118,6 +124,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 	})
 
 	t.Run("contact extensions", func(t *testing.T) {
+		t.Parallel()
 		cfg := MustNew(
 			WithTitle("Test API", "1.0.0"),
 			WithContact("Support", "https://example.com", "support@example.com"),
@@ -143,6 +150,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 	})
 
 	t.Run("license extensions", func(t *testing.T) {
+		t.Parallel()
 		cfg := MustNew(
 			WithTitle("Test API", "1.0.0"),
 			WithLicense("MIT", "https://opensource.org/licenses/MIT"),
@@ -169,6 +177,8 @@ func TestManager_Extensions_Integration(t *testing.T) {
 }
 
 func TestManager_Extensions_WithVersion31(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithVersion(Version31),
@@ -190,6 +200,8 @@ func TestManager_Extensions_WithVersion31(t *testing.T) {
 }
 
 func TestManager_Extensions_ReservedPrefixes_Rejected(t *testing.T) {
+	t.Parallel()
+
 	// This should fail validation
 	_, err := New(
 		WithTitle("Test API", "1.0.0"),

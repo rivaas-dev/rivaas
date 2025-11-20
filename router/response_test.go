@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
@@ -7,23 +21,30 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Test AppendHeader
 func TestAppendHeader(t *testing.T) {
+	t.Parallel()
+
 	t.Run("append to new header", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		c.AppendHeader("X-Custom", "value1")
 
-		if w.Header().Get("X-Custom") != "value1" {
-			t.Errorf("X-Custom = %v, want value1", w.Header().Get("X-Custom"))
-		}
+		assert.Equal(t, "value1", w.Header().Get("X-Custom"))
 	})
 
 	t.Run("append to existing header", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -32,14 +53,15 @@ func TestAppendHeader(t *testing.T) {
 		c.AppendHeader("Link", "</page2>; rel=\"next\"")
 
 		link := w.Header().Get("Link")
-		if !strings.Contains(link, "page1") || !strings.Contains(link, "page2") {
-			t.Errorf("Link header should contain both values: %v", link)
-		}
+		assert.Contains(t, link, "page1")
+		assert.Contains(t, link, "page2")
 	})
 }
 
 // Test ContentType
 func TestContentType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -56,6 +78,8 @@ func TestContentType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
 			c := NewContext(w, req)
@@ -63,41 +87,43 @@ func TestContentType(t *testing.T) {
 			c.ContentType(tt.input)
 
 			ct := w.Header().Get("Content-Type")
-			if !strings.Contains(ct, tt.expected) {
-				t.Errorf("Content-Type = %v, want %v", ct, tt.expected)
-			}
+			assert.Contains(t, ct, tt.expected)
 		})
 	}
 }
 
 // Test Location
 func TestLocation(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 	c := NewContext(w, req)
 
 	c.Location("/new-path")
 
-	if w.Header().Get("Location") != "/new-path" {
-		t.Errorf("Location = %v, want /new-path", w.Header().Get("Location"))
-	}
+	assert.Equal(t, "/new-path", w.Header().Get("Location"))
 }
 
 // Test Vary
 func TestVary(t *testing.T) {
+	t.Parallel()
+
 	t.Run("single field", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		c.Vary("Accept-Encoding")
 
-		if w.Header().Get("Vary") != "Accept-Encoding" {
-			t.Errorf("Vary = %v", w.Header().Get("Vary"))
-		}
+		assert.Equal(t, "Accept-Encoding", w.Header().Get("Vary"))
 	})
 
 	t.Run("multiple fields", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -105,12 +131,13 @@ func TestVary(t *testing.T) {
 		c.Vary("Accept-Encoding", "Accept-Language")
 
 		vary := w.Header().Get("Vary")
-		if !strings.Contains(vary, "Accept-Encoding") || !strings.Contains(vary, "Accept-Language") {
-			t.Errorf("Vary = %v", vary)
-		}
+		assert.Contains(t, vary, "Accept-Encoding")
+		assert.Contains(t, vary, "Accept-Language")
 	})
 
 	t.Run("append to existing", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -119,12 +146,13 @@ func TestVary(t *testing.T) {
 		c.Vary("Accept-Encoding")
 
 		vary := w.Header().Get("Vary")
-		if !strings.Contains(vary, "Accept,") || !strings.Contains(vary, "Accept-Encoding") {
-			t.Errorf("Vary = %v", vary)
-		}
+		assert.Contains(t, vary, "Accept,")
+		assert.Contains(t, vary, "Accept-Encoding")
 	})
 
 	t.Run("no duplicates", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -135,15 +163,17 @@ func TestVary(t *testing.T) {
 		vary := w.Header().Get("Vary")
 		// Should only appear once
 		count := strings.Count(vary, "Accept")
-		if count > 1 {
-			t.Errorf("Accept appears %d times in Vary header, should be 1", count)
-		}
+		assert.LessOrEqual(t, count, 1, "Accept should appear at most once in Vary header")
 	})
 }
 
 // Test Link
 func TestLink(t *testing.T) {
+	t.Parallel()
+
 	t.Run("single link", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -151,12 +181,13 @@ func TestLink(t *testing.T) {
 		c.Link("/api/users?page=2", "next")
 
 		link := w.Header().Get("Link")
-		if !strings.Contains(link, "</api/users?page=2>") || !strings.Contains(link, `rel="next"`) {
-			t.Errorf("Link = %v", link)
-		}
+		assert.Contains(t, link, "</api/users?page=2>")
+		assert.Contains(t, link, `rel="next"`)
 	})
 
 	t.Run("multiple links", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -165,295 +196,262 @@ func TestLink(t *testing.T) {
 		c.Link("/api/users?page=10", "last")
 
 		link := w.Header().Get("Link")
-		if !strings.Contains(link, "page=2") || !strings.Contains(link, "page=10") {
-			t.Errorf("Link header should contain both links: %v", link)
-		}
+		assert.Contains(t, link, "page=2")
+		assert.Contains(t, link, "page=10")
 	})
 }
 
 // Test Download
 func TestDownload(t *testing.T) {
+	t.Parallel()
+
 	// Create a temporary test file
 	tmpfile, err := os.CreateTemp("", "test-download-*.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer func() {
 		_ = os.Remove(tmpfile.Name())
 	}()
 
 	content := []byte("test file content")
-	if _, err := tmpfile.Write(content); err != nil {
-		t.Fatal(err)
-	}
+	_, err = tmpfile.Write(content)
+	require.NoError(t, err)
 	_ = tmpfile.Close()
 
 	t.Run("download with original filename", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		err := c.Download(tmpfile.Name())
-		if err != nil {
-			t.Fatalf("Download failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Check Content-Disposition header
 		cd := w.Header().Get("Content-Disposition")
-		if !strings.Contains(cd, "attachment") {
-			t.Errorf("Content-Disposition should contain 'attachment': %v", cd)
-		}
+		assert.Contains(t, cd, "attachment")
 	})
 
 	t.Run("download with custom filename", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		err := c.Download(tmpfile.Name(), "custom-name.txt")
-		if err != nil {
-			t.Fatalf("Download failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		cd := w.Header().Get("Content-Disposition")
-		if !strings.Contains(cd, "custom-name.txt") {
-			t.Errorf("Content-Disposition should contain custom filename: %v", cd)
-		}
+		assert.Contains(t, cd, "custom-name.txt")
 	})
 }
 
 // Test Send
 func TestSend(t *testing.T) {
+	t.Parallel()
+
 	t.Run("send raw bytes", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		data := []byte("raw binary data")
 		err := c.Send(data)
-		if err != nil {
-			t.Fatalf("Send failed: %v", err)
-		}
+		require.NoError(t, err)
 
-		if w.Body.String() != "raw binary data" {
-			t.Errorf("Body = %v, want 'raw binary data'", w.Body.String())
-		}
+		assert.Equal(t, "raw binary data", w.Body.String())
 
 		// Should set default Content-Type
-		if w.Header().Get("Content-Type") != "application/octet-stream" {
-			t.Errorf("Content-Type = %v", w.Header().Get("Content-Type"))
-		}
+		assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
 	})
 
 	t.Run("send with existing content type", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		c.Header("Content-Type", "text/plain")
 		err := c.Send([]byte("text data"))
-		if err != nil {
-			t.Fatalf("Send failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Should not override existing Content-Type
-		if w.Header().Get("Content-Type") != "text/plain" {
-			t.Errorf("Content-Type should remain text/plain")
-		}
+		assert.Equal(t, "text/plain", w.Header().Get("Content-Type"))
 	})
 }
 
 // Test SendStatus
 func TestSendStatus(t *testing.T) {
+	t.Parallel()
+
 	t.Run("send 404", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		err := c.SendStatus(http.StatusNotFound)
-		if err != nil {
-			t.Fatalf("SendStatus failed: %v", err)
-		}
+		require.NoError(t, err)
 
-		if w.Code != http.StatusNotFound {
-			t.Errorf("Status code = %d, want 404", w.Code)
-		}
-		if w.Body.String() != "Not Found" {
-			t.Errorf("Body = %v, want 'Not Found'", w.Body.String())
-		}
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Equal(t, "Not Found", w.Body.String())
 	})
 
 	t.Run("send 201", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		err := c.SendStatus(http.StatusCreated)
-		if err != nil {
-			t.Fatalf("SendStatus failed: %v", err)
-		}
+		require.NoError(t, err)
 
-		if w.Body.String() != "Created" {
-			t.Errorf("Body = %v, want 'Created'", w.Body.String())
-		}
+		assert.Equal(t, "Created", w.Body.String())
 	})
 }
 
 // Test JSONP
 func TestJSONP(t *testing.T) {
+	t.Parallel()
+
 	t.Run("default callback", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		data := map[string]string{"message": "Hello"}
-		err := c.JSONP(http.StatusOK, data)
-		if err != nil {
-			t.Fatalf("JSONP failed: %v", err)
-		}
+		c.JSONP(http.StatusOK, data)
 
 		body := w.Body.String()
-		if !strings.HasPrefix(body, "callback(") || !strings.HasSuffix(body, ")") {
-			t.Errorf("JSONP should wrap with callback(): %v", body)
-		}
-		if !strings.Contains(body, `"message":"Hello"`) {
-			t.Errorf("JSONP should contain JSON data: %v", body)
-		}
+		assert.True(t, strings.HasPrefix(body, "callback("))
+		assert.True(t, strings.HasSuffix(body, ")"))
+		assert.Contains(t, body, `"message":"Hello"`)
 
 		// Check Content-Type
-		if !strings.Contains(w.Header().Get("Content-Type"), "application/javascript") {
-			t.Errorf("Content-Type should be application/javascript")
-		}
+		assert.Contains(t, w.Header().Get("Content-Type"), "application/javascript")
 	})
 
 	t.Run("custom callback", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		data := map[string]int{"count": 42}
-		err := c.JSONP(http.StatusOK, data, "myCallback")
-		if err != nil {
-			t.Fatalf("JSONP failed: %v", err)
-		}
+		c.JSONP(http.StatusOK, data, "myCallback")
 
 		body := w.Body.String()
-		if !strings.HasPrefix(body, "myCallback(") {
-			t.Errorf("JSONP should use custom callback: %v", body)
-		}
+		assert.True(t, strings.HasPrefix(body, "myCallback("))
 	})
 }
 
 // Test Format
 func TestFormat(t *testing.T) {
+	t.Parallel()
+
 	data := map[string]string{"message": "test"}
 
 	t.Run("format as JSON", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		err := c.Format(http.StatusOK, data)
-		if err != nil {
-			t.Fatalf("Format failed: %v", err)
-		}
+		require.NoError(t, err)
 
-		if !strings.Contains(w.Header().Get("Content-Type"), "application/json") {
-			t.Error("Should send as JSON")
-		}
+		assert.Contains(t, w.Header().Get("Content-Type"), "application/json")
 	})
 
 	t.Run("format as HTML", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "text/html")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		err := c.Format(http.StatusOK, data)
-		if err != nil {
-			t.Fatalf("Format failed: %v", err)
-		}
+		require.NoError(t, err)
 
-		if !strings.Contains(w.Header().Get("Content-Type"), "text/html") {
-			t.Error("Should send as HTML")
-		}
-		if !strings.Contains(w.Body.String(), "<p>") {
-			t.Error("HTML should be wrapped in tags")
-		}
+		assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
+		assert.Contains(t, w.Body.String(), "<p>")
 	})
 
 	t.Run("format as plain text", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "text/plain")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		err := c.Format(http.StatusOK, "simple text")
-		if err != nil {
-			t.Fatalf("Format failed: %v", err)
-		}
+		require.NoError(t, err)
 
-		if !strings.Contains(w.Header().Get("Content-Type"), "text/plain") {
-			t.Error("Should send as plain text")
-		}
+		assert.Contains(t, w.Header().Get("Content-Type"), "text/plain")
 	})
 
 	t.Run("format default to JSON", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		// No Accept header
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		err := c.Format(http.StatusOK, data)
-		if err != nil {
-			t.Fatalf("Format failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Should default to JSON
-		if !strings.Contains(w.Header().Get("Content-Type"), "application/json") {
-			t.Error("Should default to JSON when no Accept header")
-		}
+		assert.Contains(t, w.Header().Get("Content-Type"), "application/json")
 	})
 }
 
 // Test Write and WriteString
 func TestWrite(t *testing.T) {
+	t.Parallel()
+
 	t.Run("write bytes", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
 		n, err := c.Write([]byte("hello world"))
-		if err != nil {
-			t.Fatalf("Write failed: %v", err)
-		}
-		if n != 11 {
-			t.Errorf("Write returned %d bytes, want 11", n)
-		}
-		if w.Body.String() != "hello world" {
-			t.Errorf("Body = %v", w.Body.String())
-		}
+		require.NoError(t, err)
+		assert.Equal(t, 11, n)
+		assert.Equal(t, "hello world", w.Body.String())
 	})
 
 	t.Run("write string", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		n, err := c.WriteString("hello string")
-		if err != nil {
-			t.Fatalf("WriteString failed: %v", err)
-		}
-		if n != 12 {
-			t.Errorf("WriteString returned %d bytes, want 12", n)
-		}
-		if w.Body.String() != "hello string" {
-			t.Errorf("Body = %v", w.Body.String())
-		}
+		n, err := c.WriteStringBody("hello string")
+		require.NoError(t, err)
+		assert.Equal(t, 12, n)
+		assert.Equal(t, "hello string", w.Body.String())
 	})
 
 	t.Run("use with fmt.Fprintf", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -462,15 +460,17 @@ func TestWrite(t *testing.T) {
 		_, _ = fmt.Fprintf(c, "User: %s, Count: %d", "Alice", 42)
 
 		expected := "User: Alice, Count: 42"
-		if w.Body.String() != expected {
-			t.Errorf("Body = %v, want %v", w.Body.String(), expected)
-		}
+		assert.Equal(t, expected, w.Body.String())
 	})
 }
 
 // Test real-world scenarios
 func TestResponseHelpers_RealWorld(t *testing.T) {
+	t.Parallel()
+
 	t.Run("API response with links", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest("GET", "/api/users?page=2", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -488,17 +488,16 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 
 		// Verify headers
 		link := w.Header().Get("Link")
-		if !strings.Contains(link, "next") || !strings.Contains(link, "last") {
-			t.Errorf("Link header incomplete: %v", link)
-		}
+		assert.Contains(t, link, "next")
+		assert.Contains(t, link, "last")
 
 		vary := w.Header().Get("Vary")
-		if !strings.Contains(vary, "Accept") {
-			t.Errorf("Vary header incomplete: %v", vary)
-		}
+		assert.Contains(t, vary, "Accept")
 	})
 
 	t.Run("conditional response based on accept", func(t *testing.T) {
+		t.Parallel()
+
 		req := httptest.NewRequest("GET", "/api/user", nil)
 		req.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
@@ -512,9 +511,7 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 		// Use Format for automatic content negotiation
 		_ = c.Format(200, user)
 
-		if !strings.Contains(w.Body.String(), "123") {
-			t.Error("Should contain user data")
-		}
+		assert.Contains(t, w.Body.String(), "123")
 	})
 }
 
@@ -550,12 +547,14 @@ func BenchmarkWriteString(b *testing.B) {
 	for b.Loop() {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
-		_, _ = c.WriteString("response data")
+		_, _ = c.WriteStringBody("response data")
 	}
 }
 
 // TestFormat_XML tests XML format response
 func TestFormat_XML(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Accept", "application/xml")
 	w := httptest.NewRecorder()
@@ -564,26 +563,19 @@ func TestFormat_XML(t *testing.T) {
 	data := map[string]string{"status": "ok"}
 	err := c.Format(200, data)
 
-	if err != nil {
-		t.Fatalf("Format failed: %v", err)
-	}
+	require.NoError(t, err)
 
-	if !strings.Contains(w.Header().Get("Content-Type"), "application/xml") {
-		t.Error("should send as XML")
-	}
+	assert.Contains(t, w.Header().Get("Content-Type"), "application/xml")
 
 	body := w.Body.String()
-	if !strings.Contains(body, "<?xml") {
-		t.Error("XML should have declaration")
-	}
-
-	if !strings.Contains(body, "<response>") {
-		t.Error("XML should have response wrapper")
-	}
+	assert.Contains(t, body, "<?xml")
+	assert.Contains(t, body, "<response>")
 }
 
 // TestFormat_MultipleAcceptTypes tests Format with multiple accepted types
 func TestFormat_MultipleAcceptTypes(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		acceptHeader string
@@ -613,6 +605,8 @@ func TestFormat_MultipleAcceptTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Accept", tt.acceptHeader)
 			w := httptest.NewRecorder()
@@ -620,23 +614,23 @@ func TestFormat_MultipleAcceptTypes(t *testing.T) {
 
 			err := c.Format(http.StatusOK, map[string]string{"data": "value"})
 
-			if err != nil {
-				t.Fatalf("Format failed: %v", err)
-			}
+			require.NoError(t, err)
 
-			if !strings.Contains(w.Header().Get("Content-Type"), tt.expectType) {
-				t.Errorf("expected %s, got %s", tt.expectType, w.Header().Get("Content-Type"))
-			}
+			assert.Contains(t, w.Header().Get("Content-Type"), tt.expectType)
 		})
 	}
 }
 
 // TestFormat_DifferentStatusCodes tests Format with various status codes
 func TestFormat_DifferentStatusCodes(t *testing.T) {
+	t.Parallel()
+
 	codes := []int{http.StatusOK, http.StatusCreated, http.StatusNoContent, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}
 
 	for _, code := range codes {
 		t.Run(string(rune('0'+code/100)), func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Accept", "application/json")
 			w := httptest.NewRecorder()
@@ -644,19 +638,19 @@ func TestFormat_DifferentStatusCodes(t *testing.T) {
 
 			err := c.Format(code, map[string]string{"status": "test"})
 
-			if err != nil && code != 204 {
-				t.Fatalf("Format failed: %v", err)
+			if code != 204 {
+				require.NoError(t, err)
 			}
 
-			if w.Code != code {
-				t.Errorf("expected status %d, got %d", code, w.Code)
-			}
+			assert.Equal(t, code, w.Code)
 		})
 	}
 }
 
 // TestFormat_ComplexData tests Format with different data types
 func TestFormat_ComplexData(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		data any
@@ -676,6 +670,8 @@ func TestFormat_ComplexData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Accept", "application/json")
 			w := httptest.NewRecorder()
@@ -683,19 +679,17 @@ func TestFormat_ComplexData(t *testing.T) {
 
 			err := c.Format(http.StatusOK, tt.data)
 
-			if err != nil {
-				t.Fatalf("Format should handle %s: %v", tt.name, err)
-			}
+			require.NoError(t, err, "Format should handle %s", tt.name)
 
-			if w.Code != http.StatusOK {
-				t.Errorf("expected status 200, got %d", w.Code)
-			}
+			assert.Equal(t, http.StatusOK, w.Code)
 		})
 	}
 }
 
 // TestFormat_HTMLEscaping tests that HTML format escapes data
 func TestFormat_HTMLEscaping(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Accept", "text/html")
 	w := httptest.NewRecorder()
@@ -706,20 +700,18 @@ func TestFormat_HTMLEscaping(t *testing.T) {
 
 	err := c.Format(200, data)
 
-	if err != nil {
-		t.Fatalf("Format failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	body := w.Body.String()
 
 	// Should wrap in <p> tags
-	if !strings.Contains(body, "<p>") {
-		t.Error("should wrap in paragraph tags")
-	}
+	assert.Contains(t, body, "<p>")
 }
 
 // TestFormat_XMLDifferentData tests XML format with various data
 func TestFormat_XMLDifferentData(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		data any
@@ -731,6 +723,8 @@ func TestFormat_XMLDifferentData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Accept", "application/xml")
 			w := httptest.NewRecorder()
@@ -738,19 +732,17 @@ func TestFormat_XMLDifferentData(t *testing.T) {
 
 			err := c.Format(http.StatusOK, tt.data)
 
-			if err != nil {
-				t.Fatalf("Format failed for %s: %v", tt.name, err)
-			}
+			require.NoError(t, err, "Format failed for %s", tt.name)
 
-			if !strings.Contains(w.Header().Get("Content-Type"), "xml") {
-				t.Error("should set XML content type")
-			}
+			assert.Contains(t, w.Header().Get("Content-Type"), "xml")
 		})
 	}
 }
 
 // TestFormat_Fallback tests fallback behavior for unsupported formats
 func TestFormat_Fallback(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Accept", "application/pdf") // Unsupported format
 	w := httptest.NewRecorder()
@@ -758,62 +750,56 @@ func TestFormat_Fallback(t *testing.T) {
 
 	err := c.Format(200, "test")
 
-	if err != nil {
-		t.Fatalf("Format should fallback gracefully: %v", err)
-	}
+	require.NoError(t, err, "Format should fallback gracefully")
 
 	// Should fallback to text/plain (default case in switch)
 	contentType := w.Header().Get("Content-Type")
-	if !strings.Contains(contentType, "text/plain") && !strings.Contains(contentType, "json") {
-		t.Errorf("should fallback to supported format, got %s", contentType)
-	}
+	assert.True(t, strings.Contains(contentType, "text/plain") || strings.Contains(contentType, "json"),
+		"should fallback to supported format, got %s", contentType)
 }
 
 // TestSendStatus_StandardCodes tests SendStatus with known status codes
 func TestSendStatus_StandardCodes(t *testing.T) {
-	r := MustNew()
+	t.Parallel()
 
 	codes := []int{http.StatusOK, http.StatusCreated, http.StatusNoContent, http.StatusNotFound, http.StatusInternalServerError}
 
 	for _, code := range codes {
-		r.GET("/test", func(c *Context) {
-			err := c.SendStatus(code)
-			if err != nil {
-				t.Errorf("SendStatus failed: %v", err)
-			}
+		t.Run(fmt.Sprintf("status_%d", code), func(t *testing.T) {
+			t.Parallel()
+
+			r := MustNew()
+			r.GET("/test", func(c *Context) {
+				err := c.SendStatus(code)
+				assert.NoError(t, err)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, code, w.Code)
 		})
-
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		if w.Code != code {
-			t.Errorf("expected %d, got %d", code, w.Code)
-		}
 	}
 }
 
 // TestSendStatus_UnknownCode tests SendStatus with unknown status code
 func TestSendStatus_UnknownCode(t *testing.T) {
+	t.Parallel()
+
 	r := MustNew()
 
 	r.GET("/test", func(c *Context) {
 		err := c.SendStatus(999) // Unknown code
-		if err != nil {
-			t.Errorf("SendStatus failed: %v", err)
-		}
+		assert.NoError(t, err)
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != 999 {
-		t.Errorf("expected 999, got %d", w.Code)
-	}
+	assert.Equal(t, 999, w.Code)
 
 	// Should include numeric code in response
-	if !strings.Contains(w.Body.String(), "999") {
-		t.Error("body should contain status code for unknown code")
-	}
+	assert.Contains(t, w.Body.String(), "999")
 }

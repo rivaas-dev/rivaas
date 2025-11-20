@@ -32,7 +32,10 @@ type DifferentResponse struct {
 }
 
 func TestRouteWrapper_Doc(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets both summary and description", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		result := rw.Doc("Test Summary", "Test Description")
@@ -48,6 +51,7 @@ func TestRouteWrapper_Doc(t *testing.T) {
 	})
 
 	t.Run("handles empty strings", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Doc("", "")
@@ -59,6 +63,7 @@ func TestRouteWrapper_Doc(t *testing.T) {
 	})
 
 	t.Run("replaces previous values", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Summary("Old Summary").Description("Old Description")
@@ -71,6 +76,7 @@ func TestRouteWrapper_Doc(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 		rw.Doc("Original Summary", "Original Description")
 		rw.Freeze()
@@ -84,7 +90,10 @@ func TestRouteWrapper_Doc(t *testing.T) {
 }
 
 func TestRouteWrapper_Summary(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets summary correctly", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		result := rw.Summary("Test Summary")
@@ -99,6 +108,7 @@ func TestRouteWrapper_Summary(t *testing.T) {
 	})
 
 	t.Run("replaces previous summary", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Summary("First")
@@ -110,6 +120,7 @@ func TestRouteWrapper_Summary(t *testing.T) {
 	})
 
 	t.Run("handles empty string", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Summary("Initial").Summary("")
@@ -120,6 +131,7 @@ func TestRouteWrapper_Summary(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 		rw.Summary("Original")
 		rw.Freeze()
@@ -132,7 +144,10 @@ func TestRouteWrapper_Summary(t *testing.T) {
 }
 
 func TestRouteWrapper_Description(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets description correctly", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		result := rw.Description("Test Description")
@@ -147,6 +162,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 	})
 
 	t.Run("replaces previous description", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Description("First")
@@ -158,6 +174,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 	})
 
 	t.Run("handles empty string", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Description("Initial").Description("")
@@ -168,6 +185,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 	})
 
 	t.Run("supports markdown formatting", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		markdown := "This is a **bold** description with `code` and [links](http://example.com)"
@@ -179,6 +197,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 		rw.Description("Original")
 		rw.Freeze()
@@ -191,7 +210,10 @@ func TestRouteWrapper_Description(t *testing.T) {
 }
 
 func TestRouteWrapper_Tags(t *testing.T) {
+	t.Parallel()
+
 	t.Run("adds single tag", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Tags("users")
@@ -202,6 +224,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 	})
 
 	t.Run("adds multiple tags at once", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Tags("users", "management", "admin")
@@ -212,6 +235,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 	})
 
 	t.Run("accumulates tags from multiple calls", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Tags("users")
@@ -224,6 +248,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 	})
 
 	t.Run("handles empty call", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Tags("initial")
@@ -235,6 +260,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 	})
 
 	t.Run("handles duplicate tags", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Tags("users")
@@ -249,6 +275,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 	})
 
 	t.Run("returns self for chaining", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		result := rw.Tags("tag1")
@@ -257,6 +284,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 		rw.Tags("original")
 		rw.Freeze()
@@ -269,7 +297,10 @@ func TestRouteWrapper_Tags(t *testing.T) {
 }
 
 func TestRouteWrapper_OperationID(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets operation ID correctly", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		result := rw.OperationID("getTest")
@@ -284,6 +315,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 	})
 
 	t.Run("replaces previous operation ID", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.OperationID("first")
@@ -295,6 +327,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 	})
 
 	t.Run("handles empty string", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.OperationID("initial").OperationID("")
@@ -305,6 +338,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 	})
 
 	t.Run("handles camelCase IDs", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/users/:id")
 
 		rw.OperationID("getUserById")
@@ -315,6 +349,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 		rw.OperationID("original")
 		rw.Freeze()
@@ -327,7 +362,10 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 }
 
 func TestRouteWrapper_Deprecated(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets deprecated flag to true", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		result := rw.Deprecated()
@@ -342,6 +380,7 @@ func TestRouteWrapper_Deprecated(t *testing.T) {
 	})
 
 	t.Run("starts as false", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.mu.RLock()
@@ -350,6 +389,7 @@ func TestRouteWrapper_Deprecated(t *testing.T) {
 	})
 
 	t.Run("multiple calls still set to true", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Deprecated().Deprecated().Deprecated()
@@ -360,6 +400,7 @@ func TestRouteWrapper_Deprecated(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 		rw.Deprecated()
 		rw.Freeze()
@@ -375,7 +416,10 @@ func TestRouteWrapper_Deprecated(t *testing.T) {
 }
 
 func TestRouteWrapper_Consumes(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets content types", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		result := rw.Consumes("application/json", "application/xml")
@@ -390,6 +434,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 	})
 
 	t.Run("replaces previous content types", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		rw.Consumes("application/json")
@@ -401,6 +446,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 	})
 
 	t.Run("handles single content type", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		rw.Consumes("application/json")
@@ -411,6 +457,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 	})
 
 	t.Run("handles empty call", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		rw.Consumes("application/json")
@@ -422,6 +469,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 	})
 
 	t.Run("defaults to application/json", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		rw.mu.RLock()
@@ -430,6 +478,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 		rw.Consumes("application/json")
 		rw.Freeze()
@@ -442,7 +491,10 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 }
 
 func TestRouteWrapper_Produces(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets content types", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		result := rw.Produces("application/json", "text/csv")
@@ -457,6 +509,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 	})
 
 	t.Run("replaces previous content types", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Produces("application/json")
@@ -468,6 +521,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 	})
 
 	t.Run("handles single content type", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Produces("application/json")
@@ -478,6 +532,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 	})
 
 	t.Run("handles empty call", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Produces("application/json")
@@ -489,6 +544,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 	})
 
 	t.Run("defaults to application/json", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.mu.RLock()
@@ -497,6 +553,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 		rw.Produces("application/json")
 		rw.Freeze()
@@ -509,7 +566,10 @@ func TestRouteWrapper_Produces(t *testing.T) {
 }
 
 func TestRouteWrapper_Security(t *testing.T) {
+	t.Parallel()
+
 	t.Run("adds security requirement", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		result := rw.Security("bearerAuth")
@@ -526,6 +586,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 	})
 
 	t.Run("adds security requirement with scopes", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		rw.Security("oauth2", "read", "write", "admin")
@@ -538,6 +599,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 	})
 
 	t.Run("accumulates multiple security requirements", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		rw.Security("bearerAuth")
@@ -554,6 +616,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 	})
 
 	t.Run("handles empty scopes", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		rw.Security("bearerAuth")
@@ -566,6 +629,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 	})
 
 	t.Run("starts with empty security", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.mu.RLock()
@@ -574,6 +638,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 		rw.Security("bearerAuth")
 		rw.Freeze()
@@ -587,7 +652,10 @@ func TestRouteWrapper_Security(t *testing.T) {
 }
 
 func TestRouteWrapper_Bearer(t *testing.T) {
+	t.Parallel()
+
 	t.Run("delegates to Security with bearerAuth", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		result := rw.Bearer()
@@ -604,19 +672,21 @@ func TestRouteWrapper_Bearer(t *testing.T) {
 	})
 
 	t.Run("can be called multiple times", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		rw.Bearer().Bearer().Bearer()
 
 		rw.mu.RLock()
 		require.Len(t, rw.doc.Security, 3)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			assert.Equal(t, "bearerAuth", rw.doc.Security[i].Scheme)
 		}
 		rw.mu.RUnlock()
 	})
 
 	t.Run("works with other security methods", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		rw.Bearer()
@@ -630,6 +700,7 @@ func TestRouteWrapper_Bearer(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 		rw.Bearer()
 		rw.Freeze()
@@ -643,7 +714,10 @@ func TestRouteWrapper_Bearer(t *testing.T) {
 }
 
 func TestRouteWrapper_OAuth(t *testing.T) {
+	t.Parallel()
+
 	t.Run("delegates to Security with scheme and scopes", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		result := rw.OAuth("oauth2", "read", "write", "admin")
@@ -660,6 +734,7 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 	})
 
 	t.Run("handles no scopes", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		rw.OAuth("oauth2")
@@ -672,6 +747,7 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 	})
 
 	t.Run("handles custom scheme names", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		rw.OAuth("customOAuth", "scope1", "scope2")
@@ -684,6 +760,7 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 	})
 
 	t.Run("can be called multiple times", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 
 		rw.OAuth("oauth2", "read")
@@ -701,6 +778,7 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/protected")
 		rw.OAuth("oauth2", "read")
 		rw.Freeze()
@@ -715,7 +793,10 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 }
 
 func TestRouteWrapper_Request(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets request type", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		result := rw.Request(TestRequest{})
@@ -726,53 +807,58 @@ func TestRouteWrapper_Request(t *testing.T) {
 		// Verify request type is set
 		rw.mu.RLock()
 		assert.NotNil(t, rw.doc.RequestType)
-		assert.Equal(t, reflect.TypeOf(TestRequest{}), rw.doc.RequestType)
+		assert.Equal(t, reflect.TypeFor[TestRequest](), rw.doc.RequestType)
 		rw.mu.RUnlock()
 	})
 
 	t.Run("replaces previous request type", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		rw.Request(TestRequest{})
 		rw.Request(DifferentResponse{})
 
 		rw.mu.RLock()
-		assert.Equal(t, reflect.TypeOf(DifferentResponse{}), rw.doc.RequestType)
+		assert.Equal(t, reflect.TypeFor[DifferentResponse](), rw.doc.RequestType)
 		rw.mu.RUnlock()
 	})
 
 	t.Run("handles pointer types", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		rw.Request(&TestRequest{})
 
 		rw.mu.RLock()
 		assert.NotNil(t, rw.doc.RequestType)
-		assert.Equal(t, reflect.TypeOf(&TestRequest{}), rw.doc.RequestType)
+		assert.Equal(t, reflect.TypeFor[*TestRequest](), rw.doc.RequestType)
 		rw.mu.RUnlock()
 	})
 
 	t.Run("handles primitive types", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		rw.Request("")
 
 		rw.mu.RLock()
-		assert.Equal(t, reflect.TypeOf(""), rw.doc.RequestType)
+		assert.Equal(t, reflect.TypeFor[string](), rw.doc.RequestType)
 		rw.mu.RUnlock()
 	})
 
 	t.Run("handles slice types", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		rw.Request([]TestRequest{})
 
 		rw.mu.RLock()
-		assert.Equal(t, reflect.TypeOf([]TestRequest{}), rw.doc.RequestType)
+		assert.Equal(t, reflect.TypeFor[[]TestRequest](), rw.doc.RequestType)
 		rw.mu.RUnlock()
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 		rw.Request(TestRequest{})
 		rw.Freeze()
@@ -780,23 +866,27 @@ func TestRouteWrapper_Request(t *testing.T) {
 		rw.Request(DifferentResponse{})
 
 		doc := rw.GetFrozenDoc()
-		assert.Equal(t, reflect.TypeOf(TestRequest{}), doc.RequestType)
+		assert.Equal(t, reflect.TypeFor[TestRequest](), doc.RequestType)
 	})
 }
 
 func TestRouteWrapper_Response(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets response type", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Response(200, TestResponse{})
 
 		rw.mu.RLock()
 		assert.NotNil(t, rw.doc.ResponseTypes[200])
-		assert.Equal(t, reflect.TypeOf(TestResponse{}), rw.doc.ResponseTypes[200])
+		assert.Equal(t, reflect.TypeFor[TestResponse](), rw.doc.ResponseTypes[200])
 		rw.mu.RUnlock()
 	})
 
 	t.Run("sets nil response for no-content", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("DELETE", "/test")
 
 		rw.Response(204, nil)
@@ -808,6 +898,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 	})
 
 	t.Run("allows multiple status codes", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Response(200, TestResponse{})
@@ -819,44 +910,48 @@ func TestRouteWrapper_Response(t *testing.T) {
 		assert.NotNil(t, rw.doc.ResponseTypes[200])
 		assert.NotNil(t, rw.doc.ResponseTypes[404])
 		assert.NotNil(t, rw.doc.ResponseTypes[500])
-		assert.Equal(t, reflect.TypeOf(TestResponse{}), rw.doc.ResponseTypes[200])
-		assert.Equal(t, reflect.TypeOf(ErrorResponse{}), rw.doc.ResponseTypes[404])
-		assert.Equal(t, reflect.TypeOf(ErrorResponse{}), rw.doc.ResponseTypes[500])
+		assert.Equal(t, reflect.TypeFor[TestResponse](), rw.doc.ResponseTypes[200])
+		assert.Equal(t, reflect.TypeFor[ErrorResponse](), rw.doc.ResponseTypes[404])
+		assert.Equal(t, reflect.TypeFor[ErrorResponse](), rw.doc.ResponseTypes[500])
 		rw.mu.RUnlock()
 	})
 
 	t.Run("replaces response for same status code", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Response(200, TestResponse{})
 		rw.Response(200, DifferentResponse{})
 
 		rw.mu.RLock()
-		assert.Equal(t, reflect.TypeOf(DifferentResponse{}), rw.doc.ResponseTypes[200])
+		assert.Equal(t, reflect.TypeFor[DifferentResponse](), rw.doc.ResponseTypes[200])
 		rw.mu.RUnlock()
 	})
 
 	t.Run("handles pointer types", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Response(200, &TestResponse{})
 
 		rw.mu.RLock()
-		assert.Equal(t, reflect.TypeOf(&TestResponse{}), rw.doc.ResponseTypes[200])
+		assert.Equal(t, reflect.TypeFor[*TestResponse](), rw.doc.ResponseTypes[200])
 		rw.mu.RUnlock()
 	})
 
 	t.Run("handles primitive types", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Response(200, "")
 
 		rw.mu.RLock()
-		assert.Equal(t, reflect.TypeOf(""), rw.doc.ResponseTypes[200])
+		assert.Equal(t, reflect.TypeFor[string](), rw.doc.ResponseTypes[200])
 		rw.mu.RUnlock()
 	})
 
 	t.Run("returns self for chaining", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		result := rw.Response(200, TestResponse{})
@@ -865,6 +960,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 		rw.Response(200, TestResponse{})
 		rw.Freeze()
@@ -872,12 +968,15 @@ func TestRouteWrapper_Response(t *testing.T) {
 		rw.Response(200, DifferentResponse{})
 
 		doc := rw.GetFrozenDoc()
-		assert.Equal(t, reflect.TypeOf(TestResponse{}), doc.ResponseTypes[200])
+		assert.Equal(t, reflect.TypeFor[TestResponse](), doc.ResponseTypes[200])
 	})
 }
 
 func TestRouteWrapper_ResponseExample(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets response example", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		example := TestResponse{ID: 123, Name: "Test"}
@@ -894,6 +993,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 	})
 
 	t.Run("allows multiple status codes", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.ResponseExample(200, TestResponse{ID: 1, Name: "Success"})
@@ -909,6 +1009,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 	})
 
 	t.Run("replaces example for same status code", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.ResponseExample(200, TestResponse{ID: 1, Name: "First"})
@@ -920,6 +1021,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 	})
 
 	t.Run("handles nil example", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.ResponseExample(204, nil)
@@ -931,6 +1033,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 	})
 
 	t.Run("handles primitive examples", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.ResponseExample(200, "string example")
@@ -943,6 +1046,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 	})
 
 	t.Run("no-op after freeze", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 		rw.ResponseExample(200, TestResponse{ID: 1, Name: "Original"})
 		rw.Freeze()
@@ -955,7 +1059,10 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 }
 
 func TestRouteWrapper_MethodChaining(t *testing.T) {
+	t.Parallel()
+
 	t.Run("all methods can be chained", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/users")
 
 		result := rw.
@@ -985,7 +1092,7 @@ func TestRouteWrapper_MethodChaining(t *testing.T) {
 		assert.Equal(t, []string{"application/json"}, rw.doc.Produces)
 		require.Len(t, rw.doc.Security, 1)
 		assert.Equal(t, "bearerAuth", rw.doc.Security[0].Scheme)
-		assert.Equal(t, reflect.TypeOf(TestRequest{}), rw.doc.RequestType)
+		assert.Equal(t, reflect.TypeFor[TestRequest](), rw.doc.RequestType)
 		assert.NotNil(t, rw.doc.ResponseTypes[201])
 		assert.NotNil(t, rw.doc.ResponseTypes[400])
 		assert.Equal(t, TestResponse{ID: 1, Name: "New User"}, rw.doc.ResponseExamples[201])
@@ -993,6 +1100,7 @@ func TestRouteWrapper_MethodChaining(t *testing.T) {
 	})
 
 	t.Run("complex chaining scenario", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/users/:id")
 
 		rw.
@@ -1020,7 +1128,10 @@ func TestRouteWrapper_MethodChaining(t *testing.T) {
 }
 
 func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
+	t.Parallel()
+
 	t.Run("tags accumulate", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Tags("tag1")
@@ -1033,6 +1144,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 	})
 
 	t.Run("security accumulates", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Security("scheme1")
@@ -1050,6 +1162,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 	})
 
 	t.Run("responses accumulate", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Response(200, TestResponse{})
@@ -1062,6 +1175,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 	})
 
 	t.Run("response examples accumulate", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.ResponseExample(200, TestResponse{ID: 1})
@@ -1074,6 +1188,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 	})
 
 	t.Run("summary replaces", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Summary("First")
@@ -1085,6 +1200,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 	})
 
 	t.Run("description replaces", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Description("First")
@@ -1096,6 +1212,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 	})
 
 	t.Run("operation ID replaces", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.OperationID("first")
@@ -1107,6 +1224,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 	})
 
 	t.Run("consumes replaces", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("POST", "/test")
 
 		rw.Consumes("application/json")
@@ -1118,6 +1236,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 	})
 
 	t.Run("produces replaces", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("GET", "/test")
 
 		rw.Produces("application/json")
@@ -1130,7 +1249,10 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 }
 
 func TestRouteWrapper_CompleteWorkflow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("realistic API endpoint configuration", func(t *testing.T) {
+		t.Parallel()
 		rw := NewRoute("PUT", "/users/:id")
 
 		// Configure the route
@@ -1160,7 +1282,7 @@ func TestRouteWrapper_CompleteWorkflow(t *testing.T) {
 		assert.Equal(t, []string{"application/json"}, rw.doc.Produces)
 		require.Len(t, rw.doc.Security, 1)
 		assert.Equal(t, "bearerAuth", rw.doc.Security[0].Scheme)
-		assert.Equal(t, reflect.TypeOf(TestRequest{}), rw.doc.RequestType)
+		assert.Equal(t, reflect.TypeFor[TestRequest](), rw.doc.RequestType)
 		assert.Len(t, rw.doc.ResponseTypes, 4)
 		assert.Len(t, rw.doc.ResponseExamples, 3)
 		rw.mu.RUnlock()

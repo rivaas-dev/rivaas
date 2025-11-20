@@ -31,23 +31,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNew_ValidationErrors tests that New returns appropriate structured errors
+// TestNew_ValidationError tests that New returns appropriate structured errors
 // for various invalid configuration scenarios.
-func TestNew_ValidationErrors(t *testing.T) {
+func TestNew_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		opts        []Option
 		wantErr     string
-		wantErrType interface{}             // Expected error type (ConfigError, ValidationErrors, etc.)
+		wantErrType any                     // Expected error type (ConfigError, ValidationError, etc.)
 		checkError  func(*testing.T, error) // Optional custom error checking
 	}{
 		{
 			name:        "empty service name",
 			opts:        []Option{WithServiceName(""), WithServiceVersion("1.0.0")},
 			wantErr:     "serviceName",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 			checkError: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				if errors.As(err, &ve) {
 					assert.True(t, ve.HasErrors())
 					assert.Greater(t, len(ve.Errors), 0)
@@ -67,7 +69,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 			name:        "empty service version",
 			opts:        []Option{WithServiceName("test"), WithServiceVersion("")},
 			wantErr:     "serviceVersion",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 		},
 		{
 			name: "invalid environment",
@@ -77,9 +79,9 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithEnvironment("staging"),
 			},
 			wantErr:     "environment",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 			checkError: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				if errors.As(err, &ve) {
 					found := false
 					for _, e := range ve.Errors {
@@ -101,7 +103,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServerConfig(WithReadTimeout(-1 * time.Second)),
 			},
 			wantErr:     "server.readTimeout",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 		},
 		{
 			name: "zero write timeout",
@@ -111,7 +113,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServerConfig(WithWriteTimeout(0)),
 			},
 			wantErr:     "server.writeTimeout",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 		},
 		{
 			name: "negative idle timeout",
@@ -121,7 +123,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServerConfig(WithIdleTimeout(-5 * time.Second)),
 			},
 			wantErr:     "server.idleTimeout",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 		},
 		{
 			name: "zero read header timeout",
@@ -131,7 +133,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServerConfig(WithReadHeaderTimeout(0)),
 			},
 			wantErr:     "server.readHeaderTimeout",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 		},
 		{
 			name: "zero max header bytes",
@@ -141,7 +143,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServerConfig(WithMaxHeaderBytes(0)),
 			},
 			wantErr:     "server.maxHeaderBytes",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 		},
 		{
 			name: "negative shutdown timeout",
@@ -151,7 +153,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServerConfig(WithShutdownTimeout(-10 * time.Second)),
 			},
 			wantErr:     "server.shutdownTimeout",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 		},
 		{
 			name: "read timeout exceeds write timeout",
@@ -164,9 +166,9 @@ func TestNew_ValidationErrors(t *testing.T) {
 				),
 			},
 			wantErr:     "read timeout should not exceed write timeout",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 			checkError: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				if errors.As(err, &ve) {
 					found := false
 					for _, e := range ve.Errors {
@@ -186,7 +188,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServerConfig(WithShutdownTimeout(100 * time.Millisecond)),
 			},
 			wantErr:     "must be at least 1 second",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 		},
 		{
 			name: "max header bytes too small",
@@ -196,7 +198,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServerConfig(WithMaxHeaderBytes(512)),
 			},
 			wantErr:     "must be at least 1KB",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 		},
 		{
 			name: "multiple validation errors",
@@ -207,9 +209,9 @@ func TestNew_ValidationErrors(t *testing.T) {
 				WithServerConfig(WithReadTimeout(-1 * time.Second)),
 			},
 			wantErr:     "validation errors",
-			wantErrType: &ValidationErrors{},
+			wantErrType: &ValidationError{},
 			checkError: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				if errors.As(err, &ve) {
 					// Should have multiple errors
 					assert.Greater(t, len(ve.Errors), 1, "should have multiple validation errors")
@@ -231,6 +233,8 @@ func TestNew_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			app, err := New(tt.opts...)
 			if tt.wantErr != "" {
 				assert.Error(t, err)
@@ -240,7 +244,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 				// Check error type if specified
 				if tt.wantErrType != nil {
 					// Use errors.As for type checking
-					var target *ValidationErrors
+					var target *ValidationError
 					if errors.As(err, &target) {
 						assert.NotNil(t, target)
 					}
@@ -261,6 +265,8 @@ func TestNew_ValidationErrors(t *testing.T) {
 // TestNew_ValidConfigurations tests that New successfully creates
 // an App with various valid configuration combinations.
 func TestNew_ValidConfigurations(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		opts  []Option
@@ -321,6 +327,8 @@ func TestNew_ValidConfigurations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			app, err := New(tt.opts...)
 			require.NoError(t, err)
 			require.NotNil(t, app)
@@ -335,7 +343,10 @@ func TestNew_ValidConfigurations(t *testing.T) {
 // (logging, metrics, tracing) are correctly initialized when enabled,
 // including support for both options-based and prebuilt configurations.
 func TestNew_ObservabilityInitialization(t *testing.T) {
+	t.Parallel()
+
 	t.Run("logging initialization with options", func(t *testing.T) {
+		t.Parallel()
 		logger := logging.MustNew(logging.WithLevel(logging.LevelDebug))
 		app, err := New(
 			WithServiceName("test"),
@@ -348,6 +359,8 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("logging initialization with prebuilt config", func(t *testing.T) {
+		t.Parallel()
+
 		logger := logging.MustNew(logging.WithLevel(logging.LevelInfo))
 		app, err := New(
 			WithServiceName("test"),
@@ -360,6 +373,8 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("metrics initialization with options", func(t *testing.T) {
+		t.Parallel()
+
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -371,6 +386,8 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("metrics initialization with prebuilt config", func(t *testing.T) {
+		t.Parallel()
+
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -382,6 +399,8 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("tracing initialization with options", func(t *testing.T) {
+		t.Parallel()
+
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -393,6 +412,8 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("tracing initialization with prebuilt config", func(t *testing.T) {
+		t.Parallel()
+
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -404,6 +425,8 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("all observability components together", func(t *testing.T) {
+		t.Parallel()
+
 		logger := logging.MustNew(logging.WithLevel(logging.LevelDebug))
 		app, err := New(
 			WithServiceName("test"),
@@ -420,6 +443,8 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("prebuilt observability configs together", func(t *testing.T) {
+		t.Parallel()
+
 		logger := logging.MustNew(logging.WithLevel(logging.LevelInfo))
 		app, err := New(
 			WithServiceName("test"),
@@ -436,6 +461,8 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("service metadata is automatically injected into metrics and tracing", func(t *testing.T) {
+		t.Parallel()
+
 		logger := logging.MustNew()
 		app, err := New(
 			WithServiceName("payment-service"),
@@ -462,6 +489,8 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	})
 
 	t.Run("logger can be configured with service metadata", func(t *testing.T) {
+		t.Parallel()
+
 		logger := logging.MustNew(
 			logging.WithServiceName("custom-logger"),
 			logging.WithServiceVersion("v1.0.0"),
@@ -484,7 +513,10 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 // TestNew_MiddlewareConfiguration tests that middleware is configured
 // correctly based on environment and explicit settings.
 func TestNew_MiddlewareConfiguration(t *testing.T) {
+	t.Parallel()
+
 	t.Run("development environment includes logger and recovery by default", func(t *testing.T) {
+		t.Parallel()
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -507,6 +539,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 	})
 
 	t.Run("production environment includes only recovery by default", func(t *testing.T) {
+		t.Parallel()
+
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -528,6 +562,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 	})
 
 	t.Run("explicit middleware configuration overrides defaults", func(t *testing.T) {
+		t.Parallel()
+
 		customMiddleware := func(c *Context) {
 			c.Next()
 		}
@@ -544,6 +580,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 	})
 
 	t.Run("recovery middleware enabled by default", func(t *testing.T) {
+		t.Parallel()
+
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -564,6 +602,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 	})
 
 	t.Run("explicit empty middleware disables defaults", func(t *testing.T) {
+		t.Parallel()
+
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -577,6 +617,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 	})
 
 	t.Run("multiple middleware can be added", func(t *testing.T) {
+		t.Parallel()
+
 		custom1 := func(c *Context) { c.Next() }
 		custom2 := func(c *Context) { c.Next() }
 		app, err := New(
@@ -594,6 +636,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 // TestApp_RouteRegistration tests that all HTTP methods (GET, POST, PUT,
 // DELETE, PATCH, HEAD, OPTIONS) can be registered and handled correctly.
 func TestApp_RouteRegistration(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -679,6 +723,8 @@ func TestApp_RouteRegistration(t *testing.T) {
 // TestApp_GroupRoutes tests that route groups are created and work correctly,
 // including parameter extraction from grouped routes.
 func TestApp_GroupRoutes(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -714,6 +760,8 @@ func TestApp_GroupRoutes(t *testing.T) {
 // TestApp_UseMiddleware tests that custom middleware is executed
 // in the correct order when handling requests.
 func TestApp_UseMiddleware(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -740,6 +788,8 @@ func TestApp_UseMiddleware(t *testing.T) {
 // TestApp_Static tests that the Static method can be called without panicking.
 // Full file system testing is done in integration tests.
 func TestApp_Static(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -755,13 +805,18 @@ func TestApp_Static(t *testing.T) {
 // TestMustNew_Panics tests that MustNew panics on invalid configuration
 // and does not panic on valid configuration.
 func TestMustNew_Panics(t *testing.T) {
+	t.Parallel()
+
 	t.Run("panics on invalid config", func(t *testing.T) {
+		t.Parallel()
 		assert.Panics(t, func() {
 			MustNew(WithServiceName(""), WithServiceVersion("1.0.0")) // Empty service name
 		})
 	})
 
 	t.Run("does not panic on valid config", func(t *testing.T) {
+		t.Parallel()
+
 		assert.NotPanics(t, func() {
 			MustNew(
 				WithServiceName("test"),
@@ -774,6 +829,8 @@ func TestMustNew_Panics(t *testing.T) {
 // TestApp_ServerConfigDefaults tests that default server configuration
 // values are applied when no custom configuration is provided.
 func TestApp_ServerConfigDefaults(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -790,6 +847,8 @@ func TestApp_ServerConfigDefaults(t *testing.T) {
 // TestApp_ServerConfigCustom tests that custom server configuration
 // values are correctly applied and stored.
 func TestApp_ServerConfigCustom(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
@@ -814,6 +873,8 @@ func TestApp_ServerConfigCustom(t *testing.T) {
 // TestApp_ServerConfigPartial tests that partial server configuration
 // uses provided values while falling back to defaults for zero values.
 func TestApp_ServerConfigPartial(t *testing.T) {
+	t.Parallel()
+
 	// Set only some values, others should use defaults
 	// Note: read timeout must not exceed write timeout (default 10s)
 	app := MustNew(
@@ -871,7 +932,6 @@ func TestApp_GetMetricsHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := tt.setup()
@@ -930,7 +990,6 @@ func TestApp_GetMetricsServerAddress(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := tt.setup()
@@ -952,8 +1011,8 @@ func TestApp_ConfigurationGetters(t *testing.T) {
 	tests := []struct {
 		name     string
 		setup    func() *App
-		getter   func(*App) interface{}
-		expected interface{}
+		getter   func(*App) any
+		expected any
 	}{
 		{
 			name: "ServiceName returns configured value",
@@ -963,7 +1022,7 @@ func TestApp_ConfigurationGetters(t *testing.T) {
 					WithServiceVersion("1.0.0"),
 				)
 			},
-			getter: func(a *App) interface{} {
+			getter: func(a *App) any {
 				return a.ServiceName()
 			},
 			expected: "my-service",
@@ -976,7 +1035,7 @@ func TestApp_ConfigurationGetters(t *testing.T) {
 					WithServiceVersion("2.3.4"),
 				)
 			},
-			getter: func(a *App) interface{} {
+			getter: func(a *App) any {
 				return a.ServiceVersion()
 			},
 			expected: "2.3.4",
@@ -990,7 +1049,7 @@ func TestApp_ConfigurationGetters(t *testing.T) {
 					WithEnvironment(EnvironmentProduction),
 				)
 			},
-			getter: func(a *App) interface{} {
+			getter: func(a *App) any {
 				return a.Environment()
 			},
 			expected: EnvironmentProduction,
@@ -1003,7 +1062,7 @@ func TestApp_ConfigurationGetters(t *testing.T) {
 					WithServiceVersion("1.0.0"),
 				)
 			},
-			getter: func(a *App) interface{} {
+			getter: func(a *App) any {
 				return a.Environment()
 			},
 			expected: EnvironmentDevelopment,
@@ -1011,7 +1070,6 @@ func TestApp_ConfigurationGetters(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := tt.setup()
@@ -1060,7 +1118,6 @@ func TestApp_Metrics(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := tt.setup()
@@ -1117,7 +1174,6 @@ func TestApp_Tracing(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := tt.setup()
@@ -1138,7 +1194,10 @@ func TestApp_Tracing(t *testing.T) {
 // TestNew_RouterOptionsAccumulation tests that multiple WithRouterOptions
 // calls correctly accumulate router options.
 func TestNew_RouterOptionsAccumulation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("multiple WithRouterOptions accumulate", func(t *testing.T) {
+		t.Parallel()
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -1156,27 +1215,27 @@ func TestNew_RouterOptionsAccumulation(t *testing.T) {
 	})
 }
 
-// TestNew_LoggingInitializationError tests that logging initialization
-// error handling is in place, though most logging options don't typically fail.
-func TestNew_LoggingInitializationError(t *testing.T) {
-	// This test depends on whether logging.New can actually fail
-	// If it can't fail with normal options, we might need to skip this
-	// For now, we test that error handling exists in the code path
+// TestNew_LoggingInitializationSuccess tests that logging initialization
+// succeeds with valid logger configuration.
+func TestNew_LoggingInitializationSuccess(t *testing.T) {
+	t.Parallel()
+
 	logger := logging.MustNew(logging.WithLevel(logging.LevelDebug))
 	app, err := New(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
 		WithLogger(logger.Logger()),
 	)
-	// If logging initialization would fail, it should be caught
-	// Most logging options won't fail, so this test verifies the happy path
 	require.NoError(t, err)
 	require.NotNil(t, app)
+	assert.NotNil(t, app.baseLogger)
 }
 
 // TestNew_MultipleOptionsApplication tests that when the same option type
 // is provided multiple times, the last one wins.
 func TestNew_MultipleOptionsApplication(t *testing.T) {
+	t.Parallel()
+
 	app := MustNew(
 		WithServiceName("first"),
 		WithServiceVersion("1.0.0"),
@@ -1190,7 +1249,10 @@ func TestNew_MultipleOptionsApplication(t *testing.T) {
 
 // TestApp_NoRoute tests that NoRoute sets a custom handler for unmatched routes.
 func TestApp_NoRoute(t *testing.T) {
+	t.Parallel()
+
 	t.Run("custom 404 handler", func(t *testing.T) {
+		t.Parallel()
 		app := MustNew(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -1211,6 +1273,8 @@ func TestApp_NoRoute(t *testing.T) {
 	})
 
 	t.Run("nil handler restores default behavior", func(t *testing.T) {
+		t.Parallel()
+
 		app := MustNew(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -1233,6 +1297,8 @@ func TestApp_NoRoute(t *testing.T) {
 	})
 
 	t.Run("no route with registered route still works", func(t *testing.T) {
+		t.Parallel()
+
 		app := MustNew(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),

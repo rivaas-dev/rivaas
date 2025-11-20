@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
@@ -295,7 +309,7 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 		var capturedError error
 		r.GET("/test", func(c *Context) {
 			badData := BadType{Func: func() {}}
-			capturedError = c.JSON(200, badData)
+			capturedError = c.WriteJSON(200, badData)
 		})
 
 		r.ServeHTTP(w, req)
@@ -311,7 +325,7 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 
 		r.GET("/test", func(c *Context) {
 			badData := BadType{Func: func() {}}
-			if err := c.JSON(200, badData); err != nil {
+			if err := c.WriteJSON(200, badData); err != nil {
 				// Handle error explicitly by sending 500 response
 				c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 				c.Response.WriteHeader(http.StatusInternalServerError)
@@ -349,8 +363,7 @@ func TestContext_JSON_ValidData(t *testing.T) {
 			Age:    30,
 			Active: true,
 		}
-		err := c.JSON(http.StatusOK, data)
-		assert.NoError(t, err, "Should not return error for valid data")
+		c.JSON(http.StatusOK, data)
 	})
 
 	r.ServeHTTP(w, req)

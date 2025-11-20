@@ -33,6 +33,7 @@ func TestChaos_ConcurrentRouteRegistrationAndDeletion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
 	}
+	t.Parallel()
 
 	app := MustNew(
 		WithServiceName("test"),
@@ -91,6 +92,7 @@ func TestChaos_StressTestHighConcurrency(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping stress test in short mode")
 	}
+	t.Parallel()
 
 	app := MustNew(
 		WithServiceName("test"),
@@ -115,7 +117,7 @@ func TestChaos_StressTestHighConcurrency(t *testing.T) {
 
 	for range concurrency {
 		wg.Go(func() {
-			for j := 0; j < requestsPerGoroutine; j++ {
+			for range requestsPerGoroutine {
 				req := httptest.NewRequest(http.MethodGet, "/stress", nil)
 				w := httptest.NewRecorder()
 				app.Router().ServeHTTP(w, req)
@@ -144,6 +146,7 @@ func TestChaos_RandomRoutePatterns(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
 	}
+	t.Parallel()
 
 	app := MustNew(
 		WithServiceName("test"),
@@ -211,6 +214,7 @@ func TestChaos_MiddlewareChainStress(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping stress test in short mode")
 	}
+	t.Parallel()
 
 	app := MustNew(
 		WithServiceName("test"),
@@ -223,10 +227,9 @@ func TestChaos_MiddlewareChainStress(t *testing.T) {
 
 	// Add many middleware
 	for i := range numMiddleware {
-		mwID := i
 		app.Use(func(c *Context) {
 			order := counter.Add(1)
-			executionOrder.Store(order, mwID)
+			executionOrder.Store(order, i)
 			c.Next()
 		})
 	}
@@ -262,6 +265,7 @@ func TestChaos_ContextPoolExhaustion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping stress test in short mode")
 	}
+	t.Parallel()
 
 	app := MustNew(
 		WithServiceName("test"),
@@ -304,6 +308,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
 	}
+	t.Parallel()
 
 	app := MustNew(
 		WithServiceName("test"),

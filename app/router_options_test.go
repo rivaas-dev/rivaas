@@ -24,7 +24,10 @@ import (
 )
 
 func TestWithRouterOptions(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates app with router options", func(t *testing.T) {
+		t.Parallel()
 		app, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("1.0.0"),
@@ -39,6 +42,8 @@ func TestWithRouterOptions(t *testing.T) {
 	})
 
 	t.Run("creates app without router options (defaults)", func(t *testing.T) {
+		t.Parallel()
+
 		app, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("1.0.0"),
@@ -49,6 +54,8 @@ func TestWithRouterOptions(t *testing.T) {
 	})
 
 	t.Run("multiple WithRouterOptions calls accumulate", func(t *testing.T) {
+		t.Parallel()
+
 		app, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("1.0.0"),

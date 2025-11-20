@@ -108,7 +108,7 @@ func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 
 		// No liveness checks = always healthy (process is running)
 		if len(o.Liveness) == 0 {
-			_ = c.String(http.StatusOK, "ok")
+			c.String(http.StatusOK, "ok")
 			return
 		}
 
@@ -122,7 +122,7 @@ func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 			return
 		}
 
-		_ = c.String(http.StatusOK, "ok")
+		c.String(http.StatusOK, "ok")
 	})
 
 	// GET /readyz - Readiness probe (external deps: db, cache, otel)
@@ -173,7 +173,6 @@ func runChecks(ctx context.Context, checks map[string]CheckFunc, timeout time.Du
 	results := make(chan result, len(checks))
 
 	for name, fn := range checks {
-		name, fn := name, fn // Capture for goroutine
 		go func() {
 			checkCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()

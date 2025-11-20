@@ -17,7 +17,6 @@ package router_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -1311,12 +1310,3 @@ var _ = Describe("Versioning Integration", func() {
 		})
 	})
 })
-
-func TestVersioningIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping versioning integration test in short mode")
-	}
-
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Versioning Integration Suite")
-}

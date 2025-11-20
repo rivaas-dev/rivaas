@@ -24,6 +24,8 @@ import (
 
 // TestServerConfig_Validate tests the Validate() method on serverConfig.
 func TestServerConfig_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		config  *serverConfig
@@ -54,7 +56,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "read timeout should not exceed write timeout")
 			},
@@ -71,7 +73,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "must be at least 1 second")
 			},
@@ -88,7 +90,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "must be at least 1KB")
 			},
@@ -105,7 +107,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "server.readTimeout")
 			},
@@ -122,7 +124,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "server.writeTimeout")
 			},
@@ -139,7 +141,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
-				var ve *ValidationErrors
+				var ve *ValidationError
 				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
 				// Should have multiple errors
 				assert.Greater(t, len(ve.Errors), 1, "should have multiple validation errors")
@@ -197,6 +199,8 @@ func TestServerConfig_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			errs := tt.config.Validate()
 			if tt.wantErr {
 				assert.NotNil(t, errs, "should return validation errors")
@@ -216,7 +220,10 @@ func TestServerConfig_Validate(t *testing.T) {
 // TestServerConfig_Validate_Integration tests that serverConfig.Validate()
 // is properly called from config.validate().
 func TestServerConfig_Validate_Integration(t *testing.T) {
+	t.Parallel()
+
 	t.Run("server config validation errors are included in app validation", func(t *testing.T) {
+		t.Parallel()
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
@@ -246,7 +253,7 @@ func TestServerConfig_Validate_Integration(t *testing.T) {
 		assert.Error(t, err, "should return validation error")
 		assert.Nil(t, app, "app should be nil on validation error")
 
-		var ve *ValidationErrors
+		var ve *ValidationError
 		if errors.As(err, &ve) {
 			// Should have multiple server config errors
 			serverErrorCount := 0

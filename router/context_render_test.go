@@ -1,7 +1,20 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package router
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,11 +23,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
 // TestIndentedJSON tests pretty-printed JSON rendering
 func TestIndentedJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		data           any
@@ -31,18 +48,13 @@ func TestIndentedJSON(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should be indented
-				if !strings.Contains(body, "  ") {
-					t.Error("Expected indented JSON")
-				}
+				assert.Contains(t, body, "  ", "Expected indented JSON")
 				// Should contain newlines
-				if !strings.Contains(body, "\n") {
-					t.Error("Expected formatted JSON with newlines")
-				}
+				assert.Contains(t, body, "\n", "Expected formatted JSON with newlines")
 				// Should be valid JSON
 				var result map[string]any
-				if err := json.Unmarshal([]byte(body), &result); err != nil {
-					t.Errorf("Invalid JSON: %v", err)
-				}
+				err := json.Unmarshal([]byte(body), &result)
+				assert.NoError(t, err, "Invalid JSON")
 			},
 		},
 		{
@@ -59,9 +71,7 @@ func TestIndentedJSON(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should have proper indentation for nested objects
-				if !strings.Contains(body, "    ") {
-					t.Error("Expected nested indentation")
-				}
+				assert.Contains(t, body, "    ", "Expected nested indentation")
 			},
 		},
 		{
@@ -69,35 +79,28 @@ func TestIndentedJSON(t *testing.T) {
 			data:           map[string]string{},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
-				if !strings.Contains(body, "{}") {
-					t.Error("Expected empty object {}")
-				}
+				assert.Contains(t, body, "{}", "Expected empty object {}")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			err := c.IndentedJSON(tt.expectedStatus, tt.data)
-
-			if tt.shouldError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.shouldError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
+			if tt.shouldError {
+				err := c.WriteIndentedJSON(tt.expectedStatus, tt.data)
+				assert.Error(t, err, "Expected error but got none")
+			} else {
+				c.IndentedJSON(tt.expectedStatus, tt.data)
 			}
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
-			if w.Header().Get("Content-Type") != "application/json; charset=utf-8" {
-				t.Errorf("Expected JSON content type, got %s", w.Header().Get("Content-Type"))
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
 
 			if tt.checkBody != nil {
 				tt.checkBody(t, w.Body.String())
@@ -108,6 +111,8 @@ func TestIndentedJSON(t *testing.T) {
 
 // TestPureJSON tests JSON without HTML escaping
 func TestPureJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		data           any
@@ -150,33 +155,26 @@ func TestPureJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			err := c.PureJSON(tt.expectedStatus, tt.data)
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
+			c.PureJSON(tt.expectedStatus, tt.data)
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
+			assert.Equal(t, tt.expectedStatus, w.Code)
 			body := strings.TrimSpace(w.Body.String())
-			if body != tt.expectedBody {
-				t.Errorf("Expected body %q, got %q", tt.expectedBody, body)
-			}
-
-			if w.Header().Get("Content-Type") != "application/json; charset=utf-8" {
-				t.Errorf("Expected JSON content type, got %s", w.Header().Get("Content-Type"))
-			}
+			assert.Equal(t, tt.expectedBody, body)
+			assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
 		})
 	}
 }
 
 // TestPureJSON_vs_JSON_Escaping compares escaping behavior
 func TestPureJSON_vs_JSON_Escaping(t *testing.T) {
+	t.Parallel()
+
 	data := map[string]string{
 		"html": "<h1>Title</h1>",
 		"url":  "https://example.com?a=1&b=2",
@@ -186,49 +184,39 @@ func TestPureJSON_vs_JSON_Escaping(t *testing.T) {
 	wJSON := httptest.NewRecorder()
 	reqJSON := httptest.NewRequest("GET", "/", nil)
 	cJSON := NewContext(wJSON, reqJSON)
-	_ = cJSON.JSON(http.StatusOK, data)
+	cJSON.JSON(http.StatusOK, data)
 	jsonBody := wJSON.Body.String()
 
 	// Test PureJSON (should NOT escape)
 	wPure := httptest.NewRecorder()
 	reqPure := httptest.NewRequest("GET", "/", nil)
 	cPure := NewContext(wPure, reqPure)
-	_ = cPure.PureJSON(http.StatusOK, data)
+	cPure.PureJSON(http.StatusOK, data)
 	pureBody := wPure.Body.String()
 
 	// Verify JSON() escapes HTML
-	if !strings.Contains(jsonBody, "\\u003c") || !strings.Contains(jsonBody, "\\u003e") {
-		t.Error("Standard JSON should escape < and >")
-	}
-	if !strings.Contains(jsonBody, "\\u0026") {
-		t.Error("Standard JSON should escape &")
-	}
+	assert.True(t, strings.Contains(jsonBody, "\\u003c") || strings.Contains(jsonBody, "\\u003e"), "Standard JSON should escape < and >")
+	assert.Contains(t, jsonBody, "\\u0026", "Standard JSON should escape &")
 
 	// Verify PureJSON() does NOT escape HTML
-	if strings.Contains(pureBody, "\\u003c") || strings.Contains(pureBody, "\\u003e") {
-		t.Error("PureJSON should NOT escape < and >")
-	}
-	if strings.Contains(pureBody, "\\u0026") {
-		t.Error("PureJSON should NOT escape &")
-	}
+	assert.False(t, strings.Contains(pureBody, "\\u003c") || strings.Contains(pureBody, "\\u003e"), "PureJSON should NOT escape < and >")
+	assert.NotContains(t, pureBody, "\\u0026", "PureJSON should NOT escape &")
 
 	// Both should produce valid JSON
 	var resultJSON, resultPure map[string]string
-	if err := json.Unmarshal([]byte(jsonBody), &resultJSON); err != nil {
-		t.Errorf("JSON() output is not valid JSON: %v", err)
-	}
-	if err := json.Unmarshal([]byte(pureBody), &resultPure); err != nil {
-		t.Errorf("PureJSON() output is not valid JSON: %v", err)
-	}
+	err := json.Unmarshal([]byte(jsonBody), &resultJSON)
+	assert.NoError(t, err, "JSON() output is not valid JSON")
+	err = json.Unmarshal([]byte(pureBody), &resultPure)
+	assert.NoError(t, err, "PureJSON() output is not valid JSON")
 
 	// Both should unmarshal to same values
-	if resultJSON["html"] != resultPure["html"] {
-		t.Error("JSON and PureJSON should unmarshal to same values")
-	}
+	assert.Equal(t, resultJSON["html"], resultPure["html"], "JSON and PureJSON should unmarshal to same values")
 }
 
 // TestSecureJSON tests JSON with security prefix
 func TestSecureJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		data           any
@@ -268,42 +256,35 @@ func TestSecureJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			var err error
 			if len(tt.prefix) > 0 {
-				err = c.SecureJSON(tt.expectedStatus, tt.data, tt.prefix[0])
+				c.SecureJSON(tt.expectedStatus, tt.data, tt.prefix[0])
 			} else {
-				err = c.SecureJSON(tt.expectedStatus, tt.data)
+				c.SecureJSON(tt.expectedStatus, tt.data)
 			}
 
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
-
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
+			assert.Equal(t, tt.expectedStatus, w.Code)
 			body := w.Body.String()
-			if !strings.HasPrefix(body, tt.expectedPrefix) {
-				t.Errorf("Expected prefix %q, got body: %q", tt.expectedPrefix, body)
-			}
+			assert.True(t, strings.HasPrefix(body, tt.expectedPrefix), "Expected prefix %q, got body: %q", tt.expectedPrefix, body)
 
 			// Verify that removing prefix gives valid JSON
 			jsonPart := strings.TrimPrefix(body, tt.expectedPrefix)
 			var result any
-			if err := json.Unmarshal([]byte(jsonPart), &result); err != nil {
-				t.Errorf("Content after prefix is not valid JSON: %v", err)
-			}
+			err := json.Unmarshal([]byte(jsonPart), &result)
+			assert.NoError(t, err, "Content after prefix is not valid JSON")
 		})
 	}
 }
 
 // TestASCIIJSON tests ASCII-only JSON encoding
 func TestASCIIJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		data           any
@@ -318,14 +299,10 @@ func TestASCIIJSON(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should contain \u escape sequences
-				if !strings.Contains(body, "\\u") {
-					t.Error("Expected Unicode escape sequences")
-				}
+				assert.Contains(t, body, "\\u", "Expected Unicode escape sequences")
 				// Should be pure ASCII (no bytes >= 128)
 				for _, b := range []byte(body) {
-					if b >= 128 {
-						t.Errorf("Found non-ASCII byte: %d (%c)", b, b)
-					}
+					assert.Less(t, b, byte(128), "Found non-ASCII byte: %d (%c)", b, b)
 				}
 			},
 		},
@@ -337,17 +314,12 @@ func TestASCIIJSON(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should escape emoji to \uXXXX
-				if !strings.Contains(body, "\\u") {
-					t.Error("Expected emoji to be escaped")
-				}
+				assert.Contains(t, body, "\\u", "Expected emoji to be escaped")
 				// Should be valid JSON that unmarshals correctly
 				var result map[string]string
-				if err := json.Unmarshal([]byte(body), &result); err != nil {
-					t.Errorf("Invalid JSON: %v", err)
-				}
-				if result["emoji"] != "🌍🎉" {
-					t.Error("Emoji should unmarshal to original value")
-				}
+				err := json.Unmarshal([]byte(body), &result)
+				assert.NoError(t, err, "Invalid JSON")
+				assert.Equal(t, "🌍🎉", result["emoji"], "Emoji should unmarshal to original value")
 			},
 		},
 		{
@@ -360,13 +332,9 @@ func TestASCIIJSON(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// ASCII part should be unchanged
-				if !strings.Contains(body, "Hello") {
-					t.Error("ASCII text should not be escaped")
-				}
+				assert.Contains(t, body, "Hello", "ASCII text should not be escaped")
 				// Non-ASCII should be escaped
-				if strings.Contains(body, "José") {
-					t.Error("Non-ASCII characters should be escaped")
-				}
+				assert.NotContains(t, body, "José", "Non-ASCII characters should be escaped")
 			},
 		},
 		{
@@ -377,31 +345,23 @@ func TestASCIIJSON(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				// Should not have escape sequences for pure ASCII
-				if strings.Count(body, "\\u") > 0 {
-					t.Error("Pure ASCII should not have escape sequences")
-				}
+				assert.Equal(t, 0, strings.Count(body, "\\u"), "Pure ASCII should not have escape sequences")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			err := c.ASCIIJSON(tt.expectedStatus, tt.data)
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
+			c.ASCIIJSON(tt.expectedStatus, tt.data)
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
-			if w.Header().Get("Content-Type") != "application/json; charset=utf-8" {
-				t.Errorf("Expected JSON content type")
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
 
 			if tt.checkBody != nil {
 				tt.checkBody(t, w.Body.String())
@@ -412,6 +372,8 @@ func TestASCIIJSON(t *testing.T) {
 
 // TestYAML tests YAML rendering
 func TestYAML(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		data           any
@@ -431,13 +393,10 @@ func TestYAML(t *testing.T) {
 			checkBody: func(t *testing.T, body string) {
 				// Should be valid YAML
 				var result map[string]any
-				if err := yaml.Unmarshal([]byte(body), &result); err != nil {
-					t.Errorf("Invalid YAML: %v", err)
-				}
+				err := yaml.Unmarshal([]byte(body), &result)
+				assert.NoError(t, err, "Invalid YAML")
 				// Should contain YAML formatting
-				if !strings.Contains(body, ":") {
-					t.Error("Expected YAML key:value format")
-				}
+				assert.Contains(t, body, ":", "Expected YAML key:value format")
 			},
 		},
 		{
@@ -447,12 +406,9 @@ func TestYAML(t *testing.T) {
 			checkBody: func(t *testing.T, body string) {
 				// Should be valid YAML
 				var result []string
-				if err := yaml.Unmarshal([]byte(body), &result); err != nil {
-					t.Errorf("Invalid YAML: %v", err)
-				}
-				if len(result) != 3 {
-					t.Errorf("Expected 3 items, got %d", len(result))
-				}
+				err := yaml.Unmarshal([]byte(body), &result)
+				assert.NoError(t, err, "Invalid YAML")
+				assert.Equal(t, 3, len(result), "Expected 3 items")
 			},
 		},
 		{
@@ -466,31 +422,24 @@ func TestYAML(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
 				var result map[string]any
-				if err := yaml.Unmarshal([]byte(body), &result); err != nil {
-					t.Errorf("Invalid YAML: %v", err)
-				}
+				err := yaml.Unmarshal([]byte(body), &result)
+				assert.NoError(t, err, "Invalid YAML")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			err := c.YAML(tt.expectedStatus, tt.data)
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
+			c.YAML(tt.expectedStatus, tt.data)
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
-			if w.Header().Get("Content-Type") != "application/x-yaml; charset=utf-8" {
-				t.Errorf("Expected YAML content type, got %s", w.Header().Get("Content-Type"))
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			assert.Equal(t, "application/x-yaml; charset=utf-8", w.Header().Get("Content-Type"))
 
 			if tt.checkBody != nil {
 				tt.checkBody(t, w.Body.String())
@@ -552,42 +501,33 @@ func TestDataFromReader(t *testing.T) {
 			reader := strings.NewReader(tt.data)
 
 			err := c.DataFromReader(tt.expectedStatus, tt.contentLength, tt.contentType, reader, tt.extraHeaders)
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
+			require.NoError(t, err, "Unexpected error")
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
-			if tt.contentType != "" && w.Header().Get("Content-Type") != tt.contentType {
-				t.Errorf("Expected content type %s, got %s", tt.contentType, w.Header().Get("Content-Type"))
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			if tt.contentType != "" {
+				assert.Equal(t, tt.contentType, w.Header().Get("Content-Type"))
 			}
 
 			if tt.contentLength >= 0 {
 				expectedLength := fmt.Sprintf("%d", tt.contentLength)
-				if w.Header().Get("Content-Length") != expectedLength {
-					t.Errorf("Expected Content-Length %s, got %s", expectedLength, w.Header().Get("Content-Length"))
-				}
+				assert.Equal(t, expectedLength, w.Header().Get("Content-Length"))
 			}
 
 			// Verify extra headers
 			for key, expectedValue := range tt.extraHeaders {
-				if w.Header().Get(key) != expectedValue {
-					t.Errorf("Expected header %s: %s, got %s", key, expectedValue, w.Header().Get(key))
-				}
+				assert.Equal(t, expectedValue, w.Header().Get(key), "Expected header %s", key)
 			}
 
 			// Verify streamed data
-			if w.Body.String() != tt.data {
-				t.Errorf("Expected body %q, got %q", tt.data, w.Body.String())
-			}
+			assert.Equal(t, tt.data, w.Body.String())
 		})
 	}
 }
 
 // TestDataFromReader_Error tests error handling
 func TestDataFromReader_Error(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/", nil)
 	c := NewContext(w, req)
@@ -596,12 +536,8 @@ func TestDataFromReader_Error(t *testing.T) {
 	errorReader := &errorReader{err: io.ErrUnexpectedEOF}
 
 	err := c.DataFromReader(200, -1, "text/plain", errorReader, nil)
-	if err == nil {
-		t.Error("Expected error from failing reader")
-	}
-	if !strings.Contains(err.Error(), "streaming from reader failed") {
-		t.Errorf("Expected streaming error, got: %v", err)
-	}
+	assert.Error(t, err, "Expected error from failing reader")
+	assert.Contains(t, err.Error(), "streaming from reader failed", "Expected streaming error")
 }
 
 // errorReader is a test helper that always returns an error
@@ -665,21 +601,15 @@ func TestData(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			err := c.Data(tt.expectedStatus, tt.contentType, tt.data)
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
+			c.Data(tt.expectedStatus, tt.contentType, tt.data)
 
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
-			if w.Header().Get("Content-Type") != tt.expectedCT {
-				t.Errorf("Expected content type %s, got %s", tt.expectedCT, w.Header().Get("Content-Type"))
-			}
-
-			if !bytes.Equal(w.Body.Bytes(), tt.data) {
-				t.Errorf("Expected body %v, got %v", tt.data, w.Body.Bytes())
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			assert.Equal(t, tt.expectedCT, w.Header().Get("Content-Type"))
+			// Compare lengths and contents for empty vs nil slice compatibility
+			if len(tt.data) == 0 && w.Body.Len() == 0 {
+				// Both are empty, which is acceptable
+			} else {
+				assert.Equal(t, tt.data, w.Body.Bytes())
 			}
 		})
 	}
@@ -697,35 +627,40 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 		{
 			name: "JSON",
 			renderFunc: func(c *Context) error {
-				return c.JSON(http.StatusOK, data)
+				c.JSON(http.StatusOK, data)
+				return nil
 			},
 			expectedCT: "application/json; charset=utf-8",
 		},
 		{
 			name: "IndentedJSON",
 			renderFunc: func(c *Context) error {
-				return c.IndentedJSON(200, data)
+				c.IndentedJSON(200, data)
+				return nil
 			},
 			expectedCT: "application/json; charset=utf-8",
 		},
 		{
 			name: "PureJSON",
 			renderFunc: func(c *Context) error {
-				return c.PureJSON(200, data)
+				c.PureJSON(200, data)
+				return nil
 			},
 			expectedCT: "application/json; charset=utf-8",
 		},
 		{
 			name: "SecureJSON",
 			renderFunc: func(c *Context) error {
-				return c.SecureJSON(200, data)
+				c.SecureJSON(200, data)
+				return nil
 			},
 			expectedCT: "application/json; charset=utf-8",
 		},
 		{
 			name: "ASCIIJSON",
 			renderFunc: func(c *Context) error {
-				return c.ASCIIJSON(200, data)
+				c.ASCIIJSON(200, data)
+				return nil
 			},
 			expectedCT: "application/json; charset=utf-8",
 		},
@@ -739,9 +674,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 
 			_ = tt.renderFunc(c)
 
-			if w.Header().Get("Content-Type") != tt.expectedCT {
-				t.Errorf("Expected content type %s, got %s", tt.expectedCT, w.Header().Get("Content-Type"))
-			}
+			assert.Equal(t, tt.expectedCT, w.Header().Get("Content-Type"))
 		})
 	}
 }
@@ -762,31 +695,31 @@ func TestJSON_Variants_ErrorHandling(t *testing.T) {
 		{
 			name: "JSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.JSON(http.StatusOK, bad)
+				return c.WriteJSON(http.StatusOK, bad)
 			},
 		},
 		{
 			name: "IndentedJSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.IndentedJSON(200, bad)
+				return c.WriteIndentedJSON(200, bad)
 			},
 		},
 		{
 			name: "PureJSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.PureJSON(200, bad)
+				return c.WritePureJSON(200, bad)
 			},
 		},
 		{
 			name: "SecureJSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.SecureJSON(200, bad)
+				return c.WriteSecureJSON(200, bad)
 			},
 		},
 		{
 			name: "ASCIIJSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.ASCIIJSON(200, bad)
+				return c.WriteASCIIJSON(200, bad)
 			},
 		},
 	}
@@ -798,12 +731,8 @@ func TestJSON_Variants_ErrorHandling(t *testing.T) {
 			c := NewContext(w, req)
 
 			err := tt.renderFunc(c)
-			if err == nil {
-				t.Error("Expected encoding error but got none")
-			}
-			if !strings.Contains(err.Error(), "encoding failed") {
-				t.Errorf("Expected encoding error message, got: %v", err)
-			}
+			assert.Error(t, err, "Expected encoding error but got none")
+			assert.Contains(t, err.Error(), "encoding failed", "Expected encoding error message")
 		})
 	}
 }
@@ -828,7 +757,7 @@ func TestYAML_Error(t *testing.T) {
 	}
 
 	// This will panic - which is expected behavior for yaml.v3
-	_ = c.YAML(200, badType{Func: func() {}})
+	c.YAML(200, badType{Func: func() {}})
 }
 
 // TestDataFromReader_NilReader tests nil reader handling
@@ -855,18 +784,10 @@ func TestData_EmptyData(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	c := NewContext(w, req)
 
-	err := c.Data(204, "text/plain", []byte{})
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	c.Data(204, "text/plain", []byte{})
 
-	if w.Code != 204 {
-		t.Errorf("Expected status 204, got %d", w.Code)
-	}
-
-	if w.Body.Len() != 0 {
-		t.Errorf("Expected empty body, got %d bytes", w.Body.Len())
-	}
+	assert.Equal(t, 204, w.Code)
+	assert.Equal(t, 0, w.Body.Len(), "Expected empty body")
 }
 
 // TestData_LargeData tests handling of large byte slices
@@ -881,18 +802,10 @@ func TestData_LargeData(t *testing.T) {
 		largeData[i] = byte(i % 256)
 	}
 
-	err := c.Data(200, "application/octet-stream", largeData)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	c.Data(200, "application/octet-stream", largeData)
 
-	if w.Body.Len() != len(largeData) {
-		t.Errorf("Expected %d bytes, got %d", len(largeData), w.Body.Len())
-	}
-
-	if !bytes.Equal(w.Body.Bytes(), largeData) {
-		t.Error("Data mismatch")
-	}
+	assert.Equal(t, len(largeData), w.Body.Len(), "Expected %d bytes", len(largeData))
+	assert.Equal(t, largeData, w.Body.Bytes(), "Data mismatch")
 }
 
 // TestSecureJSON_StripPrefix tests that clients can strip the prefix
@@ -906,29 +819,21 @@ func TestSecureJSON_StripPrefix(t *testing.T) {
 		"token":  "abc123",
 	}
 
-	err := c.SecureJSON(200, originalData)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	c.SecureJSON(200, originalData)
 
 	body := w.Body.String()
 
 	// Simulate client stripping prefix
 	prefix := "while(1);"
-	if !strings.HasPrefix(body, prefix) {
-		t.Fatalf("Expected prefix %q", prefix)
-	}
+	require.True(t, strings.HasPrefix(body, prefix), "Expected prefix %q", prefix)
 
 	jsonPart := strings.TrimPrefix(body, prefix)
 
 	// Should be valid JSON after stripping
 	var decoded map[string]string
-	if err := json.Unmarshal([]byte(jsonPart), &decoded); err != nil {
-		t.Fatalf("Failed to unmarshal after stripping prefix: %v", err)
-	}
+	err := json.Unmarshal([]byte(jsonPart), &decoded)
+	require.NoError(t, err, "Failed to unmarshal after stripping prefix")
 
 	// Should match original data
-	if decoded["secret"] != originalData["secret"] {
-		t.Error("Data mismatch after stripping prefix")
-	}
+	assert.Equal(t, originalData["secret"], decoded["secret"], "Data mismatch after stripping prefix")
 }

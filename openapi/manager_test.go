@@ -29,6 +29,8 @@ import (
 var update = flag.Bool("update", false, "update golden files")
 
 func TestManager_ConcurrentRegister(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(WithTitle("Test", "1.0"))
 	mgr := NewManager(cfg)
 
@@ -53,6 +55,8 @@ func TestManager_ConcurrentRegister(t *testing.T) {
 }
 
 func TestManager_GenerateSpec_Golden(t *testing.T) {
+	t.Parallel()
+
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithDescription("Test description"),

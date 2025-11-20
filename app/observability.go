@@ -126,7 +126,7 @@ func (o *observabilityRecorder) OnRequestEnd(ctx context.Context, state any, wri
 	duration := time.Since(s.startTime)
 
 	// Extract response metadata from wrapped writer
-	var statusCode int = http.StatusOK
+	var statusCode = http.StatusOK
 	var responseSize int64 = 0
 	if ri, ok := writer.(router.ResponseInfo); ok {
 		statusCode = ri.StatusCode()

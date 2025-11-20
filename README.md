@@ -396,6 +396,8 @@ spanID := c.SpanID()
 
 ## 🧪 Testing
 
+Rivaas follows comprehensive testing standards documented in [Testing Standards](./docs/TESTING_STANDARDS.md). All packages include unit tests, integration tests, benchmarks, and example tests.
+
 ```bash
 # Run all tests
 go test ./...
