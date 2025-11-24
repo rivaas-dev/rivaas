@@ -43,7 +43,6 @@ import (
     "log"
     "net/http"
     "rivaas.dev/app"
-    "rivaas.dev/router"
 )
 
 func main() {
@@ -54,7 +53,7 @@ func main() {
     }
 
     // Register routes
-    a.GET("/", func(c *router.Context) {
+    a.GET("/", func(c *app.Context) {
         c.JSON(http.StatusOK, map[string]string{
             "message": "Hello from Rivaas App!",
         })
@@ -78,8 +77,8 @@ import (
     "time"
     
     "rivaas.dev/app"
-    "rivaas.dev/router"
-    "rivass.dev/router/middleware"
+    "rivaas.dev/router/middleware/requestid"
+    "rivaas.dev/router/middleware/cors"
     "go.opentelemetry.io/otel/attribute"
 )
 
@@ -87,11 +86,11 @@ func main() {
     // Create app with full observability
     a, err := app.New(
         app.WithServiceName("my-api"),
-        app.WithVersion("v1.0.0"),
+        app.WithServiceVersion("v1.0.0"),
         app.WithEnvironment("production"),
         app.WithMetrics(),
         app.WithTracing(),
-        app.WithLogging(),
+        app.WithLogger(logger), // Provide a *slog.Logger
         app.WithServerConfig(
             app.WithReadTimeout(15 * time.Second),
             app.WithWriteTimeout(15 * time.Second),
@@ -102,11 +101,11 @@ func main() {
     }
 
     // Add middleware
-    a.Use(middleware.RequestID())
-    a.Use(middleware.CORS(middleware.WithAllowAllOrigins(true)))
+    a.Use(requestid.New())
+    a.Use(cors.New(cors.WithAllowAllOrigins(true)))
 
     // Register routes
-    a.GET("/", func(c *router.Context) {
+    a.GET("/", func(c *app.Context) {
         c.JSON(http.StatusOK, map[string]any{
             "message":     "Full Featured API",
             "service":     "my-api",
@@ -116,7 +115,7 @@ func main() {
         })
     })
 
-    a.GET("/users/:id", func(c *router.Context) {
+    a.GET("/users/:id", func(c *app.Context) {
         userID := c.Param("id")
         
         // Add span attributes
@@ -212,21 +211,23 @@ The `trace_id` will be empty and no traces will appear in stdout because:
 **Quick Start - Stdout Tracing (Development):**
 
 ```go
-import "rivaas.dev/tracing"
+import (
+    "log"
+    "rivaas.dev/app"
+    "rivaas.dev/tracing"
+)
 
-// Set up stdout exporter BEFORE creating app
-tp, err := tracing.SetupStdout("my-service", "v1.0.0")
+// Create app with stdout tracing provider
+a, err := app.New(
+    app.WithServiceName("my-service"),
+    app.WithServiceVersion("v1.0.0"),
+    app.WithMetrics(),
+    app.WithTracing(tracing.WithProvider(tracing.StdoutProvider)),
+    app.WithLogger(logger), // Provide a *slog.Logger
+)
 if err != nil {
     log.Fatal(err)
 }
-defer tp.Shutdown(context.Background())
-
-// Now create app - traces will actually work!
-app, _ := app.New(
-    app.WithMetrics(),
-    app.WithTracing(),
-    app.WithLogging(),
-)
 ```
 
 **Just run it:**
@@ -341,9 +342,9 @@ Add middleware during initialization or after app creation:
 a, err := app.New(
     app.WithServiceName("my-service"),
     app.WithMiddleware(
-        middleware.Logger(),
-        middleware.Recovery(),
-        middleware.RequestID(),
+        accesslog.New(accesslog.WithLogger(logger)),
+        recovery.New(),
+        requestid.New(),
     ),
 )
 
@@ -351,72 +352,77 @@ a, err := app.New(
 a, err := app.New(
     app.WithServiceName("my-service"),
 )
-a.Use(middleware.Logger())
-a.Use(middleware.Recovery())
-a.Use(middleware.RequestID())
+a.Use(accesslog.New(accesslog.WithLogger(logger)))
+a.Use(recovery.New())
+a.Use(requestid.New())
 
 // Option 3: Mix both approaches
 a, err := app.New(
     app.WithServiceName("my-service"),
-    app.WithMiddleware(middleware.Recovery()), // Core middleware
+    app.WithMiddleware(recovery.New()), // Core middleware
 )
-a.Use(middleware.Logger())  // Additional middleware
+a.Use(accesslog.New(accesslog.WithLogger(logger)))  // Additional middleware
 ```
 
 **Default Behavior:**
 
-- **Development mode**: Automatically includes `Recovery()` and `Logger()` middleware
-- **Production mode**: Automatically includes only `Recovery()` middleware
-- **To disable defaults**: Call `app.WithMiddleware()` with no arguments (empty) to opt out of defaults
+- **Development mode**: Automatically includes `recovery.New()` middleware and access logging via observability recorder
+- **Production mode**: Automatically includes only `recovery.New()` middleware, with error-only logging via observability recorder
+- **To disable defaults**: Call `app.WithMiddleware()` with no arguments (empty) to opt out of default middleware
 
 ## Built-in Middleware
 
-The app package provides access to high-quality middleware from `router/middleware`:
+The app package provides access to high-quality middleware from `router/middleware` subpackages. Each middleware is in its own subpackage for clean imports and modularity.
+
+### Access Logging
 
 ```go
-import "rivaas.dev/router/middleware"
-```
+import "rivaas.dev/router/middleware/accesslog"
 
-### Logger
-
-```go
 // Basic logger
-app.Use(middleware.Logger())
+app.Use(accesslog.New(accesslog.WithLogger(logger)))
 
 // With options
-app.Use(middleware.Logger(
-    middleware.WithColors(true),
-    middleware.WithSkipPaths([]string{"/health", "/metrics"}),
+app.Use(accesslog.New(
+    accesslog.WithLogger(logger),
+    accesslog.WithSkipPaths([]string{"/health", "/metrics"}),
 ))
 ```
 
-Logs requests with timing, status codes, and client IPs. Supports colored output, custom formatters, and path skipping.
+Logs requests with timing, status codes, and client IPs. Requires a `*slog.Logger` to be provided.
+
+**Note:** The app package automatically configures access logging through its unified observability recorder when `WithLogger()` is used. Manual access logging middleware is only needed for custom configurations.
 
 ### Recovery
 
 ```go
+import "rivaas.dev/router/middleware/recovery"
+
 // Basic recovery
-app.Use(middleware.Recovery())
+app.Use(recovery.New())
 
 // With options
-app.Use(middleware.Recovery(
-    middleware.WithStackTrace(true),
-    middleware.WithRecoveryLogger(customLogger),
+app.Use(recovery.New(
+    recovery.WithStackTrace(true),
 ))
 ```
 
 Recovers from panics and returns proper error responses. Configurable stack traces and custom handlers.
 
+**Note:** Recovery middleware is automatically included by default in both development and production modes. Use `app.WithMiddleware()` to override defaults.
+
 ### CORS
 
 ```go
+import "rivaas.dev/router/middleware/cors"
+
 // Allow all origins (development)
-app.Use(middleware.CORS(middleware.WithAllowAllOrigins(true)))
+app.Use(cors.New(cors.WithAllowAllOrigins(true)))
 
 // Specific origins (production)
-app.Use(middleware.CORS(
-    middleware.WithAllowedOrigins([]string{"https://example.com"}),
-    middleware.WithAllowCredentials(true),
+app.Use(cors.New(
+    cors.WithAllowedOrigins([]string{"https://example.com"}),
+    cors.WithAllowCredentials(true),
 ))
 ```
 
@@ -425,12 +431,14 @@ Handles Cross-Origin Resource Sharing with flexible configuration options.
 ### Request ID
 
 ```go
+import "rivaas.dev/router/middleware/requestid"
+
 // Basic request ID
-app.Use(middleware.RequestID())
+app.Use(requestid.New())
 
 // With custom header
-app.Use(middleware.RequestID(
-    middleware.WithRequestIDHeader("X-Correlation-ID"),
+app.Use(requestid.New(
+    requestid.WithRequestIDHeader("X-Correlation-ID"),
 ))
 ```
 
@@ -439,12 +447,14 @@ Adds unique request IDs to each request for distributed tracing.
 ### Timeout
 
 ```go
+import "rivaas.dev/router/middleware/timeout"
+
 // Basic timeout
-app.Use(middleware.Timeout(30 * time.Second))
+app.Use(timeout.New(30 * time.Second))
 
 // With options
-app.Use(middleware.Timeout(30*time.Second,
-    middleware.WithTimeoutSkipPaths([]string{"/stream"}),
+app.Use(timeout.New(30*time.Second,
+    timeout.WithSkipPaths([]string{"/stream"}),
 ))
 ```
 
@@ -453,7 +463,9 @@ Adds request timeout handling with context cancellation.
 ### Rate Limiting
 
 ```go
-app.Use(app.RateLimit(100, time.Minute)) // 100 requests per minute
+import "rivaas.dev/router/middleware/ratelimit"
+
+app.Use(ratelimit.New(100, time.Minute)) // 100 requests per minute
 ```
 
 Simple in-memory rate limiting. Note: This is suitable for single-instance deployments only. For production with multiple instances, use a distributed rate limiting solution.
@@ -623,7 +635,7 @@ If you're migrating from the low-level router package:
 ### Before (Router)
 
 ```go
-import "rivass.dev/router"
+import "rivaas.dev/router"
 
 r := router.New(
     router.WithMetrics(),
@@ -635,12 +647,14 @@ r := router.New(
 ### After (App)
 
 ```go
-import "rivass.dev/app"
+import "rivaas.dev/app"
 
 a, err := app.New(
+    app.WithServiceName("my-service"),
+    app.WithServiceVersion("v1.0.0"),
     app.WithMetrics(),
     app.WithTracing(),
-    app.WithLogging(),
+    app.WithLogger(logger), // Provide a *slog.Logger
 )
 if err != nil {
     log.Fatalf("Failed to create app: %v", err)
@@ -755,7 +769,7 @@ app.WithServerConfig(
 
 **Solutions:**
 
-- Ensure middleware is added before routes: `app.Use(middleware.Logger())` before `app.GET(...)`
+- Ensure middleware is added before routes: `app.Use(accesslog.New(...))` before `app.GET(...)`
 - Check middleware calls `c.Next()` to continue the chain
 - Verify middleware isn't returning early without calling `c.Next()`
 - In development mode, check logs for middleware execution
