@@ -133,29 +133,39 @@ go test ./...
 package main
 
 import (
+    "log"
     "net/http"
     "rivaas.dev/app"
-    "rivaas.dev/router"
+    "rivaas.dev/logging"
 )
 
 func main() {
+    // Create logger first
+    logger := logging.MustNew(
+        logging.WithJSONHandler(),
+        logging.WithServiceName("my-api"),
+    )
+    
     // Create app with observability
-    app := app.New(
+    a, err := app.New(
         app.WithServiceName("my-api"),
         app.WithMetrics(),
         app.WithTracing(),
-        app.WithLogging(),
+        app.WithLogger(logger),
     )
+    if err != nil {
+        log.Fatalf("Failed to create app: %v", err)
+    }
 
     // Register routes
-    app.GET("/", func(c *router.Context) {
+    a.GET("/", func(c *app.Context) {
         c.JSON(http.StatusOK, map[string]string{
             "message": "Hello from Rivaas!",
         })
     })
 
     // Start server with graceful shutdown
-    app.Run(":8080")
+    a.Run(":8080")
 }
 ```
 
@@ -220,9 +230,9 @@ See [benchmarks](./router/router_bench_test.go) for detailed performance compari
 
 ```go
 // App configuration
-app := app.New(
+a, err := app.New(
     app.WithServiceName("my-api"),
-    app.WithVersion("v1.0.0"),
+    app.WithServiceVersion("v1.0.0"),
     app.WithEnvironment("production"),
     app.WithMetrics(
         metrics.WithProvider(metrics.PrometheusProvider),
@@ -232,14 +242,17 @@ app := app.New(
         tracing.WithSampleRate(0.1),
         tracing.WithExcludePaths("/health"),
     ),
-    app.WithLogging(
+    app.WithLogger(logging.MustNew(
         logging.WithJSONHandler(),
-    ),
+    )),
     app.WithServerConfig(
         app.WithReadTimeout(15 * time.Second),
         app.WithWriteTimeout(15 * time.Second),
     ),
 )
+if err != nil {
+    log.Fatalf("Failed to create app: %v", err)
+}
 ```
 
 ### Automatic Service Metadata Injection
@@ -247,16 +260,26 @@ app := app.New(
 **The app package automatically propagates service metadata** to all observability components. Set your service information once, and it's automatically injected into logging, metrics, and tracing:
 
 ```go
-app := app.New(
+// Create logger with service metadata
+logger := logging.MustNew(
+    logging.WithJSONHandler(),
+    logging.WithServiceName("my-api"),      // Set once
+    logging.WithServiceVersion("v1.0.0"),     // Set once
+)
+
+a, err := app.New(
     app.WithServiceName("my-api"),           // Set once
     app.WithServiceVersion("v1.0.0"),        // Set once
     app.WithEnvironment("production"),       // Set once
     
     // These automatically receive service metadata:
-    app.WithLogging(),   // No need to pass service name/version!
-    app.WithMetrics(),   // No need to pass service name/version!
-    app.WithTracing(),   // No need to pass service name/version!
+    app.WithLogger(logger),   // Logger already has service metadata
+    app.WithMetrics(),         // Automatically gets service name/version
+    app.WithTracing(),        // Automatically gets service name/version
 )
+if err != nil {
+    log.Fatal(err)
+}
 
 // All logs, metrics, and traces will include:
 // - service.name: my-api
@@ -269,42 +292,64 @@ This eliminates repetitive configuration and ensures consistency across all obse
 **Override when needed:**
 
 ```go
-app := app.New(
+// Create logger with custom service name
+logger := logging.MustNew(
+    logging.WithJSONHandler(),
+    logging.WithServiceName("custom-logger"),  // Overrides app-level service name
+)
+
+a, err := app.New(
     app.WithServiceName("my-api"),
     app.WithServiceVersion("v1.0.0"),
-    
-    // Override for a specific component if needed:
-    app.WithLogging(
-        logging.WithServiceName("custom-logger"),  // Overrides injection
-    ),
+    app.WithLogger(logger),  // Uses custom logger
 )
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
 ### Individual Package Configuration
 
 When using packages independently (without the app layer):
 
-// Logging configuration
-logging.WithLogging(
+```go
+// Logging configuration (when used with app)
+// Create logger first, then pass to app
+logger := logging.MustNew(
     logging.WithJSONHandler(), // or WithConsoleHandler(), WithTextHandler()
+    logging.WithDebugLevel(),
+    logging.WithServiceName("my-api"),      // Set explicitly
+    logging.WithServiceVersion("v1.0.0"),   // Set explicitly
+)
+
+a, err := app.New(
+    app.WithLogger(logger),  // Pass the configured logger
+    // ... other options
+)
+
+// Or create logger directly (standalone usage)
+logger, err := logging.New(
+    logging.WithJSONHandler(),
     logging.WithDebugLevel(),
     logging.WithServiceName("my-api"),
     logging.WithServiceVersion("v1.0.0"),
     logging.WithEnvironment("production"),
 )
 
-// Metrics configuration
-metrics.WithMetrics(
+// Metrics configuration (when used with app)
+app.WithMetrics(
     metrics.WithProvider(metrics.PrometheusProvider),
     metrics.WithPort(":9090"),
     metrics.WithExcludePaths("/health"),
+    // Service name/version are automatically injected by app
 )
 
-// Tracing configuration
-tracing.WithTracing(
+// Tracing configuration (when used with app)
+app.WithTracing(
     tracing.WithSampleRate(0.1),
     tracing.WithExcludePaths("/health"),
     tracing.WithHeaders("Authorization"),
+    // Service name/version are automatically injected by app
 )
 ```
 
@@ -312,22 +357,117 @@ tracing.WithTracing(
 
 ### Built-in Middleware
 
-Rivaas includes several production-ready middleware components. See the [middleware documentation](./router/middleware/README.md) for details.
+Rivaas includes several production-ready middleware components from the `router/middleware` package. See the [middleware documentation](./router/middleware/README.md) for complete details.
 
 ```go
-// Add middleware to app
-app.Use(app.Logger())      // Request logging
-app.Use(app.Recovery())    // Panic recovery
-app.Use(app.CORS())        // CORS handling
-app.Use(app.RequestID())   // Request ID generation
-app.Use(app.Timeout(30*time.Second)) // Request timeout
+import (
+    "rivaas.dev/router/middleware/accesslog"
+    "rivaas.dev/router/middleware/recovery"
+    "rivaas.dev/router/middleware/cors"
+    "rivaas.dev/router/middleware/requestid"
+    "rivaas.dev/router/middleware/timeout"
+    "rivaas.dev/router/middleware/ratelimit"
+)
 ```
+
+#### Access Logger
+
+```go
+// Basic access logging
+a.Use(accesslog.New())
+
+// With skip paths (health checks, metrics)
+a.Use(accesslog.New(
+    accesslog.WithSkipPaths("/health", "/metrics"),
+))
+```
+
+Logs HTTP requests with timing, status codes, and client IPs. Integrates with the router's configured logger.
+
+#### Recovery
+
+```go
+// Basic recovery
+a.Use(recovery.New())
+
+// With options
+a.Use(recovery.New(
+    recovery.WithStackTrace(true),
+    recovery.WithLogger(customLogger),
+))
+```
+
+Recovers from panics and returns proper error responses. Configurable stack traces and custom handlers.
+
+#### CORS
+
+```go
+// Allow all origins (development)
+a.Use(cors.New(cors.WithAllowAllOrigins(true)))
+
+// Specific origins (production)
+a.Use(cors.New(
+    cors.WithAllowedOrigins("https://example.com", "https://app.example.com"),
+    cors.WithAllowCredentials(true),
+))
+```
+
+Handles Cross-Origin Resource Sharing with flexible configuration options.
+
+#### Request ID
+
+```go
+// Basic request ID
+a.Use(requestid.New())
+
+// With custom header
+a.Use(requestid.New(
+    requestid.WithHeader("X-Correlation-ID"),
+))
+```
+
+Adds unique request IDs to each request for distributed tracing.
+
+#### Timeout
+
+```go
+// Basic timeout
+a.Use(timeout.New(30 * time.Second))
+
+// With skip paths (long-running operations)
+a.Use(timeout.New(30*time.Second,
+    timeout.WithSkipPaths("/stream", "/upload"),
+))
+```
+
+Adds request timeout handling with context cancellation.
+
+#### Rate Limiting
+
+```go
+// Global rate limiting
+a.Use(ratelimit.New(
+    ratelimit.WithRequestsPerSecond(100),
+    ratelimit.WithBurst(200),
+))
+
+// Per-IP rate limiting
+a.Use(ratelimit.New(
+    ratelimit.WithRequestsPerSecond(10),
+    ratelimit.WithBurst(20),
+    ratelimit.WithKeyFunc(func(c *router.Context) string {
+        return c.ClientIP() // Rate limit per IP
+    }),
+))
+```
+
+Token bucket rate limiting with flexible key functions. **Note:** In-memory storage is suitable for single-instance deployments. For production with multiple instances, use a distributed store (Redis, etc.).
 
 ### Custom Middleware
 
 ```go
-func AuthMiddleware() router.HandlerFunc {
-    return func(c *router.Context) {
+func AuthMiddleware() app.HandlerFunc {
+    return func(c *app.Context) {
         token := c.Request.Header.Get("Authorization")
         if !isValidToken(token) {
             c.JSON(http.StatusUnauthorized, map[string]string{
@@ -339,7 +479,7 @@ func AuthMiddleware() router.HandlerFunc {
     }
 }
 
-app.Use(AuthMiddleware())
+a.Use(AuthMiddleware())
 ```
 
 ## 📈 Observability
@@ -504,19 +644,26 @@ See the [examples directories](./app/examples/) for complete, runnable examples:
 package main
 
 import (
+    "log"
     "net/http"
     "rivaas.dev/app"
-    "rivaas.dev/router"
+    "rivaas.dev/logging"
 )
 
 func main() {
-    app := app.New(
+    // Create logger
+    logger := logging.MustNew(logging.WithJSONHandler())
+    
+    a, err := app.New(
         app.WithMetrics(),
         app.WithTracing(),
-        app.WithLogging(),
+        app.WithLogger(logger),
     )
+    if err != nil {
+        log.Fatalf("Failed to create app: %v", err)
+    }
 
-    app.GET("/users/:id", func(c *router.Context) {
+    a.GET("/users/:id", func(c *app.Context) {
         userID := c.Param("id")
         c.JSON(http.StatusOK, map[string]interface{}{
             "user_id": userID,
@@ -524,13 +671,13 @@ func main() {
         })
     })
 
-    app.POST("/users", func(c *router.Context) {
+    a.POST("/users", func(c *app.Context) {
         c.JSON(http.StatusCreated, map[string]string{
             "message": "User created",
         })
     })
 
-    app.Run(":8080")
+    a.Run(":8080")
 }
 ```
 
@@ -541,22 +688,29 @@ package main
 
 import (
     "database/sql"
+    "log"
     "net/http"
     "rivaas.dev/app"
-    "rivaas.dev/router"
+    "rivaas.dev/logging"
     _ "github.com/lib/pq"
 )
 
 func main() {
     db, _ := sql.Open("postgres", "postgres://...")
     
-    app := app.New(
+    // Create logger
+    logger := logging.MustNew(logging.WithJSONHandler())
+    
+    a, err := app.New(
         app.WithMetrics(),
         app.WithTracing(),
-        app.WithLogging(),
+        app.WithLogger(logger),
     )
+    if err != nil {
+        log.Fatalf("Failed to create app: %v", err)
+    }
 
-    app.GET("/users/:id", func(c *router.Context) {
+    a.GET("/users/:id", func(c *app.Context) {
         userID := c.Param("id")
         
         var name string
@@ -572,7 +726,7 @@ func main() {
         })
     })
 
-    app.Run(":8080")
+    a.Run(":8080")
 }
 ```
 
@@ -588,8 +742,11 @@ r.GET("/users/:id", func(c *gin.Context) {
 })
 
 // After (Rivaas)
-app := app.New()
-app.GET("/users/:id", func(c *router.Context) {
+a, err := app.New()
+if err != nil {
+    log.Fatal(err)
+}
+a.GET("/users/:id", func(c *app.Context) {
     c.JSON(http.StatusOK, map[string]string{"user_id": c.Param("id")})
 })
 ```
@@ -603,8 +760,11 @@ http.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
 })
 
 // After
-app := app.New()
-app.GET("/users/:id", func(c *router.Context) {
+a, err := app.New()
+if err != nil {
+    log.Fatal(err)
+}
+a.GET("/users/:id", func(c *app.Context) {
     c.JSON(http.StatusOK, map[string]string{"user_id": c.Param("id")})
 })
 ```
