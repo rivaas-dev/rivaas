@@ -57,6 +57,7 @@
             echo "  nix run .#test-integration - Run integration tests"
             echo "  nix run .#lint          - Run golangci-lint"
             echo "  nix run .#bench         - Run benchmarks"
+            echo "  nix run .#tidy          - Run go mod tidy for all modules"
             echo ""
             echo "Direct Go commands:"
             echo "  go test ./...              - Run all tests"
@@ -152,6 +153,21 @@
                   (cd "$dir" && ${go}/bin/go test ./... -bench=. -benchmem -run=^$ -count=1)
                 fi
               done
+            '');
+          };
+
+          # Run go mod tidy for all modules
+          tidy = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "rivaas-tidy" ''
+              # Run go mod tidy for all modules in the workspace
+              for dir in app binding errors logging metrics openapi router router/benchmarks telemetry tracing validation; do
+                if [ -d "$dir" ] && [ -f "$dir/go.mod" ]; then
+                  echo "Running go mod tidy in $dir..."
+                  (cd "$dir" && ${go}/bin/go mod tidy) || exit 1
+                fi
+              done
+              echo "✓ All modules tidied"
             '');
           };
         };
