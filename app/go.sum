@@ -195,5 +195,5 @@ gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntN
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
-rivaas.dev/logging v0.0.0-20251105094340-489794d48ce7 h1:vQ/XsG5mj7MSAh3MBhIE20VFtZy26ssK7bPGcA/3LIA=
-rivaas.dev/logging v0.0.0-20251105094340-489794d48ce7/go.mod h1:toix+OcbL2XBMmBYtAQLhxQZsly+quQdSTvUjhM5uBw=
+rivaas.dev/logging v0.1.0 h1:aqE8hFQ6qFgsthpYaM/dBmzKuf3Uq4v7DXwFk7xY+Mk=
+rivaas.dev/logging v0.1.0/go.mod h1:ElLiXtP6h4m0UY0ypN6zUQGp82SUuqZ32nKkjTmWeYw=

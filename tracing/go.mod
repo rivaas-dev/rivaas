@@ -9,8 +9,10 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.38.0
 	go.opentelemetry.io/otel/sdk v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
-	rivaas.dev/logging v0.0.0-20251105094340-489794d48ce7
+	rivaas.dev/logging v0.1.0
 )
+
+replace rivaas.dev/logging => ../logging
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
