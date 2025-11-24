@@ -151,7 +151,7 @@ func main() {
         app.WithServiceName("my-api"),
         app.WithMetrics(),
         app.WithTracing(),
-        app.WithLogger(logger),
+        app.WithLogger(logger.Logger()),
     )
     if err != nil {
         log.Fatalf("Failed to create app: %v", err)
@@ -244,7 +244,7 @@ a, err := app.New(
     ),
     app.WithLogger(logging.MustNew(
         logging.WithJSONHandler(),
-    )),
+    ).Logger()),
     app.WithServerConfig(
         app.WithReadTimeout(15 * time.Second),
         app.WithWriteTimeout(15 * time.Second),
@@ -273,7 +273,7 @@ a, err := app.New(
     app.WithEnvironment("production"),       // Set once
     
     // These automatically receive service metadata:
-    app.WithLogger(logger),   // Logger already has service metadata
+    app.WithLogger(logger.Logger()),   // Logger already has service metadata
     app.WithMetrics(),         // Automatically gets service name/version
     app.WithTracing(),        // Automatically gets service name/version
 )
@@ -301,7 +301,7 @@ logger := logging.MustNew(
 a, err := app.New(
     app.WithServiceName("my-api"),
     app.WithServiceVersion("v1.0.0"),
-    app.WithLogger(logger),  // Uses custom logger
+    app.WithLogger(logger.Logger()),  // Uses custom logger
 )
 if err != nil {
     log.Fatal(err)
@@ -323,7 +323,7 @@ logger := logging.MustNew(
 )
 
 a, err := app.New(
-    app.WithLogger(logger),  // Pass the configured logger
+    app.WithLogger(logger.Logger()),  // Pass the configured logger
     // ... other options
 )
 
@@ -488,16 +488,14 @@ a.Use(AuthMiddleware())
 
 ```go
 // Structured logging in handlers
-c.LogInfo("processing request", "user_id", userID, "action", "fetch_profile")
-c.LogDebug("validation passed", "field", "email")
-c.LogWarn("rate limit approaching", "requests", 950, "limit", 1000)
-c.LogError("database query failed", "error", err, "query", "SELECT * FROM users")
+c.Logger().Info("processing request", "user_id", userID, "action", "fetch_profile")
+c.Logger().Debug("validation passed", "field", "email")
+c.Logger().Warn("rate limit approaching", "requests", 950, "limit", 1000)
+c.Logger().Error("database query failed", "error", err, "query", "SELECT * FROM users")
 
 // Access logger directly for more control
 logger := c.Logger()
-if logger != nil {
-    logger.Info("custom log", "key", "value")
-}
+logger.Info("custom log", "key", "value")
 
 // Logs automatically include trace_id and span_id when tracing is enabled
 // Example output: {"time":"2024-01-15T10:30:45Z","level":"INFO","msg":"processing request","user_id":"123","trace_id":"abc...","span_id":"def..."}
@@ -657,7 +655,7 @@ func main() {
     a, err := app.New(
         app.WithMetrics(),
         app.WithTracing(),
-        app.WithLogger(logger),
+        app.WithLogger(logger.Logger()),
     )
     if err != nil {
         log.Fatalf("Failed to create app: %v", err)
@@ -704,7 +702,7 @@ func main() {
     a, err := app.New(
         app.WithMetrics(),
         app.WithTracing(),
-        app.WithLogger(logger),
+        app.WithLogger(logger.Logger()),
     )
     if err != nil {
         log.Fatalf("Failed to create app: %v", err)
