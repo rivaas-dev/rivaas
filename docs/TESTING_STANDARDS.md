@@ -20,6 +20,64 @@ All packages must have the following test files:
 - Integration: `integration_test.go` or `{feature}_integration_test.go` (package: `{package}_test`)
 - Helpers: `testing.go` or `testutil/{helpers}.go` (package: `{package}`)
 
+## Test Naming Conventions
+
+Use consistent naming patterns for tests:
+
+| Pattern | Use Case | Example |
+|---------|----------|---------|
+| `TestFunctionName` | Basic function test | `TestParseConfig` |
+| `TestFunctionName_Scenario` | Specific scenario | `TestParseConfig_EmptyInput` |
+| `TestFunctionName_ErrorCase` | Error scenarios | `TestParseConfig_InvalidJSON` |
+| `TestType_MethodName` | Method test | `TestRouter_ServeHTTP` |
+| `TestType_MethodName_Scenario` | Method with scenario | `TestRouter_ServeHTTP_NotFound` |
+
+### Subtest Naming
+
+For table-driven tests, use descriptive names that explain the scenario:
+
+```go
+tests := []struct {
+    name string
+    // ...
+}{
+    {name: "valid email address"},           // ✅ Descriptive
+    {name: "empty string returns error"},    // ✅ Describes expected behavior
+    {name: "test1"},                         // ❌ Not descriptive
+    {name: "case 1"},                        // ❌ Not helpful
+}
+```
+
+### Grouping with Subtests
+
+Use nested `t.Run()` for logical grouping of related tests:
+
+```go
+func TestUser(t *testing.T) {
+    t.Parallel()
+
+    t.Run("Create", func(t *testing.T) {
+        t.Parallel()
+        t.Run("valid input succeeds", func(t *testing.T) {
+            t.Parallel()
+            // test code
+        })
+        t.Run("invalid email returns error", func(t *testing.T) {
+            t.Parallel()
+            // test code
+        })
+    })
+
+    t.Run("Delete", func(t *testing.T) {
+        t.Parallel()
+        t.Run("existing user succeeds", func(t *testing.T) {
+            t.Parallel()
+            // test code
+        })
+    })
+}
+```
+
 ## Package Organization
 
 ### Unit Tests
@@ -43,6 +101,87 @@ All packages must have the following test files:
 - **Package**: External (`package router_test`)
 - **Access**: Only public APIs
 - **Use case**: Demonstrating public API usage in godoc
+
+## Test Data Management
+
+### The `testdata` Directory
+
+Go has special handling for `testdata/` directories:
+
+- Automatically ignored by `go build`
+- Used for test fixtures, golden files, and sample data
+- Accessible via relative path from test files
+
+```
+package/
+├── handler.go
+├── handler_test.go
+└── testdata/
+    ├── fixtures/
+    │   ├── valid_request.json
+    │   └── invalid_request.json
+    └── golden/
+        ├── expected_output.json
+        └── expected_error.txt
+```
+
+### Loading Test Data
+
+```go
+func TestHandler(t *testing.T) {
+    t.Parallel()
+
+    // Load test fixture
+    input, err := os.ReadFile("testdata/fixtures/valid_request.json")
+    require.NoError(t, err)
+
+    // Use in test
+    result, err := ProcessRequest(input)
+    require.NoError(t, err)
+
+    // Compare with golden file
+    expected, err := os.ReadFile("testdata/golden/expected_output.json")
+    require.NoError(t, err)
+    assert.JSONEq(t, string(expected), string(result))
+}
+```
+
+### Golden File Testing
+
+Golden files store expected output for comparison. Use the `-update` flag pattern to regenerate:
+
+```go
+var updateGolden = flag.Bool("update", false, "update golden files")
+
+func TestOutput_Golden(t *testing.T) {
+    result := GenerateOutput()
+    goldenPath := "testdata/golden/output.txt"
+
+    if *updateGolden {
+        err := os.WriteFile(goldenPath, []byte(result), 0644)
+        require.NoError(t, err)
+        return
+    }
+
+    expected, err := os.ReadFile(goldenPath)
+    require.NoError(t, err)
+    assert.Equal(t, string(expected), result)
+}
+```
+
+Update golden files with:
+
+```bash
+go test -update ./...
+```
+
+### Test Data Guidelines
+
+- Keep test data files small and focused
+- Use descriptive file names that indicate their purpose
+- Document the structure of complex test data files
+- Version control all test data (it's part of the test suite)
+- For large datasets, consider generating them programmatically
 
 ## Assertions
 
@@ -575,6 +714,43 @@ func FuzzFunctionName(f *testing.F) {
 - Validate error types when errors are expected
 - Name fuzz tests with `Fuzz` prefix
 
+### Running Fuzz Tests
+
+```bash
+# Run fuzz test for 30 seconds
+go test -fuzz=FuzzFunctionName -fuzztime=30s ./package
+
+# Run with specific corpus entry (to reproduce a failure)
+go test -run=FuzzFunctionName/corpus_entry_name ./package
+
+# Run all fuzz tests as regular tests (uses seed corpus only)
+go test -run=Fuzz ./...
+```
+
+### Reproducing Fuzz Failures
+
+When a fuzz test fails, Go saves the failing input to `testdata/fuzz/{FuzzTestName}/`:
+
+```
+package/
+└── testdata/
+    └── fuzz/
+        └── FuzzFunctionName/
+            └── 8a4f2b3c...  # Failing input
+```
+
+To reproduce:
+
+```bash
+# Run the specific failing case
+go test -run=FuzzFunctionName/8a4f2b3c ./package
+
+# Or run all corpus entries
+go test -run=FuzzFunctionName ./package
+```
+
+**Important**: Commit failing corpus entries to version control to prevent regressions.
+
 ### Fuzz Test Error Handling
 
 **Exception**: Fuzz tests may use `t.Errorf()` directly for validating error types. This is acceptable because:
@@ -894,12 +1070,444 @@ func assertError(t *testing.T, err error, wantErr bool, msg string) {
 - Document helper functions
 - **Use `testify/assert` or `testify/require`** in helpers - never use manual assertions
 
+## Mocking and Test Doubles
+
+### Interface-Based Mocking (Preferred)
+
+Go's implicit interface implementation makes interface-based mocking the idiomatic approach:
+
+```go
+// Define interface for the dependency
+type UserRepository interface {
+    FindByID(ctx context.Context, id string) (*User, error)
+    Save(ctx context.Context, user *User) error
+}
+
+// Production implementation
+type PostgresUserRepository struct {
+    db *sql.DB
+}
+
+// Test implementation (fake)
+type fakeUserRepository struct {
+    users map[string]*User
+    err   error
+}
+
+func (f *fakeUserRepository) FindByID(ctx context.Context, id string) (*User, error) {
+    if f.err != nil {
+        return nil, f.err
+    }
+    return f.users[id], nil
+}
+
+func (f *fakeUserRepository) Save(ctx context.Context, user *User) error {
+    if f.err != nil {
+        return f.err
+    }
+    f.users[user.ID] = user
+    return nil
+}
+
+// Test using the fake
+func TestUserService_GetUser(t *testing.T) {
+    t.Parallel()
+
+    repo := &fakeUserRepository{
+        users: map[string]*User{
+            "123": {ID: "123", Name: "Test User"},
+        },
+    }
+    service := NewUserService(repo)
+
+    user, err := service.GetUser(context.Background(), "123")
+    require.NoError(t, err)
+    assert.Equal(t, "Test User", user.Name)
+}
+```
+
+### Using testify/mock
+
+For complex mocking scenarios, use `testify/mock`:
+
+```go
+import "github.com/stretchr/testify/mock"
+
+type MockUserRepository struct {
+    mock.Mock
+}
+
+func (m *MockUserRepository) FindByID(ctx context.Context, id string) (*User, error) {
+    args := m.Called(ctx, id)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*User), args.Error(1)
+}
+
+func (m *MockUserRepository) Save(ctx context.Context, user *User) error {
+    args := m.Called(ctx, user)
+    return args.Error(0)
+}
+
+func TestUserService_GetUser_WithMock(t *testing.T) {
+    t.Parallel()
+
+    mockRepo := new(MockUserRepository)
+    mockRepo.On("FindByID", mock.Anything, "123").Return(&User{ID: "123", Name: "Test"}, nil)
+
+    service := NewUserService(mockRepo)
+    user, err := service.GetUser(context.Background(), "123")
+
+    require.NoError(t, err)
+    assert.Equal(t, "Test", user.Name)
+    mockRepo.AssertExpectations(t)
+}
+```
+
+### Types of Test Doubles
+
+| Type | Purpose | When to Use |
+|------|---------|-------------|
+| **Fake** | Working implementation with shortcuts | Database in-memory, simplified logic |
+| **Stub** | Returns predetermined responses | Fixed return values for specific inputs |
+| **Mock** | Verifies interactions occurred | When you need to verify method calls |
+| **Spy** | Records calls for later verification | When you need call history |
+
+### Mocking Guidelines
+
+1. **Prefer fakes over mocks** - Fakes are simpler and test real behavior
+2. **Mock at boundaries** - Mock external services, not internal components
+3. **Keep interfaces small** - Smaller interfaces are easier to mock
+4. **Don't mock what you don't own** - Wrap third-party APIs with your own interface
+5. **Use `mock.Anything`** for unimportant arguments
+6. **Always call `AssertExpectations(t)`** when using testify/mock
+
+### HTTP Client Mocking
+
+For HTTP clients, use `httptest.Server`:
+
+```go
+func TestAPIClient_FetchData(t *testing.T) {
+    t.Parallel()
+
+    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        assert.Equal(t, "/api/data", r.URL.Path)
+        assert.Equal(t, "Bearer token123", r.Header.Get("Authorization"))
+
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusOK)
+        _, _ = w.Write([]byte(`{"id": "123", "name": "test"}`))
+    }))
+    t.Cleanup(server.Close)
+
+    client := NewAPIClient(server.URL, "token123")
+    data, err := client.FetchData(context.Background())
+
+    require.NoError(t, err)
+    assert.Equal(t, "123", data.ID)
+}
+```
+
+## HTTP Testing Patterns
+
+### Testing HTTP Handlers
+
+Use `httptest` for testing HTTP handlers:
+
+```go
+func TestHandler_GetUser(t *testing.T) {
+    t.Parallel()
+
+    handler := NewUserHandler(mockRepo)
+
+    req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+    req.Header.Set("Content-Type", "application/json")
+
+    w := httptest.NewRecorder()
+    handler.ServeHTTP(w, req)
+
+    assert.Equal(t, http.StatusOK, w.Code)
+    assert.Contains(t, w.Header().Get("Content-Type"), "application/json")
+
+    var response User
+    err := json.NewDecoder(w.Body).Decode(&response)
+    require.NoError(t, err)
+    assert.Equal(t, "123", response.ID)
+}
+```
+
+### Testing with Request Body
+
+```go
+func TestHandler_CreateUser(t *testing.T) {
+    t.Parallel()
+
+    body := strings.NewReader(`{"name": "Test User", "email": "test@example.com"}`)
+    req := httptest.NewRequest(http.MethodPost, "/users", body)
+    req.Header.Set("Content-Type", "application/json")
+
+    w := httptest.NewRecorder()
+    handler.ServeHTTP(w, req)
+
+    assert.Equal(t, http.StatusCreated, w.Code)
+}
+```
+
+### Testing Middleware
+
+```go
+func TestAuthMiddleware(t *testing.T) {
+    t.Parallel()
+
+    tests := []struct {
+        name           string
+        authHeader     string
+        wantStatusCode int
+    }{
+        {
+            name:           "valid token",
+            authHeader:     "Bearer valid-token",
+            wantStatusCode: http.StatusOK,
+        },
+        {
+            name:           "missing header",
+            authHeader:     "",
+            wantStatusCode: http.StatusUnauthorized,
+        },
+        {
+            name:           "invalid token",
+            authHeader:     "Bearer invalid",
+            wantStatusCode: http.StatusUnauthorized,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            t.Parallel()
+
+            nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                w.WriteHeader(http.StatusOK)
+            })
+
+            handler := AuthMiddleware(nextHandler)
+
+            req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+            if tt.authHeader != "" {
+                req.Header.Set("Authorization", tt.authHeader)
+            }
+
+            w := httptest.NewRecorder()
+            handler.ServeHTTP(w, req)
+
+            assert.Equal(t, tt.wantStatusCode, w.Code)
+        })
+    }
+}
+```
+
+### Testing with Cookies
+
+```go
+func TestHandler_WithSession(t *testing.T) {
+    t.Parallel()
+
+    req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+    req.AddCookie(&http.Cookie{
+        Name:  "session_id",
+        Value: "valid-session-123",
+    })
+
+    w := httptest.NewRecorder()
+    handler.ServeHTTP(w, req)
+
+    assert.Equal(t, http.StatusOK, w.Code)
+
+    // Check response cookies
+    cookies := w.Result().Cookies()
+    assert.Len(t, cookies, 1)
+    assert.Equal(t, "session_id", cookies[0].Name)
+}
+```
+
+## Context and Timeout Patterns
+
+### Testing with Context Timeout
+
+```go
+func TestService_WithTimeout(t *testing.T) {
+    t.Parallel()
+
+    ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+    t.Cleanup(cancel)
+
+    result, err := service.SlowOperation(ctx)
+
+    // If operation is expected to complete
+    require.NoError(t, err)
+    assert.NotNil(t, result)
+
+    // Or if testing timeout behavior
+    // assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+```
+
+### Testing Context Cancellation
+
+```go
+func TestService_ContextCancellation(t *testing.T) {
+    t.Parallel()
+
+    ctx, cancel := context.WithCancel(context.Background())
+
+    // Start operation in goroutine
+    errCh := make(chan error, 1)
+    go func() {
+        _, err := service.LongRunningOperation(ctx)
+        errCh <- err
+    }()
+
+    // Cancel after short delay
+    time.Sleep(10 * time.Millisecond)
+    cancel()
+
+    // Verify cancellation was handled
+    err := <-errCh
+    assert.ErrorIs(t, err, context.Canceled)
+}
+```
+
+### Testing with Context Values
+
+```go
+func TestHandler_WithContextValue(t *testing.T) {
+    t.Parallel()
+
+    ctx := context.WithValue(context.Background(), userIDKey, "user-123")
+    req := httptest.NewRequest(http.MethodGet, "/profile", nil).WithContext(ctx)
+
+    w := httptest.NewRecorder()
+    handler.ServeHTTP(w, req)
+
+    assert.Equal(t, http.StatusOK, w.Code)
+}
+```
+
 ## Test Coverage Requirements
 
 - **Unit tests**: All public APIs must have unit tests
 - **Example tests**: All public APIs must have example tests
 - **Benchmarks**: Critical paths must have benchmarks
 - **Integration tests**: Required for packages with external dependencies
+
+### Coverage Thresholds
+
+| Package Type | Minimum Coverage | Target Coverage |
+|--------------|------------------|-----------------|
+| Core packages (`router`, `binding`, `validation`) | 80% | 90% |
+| Utility packages (`logging`, `metrics`, `tracing`) | 75% | 85% |
+| Integration packages | 70% | 80% |
+
+### Measuring Coverage
+
+```bash
+# Package coverage
+go test -cover ./package
+
+# Detailed coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out -o coverage.html
+
+# Coverage by function
+go tool cover -func=coverage.out
+
+# Check coverage threshold (CI)
+go test -coverprofile=coverage.out ./...
+COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+    echo "Coverage $COVERAGE% is below 80% threshold"
+    exit 1
+fi
+```
+
+### What to Cover
+
+**Must cover:**
+- All public APIs (exported functions, methods, types)
+- Error paths and edge cases
+- Critical business logic
+- Security-sensitive code
+
+**May skip:**
+- Generated code
+- Simple getters/setters
+- Panic recovery (test separately)
+- Platform-specific code (use build tags)
+
+## Flaky Test Handling
+
+### Identifying Flaky Tests
+
+Flaky tests pass and fail intermittently without code changes. Common causes:
+
+- **Race conditions** - Concurrent access to shared state
+- **Timing dependencies** - `time.Sleep()`, network timeouts
+- **External dependencies** - Network, filesystem, databases
+- **Test pollution** - Tests affecting each other's state
+- **Resource exhaustion** - File descriptors, goroutines, memory
+
+### Handling Flaky Tests
+
+1. **Mark with comment** - Document the flakiness:
+
+   ```go
+   // FLAKY: Sometimes fails due to timing - see issue #123
+   func TestFlaky(t *testing.T) {
+       // ...
+   }
+   ```
+
+2. **Skip temporarily** while investigating:
+
+   ```go
+   func TestFlaky(t *testing.T) {
+       t.Skip("FLAKY: Skipping until #123 is resolved")
+       // ...
+   }
+   ```
+
+3. **Use retry for integration tests** (sparingly):
+
+   ```go
+   func TestWithRetry(t *testing.T) {
+       var lastErr error
+       for i := 0; i < 3; i++ {
+           if err := runTest(); err == nil {
+               return
+           } else {
+               lastErr = err
+               t.Logf("Attempt %d failed: %v", i+1, err)
+           }
+       }
+       t.Fatalf("Test failed after 3 attempts: %v", lastErr)
+   }
+   ```
+
+### Preventing Flaky Tests
+
+1. **Use `t.Parallel()`** - Forces tests to be independent
+2. **Avoid `time.Sleep()`** - Use channels, sync primitives, or polling
+3. **Use `t.Cleanup()`** - Ensures cleanup runs even on failure
+4. **Isolate test data** - Each test should use unique data
+5. **Mock external services** - Don't rely on real networks in unit tests
+6. **Use `-race` flag** - Detect race conditions early
+
+### Flaky Test Policy
+
+- **Never merge known flaky tests** to main branch
+- **Fix or skip** - Either fix the root cause or skip with an issue reference
+- **Track flaky tests** - Create issues for each flaky test
+- **Review regularly** - Periodically check skipped tests
 
 ## Testing Framework Guidelines
 
@@ -934,64 +1542,52 @@ func assertError(t *testing.T, err error, wantErr bool, msg string) {
 
 1. **Parallel Execution**: Use `t.Parallel()` for all tests
    - **Exception**: Tests using `testing.AllocsPerRun` cannot use `t.Parallel()` (see Performance Regression Tests section)
+
 2. **Assertions**: Always use `testify/assert` or `testify/require` - **never use manual assertions** (e.g., `if` statements with `t.Errorf()`)
+
 3. **Error Messages**: Include descriptive error messages
+
 4. **Test Isolation**: Each test should be independent
-5. **Cleanup**: Use `defer` for cleanup operations
-6. **Naming**: Use descriptive test and benchmark names
+
+5. **Cleanup with `t.Cleanup()`**: Prefer `t.Cleanup()` over `defer` for test cleanup:
+
+   ```go
+   func TestWithResource(t *testing.T) {
+       t.Parallel()
+
+       // t.Cleanup is preferred - works correctly in subtests and parallel tests
+       resource := createResource()
+       t.Cleanup(func() {
+           resource.Close()
+       })
+
+       // Use resource...
+   }
+   ```
+
+   **Why `t.Cleanup()` over `defer`:**
+   - Runs after the test completes, including all subtests
+   - Works correctly with `t.Parallel()`
+   - Cleanup functions run in LIFO order
+   - Runs even if the test calls `t.FailNow()` or `t.Fatal()`
+
+6. **Naming**: Use descriptive test and benchmark names (see [Test Naming Conventions](#test-naming-conventions))
+
 7. **Documentation**: Document complex test scenarios
+
 8. **Performance**: Use benchmarks to track performance regressions
 
-## Package-Specific Notes
+9. **Race Detection**: Always run tests with race detector in CI:
 
-### binding
+   ```bash
+   go test -race ./...
+   ```
 
-- ✅ Has table-driven tests
-- ✅ Has example_test.go
-- ❌ Missing benchmarks (needs `bind_bench_test.go`)
-
-### logging
-
-- ✅ Has table-driven tests
-- ✅ Has example_test.go
-- ✅ Has extensive benchmarks
-
-### metrics
-
-- ✅ Has table-driven tests
-- ❌ Missing example_test.go (now added)
-- ✅ Has extensive benchmarks
-
-### tracing
-
-- ✅ Has table-driven tests
-- ❌ Missing example_test.go (now added)
-- ✅ Has benchmarks
-
-### router
-
-- ✅ Has table-driven tests
-- ✅ Has example_test.go
-- ✅ Has benchmarks
-- ✅ Has integration tests (Ginkgo-based for complex scenarios)
-
-### openapi
-
-- ✅ Has table-driven tests
-- ❌ Missing example_test.go (now added)
-- ✅ Has some benchmarks
-
-### validation
-
-- ✅ Has table-driven tests
-- ✅ Has example_test.go
-- ✅ Has benchmarks
-
-### errors
-
-- ✅ Has table-driven tests
-- ✅ Has example_test.go
-- ❌ Missing benchmarks (consider adding if performance-critical)
+10. **Deterministic Tests**: Avoid tests that depend on:
+    - Current time (use clock injection)
+    - Random values (use fixed seeds or mocks)
+    - Network availability (use mocks)
+    - Filesystem state (use temp directories)
 
 ## Running Tests
 
@@ -999,30 +1595,110 @@ func assertError(t *testing.T, err error, wantErr bool, msg string) {
 # Run all tests
 go test ./...
 
+# Run tests with verbose output
+go test -v ./...
+
+# Run tests with race detection (REQUIRED in CI)
+go test -race ./...
+
 # Run tests with coverage
 go test -cover ./...
+
+# Run tests with coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out -o coverage.html
 
 # Run benchmarks
 go test -bench=. -benchmem ./...
 
-# Run integration tests (all)
-go test ./...
+# Run benchmarks with count for statistical significance
+go test -bench=. -benchmem -count=10 ./...
 
 # Skip integration tests (short mode)
 go test -short ./...
+
+# Run specific test by name
+go test -run TestFunctionName ./...
+
+# Run tests matching pattern
+go test -run "TestUser.*" ./...
 
 # Run specific Ginkgo suite
 go test -run TestFeatureIntegration ./...
 
 # Run example tests
 go test -run=Example ./...
+
+# Run fuzz tests (30 second limit)
+go test -fuzz=FuzzFunctionName -fuzztime=30s ./package
+
+# Run tests with timeout
+go test -timeout 5m ./...
+
+# Run tests in specific package
+go test ./router/...
+
+# List tests without running
+go test -list ".*" ./...
+```
+
+### CI Pipeline Commands
+
+```bash
+# Full test suite for CI
+go test -race -coverprofile=coverage.out -timeout 10m ./...
+
+# Verify coverage threshold
+go tool cover -func=coverage.out | grep total
+
+# Generate coverage badge data
+go tool cover -func=coverage.out | grep total | awk '{print $3}'
 ```
 
 ## Continuous Integration
 
 All tests must pass in CI:
 
-- Unit tests
+- Unit tests (with race detection)
 - Example tests
 - Benchmarks (for performance tracking)
 - Integration tests (if applicable)
+- Coverage threshold checks
+
+### CI Checklist
+
+| Check | Command | Required |
+|-------|---------|----------|
+| Unit tests | `go test ./...` | ✅ Yes |
+| Race detection | `go test -race ./...` | ✅ Yes |
+| Coverage | `go test -cover ./...` | ✅ Yes |
+| Benchmarks | `go test -bench=. ./...` | ⚠️ Recommended |
+| Lint | `golangci-lint run` | ✅ Yes |
+| Fuzz (seed corpus) | `go test -run=Fuzz ./...` | ⚠️ Recommended |
+
+### Example CI Workflow
+
+```yaml
+test:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Run tests with race detection
+      run: go test -race -coverprofile=coverage.out -timeout 10m ./...
+
+    - name: Check coverage threshold
+      run: |
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Coverage: $COVERAGE%"
+        if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+          echo "Coverage below 80% threshold"
+          exit 1
+        fi
+
+    - name: Run benchmarks
+      run: go test -bench=. -benchmem -run=^$ ./...
+```
