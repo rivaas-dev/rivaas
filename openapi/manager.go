@@ -349,8 +349,8 @@ func (m *Manager) GenerateSpec() ([]byte, string, error) {
 		if doc != nil {
 			// Convert request examples
 			requestNamedExamples := make([]build.ExampleData, len(doc.RequestNamedExamples))
-			for i, ex := range doc.RequestNamedExamples {
-				requestNamedExamples[i] = build.ExampleData{
+			for j, ex := range doc.RequestNamedExamples {
+				requestNamedExamples[j] = build.ExampleData{
 					Name:          ex.Name(),
 					Summary:       ex.Summary(),
 					Description:   ex.Description(),
@@ -363,8 +363,8 @@ func (m *Manager) GenerateSpec() ([]byte, string, error) {
 			responseNamedExamples := make(map[int][]build.ExampleData)
 			for status, examples := range doc.ResponseNamedExamples {
 				responseNamedExamples[status] = make([]build.ExampleData, len(examples))
-				for i, ex := range examples {
-					responseNamedExamples[status][i] = build.ExampleData{
+				for k, ex := range examples {
+					responseNamedExamples[status][k] = build.ExampleData{
 						Name:          ex.Name(),
 						Summary:       ex.Summary(),
 						Description:   ex.Description(),
