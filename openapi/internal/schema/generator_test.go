@@ -36,6 +36,8 @@ func generateTestSchema(tb testing.TB, input any) *model.Schema {
 }
 
 func TestSchemaGenerator_Generate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -151,6 +153,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			schema := generateTestSchema(t, tt.input)
 			require.NotNil(t, schema)
 			tt.validate(t, schema)
@@ -268,6 +271,8 @@ func TestSchemaGenerator_CircularReference(t *testing.T) {
 }
 
 func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
+	t.Parallel()
+
 	type ValidatedStruct struct {
 		Email  string `validate:"email"`
 		URL    string `validate:"url"`
@@ -351,6 +356,7 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.field, func(t *testing.T) {
+			t.Parallel()
 			fieldSchema, ok := vs.Properties[tt.field]
 			require.True(t, ok, "field %s not found", tt.field)
 			tt.validate(t, fieldSchema)
@@ -359,6 +365,8 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 }
 
 func TestSchemaGenerator_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -448,6 +456,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			sg := newTestSchemaGenerator(t)
 			var schema *model.Schema
 			if tt.input == nil {

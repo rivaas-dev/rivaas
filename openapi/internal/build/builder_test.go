@@ -85,6 +85,7 @@ func TestBuilder_OperationIDGeneration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			t.Parallel()
 			routes := []EnrichedRoute{
 				{
 					RouteInfo: RouteInfo{Method: tt.method, Path: tt.path},
@@ -124,6 +125,8 @@ func TestBuilder_OperationIDGeneration(t *testing.T) {
 }
 
 func TestBuilder_CustomOperationID(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -145,6 +148,8 @@ func TestBuilder_CustomOperationID(t *testing.T) {
 }
 
 func TestBuilder_DuplicateOperationID(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -171,6 +176,8 @@ func TestBuilder_DuplicateOperationID(t *testing.T) {
 }
 
 func TestBuilder_MultipleMethodsOnPath(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -211,6 +218,8 @@ func TestBuilder_MultipleMethodsOnPath(t *testing.T) {
 }
 
 func TestBuilder_RequestBody(t *testing.T) {
+	t.Parallel()
+
 	type CreateUserRequest struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
@@ -240,6 +249,8 @@ func TestBuilder_RequestBody(t *testing.T) {
 }
 
 func TestBuilder_Parameters(t *testing.T) {
+	t.Parallel()
+
 	type GetUserRequest struct {
 		ID     int    `params:"id"`
 		Expand string `query:"expand"`
@@ -279,6 +290,8 @@ func TestBuilder_Parameters(t *testing.T) {
 }
 
 func TestBuilder_ComponentSchemas(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -306,6 +319,8 @@ func TestBuilder_ComponentSchemas(t *testing.T) {
 }
 
 func TestBuilder_Servers(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 	builder.AddServer("https://api.example.com", "Production")
 	builder.AddServer("https://staging.example.com", "Staging")
@@ -323,6 +338,8 @@ func TestBuilder_Servers(t *testing.T) {
 }
 
 func TestBuilder_Tags(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 	builder.AddTag("users", "User management operations")
 	builder.AddTag("orders", "Order operations")
@@ -349,6 +366,8 @@ func TestBuilder_Tags(t *testing.T) {
 }
 
 func TestBuilder_NoDoc(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -369,6 +388,8 @@ func TestBuilder_NoDoc(t *testing.T) {
 }
 
 func TestBuilder_AllHTTPMethods(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -396,6 +417,8 @@ func TestBuilder_AllHTTPMethods(t *testing.T) {
 }
 
 func TestBuilder_MultipleResponseCodes(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -433,6 +456,8 @@ func TestBuilder_MultipleResponseCodes(t *testing.T) {
 }
 
 func TestBuilder_DeprecatedOperation(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -454,6 +479,8 @@ func TestBuilder_DeprecatedOperation(t *testing.T) {
 }
 
 func TestBuilder_SecurityRequirements(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 	builder.AddSecurityScheme("bearerAuth", &model.SecurityScheme{
 		Type:         "http",
@@ -484,6 +511,8 @@ func TestBuilder_SecurityRequirements(t *testing.T) {
 }
 
 func TestBuilder_GlobalSecurity(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 	builder.AddSecurityScheme("bearerAuth", &model.SecurityScheme{
 		Type:   "http",
@@ -510,6 +539,8 @@ func TestBuilder_GlobalSecurity(t *testing.T) {
 }
 
 func TestBuilder_EmptyRoutes(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	spec, err := builder.Build([]EnrichedRoute{})
@@ -519,6 +550,8 @@ func TestBuilder_EmptyRoutes(t *testing.T) {
 }
 
 func TestBuilder_NilDoc(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -543,6 +576,8 @@ func TestBuilder_NilDoc(t *testing.T) {
 }
 
 func TestBuilder_ComplexPath(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -574,6 +609,8 @@ func TestBuilder_ComplexPath(t *testing.T) {
 }
 
 func TestBuilder_ResponseExamples(t *testing.T) {
+	t.Parallel()
+
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
@@ -583,7 +620,7 @@ func TestBuilder_ResponseExamples(t *testing.T) {
 				ResponseTypes: map[int]reflect.Type{
 					200: reflect.TypeOf(User{}),
 				},
-				ResponseExamples: map[int]any{
+				ResponseExample: map[int]any{
 					200: User{ID: 1, Name: "John"},
 				},
 			},
@@ -603,6 +640,8 @@ func TestBuilder_ResponseExamples(t *testing.T) {
 }
 
 func TestBuilder_MultipleContentTypes(t *testing.T) {
+	t.Parallel()
+
 	type CreateUserRequest struct {
 		Name string `json:"name"`
 	}
@@ -697,4 +736,137 @@ func BenchmarkBuilder_ComplexSpec(b *testing.B) {
 	for b.Loop() {
 		_, _ = builder.Build(routes)
 	}
+}
+
+func TestBuilder_ResponseNamedExamples(t *testing.T) {
+	t.Parallel()
+
+	builder := newTestBuilder(t)
+	routes := []EnrichedRoute{
+		{
+			RouteInfo: RouteInfo{Method: "GET", Path: "/users/:id"},
+			Doc: &RouteDoc{
+				ResponseTypes: map[int]reflect.Type{
+					200: reflect.TypeOf(User{}),
+				},
+				ResponseNamedExamples: map[int][]ExampleData{
+					200: {
+						{
+							Name:    "regular",
+							Summary: "Regular user",
+							Value:   User{ID: 1, Name: "John"},
+						},
+						{
+							Name:        "admin",
+							Summary:     "Admin user",
+							Description: "User with admin privileges",
+							Value:       User{ID: 2, Name: "Admin"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spec, err := builder.Build(routes)
+	require.NoError(t, err)
+
+	pathItem := spec.Paths["/users/{id}"]
+	require.NotNil(t, pathItem.Get)
+
+	response := pathItem.Get.Responses["200"]
+	require.NotNil(t, response)
+	require.NotNil(t, response.Content)
+	require.Contains(t, response.Content, "application/json")
+
+	mt := response.Content["application/json"]
+	require.NotNil(t, mt.Examples)
+
+	assert.Len(t, mt.Examples, 2)
+	assert.Contains(t, mt.Examples, "regular")
+	assert.Contains(t, mt.Examples, "admin")
+	assert.Equal(t, "Regular user", mt.Examples["regular"].Summary)
+	assert.Equal(t, "User with admin privileges", mt.Examples["admin"].Description)
+}
+
+func TestBuilder_RequestNamedExamples(t *testing.T) {
+	t.Parallel()
+
+	type CreateUser struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	builder := newTestBuilder(t)
+	routes := []EnrichedRoute{
+		{
+			RouteInfo: RouteInfo{Method: "POST", Path: "/users"},
+			Doc: &RouteDoc{
+				RequestType:     reflect.TypeOf(CreateUser{}),
+				RequestMetadata: schema.IntrospectRequest(reflect.TypeOf(CreateUser{})),
+				RequestNamedExamples: []ExampleData{
+					{
+						Name:    "minimal",
+						Summary: "Required fields",
+						Value:   CreateUser{Name: "John"},
+					},
+					{
+						Name:    "complete",
+						Summary: "All fields",
+						Value:   CreateUser{Name: "John", Email: "john@example.com"},
+					},
+				},
+				ResponseTypes: map[int]reflect.Type{201: reflect.TypeOf(User{})},
+			},
+		},
+	}
+
+	spec, err := builder.Build(routes)
+	require.NoError(t, err)
+
+	pathItem := spec.Paths["/users"]
+	require.NotNil(t, pathItem.Post)
+	require.NotNil(t, pathItem.Post.RequestBody)
+	require.Contains(t, pathItem.Post.RequestBody.Content, "application/json")
+
+	mt := pathItem.Post.RequestBody.Content["application/json"]
+	require.NotNil(t, mt.Examples)
+
+	assert.Len(t, mt.Examples, 2)
+	assert.Contains(t, mt.Examples, "minimal")
+	assert.Contains(t, mt.Examples, "complete")
+}
+
+func TestBuilder_ExternalExample(t *testing.T) {
+	t.Parallel()
+
+	builder := newTestBuilder(t)
+	routes := []EnrichedRoute{
+		{
+			RouteInfo: RouteInfo{Method: "GET", Path: "/data"},
+			Doc: &RouteDoc{
+				ResponseTypes: map[int]reflect.Type{
+					200: reflect.TypeOf(map[string]any{}),
+				},
+				ResponseNamedExamples: map[int][]ExampleData{
+					200: {
+						{
+							Name:          "large",
+							Summary:       "Large dataset",
+							ExternalValue: "https://example.com/large.json",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spec, err := builder.Build(routes)
+	require.NoError(t, err)
+
+	mt := spec.Paths["/data"].Get.Responses["200"].Content["application/json"]
+	require.NotNil(t, mt.Examples)
+
+	assert.Equal(t, "https://example.com/large.json", mt.Examples["large"].ExternalValue)
+	assert.Nil(t, mt.Examples["large"].Value)
 }

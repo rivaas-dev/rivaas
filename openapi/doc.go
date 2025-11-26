@@ -67,8 +67,8 @@
 //
 // # Configuration
 //
-// Configuration is done exclusively through functional options. All UI configuration types
-// are private to enforce this pattern and prevent direct struct initialization.
+// Configuration is done exclusively through functional options using [New] or [MustNew].
+// All UI configuration types are private to enforce this pattern and prevent direct struct initialization.
 //
 // # Auto-Discovery
 //
@@ -112,5 +112,5 @@
 //   - PATCH /users/:id -> updateUserById
 //   - PUT /users/:id -> replaceUserById
 //
-// Custom operation IDs can be set using RouteWrapper.OperationID().
+// Custom operation IDs can be set using [RouteWrapper.OperationID].
 package openapi

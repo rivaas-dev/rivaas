@@ -21,6 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"rivaas.dev/openapi"
+	"rivaas.dev/openapi/example"
 )
 
 var _ = Describe("OpenAPI Integration", Label("integration"), func() {
@@ -375,6 +376,122 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				Expect(result.etag).To(Equal(firstETag), "goroutine %d should have same ETag", i)
 				Expect(string(result.specJSON)).To(Equal(string(results[0].specJSON)), "goroutine %d should have same spec", i)
 			}
+		})
+	})
+
+	Describe("Example API Integration", func() {
+		var manager *openapi.Manager
+		var cfg *openapi.Config
+
+		BeforeEach(func() {
+			cfg = openapi.MustNew(
+				openapi.WithTitle("Test API", "1.0.0"),
+				openapi.WithVersion(openapi.Version31),
+			)
+			manager = openapi.NewManager(cfg)
+		})
+
+		Context("Response Examples", func() {
+			Context("with named examples", func() {
+				It("should generate examples map in spec", func() {
+					type User struct {
+						ID   int    `json:"id"`
+						Name string `json:"name"`
+					}
+
+					route := manager.Register("GET", "/users/:id")
+					route.Response(200, User{},
+						example.New("success", User{ID: 123, Name: "John"},
+							example.WithSummary("Successful lookup")),
+					)
+
+					specJSON, _, err := manager.GenerateSpec()
+					Expect(err).NotTo(HaveOccurred())
+
+					var spec map[string]any
+					Expect(json.Unmarshal(specJSON, &spec)).To(Succeed())
+
+					paths := spec["paths"].(map[string]any)
+					pathItem := paths["/users/{id}"].(map[string]any)
+					getOp := pathItem["get"].(map[string]any)
+					responses := getOp["responses"].(map[string]any)
+					response200 := responses["200"].(map[string]any)
+					content := response200["content"].(map[string]any)
+					mt := content["application/json"].(map[string]any)
+
+					Expect(mt).To(HaveKey("examples"))
+					examples := mt["examples"].(map[string]any)
+					Expect(examples).To(HaveKey("success"))
+					successEx := examples["success"].(map[string]any)
+					Expect(successEx["summary"]).To(Equal("Successful lookup"))
+				})
+			})
+
+			Context("with single example (no named)", func() {
+				It("should generate example field in spec", func() {
+					type User struct {
+						ID   int    `json:"id"`
+						Name string `json:"name"`
+					}
+
+					route := manager.Register("GET", "/users/:id")
+					route.Response(200, User{ID: 123, Name: "John"})
+
+					specJSON, _, err := manager.GenerateSpec()
+					Expect(err).NotTo(HaveOccurred())
+
+					var spec map[string]any
+					Expect(json.Unmarshal(specJSON, &spec)).To(Succeed())
+
+					paths := spec["paths"].(map[string]any)
+					pathItem := paths["/users/{id}"].(map[string]any)
+					getOp := pathItem["get"].(map[string]any)
+					responses := getOp["responses"].(map[string]any)
+					response200 := responses["200"].(map[string]any)
+					content := response200["content"].(map[string]any)
+					mt := content["application/json"].(map[string]any)
+
+					Expect(mt).To(HaveKey("example"))
+					Expect(mt["example"]).NotTo(BeNil())
+					Expect(mt).NotTo(HaveKey("examples"))
+				})
+			})
+		})
+
+		Describe("Request Examples", func() {
+			Context("with named examples", func() {
+				It("should generate examples map in request body", func() {
+					type CreateUser struct {
+						Name  string `json:"name"`
+						Email string `json:"email"`
+					}
+
+					route := manager.Register("POST", "/users")
+					route.Request(CreateUser{},
+						example.New("minimal", CreateUser{Name: "John"}),
+						example.New("complete", CreateUser{Name: "John", Email: "john@example.com"}),
+					).Response(201, CreateUser{})
+
+					specJSON, _, err := manager.GenerateSpec()
+					Expect(err).NotTo(HaveOccurred())
+
+					var spec map[string]any
+					Expect(json.Unmarshal(specJSON, &spec)).To(Succeed())
+
+					paths := spec["paths"].(map[string]any)
+					pathItem := paths["/users"].(map[string]any)
+					postOp := pathItem["post"].(map[string]any)
+					requestBody := postOp["requestBody"].(map[string]any)
+					content := requestBody["content"].(map[string]any)
+					mt := content["application/json"].(map[string]any)
+
+					Expect(mt).To(HaveKey("examples"))
+					examples := mt["examples"].(map[string]any)
+					Expect(examples).To(HaveLen(2))
+					Expect(examples).To(HaveKey("minimal"))
+					Expect(examples).To(HaveKey("complete"))
+				})
+			})
 		})
 	})
 })

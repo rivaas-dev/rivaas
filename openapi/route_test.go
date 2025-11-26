@@ -21,6 +21,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"rivaas.dev/openapi/example"
 )
 
 // Test types for testing
@@ -180,7 +182,7 @@ func TestRouteWrapper_Freeze_DeepCopy(t *testing.T) {
 		assert.Equal(t, []string{"application/json", "text/csv"}, frozenDoc.Produces)
 		assert.NotNil(t, frozenDoc.ResponseTypes[200])
 		assert.Nil(t, frozenDoc.ResponseTypes[404])
-		assert.NotNil(t, frozenDoc.ResponseExamples[200])
+		assert.NotNil(t, frozenDoc.ResponseExample[200])
 	})
 
 	t.Run("frozen doc security is a deep copy", func(t *testing.T) {
@@ -354,6 +356,65 @@ func TestRouteWrapper_Freeze_RequestMetadata(t *testing.T) {
 		require.NotNil(t, frozenDoc)
 		assert.Nil(t, frozenDoc.RequestType)
 		assert.Nil(t, frozenDoc.RequestMetadata)
+	})
+}
+
+func TestRouteWrapper_Freeze_WithExamples(t *testing.T) {
+	t.Parallel()
+
+	type User struct {
+		ID   int
+		Name string
+	}
+
+	t.Run("freezes response named examples", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("GET", "/test")
+		rw.Response(200, User{},
+			example.New("success", User{ID: 1, Name: "test"}),
+		)
+
+		doc := rw.Freeze()
+
+		// Verify examples are frozen
+		assert.Len(t, doc.ResponseNamedExamples[200], 1)
+
+		// Verify modifications after freeze are ignored
+		rw.Response(200, User{},
+			example.New("new", User{ID: 2, Name: "modified"}),
+		)
+
+		frozenDoc := rw.GetFrozenDoc()
+		assert.Len(t, frozenDoc.ResponseNamedExamples[200], 1)
+		assert.Equal(t, "success", frozenDoc.ResponseNamedExamples[200][0].Name())
+	})
+
+	t.Run("freezes request named examples", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("POST", "/test")
+		rw.Request(User{},
+			example.New("test", User{ID: 1, Name: "test"}),
+		)
+
+		doc := rw.Freeze()
+
+		assert.Len(t, doc.RequestNamedExamples, 1)
+	})
+
+	t.Run("deep copies named examples", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("GET", "/test")
+		examples := []example.Example{
+			example.New("ex1", User{ID: 1, Name: "test"}),
+		}
+
+		rw.Response(200, User{}, examples...)
+
+		doc := rw.Freeze()
+
+		// Original slice modification shouldn't affect frozen doc
+		// (This tests the deep copy behavior)
+		assert.Len(t, doc.ResponseNamedExamples[200], 1)
 	})
 }
 

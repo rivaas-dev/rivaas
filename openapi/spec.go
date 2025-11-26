@@ -290,7 +290,7 @@ type Parameter struct {
 	Example any `json:"example,omitempty"`
 
 	// Examples provides multiple examples keyed by name (mutually exclusive with Example).
-	Examples map[string]*Example `json:"examples,omitempty"`
+	Examples map[string]*ExampleSpec `json:"examples,omitempty"`
 
 	// Content defines the media type and schema for complex serialization
 	// (mutually exclusive with Schema). The map MUST contain only one entry.
@@ -357,7 +357,7 @@ type Header struct {
 	Example any `json:"example,omitempty"`
 
 	// Examples provides multiple named example values.
-	Examples map[string]*Example `json:"examples,omitempty"`
+	Examples map[string]*ExampleSpec `json:"examples,omitempty"`
 
 	// Content defines the media type and schema (for content-based serialization).
 	// The map MUST contain only one entry.
@@ -392,8 +392,9 @@ type Link struct {
 	Server *Server `json:"server,omitempty"`
 }
 
-// Example represents an example value with optional description.
-type Example struct {
+// ExampleSpec represents an example value with optional description.
+// This is the exported spec type. For API usage, see the [example.Example] type.
+type ExampleSpec struct {
 	// Summary provides a short summary of the example.
 	Summary string `json:"summary,omitempty"`
 
@@ -444,7 +445,7 @@ type MediaType struct {
 	Example any `json:"example,omitempty"`
 
 	// Examples provides multiple named example values (OpenAPI 3.1+, but works in 3.0 too).
-	Examples map[string]*Example `json:"examples,omitempty"`
+	Examples map[string]*ExampleSpec `json:"examples,omitempty"`
 
 	// Encoding defines encoding for specific schema properties.
 	// Only applies to request bodies with multipart or application/x-www-form-urlencoded.

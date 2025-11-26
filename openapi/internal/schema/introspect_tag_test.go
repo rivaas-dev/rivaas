@@ -14,7 +14,10 @@ import (
 
 // Test extractParamsFromTag function directly
 func TestExtractParamsFromTag(t *testing.T) {
+	t.Parallel()
+
 	t.Run("extracts parameters by location", func(t *testing.T) {
+		t.Parallel()
 		tests := []struct {
 			name     string
 			structFn func() (reflect.Type, string, string)
@@ -433,6 +436,8 @@ func TestExtractParamsFromTag(t *testing.T) {
 }
 
 func TestParseValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -486,6 +491,7 @@ func TestParseValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := parseValue(tt.input, tt.typ)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -493,6 +499,8 @@ func TestParseValue(t *testing.T) {
 }
 
 func TestParseEnumValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -512,6 +520,7 @@ func TestParseEnumValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := parseEnumValues(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -519,6 +528,8 @@ func TestParseEnumValues(t *testing.T) {
 }
 
 func TestInferFormat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		structFn func() reflect.StructField
@@ -672,6 +683,7 @@ func TestInferFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			field := tt.structFn()
 			result := inferFormat(field)
 			assert.Equal(t, tt.expected, result)
@@ -680,6 +692,8 @@ func TestInferFormat(t *testing.T) {
 }
 
 func TestIsParamRequired(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		structFn func() (reflect.StructField, string)
@@ -773,6 +787,7 @@ func TestIsParamRequired(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			field, tagName := tt.structFn()
 			result := isParamRequired(field, tagName)
 			assert.Equal(t, tt.expected, result)
@@ -781,6 +796,8 @@ func TestIsParamRequired(t *testing.T) {
 }
 
 func TestIntrospectRequest_TagVariations(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		structFn func() reflect.Type
@@ -935,6 +952,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			typ := tt.structFn()
 			meta := IntrospectRequest(typ)
 			require.NotNil(t, meta)
@@ -946,6 +964,8 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 }
 
 func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		structFn func() reflect.Type
@@ -1030,6 +1050,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			typ := tt.structFn()
 			meta := IntrospectRequest(typ)
 			require.NotNil(t, meta)

@@ -32,11 +32,11 @@ import (
 // It coordinates between route metadata and schema generation to provide
 // a complete OpenAPI documentation solution.
 //
-// Concurrency: Manager is safe for concurrent use. The Register method
-// and GenerateSpec can be called from multiple goroutines safely. The
+// Concurrency: Manager is safe for concurrent use. The [Manager.Register] method
+// and [Manager.GenerateSpec] can be called from multiple goroutines safely. The
 // manager uses internal locking to protect its state and cache.
 //
-// Manager instances are created via NewManager() and should not be constructed
+// Manager instances are created via [NewManager] and should not be constructed
 // directly.
 type Manager struct {
 	builder      *build.Builder
@@ -51,7 +51,7 @@ type Manager struct {
 
 // NewManager creates a new OpenAPI manager from configuration.
 //
-// The manager is initialized with the provided configuration and is ready to
+// The manager is initialized with the provided [Config] and is ready to
 // register routes and generate OpenAPI specifications. Returns nil if cfg is nil.
 //
 // Example:
@@ -220,7 +220,7 @@ func NewManager(cfg *Config) *Manager {
 
 // Register registers a route with OpenAPI metadata.
 //
-// This method creates and returns a RouteWrapper that allows adding OpenAPI
+// This method creates and returns a [RouteWrapper] that allows adding OpenAPI
 // documentation through a fluent API. The route is tracked internally for
 // spec generation.
 //
@@ -249,7 +249,7 @@ func (m *Manager) Register(method, path string) *RouteWrapper {
 }
 
 // OnRouteAdded is called when a route is registered with the router.
-// It creates a RouteWrapper for OpenAPI documentation and applies constraint mapping.
+// It creates a [RouteWrapper] for OpenAPI documentation.
 // This enables automatic OpenAPI schema generation from typed route constraints.
 //
 // The route parameter should be a *router.Route. We use an interface to avoid
@@ -306,10 +306,6 @@ func (m *Manager) OnRouteAdded(route any) *RouteWrapper {
 	m.cacheInvalid = true
 	m.lastWarnings = nil
 
-	// TODO: Apply constraint mapping to OpenAPI parameters
-	// This will map router.ParamConstraint to OpenAPI parameter schemas
-	// For now, just register the route - constraint mapping can be added later
-
 	return w
 }
 
@@ -322,6 +318,7 @@ func (m *Manager) OnRouteAdded(route any) *RouteWrapper {
 //   - Caches the result for subsequent calls
 //
 // Returns the JSON bytes and ETag. The ETag can be used for HTTP caching.
+// Use [Manager.Warnings] to retrieve warnings from the last generation.
 //
 // Example:
 //
@@ -350,19 +347,49 @@ func (m *Manager) GenerateSpec() ([]byte, string, error) {
 		doc := w.GetFrozenDoc()
 		var buildDoc *build.RouteDoc
 		if doc != nil {
+			// Convert request examples
+			requestNamedExamples := make([]build.ExampleData, len(doc.RequestNamedExamples))
+			for i, ex := range doc.RequestNamedExamples {
+				requestNamedExamples[i] = build.ExampleData{
+					Name:          ex.Name(),
+					Summary:       ex.Summary(),
+					Description:   ex.Description(),
+					Value:         ex.Value(),
+					ExternalValue: ex.ExternalValue(),
+				}
+			}
+
+			// Convert response examples
+			responseNamedExamples := make(map[int][]build.ExampleData)
+			for status, examples := range doc.ResponseNamedExamples {
+				responseNamedExamples[status] = make([]build.ExampleData, len(examples))
+				for i, ex := range examples {
+					responseNamedExamples[status][i] = build.ExampleData{
+						Name:          ex.Name(),
+						Summary:       ex.Summary(),
+						Description:   ex.Description(),
+						Value:         ex.Value(),
+						ExternalValue: ex.ExternalValue(),
+					}
+				}
+			}
+
 			buildDoc = &build.RouteDoc{
-				Summary:          doc.Summary,
-				Description:      doc.Description,
-				OperationID:      doc.OperationID,
-				Tags:             doc.Tags,
-				Deprecated:       doc.Deprecated,
-				Consumes:         doc.Consumes,
-				Produces:         doc.Produces,
-				RequestType:      doc.RequestType,
-				RequestMetadata:  doc.RequestMetadata,
-				ResponseTypes:    doc.ResponseTypes,
-				ResponseExamples: doc.ResponseExamples,
-				Security:         convertSecurityReqs(doc.Security),
+				Summary:               doc.Summary,
+				Description:           doc.Description,
+				OperationID:           doc.OperationID,
+				Tags:                  doc.Tags,
+				Deprecated:            doc.Deprecated,
+				Consumes:              doc.Consumes,
+				Produces:              doc.Produces,
+				RequestType:           doc.RequestType,
+				RequestMetadata:       doc.RequestMetadata,
+				RequestExample:        doc.RequestExample,
+				RequestNamedExamples:  requestNamedExamples,
+				ResponseTypes:         doc.ResponseTypes,
+				ResponseExample:       doc.ResponseExample,
+				ResponseNamedExamples: responseNamedExamples,
+				Security:              convertSecurityReqs(doc.Security),
 			}
 		}
 		enriched[i] = build.EnrichedRoute{

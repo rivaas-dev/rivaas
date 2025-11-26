@@ -297,6 +297,8 @@ func TestSchemaName(t *testing.T) {
 }
 
 func TestParseJSONName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		tag      string
@@ -385,6 +387,7 @@ func TestParseJSONName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := parseJSONName(tt.tag, tt.fallback)
 			assert.Equal(t, tt.expected, result)
 		})

@@ -271,10 +271,32 @@ func (b *Builder) buildOperation(er EnrichedRoute, sg *schema.SchemaGenerator, s
 			return jt != "" && jt != "-"
 		})
 
+		mt := &model.MediaType{
+			Schema: bodySchema,
+		}
+
+		// Handle examples: single example OR named examples (mutually exclusive)
+		if len(doc.RequestNamedExamples) > 0 {
+			// Use named examples (plural "examples" field)
+			mt.Examples = make(map[string]*model.Example, len(doc.RequestNamedExamples))
+			for _, ex := range doc.RequestNamedExamples {
+				example := &model.Example{
+					Summary:       ex.Summary,
+					Description:   ex.Description,
+					Value:         ex.Value,
+					ExternalValue: ex.ExternalValue,
+				}
+				mt.Examples[ex.Name] = example
+			}
+		} else if doc.RequestExample != nil {
+			// Use single example (singular "example" field)
+			mt.Example = doc.RequestExample
+		}
+
 		op.RequestBody = &model.RequestBody{
 			Required: true,
 			Content: map[string]*model.MediaType{
-				ct: {Schema: bodySchema},
+				ct: mt,
 			},
 		}
 	}
@@ -285,11 +307,30 @@ func (b *Builder) buildOperation(er EnrichedRoute, sg *schema.SchemaGenerator, s
 		rs := &model.Response{Description: httpStatusText(status)}
 
 		if status != 204 && rt != nil {
+			mt := &model.MediaType{
+				Schema: sg.Generate(rt),
+			}
+
+			// Handle examples: single example OR named examples (mutually exclusive)
+			if namedExamples, hasNamed := doc.ResponseNamedExamples[status]; hasNamed && len(namedExamples) > 0 {
+				// Use named examples (plural "examples" field)
+				mt.Examples = make(map[string]*model.Example, len(namedExamples))
+				for _, ex := range namedExamples {
+					example := &model.Example{
+						Summary:       ex.Summary,
+						Description:   ex.Description,
+						Value:         ex.Value,
+						ExternalValue: ex.ExternalValue,
+					}
+					mt.Examples[ex.Name] = example
+				}
+			} else if singleExample, hasSingle := doc.ResponseExample[status]; hasSingle {
+				// Use single example (singular "example" field)
+				mt.Example = singleExample
+			}
+
 			rs.Content = map[string]*model.MediaType{
-				outCT: {
-					Schema:  sg.Generate(rt),
-					Example: doc.ResponseExamples[status],
-				},
+				outCT: mt,
 			}
 		}
 
@@ -297,7 +338,7 @@ func (b *Builder) buildOperation(er EnrichedRoute, sg *schema.SchemaGenerator, s
 	}
 
 	if len(op.Responses) == 0 {
-		op.Responses["200"] = &model.Response{Description: "OK"}
+		op.Responses[strconv.Itoa(http.StatusOK)] = &model.Response{Description: httpStatusText(http.StatusOK)}
 	}
 
 	return op, nil

@@ -28,6 +28,8 @@ type MixedRequest struct {
 }
 
 func TestIntrospectRequest(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -148,6 +150,7 @@ func TestIntrospectRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var meta *RequestMetadata
 			if tt.input == nil {
 				meta = IntrospectRequest(nil)
@@ -160,6 +163,8 @@ func TestIntrospectRequest(t *testing.T) {
 }
 
 func TestIntrospectRequest_RequiredFields(t *testing.T) {
+	t.Parallel()
+
 	type RequiredTest struct {
 		Required  string `params:"id"` // path params always required
 		Optional  *int   `query:"opt"` // pointer is optional
@@ -183,6 +188,7 @@ func TestIntrospectRequest_RequiredFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var param *ParamSpec
 			for i := range meta.Parameters {
 				if meta.Parameters[i].Name == tt.param {
@@ -197,6 +203,8 @@ func TestIntrospectRequest_RequiredFields(t *testing.T) {
 }
 
 func TestIntrospectRequest_EmbeddedStructs(t *testing.T) {
+	t.Parallel()
+
 	type BaseParams struct {
 		ID int `params:"id"`
 	}
@@ -222,6 +230,8 @@ func TestIntrospectRequest_EmbeddedStructs(t *testing.T) {
 }
 
 func TestIntrospectRequest_DefaultValues(t *testing.T) {
+	t.Parallel()
+
 	type RequestWithDefaults struct {
 		ID    int    `params:"id" default:"1"`
 		Limit int    `query:"limit" default:"10"`
@@ -244,6 +254,8 @@ func TestIntrospectRequest_DefaultValues(t *testing.T) {
 }
 
 func TestIntrospectRequest_EnumValues(t *testing.T) {
+	t.Parallel()
+
 	type RequestWithEnum struct {
 		Status string `query:"status" enum:"pending,active,completed"`
 		Type   string `query:"type" enum:"public,private"`
@@ -263,6 +275,8 @@ func TestIntrospectRequest_EnumValues(t *testing.T) {
 }
 
 func TestIntrospectRequest_EnumFromValidate(t *testing.T) {
+	t.Parallel()
+
 	type RequestWithValidateEnum struct {
 		Color string `query:"color" validate:"oneof=red green blue"`
 	}
@@ -284,6 +298,8 @@ func TestIntrospectRequest_EnumFromValidate(t *testing.T) {
 }
 
 func TestIntrospectRequest_EmptyStruct(t *testing.T) {
+	t.Parallel()
+
 	meta := IntrospectRequest(reflect.TypeOf(struct{}{}))
 	require.NotNil(t, meta)
 	assert.False(t, meta.HasBody)
@@ -291,6 +307,8 @@ func TestIntrospectRequest_EmptyStruct(t *testing.T) {
 }
 
 func TestIntrospectRequest_OnlyBody(t *testing.T) {
+	t.Parallel()
+
 	type BodyOnly struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
@@ -303,6 +321,8 @@ func TestIntrospectRequest_OnlyBody(t *testing.T) {
 }
 
 func TestIntrospectRequest_OnlyParams(t *testing.T) {
+	t.Parallel()
+
 	type ParamsOnly struct {
 		ID   int    `params:"id"`
 		Page int    `query:"page"`
@@ -316,6 +336,8 @@ func TestIntrospectRequest_OnlyParams(t *testing.T) {
 }
 
 func TestIntrospectRequest_InvalidTypes(t *testing.T) {
+	t.Parallel()
+
 	// Non-struct types should return nil
 	assert.Nil(t, IntrospectRequest(reflect.TypeOf("string")))
 	assert.Nil(t, IntrospectRequest(reflect.TypeOf(123)))
@@ -324,6 +346,8 @@ func TestIntrospectRequest_InvalidTypes(t *testing.T) {
 }
 
 func TestIntrospectRequest_ComplexNested(t *testing.T) {
+	t.Parallel()
+
 	type Nested struct {
 		Value string `json:"value"`
 	}

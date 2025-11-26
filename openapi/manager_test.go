@@ -91,6 +91,7 @@ func TestManager_GenerateSpec_Golden(t *testing.T) {
 			return
 		}
 		require.NoError(t, err, "failed to read golden file")
+		return
 	}
 
 	// Compare JSON (semantic comparison would be better, but this works for now)

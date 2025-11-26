@@ -16,7 +16,34 @@ package openapi
 
 import (
 	"reflect"
+
+	"rivaas.dev/openapi/example"
 )
+
+// isZeroValue checks if a value is the zero value for its type.
+// Used to avoid generating meaningless examples from empty structs.
+func isZeroValue(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return true
+	}
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		return rv.IsNil()
+	case reflect.Struct:
+		for i := 0; i < rv.NumField(); i++ {
+			if !isZeroValue(rv.Field(i).Interface()) {
+				return false
+			}
+		}
+		return true
+	default:
+		return reflect.DeepEqual(rv.Interface(), reflect.Zero(rv.Type()).Interface())
+	}
+}
 
 // Doc sets both the operation summary and description.
 //
@@ -239,28 +266,23 @@ func (rw *RouteWrapper) Security(scheme string, scopes ...string) *RouteWrapper 
 	return rw
 }
 
-// Request sets the request type for automatic parameter and body discovery.
+// Request sets the request type and optionally provides examples.
 //
-// Pass a zero value of your request struct. The package automatically discovers:
-//   - Query parameters from `query` tags
-//   - Path parameters from `params` tags
-//   - Header parameters from `header` tags
-//   - Cookie parameters from `cookie` tags
-//   - Request body from `json` tags
+// The schema is generated from req's type. Examples are handled as follows:
+//   - No examples provided: req itself is used as the example (if non-zero)
+//   - Examples provided: they become named examples in OpenAPI
 //
-// Struct tags from the binding package are automatically recognized,
-// including `doc`, `example`, `enum`, `default`, and validation tags.
+// Example (simple):
 //
-// Example:
+//	Request(CreateUserRequest{Name: "John", Email: "john@example.com"})
 //
-//	type CreateUserRequest struct {
-//	    Name  string `json:"name" doc:"User's full name" validate:"required"`
-//	    Email string `json:"email" doc:"Email address" validate:"required,email"`
-//	    Role  string `query:"role" doc:"User role" enum:"admin,user"`
-//	}
+// Example (named examples):
 //
-//	app.POST("/users", handler).Request(CreateUserRequest{})
-func (rw *RouteWrapper) Request(req any) *RouteWrapper {
+//	Request(CreateUserRequest{},
+//		example.New("minimal", CreateUserRequest{Name: "John"}),
+//		example.New("complete", CreateUserRequest{Name: "John", Email: "john@example.com"}),
+//	)
+func (rw *RouteWrapper) Request(req any, examples ...example.Example) *RouteWrapper {
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
 
@@ -269,32 +291,42 @@ func (rw *RouteWrapper) Request(req any) *RouteWrapper {
 	}
 
 	rw.doc.RequestType = reflect.TypeOf(req)
+	if len(examples) == 0 {
+		// No named examples: use req as single example (if non-zero)
+		if !isZeroValue(req) {
+			rw.doc.RequestExample = req
+		} else {
+			rw.doc.RequestExample = nil
+		}
+		rw.doc.RequestNamedExamples = nil
+	} else {
+		// Named examples provided
+		rw.doc.RequestNamedExamples = examples
+		rw.doc.RequestExample = nil
+	}
+
 	return rw
 }
 
-// Response sets the response type for a specific HTTP status code.
+// Response sets the response schema and examples for a status code.
 //
-// The response type is used to generate the response schema in the OpenAPI spec.
-// Pass nil for status codes that don't return a body (e.g., 204 No Content).
-// Multiple responses can be defined by calling this method multiple times.
+// The schema is generated from resp's type. Examples are handled as follows:
+//   - No examples provided: resp itself is used as the example (if non-zero)
+//   - Examples provided: they become named examples in OpenAPI
 //
-// Example:
+// Pass nil for resp for status codes that don't return a body (e.g., 204 No Content).
 //
-//	type UserResponse struct {
-//	    ID    int    `json:"id"`
-//	    Name  string `json:"name"`
-//	    Email string `json:"email"`
-//	}
+// Example (simple - 99% use case):
 //
-//	type ErrorResponse struct {
-//	    Error string `json:"error"`
-//	}
+//	Response(200, UserResponse{ID: 123, Name: "John"})
 //
-//	app.GET("/users/:id", handler).
-//	    Response(200, UserResponse{}).
-//	    Response(404, ErrorResponse{}).
-//	    Response(500, ErrorResponse{})
-func (rw *RouteWrapper) Response(status int, typ any) *RouteWrapper {
+// Example (named examples):
+//
+//	Response(200, UserResponse{},
+//		example.New("success", UserResponse{ID: 123}),
+//		example.New("admin", UserResponse{ID: 1, Role: "admin"}),
+//	)
+func (rw *RouteWrapper) Response(status int, resp any, examples ...example.Example) *RouteWrapper {
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
 
@@ -302,11 +334,33 @@ func (rw *RouteWrapper) Response(status int, typ any) *RouteWrapper {
 		return rw
 	}
 
-	if typ == nil {
+	// Handle nil response (e.g., 204 No Content)
+	if resp == nil {
 		rw.doc.ResponseTypes[status] = nil
-	} else {
-		rw.doc.ResponseTypes[status] = reflect.TypeOf(typ)
+		return rw
 	}
+
+	// 1. ALWAYS extract type from resp for schema generation
+	rw.doc.ResponseTypes[status] = reflect.TypeOf(resp)
+
+	// 2. Handle examples based on what was provided
+	if len(examples) == 0 {
+		// No named examples: use resp as single example (if non-zero)
+		if !isZeroValue(resp) {
+			rw.doc.ResponseExample[status] = resp
+		} else {
+			delete(rw.doc.ResponseExample, status)
+		}
+
+		// Clear any previous named examples
+		delete(rw.doc.ResponseNamedExamples, status)
+	} else {
+		// Named examples provided: use "examples" (plural) map
+		rw.doc.ResponseNamedExamples[status] = examples
+		// Clear any previous single example
+		delete(rw.doc.ResponseExample, status)
+	}
+
 	return rw
 }
 
@@ -332,6 +386,8 @@ func (rw *RouteWrapper) ResponseExample(status int, ex any) *RouteWrapper {
 		return rw
 	}
 
-	rw.doc.ResponseExamples[status] = ex
+	// Set single example and clear any named examples for this status
+	rw.doc.ResponseExample[status] = ex
+	delete(rw.doc.ResponseNamedExamples, status)
 	return rw
 }

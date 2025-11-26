@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"rivaas.dev/openapi/example"
 )
 
 // Test types for testing
@@ -987,8 +989,8 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 
 		// Verify example is set
 		rw.mu.RLock()
-		assert.NotNil(t, rw.doc.ResponseExamples[200])
-		assert.Equal(t, example, rw.doc.ResponseExamples[200])
+		assert.NotNil(t, rw.doc.ResponseExample[200])
+		assert.Equal(t, example, rw.doc.ResponseExample[200])
 		rw.mu.RUnlock()
 	})
 
@@ -1001,10 +1003,10 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 		rw.ResponseExample(500, ErrorResponse{Error: "Internal Error"})
 
 		rw.mu.RLock()
-		assert.Len(t, rw.doc.ResponseExamples, 3)
-		assert.Equal(t, TestResponse{ID: 1, Name: "Success"}, rw.doc.ResponseExamples[200])
-		assert.Equal(t, ErrorResponse{Error: "Not Found"}, rw.doc.ResponseExamples[404])
-		assert.Equal(t, ErrorResponse{Error: "Internal Error"}, rw.doc.ResponseExamples[500])
+		assert.Len(t, rw.doc.ResponseExample, 3)
+		assert.Equal(t, TestResponse{ID: 1, Name: "Success"}, rw.doc.ResponseExample[200])
+		assert.Equal(t, ErrorResponse{Error: "Not Found"}, rw.doc.ResponseExample[404])
+		assert.Equal(t, ErrorResponse{Error: "Internal Error"}, rw.doc.ResponseExample[500])
 		rw.mu.RUnlock()
 	})
 
@@ -1016,7 +1018,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 		rw.ResponseExample(200, TestResponse{ID: 2, Name: "Second"})
 
 		rw.mu.RLock()
-		assert.Equal(t, TestResponse{ID: 2, Name: "Second"}, rw.doc.ResponseExamples[200])
+		assert.Equal(t, TestResponse{ID: 2, Name: "Second"}, rw.doc.ResponseExample[200])
 		rw.mu.RUnlock()
 	})
 
@@ -1027,8 +1029,8 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 		rw.ResponseExample(204, nil)
 
 		rw.mu.RLock()
-		assert.Nil(t, rw.doc.ResponseExamples[204])
-		assert.Contains(t, rw.doc.ResponseExamples, 204)
+		assert.Nil(t, rw.doc.ResponseExample[204])
+		assert.Contains(t, rw.doc.ResponseExample, 204)
 		rw.mu.RUnlock()
 	})
 
@@ -1040,8 +1042,8 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 		rw.ResponseExample(201, 42)
 
 		rw.mu.RLock()
-		assert.Equal(t, "string example", rw.doc.ResponseExamples[200])
-		assert.Equal(t, 42, rw.doc.ResponseExamples[201])
+		assert.Equal(t, "string example", rw.doc.ResponseExample[200])
+		assert.Equal(t, 42, rw.doc.ResponseExample[201])
 		rw.mu.RUnlock()
 	})
 
@@ -1054,7 +1056,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 		rw.ResponseExample(200, TestResponse{ID: 2, Name: "Modified"})
 
 		doc := rw.GetFrozenDoc()
-		assert.Equal(t, TestResponse{ID: 1, Name: "Original"}, doc.ResponseExamples[200])
+		assert.Equal(t, TestResponse{ID: 1, Name: "Original"}, doc.ResponseExample[200])
 	})
 }
 
@@ -1095,7 +1097,7 @@ func TestRouteWrapper_MethodChaining(t *testing.T) {
 		assert.Equal(t, reflect.TypeFor[TestRequest](), rw.doc.RequestType)
 		assert.NotNil(t, rw.doc.ResponseTypes[201])
 		assert.NotNil(t, rw.doc.ResponseTypes[400])
-		assert.Equal(t, TestResponse{ID: 1, Name: "New User"}, rw.doc.ResponseExamples[201])
+		assert.Equal(t, TestResponse{ID: 1, Name: "New User"}, rw.doc.ResponseExample[201])
 		rw.mu.RUnlock()
 	})
 
@@ -1122,7 +1124,7 @@ func TestRouteWrapper_MethodChaining(t *testing.T) {
 		assert.Equal(t, []string{"users", "read"}, rw.doc.Tags)
 		require.Len(t, rw.doc.Security, 2)
 		assert.Len(t, rw.doc.ResponseTypes, 3)
-		assert.Len(t, rw.doc.ResponseExamples, 2)
+		assert.Len(t, rw.doc.ResponseExample, 2)
 		rw.mu.RUnlock()
 	})
 }
@@ -1183,7 +1185,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 		rw.ResponseExample(500, ErrorResponse{Error: "Error"})
 
 		rw.mu.RLock()
-		assert.Len(t, rw.doc.ResponseExamples, 3)
+		assert.Len(t, rw.doc.ResponseExample, 3)
 		rw.mu.RUnlock()
 	})
 
@@ -1284,7 +1286,7 @@ func TestRouteWrapper_CompleteWorkflow(t *testing.T) {
 		assert.Equal(t, "bearerAuth", rw.doc.Security[0].Scheme)
 		assert.Equal(t, reflect.TypeFor[TestRequest](), rw.doc.RequestType)
 		assert.Len(t, rw.doc.ResponseTypes, 4)
-		assert.Len(t, rw.doc.ResponseExamples, 3)
+		assert.Len(t, rw.doc.ResponseExample, 3)
 		rw.mu.RUnlock()
 
 		// Freeze and verify
@@ -1292,7 +1294,7 @@ func TestRouteWrapper_CompleteWorkflow(t *testing.T) {
 		require.NotNil(t, frozenDoc)
 		assert.Equal(t, "Update User", frozenDoc.Summary)
 		assert.Len(t, frozenDoc.ResponseTypes, 4)
-		assert.Len(t, frozenDoc.ResponseExamples, 3)
+		assert.Len(t, frozenDoc.ResponseExample, 3)
 
 		// Verify modifications after freeze are ignored
 		rw.Summary("Modified")
@@ -1300,5 +1302,246 @@ func TestRouteWrapper_CompleteWorkflow(t *testing.T) {
 		finalDoc := rw.GetFrozenDoc()
 		assert.Equal(t, "Update User", finalDoc.Summary)
 		assert.Equal(t, []string{"users", "management"}, finalDoc.Tags)
+	})
+}
+
+func TestIsZeroValue(t *testing.T) {
+	t.Parallel()
+
+	type testStruct struct {
+		ID   int
+		Name string
+	}
+
+	tests := []struct {
+		name  string
+		value any
+		want  bool
+	}{
+		// Nil cases
+		{name: "nil", value: nil, want: true},
+		{name: "nil pointer", value: (*int)(nil), want: true},
+		{name: "nil slice", value: []int(nil), want: true},
+		{name: "nil map", value: map[string]int(nil), want: true},
+		// Zero value primitives
+		{name: "zero int", value: 0, want: true},
+		{name: "zero string", value: "", want: true},
+		{name: "zero float", value: 0.0, want: true},
+		{name: "zero bool", value: false, want: true},
+		// Non-zero primitives
+		{name: "non-zero int", value: 1, want: false},
+		{name: "non-zero string", value: "hello", want: false},
+		{name: "non-zero float", value: 1.5, want: false},
+		{name: "true bool", value: true, want: false},
+		// Structs
+		{name: "zero struct", value: testStruct{}, want: true},
+		{name: "partial struct", value: testStruct{ID: 1}, want: false},
+		{name: "full struct", value: testStruct{ID: 1, Name: "test"}, want: false},
+		// Slices
+		{name: "empty slice", value: []int{}, want: false}, // Empty slice is NOT nil
+		{name: "non-empty slice", value: []int{1, 2}, want: false},
+		// Maps
+		{name: "empty map", value: map[string]int{}, want: false}, // Empty map is NOT nil
+		{name: "non-empty map", value: map[string]int{"a": 1}, want: false},
+		// Pointers
+		{name: "pointer to zero", value: new(int), want: false}, // Pointer itself is not nil
+		{name: "pointer to value", value: func() *int { v := 5; return &v }(), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := isZeroValue(tt.value)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRouteWrapper_Response_WithNamedExamples(t *testing.T) {
+	t.Parallel()
+
+	type UserResponse struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	t.Run("single named example", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("GET", "/test")
+		rw.Response(200, UserResponse{},
+			example.New("success", UserResponse{ID: 123, Name: "John"}),
+		)
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.NotNil(t, rw.doc.ResponseTypes[200])
+		assert.Len(t, rw.doc.ResponseNamedExamples[200], 1)
+		assert.Empty(t, rw.doc.ResponseExample)
+		assert.Equal(t, "success", rw.doc.ResponseNamedExamples[200][0].Name())
+	})
+
+	t.Run("multiple named examples", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("GET", "/test")
+		rw.Response(200, UserResponse{},
+			example.New("regular", UserResponse{ID: 1, Name: "User"}),
+			example.New("admin", UserResponse{ID: 2, Name: "Admin"},
+				example.WithSummary("Admin user")),
+		)
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.Len(t, rw.doc.ResponseNamedExamples[200], 2)
+		assert.Equal(t, "regular", rw.doc.ResponseNamedExamples[200][0].Name())
+		assert.Equal(t, "admin", rw.doc.ResponseNamedExamples[200][1].Name())
+		assert.Equal(t, "Admin user", rw.doc.ResponseNamedExamples[200][1].Summary())
+	})
+
+	t.Run("named examples clear single example", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("GET", "/test")
+		// First set a single example
+		rw.Response(200, UserResponse{ID: 1, Name: "Single"})
+
+		assert.NotEmpty(t, rw.doc.ResponseExample)
+
+		// Then set named examples
+		rw.Response(200, UserResponse{},
+			example.New("named", UserResponse{ID: 2}),
+		)
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.Empty(t, rw.doc.ResponseExample[200])
+		assert.Len(t, rw.doc.ResponseNamedExamples[200], 1)
+	})
+
+	t.Run("single example clears named examples", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("GET", "/test")
+		// First set named examples
+		rw.Response(200, UserResponse{},
+			example.New("named", UserResponse{ID: 1}),
+		)
+
+		assert.Len(t, rw.doc.ResponseNamedExamples[200], 1)
+
+		// Then set single example
+		rw.Response(200, UserResponse{ID: 2, Name: "Single"})
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.Empty(t, rw.doc.ResponseNamedExamples[200])
+		assert.NotNil(t, rw.doc.ResponseExample[200])
+	})
+
+	t.Run("zero value without examples has no example", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("GET", "/test")
+		rw.Response(200, UserResponse{}) // Zero value
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.NotNil(t, rw.doc.ResponseTypes[200])
+		assert.Empty(t, rw.doc.ResponseExample[200])
+	})
+
+	t.Run("non-zero value becomes example", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("GET", "/test")
+		rw.Response(200, UserResponse{ID: 123, Name: "John"})
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.Equal(t, UserResponse{ID: 123, Name: "John"}, rw.doc.ResponseExample[200])
+	})
+
+	t.Run("external example", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("GET", "/test")
+		rw.Response(200, UserResponse{},
+			example.NewExternal("large", "https://example.com/large.json",
+				example.WithSummary("Large dataset")),
+		)
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.Len(t, rw.doc.ResponseNamedExamples[200], 1)
+		assert.True(t, rw.doc.ResponseNamedExamples[200][0].IsExternal())
+		assert.Equal(t, "https://example.com/large.json",
+			rw.doc.ResponseNamedExamples[200][0].ExternalValue())
+	})
+}
+
+func TestRouteWrapper_Request_WithNamedExamples(t *testing.T) {
+	t.Parallel()
+
+	type CreateUserRequest struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	t.Run("single named example", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("POST", "/users")
+		rw.Request(CreateUserRequest{},
+			example.New("basic", CreateUserRequest{Name: "John"}),
+		)
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.NotNil(t, rw.doc.RequestType)
+		assert.Len(t, rw.doc.RequestNamedExamples, 1)
+		assert.Nil(t, rw.doc.RequestExample)
+	})
+
+	t.Run("multiple named examples", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("POST", "/users")
+		rw.Request(CreateUserRequest{},
+			example.New("minimal", CreateUserRequest{Name: "John"},
+				example.WithSummary("Required fields only")),
+			example.New("complete", CreateUserRequest{Name: "John", Email: "john@example.com"},
+				example.WithSummary("All fields")),
+		)
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.Len(t, rw.doc.RequestNamedExamples, 2)
+		assert.Equal(t, "minimal", rw.doc.RequestNamedExamples[0].Name())
+		assert.Equal(t, "complete", rw.doc.RequestNamedExamples[1].Name())
+	})
+
+	t.Run("zero value without examples has no example", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("POST", "/users")
+		rw.Request(CreateUserRequest{})
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.NotNil(t, rw.doc.RequestType)
+		assert.Nil(t, rw.doc.RequestExample)
+	})
+
+	t.Run("non-zero value becomes example", func(t *testing.T) {
+		t.Parallel()
+		rw := NewRoute("POST", "/users")
+		rw.Request(CreateUserRequest{Name: "John", Email: "john@example.com"})
+
+		rw.mu.RLock()
+		defer rw.mu.RUnlock()
+
+		assert.Equal(t, CreateUserRequest{Name: "John", Email: "john@example.com"},
+			rw.doc.RequestExample)
 	})
 }

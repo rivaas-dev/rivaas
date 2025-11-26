@@ -13,21 +13,33 @@ type RouteInfo struct {
 	Path   string // URL path with parameters (e.g. "/users/:id")
 }
 
+// ExampleData holds example data to avoid import cycles with openapi package.
+type ExampleData struct {
+	Name          string
+	Summary       string
+	Description   string
+	Value         any
+	ExternalValue string
+}
+
 // RouteDoc holds all OpenAPI metadata for a route.
 // This is a copy of the openapi.RouteDoc structure to avoid import cycles.
 type RouteDoc struct {
-	Summary          string
-	Description      string
-	OperationID      string
-	Tags             []string
-	Deprecated       bool
-	Consumes         []string
-	Produces         []string
-	RequestType      reflect.Type
-	RequestMetadata  *schema.RequestMetadata
-	ResponseTypes    map[int]reflect.Type
-	ResponseExamples map[int]any
-	Security         []SecurityReq
+	Summary               string
+	Description           string
+	OperationID           string
+	Tags                  []string
+	Deprecated            bool
+	Consumes              []string
+	Produces              []string
+	RequestType           reflect.Type
+	RequestMetadata       *schema.RequestMetadata
+	RequestExample        any           // Single unnamed example
+	RequestNamedExamples  []ExampleData // Named examples
+	ResponseTypes         map[int]reflect.Type
+	ResponseExample       map[int]any           // Single unnamed example per status
+	ResponseNamedExamples map[int][]ExampleData // Named examples per status
+	Security              []SecurityReq
 }
 
 // SecurityReq represents a security requirement for an operation.

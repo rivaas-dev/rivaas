@@ -39,6 +39,8 @@ var (
 // Config holds OpenAPI configuration.
 // All fields are public for functional options, but direct modification after creation
 // is not recommended. Use functional options to configure.
+//
+// Create instances using [New] or [MustNew].
 type Config struct {
 	// Info contains API metadata (title, version, description, contact, license).
 	Info Info
@@ -113,10 +115,11 @@ const (
 	InCookie ParameterLocation = "cookie"
 )
 
-// New creates a new OpenAPI Config with the given options.
+// New creates a new OpenAPI [Config] with the given options.
 //
 // It applies default values and validates the configuration. Returns an error if
-// validation fails (e.g., missing title or version).
+// validation fails (e.g., missing title or version). Use [Config.Validate] to check
+// validation rules.
 //
 // Example:
 //
@@ -155,9 +158,9 @@ func New(opts ...Option) (*Config, error) {
 	return cfg, nil
 }
 
-// MustNew creates a new OpenAPI Config and panics if validation fails.
+// MustNew creates a new OpenAPI [Config] and panics if validation fails.
 //
-// This is a convenience wrapper around New for use in package initialization or
+// This is a convenience wrapper around [New] for use in package initialization or
 // when configuration errors should cause immediate failure.
 //
 // Example:
@@ -174,13 +177,13 @@ func MustNew(opts ...Option) *Config {
 	return cfg
 }
 
-// Validate checks if the Config is valid.
+// Validate checks if the [Config] is valid.
 //
 // It ensures that required fields (title, version) are set and validates
 // nested configurations like UI settings. Returns an error describing all
 // validation failures.
 //
-// Validation is automatically called by New() and MustNew().
+// Validation is automatically called by [New] and [MustNew].
 func (c *Config) Validate() error {
 	if c.Info.Title == "" {
 		return errTitleRequired

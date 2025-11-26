@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"sync"
 
+	"rivaas.dev/openapi/example"
 	"rivaas.dev/openapi/internal/schema"
 )
 
@@ -27,7 +28,7 @@ import (
 // It provides a fluent API for adding OpenAPI documentation to routes.
 //
 // Concurrency: RouteWrapper is NOT safe for concurrent use during configuration.
-// Each wrapper should be configured by a single goroutine. After calling Freeze(),
+// Each wrapper should be configured by a single goroutine. After calling [RouteWrapper.Freeze],
 // the wrapper becomes read-only and is safe for concurrent reads. The wrapper
 // uses internal locking to protect its mutable state.
 type RouteWrapper struct {
@@ -39,21 +40,24 @@ type RouteWrapper struct {
 
 // RouteDoc holds all OpenAPI metadata for a route.
 //
-// This struct is immutable after Freeze() is called. It contains all
+// This struct is immutable after [RouteWrapper.Freeze] is called. It contains all
 // information needed to generate an OpenAPI Operation specification.
 type RouteDoc struct {
-	Summary          string
-	Description      string
-	OperationID      string
-	Tags             []string
-	Deprecated       bool
-	Consumes         []string
-	Produces         []string
-	RequestType      reflect.Type
-	RequestMetadata  *RequestMetadata
-	ResponseTypes    map[int]reflect.Type
-	ResponseExamples map[int]any
-	Security         []SecurityReq
+	Summary               string
+	Description           string
+	OperationID           string
+	Tags                  []string
+	Deprecated            bool
+	Consumes              []string
+	Produces              []string
+	RequestType           reflect.Type
+	RequestMetadata       *RequestMetadata
+	RequestExample        any               // Single unnamed example (uses "example" field)
+	RequestNamedExamples  []example.Example // Named examples (uses "examples" field)
+	ResponseTypes         map[int]reflect.Type
+	ResponseExample       map[int]any               // Single unnamed example per status
+	ResponseNamedExamples map[int][]example.Example // Named examples per status
+	Security              []SecurityReq
 }
 
 // SecurityReq represents a security requirement for an operation.
@@ -65,7 +69,7 @@ type SecurityReq struct {
 	Scopes []string
 }
 
-// NewRoute creates a new RouteWrapper for the given route information.
+// NewRoute creates a new [RouteWrapper] for the given route information.
 //
 // The wrapper starts with default values and can be configured using
 // the fluent API methods.
@@ -78,11 +82,13 @@ func NewRoute(method, path string) *RouteWrapper {
 	return &RouteWrapper{
 		info: RouteInfo{Method: method, Path: path},
 		doc: &RouteDoc{
-			Tags:             []string{},
-			Consumes:         []string{"application/json"},
-			Produces:         []string{"application/json"},
-			ResponseTypes:    map[int]reflect.Type{},
-			ResponseExamples: map[int]any{},
+			Tags:                  []string{},
+			Consumes:              []string{"application/json"},
+			Produces:              []string{"application/json"},
+			RequestNamedExamples:  []example.Example{},
+			ResponseTypes:         map[int]reflect.Type{},
+			ResponseExample:       map[int]any{},
+			ResponseNamedExamples: map[int][]example.Example{},
 		},
 	}
 }
@@ -99,13 +105,13 @@ func (rw *RouteWrapper) Info() RouteInfo {
 //   - Creates a deep copy of all metadata
 //   - Marks the wrapper as frozen to prevent further modifications
 //
-// Freeze() is idempotent - calling it multiple times returns the same
-// frozen RouteDoc. This method is automatically called by Manager
+// Freeze is idempotent - calling it multiple times returns the same
+// frozen [RouteDoc]. This method is automatically called by [Manager.GenerateSpec]
 // before spec generation.
 //
 // After freezing, all fluent API methods will have no effect.
 //
-// Returns the frozen RouteDoc for direct access.
+// Returns the frozen [RouteDoc] for direct access.
 func (rw *RouteWrapper) Freeze() *RouteDoc {
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
@@ -125,10 +131,16 @@ func (rw *RouteWrapper) Freeze() *RouteDoc {
 	f.Consumes = append([]string(nil), rw.doc.Consumes...)
 	f.Produces = append([]string(nil), rw.doc.Produces...)
 	f.Security = append([]SecurityReq(nil), rw.doc.Security...)
+	f.RequestExample = rw.doc.RequestExample
+	f.RequestNamedExamples = append([]example.Example(nil), rw.doc.RequestNamedExamples...)
 	f.ResponseTypes = map[int]reflect.Type{}
 	maps.Copy(f.ResponseTypes, rw.doc.ResponseTypes)
-	f.ResponseExamples = map[int]any{}
-	maps.Copy(f.ResponseExamples, rw.doc.ResponseExamples)
+	f.ResponseExample = map[int]any{}
+	maps.Copy(f.ResponseExample, rw.doc.ResponseExample)
+	f.ResponseNamedExamples = map[int][]example.Example{}
+	for k, v := range rw.doc.ResponseNamedExamples {
+		f.ResponseNamedExamples[k] = append([]example.Example(nil), v...)
+	}
 
 	rw.doc = &f
 	rw.frozen = true
@@ -139,7 +151,7 @@ func (rw *RouteWrapper) Freeze() *RouteDoc {
 // GetFrozenDoc returns the frozen route documentation.
 //
 // Returns nil if the route has not been frozen yet. This method is
-// thread-safe and can be called concurrently after Freeze().
+// thread-safe and can be called concurrently after [RouteWrapper.Freeze].
 //
 // This is primarily used internally during spec generation.
 func (rw *RouteWrapper) GetFrozenDoc() *RouteDoc {
