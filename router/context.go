@@ -751,7 +751,16 @@ func (c *Context) HTML(code int, html string) {
 // WriteHTML writes an HTML response and returns any error.
 func (c *Context) WriteHTML(code int, html string) error {
 	c.Response.Header().Set("Content-Type", "text/html")
-	c.Response.WriteHeader(code)
+
+	// Check if headers have already been written to avoid "superfluous response.WriteHeader call"
+	if rw, ok := c.Response.(*responseWriter); ok {
+		if !rw.Written() {
+			c.Response.WriteHeader(code)
+		}
+	} else {
+		c.Response.WriteHeader(code)
+	}
+
 	_, err := c.Response.Write([]byte(html))
 	if err != nil {
 		return fmt.Errorf("writing HTML response: %w", err)
@@ -910,7 +919,7 @@ func (c *Context) FormValueDefault(key, defaultValue string) string {
 func (c *Context) Version() string {
 	// Lazy version detection
 	// Only detect version when first accessed, not on every request
-	if c.version == "" && c.router.versionEngine != nil {
+	if c.version == "" && c.router != nil && c.router.versionEngine != nil {
 		c.version = c.router.versionEngine.DetectVersion(c.Request)
 	}
 	return c.version
@@ -1562,15 +1571,21 @@ func StreamNDJSON[T any](c *Context, each func(T) error) error {
 // reset resets the context to its initial state for reuse.
 // This method is used for context pooling.
 func (c *Context) reset() {
-	// Reset fields
+	// Reset core request fields
 	c.Request = nil
 	c.Response = nil
 	c.handlers = nil
 	c.index = -1
-	c.version = ""
+
+	// Reset observability and tracing fields
 	c.span = nil
 	c.metricsRecorder = nil
 	c.tracingRecorder = nil
+	c.version = ""
+	c.routeTemplate = ""
+	c.logger = nil
+
+	// Reset state flags
 	c.aborted = false
 	c.errors = nil
 
@@ -1606,12 +1621,6 @@ func (c *Context) reset() {
 	if c.Params != nil {
 		clear(c.Params)
 	}
-
-	// Reset observability fields
-	c.version = ""
-	c.routeTemplate = ""
-	c.aborted = false
-	c.errors = nil
 }
 
 // ParamCount returns the number of parameters stored in the context.

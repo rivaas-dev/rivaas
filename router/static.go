@@ -40,6 +40,7 @@ func (r *Router) Static(relativePath, root string) {
 
 // StaticFS serves static files from the given http.FileSystem under the URL prefix.
 // This provides more control over the file system implementation.
+// Registers both GET and HEAD routes per HTTP/1.1 requirements (RFC 7231).
 //
 // Example:
 //
@@ -65,14 +66,19 @@ func (r *Router) StaticFS(relativePath string, fs http.FileSystem) {
 	// Create a file server handler
 	fileServer := http.StripPrefix(strings.TrimSuffix(relativePath, "/*"), http.FileServer(fs))
 
-	// Add the route for static files
-	r.GET(relativePath, func(c *Context) {
+	handler := func(c *Context) {
 		fileServer.ServeHTTP(c.Response, c.Request)
-	})
+	}
+
+	// Register both GET and HEAD routes per HTTP/1.1 requirements (RFC 7231)
+	// HEAD must be supported for any resource that supports GET
+	r.GET(relativePath, handler)
+	r.HEAD(relativePath, handler)
 }
 
 // StaticFile serves a single file at the given URL path.
 // This is useful for serving specific files like favicon.ico or robots.txt.
+// Registers both GET and HEAD routes per HTTP/1.1 requirements (RFC 7231).
 //
 // Example:
 //
@@ -91,7 +97,12 @@ func (r *Router) StaticFile(relativePath, filepath string) {
 		relativePath = "/" + relativePath
 	}
 
-	r.GET(relativePath, func(c *Context) {
+	handler := func(c *Context) {
 		c.File(filepath)
-	})
+	}
+
+	// Register both GET and HEAD routes per HTTP/1.1 requirements (RFC 7231)
+	// HEAD must be supported for any resource that supports GET
+	r.GET(relativePath, handler)
+	r.HEAD(relativePath, handler)
 }

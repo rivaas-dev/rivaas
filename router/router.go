@@ -170,7 +170,7 @@ type Router struct {
 	// Route freezing and naming
 	frozen             atomic.Bool       // Routes are frozen (immutable) after freeze
 	namedRoutes        map[string]*Route // name -> route mapping
-	routeSnapshot      []Route           // Immutable snapshot built at freeze time
+	routeSnapshot      []*Route          // Immutable snapshot built at freeze time
 	routeSnapshotMutex sync.RWMutex      // Protects routeSnapshot
 }
 
@@ -287,8 +287,9 @@ func MustNew(opts ...Option) *Router {
 // because routes are registered after New() returns.
 func (r *Router) validate() error {
 	// Validate bloom filter configuration
-	if r.bloomFilterSize <= 0 {
-		return fmt.Errorf("bloom filter size must be positive, got %d", r.bloomFilterSize)
+	// Note: bloomFilterSize is uint64, so it can only be 0 or positive
+	if r.bloomFilterSize == 0 {
+		return fmt.Errorf("bloom filter size must be non-zero")
 	}
 	if r.bloomHashFunctions <= 0 {
 		return fmt.Errorf("bloom hash functions must be positive, got %d", r.bloomHashFunctions)
@@ -639,6 +640,8 @@ func defaultServerTimeouts() *serverTimeouts {
 // Default: 1000
 // Recommended: Set to 2-3x the number of static routes
 //
+// If size is 0, the default value (1000) is used.
+//
 // Example:
 //
 //	r := router.MustNew(router.WithBloomFilterSize(2000)) // For ~1000 routes
@@ -647,6 +650,7 @@ func WithBloomFilterSize(size uint64) Option {
 		if size > 0 {
 			r.bloomFilterSize = size
 		}
+		// size == 0: keep default value (1000)
 	}
 }
 
@@ -1258,9 +1262,15 @@ func (r *Router) compileVersionRoutes() {
 	}
 }
 
-// recordRouteRegistration records route registration metrics if metrics are enabled.
+// recordRouteRegistration is a hook for route registration tracking.
+// Currently a no-op; route registration is tracked via RouteInfo in the route tree.
+// Diagnostic events are reserved for runtime anomalies (security, performance),
+// not routine setup events which would be too noisy.
 func (r *Router) recordRouteRegistration(method, path string) {
-	// Metrics are handled via ObservabilityRecorder
+	// Intentionally empty - route registration is tracked via r.routeTree.routes
+	// Diagnostic events are for runtime anomalies, not routine setup
+	_ = method
+	_ = path
 }
 
 // serveCompiledRoute serves a request using a compiled route (static route).

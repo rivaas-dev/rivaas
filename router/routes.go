@@ -80,6 +80,8 @@ type Route struct {
 	tags        []string       // Optional tags for categorization
 	template    *routeTemplate // Template for reverse routing
 	group       *Group         // Reference to group for name prefixing
+
+	mu sync.Mutex // Protects route modifications during constraint addition
 }
 
 // RouteInfo contains comprehensive information about a registered route for introspection.
@@ -375,10 +377,13 @@ func (r *Router) ContextPool() *ContextPool {
 // finalizeRoute adds the route to the radix tree with its current constraints.
 // This is called automatically when the route is created or when constraints are added.
 // It uses the finalized flag to prevent duplicate route registration.
-// This method uses atomic operations for thread safety.
+// This method is thread-safe and uses a mutex to protect route modifications.
 //
 // Also compiles route into template for matching
 func (route *Route) finalizeRoute() {
+	route.mu.Lock()
+	defer route.mu.Unlock()
+
 	if route.finalized {
 		return // Already added to tree, skip re-registration
 	}
@@ -457,11 +462,19 @@ func (route *Route) Where(param, pattern string) *Route {
 		panic(fmt.Sprintf("Invalid regex pattern for parameter '%s': %v", param, err))
 	}
 
+	// Lock route for modifications
+	route.mu.Lock()
+
 	// Add constraint to the route
 	route.constraints = append(route.constraints, RouteConstraint{
 		Param:   param,
 		Pattern: regex,
 	})
+
+	// Reset finalized flag to allow re-registration with new constraints
+	route.finalized = false
+
+	route.mu.Unlock()
 
 	// Update RouteInfo with constraint for introspection
 	route.router.routeTree.routesMutex.Lock()
@@ -477,8 +490,7 @@ func (route *Route) Where(param, pattern string) *Route {
 	}
 	route.router.routeTree.routesMutex.Unlock()
 
-	// Reset finalized flag and re-add the route to the tree with updated constraints
-	route.finalized = false
+	// Re-add the route to the tree with updated constraints
 	route.finalizeRoute()
 
 	return route
@@ -521,10 +533,11 @@ func (route *Route) WhereAlphaNumeric(param string) *Route {
 //
 //	r.GET("/entities/:uuid", handler).WhereUUID("uuid")
 func (r *Route) WhereUUID(name string) *Route {
+	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintUUID}
-	// Reset finalized flag and re-add the route to the tree with updated constraints
 	r.finalized = false
+	r.mu.Unlock()
 	r.finalizeRoute()
 	return r
 }
@@ -543,10 +556,11 @@ func (r *Route) ensureTypedConstraints() {
 //
 //	r.GET("/users/:id", handler).WhereInt("id")
 func (r *Route) WhereInt(name string) *Route {
+	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintInt}
-	// Reset finalized flag and re-add the route to the tree with updated constraints
 	r.finalized = false
+	r.mu.Unlock()
 	r.finalizeRoute()
 	return r
 }
@@ -558,10 +572,11 @@ func (r *Route) WhereInt(name string) *Route {
 //
 //	r.GET("/prices/:amount", handler).WhereFloat("amount")
 func (r *Route) WhereFloat(name string) *Route {
+	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintFloat}
-	// Reset finalized flag and re-add the route to the tree with updated constraints
 	r.finalized = false
+	r.mu.Unlock()
 	r.finalizeRoute()
 	return r
 }
@@ -573,10 +588,11 @@ func (r *Route) WhereFloat(name string) *Route {
 //
 //	r.GET("/files/:name", handler).WhereRegex("name", `[a-zA-Z0-9._-]+`)
 func (r *Route) WhereRegex(name, pattern string) *Route {
+	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintRegex, Pattern: pattern}
-	// Reset finalized flag and re-add the route to the tree with updated constraints
 	r.finalized = false
+	r.mu.Unlock()
 	r.finalizeRoute()
 	return r
 }
@@ -588,13 +604,14 @@ func (r *Route) WhereRegex(name, pattern string) *Route {
 //
 //	r.GET("/status/:state", handler).WhereEnum("state", "active", "pending", "deleted")
 func (r *Route) WhereEnum(name string, values ...string) *Route {
+	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{
 		Kind: ConstraintEnum,
 		Enum: append([]string(nil), values...),
 	}
-	// Reset finalized flag and re-add the route to the tree with updated constraints
 	r.finalized = false
+	r.mu.Unlock()
 	r.finalizeRoute()
 	return r
 }
@@ -606,10 +623,11 @@ func (r *Route) WhereEnum(name string, values ...string) *Route {
 //
 //	r.GET("/orders/:date", handler).WhereDate("date")
 func (r *Route) WhereDate(name string) *Route {
+	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintDate}
-	// Reset finalized flag and re-add the route to the tree with updated constraints
 	r.finalized = false
+	r.mu.Unlock()
 	r.finalizeRoute()
 	return r
 }
@@ -621,10 +639,11 @@ func (r *Route) WhereDate(name string) *Route {
 //
 //	r.GET("/events/:timestamp", handler).WhereDateTime("timestamp")
 func (r *Route) WhereDateTime(name string) *Route {
+	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintDateTime}
-	// Reset finalized flag and re-add the route to the tree with updated constraints
 	r.finalized = false
+	r.mu.Unlock()
 	r.finalizeRoute()
 	return r
 }
@@ -890,12 +909,10 @@ func (r *Router) Freeze() {
 			}
 		}
 
-		// Build immutable snapshot
-		routes := make([]Route, 0, len(r.namedRoutes))
+		// Build immutable snapshot (pointers to frozen routes)
+		routes := make([]*Route, 0, len(r.namedRoutes))
 		for _, route := range r.namedRoutes {
-			// Create a copy (immutable)
-			routeCopy := *route
-			routes = append(routes, routeCopy)
+			routes = append(routes, route)
 		}
 
 		r.routeSnapshotMutex.Lock()
@@ -909,7 +926,8 @@ func (r *Router) Freeze() {
 	}
 }
 
-// GetRoute retrieves a route by name. Returns the route and true if found, or empty route and false.
+// GetRoute retrieves a route by name. Returns the route pointer and true if found, or nil and false.
+// The returned route is frozen and safe to read concurrently.
 // Panics if the router is not frozen.
 //
 // Example:
@@ -918,7 +936,7 @@ func (r *Router) Freeze() {
 //	if ok {
 //	    fmt.Printf("Route: %s %s\n", route.Method(), route.Path())
 //	}
-func (r *Router) GetRoute(name string) (Route, bool) {
+func (r *Router) GetRoute(name string) (*Route, bool) {
 	if !r.frozen.Load() {
 		panic("routes not frozen yet; call Freeze() before accessing routes")
 	}
@@ -928,14 +946,14 @@ func (r *Router) GetRoute(name string) (Route, bool) {
 	r.routeTree.routesMutex.RUnlock()
 
 	if !ok {
-		return Route{}, false
+		return nil, false
 	}
 
-	// Return a copy (immutable)
-	return *route, true
+	return route, true
 }
 
 // GetRoutes returns an immutable snapshot of all named routes.
+// The returned routes are frozen and safe to read concurrently.
 // Panics if the router is not frozen.
 //
 // Example:
@@ -944,7 +962,7 @@ func (r *Router) GetRoute(name string) (Route, bool) {
 //	for _, route := range routes {
 //	    fmt.Printf("%s: %s %s\n", route.Name(), route.Method(), route.Path())
 //	}
-func (r *Router) GetRoutes() []Route {
+func (r *Router) GetRoutes() []*Route {
 	if !r.frozen.Load() {
 		panic("routes not frozen yet; call Freeze() before accessing routes")
 	}
@@ -952,8 +970,8 @@ func (r *Router) GetRoutes() []Route {
 	r.routeSnapshotMutex.RLock()
 	defer r.routeSnapshotMutex.RUnlock()
 
-	// Return a copy of the snapshot
-	result := make([]Route, len(r.routeSnapshot))
+	// Return a copy of the snapshot slice (pointers are safe to share)
+	result := make([]*Route, len(r.routeSnapshot))
 	copy(result, r.routeSnapshot)
 	return result
 }

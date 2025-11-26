@@ -52,22 +52,24 @@ func (g *Group) Use(middleware ...HandlerFunc) {
 }
 
 // SetNamePrefix sets a prefix for all route names in this group.
-// This helps organize route names hierarchically and prevents collisions.
+// The prefix is appended to any existing name prefix from parent groups,
+// enabling hierarchical route naming.
 // Returns the group for method chaining.
 //
 // Example:
 //
-//	api := r.Group("/api/v1").SetNamePrefix("api.v1.")
-//	api.GET("/users", handler).SetName("users.list")
+//	api := r.Group("/api").SetNamePrefix("api.")
+//	v1 := api.Group("/v1").SetNamePrefix("v1.")  // Inherits "api." prefix
+//	v1.GET("/users", handler).SetName("users.list")
 //	// Full route name becomes: "api.v1.users.list"
 func (g *Group) SetNamePrefix(prefix string) *Group {
-	g.namePrefix = prefix
+	g.namePrefix = g.namePrefix + prefix
 	return g
 }
 
 // Group creates a nested route group under the current group.
 // The new group's prefix will be the parent's prefix + the provided prefix.
-// Middleware from the parent group is inherited by the nested group.
+// Middleware and name prefix from the parent group are inherited by the nested group.
 //
 // Example:
 //
@@ -97,6 +99,7 @@ func (g *Group) Group(prefix string, middleware ...HandlerFunc) *Group {
 		router:     g.router,
 		prefix:     fullPrefix,
 		middleware: allMiddleware,
+		namePrefix: g.namePrefix, // Inherit parent's name prefix
 	}
 }
 

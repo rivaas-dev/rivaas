@@ -37,8 +37,9 @@ const (
 	DiagInvalidProto    DiagnosticKind = "invalid_x_forwarded_proto"
 
 	// Configuration diagnostics
-	DiagHighParamCount DiagnosticKind = "route_param_count_high"
-	DiagH2CEnabled     DiagnosticKind = "h2c_enabled"
+	DiagHighParamCount  DiagnosticKind = "route_param_count_high"
+	DiagH2CEnabled      DiagnosticKind = "h2c_enabled"
+	DiagRouteRegistered DiagnosticKind = "route_registered"
 )
 
 // DiagnosticHandler receives diagnostic events from the router.

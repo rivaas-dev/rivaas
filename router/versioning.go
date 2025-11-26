@@ -395,7 +395,10 @@ type VersionGroup struct {
 // This is the generic method used by all HTTP method shortcuts.
 func (vg *VersionGroup) Handle(method, path string, handlers ...HandlerFunc) *Route {
 	fullPath := vg.prefix + path
-	allHandlers := append(vg.middleware, handlers...)
+	// Create a new slice to avoid modifying vg.middleware's backing array
+	allHandlers := make([]HandlerFunc, 0, len(vg.middleware)+len(handlers))
+	allHandlers = append(allHandlers, vg.middleware...)
+	allHandlers = append(allHandlers, handlers...)
 	return vg.versionRouter.addVersionRoute(method, fullPath, allHandlers)
 }
 

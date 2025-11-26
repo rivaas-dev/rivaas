@@ -23,9 +23,11 @@ import (
 	"maps"
 	"mime/multipart"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // AllParams returns all URL path parameters as a map.
@@ -459,23 +461,37 @@ func (c *Context) IsFresh() bool {
 		return false
 	}
 
-	// Check If-None-Match (ETag validation)
+	// Check If-None-Match (ETag validation) - takes precedence per RFC 7232
 	ifNoneMatch := c.Request.Header.Get("If-None-Match")
 	etag := c.Response.Header().Get("ETag")
 	if ifNoneMatch != "" && etag != "" {
-		// Simple comparison (should handle weak ETags in production)
-		if ifNoneMatch == etag || ifNoneMatch == "*" {
+		// Handle weak ETag comparison per RFC 7232
+		// Weak comparison: W/"abc" matches W/"abc" or "abc"
+		clientETag := strings.TrimPrefix(ifNoneMatch, "W/")
+		serverETag := strings.TrimPrefix(etag, "W/")
+		if clientETag == serverETag || ifNoneMatch == "*" {
 			return true
 		}
 	}
 
-	// Check If-Modified-Since
+	// Check If-Modified-Since (date-based validation per RFC 7232)
 	ifModifiedSince := c.Request.Header.Get("If-Modified-Since")
 	lastModified := c.Response.Header().Get("Last-Modified")
 	if ifModifiedSince != "" && lastModified != "" {
-		// Simplified check - production should parse dates
-		// For now, exact match indicates fresh
-		if ifModifiedSince == lastModified {
+		// Parse HTTP dates per RFC 7231
+		imsTime, err := parseHTTPDate(ifModifiedSince)
+		if err != nil {
+			return false // Invalid date format, consider stale
+		}
+
+		lmTime, err := parseHTTPDate(lastModified)
+		if err != nil {
+			return false
+		}
+
+		// Resource is fresh if it hasn't been modified since the client's copy
+		// HTTP dates have 1-second granularity, so we use !After
+		if !lmTime.After(imsTime) {
 			return true
 		}
 	}
@@ -659,4 +675,14 @@ func (c *Context) MultipartForm() (*multipart.Form, error) {
 	}
 
 	return c.Request.MultipartForm, nil
+}
+
+// parseHTTPDate parses an HTTP date string per RFC 7231.
+// Supports the three formats defined in the HTTP specification:
+// - RFC 1123: "Sun, 06 Nov 1994 08:49:37 GMT"
+// - RFC 850: "Sunday, 06-Nov-94 08:49:37 GMT"
+// - ANSI C asctime: "Sun Nov  6 08:49:37 1994"
+func parseHTTPDate(s string) (time.Time, error) {
+	// http.ParseTime handles all three HTTP date formats
+	return http.ParseTime(s)
 }

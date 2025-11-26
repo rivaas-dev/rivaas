@@ -273,8 +273,29 @@ func clientIPFromRemoteAddr(remoteAddr string) string {
 	return host
 }
 
-// lastUntrustedXFF finds the last untrusted IP in the X-Forwarded-For chain.
-// Walks from right to left, stopping when crossing from trusted to untrusted.
+// lastUntrustedXFF finds the real client IP from the X-Forwarded-For chain.
+//
+// Algorithm:
+//  1. Walk from right to left (most recent proxy to original client)
+//  2. Skip trusted proxies (respecting maxHops limit)
+//  3. Return the leftmost untrusted IP (the original client)
+//
+// X-Forwarded-For format: "client, proxy1, proxy2, proxy3"
+// - Leftmost = original client
+// - Rightmost = most recent proxy before your server
+//
+// Example with trusted proxies [10.0.0.0/8]:
+//
+//	XFF: "203.0.113.1, 10.0.0.1, 10.0.0.2"
+//	Walking right to left:
+//	- 10.0.0.2 (trusted) -> skip
+//	- 10.0.0.1 (trusted) -> skip
+//	- 203.0.113.1 (untrusted) -> return this (real client)
+//
+// When all IPs are untrusted (no proxies we trust in the chain):
+//
+//	XFF: "203.0.113.1, 70.41.3.18, 150.172.238.178"
+//	Return leftmost: 203.0.113.1 (the original client)
 func lastUntrustedXFF(xff string, cfg *realIPConfig) string {
 	if xff == "" {
 		return ""
@@ -287,9 +308,9 @@ func lastUntrustedXFF(xff string, cfg *realIPConfig) string {
 	}
 
 	// Walk from right to left (most recent proxy first)
-	// Track the leftmost untrusted IP we've seen
+	// Track the boundary between trusted and untrusted IPs
 	hops := 0
-	leftmostUntrusted := ""
+	boundary := len(parts) // Position after the last trusted IP we've seen
 
 	for i := len(parts) - 1; i >= 0; i-- {
 		ip := parseOneIP(parts[i])
@@ -298,35 +319,30 @@ func lastUntrustedXFF(xff string, cfg *realIPConfig) string {
 		}
 
 		if cfg.isTrusted(ip) {
+			// Trusted proxy - update boundary and continue
+			boundary = i
 			hops++
-			if cfg.maxHops > 0 && hops > cfg.maxHops {
-				break // Max hops exceeded
+			if cfg.maxHops > 0 && hops >= cfg.maxHops {
+				// Max hops exceeded - stop walking
+				break
 			}
-			continue
+		} else {
+			// Untrusted IP - this becomes the potential client IP
+			// Continue walking to find the leftmost one before our trusted boundary
+			boundary = i
 		}
-
-		// Found an untrusted IP - track it (rightmost wins, but we'll use leftmost if all are untrusted)
-		leftmostUntrusted = ip
-		// Continue to check if there are more untrusted IPs before this one
 	}
 
-	// If we found untrusted IPs, return the leftmost one from the original chain
-	if leftmostUntrusted != "" {
-		// Find leftmost untrusted IP in original chain
-		for i := range parts {
-			if ip := parseOneIP(parts[i]); ip != "" && !cfg.isTrusted(ip) {
-				return ip
-			}
-		}
-		// Fallback to the one we found
-		return leftmostUntrusted
-	}
-
-	// All IPs were trusted, return leftmost (original client)
-	if len(parts) > 0 {
-		if ip := parseOneIP(parts[0]); ip != "" {
+	// Return the IP at the boundary (leftmost untrusted IP, or leftmost overall)
+	if boundary < len(parts) {
+		if ip := parseOneIP(parts[boundary]); ip != "" {
 			return ip
 		}
+	}
+
+	// Fallback: return leftmost IP
+	if ip := parseOneIP(parts[0]); ip != "" {
+		return ip
 	}
 
 	return ""
