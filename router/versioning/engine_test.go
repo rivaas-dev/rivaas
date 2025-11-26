@@ -463,8 +463,8 @@ func TestEngine_SetLifecycleHeaders(t *testing.T) {
 	}
 }
 
-// TestEngine_SetLifecycleHeaders_CallbackAsync tests that deprecated callback is async
-func TestEngine_SetLifecycleHeaders_CallbackAsync(t *testing.T) {
+// TestEngine_SetLifecycleHeaders_Callback tests that deprecated callback is called
+func TestEngine_SetLifecycleHeaders_Callback(t *testing.T) {
 	t.Parallel()
 
 	sunsetDate := time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)
@@ -486,9 +486,6 @@ func TestEngine_SetLifecycleHeaders_CallbackAsync(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	engine.SetLifecycleHeaders(w, "v1", "/api/users")
-
-	// Wait briefly for async callback
-	time.Sleep(10 * time.Millisecond)
 
 	assert.True(t, callbackCalled)
 	assert.Equal(t, "v1", callbackVersion)

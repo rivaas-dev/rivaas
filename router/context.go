@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"sync/atomic"
 	"unsafe"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -56,18 +55,16 @@ import (
 //
 // CRITICAL RULES:
 //  1. DO NOT retain references to Context objects beyond the request handler lifetime.
-//  2. If you MUST retain a reference (e.g., async operations), call Release() when done.
-//  3. DO NOT use a Context after calling Release() - it will be reused for other requests.
-//  4. The router automatically returns contexts to the pool after request completion.
-//  5. DO NOT access Context concurrently from multiple goroutines - it is NOT thread-safe.
+//  2. The router automatically returns contexts to the pool after request completion.
+//  3. DO NOT access Context concurrently from multiple goroutines - it is NOT thread-safe.
+//  4. For async operations, copy needed data from Context before starting goroutines.
 //
 // Why this matters:
 //   - Contexts are reused across requests
 //   - Retaining references causes memory leaks and data corruption
-//   - Use-after-release causes undefined behavior and security issues
 //   - Concurrent access causes data races
 //
-// Example (CORRECT - no manual release needed):
+// Example (CORRECT - context used within handler):
 //
 //	func handler(c *router.Context) {
 //	    userID := c.Param("id")
@@ -75,24 +72,23 @@ import (
 //	    // Context automatically returned to pool by router
 //	}
 //
-// Example (CORRECT - async operation with release):
+// Example (CORRECT - async operation with copied data):
 //
 //	func handler(c *router.Context) {
-//	    go func(ctx *router.Context) {
-//	        defer ctx.Release() // CRITICAL: Release when done
-//	        // Process async work...
-//	    }(c)
+//	    // Copy needed data before starting goroutine
+//	    userID := c.Param("id")
+//	    go func(id string) {
+//	        // Process async work with copied data...
+//	    }(userID)
 //	}
 //
-// Example (WRONG - retaining reference without release):
+// Example (WRONG - retaining context reference):
 //
 //	var globalContext *router.Context // BAD!
 //
 //	func handler(c *router.Context) {
 //	    globalContext = c // BAD! Memory leak and data corruption
 //	}
-//
-// See Release() method for more details on manual context management.
 //
 // Memory Layout:
 //
@@ -159,28 +155,9 @@ type Context struct {
 	// Abort flag to stop handler chain execution
 	aborted bool // Set to true when Abort() is called
 
-	// Memory safety: Track if context has been released to prevent use-after-release
-	// Uses atomic.Bool for thread-safe access when context is used from multiple goroutines
-	released atomic.Bool // Set to true when Release() is called - DO NOT use after this
-
 	// Error collection: Slice of errors collected during request processing.
 	// Errors are collected via Error() method and can be processed later.
 	errors []error // Lazy initialization - only created when Error() is called
-}
-
-// checkReleased verifies that the context has not been released.
-// This is a safety check to prevent use-after-release bugs.
-//
-// When to use:
-//   - Call at the start of critical methods (JSON, Param, Query, etc.)
-//   - Only in methods that modify state or return data
-//   - Skip in read-only methods that are called very frequently
-//
-// Design decision: We use a simple atomic read rather than panicking immediately.
-// This allows graceful degradation (return empty/error) rather than crashing.
-// For debug builds, consider adding panic() for immediate bug detection.
-func (c *Context) checkReleased() bool {
-	return c.released.Load()
 }
 
 // HandlerFunc defines the handler function signature for route handlers and middleware.
@@ -334,10 +311,6 @@ func (c *Context) IsAborted() bool {
 //
 //go:inline
 func (c *Context) Param(key string) string {
-	// Safety check: prevent use-after-release (thread-safe atomic read)
-	if c.checkReleased() {
-		return ""
-	}
 	// Array lookup first
 	for i := int32(0); i < c.paramCount; i++ {
 		if c.paramKeys[i] == key {
@@ -373,10 +346,6 @@ func (c *Context) JSON(code int, obj any) {
 //	    c.Error(err)  // Still collect it if desired
 //	}
 func (c *Context) WriteJSON(code int, obj any) error {
-	// Safety check: prevent use-after-release (thread-safe atomic read)
-	if c.checkReleased() {
-		return ErrContextReleased
-	}
 	// Encode to buffer first to catch errors before writing headers
 	// This prevents inconsistent response state if encoding fails
 	var buf strings.Builder
@@ -388,11 +357,6 @@ func (c *Context) WriteJSON(code int, obj any) error {
 	}
 
 	// Only write headers after successful encoding
-	// Safety check: Response may be nil if context was released
-	// Double-check released flag here to prevent race condition if context was reused
-	if c.checkReleased() {
-		return ErrContextReleased
-	}
 	if c.Response == nil {
 		return ErrContextResponseNil
 	}
@@ -858,8 +822,7 @@ func (c *Context) Header(key, value string) {
 //	limit := c.Query("limit") // "10"
 //	missing := c.Query("xyz") // ""
 func (c *Context) Query(key string) string {
-	// Safety check: prevent use-after-release (thread-safe atomic read)
-	if c.checkReleased() || c.Request == nil {
+	if c.Request == nil {
 		return ""
 	}
 	return c.Request.URL.Query().Get(key)
@@ -1163,7 +1126,7 @@ func (c *Context) WriteData(code int, contentType string, data []byte) error {
 //	    // Process all errors using standard library functions
 //	    if c.HasErrors() {
 //	        joinedErr := errors.Join(c.Errors()...)
-//	        if errors.Is(joinedErr, router.ErrContextReleased) {
+//	        if errors.Is(joinedErr, ErrFileNotFound) {
 //	            // Handle specific error
 //	        }
 //	        c.JSON(400, map[string]any{"errors": c.Errors()})
@@ -1649,7 +1612,6 @@ func (c *Context) reset() {
 	c.routeTemplate = ""
 	c.aborted = false
 	c.errors = nil
-	c.released.Store(false) // Reset released flag for reuse (thread-safe atomic write)
 }
 
 // ParamCount returns the number of parameters stored in the context.
@@ -1685,114 +1647,6 @@ func (c *Context) SetParamMap(key, value string) {
 // This implements compiler.ContextParamWriter interface to avoid import cycles.
 func (c *Context) SetParamCount(count int32) {
 	c.paramCount = count
-}
-
-// Release marks the context as invalid and returns it to the pool.
-//
-// ⚠️ CRITICAL: DO NOT use the context after calling Release().
-// The context will be reused for other requests, and any retained references
-// will point to invalid data, causing memory safety issues and data corruption.
-//
-// This method:
-//   - Clears all sensitive data (Request, Response, binding metadata, etc.)
-//   - Marks the context as released to prevent accidental reuse
-//   - Returns the context to the appropriate pool for reuse
-//
-// When to use Release():
-//   - You've stored a reference to Context beyond the request handler
-//   - You're using Context in async operations (goroutines, channels)
-//   - You need to explicitly return a context to the pool before handler completion
-//
-// ⚠️ WARNING: In normal request handling, you should NOT call Release() manually.
-// The router automatically returns contexts to the pool after request completion.
-// Only call Release() if you've retained a Context reference beyond the handler.
-//
-// Example (async operation):
-//
-//	func handler(c *router.Context) {
-//	    // Start async operation
-//	    go func(ctx *router.Context) {
-//	        defer ctx.Release() // CRITICAL: Release when done
-//	        // Process async work...
-//	    }(c)
-//	}
-//
-// Example (stored reference):
-//
-//	func handler(c *router.Context) {
-//	    // Store reference for later use
-//	    storedContext := c
-//	    // ... later, when done ...
-//	    storedContext.Release() // CRITICAL: Release when done
-//	}
-//
-// Memory Safety:
-//   - Contexts are pooled and reused
-//   - Retaining references beyond request lifetime causes memory leaks
-//   - Use-after-release causes undefined behavior and data corruption
-//   - Always call Release() if you retain a Context reference
-func (c *Context) Release() {
-	// Thread-safe check: prevent double release using atomic compare-and-swap
-	// This ensures only one goroutine can successfully mark the context as released
-	if c.released.Swap(true) {
-		// Already released - prevent double release
-		return
-	}
-
-	// Clear sensitive data first
-	c.Request = nil
-	c.Response = nil
-	c.handlers = nil
-	c.span = nil
-	c.metricsRecorder = nil
-	c.tracingRecorder = nil
-
-	// Clear header parsing cache
-	c.cachedAcceptHeader = ""
-	c.cachedAcceptSpecs = nil
-	if c.cachedArena != nil {
-		c.cachedArena.reset()
-		arenaPool.Put(c.cachedArena)
-		c.cachedArena = nil
-	}
-
-	// Clear parameters
-	if c.paramCount > 0 {
-		clearCount := min(c.paramCount, 8)
-		for i := range clearCount {
-			c.paramKeys[i] = ""
-			c.paramValues[i] = ""
-		}
-		c.paramCount = 0
-	}
-	if c.Params != nil {
-		clear(c.Params)
-	}
-
-	// Clear other fields
-	c.version = ""
-	c.routeTemplate = ""
-	c.aborted = false
-	c.errors = nil
-	c.index = -1
-
-	// Mark as released BEFORE returning to pool (already done by Swap above)
-	// This prevents use-after-release if someone still has a reference
-	// Note: released flag was already set to true by Swap() above
-
-	// Return to appropriate pool
-	// NOTE: Put() will call reset() internally AFTER determining the correct pool
-	// based on paramCount, so we don't call reset() here
-	if c.router != nil && c.router.contextPool != nil {
-		// Use router's context pool (preferred)
-		// Put() internally saves paramCount before reset() and uses it for pool selection
-		c.router.contextPool.Put(c)
-	} else {
-		// Fallback to global pool for static routes
-		// Must reset manually since global pool doesn't do it
-		c.reset()
-		globalContextPool.Put(c)
-	}
 }
 
 // initForRequest initializes the context for a new request.

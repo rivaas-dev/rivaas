@@ -62,25 +62,17 @@ func TestContext_WriteJSON_EncodingError(t *testing.T) {
 	assert.NotEmpty(t, err.Error(), "Expected non-empty error message")
 }
 
-// TestContext_WriteJSON_AfterRelease tests WriteJSON after context release
-// Note: This test cannot run in parallel because Release() returns the context to the pool,
-// and parallel tests could reuse the same context instance, causing race conditions.
-func TestContext_WriteJSON_AfterRelease(t *testing.T) {
-	// Cannot use t.Parallel() - see note above
+// TestContext_WriteJSON_NilResponse tests WriteJSON when Response is nil
+func TestContext_WriteJSON_NilResponse(t *testing.T) {
+	t.Parallel()
 
-	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/", nil)
-	c := NewContext(w, req)
-
-	c.Release()
+	c := NewContext(nil, req) // nil Response
 
 	err := c.WriteJSON(http.StatusOK, map[string]string{"test": "value"})
 
-	require.Error(t, err, "Expected error after context release")
-	// After release, Response is nil, so we get ErrContextResponseNil
-	// (WriteJSON checks Response == nil after checking released)
-	assert.True(t, errors.Is(err, ErrContextReleased) || errors.Is(err, ErrContextResponseNil),
-		"Expected ErrContextReleased or ErrContextResponseNil, got: %v", err)
+	require.Error(t, err, "Expected error when Response is nil")
+	assert.ErrorIs(t, err, ErrContextResponseNil, "Expected ErrContextResponseNil")
 }
 
 // TestContext_WriteString_Success tests successful WriteStringf call

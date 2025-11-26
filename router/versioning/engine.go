@@ -373,9 +373,9 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version string, rout
 		w.Header().Set("Warning", warningMsg)
 	}
 
-	// Call deprecated usage callback asynchronously
+	// Call deprecated usage callback
 	if cfg.OnDeprecatedUse != nil {
-		go cfg.OnDeprecatedUse(version, route)
+		cfg.OnDeprecatedUse(version, route)
 	}
 
 	return false

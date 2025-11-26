@@ -20,8 +20,7 @@ import "errors"
 // These errors should be wrapped with fmt.Errorf and %w when context is needed.
 var (
 	// Context errors
-	ErrContextReleased       = errors.New("context has been released - cannot write response")
-	ErrContextResponseNil    = errors.New("context has been released - Response is nil")
+	ErrContextResponseNil    = errors.New("context response is nil")
 	ErrContentTypeNotAllowed = errors.New("content type not allowed")
 
 	// Request errors

@@ -172,14 +172,14 @@ func TestContext_Error_WithErrorsIs(t *testing.T) {
 	c := NewContext(w, req)
 
 	// Collect sentinel errors
-	c.Error(ErrContextReleased)
 	c.Error(ErrContextResponseNil)
+	c.Error(ErrContentTypeNotAllowed)
 	c.Error(errors.New("generic error"))
 
 	// Check if specific errors exist
-	assert.True(t, errors.Is(c.Errors()[0], ErrContextReleased), "Expected first error to be ErrContextReleased")
-	assert.True(t, errors.Is(c.Errors()[1], ErrContextResponseNil), "Expected second error to be ErrContextResponseNil")
-	assert.False(t, errors.Is(c.Errors()[2], ErrContextReleased), "Expected third error not to be ErrContextReleased")
+	assert.True(t, errors.Is(c.Errors()[0], ErrContextResponseNil), "Expected first error to be ErrContextResponseNil")
+	assert.True(t, errors.Is(c.Errors()[1], ErrContentTypeNotAllowed), "Expected second error to be ErrContentTypeNotAllowed")
+	assert.False(t, errors.Is(c.Errors()[2], ErrContextResponseNil), "Expected third error not to be ErrContextResponseNil")
 }
 
 // CustomError is a custom error type for testing errors.As
@@ -230,27 +230,6 @@ func TestContext_Error_ResetClearsErrors(t *testing.T) {
 
 	assert.False(t, c.HasErrors(), "Expected no errors after reset")
 	assert.Nil(t, c.Errors(), "Expected nil errors slice after reset")
-}
-
-// TestContext_Error_ReleaseClearsErrors tests that release clears errors
-func TestContext_Error_ReleaseClearsErrors(t *testing.T) {
-	t.Parallel()
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
-	c := NewContext(w, req)
-
-	// Collect errors
-	c.Error(errors.New("error 1"))
-	c.Error(errors.New("error 2"))
-
-	assert.True(t, c.HasErrors(), "Expected errors before release")
-
-	// Release context
-	c.Release()
-
-	assert.False(t, c.HasErrors(), "Expected no errors after release")
-	assert.Nil(t, c.Errors(), "Expected nil errors slice after release")
 }
 
 // TestContext_JSON_CollectsErrors tests that high-level JSON collects errors
@@ -541,34 +520,6 @@ func validateEmail(email string) error {
 
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0)
-}
-
-// TestContext_ErrorCollection_AfterRelease tests error collection after release
-func TestContext_ErrorCollection_AfterRelease(t *testing.T) {
-	t.Parallel()
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
-	c := NewContext(w, req)
-
-	// Collect some errors
-	c.Error(errors.New("error 1"))
-	c.Error(errors.New("error 2"))
-
-	assert.True(t, c.HasErrors(), "Expected errors before release")
-
-	// Release context - should clear errors
-	c.Release()
-
-	// Errors should be cleared after release
-	assert.False(t, c.HasErrors(), "Expected no errors after release")
-
-	// Try to collect error after release - should not panic
-	// Note: This is allowed but not recommended - context should not be used after release
-	c.Error(errors.New("error 3"))
-
-	// After collecting new error, it will be present (though using context after release is not recommended)
-	assert.True(t, c.HasErrors(), "Expected error after collecting new error post-release")
 }
 
 // NOTE: Context is NOT thread-safe and is designed to be used by a single goroutine

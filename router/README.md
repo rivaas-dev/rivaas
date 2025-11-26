@@ -1664,9 +1664,9 @@ Contexts are automatically pooled and reused:
 #### ⚠️ CRITICAL RULES
 
 1. **DO NOT retain references to Context objects beyond the request handler lifetime.**
-2. **If you MUST retain a reference** (e.g., async operations), **call `Release()` when done.**
-3. **DO NOT use a Context after calling `Release()`** - it will be reused for other requests.
-4. **The router automatically returns contexts to the pool** after request completion.
+2. **For async operations**, copy needed data from Context before starting goroutines.
+3. **The router automatically returns contexts to the pool** after request completion.
+4. **DO NOT access Context concurrently** - it is NOT thread-safe.
 
 #### Why This Matters
 
@@ -1678,78 +1678,50 @@ Contexts are automatically pooled and reused:
 #### Correct Usage
 
 ```go
-// ✅ CORRECT: Normal handler - no manual release needed
+// ✅ CORRECT: Normal handler - context used within handler
 func handler(c *router.Context) {
     userID := c.Param("id")
     c.JSON(200, map[string]string{"id": userID})
     // Context automatically returned to pool by router
 }
 
-// ✅ CORRECT: Async operation with explicit release
+// ✅ CORRECT: Async operation with copied data
 func handler(c *router.Context) {
-    go func(ctx *router.Context) {
-        defer ctx.Release() // CRITICAL: Release when done
-        // Process async work...
-        processAsync(ctx.Param("id"))
-    }(c)
-}
-
-// ✅ CORRECT: Stored reference with explicit release
-func handler(c *router.Context) {
-    storedContext := c
-    // ... later, when done ...
-    storedContext.Release() // CRITICAL: Release when done
+    // Copy needed data before starting goroutine
+    userID := c.Param("id")
+    go func(id string) {
+        // Process async work with copied data...
+        processAsync(id)
+    }(userID)
 }
 ```
 
 #### ❌ Incorrect Usage
 
 ```go
-// ❌ WRONG: Retaining reference without release
+// ❌ WRONG: Retaining context reference
 var globalContext *router.Context
 
 func handler(c *router.Context) {
     globalContext = c // BAD! Memory leak and data corruption
 }
 
-// ❌ WRONG: Using context after release
+// ❌ WRONG: Passing context to goroutine
 func handler(c *router.Context) {
-    c.Release()
-    userID := c.Param("id") // BAD! Context already returned to pool
+    go func(ctx *router.Context) {
+        // BAD! Context may be reused by another request
+        processAsync(ctx.Param("id"))
+    }(c)
 }
 
-// ❌ WRONG: Storing in struct without release
+// ❌ WRONG: Storing context in struct
 type Service struct {
     ctx *router.Context // BAD! Never do this
 }
 ```
 
-#### Release() Method
-
-The `Release()` method explicitly returns a context to the pool:
-
-```go
-// Release marks the context as invalid and returns it to the pool.
-// DO NOT use the context after calling Release().
-func (c *Context) Release()
-```
-
-**When to use `Release()`:**
-
-- Async operations (goroutines, channels)
-- Stored references beyond handler lifetime
-- Explicit pool return before handler completion
-
-**When NOT to use `Release()`:**
-
-- Normal request handlers (router handles it automatically)
-- Synchronous operations within handler
-
-**What `Release()` does:**
-
-- Clears all sensitive data (Request, Response, binding metadata, etc.)
-- Marks context as released to prevent accidental reuse
-- Returns context to appropriate pool for reuse
+**Important:** The router manages context lifecycle automatically. For async operations,
+always copy the data you need from the context before starting the goroutine.
 
 See the [Context API](#context-api) section for detailed method documentation.
 
@@ -3171,25 +3143,27 @@ func handler(c *router.Context) {
     processUser(userID)
 }
 
-// ❌ Bad: Don't store context without release
+// ❌ Bad: Don't store context reference
 var globalContext *router.Context
 func handler(c *router.Context) {
     globalContext = c // Never do this! Causes memory leaks and data corruption
 }
 
-// ✅ Good: If you must store, release when done
-func handler(c *router.Context) {
-    storedContext := c
-    // ... use storedContext ...
-    storedContext.Release() // CRITICAL: Release when done
-}
-
-// ✅ Good: Async operations with release
+// ❌ Bad: Don't pass context to goroutines
 func handler(c *router.Context) {
     go func(ctx *router.Context) {
-        defer ctx.Release() // CRITICAL: Always release in defer
-        // Process async work...
+        // BAD! Context may be reused by another request
+        processAsync(ctx.Param("id"))
     }(c)
+}
+
+// ✅ Good: Copy data before async operations
+func handler(c *router.Context) {
+    userID := c.Param("id") // Copy data before goroutine
+    go func(id string) {
+        // Process async work with copied data...
+        processAsync(id)
+    }(userID)
 }
 ```
 

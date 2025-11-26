@@ -288,8 +288,6 @@ func WithSunsetEnforcement() Option {
 // WithDeprecatedUseCallback sets a callback function that is called when a deprecated
 // API version is used. This is useful for metrics collection and monitoring.
 //
-// The callback is called asynchronously to avoid blocking the request.
-//
 // Example:
 //
 //	versioning.WithDeprecatedUseCallback(func(version, route string) {
