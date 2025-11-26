@@ -373,7 +373,9 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version string, rout
 		w.Header().Set("Warning", warningMsg)
 	}
 
-	// Call deprecated usage callback
+	// Call deprecated usage callback synchronously
+	// NOTE: This blocks the request handler. For I/O operations, use async patterns
+	// (buffered channels, worker pools) to avoid blocking request processing.
 	if cfg.OnDeprecatedUse != nil {
 		cfg.OnDeprecatedUse(version, route)
 	}

@@ -288,11 +288,35 @@ func WithSunsetEnforcement() Option {
 // WithDeprecatedUseCallback sets a callback function that is called when a deprecated
 // API version is used. This is useful for metrics collection and monitoring.
 //
-// Example:
+// ⚠️ IMPORTANT: The callback is executed synchronously and will block the request
+// handler. For I/O operations (logging, metrics, network calls), consider using
+// a buffered channel or async worker pattern to avoid blocking request processing.
+//
+// Example (fast operations):
 //
 //	versioning.WithDeprecatedUseCallback(func(version, route string) {
 //	    metrics.DeprecatedAPIUsage.WithLabels(version, route).Inc()
 //	    log.Warn("deprecated API used", "version", version, "route", route)
+//	})
+//
+// Example (async pattern for I/O operations):
+//
+//	var deprecatedUsageChan = make(chan DeprecatedUsage, 100)
+//
+//	go func() {
+//	    for usage := range deprecatedUsageChan {
+//	        // Perform I/O operations here
+//	        metrics.DeprecatedAPIUsage.WithLabels(usage.Version, usage.Route).Inc()
+//	        log.Warn("deprecated API used", "version", usage.Version, "route", usage.Route)
+//	    }
+//	}()
+//
+//	versioning.WithDeprecatedUseCallback(func(version, route string) {
+//	    select {
+//	    case deprecatedUsageChan <- DeprecatedUsage{Version: version, Route: route}:
+//	    default:
+//	        // Channel full, drop event to avoid blocking
+//	    }
 //	})
 func WithDeprecatedUseCallback(fn OnDeprecatedUseFunc) Option {
 	return func(cfg *Config) error {
