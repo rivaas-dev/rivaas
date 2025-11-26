@@ -458,7 +458,6 @@ func TestRouterOptions_Defaults(t *testing.T) {
 	assert.Equal(t, 3, r.bloomHashFunctions)
 	assert.True(t, r.checkCancellation, "expected cancellation check to be enabled by default")
 	assert.True(t, r.useTemplates, "expected templates to be enabled by default")
-	assert.NotNil(t, r.contextPool, "context pool should be initialized")
 	assert.NotNil(t, r.routeCompiler, "route compiler should be initialized")
 }
 

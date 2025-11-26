@@ -138,7 +138,6 @@ type Router struct {
 	routeTree     atomicRouteTree       // Route tree with atomic operations
 	middleware    []HandlerFunc         // Global middleware chain applied to all routes
 	middlewareMu  sync.RWMutex          // Protects middleware slice
-	contextPool   *ContextPool          // Context pool for request handling
 	observability ObservabilityRecorder // Unified observability (metrics, tracing, logging)
 	diagnostics   DiagnosticHandler     // Optional diagnostic event handler
 
@@ -237,9 +236,6 @@ func New(opts ...Option) (*Router, error) {
 	// Initialize the atomic route tree with an empty map
 	initialTrees := make(map[string]*node)
 	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(&initialTrees))
-
-	// Initialize context pool
-	r.contextPool = NewContextPool(r)
 
 	// Initialize route compiler
 	r.routeCompiler = compiler.NewRouteCompiler(r.bloomFilterSize, r.bloomHashFunctions)
@@ -1190,13 +1186,12 @@ func (r *Router) CompileAllRoutes() {
 	}
 }
 
-// Warmup pre-compiles routes and warms up context pools.
+// Warmup pre-compiles routes for optimal request handling.
 // This should be called after all routes are registered and before serving requests.
 //
 // Warmup phases:
 // 1. Compile all static routes into hash tables with bloom filters
-// 2. Pre-populate context pools
-// 3. Compile version-specific routes if versioning is enabled
+// 2. Compile version-specific routes if versioning is enabled
 //
 // Warmup prepares the router for handling requests by compiling routes
 // and initializing data structures before traffic arrives.
@@ -1208,9 +1203,6 @@ func (r *Router) Warmup() {
 	if r.versionEngine != nil {
 		r.compileVersionRoutes()
 	}
-
-	// Phase 3: Warm up context pools
-	r.contextPool.Warmup()
 }
 
 // compileVersionRoutes compiles static routes for all version-specific trees

@@ -352,28 +352,6 @@ func (r *Router) Routes() []RouteInfo {
 	return routes
 }
 
-// ContextPool returns the router's context pool for statistics and monitoring.
-// This allows external code to access pool statistics and control pool behavior.
-//
-// Use cases:
-//   - Monitoring: Track pool effectiveness and hit rates
-//   - Diagnostics: Identify potential context leaks
-//   - Tuning: Understand parameter distribution patterns
-//   - Testing: Reset statistics for testing
-//
-// Example:
-//
-//	stats := router.ContextPool().Stats()
-//	log.Printf("Pool hit rate: %.2f%%", stats.HitRate*100)
-//
-//	// Reset statistics for testing
-//	router.ContextPool().ResetStats()
-//
-// Note: This returns the actual pool instance, so modifications affect router behavior.
-func (r *Router) ContextPool() *ContextPool {
-	return r.contextPool
-}
-
 // finalizeRoute adds the route to the radix tree with its current constraints.
 // This is called automatically when the route is created or when constraints are added.
 // It uses the finalized flag to prevent duplicate route registration.
