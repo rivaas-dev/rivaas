@@ -85,6 +85,11 @@ func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
 	out.Type = kindToString(s.Kind)
 	out.Nullable = s.Nullable
 
+	// Binary data: ContentEncoding → format: byte in 3.0
+	if s.ContentEncoding == "base64" || s.ContentEncoding == "base64url" {
+		out.Format = "byte"
+	}
+
 	// Numeric bounds (boolean exclusivity in 3.0)
 	if s.MultipleOf != nil {
 		out.MultipleOf = s.MultipleOf

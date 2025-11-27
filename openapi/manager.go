@@ -259,7 +259,7 @@ func (m *Manager) OnRouteAdded(route any) *RouteWrapper {
 		return nil
 	}
 
-	// Use reflection to extract method and path from *router.Route
+	// Use reflection to extract method, path, and constraints from *router.Route
 	// This allows us to work with router.Route without importing router package
 	rv := reflect.ValueOf(route)
 	if rv.Kind() == reflect.Ptr {
@@ -269,7 +269,7 @@ func (m *Manager) OnRouteAdded(route any) *RouteWrapper {
 	var method, path string
 
 	// Try Method() method first (preferred)
-	if mth := rv.MethodByName("Method"); mth.IsValid() {
+	if mth := reflect.ValueOf(route).MethodByName("Method"); mth.IsValid() {
 		if res := mth.Call(nil); len(res) > 0 && res[0].Kind() == reflect.String {
 			method = res[0].String()
 		}
@@ -282,7 +282,7 @@ func (m *Manager) OnRouteAdded(route any) *RouteWrapper {
 	}
 
 	// Try Path() method first (preferred)
-	if mth := rv.MethodByName("Path"); mth.IsValid() {
+	if mth := reflect.ValueOf(route).MethodByName("Path"); mth.IsValid() {
 		if res := mth.Call(nil); len(res) > 0 && res[0].Kind() == reflect.String {
 			path = res[0].String()
 		}
@@ -298,15 +298,80 @@ func (m *Manager) OnRouteAdded(route any) *RouteWrapper {
 		return nil
 	}
 
+	// Extract typed constraints via TypedConstraints() method
+	var pathConstraints map[string]PathConstraint
+	if tcMth := reflect.ValueOf(route).MethodByName("TypedConstraints"); tcMth.IsValid() {
+		if res := tcMth.Call(nil); len(res) > 0 && !res[0].IsNil() {
+			pathConstraints = extractTypedConstraints(res[0])
+		}
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	w := NewRoute(method, path)
+	w := NewRouteWithConstraints(method, path, pathConstraints)
 	m.routes = append(m.routes, w)
 	m.cacheInvalid = true
 	m.lastWarnings = nil
 
 	return w
+}
+
+// extractTypedConstraints converts the router's typed constraints map to openapi.PathConstraint map.
+// This uses reflection to read the constraint values without importing the router package.
+func extractTypedConstraints(v reflect.Value) map[string]PathConstraint {
+	if v.Kind() != reflect.Map {
+		return nil
+	}
+
+	result := make(map[string]PathConstraint, v.Len())
+	iter := v.MapRange()
+	for iter.Next() {
+		name := iter.Key().String()
+		constraint := iter.Value()
+
+		// Extract Kind field (uint8)
+		kindField := constraint.FieldByName("Kind")
+		if !kindField.IsValid() {
+			continue
+		}
+		kind := ConstraintKind(kindField.Uint())
+
+		pc := PathConstraint{Kind: kind}
+
+		// Extract Pattern field for regex constraints
+		if patternField := constraint.FieldByName("Pattern"); patternField.IsValid() {
+			pc.Pattern = patternField.String()
+		}
+
+		// Extract Enum field for enum constraints
+		if enumField := constraint.FieldByName("Enum"); enumField.IsValid() && enumField.Kind() == reflect.Slice {
+			pc.Enum = make([]string, enumField.Len())
+			for i := range enumField.Len() {
+				pc.Enum[i] = enumField.Index(i).String()
+			}
+		}
+
+		result[name] = pc
+	}
+
+	return result
+}
+
+// convertPathConstraints converts openapi.PathConstraint map to build.PathConstraint map.
+func convertPathConstraints(constraints map[string]PathConstraint) map[string]build.PathConstraint {
+	if constraints == nil {
+		return nil
+	}
+	result := make(map[string]build.PathConstraint, len(constraints))
+	for name, c := range constraints {
+		result[name] = build.PathConstraint{
+			Kind:    build.ConstraintKind(c.Kind),
+			Pattern: c.Pattern,
+			Enum:    c.Enum,
+		}
+	}
+	return result
 }
 
 // GenerateSpec generates the OpenAPI specification JSON.
@@ -394,8 +459,9 @@ func (m *Manager) GenerateSpec() ([]byte, string, error) {
 		}
 		enriched[i] = build.EnrichedRoute{
 			RouteInfo: build.RouteInfo{
-				Method: ri.Method,
-				Path:   ri.Path,
+				Method:          ri.Method,
+				Path:            ri.Path,
+				PathConstraints: convertPathConstraints(ri.PathConstraints),
 			},
 			Doc: buildDoc,
 		}

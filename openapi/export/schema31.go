@@ -22,6 +22,8 @@ type SchemaV31 struct {
 	Title             string                `json:"title,omitempty"`
 	Type              any                   `json:"type,omitempty"` // string or []string
 	Format            string                `json:"format,omitempty"`
+	ContentEncoding   string                `json:"contentEncoding,omitempty"`
+	ContentMediaType  string                `json:"contentMediaType,omitempty"`
 	Description       string                `json:"description,omitempty"`
 	Example           any                   `json:"example,omitempty"`
 	Examples          []any                 `json:"examples,omitempty"`
@@ -96,6 +98,10 @@ func schema31(s *model.Schema, warns *[]Warning, path string) *SchemaV31 {
 	} else if t != "" {
 		out.Type = t
 	}
+
+	// Binary data: contentEncoding and contentMediaType (3.1 native support)
+	out.ContentEncoding = s.ContentEncoding
+	out.ContentMediaType = s.ContentMediaType
 
 	// Numeric bounds (exclusive as numeric values in 3.1)
 	if s.MultipleOf != nil {

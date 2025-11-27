@@ -40,6 +40,18 @@ type Schema struct {
 	// Format provides additional type information (e.g., "date-time", "email", "int64").
 	Format string
 
+	// ContentEncoding specifies the encoding for binary data (OAS 3.1).
+	// Common values: "base64", "base64url"
+	// In 3.0: converted to format: "byte"
+	// In 3.1: output as contentEncoding
+	ContentEncoding string
+
+	// ContentMediaType specifies the media type of binary content (OAS 3.1).
+	// Example: "image/png", "application/octet-stream"
+	// In 3.0: omitted (not supported)
+	// In 3.1: output as contentMediaType
+	ContentMediaType string
+
 	// Deprecated marks the schema as deprecated.
 	Deprecated bool
 

@@ -79,8 +79,23 @@ type SecurityReq struct {
 //	route := openapi.NewRoute("GET", "/users/:id")
 //	route.Doc("Get user", "Retrieves a user by ID")
 func NewRoute(method, path string) *RouteWrapper {
+	return NewRouteWithConstraints(method, path, nil)
+}
+
+// NewRouteWithConstraints creates a new [RouteWrapper] with typed path constraints.
+//
+// The constraints map parameter names to their type constraints, which are used
+// to generate proper OpenAPI schema types for path parameters.
+//
+// Example:
+//
+//	constraints := map[string]PathConstraint{
+//	    "id": {Kind: ConstraintInt},
+//	}
+//	route := openapi.NewRouteWithConstraints("GET", "/users/:id", constraints)
+func NewRouteWithConstraints(method, path string, constraints map[string]PathConstraint) *RouteWrapper {
 	return &RouteWrapper{
-		info: RouteInfo{Method: method, Path: path},
+		info: RouteInfo{Method: method, Path: path, PathConstraints: constraints},
 		doc: &RouteDoc{
 			Tags:                  []string{},
 			Consumes:              []string{"application/json"},

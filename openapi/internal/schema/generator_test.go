@@ -127,6 +127,14 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			},
 		},
 		{
+			name:  "[]byte type (binary data)",
+			input: []byte{},
+			validate: func(t *testing.T, s *model.Schema) {
+				assert.Equal(t, model.KindString, s.Kind)
+				assert.Equal(t, "base64", s.ContentEncoding)
+			},
+		},
+		{
 			name:  "pointer type (nullable)",
 			input: new(string),
 			validate: func(t *testing.T, s *model.Schema) {

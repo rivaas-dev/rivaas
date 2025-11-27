@@ -52,6 +52,14 @@ func (sg *SchemaGenerator) Generate(t reflect.Type) *model.Schema {
 		}
 	}
 
+	// Handle []byte as base64-encoded binary data
+	if t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 {
+		return &model.Schema{
+			Kind:            model.KindString,
+			ContentEncoding: "base64",
+		}
+	}
+
 	if t.Kind() == reflect.Ptr {
 		s := sg.Generate(t.Elem())
 		s.Nullable = true

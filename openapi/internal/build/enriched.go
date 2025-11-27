@@ -9,8 +9,31 @@ import (
 // RouteInfo contains basic route information needed for OpenAPI generation.
 // This avoids importing the openapi package to prevent import cycles.
 type RouteInfo struct {
-	Method string // HTTP method (GET, POST, etc.)
-	Path   string // URL path with parameters (e.g. "/users/:id")
+	Method          string                    // HTTP method (GET, POST, etc.)
+	Path            string                    // URL path with parameters (e.g. "/users/:id")
+	PathConstraints map[string]PathConstraint // Typed constraints for path parameters
+}
+
+// ConstraintKind represents the type of constraint on a path parameter.
+type ConstraintKind uint8
+
+const (
+	ConstraintNone     ConstraintKind = iota
+	ConstraintInt                     // OpenAPI: type integer, format int64
+	ConstraintFloat                   // OpenAPI: type number, format double
+	ConstraintUUID                    // OpenAPI: type string, format uuid
+	ConstraintRegex                   // OpenAPI: type string, pattern
+	ConstraintEnum                    // OpenAPI: type string, enum
+	ConstraintDate                    // OpenAPI: type string, format date
+	ConstraintDateTime                // OpenAPI: type string, format date-time
+)
+
+// PathConstraint describes a typed constraint for a path parameter.
+// These constraints map directly to OpenAPI schema types.
+type PathConstraint struct {
+	Kind    ConstraintKind
+	Pattern string   // for ConstraintRegex
+	Enum    []string // for ConstraintEnum
 }
 
 // ExampleData holds example data to avoid import cycles with openapi package.

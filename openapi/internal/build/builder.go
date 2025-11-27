@@ -225,7 +225,7 @@ func (b *Builder) buildOperation(er EnrichedRoute, sg *schema.SchemaGenerator, s
 	if doc == nil {
 		op.Responses["200"] = &model.Response{Description: "OK"}
 		// Extract path params from route as fallback
-		op.Parameters = append(op.Parameters, extractPathParams(ri.Path)...)
+		op.Parameters = append(op.Parameters, extractPathParams(ri.Path, ri.PathConstraints)...)
 		return op, nil
 	}
 
@@ -238,8 +238,8 @@ func (b *Builder) buildOperation(er EnrichedRoute, sg *schema.SchemaGenerator, s
 		op.Security = append(op.Security, model.SecurityRequirement{s.Scheme: s.Scopes})
 	}
 
-	// Extract path parameters from route
-	pathParams := extractPathParams(ri.Path)
+	// Extract path parameters from route with typed constraints
+	pathParams := extractPathParams(ri.Path, ri.PathConstraints)
 
 	// Parameters from request metadata (query, path, header, cookie)
 	if md := doc.RequestMetadata; md != nil {
@@ -373,25 +373,50 @@ func paramSpecToParameter(ps schema.ParamSpec, sg *schema.SchemaGenerator) model
 	}
 }
 
-// extractPathParams extracts path parameters from a route path.
-func extractPathParams(path string) []model.Parameter {
+// extractPathParams extracts path parameters from a route path with optional type constraints.
+func extractPathParams(path string, constraints map[string]PathConstraint) []model.Parameter {
 	var out []model.Parameter
 
 	for _, seg := range strings.Split(path, "/") {
 		if strings.HasPrefix(seg, ":") {
 			name := strings.TrimPrefix(seg, ":")
-			out = append(out, model.Parameter{
+			param := model.Parameter{
 				Name:     name,
 				In:       "path",
 				Required: true,
-				Schema: &model.Schema{
-					Kind: model.KindString,
-				},
-			})
+				Schema:   constraintToSchema(constraints[name]),
+			}
+			out = append(out, param)
 		}
 	}
 
 	return out
+}
+
+// constraintToSchema converts a PathConstraint to an OpenAPI schema.
+func constraintToSchema(c PathConstraint) *model.Schema {
+	switch c.Kind {
+	case ConstraintInt:
+		return &model.Schema{Kind: model.KindInteger, Format: "int64"}
+	case ConstraintFloat:
+		return &model.Schema{Kind: model.KindNumber, Format: "double"}
+	case ConstraintUUID:
+		return &model.Schema{Kind: model.KindString, Format: "uuid"}
+	case ConstraintDate:
+		return &model.Schema{Kind: model.KindString, Format: "date"}
+	case ConstraintDateTime:
+		return &model.Schema{Kind: model.KindString, Format: "date-time"}
+	case ConstraintRegex:
+		return &model.Schema{Kind: model.KindString, Pattern: c.Pattern}
+	case ConstraintEnum:
+		enum := make([]any, len(c.Enum))
+		for i, v := range c.Enum {
+			enum[i] = v
+		}
+		return &model.Schema{Kind: model.KindString, Enum: enum}
+	default:
+		return &model.Schema{Kind: model.KindString}
+	}
 }
 
 // convertPath converts a router path pattern to OpenAPI path format.
