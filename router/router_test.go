@@ -109,7 +109,7 @@ func TestResponseWriter_HijackNotSupported(t *testing.T) {
 		if hijacker, ok := c.Response.(http.Hijacker); ok {
 			_, _, hijackErr = hijacker.Hijack()
 		} else {
-			c.String(http.StatusInternalServerError, "WebSocket not supported")
+			require.NoError(t, c.String(http.StatusInternalServerError, "WebSocket not supported"))
 		}
 	})
 
@@ -147,7 +147,7 @@ func TestResponseWriter_FlushNotSupported(t *testing.T) {
 	flushAttempted := false
 
 	r.GET("/stream", func(c *Context) {
-		c.String(http.StatusOK, "data")
+		require.NoError(t, c.String(http.StatusOK, "data"))
 
 		// Try to flush
 		if flusher, ok := c.Response.(http.Flusher); ok {
@@ -424,11 +424,11 @@ func TestWithTemplateRouting(t *testing.T) {
 
 			// Verify routing still works
 			r.GET("/users/:id", func(c *Context) {
-				c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
+				require.NoError(t, c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")}))
 			})
 
 			r.GET("/static", func(c *Context) {
-				c.String(http.StatusOK, "static")
+				require.NoError(t, c.String(http.StatusOK, "static"))
 			})
 
 			// Test static route

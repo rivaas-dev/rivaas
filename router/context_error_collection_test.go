@@ -232,7 +232,7 @@ func TestContext_Error_ResetClearsErrors(t *testing.T) {
 	assert.Nil(t, c.Errors(), "Expected nil errors slice after reset")
 }
 
-// TestContext_JSON_CollectsErrors tests that high-level JSON collects errors
+// TestContext_JSON_CollectsErrors tests that JSON returns errors (not automatically collected)
 func TestContext_JSON_CollectsErrors(t *testing.T) {
 	t.Parallel()
 
@@ -247,22 +247,29 @@ func TestContext_JSON_CollectsErrors(t *testing.T) {
 
 	badData := BadType{Channel: make(chan int)}
 
-	// High-level JSON should collect error automatically
-	c.JSON(http.StatusOK, badData)
+	// JSON should return error, not collect it automatically
+	err := c.JSON(http.StatusOK, badData)
+	assert.Error(t, err, "Expected error to be returned from JSON encoding failure")
 
-	// Error should be collected
-	assert.True(t, c.HasErrors(), "Expected error to be collected after JSON encoding failure")
+	// Error should NOT be automatically collected
+	assert.False(t, c.HasErrors(), "Expected error NOT to be automatically collected")
 
-	collectedErrors := c.Errors()
-	require.Len(t, collectedErrors, 1, "Expected 1 error")
+	// If caller wants to collect, they must do so explicitly
+	if err != nil {
+		c.Error(err)
+		assert.True(t, c.HasErrors(), "Expected error to be collected after explicit c.Error() call")
 
-	// Verify error message contains encoding failure info
-	errMsg := collectedErrors[0].Error()
-	assert.NotEmpty(t, errMsg, "Expected error message to be non-empty")
+		collectedErrors := c.Errors()
+		require.Len(t, collectedErrors, 1, "Expected 1 error after explicit collection")
+
+		// Verify error message contains encoding failure info
+		errMsg := collectedErrors[0].Error()
+		assert.NotEmpty(t, errMsg, "Expected error message to be non-empty")
+	}
 }
 
-// TestContext_WriteJSON_ReturnsError tests that low-level WriteJSON returns error
-func TestContext_WriteJSON_ReturnsError(t *testing.T) {
+// TestContext_JSON_ReturnsError tests that JSON returns error
+func TestContext_JSON_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
@@ -276,93 +283,20 @@ func TestContext_WriteJSON_ReturnsError(t *testing.T) {
 
 	badData := BadType{Channel: make(chan int)}
 
-	// Low-level WriteJSON should return error
-	err := c.WriteJSON(http.StatusOK, badData)
-	assert.Error(t, err, "Expected WriteJSON to return error for unencodable data")
+	// JSON should return error
+	err := c.JSON(http.StatusOK, badData)
+	assert.Error(t, err, "Expected JSON to return error for unencodable data")
 
 	// Error should NOT be automatically collected
-	assert.False(t, c.HasErrors(), "Expected WriteJSON not to automatically collect errors")
+	assert.False(t, c.HasErrors(), "Expected JSON not to automatically collect errors")
 
 	// But we can manually collect it
 	c.Error(err)
 	assert.True(t, c.HasErrors(), "Expected error after manually collecting")
 }
 
-// TestContext_AllResponseMethods_CollectErrors tests all high-level response methods
-func TestContext_AllResponseMethods_CollectErrors(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		callFunc func(*Context)
-	}{
-		{
-			name: "JSON",
-			callFunc: func(c *Context) {
-				c.JSON(200, make(chan int)) // Unencodable
-			},
-		},
-		{
-			name: "IndentedJSON",
-			callFunc: func(c *Context) {
-				c.IndentedJSON(200, make(chan int))
-			},
-		},
-		{
-			name: "PureJSON",
-			callFunc: func(c *Context) {
-				c.PureJSON(200, make(chan int))
-			},
-		},
-		{
-			name: "SecureJSON",
-			callFunc: func(c *Context) {
-				c.SecureJSON(200, make(chan int))
-			},
-		},
-		{
-			name: "ASCIIJSON",
-			callFunc: func(c *Context) {
-				c.ASCIIJSON(200, make(chan int))
-			},
-		},
-		{
-			name: "YAML",
-			callFunc: func(c *Context) {
-				// YAML panics for unencodable types, so we'll test with a recover
-				// Note: This will be handled in the test function itself
-				c.YAML(200, struct{ Func func() }{Func: func() {}})
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
-			c := NewContext(w, req)
-
-			// For YAML, we expect a panic, so test it separately
-			if tt.name == "YAML" {
-				assert.Panics(t, func() {
-					tt.callFunc(c)
-				}, "Expected YAML to panic for unencodable type")
-				return
-			}
-
-			// Call the method - should collect error if encoding fails
-			tt.callFunc(c)
-
-			// All other methods should collect errors
-			assert.True(t, c.HasErrors(), "Expected %s to collect error on encoding failure", tt.name)
-		})
-	}
-}
-
-// TestContext_WriteMethods_ReturnErrors tests all low-level Write methods
-func TestContext_WriteMethods_ReturnErrors(t *testing.T) {
+// TestContext_AllResponseMethods_ReturnErrors tests all response methods return errors
+func TestContext_AllResponseMethods_ReturnErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -370,33 +304,45 @@ func TestContext_WriteMethods_ReturnErrors(t *testing.T) {
 		callFunc func(*Context) error
 	}{
 		{
-			name: "WriteJSON",
+			name: "JSON",
 			callFunc: func(c *Context) error {
-				return c.WriteJSON(200, make(chan int))
+				return c.JSON(200, make(chan int)) // Unencodable
 			},
 		},
 		{
-			name: "WriteIndentedJSON",
+			name: "IndentedJSON",
 			callFunc: func(c *Context) error {
-				return c.WriteIndentedJSON(200, make(chan int))
+				return c.IndentedJSON(200, make(chan int))
 			},
 		},
 		{
-			name: "WritePureJSON",
+			name: "PureJSON",
 			callFunc: func(c *Context) error {
-				return c.WritePureJSON(200, make(chan int))
+				return c.PureJSON(200, make(chan int))
 			},
 		},
 		{
-			name: "WriteSecureJSON",
+			name: "SecureJSON",
 			callFunc: func(c *Context) error {
-				return c.WriteSecureJSON(200, make(chan int))
+				return c.SecureJSON(200, make(chan int))
 			},
 		},
 		{
-			name: "WriteASCIIJSON",
+			name: "ASCIIJSON",
 			callFunc: func(c *Context) error {
-				return c.WriteASCIIJSON(200, make(chan int))
+				return c.ASCIIJSON(200, make(chan int))
+			},
+		},
+		{
+			name: "YAML",
+			callFunc: func(c *Context) (err error) {
+				// YAML panics for unencodable types, so we'll test with a recover
+				defer func() {
+					if r := recover(); r != nil {
+						err = fmt.Errorf("YAML encoding panicked: %v", r)
+					}
+				}()
+				return c.YAML(200, struct{ Func func() }{Func: func() {}})
 			},
 		},
 	}
@@ -409,11 +355,11 @@ func TestContext_WriteMethods_ReturnErrors(t *testing.T) {
 			req := httptest.NewRequest("GET", "/", nil)
 			c := NewContext(w, req)
 
-			// Call the method - should return error
+			// Call the method - should return error if encoding fails
 			err := tt.callFunc(c)
-			assert.Error(t, err, "Expected %s to return error for unencodable data", tt.name)
 
-			// Error should NOT be automatically collected
+			// All methods should return errors, not collect them
+			assert.Error(t, err, "Expected %s to return error on encoding failure", tt.name)
 			assert.False(t, c.HasErrors(), "Expected %s not to automatically collect errors", tt.name)
 		})
 	}
@@ -428,13 +374,15 @@ func TestContext_ErrorCollection_WithSuccessfulWrites(t *testing.T) {
 	c := NewContext(w, req)
 
 	// Successful JSON write
-	c.JSON(http.StatusOK, map[string]string{"message": "success"})
+	err := c.JSON(http.StatusOK, map[string]string{"message": "success"})
+	assert.NoError(t, err)
 
 	// Should not have errors
 	assert.False(t, c.HasErrors(), "Expected no errors after successful JSON write")
 
 	// Successful String write
-	c.String(http.StatusOK, "Hello World")
+	err = c.String(http.StatusOK, "Hello World")
+	assert.NoError(t, err)
 
 	// Should still not have errors
 	assert.False(t, c.HasErrors(), "Expected no errors after successful String write")
@@ -448,17 +396,26 @@ func TestContext_ErrorCollection_MixedSuccessAndFailure(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	c := NewContext(w, req)
 
-	// Successful write
-	c.JSON(http.StatusOK, map[string]string{"ok": "yes"})
+	// Successful write - should return no error
+	err := c.JSON(http.StatusOK, map[string]string{"ok": "yes"})
+	assert.NoError(t, err, "Expected no error after successful write")
 	assert.False(t, c.HasErrors(), "Expected no errors after successful write")
 
-	// Failed write - should collect error
-	c.JSON(http.StatusOK, make(chan int))
-	assert.True(t, c.HasErrors(), "Expected error after failed write")
+	// Failed write - should return error, not collect automatically
+	err = c.JSON(http.StatusOK, make(chan int))
+	assert.Error(t, err, "Expected error to be returned from failed write")
+	assert.False(t, c.HasErrors(), "Expected error NOT to be automatically collected")
 
-	// Another successful write - error should still be there
-	c.String(http.StatusOK, "text")
-	assert.True(t, c.HasErrors(), "Expected error to persist after subsequent successful write")
+	// Explicitly collect the error
+	if err != nil {
+		c.Error(err)
+		assert.True(t, c.HasErrors(), "Expected error after explicit collection")
+	}
+
+	// Another successful write - error should still be there (manually collected)
+	err = c.String(http.StatusOK, "text")
+	assert.NoError(t, err, "Expected no error from successful String call")
+	assert.True(t, c.HasErrors(), "Expected manually collected error to persist after subsequent successful write")
 
 	// Should have exactly one error
 	assert.Len(t, c.Errors(), 1, "Expected 1 error")

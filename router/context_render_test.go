@@ -93,10 +93,10 @@ func TestIndentedJSON(t *testing.T) {
 			c := NewContext(w, req)
 
 			if tt.shouldError {
-				err := c.WriteIndentedJSON(tt.expectedStatus, tt.data)
+				err := c.IndentedJSON(tt.expectedStatus, tt.data)
 				assert.Error(t, err, "Expected error but got none")
 			} else {
-				c.IndentedJSON(tt.expectedStatus, tt.data)
+				require.NoError(t, c.IndentedJSON(tt.expectedStatus, tt.data))
 			}
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
@@ -704,31 +704,31 @@ func TestJSON_Variants_ErrorHandling(t *testing.T) {
 		{
 			name: "JSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.WriteJSON(http.StatusOK, bad)
+				return c.JSON(http.StatusOK, bad)
 			},
 		},
 		{
 			name: "IndentedJSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.WriteIndentedJSON(200, bad)
+				return c.IndentedJSON(200, bad)
 			},
 		},
 		{
 			name: "PureJSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.WritePureJSON(200, bad)
+				return c.PureJSON(200, bad)
 			},
 		},
 		{
 			name: "SecureJSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.WriteSecureJSON(200, bad)
+				return c.SecureJSON(200, bad)
 			},
 		},
 		{
 			name: "ASCIIJSON encoding error",
 			renderFunc: func(c *Context) error {
-				return c.WriteASCIIJSON(200, bad)
+				return c.ASCIIJSON(200, bad)
 			},
 		},
 	}

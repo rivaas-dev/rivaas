@@ -158,22 +158,6 @@ func ExampleContext_Query() {
 	// Output: Query parameter handling configured
 }
 
-// ExampleContext_JSON demonstrates JSON response.
-func ExampleContext_JSON() {
-	r := router.MustNew()
-
-	r.GET("/data", func(c *router.Context) {
-		c.JSON(http.StatusOK, map[string]interface{}{
-			"name":  "Alice",
-			"age":   30,
-			"email": "alice@example.com",
-		})
-	})
-
-	fmt.Println("JSON response handler registered")
-	// Output: JSON response handler registered
-}
-
 // ExampleContext_Error demonstrates error collection.
 func ExampleContext_Error() {
 	r := router.MustNew()
@@ -250,13 +234,13 @@ func ExampleContext_HasErrors() {
 	// Output: Error checking handler registered
 }
 
-// ExampleContext_WriteJSON demonstrates low-level WriteJSON with error handling.
-func ExampleContext_WriteJSON() {
+// ExampleContext_JSON demonstrates JSON with error handling.
+func ExampleContext_JSON() {
 	r := router.MustNew()
 
 	r.GET("/data", func(c *router.Context) {
-		// Use low-level WriteJSON for fine-grained error control
-		err := c.WriteJSON(http.StatusOK, map[string]string{"key": "value"})
+		// JSON returns error explicitly for error handling
+		err := c.JSON(http.StatusOK, map[string]string{"key": "value"})
 		if err != nil {
 			// Handle error explicitly
 			c.Logger().Error("failed to write JSON", "err", err)

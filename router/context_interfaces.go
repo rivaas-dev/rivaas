@@ -79,50 +79,27 @@ type ParameterReader interface {
 
 // ResponseWriter defines the interface for writing HTTP responses.
 //
-// Response helpers follow a consistent pattern:
+// All response methods return errors explicitly, following Go's idiomatic error handling.
+// Callers must check and handle errors appropriately.
 //
-//   - WriteXxx(...) error
-//     Low-level primitive. Writes directly to the underlying http.ResponseWriter
-//     and returns an error if anything fails (encoding, write failure, etc.).
+// Example:
 //
-//   - Xxx(...)
-//     High-level helper. Calls WriteXxx(...) and, if an error occurs, adds it
-//     to the context's error stack via Error(err). Never returns an error.
-//
-// Typical handlers use the high-level form:
-//
-//	c.JSON(200, user)
-//
-// If you need fine-grained control over write failures, use the WriteXxx variant:
-//
-//	if err := c.WriteJSON(200, user); err != nil {
+//	if err := c.JSON(200, user); err != nil {
 //	    c.Logger().Error("failed to write json", "err", err)
-//	    c.Error(err)  // Still collect it if desired
+//	    return
 //	}
 type ResponseWriter interface {
-	// High-level helpers (collect errors automatically)
-	JSON(code int, obj any)
-	IndentedJSON(code int, obj any)
-	PureJSON(code int, obj any)
-	SecureJSON(code int, obj any, prefix ...string)
-	ASCIIJSON(code int, obj any)
-	String(code int, value string)
-	Stringf(code int, format string, values ...any)
-	HTML(code int, html string)
-	YAML(code int, obj any)
-	Data(code int, contentType string, data []byte)
-
-	// Low-level primitives (return errors)
-	WriteJSON(code int, obj any) error
-	WriteIndentedJSON(code int, obj any) error
-	WritePureJSON(code int, obj any) error
-	WriteSecureJSON(code int, obj any, prefix ...string) error
-	WriteASCIIJSON(code int, obj any) error
-	WriteString(code int, value string) error
-	WriteStringf(code int, format string, values ...any) error
-	WriteHTML(code int, html string) error
-	WriteYAML(code int, obj any) error
-	WriteData(code int, contentType string, data []byte) error
+	// Response methods (all return errors)
+	JSON(code int, obj any) error
+	IndentedJSON(code int, obj any) error
+	PureJSON(code int, obj any) error
+	SecureJSON(code int, obj any, prefix ...string) error
+	ASCIIJSON(code int, obj any) error
+	String(code int, value string) error
+	Stringf(code int, format string, values ...any) error
+	HTML(code int, html string) error
+	YAML(code int, obj any) error
+	Data(code int, contentType string, data []byte) error
 
 	// Status and headers
 	Status(code int)

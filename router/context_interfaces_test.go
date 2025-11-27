@@ -87,106 +87,61 @@ type mockResponseWriter struct {
 	cookies    []http.Cookie
 }
 
-func (m *mockResponseWriter) JSON(code int, _ any) {
+func (m *mockResponseWriter) JSON(code int, _ any) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = "application/json; charset=utf-8"
 	// In real implementation, would marshal obj to JSON
 	m.body = []byte(`{"test":"data"}`)
+	return nil
 }
 
-func (m *mockResponseWriter) IndentedJSON(code int, obj any) {
-	m.JSON(code, obj)
+func (m *mockResponseWriter) IndentedJSON(code int, obj any) error {
+	return m.JSON(code, obj)
 }
 
-func (m *mockResponseWriter) PureJSON(code int, obj any) {
-	m.JSON(code, obj)
+func (m *mockResponseWriter) PureJSON(code int, obj any) error {
+	return m.JSON(code, obj)
 }
 
-func (m *mockResponseWriter) SecureJSON(code int, obj any, _ ...string) {
-	m.JSON(code, obj)
+func (m *mockResponseWriter) SecureJSON(code int, obj any, _ ...string) error {
+	return m.JSON(code, obj)
 }
 
-func (m *mockResponseWriter) ASCIIJSON(code int, obj any) {
-	m.JSON(code, obj)
+func (m *mockResponseWriter) ASCIIJSON(code int, obj any) error {
+	return m.JSON(code, obj)
 }
 
-func (m *mockResponseWriter) String(code int, value string) {
+func (m *mockResponseWriter) String(code int, value string) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = "text/plain"
 	m.body = []byte(value)
+	return nil
 }
 
-func (m *mockResponseWriter) Stringf(code int, format string, _ ...any) {
+func (m *mockResponseWriter) Stringf(code int, format string, _ ...any) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = "text/plain"
 	m.body = []byte(format)
+	return nil
 }
 
-func (m *mockResponseWriter) HTML(code int, html string) {
+func (m *mockResponseWriter) HTML(code int, html string) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = "text/html"
 	m.body = []byte(html)
+	return nil
 }
 
-func (m *mockResponseWriter) YAML(code int, _ any) {
+func (m *mockResponseWriter) YAML(code int, _ any) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = "application/x-yaml"
+	return nil
 }
 
-func (m *mockResponseWriter) Data(code int, contentType string, data []byte) {
+func (m *mockResponseWriter) Data(code int, contentType string, data []byte) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = contentType
 	m.body = data
-}
-
-// WriteXxx methods for mock (not used in tests but required by interface)
-func (m *mockResponseWriter) WriteJSON(code int, _ any) error {
-	m.JSON(code, nil)
-	return nil
-}
-
-func (m *mockResponseWriter) WriteIndentedJSON(code int, obj any) error {
-	m.IndentedJSON(code, obj)
-	return nil
-}
-
-func (m *mockResponseWriter) WritePureJSON(code int, obj any) error {
-	m.PureJSON(code, obj)
-	return nil
-}
-
-func (m *mockResponseWriter) WriteSecureJSON(code int, obj any, prefix ...string) error {
-	m.SecureJSON(code, obj, prefix...)
-	return nil
-}
-
-func (m *mockResponseWriter) WriteASCIIJSON(code int, obj any) error {
-	m.ASCIIJSON(code, obj)
-	return nil
-}
-
-func (m *mockResponseWriter) WriteString(code int, value string) error {
-	m.String(code, value)
-	return nil
-}
-
-func (m *mockResponseWriter) WriteStringf(code int, format string, values ...any) error {
-	m.Stringf(code, format, values...)
-	return nil
-}
-
-func (m *mockResponseWriter) WriteHTML(code int, html string) error {
-	m.HTML(code, html)
-	return nil
-}
-
-func (m *mockResponseWriter) WriteYAML(code int, obj any) error {
-	m.YAML(code, obj)
-	return nil
-}
-
-func (m *mockResponseWriter) WriteData(code int, contentType string, data []byte) error {
-	m.Data(code, contentType, data)
 	return nil
 }
 

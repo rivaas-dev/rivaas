@@ -319,7 +319,7 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 		var capturedError error
 		r.GET("/test", func(c *Context) {
 			badData := BadType{Func: func() {}}
-			capturedError = c.WriteJSON(200, badData)
+			capturedError = c.JSON(200, badData)
 		})
 
 		r.ServeHTTP(w, req)
@@ -338,7 +338,7 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 
 		r.GET("/test", func(c *Context) {
 			badData := BadType{Func: func() {}}
-			if err := c.WriteJSON(200, badData); err != nil {
+			if err := c.JSON(200, badData); err != nil {
 				// Handle error explicitly by sending 500 response
 				c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 				c.Response.WriteHeader(http.StatusInternalServerError)

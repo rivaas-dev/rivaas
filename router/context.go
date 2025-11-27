@@ -322,30 +322,15 @@ func (c *Context) Param(key string) string {
 }
 
 // JSON sends a JSON response with the specified status code.
-// If encoding or writing fails, the error is collected via Error().
-//
-// This is the high-level helper most users call. For fine-grained error
-// handling, use WriteJSON() instead.
+// Returns an error if encoding or writing fails.
 //
 // Example:
 //
-//	c.JSON(http.StatusOK, user)  // Error collected if encoding fails
-func (c *Context) JSON(code int, obj any) {
-	if err := c.WriteJSON(code, obj); err != nil {
-		c.Error(err)
-	}
-}
-
-// WriteJSON is the low-level primitive that writes JSON and returns any error.
-// Use this when you need fine-grained control over write failures.
-//
-// Example:
-//
-//	if err := c.WriteJSON(200, user); err != nil {
+//	if err := c.JSON(http.StatusOK, user); err != nil {
 //	    c.Logger().Error("failed to write json", "err", err)
-//	    c.Error(err)  // Still collect it if desired
+//	    return
 //	}
-func (c *Context) WriteJSON(code int, obj any) error {
+func (c *Context) JSON(code int, obj any) error {
 	// Encode to buffer first to catch errors before writing headers
 	// This prevents inconsistent response state if encoding fails
 	var buf strings.Builder
@@ -377,18 +362,11 @@ func (c *Context) WriteJSON(code int, obj any) error {
 }
 
 // IndentedJSON sends a JSON response with indentation for readability.
-// If encoding or writing fails, the error is collected via Error().
+// Returns an error if encoding or writing fails.
 //
 // This is useful for debugging, development, and human-readable API responses.
 // Use JSON() for compact responses, IndentedJSON() for debugging/development.
-func (c *Context) IndentedJSON(code int, obj any) {
-	if err := c.WriteIndentedJSON(code, obj); err != nil {
-		c.Error(err)
-	}
-}
-
-// WriteIndentedJSON writes indented JSON and returns any error.
-func (c *Context) WriteIndentedJSON(code int, obj any) error {
+func (c *Context) IndentedJSON(code int, obj any) error {
 	// Use MarshalIndent for pretty-printing
 	jsonBytes, err := json.MarshalIndent(obj, "", "  ")
 	if err != nil {
@@ -413,18 +391,11 @@ func (c *Context) WriteIndentedJSON(code int, obj any) error {
 }
 
 // PureJSON sends a JSON response without escaping HTML characters.
-// If encoding or writing fails, the error is collected via Error().
+// Returns an error if encoding or writing fails.
 //
 // Unlike JSON(), this does not escape <, >, &, and other HTML characters.
 // Use cases: HTML/markdown content, URLs with query parameters, code snippets.
-func (c *Context) PureJSON(code int, obj any) {
-	if err := c.WritePureJSON(code, obj); err != nil {
-		c.Error(err)
-	}
-}
-
-// WritePureJSON writes JSON without HTML escaping and returns any error.
-func (c *Context) WritePureJSON(code int, obj any) error {
+func (c *Context) PureJSON(code int, obj any) error {
 	// Encode without HTML escaping
 	var buf strings.Builder
 	buf.Grow(256)
@@ -454,18 +425,11 @@ func (c *Context) WritePureJSON(code int, obj any) error {
 }
 
 // SecureJSON sends a JSON response with a security prefix to prevent JSON hijacking.
-// If encoding or writing fails, the error is collected via Error().
+// Returns an error if encoding or writing fails.
 //
 // Default prefix: "while(1);" (matches Gin's default).
 // The client must strip this prefix before parsing JSON.
-func (c *Context) SecureJSON(code int, obj any, prefix ...string) {
-	if err := c.WriteSecureJSON(code, obj, prefix...); err != nil {
-		c.Error(err)
-	}
-}
-
-// WriteSecureJSON writes JSON with security prefix and returns any error.
-func (c *Context) WriteSecureJSON(code int, obj any, prefix ...string) error {
+func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 	// Determine security prefix
 	securityPrefix := "while(1);"
 	if len(prefix) > 0 && prefix[0] != "" {
@@ -500,18 +464,11 @@ func (c *Context) WriteSecureJSON(code int, obj any, prefix ...string) error {
 }
 
 // ASCIIJSON sends a JSON response with all non-ASCII characters escaped to \uXXXX.
-// If encoding or writing fails, the error is collected via Error().
+// Returns an error if encoding or writing fails.
 //
 // This ensures the response is pure ASCII, useful for legacy systems or strict compatibility.
 // All non-ASCII characters are escaped to their Unicode code point representation (\uXXXX).
-func (c *Context) ASCIIJSON(code int, obj any) {
-	if err := c.WriteASCIIJSON(code, obj); err != nil {
-		c.Error(err)
-	}
-}
-
-// WriteASCIIJSON writes JSON with non-ASCII escaped and returns any error.
-func (c *Context) WriteASCIIJSON(code int, obj any) error {
+func (c *Context) ASCIIJSON(code int, obj any) error {
 	// Use json.Marshal which already escapes non-ASCII to \uXXXX by default
 	// when using the default encoder settings
 	var buf bytes.Buffer
@@ -607,7 +564,7 @@ func decodeRuneInJSON(b []byte) (rune, int) {
 // String sends a plain text response.
 // This method does NOT perform formatting - the value is used as-is.
 // For formatting with values, use Stringf.
-// If writing fails, the error is collected via Error().
+// Returns an error if writing fails.
 //
 // Note: This method converts string to []byte
 // in the underlying Write() call. This is unavoidable when writing strings
@@ -615,50 +572,16 @@ func decodeRuneInJSON(b []byte) (rune, int) {
 //
 // Example:
 //
-//	c.String(200, "Hello, World!")
-//	c.String(200, "User: "+userName)
+//	if err := c.String(200, "Hello, World!"); err != nil {
+//	    return err
+//	}
 //
 // For static responses, use a pre-allocated []byte:
 //
 //	staticBytes := []byte("Hello, World!")
 //	c.Response.WriteHeader(200)
 //	c.Response.Write(staticBytes)
-func (c *Context) String(code int, value string) {
-	if err := c.WriteString(code, value); err != nil {
-		c.Error(err)
-	}
-}
-
-// Stringf sends a formatted plain text response.
-// This uses fmt.Sprintf-style formatting and supports any number of values.
-// If writing fails, the error is collected via Error().
-//
-// Note: This method uses variadic parameters
-// (values ...any). For plain strings without formatting, use String() instead,
-// which avoids variadic slice creation but still converts
-// string-to-[]byte conversion.
-//
-// Example:
-//
-//	c.Stringf(200, "User: %s", userName)
-//	c.Stringf(200, "User: %s, ID: %d", userName, id)
-func (c *Context) Stringf(code int, format string, values ...any) {
-	if err := c.WriteStringf(code, format, values...); err != nil {
-		c.Error(err)
-	}
-}
-
-// WriteString writes a plain text response and returns any error.
-// For formatted output, use WriteStringf.
-//
-// Note: This method converts string to []byte
-// in the underlying Write() call. This is unavoidable when writing strings
-// through Go's standard http.ResponseWriter interface.
-//
-// Example:
-//
-//	err := c.WriteString(200, "Hello, World!")
-func (c *Context) WriteString(code int, value string) error {
+func (c *Context) String(code int, value string) error {
 	if c.Response.Header().Get("Content-Type") == "" {
 		c.Response.Header().Set("Content-Type", "text/plain")
 	}
@@ -680,16 +603,21 @@ func (c *Context) WriteString(code int, value string) error {
 	return nil
 }
 
-// WriteStringf writes a formatted plain text response and returns any error.
-// This follows fmt.Printf-style formatting.
+// Stringf sends a formatted plain text response.
+// This uses fmt.Sprintf-style formatting and supports any number of values.
+// Returns an error if writing fails.
 //
-// For plain strings without formatting, use WriteString() instead.
+// Note: This method uses variadic parameters
+// (values ...any). For plain strings without formatting, use String() instead,
+// which avoids variadic slice creation but still converts
+// string-to-[]byte conversion.
 //
 // Example:
 //
-//	err := c.WriteStringf(200, "User: %s", userName)
-//	err := c.WriteStringf(200, "User: %s, ID: %d", userName, userID)
-func (c *Context) WriteStringf(code int, format string, values ...any) error {
+//	if err := c.Stringf(200, "User: %s", userName); err != nil {
+//	    return err
+//	}
+func (c *Context) Stringf(code int, format string, values ...any) error {
 	if c.Response.Header().Get("Content-Type") == "" {
 		c.Response.Header().Set("Content-Type", "text/plain")
 	}
@@ -741,15 +669,8 @@ func (c *Context) WriteStringf(code int, format string, values ...any) error {
 }
 
 // HTML sends an HTML response with the specified status code.
-// If writing fails, the error is collected via Error().
-func (c *Context) HTML(code int, html string) {
-	if err := c.WriteHTML(code, html); err != nil {
-		c.Error(err)
-	}
-}
-
-// WriteHTML writes an HTML response and returns any error.
-func (c *Context) WriteHTML(code int, html string) error {
+// Returns an error if writing fails.
+func (c *Context) HTML(code int, html string) error {
 	c.Response.Header().Set("Content-Type", "text/html")
 
 	// Check if headers have already been written to avoid "superfluous response.WriteHeader call"
@@ -984,17 +905,10 @@ func (c *Context) GetCookie(name string) (string, error) {
 }
 
 // YAML sends a YAML response with the specified status code.
-// If encoding or writing fails, the error is collected via Error().
+// Returns an error if encoding or writing fails.
 //
 // This is useful for configuration APIs, DevOps tools, and Kubernetes-style services.
-func (c *Context) YAML(code int, obj any) {
-	if err := c.WriteYAML(code, obj); err != nil {
-		c.Error(err)
-	}
-}
-
-// WriteYAML writes a YAML response and returns any error.
-func (c *Context) WriteYAML(code int, obj any) error {
+func (c *Context) YAML(code int, obj any) error {
 	// Marshal to YAML
 	yamlBytes, err := yaml.Marshal(obj)
 	if err != nil {
@@ -1080,18 +994,11 @@ func (c *Context) DataFromReader(code int, contentLength int64, contentType stri
 }
 
 // Data sends raw bytes with a custom content type.
-// If writing fails, the error is collected via Error().
+// Returns an error if writing fails.
 //
 // This is useful for sending binary data, images, PDFs, or any custom format.
 // Direct byte write with no encoding/formatting.
-func (c *Context) Data(code int, contentType string, data []byte) {
-	if err := c.WriteData(code, contentType, data); err != nil {
-		c.Error(err)
-	}
-}
-
-// WriteData writes raw bytes with a custom content type and returns any error.
-func (c *Context) WriteData(code int, contentType string, data []byte) error {
+func (c *Context) Data(code int, contentType string, data []byte) error {
 	// Set Content-Type
 	if contentType != "" {
 		c.Response.Header().Set("Content-Type", contentType)
@@ -1137,7 +1044,9 @@ func (c *Context) WriteData(code int, contentType string, data []byte) error {
 //	        if errors.Is(joinedErr, ErrFileNotFound) {
 //	            // Handle specific error
 //	        }
-//	        c.JSON(400, map[string]any{"errors": c.Errors()})
+//	        if err := c.JSON(400, map[string]any{"errors": c.Errors()}); err != nil {
+//	            c.Logger().Error("failed to write error response", "err", err)
+//	        }
 //	        return
 //	    }
 //	}
@@ -1284,7 +1193,9 @@ func (c *Context) AddSpanEvent(name string, attrs ...attribute.KeyValue) {
 //	case <-c.RequestContext().Done():
 //		return // Request cancelled
 //	case result := <-longOperation():
-//		c.JSON(200, result)
+//		if err := c.JSON(200, result); err != nil {
+//		    c.Logger().Error("failed to write response", "err", err)
+//		}
 //	}
 func (c *Context) RequestContext() context.Context {
 	if c.Request != nil {

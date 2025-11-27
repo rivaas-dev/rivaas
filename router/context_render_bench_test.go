@@ -372,15 +372,15 @@ func BenchmarkAllRenderingMethods(b *testing.B) {
 		name string
 		fn   func(*Context) error
 	}{
-		{"JSON", func(c *Context) error { return c.WriteJSON(200, benchData) }},
-		{"IndentedJSON", func(c *Context) error { return c.WriteIndentedJSON(200, benchData) }},
-		{"PureJSON", func(c *Context) error { return c.WritePureJSON(200, benchData) }},
-		{"SecureJSON", func(c *Context) error { return c.WriteSecureJSON(200, benchData) }},
+		{"JSON", func(c *Context) error { return c.JSON(200, benchData) }},
+		{"IndentedJSON", func(c *Context) error { return c.IndentedJSON(200, benchData) }},
+		{"PureJSON", func(c *Context) error { return c.PureJSON(200, benchData) }},
+		{"SecureJSON", func(c *Context) error { return c.SecureJSON(200, benchData) }},
 		{"ASCIIJSON", func(c *Context) error {
-			return c.WriteASCIIJSON(200, map[string]string{"msg": "Hello 世界"})
+			return c.ASCIIJSON(200, map[string]string{"msg": "Hello 世界"})
 		}},
-		{"YAML", func(c *Context) error { return c.WriteYAML(200, benchData) }},
-		{"Data", func(c *Context) error { return c.WriteData(200, "text/plain", []byte("test")) }},
+		{"YAML", func(c *Context) error { return c.YAML(200, benchData) }},
+		{"Data", func(c *Context) error { return c.Data(200, "text/plain", []byte("test")) }},
 	}
 
 	for _, method := range methods {
@@ -512,9 +512,9 @@ func BenchmarkJSON_Variants_Parallel(b *testing.B) {
 		name string
 		fn   func(*Context) error
 	}{
-		{"JSON", func(c *Context) error { return c.WriteJSON(200, benchData) }},
-		{"PureJSON", func(c *Context) error { return c.WritePureJSON(200, benchData) }},
-		{"SecureJSON", func(c *Context) error { return c.WriteSecureJSON(200, benchData) }},
+		{"JSON", func(c *Context) error { return c.JSON(200, benchData) }},
+		{"PureJSON", func(c *Context) error { return c.PureJSON(200, benchData) }},
+		{"SecureJSON", func(c *Context) error { return c.SecureJSON(200, benchData) }},
 	}
 
 	for _, method := range methods {

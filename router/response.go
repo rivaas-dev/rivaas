@@ -211,22 +211,15 @@ func (c *Context) SendStatus(code int) error {
 // JSONP sends a JSON response with JSONP callback support.
 // The callback parameter wraps the JSON in a function call for cross-domain requests.
 // Default callback name is "callback" if not specified.
+// Returns an error if encoding or writing fails.
 //
 // Example:
 //
-//	c.JSONP(http.StatusOK, data)              // callback({"key": "value"})
+//	if err := c.JSONP(http.StatusOK, data); err != nil {
+//	    return err
+//	}
 //	c.JSONP(http.StatusOK, data, "myFunc")    // myFunc({"key": "value"})
-//
-// JSONP sends a JSONP response with the specified status code.
-// If encoding or writing fails, the error is collected via Error().
-func (c *Context) JSONP(code int, obj any, callback ...string) {
-	if err := c.WriteJSONP(code, obj, callback...); err != nil {
-		c.Error(err)
-	}
-}
-
-// WriteJSONP writes a JSONP response and returns any error.
-func (c *Context) WriteJSONP(code int, obj any, callback ...string) error {
+func (c *Context) JSONP(code int, obj any, callback ...string) error {
 	// Determine callback name
 	callbackName := "callback"
 	if len(callback) > 0 && callback[0] != "" {
@@ -265,12 +258,12 @@ func (c *Context) Format(code int, data any) error {
 
 	switch format {
 	case "json":
-		return c.WriteJSON(code, data)
+		return c.JSON(code, data)
 
 	case "html":
 		// Try to convert to HTML
 		html := fmt.Sprintf("<p>%v</p>", data)
-		return c.WriteHTML(code, html)
+		return c.HTML(code, html)
 
 	case "xml":
 		// Simple XML formatting
@@ -282,11 +275,11 @@ func (c *Context) Format(code int, data any) error {
 
 	case "txt", "":
 		// Plain text fallback
-		return c.WriteStringf(code, "%v", data)
+		return c.Stringf(code, "%v", data)
 
 	default:
 		// Default to JSON
-		return c.WriteJSON(code, data)
+		return c.JSON(code, data)
 	}
 }
 
