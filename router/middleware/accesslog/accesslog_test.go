@@ -709,7 +709,7 @@ func TestAccessLog_ResponseWriterPreservation(t *testing.T) {
 		_ http.Hijacker                 = (*responseWriter)(nil)
 		_ http.Pusher                   = (*responseWriter)(nil)
 		_ interface{ StatusCode() int } = (*responseWriter)(nil)
-		_ interface{ Size() int }       = (*responseWriter)(nil)
+		_ interface{ Size() int64 }     = (*responseWriter)(nil)
 	)
 
 	handler := newTestHandler()

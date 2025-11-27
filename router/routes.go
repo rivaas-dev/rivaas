@@ -403,22 +403,26 @@ func (route *Route) registerRoute() {
 		// Versioned routes use version-specific trees and caches
 		route.router.addVersionRoute(route.version, route.method, route.path, allHandlers, allConstraints)
 	} else {
-		// Standard tree
-		route.router.addRouteToTree(route.method, route.path, allHandlers, allConstraints)
+		// Standard tree - update compiler FIRST, then radix tree
+		//
+		// IMPORTANT: Order matters for constraint validation during re-registration.
+		// When Where() is called after initial registration, we must update the
+		// compiler before the radix tree to avoid a race condition where:
+		// 1. Radix tree is updated with new constraints
+		// 2. Compiler still has old route without constraints
+		// 3. Request matches old route in compiler, bypassing constraint validation
+		//
+		// By updating compiler first:
+		// - Compiler gets new constraints immediately
+		// - During brief window before radix tree update, requests either:
+		//   a) Match in compiler with new constraints (correct)
+		//   b) Fall through to radix tree with old state (acceptable for brief window)
 
 		// Compile route for matching (if enabled)
-		// Standard tree routes (non-versioned) are added to the global compiler
-		// so they can be matched BEFORE versioning kicks in. This ensures:
-		// 1. Routes like r.GET("/users/:id") are matched before version detection
-		// 2. Version tree routes are only used when explicit version prefix is present
-		//
-		// Note: Routes with constraints need special handling - remove old entry
-		// before adding new one to ensure constraints are validated
-		hasConstraints := len(allConstraints) > 0
 		if route.router.useTemplates && route.router.routeCompiler != nil {
 			// Convert constraints for compiler
 			var compilerConstraints []compiler.RouteConstraint
-			if hasConstraints {
+			if len(allConstraints) > 0 {
 				compilerConstraints = make([]compiler.RouteConstraint, len(allConstraints))
 				for i, c := range allConstraints {
 					compilerConstraints[i] = compiler.RouteConstraint{
@@ -438,12 +442,14 @@ func (route *Route) registerRoute() {
 			// Cache the converted handlers
 			compiledRoute.SetCachedHandlers(unsafe.Pointer(&allHandlers))
 
-			// Remove any existing route for this pattern (in case constraints were added)
+			// Remove any existing route then add new one
+			// This ensures constraints are enforced before radix tree is updated
 			route.router.routeCompiler.RemoveRoute(route.method, route.path)
-
-			// Add compiled route
 			route.router.routeCompiler.AddRoute(compiledRoute)
 		}
+
+		// Update radix tree (fallback path)
+		route.router.addRouteToTree(route.method, route.path, allHandlers, allConstraints)
 	}
 }
 

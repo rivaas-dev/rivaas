@@ -53,7 +53,7 @@ type Option func(*Router)
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
-	size       int
+	size       int64
 	written    bool
 }
 
@@ -75,7 +75,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 		rw.statusCode = http.StatusOK
 	}
 	n, err := rw.ResponseWriter.Write(b)
-	rw.size += n
+	rw.size += int64(n)
 	return n, err
 }
 
@@ -88,7 +88,7 @@ func (rw *responseWriter) StatusCode() int {
 }
 
 // Size returns the response size in bytes.
-func (rw *responseWriter) Size() int {
+func (rw *responseWriter) Size() int64 {
 	return rw.size
 }
 
@@ -96,6 +96,9 @@ func (rw *responseWriter) Size() int {
 func (rw *responseWriter) Written() bool {
 	return rw.written
 }
+
+// Compile-time check that responseWriter implements ResponseInfo.
+var _ ResponseInfo = (*responseWriter)(nil)
 
 // Hijack implements http.Hijacker interface.
 func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {

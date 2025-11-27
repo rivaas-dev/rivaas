@@ -33,7 +33,7 @@ import (
 // This avoids coupling to internal router types.
 type statusSizer interface {
 	StatusCode() int
-	Size() int
+	Size() int64
 }
 
 // New creates an access log middleware with structured logging.
@@ -187,7 +187,7 @@ func sampleByHash(id string, rate float64) bool {
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
-	size       int
+	size       int64
 	written    bool
 }
 
@@ -213,7 +213,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 		rw.WriteHeader(http.StatusOK)
 	}
 	n, err := rw.ResponseWriter.Write(b)
-	rw.size += n
+	rw.size += int64(n)
 	return n, err
 }
 
@@ -224,7 +224,7 @@ func (rw *responseWriter) StatusCode() int {
 	return rw.statusCode
 }
 
-func (rw *responseWriter) Size() int {
+func (rw *responseWriter) Size() int64 {
 	return rw.size
 }
 
@@ -255,11 +255,11 @@ func (rw *responseWriter) Push(target string, opts *http.PushOptions) error {
 func (rw *responseWriter) ReadFrom(r io.Reader) (int64, error) {
 	if rf, ok := rw.ResponseWriter.(io.ReaderFrom); ok {
 		n, err := rf.ReadFrom(r)
-		rw.size += int(n)
+		rw.size += n
 		return n, err
 	}
 	// Fallback to io.Copy
 	n, err := io.Copy(rw.ResponseWriter, r)
-	rw.size += int(n)
+	rw.size += n
 	return n, err
 }
