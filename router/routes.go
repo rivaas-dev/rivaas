@@ -184,6 +184,16 @@ func (r *Router) getTreeForMethodDirect(method string) *node {
 	return (*trees)[method]
 }
 
+// loadTrees atomically loads the route trees map.
+// Returns nil if trees haven't been initialized.
+func (rt *atomicRouteTree) loadTrees() *map[string]*node {
+	treesPtr := atomic.LoadPointer(&rt.trees)
+	if treesPtr == nil {
+		return nil
+	}
+	return (*map[string]*node)(treesPtr)
+}
+
 // GET adds a route that matches GET requests to the specified path.
 // The path can contain parameters using the :param syntax.
 // Returns a Route object for adding constraints and metadata.
