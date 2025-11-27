@@ -30,6 +30,20 @@ var (
 	// Router errors
 	ErrResponseWriterNotHijacker = errors.New("responseWriter does not implement http.Hijacker")
 
+	// Router configuration errors
+	ErrBloomFilterSizeZero       = errors.New("bloom filter size must be non-zero")
+	ErrBloomHashFunctionsInvalid = errors.New("bloom hash functions must be positive")
+
+	// Route errors
+	ErrRoutesNotFrozen       = errors.New("routes not frozen yet")
+	ErrRouteNotFound         = errors.New("route not found")
+	ErrMissingRouteParameter = errors.New("missing required parameter")
+
+	// JSON parsing errors
+	ErrMultipleJSONValues = errors.New("request body must contain a single JSON value")
+	ErrExpectedJSONArray  = errors.New("expected a JSON array")
+	ErrArrayExceedsMax    = errors.New("array exceeds maximum items")
+
 	// Validation errors
 	ErrCannotValidateNilValue     = errors.New("cannot validate nil value")
 	ErrCannotValidateInvalidValue = errors.New("cannot validate invalid value")

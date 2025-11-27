@@ -32,9 +32,10 @@ func TestWithBloomFilterSize(t *testing.T) {
 
 	assert.Equal(t, uint64(2000), r.bloomFilterSize)
 
-	// Test with zero size (should use default)
-	r2 := MustNew(WithBloomFilterSize(0))
-	assert.Equal(t, uint64(1000), r2.bloomFilterSize)
+	// Test with zero size (should fail validation)
+	_, err := New(WithBloomFilterSize(0))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "bloom filter size must be non-zero")
 }
 
 // mockDiagnosticHandler implements the DiagnosticHandler interface for testing

@@ -38,10 +38,10 @@ import (
 func WithPathDetection(pattern string) Option {
 	return func(cfg *Config) error {
 		if pattern == "" {
-			return fmt.Errorf("path pattern cannot be empty")
+			return ErrEmptyPathPattern
 		}
 		if !strings.Contains(pattern, "{version}") {
-			return fmt.Errorf("path pattern %q must contain {version} placeholder", pattern)
+			return fmt.Errorf("%w: path pattern %q", ErrMissingVersionPlaceholder, pattern)
 		}
 		cfg.detectors = append(cfg.detectors, newPathDetector(pattern))
 		return nil
@@ -60,7 +60,7 @@ func WithPathDetection(pattern string) Option {
 func WithHeaderDetection(headerName string) Option {
 	return func(cfg *Config) error {
 		if headerName == "" {
-			return fmt.Errorf("header name cannot be empty")
+			return ErrEmptyHeaderName
 		}
 		cfg.detectors = append(cfg.detectors, &headerDetector{header: headerName})
 		return nil
@@ -79,7 +79,7 @@ func WithHeaderDetection(headerName string) Option {
 func WithQueryDetection(paramName string) Option {
 	return func(cfg *Config) error {
 		if paramName == "" {
-			return fmt.Errorf("query parameter name cannot be empty")
+			return ErrEmptyQueryParam
 		}
 		cfg.detectors = append(cfg.detectors, &queryDetector{param: paramName})
 		return nil
@@ -96,10 +96,10 @@ func WithQueryDetection(paramName string) Option {
 func WithAcceptDetection(pattern string) Option {
 	return func(cfg *Config) error {
 		if pattern == "" {
-			return fmt.Errorf("accept pattern cannot be empty")
+			return ErrEmptyAcceptPattern
 		}
 		if !strings.Contains(pattern, "{version}") {
-			return fmt.Errorf("accept pattern %q must contain {version} placeholder", pattern)
+			return fmt.Errorf("%w: accept pattern %q", ErrMissingVersionPlaceholder, pattern)
 		}
 		cfg.detectors = append(cfg.detectors, &acceptDetector{pattern: pattern})
 		return nil
@@ -119,7 +119,7 @@ func WithAcceptDetection(pattern string) Option {
 func WithCustomDetection(fn func(*http.Request) string) Option {
 	return func(cfg *Config) error {
 		if fn == nil {
-			return fmt.Errorf("custom detector function cannot be nil")
+			return ErrNilCustomDetector
 		}
 		// Insert at the beginning for highest priority
 		cfg.detectors = append([]Detector{&customDetector{fn: fn}}, cfg.detectors...)
@@ -139,7 +139,7 @@ func WithCustomDetection(fn func(*http.Request) string) Option {
 func WithDefault(version string) Option {
 	return func(cfg *Config) error {
 		if version == "" {
-			return fmt.Errorf("default version cannot be empty")
+			return ErrEmptyDefaultVersion
 		}
 		cfg.defaultVersion = version
 		return nil
@@ -155,11 +155,11 @@ func WithDefault(version string) Option {
 func WithValidVersions(versions ...string) Option {
 	return func(cfg *Config) error {
 		if len(versions) == 0 {
-			return fmt.Errorf("at least one valid version is required")
+			return ErrNoValidVersions
 		}
 		for i, v := range versions {
 			if v == "" {
-				return fmt.Errorf("valid version at index %d cannot be empty", i)
+				return fmt.Errorf("%w at index %d", ErrEmptyVersionEntry, i)
 			}
 		}
 		cfg.validVersions = versions

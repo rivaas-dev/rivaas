@@ -109,14 +109,14 @@ func NewConfig(opts ...Option) (*Config, error) {
 // validate checks the configuration for errors.
 func (c *Config) validate() error {
 	if c.defaultVersion == "" {
-		return fmt.Errorf("default version is required: use version.WithDefault(\"v1\")")
+		return fmt.Errorf("%w: use version.WithDefault(\"v1\")", ErrDefaultRequired)
 	}
 
 	// Validate that path detectors have proper patterns
 	for _, d := range c.detectors {
 		if pd, ok := d.(*pathDetector); ok {
 			if !strings.Contains(pd.pattern, "{version}") {
-				return fmt.Errorf("path pattern %q must contain {version} placeholder", pd.pattern)
+				return fmt.Errorf("%w: path pattern %q", ErrMissingVersionPlaceholder, pd.pattern)
 			}
 		}
 	}

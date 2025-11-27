@@ -471,6 +471,23 @@ type VersionGroup struct {
 	versionRouter *VersionRouter
 	prefix        string
 	middleware    []HandlerFunc
+	namePrefix    string // Name prefix for all routes in this group (e.g., "api.v1.")
+}
+
+// SetNamePrefix sets a prefix for all route names in this version group.
+// The prefix is appended to any existing name prefix,
+// enabling hierarchical route naming.
+// Returns the group for method chaining.
+//
+// Example:
+//
+//	v1 := r.Version("v1")
+//	api := v1.Group("/api").SetNamePrefix("api.")
+//	api.GET("/users", handler).SetName("users.list")
+//	// Full route name becomes: "api.users.list"
+func (vg *VersionGroup) SetNamePrefix(prefix string) *VersionGroup {
+	vg.namePrefix = vg.namePrefix + prefix
+	return vg
 }
 
 // Handle adds a route with the specified HTTP method to the version group.
@@ -481,7 +498,10 @@ func (vg *VersionGroup) Handle(method, path string, handlers ...HandlerFunc) *Ro
 	allHandlers := make([]HandlerFunc, 0, len(vg.middleware)+len(handlers))
 	allHandlers = append(allHandlers, vg.middleware...)
 	allHandlers = append(allHandlers, handlers...)
-	return vg.versionRouter.addVersionRoute(method, fullPath, allHandlers)
+	route := vg.versionRouter.addVersionRoute(method, fullPath, allHandlers)
+	// Set version group reference for name prefixing
+	route.versionGroup = vg
+	return route
 }
 
 // GET adds a GET route to the version group

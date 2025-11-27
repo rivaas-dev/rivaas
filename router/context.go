@@ -1469,7 +1469,7 @@ func (c *Context) BindStrict(dst any, opt BindOptions) error {
 	// 4) No trailing data
 	if dec.More() {
 		c.WriteErrorResponse(http.StatusBadRequest, "Request body must contain a single JSON value")
-		return fmt.Errorf("request body must contain a single JSON value")
+		return ErrMultipleJSONValues
 	}
 
 	return nil
@@ -1502,7 +1502,7 @@ func StreamJSONArray[T any](c *Context, each func(T) error, maxItems int) error 
 	}
 	if delim, ok := tok.(json.Delim); !ok || delim != '[' {
 		c.WriteErrorResponse(http.StatusBadRequest, "Expected a JSON array")
-		return fmt.Errorf("expected a JSON array")
+		return ErrExpectedJSONArray
 	}
 
 	count := 0
@@ -1510,7 +1510,7 @@ func StreamJSONArray[T any](c *Context, each func(T) error, maxItems int) error 
 		count++
 		if maxItems > 0 && count > maxItems {
 			c.WriteErrorResponse(http.StatusBadRequest, fmt.Sprintf("Array exceeds maximum of %d items", maxItems))
-			return fmt.Errorf("array exceeds maximum of %d items", maxItems)
+			return fmt.Errorf("%w: %d", ErrArrayExceedsMax, maxItems)
 		}
 
 		var v T

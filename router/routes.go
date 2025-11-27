@@ -80,11 +80,12 @@ type Route struct {
 	compiled         bool                       // Whether typed constraints have been compiled
 
 	// Route metadata (immutable after registration)
-	name        string         // Human-readable name for reverse routing
-	description string         // Optional description
-	tags        []string       // Optional tags for categorization
-	template    *routeTemplate // Template for reverse routing
-	group       *Group         // Reference to group for name prefixing
+	name         string         // Human-readable name for reverse routing
+	description  string         // Optional description
+	tags         []string       // Optional tags for categorization
+	template     *routeTemplate // Template for reverse routing
+	group        *Group         // Reference to group for name prefixing
+	versionGroup *VersionGroup  // Reference to version group for name prefixing
 
 	mu sync.Mutex // Protects route modifications during constraint addition
 }
@@ -767,6 +768,8 @@ func (route *Route) SetName(name string) *Route {
 	// Auto-prefix with group name if in a group
 	if route.group != nil && route.group.namePrefix != "" {
 		name = route.group.namePrefix + name
+	} else if route.versionGroup != nil && route.versionGroup.namePrefix != "" {
+		name = route.versionGroup.namePrefix + name
 	}
 
 	// Check for duplicate names
@@ -1001,7 +1004,7 @@ func (r *Router) GetRoutes() []*Route {
 //	// Returns: "/users/123?include=posts", nil
 func (r *Router) URLFor(routeName string, params map[string]string, query url.Values) (string, error) {
 	if !r.frozen.Load() {
-		return "", fmt.Errorf("routes not frozen yet")
+		return "", ErrRoutesNotFrozen
 	}
 
 	r.routeTree.routesMutex.RLock()
@@ -1009,7 +1012,7 @@ func (r *Router) URLFor(routeName string, params map[string]string, query url.Va
 	r.routeTree.routesMutex.RUnlock()
 
 	if !ok {
-		return "", fmt.Errorf("route not found: %s", routeName)
+		return "", fmt.Errorf("%w: %s", ErrRouteNotFound, routeName)
 	}
 
 	// Compile template if not already compiled
@@ -1031,7 +1034,7 @@ func (r *Router) URLFor(routeName string, params map[string]string, query url.Va
 		} else {
 			val, ok := params[seg.value]
 			if !ok {
-				return "", fmt.Errorf("missing required parameter: %s", seg.value)
+				return "", fmt.Errorf("%w: %s", ErrMissingRouteParameter, seg.value)
 			}
 			buf.WriteString(url.PathEscape(val))
 		}

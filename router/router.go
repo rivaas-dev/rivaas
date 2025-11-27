@@ -294,10 +294,10 @@ func (r *Router) validate() error {
 	// Validate bloom filter configuration
 	// Note: bloomFilterSize is uint64, so it can only be 0 or positive
 	if r.bloomFilterSize == 0 {
-		return fmt.Errorf("bloom filter size must be non-zero")
+		return ErrBloomFilterSizeZero
 	}
 	if r.bloomHashFunctions <= 0 {
-		return fmt.Errorf("bloom hash functions must be positive, got %d", r.bloomHashFunctions)
+		return fmt.Errorf("%w: got %d", ErrBloomHashFunctionsInvalid, r.bloomHashFunctions)
 	}
 
 	// Validate versioning configuration if present
@@ -644,18 +644,14 @@ func defaultServerTimeouts() *serverTimeouts {
 //
 // Default: 1000
 // Recommended: Set to 2-3x the number of static routes
-//
-// If size is 0, the default value (1000) is used.
+// Must be > 0 or validation will fail.
 //
 // Example:
 //
 //	r := router.MustNew(router.WithBloomFilterSize(2000)) // For ~1000 routes
 func WithBloomFilterSize(size uint64) Option {
 	return func(r *Router) {
-		if size > 0 {
-			r.bloomFilterSize = size
-		}
-		// size == 0: keep default value (1000)
+		r.bloomFilterSize = size
 	}
 }
 
