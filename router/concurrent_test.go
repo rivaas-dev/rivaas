@@ -324,7 +324,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentConstraintValidation() {
 
 	r.GET("/users/:id", func(c *Context) {
 		c.Stringf(http.StatusOK, "%s", c.Param("id"))
-	}).WhereNumber("id")
+	}).WhereInt("id")
 
 	var wg sync.WaitGroup
 	numRequests := 500

@@ -37,15 +37,15 @@ func main() {
 
 	// Route Constraints: validate parameters with patterns
 
-	// Numeric constraint - only matches numeric IDs
+	// Integer constraint - only matches integer IDs (maps to OpenAPI integer type)
 	r.GET("/users/:id", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
 			"message": "User retrieved",
 			"user_id": c.Param("id"),
 		})
-	}).WhereNumber("id")
+	}).WhereInt("id")
 
-	// UUID constraint - only matches valid UUIDs
+	// UUID constraint - only matches valid UUIDs (maps to OpenAPI string with format uuid)
 	r.GET("/entities/:uuid", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
 			"message": "Entity retrieved",
@@ -53,21 +53,21 @@ func main() {
 		})
 	}).WhereUUID("uuid")
 
-	// Alpha constraint - only matches alphabetic characters
+	// Regex constraint - only matches alphabetic characters
 	r.GET("/categories/:name", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
 			"message":  "Category retrieved",
 			"category": c.Param("name"),
 		})
-	}).WhereAlpha("name")
+	}).WhereRegex("name", `[a-zA-Z]+`)
 
-	// AlphaNumeric constraint - matches alphanumeric characters
+	// Regex constraint - matches alphanumeric characters
 	r.GET("/slugs/:slug", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
 			"message": "Slug retrieved",
 			"slug":    c.Param("slug"),
 		})
-	}).WhereAlphaNumeric("slug")
+	}).WhereRegex("slug", `[a-zA-Z0-9]+`)
 
 	// Custom regex constraint: matches filenames with allowed characters
 	r.GET("/files/:filename", func(c *router.Context) {
@@ -75,7 +75,7 @@ func main() {
 			"message":  "File retrieved",
 			"filename": c.Param("filename"),
 		})
-	}).Where("filename", `[a-zA-Z0-9._-]+`)
+	}).WhereRegex("filename", `[a-zA-Z0-9._-]+`)
 
 	// Multiple constraints on same route
 	r.GET("/posts/:id/:slug", func(c *router.Context) {
@@ -84,7 +84,7 @@ func main() {
 			"id":      c.Param("id"),
 			"slug":    c.Param("slug"),
 		})
-	}).WhereNumber("id").WhereAlphaNumeric("slug")
+	}).WhereInt("id").WhereRegex("slug", `[a-zA-Z0-9]+`)
 
 	// Wildcard Routes
 
@@ -290,13 +290,13 @@ func main() {
 				"user_id": c.Param("id"),
 				"name":    "John Doe",
 			})
-		}).WhereNumber("id")
+		}).WhereInt("id")
 
 		api.GET("/files/:filename", func(c *router.Context) {
 			c.JSON(http.StatusOK, map[string]string{
 				"filename": c.Param("filename"),
 			})
-		}).Where("filename", `[a-zA-Z0-9._-]+`)
+		}).WhereRegex("filename", `[a-zA-Z0-9._-]+`)
 
 		api.GET("/transactions/:txn_id", func(c *router.Context) {
 			c.JSON(http.StatusOK, map[string]string{

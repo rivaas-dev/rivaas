@@ -709,8 +709,8 @@ api.GET("/users", handler)    // Then group routes
 // Issue: Invalid parameters still match routes
 // Solution: Apply constraints to the route
 
-r.GET("/users/:id", handler).WhereNumber("id")  // Only numeric IDs
-r.GET("/files/:name", handler).Where("name", `[a-zA-Z0-9.-]+`)  // Custom regex
+r.GET("/users/:id", handler).WhereInt("id")  // Only integer IDs (OpenAPI: type integer)
+r.GET("/files/:name", handler).WhereRegex("name", `[a-zA-Z0-9.-]+`)  // Custom regex
 ```
 
 #### Memory Leaks in High-Traffic Applications
@@ -2567,11 +2567,14 @@ Creates a new route group with the specified prefix and optional middleware.
 
 #### Constraint Methods (fluent API)
 
-- `(*Route) Where(param, pattern string) *Route` - Custom regex constraint
-- `(*Route) WhereNumber(param string) *Route` - Numeric constraint
-- `(*Route) WhereAlpha(param string) *Route` - Alphabetic constraint
-- `(*Route) WhereAlphaNumeric(param string) *Route` - Alphanumeric constraint
-- `(*Route) WhereUUID(param string) *Route` - UUID format constraint
+- `(*Route) Where(param, pattern string) *Route` - Legacy regex constraint
+- `(*Route) WhereInt(param string) *Route` - Integer constraint (OpenAPI: type integer, format int64)
+- `(*Route) WhereFloat(param string) *Route` - Float constraint (OpenAPI: type number, format double)
+- `(*Route) WhereUUID(param string) *Route` - UUID constraint (OpenAPI: type string, format uuid)
+- `(*Route) WhereRegex(param, pattern string) *Route` - Custom regex constraint with OpenAPI pattern
+- `(*Route) WhereEnum(param string, values ...string) *Route` - Enum constraint (OpenAPI: enum)
+- `(*Route) WhereDate(param string) *Route` - Date constraint (OpenAPI: type string, format date)
+- `(*Route) WhereDateTime(param string) *Route` - DateTime constraint (OpenAPI: type string, format date-time)
 
 ### Context
 
@@ -2720,33 +2723,44 @@ r.StaticFile("/robots.txt", "./static/robots.txt")
 
 ### Route Constraints/Validation
 
-#### Basic Constraints
+Typed constraints provide semantic validation that maps directly to OpenAPI schema types.
+
+#### Typed Constraints (Recommended)
 
 ```go
-// Numeric parameters only
-r.GET("/users/:id", getUserHandler).WhereNumber("id")
+// Integer parameters (OpenAPI: type integer, format int64)
+r.GET("/users/:id", getUserHandler).WhereInt("id")
 
-// Alphabetic parameters only
-r.GET("/categories/:name", getCategoryHandler).WhereAlpha("name")
+// Float parameters (OpenAPI: type number, format double)
+r.GET("/prices/:amount", getPriceHandler).WhereFloat("amount")
 
-// Alphanumeric parameters only
-r.GET("/slugs/:slug", getSlugHandler).WhereAlphaNumeric("slug")
-
-// UUID format validation
+// UUID format (OpenAPI: type string, format uuid)
 r.GET("/entities/:uuid", getEntityHandler).WhereUUID("uuid")
+
+// Date format (OpenAPI: type string, format date)
+r.GET("/orders/:date", getOrderHandler).WhereDate("date")
+
+// DateTime format (OpenAPI: type string, format date-time)
+r.GET("/events/:timestamp", getEventHandler).WhereDateTime("timestamp")
+
+// Enum constraint (OpenAPI: enum)
+r.GET("/status/:state", getStatusHandler).WhereEnum("state", "active", "pending", "deleted")
 ```
 
-#### Custom Regex Constraints
+#### Regex Constraints
 
 ```go
-// Custom regex patterns
-r.GET("/files/:filename", getFileHandler).Where("filename", `[a-zA-Z0-9.-]+`)
+// Custom regex patterns (OpenAPI: pattern)
+r.GET("/files/:filename", getFileHandler).WhereRegex("filename", `[a-zA-Z0-9.-]+`)
+
+// Alphabetic only
+r.GET("/categories/:name", getCategoryHandler).WhereRegex("name", `[a-zA-Z]+`)
+
+// Alphanumeric only
+r.GET("/slugs/:slug", getSlugHandler).WhereRegex("slug", `[a-zA-Z0-9]+`)
 
 // Email validation
-r.GET("/users/:email", getUserByEmailHandler).Where("email", `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`)
-
-// Date format (YYYY-MM-DD)
-r.GET("/reports/:date", getReportHandler).Where("date", `\d{4}-\d{2}-\d{2}`)
+r.GET("/users/:email", getUserByEmailHandler).WhereRegex("email", `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`)
 ```
 
 #### Multiple Constraints
@@ -2754,13 +2768,13 @@ r.GET("/reports/:date", getReportHandler).Where("date", `\d{4}-\d{2}-\d{2}`)
 ```go
 // Apply multiple constraints to the same route
 r.GET("/posts/:id/:slug", getPostHandler).
-    WhereNumber("id").
-    WhereAlphaNumeric("slug")
+    WhereInt("id").
+    WhereRegex("slug", `[a-zA-Z0-9]+`)
 
-// Mix custom and predefined constraints
+// Mix typed and regex constraints
 r.GET("/api/:version/users/:id", getApiUserHandler).
-    Where("version", `v[1-9]`).
-    WhereNumber("id")
+    WhereRegex("version", `v[1-9]`).
+    WhereInt("id")
 ```
 
 #### Route Groups with Constraints
@@ -2768,13 +2782,13 @@ r.GET("/api/:version/users/:id", getApiUserHandler).
 ```go
 api := r.Group("/api/v1")
 {
-    // All user routes require numeric ID
-    api.GET("/users/:id", getUserHandler).WhereNumber("id")
-    api.PUT("/users/:id", updateUserHandler).WhereNumber("id")
-    api.DELETE("/users/:id", deleteUserHandler).WhereNumber("id")
+    // All user routes require integer ID
+    api.GET("/users/:id", getUserHandler).WhereInt("id")
+    api.PUT("/users/:id", updateUserHandler).WhereInt("id")
+    api.DELETE("/users/:id", deleteUserHandler).WhereInt("id")
     
     // File operations with filename validation
-    api.GET("/files/:filename", getFileHandler).Where("filename", `[a-zA-Z0-9._-]+`)
+    api.GET("/files/:filename", getFileHandler).WhereRegex("filename", `[a-zA-Z0-9._-]+`)
 }
 ```
 

@@ -28,10 +28,10 @@ func TestConstraintValidationDebug(t *testing.T) {
 
 	r := MustNew()
 
-	// Register route with numeric constraint
+	// Register route with integer constraint
 	r.GET("/users/:id", func(c *Context) {
 		t.Logf("Handler executed with id=%s", c.Param("id"))
-	}).WhereNumber("id")
+	}).WhereInt("id")
 
 	// Test valid request (should match)
 	req1 := httptest.NewRequest(http.MethodGet, "/users/123", nil)
@@ -61,10 +61,10 @@ func TestFastPathConstraintValidation(t *testing.T) {
 	// Test the fast path for constraint validation through the router
 	r := MustNew()
 
-	// Register route with numeric constraint
+	// Register route with integer constraint
 	r.GET("/users/:id", func(c *Context) {
 		c.Stringf(http.StatusOK, "id=%s", c.Param("id"))
-	}).WhereNumber("id")
+	}).WhereInt("id")
 
 	// Test valid value
 	req1 := httptest.NewRequest(http.MethodGet, "/users/123", nil)
@@ -93,7 +93,7 @@ func TestRouteConstraints(t *testing.T) {
 
 	r.GET("/alpha/:name", func(c *Context) {
 		c.Stringf(http.StatusOK, "name=%s", c.Param("name"))
-	}).WhereAlpha("name")
+	}).WhereRegex("name", `[a-zA-Z]+`)
 
 	r.GET("/uuid/:id", func(c *Context) {
 		c.Stringf(http.StatusOK, "id=%s", c.Param("id"))

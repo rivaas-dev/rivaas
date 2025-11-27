@@ -545,7 +545,7 @@ func TestGroupMethodsWithConstraints(t *testing.T) {
 	// Test PUT with numeric constraint
 	api.PUT("/users/:id", func(c *Context) {
 		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
-	}).WhereNumber("id")
+	}).WhereInt("id")
 
 	// Valid numeric ID
 	req := httptest.NewRequest(http.MethodPut, "/api/users/123", nil)

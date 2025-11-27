@@ -510,36 +510,6 @@ func (route *Route) Where(param, pattern string) *Route {
 	return route
 }
 
-// WhereNumber adds a constraint that ensures the parameter is a positive integer.
-// This is a convenience method equivalent to Where(param, `\d+`).
-//
-// Example:
-//
-//	r.GET("/users/:id", getUserHandler).WhereNumber("id")
-func (route *Route) WhereNumber(param string) *Route {
-	return route.Where(param, `\d+`)
-}
-
-// WhereAlpha adds a constraint that ensures the parameter contains only letters.
-// This is a convenience method equivalent to Where(param, `[a-zA-Z]+`).
-//
-// Example:
-//
-//	r.GET("/categories/:name", getCategoryHandler).WhereAlpha("name")
-func (route *Route) WhereAlpha(param string) *Route {
-	return route.Where(param, `[a-zA-Z]+`)
-}
-
-// WhereAlphaNumeric adds a constraint that ensures the parameter contains only letters and numbers.
-// This is a convenience method equivalent to Where(param, `[a-zA-Z0-9]+`).
-//
-// Example:
-//
-//	r.GET("/slugs/:slug", getSlugHandler).WhereAlphaNumeric("slug")
-func (route *Route) WhereAlphaNumeric(param string) *Route {
-	return route.Where(param, `[a-zA-Z0-9]+`)
-}
-
 // WhereUUID adds a typed constraint that ensures the parameter is a valid UUID.
 // This maps to OpenAPI schema type "string" with format "uuid".
 //

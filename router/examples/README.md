@@ -233,10 +233,12 @@ r.GET("/admin", adminMiddleware, handler)
 
 ### Route Constraints
 
+Typed constraints with OpenAPI semantics:
+
 ```go
-r.GET("/users/:id", handler).WhereNumber("id")
-r.GET("/entities/:uuid", handler).WhereUUID("uuid")
-r.GET("/files/:name", handler).Where("name", `[a-zA-Z0-9._-]+`)
+r.GET("/users/:id", handler).WhereInt("id")           // OpenAPI: type integer
+r.GET("/entities/:uuid", handler).WhereUUID("uuid")   // OpenAPI: format uuid
+r.GET("/files/:name", handler).WhereRegex("name", `[a-zA-Z0-9._-]+`)
 ```
 
 ### API Versioning

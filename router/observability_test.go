@@ -1676,12 +1676,12 @@ func TestRouteHandlerIsolationWithConstraints(t *testing.T) {
 	r.GET("/users/:id", func(c *Context) {
 		usersHandlerCalled = true
 		c.String(http.StatusOK, "user")
-	}).WhereNumber("id")
+	}).WhereInt("id")
 
 	r.GET("/posts/:id", func(c *Context) {
 		postsHandlerCalled = true
 		c.String(http.StatusOK, "post")
-	}).WhereNumber("id")
+	}).WhereInt("id")
 
 	// Test users route
 	req1 := httptest.NewRequest("GET", "/users/123", nil)

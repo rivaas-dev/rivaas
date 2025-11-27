@@ -205,7 +205,7 @@ func TestCompilerIntegration_Constraints(t *testing.T) {
 			r := router.MustNew()
 			r.GET("/users/:id", func(c *router.Context) {
 				c.Status(http.StatusOK)
-			}).WhereNumber("id")
+			}).WhereInt("id")
 			r.Warmup()
 
 			req := httptest.NewRequest("GET", tt.path, nil)

@@ -272,10 +272,10 @@ func (suite *ExtendedTestSuite) TestRedirect() {
 func (suite *ExtendedTestSuite) TestRouteConstraints() {
 	r := MustNew()
 
-	// Add route with numeric constraint
+	// Add route with integer constraint
 	r.GET("/users/:id", func(c *Context) {
 		c.Stringf(200, "user %s", c.Param("id"))
-	}).WhereNumber("id")
+	}).WhereInt("id")
 
 	// Add route with custom constraint
 	r.GET("/files/:name", func(c *Context) {
@@ -312,7 +312,7 @@ func (suite *ExtendedTestSuite) TestMultipleConstraints() {
 
 	r.GET("/posts/:id/:slug", func(c *Context) {
 		c.Stringf(200, "post %s %s", c.Param("id"), c.Param("slug"))
-	}).WhereNumber("id").WhereAlphaNumeric("slug")
+	}).WhereInt("id").WhereRegex("slug", `[a-zA-Z0-9]+`)
 
 	tests := []struct {
 		path       string
