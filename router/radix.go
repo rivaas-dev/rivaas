@@ -236,13 +236,6 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 //
 //go:noinline
 func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
-	// Early exit if request is cancelled
-	if ctx.Request != nil {
-		if err := ctx.Request.Context().Err(); err != nil {
-			return nil, "" // Context cancelled or deadline exceeded
-		}
-	}
-
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
