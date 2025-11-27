@@ -35,7 +35,12 @@ func isZeroValue(v any) bool {
 		return rv.IsNil()
 	case reflect.Struct:
 		for i := 0; i < rv.NumField(); i++ {
-			if !isZeroValue(rv.Field(i).Interface()) {
+			field := rv.Field(i)
+			// Skip unexported fields - they cannot be accessed via Interface()
+			if !field.CanInterface() {
+				continue
+			}
+			if !isZeroValue(field.Interface()) {
 				return false
 			}
 		}
