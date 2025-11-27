@@ -917,11 +917,10 @@ func (c *Context) FormValueDefault(key, defaultValue string) string {
 //	    // Handle v2 specific logic
 //	}
 func (c *Context) Version() string {
-	// Lazy version detection
-	// Only detect version when first accessed, not on every request
-	if c.version == "" && c.router != nil && c.router.versionEngine != nil {
-		c.version = c.router.versionEngine.DetectVersion(c.Request)
-	}
+	// Return the version set during routing.
+	// For versioned routes (r.Version().GET), this is set to the detected version.
+	// For non-versioned routes (r.GET), this is empty string.
+	// No lazy detection - version is determined at route time, not handler time.
 	return c.version
 }
 
@@ -1667,6 +1666,7 @@ func (c *Context) initForRequest(req *http.Request, w http.ResponseWriter, handl
 	c.router = router
 	c.index = -1
 	c.paramCount = 0
+	c.version = "" // Reset version for non-versioned routes
 
 	// NOTE: metricsRecorder is now set by app/observability if needed
 	// Handler-level custom metrics work through Context.RecordMetric(), IncrementCounter(), SetGauge()
@@ -1680,6 +1680,7 @@ func (c *Context) initForRequestWithParams(req *http.Request, w http.ResponseWri
 	c.handlers = handlers
 	c.router = router
 	c.index = -1
+	c.version = "" // Reset version for non-versioned routes
 	// Note: paramCount and param arrays NOT reset - already populated by template
 
 	// NOTE: metricsRecorder is now set by app/observability if needed

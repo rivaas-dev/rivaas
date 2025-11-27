@@ -21,7 +21,7 @@ import (
 	"sync"
 	"testing"
 
-	"rivaas.dev/router/versioning"
+	"rivaas.dev/router/version"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -218,8 +218,8 @@ func TestRouter_ConcurrentVersionRegistration(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 
@@ -303,7 +303,6 @@ func TestRouter_ConcurrentRouteRegistration(t *testing.T) {
 // TestContext_JSON_EncodingError tests JSON encoding error handling
 func TestContext_JSON_EncodingError(t *testing.T) {
 	t.Parallel()
-	r := MustNew()
 
 	// Create a type that fails to marshal
 	type BadType struct {
@@ -312,6 +311,8 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 
 	t.Run("JSON returns error on encoding failure", func(t *testing.T) {
 		t.Parallel()
+		// Each subtest needs its own router to avoid race conditions
+		r := MustNew()
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/test", nil)
 
@@ -328,8 +329,10 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 			"Error should mention JSON encoding issue")
 	})
 
-	t.Run("JSON returns error on encoding failure", func(t *testing.T) {
+	t.Run("JSON handles error with explicit 500 response", func(t *testing.T) {
 		t.Parallel()
+		// Each subtest needs its own router to avoid race conditions
+		r := MustNew()
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/test", nil)
 

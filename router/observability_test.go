@@ -21,7 +21,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"rivaas.dev/router/versioning"
+	"rivaas.dev/router/version"
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/attribute"
@@ -409,8 +409,8 @@ func TestCompiledRouteWithVersioningWithoutTracingOrMetrics(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 	// No metrics or tracing recorders set
@@ -438,8 +438,8 @@ func TestCompiledRouteWithVersioningAndBothObservability(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 	mockObs := newMockObservabilityRecorder(true)
@@ -530,8 +530,8 @@ func TestServeDynamicWithBoth(t *testing.T) {
 func TestVersionedRoutingWithMetrics(t *testing.T) {
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 
@@ -558,8 +558,8 @@ func TestVersionedRoutingWithTracing(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 
@@ -586,8 +586,8 @@ func TestVersionedRoutingWithBoth(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 
@@ -615,8 +615,8 @@ func TestVersionedCompiledRoutesWithObservability(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 
@@ -883,14 +883,16 @@ func TestCompiledRouteBranchWithoutTracingOrMetricsWithVersioning(t *testing.T) 
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 	// No metrics or tracing recorders - ensures both shouldTrace and shouldMeasure are false
 
-	// Register a static route (not in versioned tree, will use standard compiled route lookup)
-	r.GET("/static-versioned", func(c *Context) {
+	// Register route via Version() to enable version detection
+	// Non-versioned routes (r.GET) bypass version detection entirely
+	v1 := r.Version("v1")
+	v1.GET("/static-versioned", func(c *Context) {
 		assert.Equal(t, "v1", c.Version(), "Version should be set from header")
 		c.String(http.StatusOK, "static-with-version")
 	})
@@ -913,15 +915,17 @@ func TestCompiledRouteBranchWithTracingAndVersioning(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v2"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v2"),
 		),
 	)
 	mockObs := newMockObservabilityRecorder(true)
 	r.SetObservabilityRecorder(mockObs)
 
-	// Register a static route (not in versioned tree, will use standard compiled route lookup)
-	r.GET("/static-trace-version", func(c *Context) {
+	// Register route via Version() to enable version detection
+	// Non-versioned routes (r.GET) bypass version detection entirely
+	v2 := r.Version("v2")
+	v2.GET("/static-trace-version", func(c *Context) {
 		assert.Equal(t, "v2", c.Version(), "Version should be set from header")
 		c.String(http.StatusOK, "static-trace-version")
 	})
@@ -945,15 +949,17 @@ func TestCompiledRouteBranchWithMetricsAndVersioning(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v3"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v3"),
 		),
 	)
 	mockObs := newMockObservabilityRecorder(true)
 	r.SetObservabilityRecorder(mockObs)
 
-	// Register a static route (not in versioned tree, will use standard compiled route lookup)
-	r.GET("/static-metrics-version", func(c *Context) {
+	// Register route via Version() to enable version detection
+	// Non-versioned routes (r.GET) bypass version detection entirely
+	v3 := r.Version("v3")
+	v3.GET("/static-metrics-version", func(c *Context) {
 		assert.Equal(t, "v3", c.Version(), "Version should be set from header")
 		c.String(http.StatusOK, "static-metrics-version")
 	})
@@ -977,15 +983,17 @@ func TestCompiledRouteBranchWithBothAndVersioning(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("X-API-Version"),
-			versioning.WithDefaultVersion("v4"),
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v4"),
 		),
 	)
 	mockObs := newMockObservabilityRecorder(true)
 	r.SetObservabilityRecorder(mockObs)
 
-	// Register a static route (not in versioned tree, will use standard compiled route lookup)
-	r.GET("/static-both-version", func(c *Context) {
+	// Register route via Version() to enable version detection
+	// Non-versioned routes (r.GET) bypass version detection entirely
+	v4 := r.Version("v4")
+	v4.GET("/static-both-version", func(c *Context) {
 		assert.Equal(t, "v4", c.Version(), "Version should be set from header")
 		c.String(http.StatusOK, "static-both-version")
 	})
@@ -1130,9 +1138,9 @@ func TestContextCustomMetricsWithVersionedRoutes(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithPathVersioning("/v{version}/"),
-			versioning.WithDefaultVersion("v1"),
-			versioning.WithValidVersions("v1", "v2"),
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2"),
 		),
 	)
 
@@ -1173,9 +1181,9 @@ func TestVersionedRouteParameterExtraction(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithPathVersioning("/v{version}/"),
-			versioning.WithDefaultVersion("v1"),
-			versioning.WithValidVersions("v1", "v2"),
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2"),
 		),
 	)
 
@@ -1225,9 +1233,9 @@ func TestVersionedRouteParameterExtractionWithMetrics(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithPathVersioning("/v{version}/"),
-			versioning.WithDefaultVersion("v1"),
-			versioning.WithValidVersions("v1"),
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1"),
 		),
 	)
 
@@ -1259,9 +1267,9 @@ func TestVersionedRouteParameterExtractionWithMetrics(t *testing.T) {
 func TestNonVersionedPathRoutingToMainTree(t *testing.T) {
 	r := MustNew(
 		WithVersioning(
-			versioning.WithPathVersioning("/v{version}/"),
-			versioning.WithDefaultVersion("v1"),
-			versioning.WithValidVersions("v1"),
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1"),
 		),
 	)
 
@@ -1326,8 +1334,8 @@ func TestVersionedAndNonVersionedRoutesSeparation(t *testing.T) {
 	t.Parallel()
 	r := MustNew(
 		WithVersioning(
-			versioning.WithPathVersioning("/v{version}/"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
 		),
 	)
 
@@ -1382,6 +1390,129 @@ func TestVersionedAndNonVersionedRoutesSeparation(t *testing.T) {
 			assert.Equal(t, tt.expectedBody, w.Body.String())
 		})
 	}
+}
+
+// TestMainTreeIgnoresVersionHeader tests that routes registered directly on the router
+// (non-versioned routes) are matched BEFORE version detection, even when a version header
+// is present. This confirms the design where:
+// - r.GET("/path", h) → Main tree, bypasses version detection
+// - r.Version("v1").GET("/path", h) → Version tree, subject to version detection
+func TestMainTreeIgnoresVersionHeader(t *testing.T) {
+	t.Parallel()
+	r := MustNew(
+		WithVersioning(
+			version.WithHeaderDetection("X-API-Version"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2"),
+		),
+	)
+
+	var (
+		healthHandlerCalled  bool
+		metricsHandlerCalled bool
+		v1UsersHandlerCalled bool
+		v2UsersHandlerCalled bool
+	)
+
+	// Register non-versioned routes (should bypass version detection)
+	r.GET("/health", func(c *Context) {
+		healthHandlerCalled = true
+		c.String(http.StatusOK, "healthy")
+	})
+
+	r.GET("/metrics", func(c *Context) {
+		metricsHandlerCalled = true
+		c.String(http.StatusOK, "metrics")
+	})
+
+	// Register versioned routes
+	r.Version("v1").GET("/users", func(c *Context) {
+		v1UsersHandlerCalled = true
+		c.String(http.StatusOK, "v1 users")
+	})
+
+	r.Version("v2").GET("/users", func(c *Context) {
+		v2UsersHandlerCalled = true
+		c.String(http.StatusOK, "v2 users")
+	})
+
+	// Test 1: /health should work WITHOUT version header
+	t.Run("health without header", func(t *testing.T) {
+		healthHandlerCalled = false
+		req := httptest.NewRequest("GET", "/health", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.True(t, healthHandlerCalled, "Health handler should be called")
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "healthy", w.Body.String())
+	})
+
+	// Test 2: /health should STILL work WITH version header (ignored)
+	t.Run("health with v2 header", func(t *testing.T) {
+		healthHandlerCalled = false
+		req := httptest.NewRequest("GET", "/health", nil)
+		req.Header.Set("X-API-Version", "v2")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.True(t, healthHandlerCalled, "Health handler should be called even with version header")
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "healthy", w.Body.String())
+	})
+
+	// Test 3: /metrics should work with any version header
+	t.Run("metrics with v1 header", func(t *testing.T) {
+		metricsHandlerCalled = false
+		req := httptest.NewRequest("GET", "/metrics", nil)
+		req.Header.Set("X-API-Version", "v1")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.True(t, metricsHandlerCalled, "Metrics handler should be called")
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	// Test 4: /users with v1 header should use v1 handler
+	t.Run("users with v1 header", func(t *testing.T) {
+		v1UsersHandlerCalled = false
+		v2UsersHandlerCalled = false
+		req := httptest.NewRequest("GET", "/users", nil)
+		req.Header.Set("X-API-Version", "v1")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.True(t, v1UsersHandlerCalled, "V1 users handler should be called")
+		assert.False(t, v2UsersHandlerCalled, "V2 users handler should NOT be called")
+		assert.Equal(t, "v1 users", w.Body.String())
+	})
+
+	// Test 5: /users with v2 header should use v2 handler
+	t.Run("users with v2 header", func(t *testing.T) {
+		v1UsersHandlerCalled = false
+		v2UsersHandlerCalled = false
+		req := httptest.NewRequest("GET", "/users", nil)
+		req.Header.Set("X-API-Version", "v2")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.False(t, v1UsersHandlerCalled, "V1 users handler should NOT be called")
+		assert.True(t, v2UsersHandlerCalled, "V2 users handler should be called")
+		assert.Equal(t, "v2 users", w.Body.String())
+	})
+
+	// Test 6: /users without header should use default (v1)
+	t.Run("users without header uses default", func(t *testing.T) {
+		v1UsersHandlerCalled = false
+		v2UsersHandlerCalled = false
+		req := httptest.NewRequest("GET", "/users", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.True(t, v1UsersHandlerCalled, "V1 users handler should be called (default)")
+		assert.False(t, v2UsersHandlerCalled, "V2 users handler should NOT be called")
+		assert.Equal(t, "v1 users", w.Body.String())
+	})
 }
 
 // TestRouteHandlerIsolationWithMiddleware tests that multiple routes with

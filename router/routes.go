@@ -64,14 +64,19 @@ type ParamConstraint struct {
 
 // Route represents a registered route with optional constraints.
 // This provides a fluent interface for adding constraints and metadata.
+//
+// Routes use deferred registration - they are collected when created but only
+// added to the routing tree during Warmup() or on first request. This allows
+// constraints to be added via fluent API without re-registration issues.
 type Route struct {
 	router           *Router
+	version          string // API version (empty = standard tree, non-empty = version-specific tree)
 	method           string
 	path             string
 	handlers         []HandlerFunc
 	constraints      []RouteConstraint          // Legacy regex-based constraints
 	typedConstraints map[string]ParamConstraint // New typed constraints
-	finalized        bool                       // Prevents duplicate route registration
+	registered       bool                       // Whether route has been registered to a tree
 	compiled         bool                       // Whether typed constraints have been compiled
 
 	// Route metadata (immutable after registration)
@@ -254,12 +259,16 @@ func (r *Router) HEAD(path string, handlers ...HandlerFunc) *Route {
 
 // addRouteWithConstraints adds a route with support for parameter constraints.
 // Returns a Route object that can be used to add constraints and metadata.
-// This method uses atomic operations for thread safety.
+//
+// Routes use deferred registration - they are added to pendingRoutes and only
+// registered to the routing tree during Warmup() or on first request. This allows
+// the fluent Where* API to work correctly without re-registration issues.
 func (r *Router) addRouteWithConstraints(method, path string, handlers []HandlerFunc) *Route {
 	// Check if router is frozen
 	if r.frozen.Load() {
 		panic("cannot register routes after router is frozen (call Freeze() before serving)")
 	}
+
 	// Analyze route for introspection
 	handlerName := "anonymous"
 	if len(handlers) > 0 {
@@ -279,7 +288,6 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 	paramCount := strings.Count(path, ":")
 
 	// Runtime warning for routes with excessive parameters (>8)
-	// Routes with >8 parameters require map storage instead of array storage
 	if paramCount > 8 {
 		r.emit(DiagHighParamCount, "route has more than 8 parameters, using map storage instead of array", map[string]any{
 			"method":         method,
@@ -292,7 +300,7 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 	// Check if route is static (no parameters)
 	isStatic := !strings.Contains(path, ":") && !strings.HasSuffix(path, "*")
 
-	// Store route info for introspection (protected by separate mutex for low-frequency access)
+	// Store route info for introspection
 	r.routeTree.routesMutex.Lock()
 	r.routeTree.routes = append(r.routeTree.routes, RouteInfo{
 		Method:      method,
@@ -301,14 +309,15 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 		Middleware:  middlewareNames,
 		Constraints: make(map[string]string), // Will be populated when constraints are added
 		IsStatic:    isStatic,
-		Version:     "", // Will be set for version-specific routes
+		Version:     "", // Standard tree (non-versioned)
 		ParamCount:  paramCount,
 	})
 	r.routeTree.routesMutex.Unlock()
 
-	// Create route object for constraint support
+	// Create route object for constraint support (deferred registration)
 	route := &Route{
 		router:   r,
+		version:  "", // Empty = standard tree
 		method:   method,
 		path:     path,
 		handlers: handlers,
@@ -317,9 +326,17 @@ func (r *Router) addRouteWithConstraints(method, path string, handlers []Handler
 	// Record route registration for metrics
 	r.recordRouteRegistration(method, path)
 
-	// Finalize the route immediately so it's ready for use.
-	// If constraints are added later via Where(), the route template will be updated accordingly.
-	route.finalizeRoute()
+	// Add to pending routes for deferred registration during Warmup()
+	// If warmup has already been called, register immediately
+	r.pendingRoutesMu.Lock()
+	if r.warmedUp {
+		// Warmup already happened, register immediately
+		r.pendingRoutesMu.Unlock()
+		route.registerRoute()
+	} else {
+		r.pendingRoutes = append(r.pendingRoutes, route)
+		r.pendingRoutesMu.Unlock()
+	}
 
 	return route
 }
@@ -352,20 +369,21 @@ func (r *Router) Routes() []RouteInfo {
 	return routes
 }
 
-// finalizeRoute adds the route to the radix tree with its current constraints.
-// This is called automatically when the route is created or when constraints are added.
-// It uses the finalized flag to prevent duplicate route registration.
-// This method is thread-safe and uses a mutex to protect route modifications.
+// registerRoute adds the route to the appropriate radix tree with its constraints.
+// This is called during Warmup() for deferred route registration.
+// The route.version field determines which tree to use:
+//   - Empty string: standard tree
+//   - Non-empty: version-specific tree
 //
-// Also compiles route into template for matching
-func (route *Route) finalizeRoute() {
+// This method is thread-safe and uses a mutex to prevent double registration.
+func (route *Route) registerRoute() {
 	route.mu.Lock()
 	defer route.mu.Unlock()
 
-	if route.finalized {
-		return // Already added to tree, skip re-registration
+	if route.registered {
+		return // Already registered, skip
 	}
-	route.finalized = true
+	route.registered = true
 
 	// Combine global middleware with route handlers
 	// IMPORTANT: Create a new slice to avoid aliasing bugs with append
@@ -379,40 +397,54 @@ func (route *Route) finalizeRoute() {
 	allConstraints := route.convertTypedConstraintsToRegex()
 	allConstraints = append(allConstraints, route.constraints...)
 
-	// Add route to tree
-	route.router.addRouteToTree(route.method, route.path, allHandlers, allConstraints)
+	// Add route to appropriate tree based on version
+	if route.version != "" {
+		// Version-specific tree - do NOT add to global route compiler
+		// Versioned routes use version-specific trees and caches
+		route.router.addVersionRoute(route.version, route.method, route.path, allHandlers, allConstraints)
+	} else {
+		// Standard tree
+		route.router.addRouteToTree(route.method, route.path, allHandlers, allConstraints)
 
-	// Compile route for matching (if enabled)
-	// Only add to route compiler if not a wildcard (wildcards use tree)
-	if route.router.useTemplates && route.router.routeCompiler != nil {
-		// Convert RouteConstraint to compiler.RouteConstraint
-		compilerConstraints := make([]compiler.RouteConstraint, len(allConstraints))
-		for i, c := range allConstraints {
-			compilerConstraints[i] = compiler.RouteConstraint{
-				Param:   c.Param,
-				Pattern: c.Pattern,
+		// Compile route for matching (if enabled)
+		// Standard tree routes (non-versioned) are added to the global compiler
+		// so they can be matched BEFORE versioning kicks in. This ensures:
+		// 1. Routes like r.GET("/users/:id") are matched before version detection
+		// 2. Version tree routes are only used when explicit version prefix is present
+		//
+		// Note: Routes with constraints need special handling - remove old entry
+		// before adding new one to ensure constraints are validated
+		hasConstraints := len(allConstraints) > 0
+		if route.router.useTemplates && route.router.routeCompiler != nil {
+			// Convert constraints for compiler
+			var compilerConstraints []compiler.RouteConstraint
+			if hasConstraints {
+				compilerConstraints = make([]compiler.RouteConstraint, len(allConstraints))
+				for i, c := range allConstraints {
+					compilerConstraints[i] = compiler.RouteConstraint{
+						Param:   c.Param,
+						Pattern: c.Pattern,
+					}
+				}
 			}
+
+			// Convert HandlerFunc to compiler.HandlerFunc
+			compilerHandlers := make([]compiler.HandlerFunc, len(allHandlers))
+			for i, h := range allHandlers {
+				compilerHandlers[i] = compiler.HandlerFunc(h)
+			}
+			compiledRoute := compiler.CompileRoute(route.method, route.path, compilerHandlers, compilerConstraints)
+
+			// Cache the converted handlers
+			compiledRoute.SetCachedHandlers(unsafe.Pointer(&allHandlers))
+
+			// Remove any existing route for this pattern (in case constraints were added)
+			route.router.routeCompiler.RemoveRoute(route.method, route.path)
+
+			// Add compiled route
+			route.router.routeCompiler.AddRoute(compiledRoute)
 		}
-		// Convert HandlerFunc to compiler.HandlerFunc (type assertion)
-		compilerHandlers := make([]compiler.HandlerFunc, len(allHandlers))
-		for i, h := range allHandlers {
-			compilerHandlers[i] = compiler.HandlerFunc(h)
-		}
-		compiledRoute := compiler.CompileRoute(route.method, route.path, compilerHandlers, compilerConstraints)
-
-		// Cache the converted handlers
-		// Store pointer to allHandlers slice so we don't need to allocate on every request
-		compiledRoute.SetCachedHandlers(unsafe.Pointer(&allHandlers))
-
-		// Remove any existing route for this pattern (in case constraints were added after initial registration)
-		route.router.routeCompiler.RemoveRoute(route.method, route.path)
-
-		// Add new/updated compiled route
-		route.router.routeCompiler.AddRoute(compiledRoute)
 	}
-
-	// Routes will be compiled during Warmup() call
-	// No automatic compilation to avoid deadlocks
 }
 
 // Where adds a constraint to a route parameter using a regular expression.
@@ -442,23 +474,19 @@ func (route *Route) Where(param, pattern string) *Route {
 
 	// Lock route for modifications
 	route.mu.Lock()
-
-	// Add constraint to the route
 	route.constraints = append(route.constraints, RouteConstraint{
 		Param:   param,
 		Pattern: regex,
 	})
-
-	// Reset finalized flag to allow re-registration with new constraints
-	route.finalized = false
-
+	wasRegistered := route.registered
+	route.registered = false // Allow re-registration with new constraints
 	route.mu.Unlock()
 
 	// Update RouteInfo with constraint for introspection
 	route.router.routeTree.routesMutex.Lock()
 	for i := range route.router.routeTree.routes {
 		info := &route.router.routeTree.routes[i]
-		if info.Method == route.method && info.Path == route.path {
+		if info.Method == route.method && info.Path == route.path && info.Version == route.version {
 			if info.Constraints == nil {
 				info.Constraints = make(map[string]string)
 			}
@@ -468,8 +496,10 @@ func (route *Route) Where(param, pattern string) *Route {
 	}
 	route.router.routeTree.routesMutex.Unlock()
 
-	// Re-add the route to the tree with updated constraints
-	route.finalizeRoute()
+	// If route was already registered (after warmup), re-register with new constraints
+	if wasRegistered {
+		route.registerRoute()
+	}
 
 	return route
 }
@@ -514,9 +544,13 @@ func (r *Route) WhereUUID(name string) *Route {
 	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintUUID}
-	r.finalized = false
+	wasRegistered := r.registered
+	r.registered = false
 	r.mu.Unlock()
-	r.finalizeRoute()
+
+	if wasRegistered {
+		r.registerRoute()
+	}
 	return r
 }
 
@@ -537,9 +571,13 @@ func (r *Route) WhereInt(name string) *Route {
 	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintInt}
-	r.finalized = false
+	wasRegistered := r.registered
+	r.registered = false
 	r.mu.Unlock()
-	r.finalizeRoute()
+
+	if wasRegistered {
+		r.registerRoute()
+	}
 	return r
 }
 
@@ -553,9 +591,13 @@ func (r *Route) WhereFloat(name string) *Route {
 	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintFloat}
-	r.finalized = false
+	wasRegistered := r.registered
+	r.registered = false
 	r.mu.Unlock()
-	r.finalizeRoute()
+
+	if wasRegistered {
+		r.registerRoute()
+	}
 	return r
 }
 
@@ -569,9 +611,13 @@ func (r *Route) WhereRegex(name, pattern string) *Route {
 	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintRegex, Pattern: pattern}
-	r.finalized = false
+	wasRegistered := r.registered
+	r.registered = false
 	r.mu.Unlock()
-	r.finalizeRoute()
+
+	if wasRegistered {
+		r.registerRoute()
+	}
 	return r
 }
 
@@ -588,9 +634,13 @@ func (r *Route) WhereEnum(name string, values ...string) *Route {
 		Kind: ConstraintEnum,
 		Enum: append([]string(nil), values...),
 	}
-	r.finalized = false
+	wasRegistered := r.registered
+	r.registered = false
 	r.mu.Unlock()
-	r.finalizeRoute()
+
+	if wasRegistered {
+		r.registerRoute()
+	}
 	return r
 }
 
@@ -604,9 +654,13 @@ func (r *Route) WhereDate(name string) *Route {
 	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintDate}
-	r.finalized = false
+	wasRegistered := r.registered
+	r.registered = false
 	r.mu.Unlock()
-	r.finalizeRoute()
+
+	if wasRegistered {
+		r.registerRoute()
+	}
 	return r
 }
 
@@ -620,9 +674,13 @@ func (r *Route) WhereDateTime(name string) *Route {
 	r.mu.Lock()
 	r.ensureTypedConstraints()
 	r.typedConstraints[name] = ParamConstraint{Kind: ConstraintDateTime}
-	r.finalized = false
+	wasRegistered := r.registered
+	r.registered = false
 	r.mu.Unlock()
-	r.finalizeRoute()
+
+	if wasRegistered {
+		r.registerRoute()
+	}
 	return r
 }
 

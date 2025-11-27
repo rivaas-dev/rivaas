@@ -585,6 +585,7 @@ func TestAtomicTreeConsistency(t *testing.T) {
 }
 
 // TestAtomicTreeVersioning tests that the version counter is incremented correctly.
+// Note: Routes use deferred registration, so version only increments after Warmup().
 func TestAtomicTreeVersioning(t *testing.T) {
 	t.Parallel()
 	r := MustNew()
@@ -596,16 +597,19 @@ func TestAtomicTreeVersioning(t *testing.T) {
 		c.String(http.StatusOK, "OK")
 	})
 
-	// Version should be incremented
-	newVersion := atomic.LoadUint64(&r.routeTree.version)
-	assert.Greater(t, newVersion, initialVersion, "Version should be incremented, got %d -> %d", initialVersion, newVersion)
+	// Trigger warmup to register pending routes to the tree
+	r.Warmup()
 
-	// Register another route
+	// Version should be incremented after warmup registers routes
+	newVersion := atomic.LoadUint64(&r.routeTree.version)
+	assert.Greater(t, newVersion, initialVersion, "Version should be incremented after warmup, got %d -> %d", initialVersion, newVersion)
+
+	// Register another route (post-warmup routes are registered immediately)
 	r.POST("/test", func(c *Context) {
 		c.String(http.StatusOK, "OK")
 	})
 
-	// Version should be incremented again
+	// Version should be incremented again (immediate registration after warmup)
 	finalVersion := atomic.LoadUint64(&r.routeTree.version)
 	assert.Greater(t, finalVersion, newVersion, "Version should be incremented again, got %d -> %d", newVersion, finalVersion)
 }

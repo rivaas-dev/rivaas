@@ -15,7 +15,6 @@
 package router_test
 
 import (
-	"rivaas.dev/router/versioning"
 	"bufio"
 	"encoding/json"
 	"errors"
@@ -23,6 +22,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+
+	"rivaas.dev/router/version"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -230,7 +231,7 @@ var _ = Describe("Router Integration", func() {
 			It("should route by version header", func() {
 				rVersioned := router.MustNew(
 					router.WithVersioning(
-						versioning.WithHeaderVersioning("X-API-Version"),
+						version.WithHeaderDetection("X-API-Version"),
 					),
 				)
 

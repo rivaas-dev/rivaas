@@ -15,11 +15,12 @@
 package router
 
 import (
-	"rivaas.dev/router/versioning"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"rivaas.dev/router/version"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -81,10 +82,10 @@ func (suite *AdvancedRoutingTestSuite) TestWildcardRoutes() {
 func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("API-Version"),
-			versioning.WithQueryVersioning("version"),
-			versioning.WithDefaultVersion("v1"),
-			versioning.WithValidVersions("v1", "v2"),
+			version.WithHeaderDetection("API-Version"),
+			version.WithQueryDetection("version"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2"),
 		),
 	)
 
@@ -140,8 +141,8 @@ func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
 func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 
@@ -177,7 +178,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
 func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
 	r := MustNew(
 		WithVersioning(
-			versioning.WithCustomVersionDetector(func(req *http.Request) string {
+			version.WithCustomDetection(func(req *http.Request) string {
 				// Custom logic: check subdomain
 				host := req.Host
 				if strings.HasPrefix(host, "v2.") {
@@ -188,7 +189,7 @@ func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
 				}
 				return "v1" // default
 			}),
-			versioning.WithDefaultVersion("v1"),
+			version.WithDefault("v1"),
 		),
 	)
 
@@ -218,12 +219,15 @@ func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
 func (suite *AdvancedRoutingTestSuite) TestContextVersionMethods() {
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 
-	r.GET("/version-test", func(c *Context) {
+	// Routes must be registered via Version() to get version detection
+	// Non-versioned routes (r.GET) bypass version detection entirely
+	v1 := r.Version("v1")
+	v1.GET("/version-test", func(c *Context) {
 		version := c.Version()
 		isV1 := c.IsVersion("v1")
 		isV2 := c.IsVersion("v2")
@@ -251,8 +255,8 @@ func (suite *AdvancedRoutingTestSuite) TestContextVersionMethods() {
 func (suite *AdvancedRoutingTestSuite) TestPerformance() {
 	r := MustNew(
 		WithVersioning(
-			versioning.WithHeaderVersioning("API-Version"),
-			versioning.WithDefaultVersion("v1"),
+			version.WithHeaderDetection("API-Version"),
+			version.WithDefault("v1"),
 		),
 	)
 
@@ -325,15 +329,15 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 	// Test different versioning configurations
 	configs := []struct {
 		name     string
-		config   []versioning.Option
+		config   []version.Option
 		request  func() *http.Request
 		expected string
 	}{
 		{
 			name: "HeaderVersioning",
-			config: []versioning.Option{
-				versioning.WithHeaderVersioning("X-API-Version"),
-				versioning.WithDefaultVersion("v1"),
+			config: []version.Option{
+				version.WithHeaderDetection("X-API-Version"),
+				version.WithDefault("v1"),
 			},
 			request: func() *http.Request {
 				req := httptest.NewRequest("GET", "/test", nil)
@@ -344,9 +348,9 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 		},
 		{
 			name: "QueryVersioning",
-			config: []versioning.Option{
-				versioning.WithQueryVersioning("v"),
-				versioning.WithDefaultVersion("v1"),
+			config: []version.Option{
+				version.WithQueryDetection("v"),
+				version.WithDefault("v1"),
 			},
 			request: func() *http.Request {
 				return httptest.NewRequest("GET", "/test?v=v2", nil)
@@ -355,8 +359,8 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 		},
 		{
 			name: "DefaultVersion",
-			config: []versioning.Option{
-				versioning.WithDefaultVersion("v3"),
+			config: []version.Option{
+				version.WithDefault("v3"),
 			},
 			request: func() *http.Request {
 				return httptest.NewRequest("GET", "/test", nil)

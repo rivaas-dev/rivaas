@@ -15,10 +15,11 @@
 package router
 
 import (
-	"rivaas.dev/router/versioning"
 	"net/http"
 	"testing"
 	"unsafe"
+
+	"rivaas.dev/router/version"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -150,7 +151,7 @@ func TestStructSizes(t *testing.T) {
 			name:         "Router",
 			size:         unsafe.Sizeof(Router{}),
 			expectedSize: 0,   // Not checking exact size, just documenting
-			maxSize:      400, // Warn if Router grows beyond reasonable size
+			maxSize:      450, // Warn if Router grows beyond reasonable size (includes deferred registration fields)
 		},
 	}
 
@@ -195,7 +196,8 @@ func TestAtomicOperationsSafety(t *testing.T) {
 	t.Run("atomicVersionTrees operations", func(t *testing.T) {
 		t.Parallel()
 		r := MustNew(WithVersioning(
-			versioning.WithQueryVersioning("version"),
+			version.WithQueryDetection("version"),
+			version.WithDefault("v1"),
 		))
 
 		// Register a versioned route

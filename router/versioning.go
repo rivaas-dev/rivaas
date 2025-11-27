@@ -22,10 +22,10 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"rivaas.dev/router/versioning"
+	"rivaas.dev/router/version"
 )
 
-// WithVersioning configures the router with API versioning support using the versioning engine.
+// WithVersioning configures the router with API versioning support using functional options.
 // This enables version detection from headers, query parameters, paths, or Accept headers.
 //
 // Panics if the versioning configuration is invalid. Use New() instead of MustNew() if you need
@@ -35,14 +35,27 @@ import (
 //
 //	router := router.MustNew(
 //	    router.WithVersioning(
-//	        versioning.WithHeaderVersioning("API-Version"),
-//	        versioning.WithDefaultVersion("v1"),
+//	        version.WithHeaderDetection("X-API-Version"),
+//	        version.WithDefault("v1"),
 //	    ),
 //	)
-func WithVersioning(opts ...versioning.Option) Option {
+//
+// With multiple detection strategies:
+//
+//	router := router.MustNew(
+//	    router.WithVersioning(
+//	        version.WithPathDetection("/api/v{version}"),
+//	        version.WithHeaderDetection("X-API-Version"),
+//	        version.WithQueryDetection("v"),
+//	        version.WithDefault("v2"),
+//	        version.WithResponseHeaders(),
+//	        version.WithSunsetEnforcement(),
+//	    ),
+//	)
+func WithVersioning(opts ...version.Option) Option {
 	return func(r *Router) {
 		// Create engine with options
-		engine, err := versioning.New(opts...)
+		engine, err := version.New(opts...)
 		if err != nil {
 			panic(fmt.Sprintf("failed to create versioning engine: %v", err))
 		}
@@ -73,31 +86,32 @@ type atomicVersionTrees struct {
 	trees unsafe.Pointer // *map[string]map[string]*node (version -> method -> tree)
 }
 
-// VersionRouter represents a version-specific router
+// VersionRouter represents a version-specific router with lifecycle configuration.
 type VersionRouter struct {
-	router  *Router
-	version string
+	router    *Router
+	version   string
+	lifecycle *version.LifecycleConfig
 }
 
 // selectRoutingTree selects the appropriate route tree based on version and method.
 // Returns nil if no version-specific tree exists, indicating standard routing should be used.
 //
 // If the requested version's tree doesn't exist, falls back to the default version tree.
-func (r *Router) selectRoutingTree(method, version string) *node {
-	if r.versionEngine == nil || version == "" {
+func (r *Router) selectRoutingTree(method, ver string) *node {
+	if r.versionEngine == nil || ver == "" {
 		return nil
 	}
 
 	// Try to get version-specific tree
-	tree := r.getVersionTree(version, method)
+	tree := r.getVersionTree(ver, method)
 	if tree != nil {
 		return tree
 	}
 
 	// Fallback to default version tree if available
 	cfg := r.versionEngine.Config()
-	if cfg.DefaultVersion != "" && version != cfg.DefaultVersion {
-		tree = r.getVersionTree(cfg.DefaultVersion, method)
+	if cfg.DefaultVersion() != "" && ver != cfg.DefaultVersion() {
+		tree = r.getVersionTree(cfg.DefaultVersion(), method)
 		if tree != nil {
 			return tree
 		}
@@ -137,7 +151,7 @@ func (r *Router) processVersioning(req *http.Request, path string) versionContex
 	}
 
 	// Step 1: Detect version from request using the engine
-	version := r.versionEngine.DetectVersion(req)
+	ver := r.versionEngine.DetectVersion(req)
 
 	// Step 2: Prepare routing path (strip version if needed)
 	// For path-based versioning, we need to strip the actual segment from the path,
@@ -149,24 +163,24 @@ func (r *Router) processVersioning(req *http.Request, path string) versionContex
 	}
 
 	// Step 3: Select appropriate tree
-	tree := r.selectRoutingTree(req.Method, version)
+	tree := r.selectRoutingTree(req.Method, ver)
 
 	return versionContext{
-		version:     version,
+		version:     ver,
 		routingPath: routingPath,
 		tree:        tree,
 	}
 }
 
 // getVersionTree atomically gets the tree for a specific version and HTTP method
-func (r *Router) getVersionTree(version, method string) *node {
+func (r *Router) getVersionTree(ver, method string) *node {
 	versionTreesPtr := atomic.LoadPointer(&r.versionTrees.trees)
 	if versionTreesPtr == nil {
 		return nil
 	}
 	versionTrees := *(*map[string]map[string]*node)(versionTreesPtr)
 
-	if methodTrees, exists := versionTrees[version]; exists {
+	if methodTrees, exists := versionTrees[ver]; exists {
 		return methodTrees[method]
 	}
 	return nil
@@ -182,13 +196,13 @@ func (r *Router) getVersionTree(version, method string) *node {
 // - Phase 1 handles existing version/method combinations directly
 // - Phase 2 ensures thread-safe creation of new version trees
 // - Deep copy prevents race conditions when creating new method trees
-func (r *Router) addVersionRoute(version, method, path string, handlers []HandlerFunc, constraints []RouteConstraint) {
+func (r *Router) addVersionRoute(ver, method, path string, handlers []HandlerFunc, constraints []RouteConstraint) {
 	// Try to get the existing tree for this version/method combination
 	// This is the common case after initial setup
 	versionTreesPtr := atomic.LoadPointer(&r.versionTrees.trees)
 	if versionTreesPtr != nil {
 		versionTrees := *(*map[string]map[string]*node)(versionTreesPtr)
-		if methodTrees, exists := versionTrees[version]; exists {
+		if methodTrees, exists := versionTrees[ver]; exists {
 			if tree, exists := methodTrees[method]; exists {
 				// Tree exists, add route directly (thread-safe due to per-node mutex)
 				// No CAS needed - we're only modifying the tree structure, not replacing pointers
@@ -215,7 +229,7 @@ func (r *Router) addVersionRoute(version, method, path string, handlers []Handle
 
 		// Step 2: Double-check if another goroutine created the tree during retry
 		// This is the classic "check-before-copy" pattern in CAS loops
-		if methodTrees, exists := currentTrees[version]; exists {
+		if methodTrees, exists := currentTrees[ver]; exists {
 			if tree, exists := methodTrees[method]; exists {
 				// Another goroutine won the race and created it, use it directly
 				tree.addRouteWithConstraints(path, handlers, constraints)
@@ -237,20 +251,23 @@ func (r *Router) addVersionRoute(version, method, path string, handlers []Handle
 		}
 
 		// Step 4: Add the new version/method tree
-		if newTrees[version] == nil {
-			newTrees[version] = make(map[string]*node)
+		if newTrees[ver] == nil {
+			newTrees[ver] = make(map[string]*node)
 		}
 
-		if newTrees[version][method] == nil {
-			newTrees[version][method] = &node{}
+		if newTrees[ver][method] == nil {
+			newTrees[ver][method] = &node{}
 		}
 
 		// Add route to the newly created tree
-		newTrees[version][method].addRouteWithConstraints(path, handlers, constraints)
+		newTrees[ver][method].addRouteWithConstraints(path, handlers, constraints)
 
 		// Step 5: Attempt atomic compare-and-swap
-		// Only succeeds if no other goroutine modified the pointer since step 1
-		if atomic.CompareAndSwapPointer(&r.versionTrees.trees, versionTreesPtr, unsafe.Pointer(&newTrees)) {
+		// IMPORTANT: Allocate on heap to avoid storing pointer to stack variable
+		// The map needs to outlive this function call
+		heapTrees := new(map[string]map[string]*node)
+		*heapTrees = newTrees
+		if atomic.CompareAndSwapPointer(&r.versionTrees.trees, versionTreesPtr, unsafe.Pointer(heapTrees)) {
 			return // Successfully updated, we won the race
 		}
 		// CAS failed - another goroutine modified the tree between steps 1 and 5
@@ -259,12 +276,74 @@ func (r *Router) addVersionRoute(version, method, path string, handlers []Handle
 	}
 }
 
-// Version creates a version-specific router
-func (r *Router) Version(version string) *VersionRouter {
-	return &VersionRouter{
+// Version creates a version-specific router with optional lifecycle configuration.
+// Lifecycle options configure deprecation, sunset dates, and migration documentation.
+//
+// Example without lifecycle:
+//
+//	v1 := r.Version("v1")
+//	v1.GET("/users", listUsersV1)
+//
+// Example with lifecycle:
+//
+//	v1 := r.Version("v1",
+//	    version.Deprecated(),
+//	    version.Sunset(time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)),
+//	    version.MigrationDocs("https://docs.example.com/v1-to-v2"),
+//	)
+//	v1.GET("/users", listUsersV1)
+func (r *Router) Version(ver string, opts ...version.LifecycleOption) *VersionRouter {
+	vr := &VersionRouter{
 		router:  r,
-		version: version,
+		version: ver,
 	}
+
+	// Apply lifecycle options if any
+	if len(opts) > 0 {
+		vr.lifecycle = version.ApplyLifecycleOptions(opts...)
+
+		// Register lifecycle with the engine
+		if r.versionEngine != nil {
+			r.versionEngine.Config().SetLifecycle(ver, vr.lifecycle)
+		}
+	}
+
+	return vr
+}
+
+// Configure applies lifecycle options to an existing version router.
+// Use this when you need to configure lifecycle after defining routes.
+//
+// Example:
+//
+//	v1 := r.Version("v1")
+//	v1.GET("/users", listUsersV1)
+//
+//	// Later, configure lifecycle
+//	v1.Configure(
+//	    version.Deprecated(),
+//	    version.Sunset(sunsetDate),
+//	)
+func (vr *VersionRouter) Configure(opts ...version.LifecycleOption) *VersionRouter {
+	if len(opts) == 0 {
+		return vr
+	}
+
+	if vr.lifecycle == nil {
+		vr.lifecycle = &version.LifecycleConfig{}
+	}
+
+	// Apply options to existing lifecycle config
+	for _, opt := range opts {
+		opt(vr.lifecycle)
+	}
+
+	// Update engine's lifecycle config
+	if vr.router.versionEngine != nil {
+		vr.router.versionEngine.Config().SetLifecycle(vr.version, vr.lifecycle)
+	}
+
+	return vr
 }
 
 // Handle adds a route with the specified HTTP method to the version-specific router.
@@ -313,7 +392,8 @@ func (vr *VersionRouter) HEAD(path string, handlers ...HandlerFunc) *Route {
 	return vr.Handle("HEAD", path, handlers...)
 }
 
-// addVersionRoute adds a route to the version-specific router
+// addVersionRoute adds a route to the version-specific router using deferred registration.
+// The route's version field is set so it will be registered to the correct tree during Warmup().
 func (vr *VersionRouter) addVersionRoute(method, path string, handlers []HandlerFunc) *Route {
 	// Analyze route for introspection
 	handlerName := "anonymous"
@@ -336,7 +416,7 @@ func (vr *VersionRouter) addVersionRoute(method, path string, handlers []Handler
 	// Check if route is static (no parameters)
 	isStatic := !strings.Contains(path, ":") && !strings.HasSuffix(path, "*")
 
-	// Store route info for introspection (protected by separate mutex for low-frequency access)
+	// Store route info for introspection
 	vr.router.routeTree.routesMutex.Lock()
 	vr.router.routeTree.routes = append(vr.router.routeTree.routes, RouteInfo{
 		Method:      method,
@@ -345,31 +425,33 @@ func (vr *VersionRouter) addVersionRoute(method, path string, handlers []Handler
 		Middleware:  middlewareNames,
 		Constraints: make(map[string]string), // Will be populated when constraints are added
 		IsStatic:    isStatic,
-		Version:     vr.version, // Set the version for version-specific routes
+		Version:     vr.version, // Version-specific route
 		ParamCount:  paramCount,
 	})
 	vr.router.routeTree.routesMutex.Unlock()
 
-	// Combine global middleware with route handlers
-	// IMPORTANT: Create a new slice to avoid aliasing bugs with append
-	vr.router.middlewareMu.RLock()
-	allHandlers := make([]HandlerFunc, 0, len(vr.router.middleware)+len(handlers))
-	allHandlers = append(allHandlers, vr.router.middleware...)
-	vr.router.middlewareMu.RUnlock()
-	allHandlers = append(allHandlers, handlers...)
-
-	// Add to version-specific tree
-	vr.router.addVersionRoute(vr.version, method, path, allHandlers, nil)
-
 	// Record route registration for metrics
 	vr.router.recordRouteRegistration(method, path)
 
-	// Create route object for consistency
+	// Create route object with version field set for deferred registration
 	route := &Route{
 		router:   vr.router,
+		version:  vr.version, // KEY: This ensures the route goes to the version-specific tree
 		method:   method,
 		path:     path,
 		handlers: handlers,
+	}
+
+	// Add to pending routes for deferred registration during Warmup()
+	// If warmup has already been called, register immediately
+	vr.router.pendingRoutesMu.Lock()
+	if vr.router.warmedUp {
+		// Warmup already happened, register immediately
+		vr.router.pendingRoutesMu.Unlock()
+		route.registerRoute()
+	} else {
+		vr.router.pendingRoutes = append(vr.router.pendingRoutes, route)
+		vr.router.pendingRoutesMu.Unlock()
 	}
 
 	return route

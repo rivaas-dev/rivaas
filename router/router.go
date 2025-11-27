@@ -33,7 +33,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"rivaas.dev/router/compiler"
-	"rivaas.dev/router/versioning"
+	"rivaas.dev/router/version"
 )
 
 // noopLogger is a singleton no-op logger used when no observability is configured.
@@ -141,8 +141,14 @@ type Router struct {
 	observability ObservabilityRecorder // Unified observability (metrics, tracing, logging)
 	diagnostics   DiagnosticHandler     // Optional diagnostic event handler
 
+	// Deferred route registration
+	pendingRoutes   []*Route   // Routes waiting to be registered during Warmup
+	pendingRoutesMu sync.Mutex // Protects pendingRoutes slice and warmedUp flag
+	warmupOnce      sync.Once  // Ensures warmup runs exactly once
+	warmedUp        bool       // True after Warmup has completed
+
 	// Routing features
-	versionEngine *versioning.Engine // API versioning engine for version detection
+	versionEngine *version.Engine    // API versioning engine for version detection
 	versionTrees  atomicVersionTrees // Version-specific route trees
 	versionCache  sync.Map           // Version-specific compiled routes
 
@@ -808,22 +814,38 @@ func (r *Router) Group(prefix string, middleware ...HandlerFunc) *Group {
 	}
 }
 
-// ServeHTTP implements the http.Handler interface, making Router compatible
-// with the standard library's HTTP server. This method uses different code paths
-// for static and dynamic routes.
+// ServeHTTP implements the http.Handler interface for Router.
+// It matches the incoming HTTP request to a registered route and executes
+// the associated handler chain.
 //
-// The method performs the following:
-//   - Template-based matching for parameter routes
-//   - Global static route table for method+path lookup
-//   - Static route lookup for paths without parameters
-//   - Context pooling to reuse contexts across requests
-//   - Parameter extraction into context arrays
-//   - Path matching for static and parameterized routes
-//   - Optional OpenTelemetry tracing (when enabled)
-//   - Routing with versioning and wildcard support
+// The routing algorithm uses explicit versioning - routes are only versioned
+// if registered via r.Version(). The precedence is:
+//
+//  1. Main tree (non-versioned routes registered via r.GET, r.POST, etc.)
+//     - These routes bypass version detection entirely
+//     - Common for: /health, /metrics, /docs, static assets
+//  2. Version-specific trees (routes registered via r.Version().GET, etc.)
+//     - Only checked if main tree has no match
+//     - Subject to version detection (header/path/query/accept)
+//
+// Within each tree, the lookup order is:
+//  1. Compiled static routes (hash table O(1) lookup)
+//  2. Compiled dynamic routes (pre-compiled patterns with bloom filter)
+//  3. Dynamic tree traversal (fallback for uncached routes)
+//
+// For each request:
+//  1. Resets a pooled context for the request
+//  2. Matches the path to a route (main tree first, then version trees)
+//  3. Extracts URL parameters (for dynamic routes)
+//  4. Executes the handler chain with middleware
+//  5. Returns the context to the pool
 //
 // Static routes and dynamic routes both use context pooling.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// Lazy warmup: ensure routes are registered on first request
+	// This is safe to call multiple times due to sync.Once
+	r.Warmup()
+
 	path := req.URL.Path
 	ctx := req.Context()
 	var obsState any
@@ -846,103 +868,102 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		w = r.observability.WrapResponseWriter(w, obsState)
 	}
 
-	// Try route compilation first (if enabled)
+	// ══════════════════════════════════════════════════════════════════════════
+	// STEP 1: Try main tree FIRST (non-versioned routes)
+	// Routes registered via r.GET(), r.POST() etc. bypass version detection.
+	// This is the fast path for infrastructure endpoints like /health, /metrics.
+	// ══════════════════════════════════════════════════════════════════════════
+
+	// Try compiled routes from main tree (if enabled)
 	if r.useTemplates && r.routeCompiler != nil {
-		// Try static route table first
+		// Try static route table first (O(1) hash lookup)
 		if route := r.routeCompiler.LookupStatic(req.Method, path); route != nil {
 			r.serveCompiledRoute(w, req, route, obsState)
 			return
 		}
 
-		// Try dynamic routes (pre-compiled patterns)
+		// Try dynamic routes (pre-compiled patterns with bloom filter)
 		poolCtx := getContextFromGlobalPool()
-		// Reset paramCount for route matching
 		poolCtx.SetParamCount(0)
 
 		if route := r.routeCompiler.MatchDynamic(req.Method, path, poolCtx); route != nil {
-			// Route matched! Serve with pre-extracted parameters
 			r.serveCompiledRouteWithParams(w, req, route, poolCtx, obsState)
 			return
 		}
 
-		// Return context to pool (will be reacquired if needed for tree fallback)
 		releaseGlobalContext(poolCtx)
 	}
 
-	// Pre-routing: version detection, tree selection, and path transformation
-	// This runs after compiled route paths
-	vc := r.processVersioning(req, path)
-
-	// Use version-specific tree if available
-	if vc.tree != nil {
-		r.serveVersionedRequest(w, req, vc.tree, vc.routingPath, vc.version, obsState)
-		return
-	}
-
-	// Fallback to standard routing (tree traversal)
-	// Use routing path from version context (may have version prefix stripped)
-	path = vc.routingPath
+	// Try main tree's dynamic routing (tree traversal fallback)
 	tree := r.getTreeForMethodDirect(req.Method)
-	if tree == nil {
-		// Handle 404 with observability
-		r.handleNotFoundWithObs(w, req, obsState)
-		return
+	if tree != nil {
+		// Try per-tree compiled routes (legacy path)
+		if tree.compiled != nil {
+			if handlers := tree.compiled.getRoute(path); handlers != nil {
+				r.serveStaticRoute(w, req, handlers, path, "", false, obsState)
+				return
+			}
+		}
+
+		// Try dynamic tree traversal
+		c := getContextFromGlobalPool()
+		c.Request = req
+		c.Response = w
+		c.index = -1
+		c.paramCount = 0
+		c.router = r
+		c.version = "" // Non-versioned route
+
+		handlers, routePattern := tree.getRoute(path, c)
+		if handlers != nil {
+			// Found in main tree - serve without version context
+			c.routeTemplate = routePattern
+			if c.routeTemplate == "" {
+				c.routeTemplate = "_unmatched"
+			}
+
+			var logger *slog.Logger
+			if r.observability != nil {
+				logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
+			} else {
+				logger = noopLogger
+			}
+			c.logger = logger
+
+			c.handlers = handlers
+			c.index = -1
+			c.Next()
+
+			releaseGlobalContext(c)
+
+			if obsState != nil {
+				r.observability.OnRequestEnd(ctx, obsState, w, routePattern)
+			}
+			return
+		}
+
+		releaseGlobalContext(c)
 	}
 
-	// Compiled route lookup
-	// Only use compiled routes if they exist (pre-compiled during warmup)
-	if tree.compiled != nil {
-		if handlers := tree.compiled.getRoute(path); handlers != nil {
-			// Serve static route with observability
-			r.serveStaticRoute(w, req, handlers, path, vc.version, vc.version != "", obsState)
+	// ══════════════════════════════════════════════════════════════════════════
+	// STEP 2: No match in main tree → try version-specific trees
+	// Routes registered via r.Version().GET() are subject to version detection.
+	// ══════════════════════════════════════════════════════════════════════════
+
+	// Only do version detection if versioning is enabled
+	if r.versionEngine != nil {
+		vc := r.processVersioning(req, path)
+
+		if vc.tree != nil {
+			r.serveVersionedRequest(w, req, vc.tree, vc.routingPath, vc.version, obsState)
 			return
 		}
 	}
 
-	// Dynamic route with parameters - use global context pool
-	c := getContextFromGlobalPool()
-	c.Request = req
-	c.Response = w
-	c.index = -1
-	c.paramCount = 0
-	c.router = r
-
-	// Set version from version context
-	c.version = vc.version
-
-	defer releaseGlobalContext(c)
-
-	// Find the route and extract parameters
-	handlers, routePattern := tree.getRoute(path, c)
-	if handlers == nil {
-		r.handleNotFoundWithObs(w, req, obsState)
-		return
-	}
-
-	// Set route template from the matched pattern
-	c.routeTemplate = routePattern
-	if c.routeTemplate == "" {
-		c.routeTemplate = "_unmatched" // Fallback (should rarely happen)
-	}
-
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-	} else {
-		logger = noopLogger
-	}
-	c.logger = logger
-
-	// Execute handlers
-	c.handlers = handlers
-	c.index = -1
-	c.Next()
-
-	// Finish observability
-	if obsState != nil {
-		r.observability.OnRequestEnd(ctx, obsState, w, routePattern)
-	}
+	// ══════════════════════════════════════════════════════════════════════════
+	// STEP 3: No match anywhere → 404
+	// ══════════════════════════════════════════════════════════════════════════
+	r.handleNotFoundWithObs(w, req, obsState)
 }
 
 // handleNotFoundWithObs handles 404 responses with observability support.
@@ -985,9 +1006,12 @@ func (r *Router) serveStaticRoute(w http.ResponseWriter, req *http.Request, hand
 	c.index = -1
 	c.paramCount = 0
 
-	// Set version if versioning is enabled
+	// Set version: explicitly set to provided value or empty for non-versioned routes
+	// Important: Must always set to avoid leftover values from pooled context
 	if hasVersioning {
 		c.version = version
+	} else {
+		c.version = ""
 	}
 
 	// Execute handlers
@@ -1007,7 +1031,10 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	ctx := req.Context()
 
 	// Check if version has compiled routes
-	if compiledValue, ok := r.versionCache.Load(version); ok {
+	// NOTE: Version cache lookup uses version+method as key because different HTTP methods
+	// have different handlers even for the same path
+	cacheKey := version + ":" + req.Method
+	if compiledValue, ok := r.versionCache.Load(cacheKey); ok {
 		if compiled, ok := compiledValue.(*CompiledRouteTable); ok && compiled != nil {
 			// Try compiled routes first - get both handlers and route pattern
 			if handlers, routePath := compiled.getRouteWithPath(path); handlers != nil {
@@ -1186,20 +1213,42 @@ func (r *Router) CompileAllRoutes() {
 	}
 }
 
-// Warmup pre-compiles routes for optimal request handling.
+// Warmup registers all pending routes and pre-compiles them for optimal request handling.
 // This should be called after all routes are registered and before serving requests.
 //
 // Warmup phases:
-// 1. Compile all static routes into hash tables with bloom filters
-// 2. Compile version-specific routes if versioning is enabled
+// 1. Register all pending routes to their appropriate trees (standard or version-specific)
+// 2. Compile all static routes into hash tables with bloom filters
+// 3. Compile version-specific routes if versioning is enabled
 //
-// Warmup prepares the router for handling requests by compiling routes
-// and initializing data structures before traffic arrives.
+// Warmup prepares the router for handling requests by registering routes,
+// compiling data structures, and initializing caches before traffic arrives.
+//
+// Calling Warmup() multiple times is safe - routes are only registered once.
 func (r *Router) Warmup() {
-	// Phase 1: Compile all standard (non-versioned) routes
+	r.warmupOnce.Do(r.doWarmup)
+}
+
+// doWarmup performs the actual warmup work (called via sync.Once).
+func (r *Router) doWarmup() {
+	// CRITICAL: Set warmedUp=true BEFORE clearing pendingRoutes to avoid race condition
+	// Without this, routes added between clearing pendingRoutes and setting warmedUp=true
+	// would be lost (added to empty pendingRoutes, but warmedUp still false, warmup done)
+	r.pendingRoutesMu.Lock()
+	r.warmedUp = true
+	routes := r.pendingRoutes
+	r.pendingRoutes = nil // Clear pending routes
+	r.pendingRoutesMu.Unlock()
+
+	// Phase 1: Register all pending routes to their appropriate trees
+	for _, route := range routes {
+		route.registerRoute()
+	}
+
+	// Phase 2: Compile all standard (non-versioned) routes
 	r.CompileAllRoutes()
 
-	// Phase 2: Compile version-specific routes if versioning is enabled
+	// Phase 3: Compile version-specific routes if versioning is enabled
 	if r.versionEngine != nil {
 		r.compileVersionRoutes()
 	}
@@ -1208,6 +1257,7 @@ func (r *Router) Warmup() {
 // compileVersionRoutes compiles static routes for all version-specific trees
 // and stores them in the version cache (sync.Map).
 // This enables lookup for versioned static routes.
+// Cache key format: "version:method" (e.g., "v1:GET")
 func (r *Router) compileVersionRoutes() {
 	// Load version trees atomically
 	versionTreesPtr := atomic.LoadPointer(&r.versionTrees.trees)
@@ -1217,39 +1267,40 @@ func (r *Router) compileVersionRoutes() {
 
 	versionTrees := *(*map[string]map[string]*node)(versionTreesPtr)
 
-	// Compile static routes for each version
+	// Compile static routes for each version AND method
+	// Each method gets its own compiled table to avoid handler conflicts
 	for version, methodTrees := range versionTrees {
-		// Count static routes across all methods for this version to determine optimal bloom size
-		totalStaticRoutes := 0
-		for _, tree := range methodTrees {
-			if tree != nil {
-				totalStaticRoutes += tree.countStaticRoutes()
+		for method, tree := range methodTrees {
+			if tree == nil {
+				continue
 			}
-		}
 
-		// Calculate optimal bloom filter size (use auto-sizing if default)
-		bloomSize := r.bloomFilterSize
-		if bloomSize == defaultBloomFilterSize {
-			bloomSize = optimalBloomFilterSize(totalStaticRoutes)
-		}
-
-		// Create a single compiled table for this version that will contain routes from all methods
-		compiled := &CompiledRouteTable{
-			routes: make(map[uint64]*CompiledRoute),
-			bloom:  compiler.NewBloomFilter(bloomSize, r.bloomHashFunctions),
-		}
-
-		// Compile routes from ALL method trees into the single table
-		for _, tree := range methodTrees {
-			if tree != nil {
-				// Compile this method's routes into the shared compiled table
-				tree.compileStaticRoutesRecursive(compiled, "")
+			// Count static routes for this method tree
+			staticRoutes := tree.countStaticRoutes()
+			if staticRoutes == 0 {
+				continue
 			}
-		}
 
-		// Store the compiled table for this version (contains routes from all methods)
-		if len(compiled.routes) > 0 {
-			r.versionCache.Store(version, compiled)
+			// Calculate optimal bloom filter size
+			bloomSize := r.bloomFilterSize
+			if bloomSize == defaultBloomFilterSize {
+				bloomSize = optimalBloomFilterSize(staticRoutes)
+			}
+
+			// Create compiled table for this version+method combination
+			compiled := &CompiledRouteTable{
+				routes: make(map[uint64]*CompiledRoute),
+				bloom:  compiler.NewBloomFilter(bloomSize, r.bloomHashFunctions),
+			}
+
+			// Compile routes from this method's tree
+			tree.compileStaticRoutesRecursive(compiled, "")
+
+			// Store with version:method key
+			if len(compiled.routes) > 0 {
+				cacheKey := version + ":" + method
+				r.versionCache.Store(cacheKey, compiled)
+			}
 		}
 	}
 }

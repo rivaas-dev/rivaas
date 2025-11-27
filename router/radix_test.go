@@ -279,17 +279,23 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 		t.Parallel()
 
 		// Create route with 9 parameters to trigger map fallback
+		// NOTE: We must COPY params inside the handler because the context is pooled
+		// and will be reset after ServeHTTP returns. Holding a reference to c.Params
+		// after the request completes would cause a race condition.
 		var capturedParams map[string]string
 		var capturedParamCount int32
+		var paramsMapWasCreated bool
 		r.GET("/a/:p1/b/:p2/c/:p3/d/:p4/e/:p5/f/:p6/g/:p7/h/:p8/i/:p9", func(c *Context) {
-			// Capture Params map and paramCount to verify behavior
-			capturedParams = c.Params
+			// Capture paramCount
 			capturedParamCount = c.paramCount
 
-			// Verify Params map was created
-			if c.Params == nil {
-				c.String(http.StatusInternalServerError, "Params map not created")
-				return
+			// Check if Params map was created and COPY it (not just hold reference)
+			if c.Params != nil {
+				paramsMapWasCreated = true
+				capturedParams = make(map[string]string, len(c.Params))
+				for k, v := range c.Params {
+					capturedParams[k] = v
+				}
 			}
 
 			// Use Param() method which should work for both arrays and map
@@ -308,7 +314,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 		require.Equal(t, 200, w.Code, "Expected status 200, body: %s", w.Body.String())
 
 		// Verify Params map was created
-		require.NotNil(t, capturedParams, "Expected Params map to be created for 9th parameter")
+		require.True(t, paramsMapWasCreated, "Expected Params map to be created for 9th parameter")
 
 		// Verify 9th parameter is accessible via Param() (which checks map)
 		if capturedParamCount >= 8 {

@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/versioning"
+	"rivaas.dev/router/version"
 )
 
 // This example demonstrates comprehensive API versioning strategies.
@@ -31,35 +31,36 @@ func main() {
 	r := router.MustNew(
 		router.WithVersioning(
 			// Header-based versioning (recommended for APIs)
-			versioning.WithHeaderVersioning("API-Version"),
+			version.WithHeaderDetection("API-Version"),
 
 			// Query parameter versioning (convenient for testing)
-			versioning.WithQueryVersioning("version"),
+			version.WithQueryDetection("version"),
 
 			// Path-based versioning (e.g., /v1/users, /v2/users)
-			versioning.WithPathVersioning("/v{version}/"),
+			version.WithPathDetection("/v{version}/"),
 
 			// Accept header versioning (content negotiation)
-			versioning.WithAcceptVersioning("application/vnd.myapi.v{version}+json"),
+			version.WithAcceptDetection("application/vnd.myapi.v{version}+json"),
 
 			// Default version when none specified
-			versioning.WithDefaultVersion("v2"),
+			version.WithDefault("v2"),
 
 			// Valid versions (validation)
-			versioning.WithValidVersions("v1", "v2", "v3"),
+			version.WithValidVersions("v1", "v2", "v3"),
 
-			// Mark v1 as deprecated (sunset date)
-			versioning.WithDeprecatedVersion("v1", time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)),
+			// Response headers
+			version.WithResponseHeaders(),
+			version.WithWarning299(),
 
 			// Observability callbacks
-			versioning.WithObserver(
-				versioning.WithOnDetected(func(version, method string) {
-					log.Printf("📊 Version detected: %s (method: %s)", version, method)
+			version.WithObserver(
+				version.OnDetected(func(ver, method string) {
+					log.Printf("📊 Version detected: %s (method: %s)", ver, method)
 				}),
-				versioning.WithOnMissing(func() {
+				version.OnMissing(func() {
 					log.Println("⚠️  No version specified - using default")
 				}),
-				versioning.WithOnInvalid(func(attempted string) {
+				version.OnInvalid(func(attempted string) {
 					log.Printf("❌ Invalid version attempted: %s", attempted)
 				}),
 			),
@@ -68,8 +69,13 @@ func main() {
 
 	// ============================================================================
 	// Version 1 API (Deprecated)
+	// Use lifecycle options on the version to mark it as deprecated
 	// ============================================================================
-	v1 := r.Version("v1")
+	v1 := r.Version("v1",
+		version.Deprecated(),
+		version.Sunset(time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)),
+		version.MigrationDocs("https://docs.example.com/migrate/v1-to-v2"),
+	)
 	v1.GET("/users", listUsersV1)
 	v1.GET("/users/:id", getUserV1)
 	v1.POST("/users", createUserV1)

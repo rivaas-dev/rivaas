@@ -15,10 +15,11 @@
 package router_test
 
 import (
-	"rivaas.dev/router/versioning"
 	"net/http"
 	"net/http/httptest"
 	"time"
+
+	"rivaas.dev/router/version"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -26,14 +27,200 @@ import (
 )
 
 var _ = Describe("Versioning Integration", func() {
+	Describe("Explicit versioning precedence", func() {
+		// This tests the core design principle: routes are only versioned if explicitly
+		// registered via r.Version(). Routes registered via r.GET() etc. bypass version
+		// detection and always take precedence.
+
+		Describe("Main tree takes precedence over version trees", func() {
+			var r *router.Router
+
+			BeforeEach(func() {
+				r = router.MustNew(router.WithVersioning(
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithDefault("v1"),
+					version.WithValidVersions("v1", "v2"),
+				))
+
+				// Non-versioned routes (main tree) - always accessible
+				r.GET("/health", func(c *router.Context) {
+					c.String(http.StatusOK, "healthy")
+				})
+				r.GET("/metrics", func(c *router.Context) {
+					c.String(http.StatusOK, "metrics")
+				})
+				r.GET("/users/:id", func(c *router.Context) {
+					c.Stringf(http.StatusOK, "main-tree-user-%s", c.Param("id"))
+				})
+
+				// Versioned routes (version trees) - subject to version detection
+				v1 := r.Version("v1")
+				v1.GET("/users", func(c *router.Context) {
+					c.String(http.StatusOK, "v1 users")
+				})
+
+				v2 := r.Version("v2")
+				v2.GET("/users", func(c *router.Context) {
+					c.String(http.StatusOK, "v2 users")
+				})
+			})
+
+			DescribeTable("non-versioned routes bypass version detection",
+				func(path, header, expected string) {
+					req := httptest.NewRequest("GET", path, nil)
+					if header != "" {
+						req.Header.Set("X-API-Version", header)
+					}
+					w := httptest.NewRecorder()
+
+					r.ServeHTTP(w, req)
+
+					Expect(w.Code).To(Equal(http.StatusOK))
+					Expect(w.Body.String()).To(Equal(expected))
+				},
+				// /health is non-versioned - always returns "healthy" regardless of version header
+				Entry("health with no header", "/health", "", "healthy"),
+				Entry("health with v1 header", "/health", "v1", "healthy"),
+				Entry("health with v2 header", "/health", "v2", "healthy"),
+				Entry("health with invalid version", "/health", "v99", "healthy"),
+
+				// /metrics is non-versioned
+				Entry("metrics with no header", "/metrics", "", "metrics"),
+				Entry("metrics with v2 header", "/metrics", "v2", "metrics"),
+
+				// /users/:id is in main tree - takes precedence
+				Entry("users/:id with no header", "/users/123", "", "main-tree-user-123"),
+				Entry("users/:id with v1 header", "/users/456", "v1", "main-tree-user-456"),
+				Entry("users/:id with v2 header", "/users/789", "v2", "main-tree-user-789"),
+			)
+
+			DescribeTable("versioned routes respect version detection",
+				func(path, header, expected string) {
+					req := httptest.NewRequest("GET", path, nil)
+					if header != "" {
+						req.Header.Set("X-API-Version", header)
+					}
+					w := httptest.NewRecorder()
+
+					r.ServeHTTP(w, req)
+
+					Expect(w.Code).To(Equal(http.StatusOK))
+					Expect(w.Body.String()).To(Equal(expected))
+				},
+				// /users (without :id) is only in version trees
+				Entry("users with no header defaults to v1", "/users", "", "v1 users"),
+				Entry("users with v1 header", "/users", "v1", "v1 users"),
+				Entry("users with v2 header", "/users", "v2", "v2 users"),
+				Entry("users with invalid version defaults to v1", "/users", "v99", "v1 users"),
+			)
+		})
+
+		Describe("Mixed routes with path versioning", func() {
+			var r *router.Router
+
+			BeforeEach(func() {
+				r = router.MustNew(router.WithVersioning(
+					version.WithPathDetection("/v{version}/"),
+					version.WithDefault("v1"),
+					version.WithValidVersions("v1", "v2"),
+				))
+
+				// Non-versioned routes - always accessible at exact path
+				r.GET("/health", func(c *router.Context) {
+					c.String(http.StatusOK, "healthy")
+				})
+
+				// Versioned routes
+				v1 := r.Version("v1")
+				v1.GET("/data", func(c *router.Context) {
+					c.String(http.StatusOK, "v1 data")
+				})
+
+				v2 := r.Version("v2")
+				v2.GET("/data", func(c *router.Context) {
+					c.String(http.StatusOK, "v2 data")
+				})
+			})
+
+			It("non-versioned route is accessible without path version", func() {
+				req := httptest.NewRequest("GET", "/health", nil)
+				w := httptest.NewRecorder()
+
+				r.ServeHTTP(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusOK))
+				Expect(w.Body.String()).To(Equal("healthy"))
+			})
+
+			It("versioned routes work with path versioning", func() {
+				req := httptest.NewRequest("GET", "/v2/data", nil)
+				w := httptest.NewRecorder()
+
+				r.ServeHTTP(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusOK))
+				Expect(w.Body.String()).To(Equal("v2 data"))
+			})
+		})
+
+		Describe("No version context for non-versioned routes", func() {
+			var r *router.Router
+
+			BeforeEach(func() {
+				r = router.MustNew(router.WithVersioning(
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithDefault("v1"),
+				))
+
+				// Non-versioned route - version should be empty
+				r.GET("/health", func(c *router.Context) {
+					ver := c.Version()
+					if ver == "" {
+						c.String(http.StatusOK, "no-version")
+					} else {
+						c.Stringf(http.StatusOK, "version-%s", ver)
+					}
+				})
+
+				// Versioned route - version should be set
+				v1 := r.Version("v1")
+				v1.GET("/users", func(c *router.Context) {
+					c.Stringf(http.StatusOK, "version-%s", c.Version())
+				})
+			})
+
+			It("non-versioned route has empty version", func() {
+				req := httptest.NewRequest("GET", "/health", nil)
+				req.Header.Set("X-API-Version", "v1") // Should be ignored
+				w := httptest.NewRecorder()
+
+				r.ServeHTTP(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusOK))
+				Expect(w.Body.String()).To(Equal("no-version"))
+			})
+
+			It("versioned route has version set", func() {
+				req := httptest.NewRequest("GET", "/users", nil)
+				req.Header.Set("X-API-Version", "v1")
+				w := httptest.NewRecorder()
+
+				r.ServeHTTP(w, req)
+
+				Expect(w.Code).To(Equal(http.StatusOK))
+				Expect(w.Body.String()).To(Equal("version-v1"))
+			})
+		})
+	})
+
 	Describe("Header-based versioning", func() {
 		var r *router.Router
 
 		BeforeEach(func() {
 			r = router.MustNew(router.WithVersioning(
-				versioning.WithHeaderVersioning("X-API-Version"),
-				versioning.WithDefaultVersion("v1"),
-				versioning.WithValidVersions("v1", "v2"),
+				version.WithHeaderDetection("X-API-Version"),
+				version.WithDefault("v1"),
+				version.WithValidVersions("v1", "v2"),
 			))
 		})
 
@@ -74,9 +261,9 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			DescribeTable("HTTP methods with version header",
-				func(method, path, version, expected string, status int) {
+				func(method, path, ver, expected string, status int) {
 					req := httptest.NewRequest(method, path, nil)
-					req.Header.Set("X-API-Version", version)
+					req.Header.Set("X-API-Version", ver)
 					w := httptest.NewRecorder()
 
 					r.ServeHTTP(w, req)
@@ -181,9 +368,9 @@ var _ = Describe("Versioning Integration", func() {
 
 		BeforeEach(func() {
 			r = router.MustNew(router.WithVersioning(
-				versioning.WithQueryVersioning("version"),
-				versioning.WithDefaultVersion("v1"),
-				versioning.WithValidVersions("v1", "v2"),
+				version.WithQueryDetection("version"),
+				version.WithDefault("v1"),
+				version.WithValidVersions("v1", "v2"),
 			))
 
 			v1 := r.Version("v1")
@@ -219,7 +406,7 @@ var _ = Describe("Versioning Integration", func() {
 
 		BeforeEach(func() {
 			r = router.MustNew(router.WithVersioning(
-				versioning.WithCustomVersionDetector(func(req *http.Request) string {
+				version.WithCustomDetection(func(req *http.Request) string {
 					// Custom logic: extract version from user-agent
 					ua := req.UserAgent()
 					if ua == "ClientV2" {
@@ -227,6 +414,7 @@ var _ = Describe("Versioning Integration", func() {
 					}
 					return "v1"
 				}),
+				version.WithDefault("v1"),
 			))
 
 			v1 := r.Version("v1")
@@ -267,9 +455,9 @@ var _ = Describe("Versioning Integration", func() {
 
 			BeforeEach(func() {
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
-					versioning.WithValidVersions("v1", "v2", "v3"),
+					version.WithPathDetection("/v{version}/"),
+					version.WithDefault("v1"),
+					version.WithValidVersions("v1", "v2", "v3"),
 				))
 
 				v1 := r.Version("v1")
@@ -313,8 +501,8 @@ var _ = Describe("Versioning Integration", func() {
 
 			BeforeEach(func() {
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/api/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/api/v{version}/"),
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -348,10 +536,10 @@ var _ = Describe("Versioning Integration", func() {
 
 			BeforeEach(func() {
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithHeaderVersioning("X-API-Version"),
-					versioning.WithQueryVersioning("version"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/v{version}/"),
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithQueryDetection("version"),
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -394,9 +582,9 @@ var _ = Describe("Versioning Integration", func() {
 
 			BeforeEach(func() {
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithValidVersions("v1", "v2"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/v{version}/"),
+					version.WithValidVersions("v1", "v2"),
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -433,8 +621,8 @@ var _ = Describe("Versioning Integration", func() {
 
 			BeforeEach(func() {
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/v{version}/"),
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -470,8 +658,8 @@ var _ = Describe("Versioning Integration", func() {
 
 			BeforeEach(func() {
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/v{version}/"),
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -525,8 +713,8 @@ var _ = Describe("Versioning Integration", func() {
 				// Test: No path-based versioning or no version detected
 				// Router without path versioning enabled - PathEnabled will be false
 				r := router.MustNew(router.WithVersioning(
-					versioning.WithHeaderVersioning("X-API-Version"), // Only header versioning
-					versioning.WithDefaultVersion("v1"),
+					version.WithHeaderDetection("X-API-Version"), // Only header versioning
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -550,8 +738,8 @@ var _ = Describe("Versioning Integration", func() {
 			It("handles no version detected", func() {
 				// Test: Empty version detected (version == "")
 				r := router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/v{version}/"),
+					version.WithDefault("v1"),
 				))
 
 				// Register a route without version prefix
@@ -572,8 +760,8 @@ var _ = Describe("Versioning Integration", func() {
 				// Test: Invalid case where prefix extends beyond path
 				// This tests the condition where versionStart >= len(path)
 				r := router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/very/long/prefix/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/very/long/prefix/v{version}/"),
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -597,8 +785,8 @@ var _ = Describe("Versioning Integration", func() {
 				// Test: Version is at end of path (e.g., "/v1")
 				// This also tests: Version at end, strip everything, return "/"
 				r := router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/v{version}/"),
+					version.WithDefault("v1"),
 				))
 
 				// Register route at root
@@ -622,8 +810,8 @@ var _ = Describe("Versioning Integration", func() {
 				// Test: Version doesn't match, don't strip
 				// This tests the condition where version segment doesn't match detected version
 				r := router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/v{version}/"),
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -650,8 +838,8 @@ var _ = Describe("Versioning Integration", func() {
 				// Test: Path becomes root after stripping
 				// This tests the condition where strippedStart >= len(path)
 				r := router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/api/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/api/v{version}/"),
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -675,8 +863,8 @@ var _ = Describe("Versioning Integration", func() {
 				// Additional test: version at end with trailing slash
 				// This also tests: Version at end, strip everything, return "/"
 				r := router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithPathDetection("/v{version}/"),
+					version.WithDefault("v1"),
 				))
 
 				v1 := r.Version("v1")
@@ -703,8 +891,8 @@ var _ = Describe("Versioning Integration", func() {
 
 			BeforeEach(func() {
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithAcceptVersioning("application/vnd.myapi.{version}+json"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithAcceptDetection("application/vnd.myapi.{version}+json"),
+					version.WithDefault("v1"),
 				))
 
 				v2 := r.Version("v2")
@@ -730,8 +918,8 @@ var _ = Describe("Versioning Integration", func() {
 
 			BeforeEach(func() {
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithAcceptVersioning("application/vnd.myapi.{version}+json"),
-					versioning.WithDefaultVersion("v1"),
+					version.WithAcceptDetection("application/vnd.myapi.{version}+json"),
+					version.WithDefault("v1"),
 				))
 
 				v3 := r.Version("v3")
@@ -753,7 +941,7 @@ var _ = Describe("Versioning Integration", func() {
 		})
 	})
 
-	Describe("Deprecation", func() {
+	Describe("Deprecation with lifecycle options", func() {
 		Describe("Deprecated version headers", func() {
 			var r *router.Router
 			var sunsetTime time.Time
@@ -761,12 +949,15 @@ var _ = Describe("Versioning Integration", func() {
 			BeforeEach(func() {
 				sunsetTime = time.Now().Add(30 * 24 * time.Hour)
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithHeaderVersioning("X-API-Version"),
-					versioning.WithDefaultVersion("v1"),
-					versioning.WithDeprecatedVersion("v1", sunsetTime),
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithDefault("v1"),
 				))
 
-				v1 := r.Version("v1")
+				// Use lifecycle options on the version
+				v1 := r.Version("v1",
+					version.Deprecated(),
+					version.Sunset(sunsetTime),
+				)
 				v1.GET("/users", func(c *router.Context) {
 					c.String(http.StatusOK, "v1 users")
 				})
@@ -792,11 +983,20 @@ var _ = Describe("Versioning Integration", func() {
 			BeforeEach(func() {
 				sunsetTime = time.Now().Add(30 * 24 * time.Hour)
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithHeaderVersioning("X-API-Version"),
-					versioning.WithDefaultVersion("v1"),
-					versioning.WithDeprecatedVersion("v1", sunsetTime),
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithDefault("v1"),
 				))
 
+				// v1 is deprecated
+				v1 := r.Version("v1",
+					version.Deprecated(),
+					version.Sunset(sunsetTime),
+				)
+				v1.GET("/users", func(c *router.Context) {
+					c.String(http.StatusOK, "v1 users")
+				})
+
+				// v2 is NOT deprecated
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
 					c.String(http.StatusOK, "v2 users")
@@ -816,50 +1016,71 @@ var _ = Describe("Versioning Integration", func() {
 			})
 		})
 
-		Describe("Multiple deprecated versions", func() {
+		Describe("Migration docs", func() {
 			var r *router.Router
-			var sunset1, sunset2 time.Time
 
 			BeforeEach(func() {
-				sunset1 = time.Now().Add(30 * 24 * time.Hour)
-				sunset2 = time.Now().Add(60 * 24 * time.Hour)
-
+				sunsetTime := time.Now().Add(30 * 24 * time.Hour)
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithHeaderVersioning("X-API-Version"),
-					versioning.WithDefaultVersion("v3"),
-					versioning.WithDeprecatedVersion("v1", sunset1),
-					versioning.WithDeprecatedVersion("v2", sunset2),
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithDefault("v1"),
 				))
 
-				v1 := r.Version("v1")
+				v1 := r.Version("v1",
+					version.Deprecated(),
+					version.Sunset(sunsetTime),
+					version.MigrationDocs("https://docs.example.com/migrate/v1-to-v2"),
+				)
 				v1.GET("/users", func(c *router.Context) {
 					c.String(http.StatusOK, "v1 users")
 				})
-
-				v2 := r.Version("v2")
-				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
-				})
 			})
 
-			It("handles v1 deprecation", func() {
+			It("includes Link header with migration docs", func() {
 				req := httptest.NewRequest("GET", "/users", nil)
 				req.Header.Set("X-API-Version", "v1")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
 
-				Expect(w.Header().Get("Deprecation")).To(Equal("true"))
-				Expect(w.Header().Get("Sunset")).ToNot(BeEmpty())
+				Expect(w.Code).To(Equal(http.StatusOK))
+				linkHeader := w.Header().Get("Link")
+				Expect(linkHeader).To(ContainSubstring("https://docs.example.com/migrate/v1-to-v2"))
+				Expect(linkHeader).To(ContainSubstring("rel=\"deprecation\""))
+			})
+		})
+
+		Describe("Configure method", func() {
+			var r *router.Router
+
+			BeforeEach(func() {
+				sunsetTime := time.Now().Add(30 * 24 * time.Hour)
+				r = router.MustNew(router.WithVersioning(
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithDefault("v1"),
+				))
+
+				// Create version first, then configure
+				v1 := r.Version("v1")
+				v1.GET("/users", func(c *router.Context) {
+					c.String(http.StatusOK, "v1 users")
+				})
+
+				// Configure lifecycle later
+				v1.Configure(
+					version.Deprecated(),
+					version.Sunset(sunsetTime),
+				)
 			})
 
-			It("handles v2 deprecation", func() {
+			It("applies lifecycle configuration", func() {
 				req := httptest.NewRequest("GET", "/users", nil)
-				req.Header.Set("X-API-Version", "v2")
+				req.Header.Set("X-API-Version", "v1")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
 
+				Expect(w.Code).To(Equal(http.StatusOK))
 				Expect(w.Header().Get("Deprecation")).To(Equal("true"))
 				Expect(w.Header().Get("Sunset")).ToNot(BeEmpty())
 			})
@@ -877,11 +1098,11 @@ var _ = Describe("Versioning Integration", func() {
 				detectedMethods = []string{}
 
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithHeaderVersioning("X-API-Version"),
-					versioning.WithDefaultVersion("v1"),
-					versioning.WithObserver(
-						versioning.WithOnDetected(func(version string, method string) {
-							detectedVersions = append(detectedVersions, version)
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithDefault("v1"),
+					version.WithObserver(
+						version.OnDetected(func(ver string, method string) {
+							detectedVersions = append(detectedVersions, ver)
 							detectedMethods = append(detectedMethods, method)
 						}),
 					),
@@ -914,10 +1135,10 @@ var _ = Describe("Versioning Integration", func() {
 				missingCount = 0
 
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithHeaderVersioning("X-API-Version"),
-					versioning.WithDefaultVersion("v1"),
-					versioning.WithObserver(
-						versioning.WithOnMissing(func() {
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithDefault("v1"),
+					version.WithObserver(
+						version.OnMissing(func() {
 							missingCount++
 						}),
 					),
@@ -950,11 +1171,11 @@ var _ = Describe("Versioning Integration", func() {
 				invalidVersions = []string{}
 
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithHeaderVersioning("X-API-Version"),
-					versioning.WithValidVersions("v1", "v2"),
-					versioning.WithDefaultVersion("v1"),
-					versioning.WithObserver(
-						versioning.WithOnInvalid(func(attempted string) {
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithValidVersions("v1", "v2"),
+					version.WithDefault("v1"),
+					version.WithObserver(
+						version.OnInvalid(func(attempted string) {
 							invalidVersions = append(invalidVersions, attempted)
 						}),
 					),
@@ -987,13 +1208,13 @@ var _ = Describe("Versioning Integration", func() {
 				methods = []string{}
 
 				r = router.MustNew(router.WithVersioning(
-					versioning.WithPathVersioning("/v{version}/"),
-					versioning.WithHeaderVersioning("X-API-Version"),
-					versioning.WithAcceptVersioning("application/vnd.api.{version}+json"),
-					versioning.WithQueryVersioning("v"),
-					versioning.WithDefaultVersion("v1"),
-					versioning.WithObserver(
-						versioning.WithOnDetected(func(_ string, method string) {
+					version.WithPathDetection("/v{version}/"),
+					version.WithHeaderDetection("X-API-Version"),
+					version.WithAcceptDetection("application/vnd.api.{version}+json"),
+					version.WithQueryDetection("v"),
+					version.WithDefault("v1"),
+					version.WithObserver(
+						version.OnDetected(func(_ string, method string) {
 							methods = append(methods, method)
 						}),
 					),
@@ -1068,25 +1289,34 @@ var _ = Describe("Versioning Integration", func() {
 
 			// Setup router with all versioning strategies
 			r = router.MustNew(router.WithVersioning(
-				versioning.WithPathVersioning("/v{version}/"),
-				versioning.WithHeaderVersioning("X-API-Version"),
-				versioning.WithAcceptVersioning("application/vnd.api.{version}+json"),
-				versioning.WithQueryVersioning("v"),
-				versioning.WithValidVersions("v1", "v2", "v3"),
-				versioning.WithDefaultVersion("v1"),
-				versioning.WithDeprecatedVersion("v1", sunsetV1),
-				versioning.WithObserver(
-					versioning.WithOnDetected(func(version string, _ string) {
-						detectedVersions = append(detectedVersions, version)
+				version.WithPathDetection("/v{version}/"),
+				version.WithHeaderDetection("X-API-Version"),
+				version.WithAcceptDetection("application/vnd.api.{version}+json"),
+				version.WithQueryDetection("v"),
+				version.WithValidVersions("v1", "v2", "v3"),
+				version.WithDefault("v1"),
+				version.WithObserver(
+					version.OnDetected(func(ver string, _ string) {
+						detectedVersions = append(detectedVersions, ver)
 					}),
-					versioning.WithOnInvalid(func(attempted string) {
+					version.OnInvalid(func(attempted string) {
 						invalidVersions = append(invalidVersions, attempted)
 					}),
 				),
 			))
 
 			// Register versioned routes for all versions
-			for _, ver := range []string{"v1", "v2", "v3"} {
+			// v1 is deprecated
+			v1 := r.Version("v1",
+				version.Deprecated(),
+				version.Sunset(sunsetV1),
+			)
+			v1.GET("/users", func(c *router.Context) {
+				c.Stringf(http.StatusOK, `version: %s`, c.Version())
+			})
+
+			// v2 and v3 are not deprecated
+			for _, ver := range []string{"v2", "v3"} {
 				version := ver
 				vr := r.Version(version)
 				vr.GET("/users", func(c *router.Context) {
