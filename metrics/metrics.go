@@ -67,9 +67,12 @@ type Config struct {
 	casRetriesCounter    metric.Int64Counter
 
 	// Maps and slices
-	excludePaths       map[string]bool
 	recordHeaders      []string
 	recordHeadersLower []string // Pre-lowercased header names for consistent lookup
+
+	// Path filtering
+	pathFilter       *pathFilter
+	validationErrors []error // Collected during option application
 
 	// Atomic custom metrics cache
 	atomicCustomCounters   unsafe.Pointer // *map[string]metric.Int64Counter
@@ -204,11 +207,19 @@ func WithExportInterval(interval time.Duration) Option {
 }
 
 // WithExcludePaths excludes specific paths from metrics collection.
+// This is useful for health checks, metrics endpoints, etc.
+//
+// Example:
+//
+//	config := metrics.MustNew(
+//	    metrics.WithExcludePaths("/health", "/metrics"),
+//	)
 func WithExcludePaths(paths ...string) Option {
 	return func(c *Config) {
-		for _, path := range paths {
-			c.excludePaths[path] = true
+		if c.pathFilter == nil {
+			c.pathFilter = newPathFilter()
 		}
+		c.pathFilter.addPaths(paths...)
 	}
 }
 
@@ -316,7 +327,7 @@ func newDefaultConfig() *Config {
 		enabled:          true,
 		serviceName:      "rivaas-service",
 		serviceVersion:   "1.0.0",
-		excludePaths:     make(map[string]bool),
+		pathFilter:       newPathFilter(),
 		recordParams:     true,
 		provider:         PrometheusProvider,
 		exportInterval:   30 * time.Second,
@@ -354,6 +365,11 @@ func (c *Config) initCommonAttributes() {
 
 // validate checks that the configuration is valid.
 func (c *Config) validate() error {
+	// Check for errors collected during option application
+	if len(c.validationErrors) > 0 {
+		return fmt.Errorf("configuration errors: %v", c.validationErrors)
+	}
+
 	// Validate service name
 	if c.serviceName == "" {
 		return fmt.Errorf("service name cannot be empty")

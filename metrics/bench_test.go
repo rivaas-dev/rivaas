@@ -485,7 +485,7 @@ func BenchmarkNoopProvider(b *testing.B) {
 		serviceVersion:   "1.0.0",
 		meterProvider:    noopProvider,
 		meter:            noopProvider.Meter("bench"),
-		excludePaths:     make(map[string]bool),
+		pathFilter:       newPathFilter(),
 		maxCustomMetrics: 1000,
 	}
 	config.initAtomicMaps()

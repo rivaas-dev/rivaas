@@ -266,9 +266,9 @@ func TestValidationEdgeCases(t *testing.T) {
 			WithServerDisabled(),
 		)
 		require.NoError(t, err)
-		assert.True(t, config.excludePaths["/health"])
-		assert.True(t, config.excludePaths["/metrics"])
-		assert.True(t, config.excludePaths["/debug"])
+		assert.True(t, config.ShouldExcludePath("/health"))
+		assert.True(t, config.ShouldExcludePath("/metrics"))
+		assert.True(t, config.ShouldExcludePath("/debug"))
 
 		config.Shutdown(context.Background())
 	})

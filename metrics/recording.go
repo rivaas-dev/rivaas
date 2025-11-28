@@ -131,7 +131,7 @@ func (c *Config) StartRequest(ctx context.Context, path string, isStatic bool, a
 	}
 
 	// Check if path should be excluded
-	if c.excludePaths[path] {
+	if c.ShouldExcludePath(path) {
 		return nil
 	}
 

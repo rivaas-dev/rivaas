@@ -56,7 +56,7 @@ func Middleware(config *Config) func(http.Handler) http.Handler {
 			}
 
 			// Check if path should be excluded
-			if config.excludePaths[r.URL.Path] {
+			if config.ShouldExcludePath(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
