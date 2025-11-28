@@ -120,7 +120,7 @@ func WithExcludePatterns(patterns ...string) Option {
 				}
 				c.validationErrors = append(c.validationErrors,
 					fmt.Errorf("invalid regex pattern for path exclusion %q: %w", pattern, err))
-				c.logError("Invalid regex pattern for path exclusion",
+				c.emitError("Invalid regex pattern for path exclusion",
 					"pattern", pattern,
 					"error", err,
 				)

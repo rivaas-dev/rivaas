@@ -17,6 +17,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -28,8 +29,66 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"rivaas.dev/logging"
 )
+
+// EventType represents the severity of an internal operational event.
+type EventType int
+
+const (
+	// EventError indicates an error event (e.g., failed to export metrics).
+	EventError EventType = iota
+	// EventWarning indicates a warning event (e.g., deprecated configuration).
+	EventWarning
+	// EventInfo indicates an informational event (e.g., metrics server started).
+	EventInfo
+	// EventDebug indicates a debug event (e.g., detailed operation logs).
+	EventDebug
+)
+
+// Event represents an internal operational event from the metrics package.
+// Events are used to report errors, warnings, and informational messages
+// about the metrics system's operation.
+type Event struct {
+	Type    EventType
+	Message string
+	Args    []any // slog-style key-value pairs
+}
+
+// EventHandler processes internal operational events from the metrics package.
+// Implementations can log events, send them to monitoring systems, or take
+// custom actions based on event type.
+//
+// Example custom handler:
+//
+//	metrics.WithEventHandler(func(e metrics.Event) {
+//	    if e.Type == metrics.EventError {
+//	        sentry.CaptureMessage(e.Message)
+//	    }
+//	    slog.Default().Info(e.Message, e.Args...)
+//	})
+type EventHandler func(Event)
+
+// DefaultEventHandler returns an EventHandler that logs events to the provided slog.Logger.
+// This is the default implementation used by WithLogger.
+//
+// If logger is nil, returns a no-op handler that discards all events.
+func DefaultEventHandler(logger *slog.Logger) EventHandler {
+	if logger == nil {
+		return func(Event) {} // no-op
+	}
+	return func(e Event) {
+		switch e.Type {
+		case EventError:
+			logger.Error(e.Message, e.Args...)
+		case EventWarning:
+			logger.Warn(e.Message, e.Args...)
+		case EventInfo:
+			logger.Info(e.Message, e.Args...)
+		case EventDebug:
+			logger.Debug(e.Message, e.Args...)
+		}
+	}
+}
 
 // Provider represents the available metrics providers.
 type Provider string
@@ -50,7 +109,7 @@ type Config struct {
 	prometheusHandler  http.Handler
 	prometheusRegistry *promclient.Registry // Custom Prometheus registry to avoid conflicts
 	metricsServer      *http.Server
-	logger             logging.Logger // Structured logger for errors and warnings
+	eventHandler       EventHandler // Handler for internal operational events
 
 	// Built-in HTTP metrics
 	requestDuration      metric.Float64Histogram
@@ -283,11 +342,37 @@ func WithMaxCustomMetrics(maxLimit int) Option {
 	}
 }
 
-// WithLogger sets a custom logger for metrics errors and warnings.
-func WithLogger(logger logging.Logger) Option {
+// WithEventHandler sets a custom event handler for internal operational events.
+// Use this for advanced use cases like sending errors to Sentry, custom alerting,
+// or integrating with non-slog logging systems.
+//
+// Example:
+//
+//	metrics.New(metrics.WithEventHandler(func(e metrics.Event) {
+//	    if e.Type == metrics.EventError {
+//	        sentry.CaptureMessage(e.Message)
+//	    }
+//	    myLogger.Log(e.Type, e.Message, e.Args...)
+//	}))
+func WithEventHandler(handler EventHandler) Option {
 	return func(c *Config) {
-		c.logger = logger
+		c.eventHandler = handler
 	}
+}
+
+// WithLogger sets the logger for internal operational events using the default event handler.
+// This is a convenience wrapper around WithEventHandler that logs events to the provided slog.Logger.
+//
+// Example:
+//
+//	// Use stdlib slog
+//	metrics.New(metrics.WithLogger(slog.Default()))
+//
+//	// Use custom slog logger
+//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	metrics.New(metrics.WithLogger(logger))
+func WithLogger(logger *slog.Logger) Option {
+	return WithEventHandler(DefaultEventHandler(logger))
 }
 
 // New creates a new metrics configuration with the given options.
@@ -387,7 +472,7 @@ func (c *Config) validate() error {
 
 	// Validate export interval
 	if c.exportInterval < time.Second {
-		c.logWarn("Export interval is very low, may cause high CPU usage", "interval", c.exportInterval)
+		c.emitWarning("Export interval is very low, may cause high CPU usage", "interval", c.exportInterval)
 	}
 
 	// Validate provider-specific settings
@@ -401,7 +486,7 @@ func (c *Config) validate() error {
 		}
 	case OTLPProvider:
 		if c.endpoint == "" {
-			c.logWarn("OTLP endpoint not specified, will use default", "default", "http://localhost:4318")
+			c.emitWarning("OTLP endpoint not specified, will use default", "default", "http://localhost:4318")
 			c.endpoint = "http://localhost:4318"
 		}
 	case StdoutProvider:
@@ -498,13 +583,13 @@ func (c *Config) Shutdown(ctx context.Context) error {
 	// User-provided providers should be managed by the user
 	if !c.customMeterProvider {
 		if mp, ok := c.meterProvider.(*sdkmetric.MeterProvider); ok {
-			c.logDebug("Shutting down meter provider")
+			c.emitDebug("Shutting down meter provider")
 			if err := mp.Shutdown(ctx); err != nil {
 				errs = append(errs, fmt.Errorf("meter provider shutdown: %w", err))
 			}
 		}
 	} else {
-		c.logDebug("Skipping shutdown of custom meter provider (managed by user)")
+		c.emitDebug("Skipping shutdown of custom meter provider (managed by user)")
 	}
 
 	// Return combined errors if any
@@ -530,30 +615,30 @@ func (c *Config) ServiceVersion() string {
 	return c.serviceVersion
 }
 
-// logError logs an error message if a logger is configured.
-func (c *Config) logError(msg string, keysAndValues ...interface{}) {
-	if c.logger != nil {
-		c.logger.Error(msg, keysAndValues...)
+// emitError emits an error event if an event handler is configured.
+func (c *Config) emitError(msg string, args ...any) {
+	if c.eventHandler != nil {
+		c.eventHandler(Event{Type: EventError, Message: msg, Args: args})
 	}
 }
 
-// logWarn logs a warning message if a logger is configured.
-func (c *Config) logWarn(msg string, keysAndValues ...interface{}) {
-	if c.logger != nil {
-		c.logger.Warn(msg, keysAndValues...)
+// emitWarning emits a warning event if an event handler is configured.
+func (c *Config) emitWarning(msg string, args ...any) {
+	if c.eventHandler != nil {
+		c.eventHandler(Event{Type: EventWarning, Message: msg, Args: args})
 	}
 }
 
-// logInfo logs an info message if a logger is configured.
-func (c *Config) logInfo(msg string, keysAndValues ...interface{}) {
-	if c.logger != nil {
-		c.logger.Info(msg, keysAndValues...)
+// emitInfo emits an info event if an event handler is configured.
+func (c *Config) emitInfo(msg string, args ...any) {
+	if c.eventHandler != nil {
+		c.eventHandler(Event{Type: EventInfo, Message: msg, Args: args})
 	}
 }
 
-// logDebug logs a debug message if a logger is configured.
-func (c *Config) logDebug(msg string, keysAndValues ...interface{}) {
-	if c.logger != nil {
-		c.logger.Debug(msg, keysAndValues...)
+// emitDebug emits a debug event if an event handler is configured.
+func (c *Config) emitDebug(msg string, args ...any) {
+	if c.eventHandler != nil {
+		c.eventHandler(Event{Type: EventDebug, Message: msg, Args: args})
 	}
 }

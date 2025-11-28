@@ -242,7 +242,7 @@ func (c *Config) RecordMetric(ctx context.Context, name string, value float64, a
 	histogram, err := c.getOrCreateHistogram(ctx, name)
 	if err != nil {
 		c.recordCustomMetricFailureAtomically()
-		c.logError("Failed to get or create histogram metric", "name", name, "error", err)
+		c.emitError("Failed to get or create histogram metric", "name", name, "error", err)
 		return
 	}
 
@@ -267,7 +267,7 @@ func (c *Config) IncrementCounter(ctx context.Context, name string, attributes .
 	counter, err := c.getOrCreateCounter(ctx, name)
 	if err != nil {
 		c.recordCustomMetricFailureAtomically()
-		c.logError("Failed to get or create counter metric", "name", name, "error", err)
+		c.emitError("Failed to get or create counter metric", "name", name, "error", err)
 		return
 	}
 
@@ -288,7 +288,7 @@ func (c *Config) SetGauge(ctx context.Context, name string, value float64, attri
 	gauge, err := c.getOrCreateGauge(ctx, name)
 	if err != nil {
 		c.recordCustomMetricFailureAtomically()
-		c.logError("Failed to get or create gauge metric", "name", name, "error", err)
+		c.emitError("Failed to get or create gauge metric", "name", name, "error", err)
 		return
 	}
 
@@ -557,7 +557,7 @@ func (c *Config) updateAtomicCustomCounters(updater func(map[string]metric.Int64
 			time.Sleep(backoff)
 		}
 	}
-	c.logWarn("Failed to update custom counters after max retries", "maxRetries", maxCASRetries)
+	c.emitWarning("Failed to update custom counters after max retries", "maxRetries", maxCASRetries)
 	return &UpdateError{Operation: "updateCustomCounters", Retries: maxCASRetries}
 }
 
@@ -591,7 +591,7 @@ func (c *Config) updateAtomicCustomHistograms(updater func(map[string]metric.Flo
 			time.Sleep(backoff)
 		}
 	}
-	c.logWarn("Failed to update custom histograms after max retries", "maxRetries", maxCASRetries)
+	c.emitWarning("Failed to update custom histograms after max retries", "maxRetries", maxCASRetries)
 	return &UpdateError{Operation: "updateCustomHistograms", Retries: maxCASRetries}
 }
 
@@ -625,7 +625,7 @@ func (c *Config) updateAtomicCustomGauges(updater func(map[string]metric.Float64
 			time.Sleep(backoff)
 		}
 	}
-	c.logWarn("Failed to update custom gauges after max retries", "maxRetries", maxCASRetries)
+	c.emitWarning("Failed to update custom gauges after max retries", "maxRetries", maxCASRetries)
 	return &UpdateError{Operation: "updateCustomGauges", Retries: maxCASRetries}
 }
 

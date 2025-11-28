@@ -39,7 +39,7 @@ func (c *Config) initializeProvider() error {
 		if c.meterProvider == nil {
 			return fmt.Errorf("custom meter provider is nil")
 		}
-		c.logDebug("Using custom user-provided meter provider")
+		c.emitDebug("Using custom user-provided meter provider")
 		c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
 		return c.initializeMetrics()
 	}
@@ -82,10 +82,10 @@ func (c *Config) initPrometheusProvider() error {
 
 	// Set global meter provider only if requested
 	if c.registerGlobal {
-		c.logDebug("Setting global OpenTelemetry meter provider", "provider", "prometheus")
+		c.emitDebug("Setting global OpenTelemetry meter provider", "provider", "prometheus")
 		otel.SetMeterProvider(c.meterProvider)
 	} else {
-		c.logDebug("Skipping global meter provider registration", "provider", "prometheus")
+		c.emitDebug("Skipping global meter provider registration", "provider", "prometheus")
 	}
 
 	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
@@ -147,10 +147,10 @@ func (c *Config) initOTLPProvider() error {
 
 	// Set global meter provider only if requested
 	if c.registerGlobal {
-		c.logDebug("Setting global OpenTelemetry meter provider", "provider", "otlp")
+		c.emitDebug("Setting global OpenTelemetry meter provider", "provider", "otlp")
 		otel.SetMeterProvider(c.meterProvider)
 	} else {
-		c.logDebug("Skipping global meter provider registration", "provider", "otlp")
+		c.emitDebug("Skipping global meter provider registration", "provider", "otlp")
 	}
 
 	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
@@ -175,10 +175,10 @@ func (c *Config) initStdoutProvider() error {
 
 	// Set global meter provider only if requested
 	if c.registerGlobal {
-		c.logDebug("Setting global OpenTelemetry meter provider", "provider", "stdout")
+		c.emitDebug("Setting global OpenTelemetry meter provider", "provider", "stdout")
 		otel.SetMeterProvider(c.meterProvider)
 	} else {
-		c.logDebug("Skipping global meter provider registration", "provider", "stdout")
+		c.emitDebug("Skipping global meter provider registration", "provider", "stdout")
 	}
 
 	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
@@ -193,7 +193,7 @@ func (c *Config) startMetricsServer() {
 
 	// Check if shutting down
 	if c.isShuttingDown.Load() {
-		c.logDebug("Not starting metrics server: shutdown in progress")
+		c.emitDebug("Not starting metrics server: shutdown in progress")
 		return
 	}
 
@@ -205,7 +205,7 @@ func (c *Config) startMetricsServer() {
 		// Strict mode: use exact port only
 		listener, err := net.Listen("tcp", c.metricsPort)
 		if err != nil {
-			c.logError("Failed to start metrics server on required port (strict mode)",
+			c.emitError("Failed to start metrics server on required port (strict mode)",
 				"error", err, "port", c.metricsPort)
 			return
 		}
@@ -215,7 +215,7 @@ func (c *Config) startMetricsServer() {
 		// Flexible mode: try to find an available port
 		actualPort, err = findAvailablePort(c.metricsPort)
 		if err != nil {
-			c.logError("Failed to find available port for metrics server", "error", err, "preferred_port", c.metricsPort)
+			c.emitError("Failed to find available port for metrics server", "error", err, "preferred_port", c.metricsPort)
 			return
 		}
 	}
@@ -252,14 +252,14 @@ func (c *Config) startMetricsServer() {
 	go func() {
 		// Log which port we're actually using
 		if actualPort != capturedOriginalPort {
-			c.logWarn("Metrics server using different port than requested",
+			c.emitWarning("Metrics server using different port than requested",
 				"actual_address", actualPort+metricsPath,
 				"requested_port", capturedOriginalPort,
 				"path", metricsPath,
 				"reason", "requested port was unavailable",
 				"recommendation", "use WithStrictPort() to fail instead of auto-discovering")
 		} else {
-			c.logInfo("Metrics server starting",
+			c.emitInfo("Metrics server starting",
 				"address", actualPort+metricsPath,
 				"path", metricsPath)
 		}
@@ -269,7 +269,7 @@ func (c *Config) startMetricsServer() {
 			c.serverMutex.Lock()
 			c.metricsServer = nil
 			c.serverMutex.Unlock()
-			c.logError("Metrics server error", "error", err)
+			c.emitError("Metrics server error", "error", err)
 		}
 	}()
 }
@@ -282,12 +282,12 @@ func (c *Config) stopMetricsServer(ctx context.Context) error {
 	c.serverMutex.Unlock()
 
 	if server != nil {
-		c.logDebug("Shutting down metrics server")
+		c.emitDebug("Shutting down metrics server")
 		if err := server.Shutdown(ctx); err != nil {
-			c.logError("Error shutting down metrics server", "error", err)
+			c.emitError("Error shutting down metrics server", "error", err)
 			return fmt.Errorf("metrics server shutdown: %w", err)
 		}
-		c.logDebug("Metrics server shut down successfully")
+		c.emitDebug("Metrics server shut down successfully")
 	}
 	return nil
 }

@@ -191,26 +191,21 @@ metrics.WithDisableParams()                      // Disable URL params
 ### Advanced Options
 
 ```go
-// Custom logger for errors and warnings
-type MyLogger struct{}
+// Use stdlib slog for logging internal events
+metrics.WithLogger(slog.Default())               // Use default slog logger
 
-func (l *MyLogger) Error(msg string, keysAndValues ...interface{}) {
-    log.Printf("ERROR: %s %v", msg, keysAndValues)
-}
+// Or create a custom slog logger
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+metrics.WithLogger(logger)
 
-func (l *MyLogger) Warn(msg string, keysAndValues ...interface{}) {
-    log.Printf("WARN: %s %v", msg, keysAndValues)
-}
+// Custom event handler for advanced use cases (e.g., send errors to Sentry)
+metrics.WithEventHandler(func(e metrics.Event) {
+    if e.Type == metrics.EventError {
+        sentry.CaptureMessage(e.Message)
+    }
+    slog.Default().Info(e.Message, e.Args...)
+})
 
-func (l *MyLogger) Info(msg string, keysAndValues ...interface{}) {
-    log.Printf("INFO: %s %v", msg, keysAndValues)
-}
-
-func (l *MyLogger) Debug(msg string, keysAndValues ...interface{}) {
-    log.Printf("DEBUG: %s %v", msg, keysAndValues)
-}
-
-metrics.WithLogger(&MyLogger{})                  // Set custom logger
 metrics.WithMaxCustomMetrics(1000)               // Set custom metrics limit
 ```
 

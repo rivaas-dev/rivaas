@@ -11,10 +11,7 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.38.0
 	go.opentelemetry.io/otel/metric v1.38.0
 	go.opentelemetry.io/otel/sdk/metric v1.38.0
-	rivaas.dev/logging v0.1.0
 )
-
-replace rivaas.dev/logging => ../logging
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
