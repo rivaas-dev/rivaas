@@ -9,7 +9,6 @@ use (
 	./openapi
 	./router
 	./router/benchmarks
-	./telemetry
 	./tracing
 	./validation
 )
