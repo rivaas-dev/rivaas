@@ -52,7 +52,9 @@ func TestChaos_ConcurrentRouteRegistrationAndDeletion(t *testing.T) {
 			defer wg.Done()
 			path := "/route" + string(rune('0'+id%10))
 			app.GET(path, func(c *Context) {
-				c.Stringf(http.StatusOK, "route-%d", id)
+				if err := c.Stringf(http.StatusOK, "route-%d", id); err != nil {
+					c.Logger().Error("failed to write response", "err", err)
+				}
 			})
 		}(i)
 	}
@@ -106,7 +108,9 @@ func TestChaos_StressTestHighConcurrency(t *testing.T) {
 		requestCount.Add(1)
 		// Simulate variable work
 		time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
-		c.String(http.StatusOK, "ok")
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	const concurrency = 500
@@ -237,7 +241,9 @@ func TestChaos_MiddlewareChainStress(t *testing.T) {
 	app.GET("/test", func(c *Context) {
 		order := counter.Add(1)
 		executionOrder.Store(order, -1) // -1 indicates handler
-		c.String(http.StatusOK, "ok")
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	const concurrency = 100
@@ -275,7 +281,9 @@ func TestChaos_ContextPoolExhaustion(t *testing.T) {
 	// Handler that holds context briefly
 	app.GET("/slow", func(c *Context) {
 		time.Sleep(5 * time.Millisecond)
-		c.String(http.StatusOK, "ok")
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	const burstSize = 1000
@@ -320,7 +328,9 @@ func TestChaos_MixedOperations(t *testing.T) {
 
 	// Pre-register some routes
 	app.GET("/existing", func(c *Context) {
-		c.String(http.StatusOK, "existing")
+		if err := c.String(http.StatusOK, "existing"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	// Concurrently: register routes, add middleware, handle requests
@@ -338,7 +348,9 @@ func TestChaos_MixedOperations(t *testing.T) {
 					}
 				}()
 				app.GET(fmt.Sprintf("/new%d", id), func(c *Context) {
-					c.Stringf(http.StatusOK, "new-%d", id)
+					if err := c.Stringf(http.StatusOK, "new-%d", id); err != nil {
+						c.Logger().Error("failed to write response", "err", err)
+					}
 				})
 			}()
 		}(i)

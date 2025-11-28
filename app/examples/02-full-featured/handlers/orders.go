@@ -79,7 +79,7 @@ func CreateOrder(c *app.Context) {
 	)
 
 	c.AddSpanEvent("order_created")
-	c.JSON(http.StatusCreated, OrderResponse{
+	if err := c.IndentedJSON(http.StatusCreated, OrderResponse{
 		OrderID:        fmt.Sprintf("ord_%d", GenerateOrderID()),
 		UserID:         req.UserID,
 		Items:          req.Items,
@@ -89,7 +89,9 @@ func CreateOrder(c *app.Context) {
 		CreatedAt:      time.Now(),
 		ProcessingTime: processingTime,
 		Metadata:       req.Metadata,
-	})
+	}); err != nil {
+		c.Logger().Error("failed to write order response", "err", err)
+	}
 }
 
 // GetOrderByID retrieves an order by ID.
@@ -115,7 +117,7 @@ func GetOrderByID(c *app.Context) {
 	// Simulate database lookup
 	time.Sleep(10 * time.Millisecond)
 
-	c.JSON(http.StatusOK, OrderResponse{
+	if err := c.JSON(http.StatusOK, OrderResponse{
 		OrderID:     fmt.Sprintf("ord_%d", params.ID),
 		UserID:      123,
 		Items:       []OrderItem{{ProductID: 1, Quantity: 2, Price: 29.99}},
@@ -123,5 +125,7 @@ func GetOrderByID(c *app.Context) {
 		Currency:    "USD",
 		Status:      "completed",
 		CreatedAt:   time.Now().Add(-24 * time.Hour),
-	})
+	}); err != nil {
+		c.Logger().Error("failed to write order response", "err", err)
+	}
 }

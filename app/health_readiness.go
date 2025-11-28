@@ -19,7 +19,17 @@ import (
 )
 
 // Gate represents a component that reports its readiness status.
-// Used for health checks and readiness probes.
+// Used for runtime registration of readiness checks that need to be
+// dynamically added or removed during application lifecycle.
+//
+// For static readiness checks configured at startup, prefer using
+// WithHealthEndpoints with WithReadinessCheck instead, as it provides
+// better DX through the functional options pattern.
+//
+// Use Gate when you need:
+//   - Dynamic registration/unregistration at runtime
+//   - Component-owned readiness state (e.g., database connection pool)
+//   - Integration with external libraries that manage their own state
 type Gate interface {
 	// Ready returns true if the component is ready to serve traffic.
 	Ready() bool
@@ -27,13 +37,20 @@ type Gate interface {
 	Name() string
 }
 
-// ReadinessManager manages readiness gates for health checks.
+// ReadinessManager manages readiness gates for runtime health checks.
+// This complements the static WithReadinessCheck options by allowing
+// dynamic registration and unregistration of readiness gates.
+//
+// Typical use cases:
+//   - Database connection pools that manage their own health
+//   - External service clients with retry/circuit breaker logic
+//   - Components that need to temporarily mark themselves as not ready
 type ReadinessManager struct {
 	gates map[string]Gate
 	mu    sync.RWMutex
 }
 
-// Register registers a readiness gate.
+// Register registers a readiness gate at runtime.
 // If a gate with the same name already exists, it is replaced.
 //
 // Example:
@@ -57,9 +74,12 @@ func (rm *ReadinessManager) Register(name string, gate Gate) {
 }
 
 // Unregister removes a readiness gate by name.
+// This is useful when a component is being shut down or
+// is no longer relevant to the application's readiness.
 //
 // Example:
 //
+//	// During graceful shutdown of a specific component
 //	app.Readiness().Unregister("database")
 func (rm *ReadinessManager) Unregister(name string) {
 	rm.mu.Lock()

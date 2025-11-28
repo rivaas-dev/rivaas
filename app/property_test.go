@@ -65,19 +65,27 @@ func TestProperty_RouteMatchingCommutativity(t *testing.T) {
 				switch route.method {
 				case "GET":
 					app.GET(route.path, func(c *Context) {
-						c.Stringf(http.StatusOK, "%s", body)
+						if err := c.Stringf(http.StatusOK, "%s", body); err != nil {
+							c.Logger().Error("failed to write response", "err", err)
+						}
 					})
 				case "POST":
 					app.POST(route.path, func(c *Context) {
-						c.Stringf(http.StatusOK, "%s", body)
+						if err := c.Stringf(http.StatusOK, "%s", body); err != nil {
+							c.Logger().Error("failed to write response", "err", err)
+						}
 					})
 				case "PUT":
 					app.PUT(route.path, func(c *Context) {
-						c.Stringf(http.StatusOK, "%s", body)
+						if err := c.Stringf(http.StatusOK, "%s", body); err != nil {
+							c.Logger().Error("failed to write response", "err", err)
+						}
 					})
 				default:
 					app.GET(route.path, func(c *Context) {
-						c.Stringf(http.StatusOK, "%s", body)
+						if err := c.Stringf(http.StatusOK, "%s", body); err != nil {
+							c.Logger().Error("failed to write response", "err", err)
+						}
 					})
 				}
 			}
@@ -128,7 +136,9 @@ func TestProperty_MiddlewareIdempotency(t *testing.T) {
 	}
 
 	app.GET("/test", func(c *Context) {
-		c.Stringf(http.StatusOK, "ok")
+		if err := c.Stringf(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -233,7 +243,9 @@ func TestProperty_RoutePathEquivalence(t *testing.T) {
 	// Register parameter route
 	app.GET("/users/:id", func(c *Context) {
 		id := c.Param("id")
-		c.Stringf(http.StatusOK, "user-%s", id)
+		if err := c.Stringf(http.StatusOK, "user-%s", id); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	// Test various equivalent paths

@@ -16,6 +16,7 @@ package app
 
 import (
 	"rivaas.dev/openapi"
+	"rivaas.dev/openapi/example"
 	"rivaas.dev/router"
 )
 
@@ -109,24 +110,6 @@ func (rw *RouteWrapper) Where(param, pattern string) *RouteWrapper {
 	return rw
 }
 
-// WhereNumber adds a constraint that ensures the parameter is numeric (legacy method).
-func (rw *RouteWrapper) WhereNumber(param string) *RouteWrapper {
-	rw.route.WhereNumber(param)
-	return rw
-}
-
-// WhereAlpha adds a constraint that ensures the parameter contains only letters (legacy method).
-func (rw *RouteWrapper) WhereAlpha(param string) *RouteWrapper {
-	rw.route.WhereAlpha(param)
-	return rw
-}
-
-// WhereAlphaNumeric adds a constraint that ensures the parameter contains only letters and numbers (legacy method).
-func (rw *RouteWrapper) WhereAlphaNumeric(param string) *RouteWrapper {
-	rw.route.WhereAlphaNumeric(param)
-	return rw
-}
-
 // Doc sets both summary and description for the route.
 //
 // Example:
@@ -185,28 +168,52 @@ func (rw *RouteWrapper) Tag(tags ...string) *RouteWrapper {
 	return rw.Tags(tags...)
 }
 
-// Response adds a response example for the given status code.
+// Response sets the response schema and examples for a status code.
 //
-// Example:
+// The schema is generated from resp's type. Examples are handled as follows:
+//   - No examples provided: resp itself is used as the example
+//   - Examples provided: they become named examples in OpenAPI
+//
+// Example (simple):
 //
 //	app.GET("/users/:id", handler).
-//	    Response(200, UserResponse{})
-func (rw *RouteWrapper) Response(status int, example any) *RouteWrapper {
+//	    Response(200, UserResponse{ID: 123, Name: "John"})
+//
+// Example (named examples):
+//
+//	app.GET("/users/:id", handler).
+//	    Response(200, UserResponse{},
+//	        example.New("success", UserResponse{ID: 123}, example.WithSummary("Found")),
+//	        example.New("admin", UserResponse{ID: 1, Role: "admin"}),
+//	    )
+func (rw *RouteWrapper) Response(status int, resp any, examples ...example.Example) *RouteWrapper {
 	if rw.openapi != nil {
-		rw.openapi.Response(status, example)
+		rw.openapi.Response(status, resp, examples...)
 	}
 	return rw
 }
 
-// Request sets the request body example.
+// Request sets the request type and optionally provides examples.
 //
-// Example:
+// The schema is generated from req's type. Examples are handled as follows:
+//   - No examples provided: req itself is used as the example
+//   - Examples provided: they become named examples in OpenAPI
+//
+// Example (simple):
 //
 //	app.POST("/users", handler).
-//	    Request(CreateUserRequest{})
-func (rw *RouteWrapper) Request(example any) *RouteWrapper {
+//	    Request(CreateUserRequest{Name: "John", Email: "john@example.com"})
+//
+// Example (named examples):
+//
+//	app.POST("/users", handler).
+//	    Request(CreateUserRequest{},
+//	        example.New("minimal", CreateUserRequest{Name: "John"}),
+//	        example.New("complete", CreateUserRequest{Name: "John", Email: "john@example.com", Age: 30}),
+//	    )
+func (rw *RouteWrapper) Request(req any, examples ...example.Example) *RouteWrapper {
 	if rw.openapi != nil {
-		rw.openapi.Request(example)
+		rw.openapi.Request(req, examples...)
 	}
 	return rw
 }

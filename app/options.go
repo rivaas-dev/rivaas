@@ -16,14 +16,11 @@ package app
 
 import (
 	"fmt"
-	"log/slog"
 	"time"
 
 	"rivaas.dev/errors"
-	"rivaas.dev/metrics"
 	"rivaas.dev/openapi"
 	"rivaas.dev/router"
-	"rivaas.dev/tracing"
 )
 
 // Option defines functional options for app configuration.
@@ -63,76 +60,6 @@ func WithServiceVersion(version string) Option {
 func WithEnvironment(env string) Option {
 	return func(c *config) {
 		c.environment = env
-	}
-}
-
-// WithMetrics enables metrics with the given options.
-// Service name and version are automatically injected from app-level configuration.
-//
-// Example:
-//
-//	app.New(
-//	    app.WithServiceName("my-service"),
-//	    app.WithServiceVersion("v1.0.0"),
-//	    app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-//	)
-func WithMetrics(opts ...metrics.Option) Option {
-	return func(c *config) {
-		c.metrics = &metricsConfig{
-			enabled: true,
-			options: opts,
-		}
-	}
-}
-
-// WithTracing enables tracing with the given options.
-// Service name and version are automatically injected from app-level configuration.
-//
-// Example:
-//
-//	app.New(
-//	    app.WithServiceName("my-service"),
-//	    app.WithServiceVersion("v1.0.0"),
-//	    app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
-//	)
-func WithTracing(opts ...tracing.Option) Option {
-	return func(c *config) {
-		c.tracing = &tracingConfig{
-			enabled: true,
-			options: opts,
-		}
-	}
-}
-
-// WithLogger sets the base logger for the application.
-// The logger should be a configured *slog.Logger instance.
-//
-// If not provided, a no-op logger is used (logs are discarded).
-//
-// The app automatically derives request-scoped loggers that include:
-//   - HTTP metadata (method, route, target path, client IP)
-//   - Request ID (if X-Request-ID header is present)
-//   - Trace/span IDs (if OpenTelemetry tracing is enabled)
-//
-// Example with rivaas.dev/logging (recommended):
-//
-//	base := logging.MustNew(
-//	    logging.WithJSONHandler(),
-//	    logging.WithServiceName("orders-api"),
-//	    logging.WithServiceVersion("v1.4.2"),
-//	    logging.WithRedaction(logging.DefaultSensitiveKeys...),
-//	)
-//	app.New(app.WithLogger(base))
-//
-// Example with plain slog:
-//
-//	base := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-//	    Level: slog.LevelInfo,
-//	}))
-//	app.New(app.WithLogger(base))
-func WithLogger(logger *slog.Logger) Option {
-	return func(c *config) {
-		c.baseLogger = logger
 	}
 }
 
@@ -260,6 +187,9 @@ func WithServerConfig(opts ...ServerOption) Option {
 // Middleware provided here will be added before any middleware added via Use().
 // Multiple calls to WithMiddleware are supported and will accumulate.
 //
+// Note: This does not affect default middleware (recovery). Use WithoutDefaultMiddleware()
+// to disable default middleware.
+//
 // Example:
 //
 //	app.New(
@@ -274,8 +204,27 @@ func WithMiddleware(middlewares ...HandlerFunc) Option {
 		if c.middleware == nil {
 			c.middleware = &middlewareConfig{}
 		}
-		c.middleware.explicitlySet = true
 		c.middleware.functions = append(c.middleware.functions, middlewares...)
+	}
+}
+
+// WithoutDefaultMiddleware disables the default middleware (recovery).
+// Use this when you want full control over middleware and don't want the framework
+// to automatically add recovery middleware.
+//
+// Example:
+//
+//	app.New(
+//	    app.WithServiceName("my-service"),
+//	    app.WithoutDefaultMiddleware(),
+//	    app.WithMiddleware(myCustomRecovery), // Add your own
+//	)
+func WithoutDefaultMiddleware() Option {
+	return func(c *config) {
+		if c.middleware == nil {
+			c.middleware = &middlewareConfig{}
+		}
+		c.middleware.disableDefaults = true
 	}
 }
 
@@ -314,7 +263,8 @@ type openapiConfig struct {
 }
 
 // WithOpenAPI enables OpenAPI specification generation with the given options.
-// WithOpenAPI automatically injects service name and version from app-level configuration if not provided.
+// Service name and version are automatically injected from app-level configuration
+// if not explicitly set via openapi.WithTitle(). Option order does not matter.
 //
 // Example:
 //
@@ -349,13 +299,8 @@ func WithOpenAPI(opts ...openapi.Option) Option {
 			return
 		}
 
-		// If title/version not set, use app-level defaults
-		if openapiCfg.Info.Title == "API" && c.serviceName != "" {
-			openapiCfg.Info.Title = c.serviceName
-		}
-		if openapiCfg.Info.Version == "1.0.0" && c.serviceVersion != "" {
-			openapiCfg.Info.Version = c.serviceVersion
-		}
+		// Note: Service name/version injection happens in New() after all options
+		// are applied, so option order doesn't matter.
 
 		c.openapi = &openapiConfig{
 			enabled: true,
@@ -425,19 +370,43 @@ func WithDefaultErrorFormat(mediaType string) Option {
 	}
 }
 
-// WithErrorLogger logs errors before formatting and returning them to the client.
+// WithObservability configures all observability components: metrics, tracing, and logging.
+// This is the single entry point for configuring the three pillars of observability.
+//
+// Components:
+//   - WithLogging: enables structured logging (service name/version auto-injected)
+//   - WithMetrics: enables metrics collection (Prometheus, OTLP)
+//   - WithTracing: enables distributed tracing (OTLP, Jaeger)
+//
+// Shared settings (apply to all components):
+//   - WithExcludePaths, WithExcludePrefixes, WithExcludePatterns, WithoutDefaultExclusions
+//   - WithAccessLogging, WithLogOnlyErrors, WithSlowThreshold
+//
+// Default exclusions include common health/probe paths:
+// /health, /healthz, /ready, /readyz, /live, /livez, /metrics, /debug/*
 //
 // Example:
 //
-//	app.New(
-//	    app.WithServiceName("my-service"),
-//	    app.WithErrorLogger(slog.Default()),
+//	app.MustNew(
+//	    app.WithServiceName("orders-api"),
+//	    app.WithServiceVersion("v1.0.0"),
+//	    app.WithObservability(
+//	        app.WithLogging(logging.WithJSONHandler(), logging.WithDebugLevel()),
+//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+//	        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+//	        app.WithExcludePaths("/custom-health"),
+//	        app.WithExcludePrefixes("/internal/", "/admin/"),
+//	        app.WithLogOnlyErrors(),
+//	        app.WithSlowThreshold(500 * time.Millisecond),
+//	    ),
 //	)
-func WithErrorLogger(logger *slog.Logger) Option {
+func WithObservability(opts ...ObservabilityOption) Option {
 	return func(c *config) {
-		if c.errors == nil {
-			c.errors = &errorsConfig{}
+		if c.observability == nil {
+			c.observability = defaultObservabilitySettings()
 		}
-		c.errors.logger = logger
+		for _, opt := range opts {
+			opt(c.observability)
+		}
 	}
 }

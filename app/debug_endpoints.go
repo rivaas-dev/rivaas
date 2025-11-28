@@ -21,60 +21,14 @@ import (
 	"rivaas.dev/router"
 )
 
-// DebugEndpointsOpts configures debug endpoints like pprof.
-type DebugEndpointsOpts struct {
-	// MountPrefix is the prefix under which to mount debug endpoints.
-	// Defaults to "/debug" if not specified.
-	// Example: "/debug" mounts pprof at "/debug/pprof"
-	MountPrefix string
-
-	// EnablePprof determines if pprof endpoints should be registered.
-	// pprof endpoints are only registered if this is true.
-	// WARNING: pprof exposes sensitive runtime information. Only enable in development
-	// or behind authentication/authorization.
-	EnablePprof bool
-}
-
-// WithDebugEndpoints registers debug endpoints like pprof.
-//
-// Security rationale: pprof endpoints are disabled by default and require explicit
-// opt-in because they expose sensitive runtime information that can be exploited:
-//
-// Attack vectors:
-//   - Goroutine dumps reveal internal logic and potential race conditions
-//   - Heap dumps may contain secrets, tokens, or PII in memory
-//   - CPU profiling can be used for timing attacks or DoS (profiling has overhead)
-//   - Alloc profiles reveal memory usage patterns useful for resource exhaustion attacks
-//
-// Safe usage patterns:
-//  1. Development: Enable unconditionally (no external exposure)
-//  2. Staging: Enable behind VPN or IP allowlist
-//  3. Production: Enable only with proper authentication middleware
-//     Example: app.Use(authMiddleware); app.WithDebugEndpoints(...)
-//
-// Endpoints registered (if EnablePprof is true):
-//   - GET /debug/pprof/ - Main pprof index
-//   - GET /debug/pprof/cmdline - Command line
-//   - GET /debug/pprof/profile - CPU profile
-//   - GET /debug/pprof/symbol - Symbol lookup
-//   - POST /debug/pprof/symbol - Symbol lookup
-//   - GET /debug/pprof/trace - Execution trace
-//   - GET /debug/pprof/{profile} - Named profiles (allocs, block, goroutine, heap, mutex, threadcreate)
-//
-// WithDebugEndpoints returns an error if any endpoint path already exists (collision detection).
-//
-// Example:
-//
-//	_ = a.WithDebugEndpoints(app.DebugEndpointsOpts{
-//	    MountPrefix: "/debug",
-//	    EnablePprof: os.Getenv("PPROF_ENABLED") == "true",
-//	})
-func (a *App) WithDebugEndpoints(o DebugEndpointsOpts) error {
-	if !o.EnablePprof {
-		return nil // Silently skip if disabled
+// registerDebugEndpoints registers debug endpoints based on the provided settings.
+// This is called internally by app.New() when debug endpoints are configured.
+func (a *App) registerDebugEndpoints(s *debugSettings) error {
+	if !s.pprofEnabled {
+		return nil // No debug features enabled
 	}
 
-	prefix := o.MountPrefix
+	prefix := s.prefix
 	if prefix == "" {
 		prefix = "/debug"
 	}
@@ -144,8 +98,9 @@ func registerPprof(r *router.Router, base string) {
 	// Named profiles
 	profiles := []string{"allocs", "block", "goroutine", "heap", "mutex", "threadcreate"}
 	for _, p := range profiles {
-		r.GET(base+"/"+p, func(c *router.Context) {
-			pprof.Handler(p).ServeHTTP(c.Response, c.Request)
+		profileName := p // Capture for closure
+		r.GET(base+"/"+profileName, func(c *router.Context) {
+			pprof.Handler(profileName).ServeHTTP(c.Response, c.Request)
 		})
 	}
 }

@@ -44,7 +44,9 @@ func (s *AppLifecycleSuite) TearDownTest() {
 	if s.testApp != nil {
 		// Verify app is still functional
 		s.testApp.GET("/cleanup-check", func(c *Context) {
-			c.String(http.StatusOK, "ok")
+			if err := c.String(http.StatusOK, "ok"); err != nil {
+				c.Logger().Error("failed to write response", "err", err)
+			}
 		})
 		req := httptest.NewRequest("GET", "/cleanup-check", nil)
 		resp, err := s.testApp.Test(req)
@@ -86,7 +88,9 @@ func (s *AppLifecycleSuite) TestHooksExecutionOrder() {
 	// Note: In a real test, we'd start the server and trigger shutdown
 	// For this unit test, we just verify hooks are registered
 	s.testApp.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	// Verify hooks are registered (they'll execute when server starts/stops)
@@ -95,11 +99,15 @@ func (s *AppLifecycleSuite) TestHooksExecutionOrder() {
 
 func (s *AppLifecycleSuite) TestRouteRegistration() {
 	s.testApp.GET("/users", func(c *Context) {
-		c.JSON(http.StatusOK, map[string]string{"message": "users"})
+		if err := c.JSON(http.StatusOK, map[string]string{"message": "users"}); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	s.testApp.POST("/users", func(c *Context) {
-		c.JSON(http.StatusCreated, map[string]string{"message": "created"})
+		if err := c.JSON(http.StatusCreated, map[string]string{"message": "created"}); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	// Test GET route
@@ -139,7 +147,9 @@ func (s *AppLifecycleSuite) TestMiddlewareChain() {
 		callMutex <- struct{}{}
 		callOrder = append(callOrder, 3)
 		<-callMutex
-		c.String(http.StatusOK, "ok")
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	req := httptest.NewRequest("GET", "/test", nil)

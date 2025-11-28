@@ -82,10 +82,10 @@ type bindingMetadata struct {
 //	    return err
 //	}
 //
-// For binding + validation, use BindAndValidate().
+// For binding + validation, use [Context.BindAndValidate].
 //
 // Note: For multipart forms with file uploads, files must be retrieved
-// separately using c.Request.FormFile() or c.Request.MultipartForm.
+// separately using c.File() or c.Files().
 func (c *Context) Bind(out any) error {
 	// Get struct type for introspection
 	t := reflect.TypeOf(out)
@@ -392,6 +392,9 @@ func (c *Context) BindAndValidateStrict(out any, opts ...validation.Option) erro
 //	    c.Error(fmt.Errorf("user not found"))
 //	    return
 //	}
+//
+// See also [Context.ErrorStatus] for explicit status codes and convenience methods
+// like [Context.NotFound], [Context.BadRequest], [Context.Unauthorized].
 func (c *Context) Error(err error) {
 	if err == nil {
 		return
@@ -403,15 +406,14 @@ func (c *Context) Error(err error) {
 	// Format the error (formatter is framework-agnostic)
 	response := formatter.Format(c.Request, err)
 
-	// Log error if logger configured
-	if c.app.config.errors != nil && c.app.config.errors.logger != nil {
-		c.app.config.errors.logger.Error("handler error",
-			"error", err,
-			"method", c.Request.Method,
-			"path", c.Request.URL.Path,
-			"status", response.Status,
-		)
-	}
+	// Log error using request-scoped logger (includes trace context, request ID, etc.)
+	// Logger() is always safe to call - uses noopLogger if logging isn't configured
+	c.Logger().Error("handler error",
+		"error", err,
+		"method", c.Request.Method,
+		"path", c.Request.URL.Path,
+		"status", response.Status,
+	)
 
 	// Write response
 	c.Header("Content-Type", response.ContentType)
@@ -423,7 +425,9 @@ func (c *Context) Error(err error) {
 		}
 	}
 
-	c.JSON(response.Status, response.Body)
+	if err := c.JSON(response.Status, response.Body); err != nil {
+		c.Logger().Error("failed to write JSON response", "err", err)
+	}
 }
 
 // selectFormatter chooses the appropriate formatter based on configuration.

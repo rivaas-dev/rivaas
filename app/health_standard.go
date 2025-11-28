@@ -23,73 +23,14 @@ import (
 	"rivaas.dev/router"
 )
 
-// CheckFunc defines a function that performs a health or readiness check.
-// The function should return nil if the check passes, or an error if it fails.
-// The context may be cancelled if the check takes too long.
-type CheckFunc func(ctx context.Context) error
-
-// StandardEndpointsOpts configures the standard health and readiness endpoints.
-type StandardEndpointsOpts struct {
-	// MountPrefix is the prefix under which to mount all endpoints.
-	// Defaults to empty string (mounts at root).
-	// Example: "/_system" mounts endpoints at "/_system/healthz" and "/_system/readyz"
-	MountPrefix string
-
-	// Liveness checks run to determine if the process is alive.
-	// These should be dependency-free checks that complete without external dependencies (e.g., can create goroutines).
-	// If any liveness check fails, /healthz returns 503.
-	// If no liveness checks are provided, /healthz always returns 200.
-	Liveness map[string]CheckFunc
-
-	// Readiness checks run to determine if the service is ready to serve traffic.
-	// These check external dependencies (database, cache, external APIs).
-	// If any readiness check fails, /readyz returns 503 with problem details.
-	// If no readiness checks are provided, /readyz always returns 204.
-	Readiness map[string]CheckFunc
-
-	// Timeout is the maximum time to wait for each check to complete.
-	// Each check runs with this timeout applied via context.WithTimeout.
-	// Defaults to 1 second if not specified.
-	Timeout time.Duration
-}
-
-// WithStandardEndpoints registers standard health and readiness endpoints.
-//
-// Endpoints registered:
-//   - GET /healthz (or /{MountPrefix}/healthz) - Liveness probe
-//     Returns 200 "ok" if all liveness checks pass, 503 if any fail
-//   - GET /readyz (or /{MountPrefix}/readyz) - Readiness probe
-//     Returns 204 if all readiness checks pass, 503 with problem details if any fail
-//
-// WithStandardEndpoints returns an error if any endpoint path already exists (collision detection).
-//
-// Example:
-//
-//	_ = a.WithStandardEndpoints(app.StandardEndpointsOpts{
-//	    MountPrefix: "",
-//	    Timeout:     800 * time.Millisecond,
-//	    Liveness: map[string]app.CheckFunc{
-//	        "process": func(ctx context.Context) error {
-//	            // Dependency-free check: process is alive
-//	            return nil
-//	        },
-//	    },
-//	    Readiness: map[string]app.CheckFunc{
-//	        "database": func(ctx context.Context) error {
-//	            return db.PingContext(ctx)
-//	        },
-//	        "cache": func(ctx context.Context) error {
-//	            return redis.Ping(ctx).Err()
-//	        },
-//	    },
-//	})
-func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
-	prefix := o.MountPrefix
+// registerHealthEndpoints registers health endpoints based on the provided settings.
+// This is called internally by app.New() when health endpoints are configured.
+func (a *App) registerHealthEndpoints(s *healthSettings) error {
+	// Build full paths
+	healthzPath := s.prefix + s.healthzPath
+	readyzPath := s.prefix + s.readyzPath
 
 	// Check for route collisions
-	healthzPath := prefix + "/healthz"
-	readyzPath := prefix + "/readyz"
-
 	if a.router.RouteExists("GET", healthzPath) {
 		return fmt.Errorf("route already registered: GET %s", healthzPath)
 	}
@@ -97,9 +38,9 @@ func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 		return fmt.Errorf("route already registered: GET %s", readyzPath)
 	}
 
-	timeout := o.Timeout
+	timeout := s.timeout
 	if timeout <= 0 {
-		timeout = 1 * time.Second
+		timeout = time.Second
 	}
 
 	// GET /healthz - Liveness probe (process health, no external deps)
@@ -107,14 +48,16 @@ func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 		c.Header("Cache-Control", "no-store")
 
 		// No liveness checks = always healthy (process is running)
-		if len(o.Liveness) == 0 {
-			c.String(http.StatusOK, "ok")
+		if len(s.liveness) == 0 {
+			if err := c.String(http.StatusOK, "ok"); err != nil {
+				c.Logger().Error("failed to write healthz response", "err", err)
+			}
 			return
 		}
 
 		// Run liveness checks concurrently
 		ctx := c.Request.Context()
-		failures := runChecks(ctx, o.Liveness, timeout)
+		failures := runChecks(ctx, s.liveness, timeout)
 
 		if len(failures) > 0 {
 			// 503 response - error formatting handled by app.Context.Error() if wrapped
@@ -122,7 +65,9 @@ func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 			return
 		}
 
-		c.String(http.StatusOK, "ok")
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write healthz response", "err", err)
+		}
 	})
 
 	// GET /readyz - Readiness probe (external deps: db, cache, otel)
@@ -130,13 +75,13 @@ func (a *App) WithStandardEndpoints(o StandardEndpointsOpts) error {
 		c.Header("Cache-Control", "no-store")
 
 		// No readiness checks = always ready
-		if len(o.Readiness) == 0 {
+		if len(s.readiness) == 0 {
 			c.NoContent()
 			return
 		}
 
 		ctx := c.Request.Context()
-		failures := runChecks(ctx, o.Readiness, timeout)
+		failures := runChecks(ctx, s.readiness, timeout)
 
 		if len(failures) > 0 {
 			// 503 response - error formatting handled by app.Context.Error() if wrapped

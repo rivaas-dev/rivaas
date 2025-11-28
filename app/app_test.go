@@ -347,29 +347,31 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 
 	t.Run("logging initialization with options", func(t *testing.T) {
 		t.Parallel()
-		logger := logging.MustNew(logging.WithLevel(logging.LevelDebug))
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithLogger(logger.Logger()),
+			WithObservability(
+				WithLogging(logging.WithLevel(logging.LevelDebug)),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
-		assert.NotNil(t, app.baseLogger)
+		assert.NotNil(t, app.logging)
 	})
 
-	t.Run("logging initialization with prebuilt config", func(t *testing.T) {
+	t.Run("logging initialization with debug level", func(t *testing.T) {
 		t.Parallel()
 
-		logger := logging.MustNew(logging.WithLevel(logging.LevelInfo))
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithLogger(logger.Logger()),
+			WithObservability(
+				WithLogging(logging.WithLevel(logging.LevelInfo)),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
-		assert.NotNil(t, app.baseLogger)
+		assert.NotNil(t, app.logging)
 	})
 
 	t.Run("metrics initialization with options", func(t *testing.T) {
@@ -378,7 +380,9 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+			WithObservability(
+				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
@@ -391,7 +395,9 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+			WithObservability(
+				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
@@ -404,7 +410,9 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			WithObservability(
+				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
@@ -417,7 +425,9 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			WithObservability(
+				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
@@ -427,86 +437,94 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 	t.Run("all observability components together", func(t *testing.T) {
 		t.Parallel()
 
-		logger := logging.MustNew(logging.WithLevel(logging.LevelDebug))
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithLogger(logger.Logger()),
-			WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-			WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			WithObservability(
+				WithLogging(logging.WithLevel(logging.LevelDebug)),
+				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
-		assert.NotNil(t, app.baseLogger)
+		assert.NotNil(t, app.logging)
 		assert.NotNil(t, app.metrics)
 		assert.NotNil(t, app.tracing)
 	})
 
-	t.Run("prebuilt observability configs together", func(t *testing.T) {
+	t.Run("observability with different log levels", func(t *testing.T) {
 		t.Parallel()
 
-		logger := logging.MustNew(logging.WithLevel(logging.LevelInfo))
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithLogger(logger.Logger()),
-			WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-			WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			WithObservability(
+				WithLogging(logging.WithLevel(logging.LevelInfo)),
+				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
-		assert.NotNil(t, app.baseLogger)
+		assert.NotNil(t, app.logging)
 		assert.NotNil(t, app.metrics)
 		assert.NotNil(t, app.tracing)
 	})
 
-	t.Run("service metadata is automatically injected into metrics and tracing", func(t *testing.T) {
+	t.Run("service metadata is automatically injected into all observability components", func(t *testing.T) {
 		t.Parallel()
 
-		logger := logging.MustNew()
 		app, err := New(
 			WithServiceName("payment-service"),
 			WithServiceVersion("v2.1.0"),
-			WithLogger(logger.Logger()),
-			WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-			WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			WithObservability(
+				WithLogging(logging.WithJSONHandler()),
+				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
 
-		// Verify logger is set
-		assert.NotNil(t, app.baseLogger)
+		// Verify logging is set and has service metadata auto-injected
+		assert.NotNil(t, app.logging)
+		assert.Equal(t, "payment-service", app.logging.ServiceName())
+		assert.Equal(t, "v2.1.0", app.logging.ServiceVersion())
 
-		// Verify metrics has service metadata (still auto-injected)
+		// Verify metrics has service metadata (auto-injected)
 		assert.NotNil(t, app.metrics)
 		assert.Equal(t, "payment-service", app.metrics.ServiceName())
 		assert.Equal(t, "v2.1.0", app.metrics.ServiceVersion())
 
-		// Verify tracing has service metadata (still auto-injected)
+		// Verify tracing has service metadata (auto-injected)
 		assert.NotNil(t, app.tracing)
 		assert.Equal(t, "payment-service", app.tracing.ServiceName())
 		assert.Equal(t, "v2.1.0", app.tracing.ServiceVersion())
 	})
 
-	t.Run("logger can be configured with service metadata", func(t *testing.T) {
+	t.Run("user options can override auto-injected service metadata", func(t *testing.T) {
 		t.Parallel()
 
-		logger := logging.MustNew(
-			logging.WithServiceName("custom-logger"),
-			logging.WithServiceVersion("v1.0.0"),
-		)
+		// User explicitly sets service metadata in logging options
+		// These should take precedence over app-level config
 		app, err := New(
 			WithServiceName("payment-service"),
 			WithServiceVersion("v2.1.0"),
-			WithLogger(logger.Logger()),
+			WithObservability(
+				WithLogging(
+					logging.WithServiceName("custom-logger"),
+					logging.WithServiceVersion("v1.0.0"),
+				),
+			),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, app)
-		assert.NotNil(t, app.baseLogger)
+		assert.NotNil(t, app.logging)
 
-		// Logger should have the metadata set when it was created
-		assert.Equal(t, "custom-logger", logger.ServiceName())
-		assert.Equal(t, "v1.0.0", logger.ServiceVersion())
+		// User options are applied AFTER auto-injection, so they take precedence
+		assert.Equal(t, "custom-logger", app.logging.ServiceName())
+		assert.Equal(t, "v1.0.0", app.logging.ServiceVersion())
 	})
 }
 
@@ -525,8 +543,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		require.NoError(t, err)
 		// Default middleware (recovery and accesslog) are router-level, not app-level.
 		// They are applied directly to the router, not stored in app.config.middleware.functions.
-		// Verify that defaults are enabled by checking explicitlySet is false.
-		assert.False(t, app.config.middleware.explicitlySet)
+		// Verify that defaults are enabled by checking disableDefaults is false.
+		assert.False(t, app.config.middleware.disableDefaults)
 		// Verify recovery middleware works by testing panic recovery
 		app.GET("/panic", func(c *Context) {
 			panic("test panic")
@@ -548,8 +566,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		)
 		require.NoError(t, err)
 		// Default middleware (recovery) is router-level, not app-level.
-		// Verify that defaults are enabled by checking explicitlySet is false.
-		assert.False(t, app.config.middleware.explicitlySet)
+		// Verify that defaults are enabled by checking disableDefaults is false.
+		assert.False(t, app.config.middleware.disableDefaults)
 		// Verify recovery middleware works by testing panic recovery
 		app.GET("/panic", func(c *Context) {
 			panic("test panic")
@@ -561,7 +579,7 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 
-	t.Run("explicit middleware configuration overrides defaults", func(t *testing.T) {
+	t.Run("WithMiddleware adds custom middleware without disabling defaults", func(t *testing.T) {
 		t.Parallel()
 
 		customMiddleware := func(c *Context) {
@@ -571,12 +589,21 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
 			WithEnvironment(EnvironmentDevelopment),
-			WithMiddleware(customMiddleware), // Explicit middleware, no defaults
+			WithMiddleware(customMiddleware), // Adds middleware, keeps defaults
 		)
 		require.NoError(t, err)
-		// Should only have the custom middleware, no defaults
+		// Should have the custom middleware
 		assert.Equal(t, 1, len(app.config.middleware.functions))
-		assert.True(t, app.config.middleware.explicitlySet)
+		// Defaults should still be enabled
+		assert.False(t, app.config.middleware.disableDefaults)
+		// Verify recovery middleware still works
+		app.GET("/panic", func(c *Context) {
+			panic("test panic")
+		})
+		req := httptest.NewRequest("GET", "/panic", nil)
+		rec := httptest.NewRecorder()
+		app.Router().ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 
 	t.Run("recovery middleware enabled by default", func(t *testing.T) {
@@ -588,8 +615,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		)
 		require.NoError(t, err)
 		// Default middleware (recovery) is router-level, not app-level.
-		// Verify that defaults are enabled by checking explicitlySet is false.
-		assert.False(t, app.config.middleware.explicitlySet)
+		// Verify that defaults are enabled by checking disableDefaults is false.
+		assert.False(t, app.config.middleware.disableDefaults)
 		// Verify recovery middleware works by testing panic recovery
 		app.GET("/panic", func(c *Context) {
 			panic("test panic")
@@ -601,19 +628,20 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 
-	t.Run("explicit empty middleware disables defaults", func(t *testing.T) {
+	t.Run("WithoutDefaultMiddleware disables defaults", func(t *testing.T) {
 		t.Parallel()
 
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
 			WithEnvironment(EnvironmentDevelopment),
-			WithMiddleware(), // Explicitly empty - no defaults
+			WithoutDefaultMiddleware(), // Explicitly disable defaults
 		)
 		require.NoError(t, err)
-		// Should have no middleware
+		// Should have no custom middleware
 		assert.Equal(t, 0, len(app.config.middleware.functions))
-		assert.True(t, app.config.middleware.explicitlySet)
+		// Defaults should be disabled
+		assert.True(t, app.config.middleware.disableDefaults)
 	})
 
 	t.Run("multiple middleware can be added", func(t *testing.T) {
@@ -629,7 +657,8 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		require.NoError(t, err)
 		// Should have exactly 2 middleware
 		assert.Equal(t, 2, len(app.config.middleware.functions))
-		assert.True(t, app.config.middleware.explicitlySet)
+		// Defaults should still be enabled (WithMiddleware doesn't disable them)
+		assert.False(t, app.config.middleware.disableDefaults)
 	})
 }
 
@@ -645,33 +674,47 @@ func TestApp_RouteRegistration(t *testing.T) {
 
 	// Register routes using App methods
 	app.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "users")
+		if err := c.String(http.StatusOK, "users"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	app.POST("/users", func(c *Context) {
-		c.String(http.StatusCreated, "created")
+		if err := c.String(http.StatusCreated, "created"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	app.PUT("/users/:id", func(c *Context) {
 		userID := c.Param("id")
-		c.Stringf(http.StatusOK, "updated %s", userID)
+		if err := c.Stringf(http.StatusOK, "updated %s", userID); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	app.DELETE("/users/:id", func(c *Context) {
-		c.String(http.StatusNoContent, "")
+		if err := c.String(http.StatusNoContent, ""); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	app.PATCH("/users/:id", func(c *Context) {
 		userID := c.Param("id")
-		c.Stringf(http.StatusOK, "patched %s", userID)
+		if err := c.Stringf(http.StatusOK, "patched %s", userID); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	app.HEAD("/users/:id", func(c *Context) {
-		c.String(http.StatusOK, "")
+		if err := c.String(http.StatusOK, ""); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	app.OPTIONS("/users", func(c *Context) {
-		c.String(http.StatusOK, "")
+		if err := c.String(http.StatusOK, ""); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	// Test GET route
@@ -734,12 +777,16 @@ func TestApp_GroupRoutes(t *testing.T) {
 	// Groups from app support app.HandlerFunc with app.Context
 	api := app.Group("/api")
 	api.GET("/health", func(c *Context) {
-		c.String(http.StatusOK, "healthy")
+		if err := c.String(http.StatusOK, "healthy"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	api.GET("/users/:id", func(c *Context) {
 		userID := c.Param("id")
-		c.Stringf(http.StatusOK, "user-%s", userID)
+		if err := c.Stringf(http.StatusOK, "user-%s", userID); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	// Test grouped route
@@ -774,7 +821,9 @@ func TestApp_UseMiddleware(t *testing.T) {
 	})
 
 	app.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -923,7 +972,9 @@ func TestApp_GetMetricsHandler(t *testing.T) {
 				return MustNew(
 					WithServiceName("test"),
 					WithServiceVersion("1.0.0"),
-					WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+					WithObservability(
+						WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+					),
 				)
 			},
 			wantError:   false,
@@ -979,9 +1030,11 @@ func TestApp_GetMetricsServerAddress(t *testing.T) {
 				return MustNew(
 					WithServiceName("test"),
 					WithServiceVersion("1.0.0"),
-					WithMetrics(
-						metrics.WithProvider(metrics.PrometheusProvider),
-						metrics.WithPort(":9090"),
+					WithObservability(
+						WithMetrics(
+							metrics.WithProvider(metrics.PrometheusProvider),
+							metrics.WithPort(":9090"),
+						),
 					),
 				)
 			},
@@ -1106,7 +1159,9 @@ func TestApp_Metrics(t *testing.T) {
 				return MustNew(
 					WithServiceName("test"),
 					WithServiceVersion("1.0.0"),
-					WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+					WithObservability(
+						WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+					),
 				)
 			},
 			wantNil: false,
@@ -1162,7 +1217,9 @@ func TestApp_Tracing(t *testing.T) {
 				return MustNew(
 					WithServiceName("test"),
 					WithServiceVersion("1.0.0"),
-					WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+					WithObservability(
+						WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+					),
 				)
 			},
 			wantNil: false,
@@ -1220,15 +1277,16 @@ func TestNew_RouterOptionsAccumulation(t *testing.T) {
 func TestNew_LoggingInitializationSuccess(t *testing.T) {
 	t.Parallel()
 
-	logger := logging.MustNew(logging.WithLevel(logging.LevelDebug))
 	app, err := New(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
-		WithLogger(logger.Logger()),
+		WithObservability(
+			WithLogging(logging.WithLevel(logging.LevelDebug)),
+		),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, app)
-	assert.NotNil(t, app.baseLogger)
+	assert.NotNil(t, app.logging)
 }
 
 // TestNew_MultipleOptionsApplication tests that when the same option type
@@ -1259,9 +1317,11 @@ func TestApp_NoRoute(t *testing.T) {
 		)
 
 		app.NoRoute(func(c *Context) {
-			c.JSON(http.StatusNotFound, map[string]string{
+			if err := c.JSON(http.StatusNotFound, map[string]string{
 				"error": "custom not found",
-			})
+			}); err != nil {
+				c.Logger().Error("failed to write response", "err", err)
+			}
 		})
 
 		req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
@@ -1282,7 +1342,9 @@ func TestApp_NoRoute(t *testing.T) {
 
 		// First set a custom handler
 		app.NoRoute(func(c *Context) {
-			c.JSON(http.StatusNotFound, map[string]string{"error": "custom"})
+			if err := c.JSON(http.StatusNotFound, map[string]string{"error": "custom"}); err != nil {
+				c.Logger().Error("failed to write response", "err", err)
+			}
 		})
 
 		// Then restore default by setting nil
@@ -1305,11 +1367,15 @@ func TestApp_NoRoute(t *testing.T) {
 		)
 
 		app.GET("/exists", func(c *Context) {
-			c.String(http.StatusOK, "exists")
+			if err := c.String(http.StatusOK, "exists"); err != nil {
+				c.Logger().Error("failed to write response", "err", err)
+			}
 		})
 
 		app.NoRoute(func(c *Context) {
-			c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			if err := c.JSON(http.StatusNotFound, map[string]string{"error": "not found"}); err != nil {
+				c.Logger().Error("failed to write response", "err", err)
+			}
 		})
 
 		// Existing route should work

@@ -25,7 +25,7 @@ import (
 )
 
 func TestPrintRoutes_Output(t *testing.T) {
-	t.Parallel()
+	// NOTE: Cannot use t.Parallel() - this test modifies global os.Stdout
 
 	app, err := New(
 		WithServiceName("test-service"),
@@ -36,13 +36,13 @@ func TestPrintRoutes_Output(t *testing.T) {
 
 	// Register some test routes
 	app.GET("/", func(c *Context) {
-		c.String(http.StatusOK, "root")
+		require.NoError(t, c.String(http.StatusOK, "root"))
 	})
 	app.GET("/users/:id", func(c *Context) {
-		c.String(http.StatusOK, "user")
+		require.NoError(t, c.String(http.StatusOK, "user"))
 	})
 	app.POST("/users", func(c *Context) {
-		c.String(http.StatusCreated, "created")
+		require.NoError(t, c.String(http.StatusCreated, "created"))
 	})
 
 	// Capture output
@@ -97,7 +97,7 @@ func TestRenderRoutesTable_WithRoutes(t *testing.T) {
 	require.NoError(t, err)
 
 	app.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		require.NoError(t, c.String(http.StatusOK, "ok"))
 	})
 
 	var buf bytes.Buffer

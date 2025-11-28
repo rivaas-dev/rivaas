@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -23,26 +24,33 @@ import (
 )
 
 func main() {
-	// Create a new app with default settings
-	a, err := app.New()
+	// Create a new app with default settings and health endpoints
+	a, err := app.New(
+		// Enable standard health endpoints
+		app.WithHealthEndpoints(
+			// Simple liveness check (process is alive)
+			app.WithLivenessCheck("process", func(ctx context.Context) error {
+				return nil // Process is alive
+			}),
+		),
+	)
 	if err != nil {
 		log.Fatalf("Failed to create app: %v", err)
 	}
 
 	// Register routes
 	a.GET("/", func(c *app.Context) {
-		c.JSON(http.StatusOK, map[string]string{
+		if err := c.JSON(http.StatusOK, map[string]string{
 			"message": "Hello from Rivaas App!",
-		})
-	})
-
-	a.GET("/health", func(c *app.Context) {
-		c.JSON(http.StatusOK, map[string]string{
-			"status": "healthy",
-		})
+		}); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
 	})
 
 	// Start the server with error handling
+	// Health endpoints are available at:
+	//   GET /healthz - Liveness probe (returns 200 "ok")
+	//   GET /readyz  - Readiness probe (returns 204)
 	if err := a.Run(":8080"); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}

@@ -80,15 +80,31 @@
 //	    log.Fatal(err)
 //	}
 //
-// Full-featured application with observability:
+// Full-featured application with observability, health, and debug endpoints:
 //
 //	app, err := app.New(
 //	    app.WithServiceName("my-api"),
-//	    app.WithVersion("v1.0.0"),
+//	    app.WithServiceVersion("v1.0.0"),
 //	    app.WithEnvironment("production"),
-//	    app.WithMetrics(),
-//	    app.WithTracing(),
-//	    app.WithLogging(),
+//	    // Observability: all three pillars in one place
+//	    app.WithObservability(
+//	        app.WithLogging(logging.WithJSONHandler()),
+//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+//	        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+//	    ),
+//	    // Health endpoints: /healthz and /readyz
+//	    app.WithHealthEndpoints(
+//	        app.WithLivenessCheck("process", func(ctx context.Context) error {
+//	            return nil
+//	        }),
+//	        app.WithReadinessCheck("database", func(ctx context.Context) error {
+//	            return db.PingContext(ctx)
+//	        }),
+//	    ),
+//	    // Debug endpoints: /debug/pprof/* (conditionally enabled)
+//	    app.WithDebugEndpoints(
+//	        app.WithPprofIf(os.Getenv("PPROF_ENABLED") == "true"),
+//	    ),
 //	    app.WithServerConfig(
 //	        app.WithReadTimeout(15 * time.Second),
 //	        app.WithWriteTimeout(15 * time.Second),
@@ -102,7 +118,9 @@
 //
 //	app := app.MustNew(
 //	    app.WithServiceName("my-service"),
-//	    app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+//	    app.WithObservability(
+//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+//	    ),
 //	)
 //
 // # Observability
@@ -116,9 +134,11 @@
 // All observability features are optional and can be enabled independently:
 //
 //	app.New(
-//	    app.WithMetrics(),  // Enable metrics collection
-//	    app.WithTracing(),  // Enable distributed tracing
-//	    app.WithLogging(),  // Enable structured logging
+//	    app.WithObservability(
+//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+//	        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+//	        app.WithLogging(logging.WithJSONHandler()),
+//	    ),
 //	)
 //
 // # Lifecycle Hooks

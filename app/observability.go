@@ -35,10 +35,10 @@ import (
 // metrics, tracing, and logging into a single lifecycle.
 // observabilityRecorder coordinates observability data collection across all three pillars.
 type observabilityRecorder struct {
-	metrics  *metrics.Config
-	tracing  *tracing.Config
-	logger   *slog.Logger
-	excludes map[string]bool
+	metrics    *metrics.Config
+	tracing    *tracing.Config
+	logger     *slog.Logger
+	pathFilter *pathFilter
 
 	// Access log configuration
 	logAccessRequests bool
@@ -51,23 +51,25 @@ type observabilityConfig struct {
 	Metrics           *metrics.Config
 	Tracing           *tracing.Config
 	Logger            *slog.Logger
-	ExcludePaths      []string
+	PathFilter        *pathFilter
 	LogAccessRequests bool
 	LogErrorsOnly     bool
 	SlowThreshold     time.Duration
 }
 
+// newObservabilityRecorder creates an observabilityRecorder from configuration.
+// newObservabilityRecorder initializes path filtering and all observability components.
 func newObservabilityRecorder(cfg *observabilityConfig) router.ObservabilityRecorder {
-	excludes := make(map[string]bool, len(cfg.ExcludePaths))
-	for _, path := range cfg.ExcludePaths {
-		excludes[path] = true
+	pf := cfg.PathFilter
+	if pf == nil {
+		pf = newPathFilterWithDefaults()
 	}
 
 	return &observabilityRecorder{
 		metrics:           cfg.Metrics,
 		tracing:           cfg.Tracing,
 		logger:            cfg.Logger,
-		excludes:          excludes,
+		pathFilter:        pf,
 		logAccessRequests: cfg.LogAccessRequests,
 		logErrorsOnly:     cfg.LogErrorsOnly,
 		slowThreshold:     cfg.SlowThreshold,
@@ -85,7 +87,7 @@ type observabilityState struct {
 
 func (o *observabilityRecorder) OnRequestStart(ctx context.Context, req *http.Request) (context.Context, any) {
 	// Single source of truth for exclusions
-	if o.excludes[req.URL.Path] {
+	if o.pathFilter != nil && o.pathFilter.shouldExclude(req.URL.Path) {
 		return ctx, nil // Excluded: skip all observability
 	}
 

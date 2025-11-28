@@ -72,25 +72,49 @@ func main() {
 package main
 
 import (
+    "context"
     "log"
     "net/http"
+    "os"
     "time"
     
     "rivaas.dev/app"
+    "rivaas.dev/logging"
+    "rivaas.dev/metrics"
+    "rivaas.dev/tracing"
     "rivaas.dev/router/middleware/requestid"
     "rivaas.dev/router/middleware/cors"
-    "go.opentelemetry.io/otel/attribute"
 )
 
 func main() {
     // Create app with full observability
+    // All features use the same consistent functional options pattern
+    // Service name/version are automatically injected into all components
     a, err := app.New(
         app.WithServiceName("my-api"),
         app.WithServiceVersion("v1.0.0"),
         app.WithEnvironment("production"),
-        app.WithMetrics(),
-        app.WithTracing(),
-        app.WithLogger(logger), // Provide a *slog.Logger
+        // Observability: logging, metrics, tracing
+        app.WithObservability(
+            app.WithLogging(logging.WithJSONHandler()),
+            app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+            app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+            app.WithExcludePaths("/healthz", "/readyz", "/metrics"),
+        ),
+        // Health endpoints: GET /healthz (liveness), GET /readyz (readiness)
+        app.WithHealthEndpoints(
+            app.WithHealthTimeout(800 * time.Millisecond),
+            app.WithLivenessCheck("process", func(ctx context.Context) error {
+                return nil // Process is alive
+            }),
+            app.WithReadinessCheck("database", func(ctx context.Context) error {
+                return db.PingContext(ctx)
+            }),
+        ),
+        // Debug endpoints: GET /debug/pprof/* (conditional)
+        app.WithDebugEndpoints(
+            app.WithPprofIf(os.Getenv("PPROF_ENABLED") == "true"),
+        ),
         app.WithServerConfig(
             app.WithReadTimeout(15 * time.Second),
             app.WithWriteTimeout(15 * time.Second),
@@ -136,6 +160,8 @@ func main() {
     })
 
     // Start server
+    // Health: GET /healthz, GET /readyz
+    // Debug: GET /debug/pprof/* (if enabled)
     if err := a.Run(":8080"); err != nil {
         log.Fatalf("Server error: %v", err)
     }
@@ -148,7 +174,7 @@ func main() {
 
 ```go
 app.WithServiceName("my-service")
-app.WithVersion("v1.0.0")
+app.WithServiceVersion("v1.0.0")
 app.WithEnvironment("production") // or "development"
 ```
 
@@ -214,16 +240,21 @@ The `trace_id` will be empty and no traces will appear in stdout because:
 import (
     "log"
     "rivaas.dev/app"
+    "rivaas.dev/logging"
+    "rivaas.dev/metrics"
     "rivaas.dev/tracing"
 )
 
-// Create app with stdout tracing provider
+// Create app with full observability
+// All three pillars use the same pattern: pass options
 a, err := app.New(
     app.WithServiceName("my-service"),
     app.WithServiceVersion("v1.0.0"),
-    app.WithMetrics(),
-    app.WithTracing(tracing.WithProvider(tracing.StdoutProvider)),
-    app.WithLogger(logger), // Provide a *slog.Logger
+    app.WithObservability(
+        app.WithLogging(logging.WithConsoleHandler()),
+        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+        app.WithTracing(tracing.WithProvider(tracing.StdoutProvider)),
+    ),
 )
 if err != nil {
     log.Fatal(err)
@@ -333,6 +364,115 @@ app, err := app.New(
 // err will be nil - configuration is valid
 ```
 
+### Health Endpoints
+
+Configure standard Kubernetes-compatible health endpoints using the consistent functional options pattern:
+
+```go
+app.WithHealthEndpoints(
+    app.WithHealthPrefix("/_system"),      // Optional: mount under prefix
+    app.WithHealthTimeout(800 * time.Millisecond),
+    app.WithLivenessCheck("process", func(ctx context.Context) error {
+        return nil // Process is alive
+    }),
+    app.WithReadinessCheck("database", func(ctx context.Context) error {
+        return db.PingContext(ctx)
+    }),
+    app.WithReadinessCheck("cache", func(ctx context.Context) error {
+        return redis.Ping(ctx).Err()
+    }),
+)
+```
+
+**Endpoints Registered:**
+
+- `GET /healthz` (or `/{prefix}/healthz`) - Liveness probe
+  - Returns `200 "ok"` if all liveness checks pass
+  - Returns `503` if any liveness check fails
+  - If no liveness checks configured, always returns `200`
+
+- `GET /readyz` (or `/{prefix}/readyz`) - Readiness probe
+  - Returns `204` if all readiness checks pass
+  - Returns `503` if any readiness check fails
+  - If no readiness checks configured, always returns `204`
+
+**Health Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithHealthPrefix(prefix)` | Mount prefix for health endpoints | `""` (root) |
+| `WithHealthzPath(path)` | Custom liveness probe path | `"/healthz"` |
+| `WithReadyzPath(path)` | Custom readiness probe path | `"/readyz"` |
+| `WithHealthTimeout(d)` | Timeout for each health check | `1s` |
+| `WithLivenessCheck(name, fn)` | Add a liveness check | - |
+| `WithReadinessCheck(name, fn)` | Add a readiness check | - |
+
+**Liveness vs Readiness:**
+
+- **Liveness checks** should be dependency-free and fast. They indicate whether the process is alive and should be restarted if failing.
+- **Readiness checks** verify external dependencies (database, cache, upstream services). Failing readiness means the service should not receive traffic but doesn't need to be restarted.
+
+**Runtime Readiness Gates:**
+
+For dynamic readiness state (e.g., database connection pools managing their own health), use the `ReadinessManager`:
+
+```go
+type DatabaseGate struct {
+    db *sql.DB
+}
+func (g *DatabaseGate) Ready() bool { return g.db.Ping() == nil }
+func (g *DatabaseGate) Name() string { return "database" }
+
+// Register at runtime
+app.Readiness().Register("db", &DatabaseGate{db: db})
+
+// Unregister during shutdown
+app.Readiness().Unregister("db")
+```
+
+### Debug Endpoints
+
+Enable debug endpoints (pprof) using the consistent functional options pattern:
+
+```go
+// Development: enable pprof unconditionally
+app.WithDebugEndpoints(
+    app.WithPprof(),
+)
+
+// Production: enable conditionally via environment variable
+app.WithDebugEndpoints(
+    app.WithDebugPrefix("/_internal/debug"),
+    app.WithPprofIf(os.Getenv("PPROF_ENABLED") == "true"),
+)
+```
+
+**⚠️ Security Warning:**
+
+pprof endpoints expose sensitive runtime information and should NEVER be enabled without proper security measures in production:
+
+- **Development**: Enable unconditionally (no external exposure)
+- **Staging**: Enable behind VPN or IP allowlist
+- **Production**: Enable only with proper authentication middleware
+
+**Endpoints Registered (when pprof enabled):**
+
+- `GET /debug/pprof/` - Main pprof index
+- `GET /debug/pprof/cmdline` - Command line
+- `GET /debug/pprof/profile` - CPU profile
+- `GET /debug/pprof/symbol` - Symbol lookup
+- `POST /debug/pprof/symbol` - Symbol lookup
+- `GET /debug/pprof/trace` - Execution trace
+- `GET /debug/pprof/{profile}` - Named profiles (allocs, block, goroutine, heap, mutex, threadcreate)
+
+**Debug Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithDebugPrefix(prefix)` | Mount prefix for debug endpoints | `"/debug"` |
+| `WithPprof()` | Enable pprof endpoints | Disabled |
+| `WithPprofIf(condition)` | Conditionally enable pprof | Disabled |
+
 ### Middleware Configuration
 
 Add middleware during initialization or after app creation:
@@ -391,7 +531,7 @@ app.Use(accesslog.New(
 
 Logs requests with timing, status codes, and client IPs. Requires a `*slog.Logger` to be provided.
 
-**Note:** The app package automatically configures access logging through its unified observability recorder when `WithLogger()` is used. Manual access logging middleware is only needed for custom configurations.
+**Note:** The app package automatically configures access logging through its unified observability recorder when `WithLogging()` is used. Manual access logging middleware is only needed for custom configurations.
 
 ### Recovery
 
@@ -647,14 +787,21 @@ r := router.New(
 ### After (App)
 
 ```go
-import "rivaas.dev/app"
+import (
+    "rivaas.dev/app"
+    "rivaas.dev/logging"
+    "rivaas.dev/metrics"
+    "rivaas.dev/tracing"
+)
 
 a, err := app.New(
     app.WithServiceName("my-service"),
     app.WithServiceVersion("v1.0.0"),
-    app.WithMetrics(),
-    app.WithTracing(),
-    app.WithLogger(logger), // Provide a *slog.Logger
+    app.WithObservability(
+        app.WithLogging(logging.WithJSONHandler()),
+        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+    ),
 )
 if err != nil {
     log.Fatalf("Failed to create app: %v", err)
@@ -842,8 +989,8 @@ app.WithServerConfig(
 | `Router()` | Get underlying router | `*router.Router` |
 | `Metrics()` | Get metrics configuration | `*metrics.Config` |
 | `Tracing()` | Get tracing configuration | `*tracing.Config` |
-| `Route(name string)` | Get route by name | `(router.Route, bool)` |
-| `Routes()` | Get all named routes | `[]router.Route` |
+| `Route(name string)` | Get route by name | `(*router.Route, bool)` |
+| `Routes()` | Get all named routes | `[]*router.Route` |
 | `PrintRoutes()` | Print all registered routes | - |
 
 ### App Configuration Options
@@ -853,12 +1000,48 @@ app.WithServerConfig(
 | `WithServiceName(name string)` | Set service name | `"rivaas-app"` |
 | `WithServiceVersion(version string)` | Set service version | `"1.0.0"` |
 | `WithEnvironment(env string)` | Set environment | `"development"` |
-| `WithMetrics(opts ...metrics.Option)` | Enable metrics | Disabled |
-| `WithTracing(opts ...tracing.Option)` | Enable tracing | Disabled |
-| `WithLogging(opts ...logging.Option)` | Enable logging | Disabled |
+| `WithObservability(opts ...ObservabilityOption)` | Configure observability | Disabled |
+| `WithHealthEndpoints(opts ...HealthOption)` | Configure health endpoints | Disabled |
+| `WithDebugEndpoints(opts ...DebugOption)` | Configure debug endpoints | Disabled |
 | `WithServerConfig(opts ...ServerOption)` | Configure server settings | See defaults below |
 | `WithMiddleware(middlewares ...HandlerFunc)` | Add middleware | Auto-included in dev |
 | `WithRouterOptions(opts ...router.Option)` | Configure router | - |
+
+### Observability Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithMetrics(opts ...metrics.Option)` | Enable metrics collection | Disabled |
+| `WithTracing(opts ...tracing.Option)` | Enable distributed tracing | Disabled |
+| `WithLogging(opts ...logging.Option)` | Enable structured logging | Disabled |
+| `WithExcludePaths(paths ...string)` | Exclude paths from observability | Common health paths |
+| `WithExcludePrefixes(prefixes ...string)` | Exclude path prefixes | - |
+| `WithExcludePatterns(patterns ...string)` | Exclude paths matching regex patterns | - |
+| `WithoutDefaultExclusions()` | Clear default path exclusions | - |
+| `WithMetricsOnMainRouter(path string)` | Mount metrics endpoint on main router | Disabled |
+| `WithMetricsSeparateServer(addr, path string)` | Configure separate metrics server | `:9090/metrics` |
+| `WithAccessLogging(enabled bool)` | Enable/disable access logging | `true` |
+| `WithLogOnlyErrors()` | Log only errors and slow requests | `false` |
+| `WithSlowThreshold(d time.Duration)` | Mark requests as slow | `1s` |
+
+### Health Endpoint Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithHealthPrefix(prefix string)` | Mount prefix for endpoints | `""` (root) |
+| `WithHealthzPath(path string)` | Custom liveness probe path | `"/healthz"` |
+| `WithReadyzPath(path string)` | Custom readiness probe path | `"/readyz"` |
+| `WithHealthTimeout(d time.Duration)` | Timeout for each check | `1s` |
+| `WithLivenessCheck(name string, fn CheckFunc)` | Add liveness check | - |
+| `WithReadinessCheck(name string, fn CheckFunc)` | Add readiness check | - |
+
+### Debug Endpoint Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithDebugPrefix(prefix string)` | Mount prefix for endpoints | `"/debug"` |
+| `WithPprof()` | Enable pprof endpoints | Disabled |
+| `WithPprofIf(condition bool)` | Conditionally enable pprof | Disabled |
 
 ### Server Configuration Options
 

@@ -147,7 +147,9 @@ func (a *App) registerOpenAPIEndpoints() {
 	a.router.GET(a.openapi.SpecPath(), func(c *router.Context) {
 		specJSON, etag, err := a.openapi.GenerateSpec()
 		if err != nil {
-			c.Stringf(http.StatusInternalServerError, "Failed to generate OpenAPI specification: %v", err)
+			if writeErr := c.Stringf(http.StatusInternalServerError, "Failed to generate OpenAPI specification: %v", err); writeErr != nil {
+				c.Logger().Error("failed to write error response", "err", writeErr)
+			}
 			return
 		}
 
@@ -193,7 +195,9 @@ func (a *App) registerOpenAPIEndpoints() {
 </body>
 </html>`
 
-			c.HTML(http.StatusOK, html)
+			if err := c.HTML(http.StatusOK, html); err != nil {
+				c.Logger().Error("failed to write HTML response", "err", err)
+			}
 		})
 	}
 }

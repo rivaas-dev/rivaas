@@ -30,7 +30,7 @@ type Hooks struct {
 	onReady    []func()                      // Async OK
 	onShutdown []func(context.Context)       // LIFO order
 	onStop     []func()                      // Best effort
-	onRoute    []func(router.Route)          // Fire during registration
+	onRoute    []func(*router.Route)         // Fire during registration
 	mu         sync.Mutex                    // Protects hook slices
 }
 
@@ -114,10 +114,10 @@ func (a *App) OnStop(fn func()) {
 //
 // Example:
 //
-//	app.OnRoute(func(route router.Route) {
+//	app.OnRoute(func(route *router.Route) {
 //	    log.Printf("Registered: %s %s", route.Method(), route.Path())
 //	})
-func (a *App) OnRoute(fn func(router.Route)) {
+func (a *App) OnRoute(fn func(*router.Route)) {
 	if a.router.Frozen() {
 		panic("cannot register hooks after router is frozen")
 	}
@@ -128,13 +128,13 @@ func (a *App) OnRoute(fn func(router.Route)) {
 
 // fireRouteHook fires all OnRoute hooks for a newly registered route.
 // fireRouteHook only fires if router is not frozen (hooks disabled after freeze).
-func (a *App) fireRouteHook(route router.Route) {
+func (a *App) fireRouteHook(route *router.Route) {
 	if a.router.Frozen() {
 		return // Hooks disabled after freeze
 	}
 
 	a.hooks.mu.Lock()
-	hooks := make([]func(router.Route), len(a.hooks.onRoute))
+	hooks := make([]func(*router.Route), len(a.hooks.onRoute))
 	copy(hooks, a.hooks.onRoute)
 	a.hooks.mu.Unlock()
 

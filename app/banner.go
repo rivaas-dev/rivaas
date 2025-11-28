@@ -249,19 +249,13 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 	minWidth := 2 + 3 + 8 + maxMethodWidth + maxVersionWidth + maxPathWidth + maxHandlerWidth
 
 	// Try to get terminal width if available
-	// First try to extract file from wrapped writer, then try os.Stdout directly
+	// Only check terminal size if writer is an *os.File (avoids race with tests)
 	terminalWidth := width // Use provided width as fallback
 
-	var file *os.File
-	if f, ok := w.(*os.File); ok {
-		file = f
-	} else {
-		// Try os.Stdout as fallback (most common case)
-		file = os.Stdout
-	}
-
-	if termWidth, _, err := getTerminalSize(file); err == nil && termWidth > 0 {
-		terminalWidth = termWidth
+	if file, ok := w.(*os.File); ok {
+		if termWidth, _, err := getTerminalSize(file); err == nil && termWidth > 0 {
+			terminalWidth = termWidth
+		}
 	}
 
 	// Determine final table width:

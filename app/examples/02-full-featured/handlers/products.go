@@ -52,13 +52,15 @@ func ListProducts(c *app.Context) {
 		{"id": "3", "name": "Product C", "price": 19.99},
 	}
 
-	c.JSON(http.StatusOK, map[string]any{
+	if err := c.JSON(http.StatusOK, map[string]any{
 		"products":  products,
 		"page":      params.Page,
 		"page_size": params.PageSize,
 		"total":     len(products),
 		"trace_id":  c.TraceID(),
-	})
+	}); err != nil {
+		c.Logger().Error("failed to write products response", "err", err)
+	}
 }
 
 // GetProductByID retrieves a product by ID with custom constraint.
@@ -82,9 +84,11 @@ func GetProductByID(c *app.Context) {
 	// Simulate database lookup
 	time.Sleep(10 * time.Millisecond)
 
-	c.JSON(http.StatusOK, map[string]any{
+	if err := c.JSON(http.StatusOK, map[string]any{
 		"id":    params.ID,
 		"name":  "Product " + params.ID,
 		"price": 29.99,
-	})
+	}); err != nil {
+		c.Logger().Error("failed to write product response", "err", err)
+	}
 }

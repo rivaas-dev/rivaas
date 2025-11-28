@@ -68,7 +68,6 @@ type ValidationError struct {
 
 // Error implements the error interface and returns a formatted error message
 // listing all validation errors.
-// Error formats all collected validation errors into a single message.
 func (ve *ValidationError) Error() string {
 	if len(ve.Errors) == 0 {
 		return "validation errors: (no errors)"

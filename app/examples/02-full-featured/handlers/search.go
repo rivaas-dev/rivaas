@@ -61,7 +61,7 @@ func Search(c *app.Context) {
 	// Simulate search
 	time.Sleep(25 * time.Millisecond)
 
-	c.JSON(http.StatusOK, map[string]any{
+	if err := c.JSON(http.StatusOK, map[string]any{
 		"query":     params.Query,
 		"page":      params.Page,
 		"page_size": params.PageSize,
@@ -70,5 +70,7 @@ func Search(c *app.Context) {
 		"sort_by":   params.SortBy,
 		"results":   []string{"result1", "result2", "result3"},
 		"total":     3,
-	})
+	}); err != nil {
+		c.Logger().Error("failed to write search response", "err", err)
+	}
 }

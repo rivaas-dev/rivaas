@@ -64,15 +64,19 @@ func HandleError(c *app.Context, err error) {
 	var apiErr APIError
 	if errors.As(err, &apiErr) {
 		status := getHTTPStatusForError(apiErr.Code)
-		c.JSON(status, apiErr)
+		if writeErr := c.JSON(status, apiErr); writeErr != nil {
+			c.Logger().Error("failed to write error response", "err", writeErr)
+		}
 		return
 	}
 
 	// Unknown error - return generic error
-	c.JSON(http.StatusInternalServerError, APIError{
+	if writeErr := c.JSON(http.StatusInternalServerError, APIError{
 		Code:    "INTERNAL_ERROR",
 		Message: "An internal error occurred",
-	})
+	}); writeErr != nil {
+		c.Logger().Error("failed to write error response", "err", writeErr)
+	}
 }
 
 // getHTTPStatusForError maps error codes to HTTP status codes.

@@ -62,12 +62,14 @@ func GetUserByID(c *app.Context) {
 	}
 
 	c.AddSpanEvent("user_found")
-	c.JSON(http.StatusOK, UserResponse{
+	if err := c.JSON(http.StatusOK, UserResponse{
 		ID:        params.ID,
 		Name:      "John Doe",
 		Email:     "john@example.com",
 		CreatedAt: time.Now().Add(-30 * 24 * time.Hour), // 30 days ago
-	})
+	}); err != nil {
+		c.Logger().Error("failed to write user response", "err", err)
+	}
 }
 
 // CreateUser creates a new user using request body binding.
@@ -106,12 +108,14 @@ func CreateUser(c *app.Context) {
 	)
 
 	c.AddSpanEvent("user_created")
-	c.JSON(http.StatusCreated, UserResponse{
+	if err := c.JSON(http.StatusCreated, UserResponse{
 		ID:        GenerateUserID(),
 		Name:      req.Name,
 		Email:     req.Email,
 		CreatedAt: time.Now(),
-	})
+	}); err != nil {
+		c.Logger().Error("failed to write user response", "err", err)
+	}
 }
 
 // GetUserOrders retrieves orders for a user by user ID.
@@ -135,9 +139,11 @@ func GetUserOrders(c *app.Context) {
 	// Simulate database query
 	time.Sleep(15 * time.Millisecond)
 
-	c.JSON(http.StatusOK, map[string]any{
+	if err := c.JSON(http.StatusOK, map[string]any{
 		"user_id": params.ID,
 		"orders":  []OrderResponse{}, // Empty for demo
 		"total":   0,
-	})
+	}); err != nil {
+		c.Logger().Error("failed to write user orders response", "err", err)
+	}
 }

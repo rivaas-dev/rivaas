@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -30,7 +31,7 @@ import (
 	"rivaas.dev/router/middleware/cors"
 	"rivaas.dev/router/middleware/requestid"
 	"rivaas.dev/router/middleware/timeout"
-	"rivaas.dev/router/versioning"
+	"rivaas.dev/router/version"
 	"rivaas.dev/tracing"
 
 	"example.com/full-featured/handlers"
@@ -72,30 +73,55 @@ func main() {
 		// Configure router with path-based versioning
 		app.WithRouterOptions(
 			router.WithVersioning(
-				versioning.WithPathVersioning("/v{version}/"), // Path-based versioning: /api/v1/, /api/v2/, etc.
-				versioning.WithDefaultVersion("v1"),
-				versioning.WithValidVersions("v1", "v2"), // Optional: validate versions
+				version.WithPathDetection("/v{version}/"), // Path-based versioning: /api/v1/, /api/v2/, etc.
+				version.WithDefault("v1"),
+				version.WithValidVersions("v1", "v2"), // Optional: validate versions
 			),
 		),
-		// Configure logging - create logger with service metadata
-		app.WithLogger(logging.MustNew(
-			logging.WithConsoleHandler(),
-			logging.WithDebugLevel(),
-			logging.WithServiceName("full-featured-api"),
-			logging.WithServiceVersion("v1.0.0"),
-		).Logger()),
-		// Configure metrics - service name/version are automatically injected
-		app.WithMetrics(
-			metrics.WithProvider(metricsProvider),
-			metrics.WithPort(metricsPort),
+		// Configure observability (logging, metrics, tracing)
+		// All three pillars use the same consistent pattern: pass options directly
+		// Service name/version are automatically injected from app config
+		app.WithObservability(
+			// Logging - service name/version auto-injected
+			app.WithLogging(
+				logging.WithConsoleHandler(),
+				logging.WithDebugLevel(),
+			),
+			// Metrics - service name/version auto-injected
+			app.WithMetrics(
+				metrics.WithProvider(metricsProvider),
+				metrics.WithPort(metricsPort),
+			),
+			// Tracing - service name/version auto-injected
+			app.WithTracing(
+				tracing.WithProvider(tracingProvider),
+				tracing.WithOTLPEndpoint(otlpEndpoint),
+				tracing.WithOTLPInsecure(environment != "production"),
+				tracing.WithSampleRate(getSampleRate(environment)),
+			),
+			// Shared exclusions (apply to all observability components)
+			app.WithExcludePaths("/healthz", "/readyz", "/metrics"),
 		),
-		// Configure tracing - service name/version are automatically injected
-		app.WithTracing(
-			tracing.WithProvider(tracingProvider),
-			tracing.WithOTLPEndpoint(otlpEndpoint),
-			tracing.WithOTLPInsecure(environment != "production"),
-			tracing.WithSampleRate(getSampleRate(environment)),
-			tracing.WithExcludePaths("/health", "/metrics"),
+		// Health endpoints - consistent functional options pattern
+		// Endpoints: GET /healthz (liveness), GET /readyz (readiness)
+		app.WithHealthEndpoints(
+			app.WithHealthTimeout(800*time.Millisecond),
+			app.WithLivenessCheck("process", func(ctx context.Context) error {
+				// Simple liveness check - process is alive
+				return nil
+			}),
+			// In production, you'd add real dependency checks:
+			// app.WithReadinessCheck("database", func(ctx context.Context) error {
+			//     return db.PingContext(ctx)
+			// }),
+			// app.WithReadinessCheck("cache", func(ctx context.Context) error {
+			//     return redis.Ping(ctx).Err()
+			// }),
+		),
+		// Debug endpoints - enable pprof conditionally
+		// WARNING: Only enable in development or behind authentication
+		app.WithDebugEndpoints(
+			app.WithPprofIf(environment == "development" || os.Getenv("PPROF_ENABLED") == "true"),
 		),
 		// Server config
 		app.WithServerConfig(
@@ -123,7 +149,7 @@ func main() {
 
 	// Root endpoint
 	a.GET("/", func(c *app.Context) {
-		c.JSON(http.StatusOK, map[string]any{
+		if err := c.JSON(http.StatusOK, map[string]any{
 			"message":     "Full Featured API",
 			"service":     serviceName,
 			"version":     serviceVersion,
@@ -131,16 +157,9 @@ func main() {
 			"trace_id":    c.TraceID(),
 			"span_id":     c.SpanID(),
 			"request_id":  c.Response.Header().Get("X-Request-ID"),
-		})
-	})
-
-	// Health check
-	a.GET("/health", func(c *app.Context) {
-		c.JSON(http.StatusOK, map[string]any{
-			"status":    "healthy",
-			"timestamp": time.Now().Unix(),
-			"service":   serviceName,
-		})
+		}); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	// User endpoints with typed constraints and OpenAPI documentation
@@ -205,21 +224,25 @@ func main() {
 	// The router automatically detects version from URL path like /v1/test
 	// Now using proper app.Version() which provides full app.Context support
 	v1.GET("/test", func(c *app.Context) {
-		c.JSON(http.StatusOK, map[string]any{
+		if err := c.JSON(http.StatusOK, map[string]any{
 			"message": "v1 test route works",
 			"version": c.Version(),
 			"path":    c.Request.URL.Path,
-		})
+		}); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	v1.GET("/status", func(c *app.Context) {
-		c.JSON(http.StatusOK, map[string]any{
+		if err := c.JSON(http.StatusOK, map[string]any{
 			"status":      "operational",
 			"environment": environment,
 			"metrics":     a.GetMetricsServerAddress(),
 			"version":     c.Version(), // Returns "v1" from router context
 			"api_version": "v1",
-		})
+		}); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	// Products with typed constraints - showcasing the unified API
@@ -264,6 +287,8 @@ func main() {
 	a.Router().Warmup()
 
 	// Start server with graceful shutdown
+	// Health endpoints: GET /healthz, GET /readyz
+	// Debug endpoints (in development): GET /debug/pprof/*
 	if err := a.Run(":8181"); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}

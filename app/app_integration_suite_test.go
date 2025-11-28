@@ -43,7 +43,9 @@ var _ = Describe("App Integration", func() {
 			)
 
 			a.GET("/health", func(c *app.Context) {
-				c.String(http.StatusOK, "ok")
+				if err := c.String(http.StatusOK, "ok"); err != nil {
+					c.Logger().Error("failed to write response", "err", err)
+				}
 			})
 
 			req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -89,7 +91,9 @@ var _ = Describe("App Integration", func() {
 			)
 
 			a.GET("/test", func(c *app.Context) {
-				c.String(http.StatusOK, "test")
+				if err := c.String(http.StatusOK, "test"); err != nil {
+					c.Logger().Error("failed to write response", "err", err)
+				}
 			})
 
 			// Verify server can be created and configured
@@ -124,7 +128,9 @@ var _ = Describe("App Integration", func() {
 					// We can't directly call shutdownObservability, but we can verify
 					// the app doesn't panic during normal operations
 					a.GET("/test", func(c *app.Context) {
-						c.String(http.StatusOK, "ok")
+						if err := c.String(http.StatusOK, "ok"); err != nil {
+							c.Logger().Error("failed to write response", "err", err)
+						}
 					})
 				}).NotTo(Panic())
 			})
@@ -141,16 +147,22 @@ var _ = Describe("App Integration", func() {
 			)
 
 			a.GET("/", func(c *app.Context) {
-				c.String(http.StatusOK, "home")
+				if err := c.String(http.StatusOK, "home"); err != nil {
+					c.Logger().Error("failed to write response", "err", err)
+				}
 			})
 
 			a.GET("/users/:id", func(c *app.Context) {
 				userID := c.Param("id")
-				c.Stringf(http.StatusOK, "user-%s", userID)
+				if err := c.Stringf(http.StatusOK, "user-%s", userID); err != nil {
+					c.Logger().Error("failed to write response", "err", err)
+				}
 			})
 
 			a.POST("/users", func(c *app.Context) {
-				c.String(http.StatusCreated, "created")
+				if err := c.String(http.StatusCreated, "created"); err != nil {
+					c.Logger().Error("failed to write response", "err", err)
+				}
 			})
 		})
 
@@ -192,7 +204,9 @@ var _ = Describe("App Integration", func() {
 
 			a.GET("/test", func(c *app.Context) {
 				executionOrder = append(executionOrder, "handler")
-				c.String(http.StatusOK, "ok")
+				if err := c.String(http.StatusOK, "ok"); err != nil {
+					c.Logger().Error("failed to write response", "err", err)
+				}
 			})
 
 			req := httptest.NewRequest("GET", "/test", nil)
@@ -258,12 +272,16 @@ var _ = Describe("App Integration", func() {
 			api := a.Group("/api")
 			v1 := api.Group("/v1")
 			v1.GET("/users", func(c *app.Context) {
-				c.String(http.StatusOK, "v1-users")
+				if err := c.String(http.StatusOK, "v1-users"); err != nil {
+					c.Logger().Error("failed to write response", "err", err)
+				}
 			})
 
 			v2 := api.Group("/v2")
 			v2.GET("/users", func(c *app.Context) {
-				c.String(http.StatusOK, "v2-users")
+				if err := c.String(http.StatusOK, "v2-users"); err != nil {
+					c.Logger().Error("failed to write response", "err", err)
+				}
 			})
 
 			req := httptest.NewRequest("GET", "/api/v1/users", nil)
@@ -302,7 +320,9 @@ var _ = Describe("App Integration", func() {
 						Expect(a).NotTo(BeNil())
 
 						a.GET("/test", func(c *app.Context) {
-							c.String(http.StatusOK, "ok")
+							if err := c.String(http.StatusOK, "ok"); err != nil {
+								c.Logger().Error("failed to write response", "err", err)
+							}
 						})
 
 						req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -336,9 +356,11 @@ var _ = Describe("App Integration", func() {
 					requestCount.Add(1)
 					time.Sleep(1 * time.Millisecond) // Simulate work
 					successCount.Add(1)
-					c.JSON(http.StatusOK, map[string]int64{
+					if err := c.JSON(http.StatusOK, map[string]int64{
 						"count": requestCount.Load(),
-					})
+					}); err != nil {
+						c.Logger().Error("failed to write response", "err", err)
+					}
 				})
 
 				const concurrency = 200
@@ -391,7 +413,9 @@ var _ = Describe("App Integration", func() {
 					orderMutex.Lock()
 					executionOrder = append(executionOrder, counter.Add(1))
 					orderMutex.Unlock()
-					c.String(http.StatusOK, "ok")
+					if err := c.String(http.StatusOK, "ok"); err != nil {
+						c.Logger().Error("failed to write response", "err", err)
+					}
 				})
 
 				const numRequests = 100
@@ -416,13 +440,14 @@ var _ = Describe("App Integration", func() {
 
 		Describe("Observability Concurrent", func() {
 			It("should handle observability components correctly under concurrent load", func() {
-				logger := logging.MustNew(logging.WithLevel(logging.LevelInfo))
 				a, err := app.New(
 					app.WithServiceName("test"),
 					app.WithServiceVersion("1.0.0"),
-					app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-					app.WithTracing(tracing.WithProvider(tracing.NoopProvider)),
-					app.WithLogger(logger.Logger()),
+					app.WithObservability(
+						app.WithLogging(logging.WithLevel(logging.LevelInfo)),
+						app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+						app.WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+					),
 				)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(a).NotTo(BeNil())
@@ -436,7 +461,9 @@ var _ = Describe("App Integration", func() {
 					c.Logger().Info("test request", "request_id", "123")
 
 					successCount.Add(1)
-					c.String(http.StatusOK, "ok")
+					if err := c.String(http.StatusOK, "ok"); err != nil {
+						c.Logger().Error("failed to write response", "err", err)
+					}
 				})
 
 				const concurrency = 50
@@ -466,7 +493,9 @@ var _ = Describe("App Integration", func() {
 
 				// Pre-register some routes
 				a.GET("/existing", func(c *app.Context) {
-					c.String(http.StatusOK, "existing")
+					if err := c.String(http.StatusOK, "existing"); err != nil {
+						c.Logger().Error("failed to write response", "err", err)
+					}
 				})
 
 				const numNewRoutes = 50
@@ -479,7 +508,9 @@ var _ = Describe("App Integration", func() {
 						defer wg.Done()
 						path := "/route" + string(rune('0'+id%10))
 						a.GET(path, func(c *app.Context) {
-							c.Stringf(http.StatusOK, "route-%d", id)
+							if err := c.Stringf(http.StatusOK, "route-%d", id); err != nil {
+								c.Logger().Error("failed to write response", "err", err)
+							}
 						})
 					}(i)
 				}
@@ -518,7 +549,9 @@ var _ = Describe("App Integration", func() {
 				)
 
 				a.GET("/test", func(c *app.Context) {
-					c.String(http.StatusOK, "ok")
+					if err := c.String(http.StatusOK, "ok"); err != nil {
+						c.Logger().Error("failed to write response", "err", err)
+					}
 				})
 
 				// Test that server can be created and configured
@@ -569,14 +602,18 @@ var _ = Describe("App Integration", func() {
 
 				// Route that returns error
 				a.GET("/error", func(c *app.Context) {
-					c.JSON(http.StatusInternalServerError, map[string]string{
+					if err := c.JSON(http.StatusInternalServerError, map[string]string{
 						"error": "test error",
-					})
+					}); err != nil {
+						c.Logger().Error("failed to write error response", "err", err)
+					}
 				})
 
 				// Route that works
 				a.GET("/ok", func(c *app.Context) {
-					c.String(http.StatusOK, "ok")
+					if err := c.String(http.StatusOK, "ok"); err != nil {
+						c.Logger().Error("failed to write response", "err", err)
+					}
 				})
 
 				const concurrency = 20

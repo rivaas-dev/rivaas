@@ -41,7 +41,9 @@ func BenchmarkTestJSON(b *testing.B) {
 		b.Fatal(err)
 	}
 	app.GET("/test", func(c *Context) {
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		if err := c.JSON(http.StatusOK, map[string]string{"status": "ok"}); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	body := map[string]string{"test": "data"}
@@ -59,17 +61,16 @@ func BenchmarkTestJSON(b *testing.B) {
 }
 
 func BenchmarkHealthCheckConcurrent(b *testing.B) {
-	app, err := New()
+	app, err := New(
+		WithHealthEndpoints(
+			WithReadinessCheck("always_ready", func(ctx context.Context) error {
+				return nil
+			}),
+		),
+	)
 	if err != nil {
 		b.Fatal(err)
 	}
-	_ = app.WithStandardEndpoints(StandardEndpointsOpts{ //nolint:errcheck // Benchmark setup
-		Readiness: map[string]CheckFunc{
-			"always_ready": func(ctx context.Context) error {
-				return nil
-			},
-		},
-	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -96,7 +97,9 @@ func BenchmarkRouteRegistration(b *testing.B) {
 
 	for b.Loop() {
 		app.GET("/test", func(c *Context) {
-			c.String(http.StatusOK, "ok")
+			if err := c.String(http.StatusOK, "ok"); err != nil {
+				c.Logger().Error("failed to write response", "err", err)
+			}
 		})
 	}
 }
@@ -107,7 +110,9 @@ func BenchmarkRequestHandling(b *testing.B) {
 		b.Fatal(err)
 	}
 	app.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -136,7 +141,9 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 		c.Next()
 	})
 	app.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
