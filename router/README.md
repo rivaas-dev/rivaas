@@ -1800,7 +1800,7 @@ func handler(c *router.Context) {
     // Binary & Streaming (zero-copy!)
     c.Data(200, "image/png", imageData)                    // Custom content type
     c.DataFromReader(200, size, "video/mp4", file, nil)    // Stream large files
-    c.File("/path/to/file")                                // Serve file
+    c.ServeFile("/path/to/file")                           // Serve file to client
     c.Download("/path/to/file", "custom-name.pdf")         // Force download
     
     // Headers & Status
@@ -2599,12 +2599,67 @@ Creates a new route group with the specified prefix and optional middleware.
 - `(*Context) GetClientIP() string` - Get real client IP (proxy-aware)
 - `(*Context) IsSecure() bool` - Check if request is over HTTPS
 - `(*Context) Redirect(code int, location string)` - Send redirect response
-- `(*Context) File(filepath string)` - Serve file from filesystem
+- `(*Context) ServeFile(filepath string)` - Serve file from filesystem to client
 - `(*Context) NoContent()` - Send 204 No Content response
 - `(*Context) QueryDefault(key, default string) string` - Query param with default
 - `(*Context) PostFormDefault(key, default string) string` - Form param with default
 - `(*Context) SetCookie(...)` - Set HTTP cookie with options
 - `(*Context) GetCookie(name string) (string, error)` - Get HTTP cookie value
+
+#### File Upload Methods
+
+- `(*Context) File(name string) (*File, error)` - Get uploaded file from multipart form
+- `(*Context) Files(name string) ([]*File, error)` - Get multiple uploaded files
+
+**File type methods:**
+
+- `(*File) Bytes() ([]byte, error)` - Read entire file into memory
+- `(*File) Open() (io.ReadCloser, error)` - Stream file contents
+- `(*File) Save(dst string) error` - Save file to disk (creates directories)
+- `(*File) Ext() string` - Get file extension (e.g., ".jpg")
+- `(*File) Name` - Sanitized filename (path traversal safe)
+- `(*File) Size` - File size in bytes
+- `(*File) ContentType` - MIME type from Content-Type header
+
+**Example:**
+
+```go
+r.POST("/upload", func(c *router.Context) {
+    file, err := c.File("avatar")
+    if err != nil {
+        c.JSON(400, router.H{"error": "avatar required"})
+        return
+    }
+    
+    // Access file info
+    fmt.Printf("Name: %s, Size: %d, Type: %s\n", 
+        file.Name, file.Size, file.ContentType)
+    
+    // Save with generated name (recommended)
+    path := "./uploads/" + uuid.New().String() + file.Ext()
+    if err := file.Save(path); err != nil {
+        c.JSON(500, router.H{"error": "failed to save"})
+        return
+    }
+    
+    c.JSON(200, router.H{"path": path})
+})
+
+// Multiple files
+r.POST("/upload-many", func(c *router.Context) {
+    files, err := c.Files("documents")
+    if err != nil {
+        c.JSON(400, router.H{"error": "documents required"})
+        return
+    }
+    
+    for _, f := range files {
+        f.Save("./uploads/" + f.Name)
+    }
+    
+    c.JSON(200, router.H{"count": len(files)})
+})
+```
 
 ### Group
 

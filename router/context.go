@@ -782,14 +782,14 @@ func (c *Context) Redirect(code int, location string) {
 	c.Status(code)
 }
 
-// File serves a file from the filesystem to the client.
-// This handles proper content types.
+// ServeFile serves a file from the filesystem to the client.
+// This handles proper content types, range requests, and caching headers.
 //
 // Example:
 //
-//	c.File("./uploads/document.pdf")
-//	c.File("/var/www/static/image.jpg")
-func (c *Context) File(filepath string) {
+//	c.ServeFile("./uploads/document.pdf")
+//	c.ServeFile("/var/www/static/image.jpg")
+func (c *Context) ServeFile(filepath string) {
 	http.ServeFile(c.Response, c.Request, filepath)
 }
 

@@ -19,13 +19,9 @@ package router
 
 import (
 	"fmt"
-	"io"
 	"maps"
-	"mime/multipart"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -511,22 +507,27 @@ func (c *Context) IsStale() bool {
 	return !c.IsFresh()
 }
 
-// FormFile returns the first file for the given form key from a multipart form.
-// Returns the multipart.FileHeader which contains filename, size, and content headers.
+// File returns the uploaded file for the given form field name.
+// Returns a *File with a clean API for reading, streaming, and saving.
 //
-// The caller is responsible for closing the file when done.
+// The filename is automatically sanitized to prevent path traversal attacks.
 //
 // Example:
 //
-//	file, err := c.FormFile("document")
+//	file, err := c.File("avatar")
 //	if err != nil {
-//	    c.JSON(http.StatusBadRequest, map[string]string{"error": "File required"})
-//	    return
+//	    return c.JSON(400, router.H{"error": "avatar required"})
 //	}
 //
-//	// Use file.Filename, file.Size, file.Header
-//	c.SaveFile(file, "./uploads/" + file.Filename)
-func (c *Context) FormFile(key string) (*multipart.FileHeader, error) {
+//	// Access file info
+//	fmt.Printf("Name: %s, Size: %d, Type: %s\n", file.Name, file.Size, file.ContentType)
+//
+//	// Save with generated name (recommended for security)
+//	file.Save("./uploads/" + uuid.New().String() + file.Ext())
+//
+//	// Or read into memory (for small files)
+//	data, _ := file.Bytes()
+func (c *Context) File(name string) (*File, error) {
 	// Parse multipart form if not already parsed
 	if c.Request.MultipartForm == nil {
 		if err := c.Request.ParseMultipartForm(32 << 20); err != nil { // 32 MB max
@@ -535,39 +536,31 @@ func (c *Context) FormFile(key string) (*multipart.FileHeader, error) {
 	}
 
 	// Get file from multipart form
-	file, _, err := c.Request.FormFile(key)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		// Safe to ignore: we've already read the FileHeader metadata we need.
-		// The actual file data is accessed later via FileHeader.Open()
-		_ = file.Close()
-	}()
-
-	// Return the file header
-	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File[key] != nil {
-		return c.Request.MultipartForm.File[key][0], nil
+	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File[name] != nil {
+		headers := c.Request.MultipartForm.File[name]
+		if len(headers) > 0 {
+			return newFile(headers[0]), nil
+		}
 	}
 
-	return nil, fmt.Errorf("%w: %q", ErrFileNotFound, key)
+	return nil, fmt.Errorf("%w: %q", ErrFileNotFound, name)
 }
 
-// FormFiles returns all files for the given form key from a multipart form.
+// Files returns all uploaded files for the given form field name.
 // Useful for handling multiple file uploads with the same field name.
 //
 // Example:
 //
 //	// HTML: <input type="file" name="documents" multiple>
-//	files, err := c.FormFiles("documents")
+//	files, err := c.Files("documents")
 //	if err != nil {
-//	    return err
+//	    return c.JSON(400, router.H{"error": "documents required"})
 //	}
 //
-//	for _, file := range files {
-//	    c.SaveFile(file, "./uploads/" + file.Filename)
+//	for _, f := range files {
+//	    f.Save("./uploads/" + f.Name)
 //	}
-func (c *Context) FormFiles(key string) ([]*multipart.FileHeader, error) {
+func (c *Context) Files(name string) ([]*File, error) {
 	// Parse multipart form if not already parsed
 	if c.Request.MultipartForm == nil {
 		if err := c.Request.ParseMultipartForm(32 << 20); err != nil { // 32 MB max
@@ -576,105 +569,16 @@ func (c *Context) FormFiles(key string) ([]*multipart.FileHeader, error) {
 	}
 
 	// Get files from multipart form
-	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File[key] != nil {
-		return c.Request.MultipartForm.File[key], nil
-	}
-
-	return nil, fmt.Errorf("%w: %q", ErrNoFilesFound, key)
-}
-
-// SaveFile saves an uploaded file to the specified destination path.
-// Creates parent directories automatically if they don't exist.
-//
-// SECURITY WARNING:
-//   - Always validate file.Filename before using in paths (prevent path traversal)
-//   - Check file.Size to prevent disk exhaustion
-//   - Validate file content type to prevent malicious uploads
-//   - Consider using random/hashed filenames instead of user-provided names
-//
-// Example:
-//
-//	file, err := c.FormFile("document")
-//	if err != nil {
-//	    return err
-//	}
-//
-//	// Validate
-//	if file.Size > 10*1024*1024 {
-//	    return errors.New("file too large")
-//	}
-//
-//	// Use safe filename
-//	safeName := filepath.Base(file.Filename) // Prevent path traversal
-//	err = c.SaveFile(file, "./uploads/" + safeName)
-func (c *Context) SaveFile(fileHeader *multipart.FileHeader, dst string) (err error) {
-	// Open the uploaded file
-	src, err := fileHeader.Open()
-	if err != nil {
-		return fmt.Errorf("failed to open uploaded file: %w", err)
-	}
-	defer func() {
-		if cerr := src.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("failed to close source file: %w", cerr)
+	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File[name] != nil {
+		headers := c.Request.MultipartForm.File[name]
+		files := make([]*File, len(headers))
+		for i, h := range headers {
+			files[i] = newFile(h)
 		}
-	}()
-
-	// Create parent directories if needed
-	dir := filepath.Dir(dst)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
+		return files, nil
 	}
 
-	// Create destination file
-	out, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
-	}
-	defer func() {
-		// CRITICAL: Close can fail when flushing buffered data to disk.
-		// If Close fails, the file may be incomplete even though io.Copy succeeded.
-		if cerr := out.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("failed to close destination file: %w", cerr)
-		}
-	}()
-
-	// Copy file contents
-	if _, err := io.Copy(out, src); err != nil {
-		return fmt.Errorf("failed to save file: %w", err)
-	}
-
-	return nil
-}
-
-// MultipartForm returns the parsed multipart form.
-// Useful for advanced form processing or accessing all files at once.
-//
-// The multipart form is cached after the first call.
-//
-// Example:
-//
-//	form, err := c.MultipartForm()
-//	if err != nil {
-//	    return err
-//	}
-//
-//	// Access all files by field name
-//	documents := form.File["documents"]
-//	for _, file := range documents {
-//	    c.SaveFile(file, "./uploads/" + file.Filename)
-//	}
-//
-//	// Access all form values
-//	username := form.Value["username"][0]
-func (c *Context) MultipartForm() (*multipart.Form, error) {
-	// Parse multipart form if not already parsed
-	if c.Request.MultipartForm == nil {
-		if err := c.Request.ParseMultipartForm(32 << 20); err != nil { // 32 MB max
-			return nil, fmt.Errorf("failed to parse multipart form: %w", err)
-		}
-	}
-
-	return c.Request.MultipartForm, nil
+	return nil, fmt.Errorf("%w: %q", ErrNoFilesFound, name)
 }
 
 // parseHTTPDate parses an HTTP date string per RFC 7231.

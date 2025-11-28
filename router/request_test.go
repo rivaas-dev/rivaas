@@ -16,6 +16,7 @@ package router
 
 import (
 	"bytes"
+	"io"
 	"mime/multipart"
 	"net/http/httptest"
 	"os"
@@ -560,8 +561,8 @@ func TestCacheFreshness(t *testing.T) {
 	})
 }
 
-// Test FormFile
-func TestFormFile(t *testing.T) {
+// Test File (single upload)
+func TestFile(t *testing.T) {
 	t.Parallel()
 
 	t.Run("single file upload", func(t *testing.T) {
@@ -583,11 +584,12 @@ func TestFormFile(t *testing.T) {
 		c := NewContext(w, req)
 
 		// Get file
-		file, err := c.FormFile("document")
-		require.NoError(t, err, "FormFile failed")
+		file, err := c.File("document")
+		require.NoError(t, err, "File() failed")
 
-		assert.Equal(t, "test.txt", file.Filename)
+		assert.Equal(t, "test.txt", file.Name)
 		assert.NotZero(t, file.Size, "File size should not be zero")
+		assert.NotEmpty(t, file.ContentType, "ContentType should not be empty")
 	})
 
 	t.Run("file not found", func(t *testing.T) {
@@ -601,7 +603,7 @@ func TestFormFile(t *testing.T) {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		_, err := c.FormFile("nonexistent")
+		_, err := c.File("nonexistent")
 		assert.Error(t, err, "Expected error for nonexistent file")
 	})
 
@@ -614,7 +616,7 @@ func TestFormFile(t *testing.T) {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		_, err := c.FormFile("document")
+		_, err := c.File("document")
 		require.Error(t, err, "Expected error when parsing malformed multipart form")
 		assert.ErrorContains(t, err, "failed to parse multipart form")
 	})
@@ -648,17 +650,117 @@ func TestFormFile(t *testing.T) {
 		// This simulates an edge case where the file map is modified
 		req.MultipartForm.File["target"] = []*multipart.FileHeader{} // empty, not nil
 
-		// FormFile should return an error when the file entry is empty
-		_, err = c.FormFile("target")
+		// File() should return an error when the file entry is empty
+		_, err = c.File("target")
 		require.Error(t, err, "Expected error when file entry is cleared")
 		// Error should indicate the file is not found
 		assert.True(t, strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no such file"),
 			"Expected 'not found' or 'no such file' error, got: %v", err)
 	})
+
+	t.Run("read file bytes", func(t *testing.T) {
+		t.Parallel()
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		fileContent := []byte("hello world from file")
+		fileWriter, err := writer.CreateFormFile("data", "hello.txt")
+		require.NoError(t, err)
+		_, _ = fileWriter.Write(fileContent)
+		_ = writer.Close()
+
+		req := httptest.NewRequest("POST", "/upload", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		w := httptest.NewRecorder()
+		c := NewContext(w, req)
+
+		file, err := c.File("data")
+		require.NoError(t, err)
+
+		// Test Bytes()
+		data, err := file.Bytes()
+		require.NoError(t, err, "Bytes() failed")
+		assert.Equal(t, fileContent, data)
+	})
+
+	t.Run("open file for streaming", func(t *testing.T) {
+		t.Parallel()
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		fileContent := []byte("streaming content")
+		fileWriter, err := writer.CreateFormFile("stream", "stream.bin")
+		require.NoError(t, err)
+		_, _ = fileWriter.Write(fileContent)
+		_ = writer.Close()
+
+		req := httptest.NewRequest("POST", "/upload", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		w := httptest.NewRecorder()
+		c := NewContext(w, req)
+
+		file, err := c.File("stream")
+		require.NoError(t, err)
+
+		// Test Open()
+		reader, err := file.Open()
+		require.NoError(t, err, "Open() failed")
+		defer reader.Close()
+
+		data, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		assert.Equal(t, fileContent, data)
+	})
+
+	t.Run("file extension", func(t *testing.T) {
+		t.Parallel()
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		fileWriter, err := writer.CreateFormFile("image", "photo.jpg")
+		require.NoError(t, err)
+		_, _ = fileWriter.Write([]byte("fake image"))
+		_ = writer.Close()
+
+		req := httptest.NewRequest("POST", "/upload", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		w := httptest.NewRecorder()
+		c := NewContext(w, req)
+
+		file, err := c.File("image")
+		require.NoError(t, err)
+
+		assert.Equal(t, ".jpg", file.Ext())
+	})
+
+	t.Run("filename sanitization", func(t *testing.T) {
+		t.Parallel()
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		// Try to create a file with path traversal in the name
+		fileWriter, err := writer.CreateFormFile("malicious", "../../../etc/passwd")
+		require.NoError(t, err)
+		_, _ = fileWriter.Write([]byte("fake"))
+		_ = writer.Close()
+
+		req := httptest.NewRequest("POST", "/upload", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		w := httptest.NewRecorder()
+		c := NewContext(w, req)
+
+		file, err := c.File("malicious")
+		require.NoError(t, err)
+
+		// The filename should be sanitized - no path components
+		assert.Equal(t, "passwd", file.Name, "Filename should be sanitized to prevent path traversal")
+		assert.NotContains(t, file.Name, "..", "Filename should not contain path traversal")
+		assert.NotContains(t, file.Name, "/", "Filename should not contain path separators")
+	})
 }
 
-// Test FormFiles
-func TestFormFiles(t *testing.T) {
+// Test Files (multiple uploads)
+func TestFiles(t *testing.T) {
 	t.Parallel()
 
 	t.Run("multiple files", func(t *testing.T) {
@@ -679,11 +781,13 @@ func TestFormFiles(t *testing.T) {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		files, err := c.FormFiles("documents")
-		require.NoError(t, err, "FormFiles failed")
+		files, err := c.Files("documents")
+		require.NoError(t, err, "Files() failed")
 
 		require.Len(t, files, 3, "Expected 3 files")
-		assert.Equal(t, "file1.txt", files[0].Filename)
+		assert.Equal(t, "file1.txt", files[0].Name)
+		assert.Equal(t, "file2.txt", files[1].Name)
+		assert.Equal(t, "file3.txt", files[2].Name)
 	})
 
 	t.Run("no files found", func(t *testing.T) {
@@ -697,13 +801,13 @@ func TestFormFiles(t *testing.T) {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		_, err := c.FormFiles("nonexistent")
+		_, err := c.Files("nonexistent")
 		assert.Error(t, err, "Expected error for nonexistent files")
 	})
 }
 
-// Test SaveFile
-func TestSaveFile(t *testing.T) {
+// Test File.Save
+func TestFileSave(t *testing.T) {
 	t.Parallel()
 
 	// Create temp directory for uploads
@@ -730,13 +834,13 @@ func TestSaveFile(t *testing.T) {
 		c := NewContext(w, req)
 
 		// Get file
-		file, err := c.FormFile("upload")
-		require.NoError(t, err, "FormFile failed")
+		file, err := c.File("upload")
+		require.NoError(t, err, "File() failed")
 
-		// Save file
+		// Save file using File.Save()
 		dstPath := filepath.Join(tmpDir, "saved-file.txt")
-		err = c.SaveFile(file, dstPath)
-		require.NoError(t, err, "SaveFile failed")
+		err = file.Save(dstPath)
+		require.NoError(t, err, "file.Save() failed")
 
 		// Verify file was saved
 		savedContent, err := os.ReadFile(dstPath)
@@ -760,12 +864,13 @@ func TestSaveFile(t *testing.T) {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		file, _ := c.FormFile("upload")
+		file, err := c.File("upload")
+		require.NoError(t, err)
 
 		// Save to nested path
 		dstPath := filepath.Join(tmpDir, "nested", "dir", "file.txt")
-		err = c.SaveFile(file, dstPath)
-		require.NoError(t, err, "SaveFile should create parent dirs")
+		err = file.Save(dstPath)
+		require.NoError(t, err, "file.Save() should create parent dirs")
 
 		// Verify file exists
 		_, err = os.Stat(dstPath)
@@ -773,39 +878,50 @@ func TestSaveFile(t *testing.T) {
 	})
 }
 
-// Test MultipartForm
-func TestMultipartForm(t *testing.T) {
+// Test File type methods
+func TestFileType(t *testing.T) {
 	t.Parallel()
 
-	t.Run("access multipart form", func(t *testing.T) {
+	t.Run("extension without dot", func(t *testing.T) {
 		t.Parallel()
 		body := &bytes.Buffer{}
 		writer := multipart.NewWriter(body)
 
-		// Add files
-		fw1, _ := writer.CreateFormFile("docs", "file1.txt")
-		_, _ = fw1.Write([]byte("content1"))
-		fw2, _ := writer.CreateFormFile("docs", "file2.txt")
-		_, _ = fw2.Write([]byte("content2"))
-
-		// Add form values
-		_ = writer.WriteField("username", "testuser")
-		_ = writer.WriteField("email", "test@example.com")
+		fileWriter, err := writer.CreateFormFile("noext", "README")
+		require.NoError(t, err)
+		_, _ = fileWriter.Write([]byte("no extension"))
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/", body)
+		req := httptest.NewRequest("POST", "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		form, err := c.MultipartForm()
-		require.NoError(t, err, "MultipartForm failed")
+		file, err := c.File("noext")
+		require.NoError(t, err)
 
-		// Check files
-		require.Len(t, form.File["docs"], 2, "Expected 2 files")
+		assert.Equal(t, "", file.Ext(), "File without extension should return empty string")
+	})
 
-		// Check values
-		require.NotEmpty(t, form.Value["username"], "Username not found in form values")
-		assert.Equal(t, "testuser", form.Value["username"][0])
+	t.Run("multiple extensions", func(t *testing.T) {
+		t.Parallel()
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		fileWriter, err := writer.CreateFormFile("archive", "data.tar.gz")
+		require.NoError(t, err)
+		_, _ = fileWriter.Write([]byte("archive content"))
+		_ = writer.Close()
+
+		req := httptest.NewRequest("POST", "/upload", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		w := httptest.NewRecorder()
+		c := NewContext(w, req)
+
+		file, err := c.File("archive")
+		require.NoError(t, err)
+
+		// filepath.Ext returns only the last extension
+		assert.Equal(t, ".gz", file.Ext())
 	})
 }

@@ -64,10 +64,10 @@ func TestStaticFileServing(t *testing.T) {
 		assert.Equal(t, "Hello, World!", w.Body.String())
 	})
 
-	t.Run("File method", func(t *testing.T) {
+	t.Run("ServeFile method", func(t *testing.T) {
 		t.Parallel()
 		r.GET("/download", func(c *Context) {
-			c.File(testFile)
+			c.ServeFile(testFile)
 		})
 
 		req := httptest.NewRequest("GET", "/download", nil)

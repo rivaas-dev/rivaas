@@ -98,7 +98,7 @@ func (r *Router) StaticFile(relativePath, filepath string) {
 	}
 
 	handler := func(c *Context) {
-		c.File(filepath)
+		c.ServeFile(filepath)
 	}
 
 	// Register both GET and HEAD routes per HTTP/1.1 requirements (RFC 7231)
