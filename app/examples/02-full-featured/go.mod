@@ -76,7 +76,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rivaas.dev/binding v0.1.0 // indirect
 	rivaas.dev/errors v0.1.0 // indirect
-	rivaas.dev/telemetry v0.1.0 // indirect
 	rivaas.dev/validation v0.1.0 // indirect
 )
 
@@ -97,5 +96,3 @@ replace rivaas.dev/validation => ../../../validation
 replace rivaas.dev/binding => ../../../binding
 
 replace rivaas.dev/errors => ../../../errors
-
-replace rivaas.dev/telemetry => ../../../telemetry

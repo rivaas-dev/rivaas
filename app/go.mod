@@ -17,7 +17,6 @@ require (
 	rivaas.dev/metrics v0.1.0
 	rivaas.dev/openapi v0.1.0
 	rivaas.dev/router v0.1.0
-	rivaas.dev/telemetry v0.1.0
 	rivaas.dev/tracing v0.1.0
 	rivaas.dev/validation v0.1.0
 )
@@ -28,7 +27,6 @@ replace (
 	rivaas.dev/metrics => ../metrics
 	rivaas.dev/openapi => ../openapi
 	rivaas.dev/router => ../router
-	rivaas.dev/telemetry => ../telemetry
 	rivaas.dev/tracing => ../tracing
 	rivaas.dev/validation => ../validation
 )

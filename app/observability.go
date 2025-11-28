@@ -27,7 +27,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
-	"rivaas.dev/telemetry/semconv"
 	"rivaas.dev/tracing"
 )
 
@@ -236,24 +235,24 @@ func (o *observabilityRecorder) BuildRequestLogger(ctx context.Context, req *htt
 
 	// Build request-scoped logger with HTTP metadata (semantic conventions)
 	attrs := []any{
-		semconv.HTTPMethod, req.Method,
-		semconv.HTTPTarget, req.URL.Path,
+		fieldHTTPMethod, req.Method,
+		fieldHTTPTarget, req.URL.Path,
 	}
 
 	// Add route template (available after routing)
 	if routePattern != "" {
-		attrs = append(attrs, semconv.HTTPRoute, routePattern)
+		attrs = append(attrs, fieldHTTPRoute, routePattern)
 	}
 
 	// Add request ID (for correlation)
 	if reqID := req.Header.Get("X-Request-ID"); reqID != "" {
-		attrs = append(attrs, semconv.RequestID, reqID)
+		attrs = append(attrs, fieldRequestID, reqID)
 	}
 
 	// Add client IP (proxy-aware if configured)
 	// Note: This should use router's ClientIP() helper if available
 	// For now, using raw RemoteAddr
-	attrs = append(attrs, semconv.NetworkClientIP, req.RemoteAddr)
+	attrs = append(attrs, fieldNetworkClientIP, req.RemoteAddr)
 
 	logger := o.logger.With(attrs...)
 
@@ -261,8 +260,8 @@ func (o *observabilityRecorder) BuildRequestLogger(ctx context.Context, req *htt
 	if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
 		sc := span.SpanContext()
 		logger = logger.With(
-			semconv.TraceID, sc.TraceID().String(),
-			semconv.SpanID, sc.SpanID().String(),
+			fieldTraceID, sc.TraceID().String(),
+			fieldSpanID, sc.SpanID().String(),
 		)
 	}
 

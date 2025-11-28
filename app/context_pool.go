@@ -20,7 +20,6 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 	"rivaas.dev/router"
-	"rivaas.dev/telemetry/semconv"
 )
 
 // contextPool provides pooling for app.Context instances.
@@ -78,24 +77,24 @@ func buildRequestLogger(base *slog.Logger, rc *router.Context) *slog.Logger {
 
 	// Add HTTP metadata (OpenTelemetry semantic conventions)
 	attrs := []slog.Attr{
-		slog.String(semconv.HTTPMethod, req.Method),
-		slog.String(semconv.HTTPTarget, req.URL.Path), // Actual path: /orders/42
+		slog.String(fieldHTTPMethod, req.Method),
+		slog.String(fieldHTTPTarget, req.URL.Path), // Actual path: /orders/42
 	}
 
 	// Add route template if available (after routing completes)
 	if route := rc.RouteTemplate(); route != "" {
-		attrs = append(attrs, slog.String(semconv.HTTPRoute, route)) // Template: /orders/:id
+		attrs = append(attrs, slog.String(fieldHTTPRoute, route)) // Template: /orders/:id
 	}
 
 	// Add client IP (proxy-aware if configured, otherwise socket peer)
 	// This respects router's trusted proxy configuration
 	if clientIP := rc.ClientIP(); clientIP != "" {
-		attrs = append(attrs, slog.String(semconv.NetworkClientIP, clientIP))
+		attrs = append(attrs, slog.String(fieldNetworkClientIP, clientIP))
 	}
 
 	// Add request ID if present
 	if reqID := req.Header.Get("X-Request-ID"); reqID != "" {
-		attrs = append(attrs, slog.String(semconv.RequestID, reqID))
+		attrs = append(attrs, slog.String(fieldRequestID, reqID))
 	}
 
 	// Create logger with HTTP context
@@ -111,8 +110,8 @@ func buildRequestLogger(base *slog.Logger, rc *router.Context) *slog.Logger {
 	if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
 		sc := span.SpanContext()
 		logger = logger.With(
-			slog.String(semconv.TraceID, sc.TraceID().String()),
-			slog.String(semconv.SpanID, sc.SpanID().String()),
+			slog.String(fieldTraceID, sc.TraceID().String()),
+			slog.String(fieldSpanID, sc.SpanID().String()),
 		)
 	}
 
