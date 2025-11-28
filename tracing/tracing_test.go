@@ -1705,3 +1705,80 @@ func TestExcludePathPattern(t *testing.T) {
 		assert.False(t, config.ShouldExcludePath("/v3/api"))
 	})
 }
+
+// TestExcludePrefixes tests prefix-based path exclusion
+func TestExcludePrefixes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SinglePrefix", func(t *testing.T) {
+		t.Parallel()
+
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludePrefixes("/debug/"),
+		)
+		defer config.Shutdown(context.Background())
+
+		assert.True(t, config.ShouldExcludePath("/debug/pprof"))
+		assert.True(t, config.ShouldExcludePath("/debug/vars"))
+		assert.True(t, config.ShouldExcludePath("/debug/requests"))
+		assert.False(t, config.ShouldExcludePath("/api/users"))
+		assert.False(t, config.ShouldExcludePath("/debugger")) // Doesn't start with /debug/
+	})
+
+	t.Run("MultiplePrefixes", func(t *testing.T) {
+		t.Parallel()
+
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludePrefixes("/debug/", "/internal/", "/admin/"),
+		)
+		defer config.Shutdown(context.Background())
+
+		assert.True(t, config.ShouldExcludePath("/debug/pprof"))
+		assert.True(t, config.ShouldExcludePath("/internal/status"))
+		assert.True(t, config.ShouldExcludePath("/admin/users"))
+		assert.False(t, config.ShouldExcludePath("/api/users"))
+	})
+
+	t.Run("CombinedWithExactPaths", func(t *testing.T) {
+		t.Parallel()
+
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludePaths("/health", "/ready"),
+			WithExcludePrefixes("/debug/"),
+		)
+		defer config.Shutdown(context.Background())
+
+		// Exact paths
+		assert.True(t, config.ShouldExcludePath("/health"))
+		assert.True(t, config.ShouldExcludePath("/ready"))
+
+		// Prefixes
+		assert.True(t, config.ShouldExcludePath("/debug/pprof"))
+
+		// Not excluded
+		assert.False(t, config.ShouldExcludePath("/api/users"))
+	})
+
+	t.Run("CombinedWithPatterns", func(t *testing.T) {
+		t.Parallel()
+
+		config := MustNew(
+			WithServiceName("test"),
+			WithExcludePrefixes("/debug/"),
+			WithExcludePathPattern(`^/v[0-9]+/internal/.*`),
+		)
+		defer config.Shutdown(context.Background())
+
+		// Prefixes
+		assert.True(t, config.ShouldExcludePath("/debug/pprof"))
+
+		// Patterns
+		assert.True(t, config.ShouldExcludePath("/v1/internal/status"))
+
+		// Not excluded
+		assert.False(t, config.ShouldExcludePath("/api/users"))
+	})
+}

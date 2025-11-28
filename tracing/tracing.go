@@ -118,6 +118,7 @@ type Config struct {
 	tracerProvider  *sdktrace.TracerProvider
 	logger          logging.Logger
 	excludePaths    map[string]bool
+	excludePrefixes []string         // Path prefixes to exclude
 	excludePatterns []*regexp.Regexp // Compiled regex patterns for path exclusion
 	recordHeaders   []string
 	serviceName     string
@@ -326,6 +327,20 @@ func WithExcludePathPattern(pattern string) Option {
 			c.excludePatterns = make([]*regexp.Regexp, 0, 1)
 		}
 		c.excludePatterns = append(c.excludePatterns, compiled)
+	}
+}
+
+// WithExcludePrefixes excludes paths with the given prefixes from tracing.
+// This is useful for excluding entire path hierarchies like /debug/, /internal/, etc.
+//
+// Example:
+//
+//	config := tracing.MustNew(
+//	    tracing.WithExcludePrefixes("/debug/", "/internal/"),
+//	)
+func WithExcludePrefixes(prefixes ...string) Option {
+	return func(c *Config) {
+		c.excludePrefixes = append(c.excludePrefixes, prefixes...)
 	}
 }
 
@@ -746,12 +761,19 @@ func (c *Config) GetProvider() Provider {
 }
 
 // ShouldExcludePath returns true if the given path should be excluded from tracing.
-// Checks both exact path matches and regex patterns.
-// Safe for concurrent access as excludePaths and excludePatterns are read-only after Config creation.
+// Checks exact path matches, prefixes, and regex patterns.
+// Safe for concurrent access as excludePaths, excludePrefixes, and excludePatterns are read-only after Config creation.
 func (c *Config) ShouldExcludePath(path string) bool {
-	// Check exact path matches first
+	// Check exact path matches first (O(1) lookup)
 	if c.excludePaths[path] {
 		return true
+	}
+
+	// Check prefixes
+	for _, prefix := range c.excludePrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
 	}
 
 	// Check regex patterns
