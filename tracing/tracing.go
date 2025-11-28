@@ -17,6 +17,7 @@ package tracing
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -29,8 +30,66 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
-	"rivaas.dev/logging"
 )
+
+// EventType represents the severity of an internal operational event.
+type EventType int
+
+const (
+	// EventError indicates an error event (e.g., failed to export spans).
+	EventError EventType = iota
+	// EventWarning indicates a warning event (e.g., deprecated configuration).
+	EventWarning
+	// EventInfo indicates an informational event (e.g., tracing initialized).
+	EventInfo
+	// EventDebug indicates a debug event (e.g., detailed operation logs).
+	EventDebug
+)
+
+// Event represents an internal operational event from the tracing package.
+// Events are used to report errors, warnings, and informational messages
+// about the tracing system's operation.
+type Event struct {
+	Type    EventType
+	Message string
+	Args    []any // slog-style key-value pairs
+}
+
+// EventHandler processes internal operational events from the tracing package.
+// Implementations can log events, send them to monitoring systems, or take
+// custom actions based on event type.
+//
+// Example custom handler:
+//
+//	tracing.WithEventHandler(func(e tracing.Event) {
+//	    if e.Type == tracing.EventError {
+//	        sentry.CaptureMessage(e.Message)
+//	    }
+//	    slog.Default().Info(e.Message, e.Args...)
+//	})
+type EventHandler func(Event)
+
+// DefaultEventHandler returns an EventHandler that logs events to the provided slog.Logger.
+// This is the default implementation used by WithLogger.
+//
+// If logger is nil, returns a no-op handler that discards all events.
+func DefaultEventHandler(logger *slog.Logger) EventHandler {
+	if logger == nil {
+		return func(Event) {} // no-op
+	}
+	return func(e Event) {
+		switch e.Type {
+		case EventError:
+			logger.Error(e.Message, e.Args...)
+		case EventWarning:
+			logger.Warn(e.Message, e.Args...)
+		case EventInfo:
+			logger.Info(e.Message, e.Args...)
+		case EventDebug:
+			logger.Debug(e.Message, e.Args...)
+		}
+	}
+}
 
 const (
 	// DefaultServiceName is the default service name used for tracing when none is provided.
@@ -116,7 +175,7 @@ type Config struct {
 	tracer          trace.Tracer
 	propagator      propagation.TextMapPropagator
 	tracerProvider  *sdktrace.TracerProvider
-	logger          logging.Logger
+	eventHandler    EventHandler // Handler for internal operational events
 	excludePaths    map[string]bool
 	excludePrefixes []string         // Path prefixes to exclude
 	excludePatterns []*regexp.Regexp // Compiled regex patterns for path exclusion
@@ -280,7 +339,7 @@ func WithExcludePaths(paths ...string) Option {
 		for i, path := range paths {
 			if i >= MaxExcludedPaths {
 				// Limit reached - log warning and skip remaining paths
-				c.logWarn("Excluded paths limit reached",
+				c.emitWarning("Excluded paths limit reached",
 					"limit", MaxExcludedPaths,
 					"total_provided", len(paths),
 					"dropped", len(paths)-MaxExcludedPaths,
@@ -317,7 +376,7 @@ func WithExcludePathPattern(pattern string) Option {
 				c.validationErrors = make([]error, 0, 1)
 			}
 			c.validationErrors = append(c.validationErrors, fmt.Errorf("invalid regex pattern for path exclusion %q: %w", pattern, err))
-			c.logError("Invalid regex pattern for path exclusion",
+			c.emitError("Invalid regex pattern for path exclusion",
 				"pattern", pattern,
 				"error", err,
 			)
@@ -512,16 +571,37 @@ func WithOTLPInsecure(insecure bool) Option {
 	}
 }
 
-// WithLogger sets a custom logger for tracing errors and warnings.
-// This allows you to integrate tracing logs with your application's logging system.
+// WithEventHandler sets a custom event handler for internal operational events.
+// Use this for advanced use cases like sending errors to Sentry, custom alerting,
+// or integrating with non-slog logging systems.
 //
 // Example:
 //
-//	config := tracing.New(tracing.WithLogger(myLogger))
-func WithLogger(logger logging.Logger) Option {
+//	tracing.New(tracing.WithEventHandler(func(e tracing.Event) {
+//	    if e.Type == tracing.EventError {
+//	        sentry.CaptureMessage(e.Message)
+//	    }
+//	    myLogger.Log(e.Type, e.Message, e.Args...)
+//	}))
+func WithEventHandler(handler EventHandler) Option {
 	return func(c *Config) {
-		c.logger = logger
+		c.eventHandler = handler
 	}
+}
+
+// WithLogger sets the logger for internal operational events using the default event handler.
+// This is a convenience wrapper around WithEventHandler that logs events to the provided slog.Logger.
+//
+// Example:
+//
+//	// Use stdlib slog
+//	tracing.New(tracing.WithLogger(slog.Default()))
+//
+//	// Use custom slog logger
+//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	tracing.New(tracing.WithLogger(logger))
+func WithLogger(logger *slog.Logger) Option {
+	return WithEventHandler(DefaultEventHandler(logger))
 }
 
 // WithSpanStartHook sets a callback that is invoked when a request span is started.
@@ -717,7 +797,7 @@ func (c *Config) validate() error {
 		// No specific validation needed for stdout
 	case OTLPProvider:
 		if c.otlpEndpoint == "" {
-			c.logWarn("OTLP endpoint not specified, will use default", "default", "localhost:4317")
+			c.emitWarning("OTLP endpoint not specified, will use default", "default", "localhost:4317")
 			c.otlpEndpoint = "localhost:4317"
 		}
 	default:
@@ -813,46 +893,46 @@ func (c *Config) Shutdown(ctx context.Context) error {
 		// Shutdown the tracer provider if it exists and is NOT a custom provider
 		// User-provided providers should be managed by the user
 		if c.tracerProvider != nil && !c.customTracerProvider {
-			c.logDebug("Shutting down tracer provider")
+			c.emitDebug("Shutting down tracer provider")
 			if err := c.tracerProvider.Shutdown(ctx); err != nil {
-				c.logError("Error shutting down tracer provider", "error", err)
+				c.emitError("Error shutting down tracer provider", "error", err)
 				c.shutdownErr = fmt.Errorf("tracer provider shutdown: %w", err)
 				return
 			}
-			c.logDebug("Tracer provider shut down successfully")
+			c.emitDebug("Tracer provider shut down successfully")
 		} else if c.customTracerProvider {
-			c.logDebug("Skipping shutdown of custom tracer provider (managed by user)")
+			c.emitDebug("Skipping shutdown of custom tracer provider (managed by user)")
 		}
 	})
 
 	return c.shutdownErr
 }
 
-// logError logs an error message if a logger is configured.
-func (c *Config) logError(msg string, keysAndValues ...interface{}) {
-	if c.logger != nil {
-		c.logger.Error(msg, keysAndValues...)
+// emitError emits an error event if an event handler is configured.
+func (c *Config) emitError(msg string, args ...any) {
+	if c.eventHandler != nil {
+		c.eventHandler(Event{Type: EventError, Message: msg, Args: args})
 	}
 }
 
-// logWarn logs a warning message if a logger is configured.
-func (c *Config) logWarn(msg string, keysAndValues ...interface{}) {
-	if c.logger != nil {
-		c.logger.Warn(msg, keysAndValues...)
+// emitWarning emits a warning event if an event handler is configured.
+func (c *Config) emitWarning(msg string, args ...any) {
+	if c.eventHandler != nil {
+		c.eventHandler(Event{Type: EventWarning, Message: msg, Args: args})
 	}
 }
 
-// logInfo logs an info message if a logger is configured.
-func (c *Config) logInfo(msg string, keysAndValues ...interface{}) {
-	if c.logger != nil {
-		c.logger.Info(msg, keysAndValues...)
+// emitInfo emits an info event if an event handler is configured.
+func (c *Config) emitInfo(msg string, args ...any) {
+	if c.eventHandler != nil {
+		c.eventHandler(Event{Type: EventInfo, Message: msg, Args: args})
 	}
 }
 
-// logDebug logs a debug message if a logger is configured.
-func (c *Config) logDebug(msg string, keysAndValues ...interface{}) {
-	if c.logger != nil {
-		c.logger.Debug(msg, keysAndValues...)
+// emitDebug emits a debug event if an event handler is configured.
+func (c *Config) emitDebug(msg string, args ...any) {
+	if c.eventHandler != nil {
+		c.eventHandler(Event{Type: EventDebug, Message: msg, Args: args})
 	}
 }
 
@@ -1028,7 +1108,7 @@ func (c *Config) StartRequestSpan(ctx context.Context, req *http.Request, path s
 	// Check if context is already cancelled before proceeding
 	select {
 	case <-ctx.Done():
-		c.logDebug("Context cancelled before span creation", "path", path, "method", req.Method)
+		c.emitDebug("Context cancelled before span creation", "path", path, "method", req.Method)
 		return ctx, trace.SpanFromContext(ctx)
 	default:
 	}
@@ -1040,7 +1120,7 @@ func (c *Config) StartRequestSpan(ctx context.Context, req *http.Request, path s
 	if c.sampleRate < 1.0 {
 		if c.sampleRate == 0.0 {
 			// Don't sample - return non-recording span
-			c.logDebug("Request not sampled (0% sample rate)", "path", path, "method", req.Method)
+			c.emitDebug("Request not sampled (0% sample rate)", "path", path, "method", req.Method)
 			return ctx, trace.SpanFromContext(ctx)
 		}
 		// Use atomic counter with multiplicative hash for deterministic sampling.
@@ -1050,7 +1130,7 @@ func (c *Config) StartRequestSpan(ctx context.Context, req *http.Request, path s
 		hash := counter * samplingMultiplier
 		if hash > c.samplingThreshold {
 			// Don't sample this request - return non-recording span
-			c.logDebug("Request not sampled (probabilistic)",
+			c.emitDebug("Request not sampled (probabilistic)",
 				"path", path,
 				"method", req.Method,
 				"sample_rate", c.sampleRate,

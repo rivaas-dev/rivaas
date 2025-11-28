@@ -283,31 +283,28 @@ func main() {
 Integrate tracing with your application's logging system for visibility into tracing operations:
 
 ```go
-type MyLogger struct {
-    log *slog.Logger
-}
+// Use stdlib slog for logging internal events
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithLogger(slog.Default()),
+)
 
-func (l *MyLogger) Error(msg string, keysAndValues ...any) {
-    l.log.Error(msg, keysAndValues...)
-}
-
-func (l *MyLogger) Warn(msg string, keysAndValues ...any) {
-    l.log.Warn(msg, keysAndValues...)
-}
-
-func (l *MyLogger) Info(msg string, keysAndValues ...any) {
-    l.log.Info(msg, keysAndValues...)
-}
-
-func (l *MyLogger) Debug(msg string, keysAndValues ...any) {
-    l.log.Debug(msg, keysAndValues...)
-}
-
-// Use custom logger with tracing
-logger := &MyLogger{log: slog.Default()}
+// Or create a custom slog logger
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 config := tracing.New(
     tracing.WithServiceName("my-service"),
     tracing.WithLogger(logger),
+)
+
+// For advanced use cases, use a custom event handler (e.g., send errors to Sentry)
+config := tracing.New(
+    tracing.WithServiceName("my-service"),
+    tracing.WithEventHandler(func(e tracing.Event) {
+        if e.Type == tracing.EventError {
+            sentry.CaptureMessage(e.Message)
+        }
+        slog.Default().Info(e.Message, e.Args...)
+    }),
 )
 ```
 
@@ -703,7 +700,8 @@ tracing.AddSpanEventFromContext(ctx, "event-name")
 | `WithCustomTracer(tracer)` | Use custom tracer | `WithCustomTracer(myTracer)` |
 | `WithCustomPropagator(prop)` | Use custom propagator | `WithCustomPropagator(b3.New())` |
 | `WithTracerProvider(provider)` | Use custom tracer provider | `WithTracerProvider(myProvider)` |
-| `WithLogger(logger)` | Set custom logger | `WithLogger(myLogger)` |
+| `WithLogger(logger)` | Set slog logger for events | `WithLogger(slog.Default())` |
+| `WithEventHandler(handler)` | Set custom event handler | `WithEventHandler(myHandler)` |
 | `WithSpanStartHook(hook)` | Set span start callback | `WithSpanStartHook(myStartHook)` |
 | `WithSpanFinishHook(hook)` | Set span finish callback | `WithSpanFinishHook(myFinishHook)` |
 

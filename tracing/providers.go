@@ -30,13 +30,13 @@ import (
 func (c *Config) initNoopProvider() error {
 	// If user provided a custom tracer provider, skip initialization
 	if c.customTracerProvider {
-		c.logDebug("Using custom user-provided tracer provider")
+		c.emitDebug("Using custom user-provided tracer provider")
 		if c.tracer == nil {
 			c.tracer = c.tracerProvider.Tracer("rivaas.dev/tracing")
 		}
 		// Set global only if requested
 		if c.registerGlobal {
-			c.logDebug("Setting global OpenTelemetry tracer provider", "provider", "noop")
+			c.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "noop")
 			otel.SetTracerProvider(c.tracerProvider)
 		}
 		return nil
@@ -53,7 +53,7 @@ func (c *Config) initNoopProvider() error {
 
 	// Set global tracer provider only if requested
 	if c.registerGlobal {
-		c.logDebug("Setting global OpenTelemetry tracer provider", "provider", "noop")
+		c.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "noop")
 		otel.SetTracerProvider(tp)
 	}
 
@@ -64,13 +64,13 @@ func (c *Config) initNoopProvider() error {
 func (c *Config) initStdoutProvider() error {
 	// If user provided a custom tracer provider, skip initialization
 	if c.customTracerProvider {
-		c.logDebug("Using custom user-provided tracer provider")
+		c.emitDebug("Using custom user-provided tracer provider")
 		if c.tracer == nil {
 			c.tracer = c.tracerProvider.Tracer("rivaas.dev/tracing")
 		}
 		// Set global only if requested
 		if c.registerGlobal {
-			c.logDebug("Setting global OpenTelemetry tracer provider", "provider", "stdout")
+			c.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "stdout")
 			otel.SetTracerProvider(c.tracerProvider)
 		}
 		return nil
@@ -98,13 +98,13 @@ func (c *Config) initStdoutProvider() error {
 
 	// Set global tracer provider only if requested
 	if c.registerGlobal {
-		c.logDebug("Setting global OpenTelemetry tracer provider", "provider", "stdout")
+		c.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "stdout")
 		otel.SetTracerProvider(tp)
 	} else {
-		c.logDebug("Skipping global tracer provider registration", "provider", "stdout")
+		c.emitDebug("Skipping global tracer provider registration", "provider", "stdout")
 	}
 
-	c.logInfo("Tracing initialized", "provider", "stdout", "service", c.serviceName)
+	c.emitInfo("Tracing initialized", "provider", "stdout", "service", c.serviceName)
 	return nil
 }
 
@@ -112,13 +112,13 @@ func (c *Config) initStdoutProvider() error {
 func (c *Config) initOTLPProvider() error {
 	// If user provided a custom tracer provider, skip initialization
 	if c.customTracerProvider {
-		c.logDebug("Using custom user-provided tracer provider")
+		c.emitDebug("Using custom user-provided tracer provider")
 		if c.tracer == nil {
 			c.tracer = c.tracerProvider.Tracer("rivaas.dev/tracing")
 		}
 		// Set global only if requested
 		if c.registerGlobal {
-			c.logDebug("Setting global OpenTelemetry tracer provider", "provider", "otlp")
+			c.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "otlp")
 			otel.SetTracerProvider(c.tracerProvider)
 		}
 		return nil
@@ -155,13 +155,13 @@ func (c *Config) initOTLPProvider() error {
 
 	// Set global tracer provider only if requested
 	if c.registerGlobal {
-		c.logDebug("Setting global OpenTelemetry tracer provider", "provider", "otlp")
+		c.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "otlp")
 		otel.SetTracerProvider(tp)
 	} else {
-		c.logDebug("Skipping global tracer provider registration", "provider", "otlp")
+		c.emitDebug("Skipping global tracer provider registration", "provider", "otlp")
 	}
 
-	c.logInfo("Tracing initialized", "provider", "otlp", "endpoint", c.otlpEndpoint, "service", c.serviceName)
+	c.emitInfo("Tracing initialized", "provider", "otlp", "endpoint", c.otlpEndpoint, "service", c.serviceName)
 	return nil
 }
 

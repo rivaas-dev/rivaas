@@ -1150,9 +1150,9 @@ func TestWarningLogs(t *testing.T) {
 	t.Run("ExcludedPathsLimitWarning", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a custom logger to capture warnings
+		// Create a custom event handler to capture warnings
 		var loggedWarnings []string
-		logger := &testLogger{
+		handler := &testEventHandler{
 			warnFunc: func(msg string, _ ...any) {
 				loggedWarnings = append(loggedWarnings, msg)
 			},
@@ -1165,7 +1165,7 @@ func TestWarningLogs(t *testing.T) {
 		}
 
 		config := MustNew(
-			WithLogger(logger),
+			WithEventHandler(handler.handler()),
 			WithExcludePaths(paths...),
 		)
 		defer config.Shutdown(context.Background())
@@ -1181,9 +1181,9 @@ func TestWarningLogs(t *testing.T) {
 	})
 
 	t.Run("SamplingDebugLogs", func(t *testing.T) {
-		// Create a custom logger to capture debug messages
+		// Create a custom event handler to capture debug messages
 		var loggedDebugMessages []string
-		logger := &testLogger{
+		handler := &testEventHandler{
 			debugFunc: func(msg string, _ ...any) {
 				loggedDebugMessages = append(loggedDebugMessages, msg)
 			},
@@ -1191,7 +1191,7 @@ func TestWarningLogs(t *testing.T) {
 
 		config := MustNew(
 			WithServiceName("test"),
-			WithLogger(logger),
+			WithEventHandler(handler.handler()),
 			WithSampleRate(0.0), // 0% sampling to trigger debug log
 		)
 		defer config.Shutdown(context.Background())
@@ -1486,35 +1486,34 @@ func TestGranularParameterRecording(t *testing.T) {
 	})
 }
 
-// testLogger is a mock logger for testing
-type testLogger struct {
+// testEventHandler creates an EventHandler for testing that dispatches to the provided functions.
+type testEventHandler struct {
 	errorFunc func(msg string, keysAndValues ...any)
 	warnFunc  func(msg string, keysAndValues ...any)
 	infoFunc  func(msg string, keysAndValues ...any)
 	debugFunc func(msg string, keysAndValues ...any)
 }
 
-func (l *testLogger) Error(msg string, keysAndValues ...any) {
-	if l.errorFunc != nil {
-		l.errorFunc(msg, keysAndValues...)
-	}
-}
-
-func (l *testLogger) Warn(msg string, keysAndValues ...any) {
-	if l.warnFunc != nil {
-		l.warnFunc(msg, keysAndValues...)
-	}
-}
-
-func (l *testLogger) Info(msg string, keysAndValues ...any) {
-	if l.infoFunc != nil {
-		l.infoFunc(msg, keysAndValues...)
-	}
-}
-
-func (l *testLogger) Debug(msg string, keysAndValues ...any) {
-	if l.debugFunc != nil {
-		l.debugFunc(msg, keysAndValues...)
+func (h *testEventHandler) handler() EventHandler {
+	return func(e Event) {
+		switch e.Type {
+		case EventError:
+			if h.errorFunc != nil {
+				h.errorFunc(e.Message, e.Args...)
+			}
+		case EventWarning:
+			if h.warnFunc != nil {
+				h.warnFunc(e.Message, e.Args...)
+			}
+		case EventInfo:
+			if h.infoFunc != nil {
+				h.infoFunc(e.Message, e.Args...)
+			}
+		case EventDebug:
+			if h.debugFunc != nil {
+				h.debugFunc(e.Message, e.Args...)
+			}
+		}
 	}
 }
 
