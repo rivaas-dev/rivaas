@@ -62,7 +62,7 @@ This plant grows at high altitudes (1,500–3,000 meters) in harsh, rocky terrai
 That's the philosophy behind Rivaas:
 
 - **Resilient** — Built for production from day one, with graceful shutdown, health checks, and panic recovery
-- **Lightweight** — Minimal overhead (145ns latency, 16 bytes/request) without sacrificing features
+- **Lightweight** — Minimal overhead (155ns latency, 16 bytes/request) without sacrificing features
 - **Adaptive** — Works locally, in containers, or across distributed systems with the same code
 - **Self-sufficient** — Integrated observability (metrics, tracing, logging) instead of bolted-on dependencies
 
@@ -71,7 +71,7 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 ## Why Rivaas?
 
 - **Production-Ready** — Built-in observability, health endpoints, and graceful shutdown
-- **High Performance** — 6.9M+ req/sec, 145ns latency, 16 bytes/request
+- **High Performance** — 6.5M+ req/sec, 155ns latency, 16 bytes/request
 - **Flexible** — Choose high-level convenience (`app`) or low-level control (`router`)
 - **Cloud-Native** — OpenTelemetry-native with Prometheus, OTLP, and Jaeger support
 
@@ -183,8 +183,8 @@ Complete runnable examples are available in each package:
 
 | Metric | Value |
 |--------|-------|
-| Throughput | 6.9M+ req/sec |
-| Latency | 145ns average |
+| Throughput | 6.5M+ req/sec |
+| Latency | 155ns average |
 | Memory | 16 bytes/request |
 | Allocations | 1 per request |
 
