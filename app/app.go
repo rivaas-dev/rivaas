@@ -430,6 +430,12 @@ func New(opts ...Option) (*App, error) {
 			metrics.WithServiceName(cfg.serviceName),
 			metrics.WithServiceVersion(cfg.serviceVersion),
 		}
+
+		// Auto-wire logger to metrics if logging is enabled
+		if loggingCfg != nil {
+			metricsOpts = append(metricsOpts, metrics.WithLogger(loggingCfg.Logger()))
+		}
+
 		metricsOpts = append(metricsOpts, obsSettings.metrics.options...)
 
 		// Configure metrics server based on user choice
@@ -471,6 +477,12 @@ func New(opts ...Option) (*App, error) {
 			tracing.WithServiceName(cfg.serviceName),
 			tracing.WithServiceVersion(cfg.serviceVersion),
 		}
+
+		// Auto-wire logger to tracing if logging is enabled
+		if loggingCfg != nil {
+			tracingOpts = append(tracingOpts, tracing.WithLogger(loggingCfg.Logger()))
+		}
+
 		tracingOpts = append(tracingOpts, obsSettings.tracing.options...)
 
 		tracingCfg, err = tracing.New(tracingOpts...)
