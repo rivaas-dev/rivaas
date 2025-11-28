@@ -46,11 +46,18 @@ Benchmark output shows:
 - **B/op**: Bytes allocated per operation (lower is better)
 - **allocs/op**: Number of allocations per operation (lower is better)
 
-Example output:
+Example output (November 2025, Intel i7-1265U):
 
 ```text
-BenchmarkRivaasRouter-14        5000000    250 ns/op    64 B/op    2 allocs/op
-BenchmarkGinRouter-14           3000000    450 ns/op   128 B/op    4 allocs/op
+BenchmarkRivaasRouter-12                 1000000    155 ns/op    16 B/op    1 allocs/op
+BenchmarkRivaasRouterPlainString-12      1000000    126 ns/op    16 B/op    1 allocs/op
+BenchmarkRivaasRouterZeroAlloc-12        1000000     57 ns/op     0 B/op    0 allocs/op
+BenchmarkStandardMux-12                  1000000    105 ns/op    16 B/op    1 allocs/op
+BenchmarkSimpleRouter-12                 1000000     31 ns/op    16 B/op    1 allocs/op
+BenchmarkGinRouter-12                    1000000    157 ns/op    80 B/op    3 allocs/op
+BenchmarkEchoRouter-12                   1000000    117 ns/op    32 B/op    2 allocs/op
+BenchmarkChiRouter-12                    1000000    439 ns/op   720 B/op    5 allocs/op
+BenchmarkFiberRouter-12                  1000000   1404 ns/op  2064 B/op   20 allocs/op
 ```
 
 ## Adding New Comparisons
