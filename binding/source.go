@@ -24,7 +24,7 @@ import (
 const (
 	TagJSON   = "json"   // JSON struct tag
 	TagQuery  = "query"  // Query parameter struct tag
-	TagParams = "params" // URL path parameter struct tag
+	TagPath   = "path"   // URL path parameter struct tag
 	TagForm   = "form"   // Form data struct tag
 	TagHeader = "header" // HTTP header struct tag
 	TagCookie = "cookie" // Cookie struct tag
@@ -138,31 +138,31 @@ func (q *QueryGetter) ApproxLen(prefix string) int {
 	return count
 }
 
-// ParamsGetter implements ValueGetter for URL path parameters.
-type ParamsGetter struct {
+// PathGetter implements ValueGetter for URL path parameters.
+type PathGetter struct {
 	params map[string]string
 }
 
-// NewParamsGetter creates a ParamsGetter from a map of path parameters.
+// NewPathGetter creates a PathGetter from a map of path parameters.
 //
 // Example:
 //
 //	params := map[string]string{"id": "123", "slug": "article-title"}
-//	getter := NewParamsGetter(params)
-//	Bind(&result, getter, "params")
-func NewParamsGetter(p map[string]string) ValueGetter {
-	return &ParamsGetter{params: p}
+//	getter := NewPathGetter(params)
+//	Bind(&result, getter, "path")
+func NewPathGetter(p map[string]string) ValueGetter {
+	return &PathGetter{params: p}
 }
 
 // Get returns the value for the key.
-func (p *ParamsGetter) Get(key string) string {
+func (p *PathGetter) Get(key string) string {
 	return p.params[key]
 }
 
 // GetAll returns all values for the key as a slice.
 // Path parameters are single-valued, so this returns a slice with one element
 // if the key exists.
-func (p *ParamsGetter) GetAll(key string) []string {
+func (p *PathGetter) GetAll(key string) []string {
 	if val, ok := p.params[key]; ok {
 		return []string{val}
 	}
@@ -170,7 +170,7 @@ func (p *ParamsGetter) GetAll(key string) []string {
 }
 
 // Has returns whether the key exists.
-func (p *ParamsGetter) Has(key string) bool {
+func (p *PathGetter) Has(key string) bool {
 	_, ok := p.params[key]
 	return ok
 }

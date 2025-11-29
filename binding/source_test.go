@@ -48,7 +48,7 @@ func TestValueGetter_GetAll(t *testing.T) {
 		t.Parallel()
 
 		params := map[string]string{"id": "123"}
-		getter := NewParamsGetter(params)
+		getter := NewPathGetter(params)
 
 		all := getter.GetAll("id")
 		assert.Equal(t, []string{"123"}, all)
@@ -152,12 +152,12 @@ func TestCookieGetter_Get_NotFound(t *testing.T) {
 	assert.Equal(t, "abc123", session, "Expected session_id to be 'abc123'")
 }
 
-// TestParamsGetter_GetAll_NonExistent tests paramsGetter.GetAll for non-existent key
-func TestParamsGetter_GetAll_NonExistent(t *testing.T) {
+// TestPathGetter_GetAll_NonExistent tests paramsGetter.GetAll for non-existent key
+func TestPathGetter_GetAll_NonExistent(t *testing.T) {
 	t.Parallel()
 
 	params := map[string]string{"id": "123"}
-	getter := NewParamsGetter(params)
+	getter := NewPathGetter(params)
 
 	// Test non-existent key returns nil
 	none := getter.GetAll("nonexistent")
@@ -303,29 +303,29 @@ func TestBind_Headers(t *testing.T) {
 func TestBind_GetAll(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ParamsGetter", func(t *testing.T) {
+	t.Run("PathGetter", func(t *testing.T) {
 		t.Parallel()
 
 		type Params struct {
-			ID string `params:"id"`
+			ID string `path:"id"`
 		}
 
 		params := map[string]string{"id": "123"}
-		getter := NewParamsGetter(params)
+		getter := NewPathGetter(params)
 
 		var p Params
-		require.NoError(t, Bind(&p, getter, TagParams), "BindParams should succeed")
+		require.NoError(t, Bind(&p, getter, TagPath), "BindPath should succeed")
 		assert.Equal(t, "123", p.ID, "Expected ID=123")
 
 		// Test that GetAll is used internally for slices
 		type ParamsWithSlice struct {
-			IDs []string `params:"id"`
+			IDs []string `path:"id"`
 		}
 
 		var paramsSlice ParamsWithSlice
 		params = map[string]string{"id": "456"}
-		getter = NewParamsGetter(params)
-		require.NoError(t, Bind(&paramsSlice, getter, TagParams), "BindParams should succeed for slice")
+		getter = NewPathGetter(params)
+		require.NoError(t, Bind(&paramsSlice, getter, TagPath), "BindPath should succeed for slice")
 		require.Len(t, paramsSlice.IDs, 1, "Expected 1 ID")
 		assert.Equal(t, "456", paramsSlice.IDs[0], "Expected first ID to be '456'")
 	})
@@ -467,7 +467,7 @@ func TestValueGetter_HasSemantics(t *testing.T) {
 				params := map[string]string{
 					"id": "",
 				}
-				return NewParamsGetter(params)
+				return NewPathGetter(params)
 			},
 			key:     "id",
 			wantHas: true,

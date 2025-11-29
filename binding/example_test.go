@@ -51,8 +51,8 @@ func ExampleBind() {
 // ExampleBindInto demonstrates the generic BindInto helper.
 func ExampleBindInto() {
 	type Params struct {
-		ID   int    `params:"id"`
-		Name string `params:"name"`
+		ID   int    `path:"id"`
+		Name string `path:"name"`
 	}
 
 	paramsMap := map[string]string{
@@ -61,8 +61,8 @@ func ExampleBindInto() {
 	}
 
 	params, err := binding.BindInto[Params](
-		binding.NewParamsGetter(paramsMap),
-		binding.TagParams,
+		binding.NewPathGetter(paramsMap),
+		binding.TagPath,
 	)
 
 	if err != nil {
@@ -78,7 +78,7 @@ func ExampleBindInto() {
 func ExampleBindMulti() {
 	type Request struct {
 		// From path parameters
-		UserID int `params:"user_id"`
+		UserID int `path:"user_id"`
 
 		// From query string
 		Page int `query:"page"`
@@ -92,7 +92,7 @@ func ExampleBindMulti() {
 	query.Set("page", "2")
 
 	sources := []binding.SourceConfig{
-		{Tag: binding.TagParams, Getter: binding.NewParamsGetter(params)},
+		{Tag: binding.TagPath, Getter: binding.NewPathGetter(params)},
 		{Tag: binding.TagQuery, Getter: binding.NewQueryGetter(query)},
 		{Tag: binding.TagHeader, Getter: binding.NewHeaderGetter(map[string][]string{
 			"User-Agent": {"MyApp/1.0"},
@@ -114,22 +114,22 @@ func ExampleBindMulti() {
 // ExampleHasStructTag demonstrates checking if a struct has specific tags.
 func ExampleHasStructTag() {
 	type UserRequest struct {
-		ID   int    `params:"id"`
+		ID   int    `path:"id"`
 		Name string `query:"name"`
 		Auth string `header:"Authorization"`
 	}
 
 	typ := reflect.TypeOf((*UserRequest)(nil)).Elem()
 
-	hasParams := binding.HasStructTag(typ, binding.TagParams)
+	hasPath := binding.HasStructTag(typ, binding.TagPath)
 	hasQuery := binding.HasStructTag(typ, binding.TagQuery)
 	hasCookie := binding.HasStructTag(typ, binding.TagCookie)
 
-	fmt.Printf("Has params tag: %v\n", hasParams)
+	fmt.Printf("Has path tag: %v\n", hasPath)
 	fmt.Printf("Has query tag: %v\n", hasQuery)
 	fmt.Printf("Has cookie tag: %v\n", hasCookie)
 	// Output:
-	// Has params tag: true
+	// Has path tag: true
 	// Has query tag: true
 	// Has cookie tag: false
 }

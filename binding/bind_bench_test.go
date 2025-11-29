@@ -106,8 +106,8 @@ func BenchmarkBind_Parallel(b *testing.B) {
 // BenchmarkBindInto benchmarks the generic BindInto helper.
 func BenchmarkBindInto(b *testing.B) {
 	type Params struct {
-		ID   int    `params:"id"`
-		Name string `params:"name"`
+		ID   int    `path:"id"`
+		Name string `path:"name"`
 	}
 
 	paramsMap := map[string]string{
@@ -115,19 +115,19 @@ func BenchmarkBindInto(b *testing.B) {
 		"name": "Bob",
 	}
 
-	getter := NewParamsGetter(paramsMap)
+	getter := NewPathGetter(paramsMap)
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = BindInto[Params](getter, TagParams)
+		_, _ = BindInto[Params](getter, TagPath)
 	}
 }
 
 // BenchmarkBindMulti benchmarks binding from multiple sources.
 func BenchmarkBindMulti(b *testing.B) {
 	type Request struct {
-		UserID    int    `params:"user_id"`
+		UserID    int    `path:"user_id"`
 		Page      int    `query:"page"`
 		UserAgent string `header:"User-Agent"`
 	}
@@ -140,7 +140,7 @@ func BenchmarkBindMulti(b *testing.B) {
 	}
 
 	sources := []SourceConfig{
-		{Tag: TagParams, Getter: NewParamsGetter(params)},
+		{Tag: TagPath, Getter: NewPathGetter(params)},
 		{Tag: TagQuery, Getter: NewQueryGetter(query)},
 		{Tag: TagHeader, Getter: NewHeaderGetter(headers)},
 	}
@@ -157,7 +157,7 @@ func BenchmarkBindMulti(b *testing.B) {
 // BenchmarkHasStructTag benchmarks tag checking.
 func BenchmarkHasStructTag(b *testing.B) {
 	type Request struct {
-		ID   int    `params:"id"`
+		ID   int    `path:"id"`
 		Name string `query:"name"`
 		Auth string `header:"Authorization"`
 	}
@@ -167,7 +167,7 @@ func BenchmarkHasStructTag(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = HasStructTag(typ, TagParams)
+		_ = HasStructTag(typ, TagPath)
 		_ = HasStructTag(typ, TagQuery)
 		_ = HasStructTag(typ, TagHeader)
 	}
