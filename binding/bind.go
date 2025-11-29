@@ -473,13 +473,13 @@ type SourceConfig struct {
 // Example:
 //
 //	type Request struct {
-//	    ID     string `params:"id"`
+//	    ID     string `path:"id"`
 //	    Query  string `query:"q"`
 //	    UserID string `header:"X-User-Id"`
 //	}
 //
 //	sources := []SourceConfig{
-//		{Tag: TagParams, Getter: NewParamsGetter(params)},
+//		{Tag: TagPath, Getter: NewPathGetter(params)},
 //		{Tag: TagQuery, Getter: NewQueryGetter(query)},
 //		{Tag: TagHeader, Getter: NewHeaderGetter(headers)},
 //	}

@@ -282,7 +282,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 				name: "paramsGetter with prefix",
 				setup: func() (*prefixGetter, string, bool) {
 					params := map[string]string{"user.name": "John"}
-					getter, ok := NewParamsGetter(params).(*ParamsGetter)
+					getter, ok := NewPathGetter(params).(*PathGetter)
 					require.True(t, ok)
 					return &prefixGetter{inner: getter, prefix: "user."}, "name", true
 				},

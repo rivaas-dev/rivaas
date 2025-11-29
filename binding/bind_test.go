@@ -1040,7 +1040,7 @@ func TestBindMulti(t *testing.T) {
 		t.Parallel()
 
 		type Request struct {
-			ID      int    `params:"id"`
+			ID      int    `path:"id"`
 			Page    int    `query:"page"`
 			APIKey  string `header:"X-API-Key"`
 			Session string `cookie:"session"`
@@ -1048,7 +1048,7 @@ func TestBindMulti(t *testing.T) {
 
 		var req Request
 		sources := []SourceConfig{
-			{Tag: TagParams, Getter: NewParamsGetter(map[string]string{"id": "123"})},
+			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
 			{Tag: TagQuery, Getter: NewQueryGetter(url.Values{"page": {"5"}})},
 			{Tag: TagHeader, Getter: NewHeaderGetter(http.Header{"X-Api-Key": {"secret-key"}})},
 			{Tag: TagCookie, Getter: NewCookieGetter([]*http.Cookie{{Name: "session", Value: "abc123"}})},
@@ -1066,14 +1066,14 @@ func TestBindMulti(t *testing.T) {
 		t.Parallel()
 
 		type Request struct {
-			ID   int `params:"id"`
+			ID   int `path:"id"`
 			Page int `query:"page"`
 			// No header or cookie tags
 		}
 
 		var req Request
 		sources := []SourceConfig{
-			{Tag: TagParams, Getter: NewParamsGetter(map[string]string{"id": "123"})},
+			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
 			{Tag: TagQuery, Getter: NewQueryGetter(url.Values{"page": {"5"}})},
 			{Tag: TagHeader, Getter: NewHeaderGetter(http.Header{"X-Api-Key": {"secret-key"}})},
 			{Tag: TagCookie, Getter: NewCookieGetter([]*http.Cookie{{Name: "session", Value: "abc123"}})},
@@ -1090,13 +1090,13 @@ func TestBindMulti(t *testing.T) {
 		t.Parallel()
 
 		type Request struct {
-			ID   int `params:"id"`
+			ID   int `path:"id"`
 			Page int `query:"page" enum:"1,2,3"` // Invalid value
 		}
 
 		var req Request
 		sources := []SourceConfig{
-			{Tag: TagParams, Getter: NewParamsGetter(map[string]string{"id": "123"})},
+			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
 			{Tag: TagQuery, Getter: NewQueryGetter(url.Values{"page": {"99"}})}, // Invalid enum value
 		}
 
@@ -1110,7 +1110,7 @@ func TestBindMulti(t *testing.T) {
 		t.Parallel()
 
 		type PathParams struct {
-			ID int `params:"id"`
+			ID int `path:"id"`
 		}
 
 		type QueryParams struct {
@@ -1124,7 +1124,7 @@ func TestBindMulti(t *testing.T) {
 
 		var req Request
 		sources := []SourceConfig{
-			{Tag: TagParams, Getter: NewParamsGetter(map[string]string{"id": "123"})},
+			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
 			{Tag: TagQuery, Getter: NewQueryGetter(url.Values{"page": {"5"}})},
 		}
 
@@ -1138,12 +1138,12 @@ func TestBindMulti(t *testing.T) {
 		t.Parallel()
 
 		type Request struct {
-			ID int `params:"id"`
+			ID int `path:"id"`
 		}
 
 		var req Request
 		sources := []SourceConfig{
-			{Tag: TagParams, Getter: NewParamsGetter(map[string]string{"id": "123"})},
+			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
 		}
 
 		// Non-pointer should fail

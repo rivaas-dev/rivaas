@@ -122,7 +122,7 @@ func getStructInfo(typ reflect.Type, tag string) *structInfo {
 // Parameters:
 //   - types: Variadic list of struct instances to warm up
 func WarmupCache(types ...any) {
-	tags := []string{TagJSON, TagQuery, TagParams, TagForm, TagCookie, TagHeader}
+	tags := []string{TagJSON, TagQuery, TagPath, TagForm, TagCookie, TagHeader}
 	for _, t := range types {
 		typ := reflect.TypeOf(t)
 		if typ == nil {
@@ -159,7 +159,7 @@ func WarmupCache(types ...any) {
 //
 // Panics if any type is invalid or has invalid struct tags.
 func MustWarmupCache(types ...any) {
-	tags := []string{TagJSON, TagQuery, TagParams, TagForm, TagCookie, TagHeader}
+	tags := []string{TagJSON, TagQuery, TagPath, TagForm, TagCookie, TagHeader}
 	for _, t := range types {
 		typ := reflect.TypeOf(t)
 		if typ == nil {
