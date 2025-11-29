@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"rivaas.dev/binding"
 	"rivaas.dev/openapi/model"
 )
 
@@ -135,7 +134,7 @@ func (sg *SchemaGenerator) structSchema(t reflect.Type) *model.Schema {
 			return
 		}
 
-		jsonTag := f.Tag.Get(binding.TagJSON)
+		jsonTag := f.Tag.Get("json")
 		if jsonTag == "-" {
 			return
 		}
@@ -202,7 +201,7 @@ func (sg *SchemaGenerator) GenerateProjected(t reflect.Type, include func(reflec
 			return
 		}
 
-		jsonTag := f.Tag.Get(binding.TagJSON)
+		jsonTag := f.Tag.Get("json")
 		if jsonTag == "-" {
 			return
 		}

@@ -9,7 +9,7 @@ import (
 )
 
 type GetUserRequest struct {
-	ID     int    `params:"id" doc:"User ID" example:"123"`
+	ID     int    `path:"id" doc:"User ID" example:"123"`
 	Expand string `query:"expand" doc:"Fields to expand" enum:"profile,settings"`
 	APIKey string `header:"X-API-Key" validate:"required"`
 	Token  string `cookie:"token" doc:"Auth token"`
@@ -22,7 +22,7 @@ type CreateUserRequest struct {
 }
 
 type MixedRequest struct {
-	ID    int    `params:"id"`
+	ID    int    `path:"id"`
 	Query string `query:"q"`
 	Body  string `json:"body"`
 }
@@ -166,7 +166,7 @@ func TestIntrospectRequest_RequiredFields(t *testing.T) {
 	t.Parallel()
 
 	type RequiredTest struct {
-		Required  string `params:"id"` // path params always required
+		Required  string `path:"id"`   // path params always required
 		Optional  *int   `query:"opt"` // pointer is optional
 		Required2 string `query:"req" validate:"required"`
 		Optional2 string `query:"opt2"` // no validate required
@@ -206,7 +206,7 @@ func TestIntrospectRequest_EmbeddedStructs(t *testing.T) {
 	t.Parallel()
 
 	type BaseParams struct {
-		ID int `params:"id"`
+		ID int `path:"id"`
 	}
 
 	type ExtendedRequest struct {
@@ -233,7 +233,7 @@ func TestIntrospectRequest_DefaultValues(t *testing.T) {
 	t.Parallel()
 
 	type RequestWithDefaults struct {
-		ID    int    `params:"id" default:"1"`
+		ID    int    `path:"id" default:"1"`
 		Limit int    `query:"limit" default:"10"`
 		Sort  string `query:"sort" default:"asc"`
 	}
@@ -324,7 +324,7 @@ func TestIntrospectRequest_OnlyParams(t *testing.T) {
 	t.Parallel()
 
 	type ParamsOnly struct {
-		ID   int    `params:"id"`
+		ID   int    `path:"id"`
 		Page int    `query:"page"`
 		Key  string `header:"X-Key"`
 	}
@@ -353,7 +353,7 @@ func TestIntrospectRequest_ComplexNested(t *testing.T) {
 	}
 
 	type ComplexRequest struct {
-		ID     int     `params:"id"`
+		ID     int     `path:"id"`
 		Query  string  `query:"q"`
 		Header string  `header:"X-Header"`
 		Nested *Nested `json:"nested"`

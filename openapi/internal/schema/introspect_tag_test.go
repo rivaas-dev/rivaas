@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"rivaas.dev/binding"
 )
 
 // Test extractParamsFromTag function directly
@@ -31,7 +30,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						Limit int    `query:"limit" default:"10" example:"10"`
 						Sort  string `query:"sort" default:"asc" example:"asc"`
 					}
-					return reflect.TypeOf(Request{}), binding.TagQuery, "query"
+					return reflect.TypeOf(Request{}), tagQuery, "query"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
 					require.Len(t, params, 3)
@@ -58,10 +57,10 @@ func TestExtractParamsFromTag(t *testing.T) {
 				name: "path parameters",
 				structFn: func() (reflect.Type, string, string) {
 					type Request struct {
-						ID   int    `params:"id"`
-						Name string `params:"name"`
+						ID   int    `path:"id"`
+						Name string `path:"name"`
 					}
-					return reflect.TypeOf(Request{}), binding.TagParams, "path"
+					return reflect.TypeOf(Request{}), tagPath, "path"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
 					require.Len(t, params, 2)
@@ -82,7 +81,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						APIKey    string `header:"X-API-Key"`
 						UserAgent string `header:"User-Agent"`
 					}
-					return reflect.TypeOf(Request{}), binding.TagHeader, "header"
+					return reflect.TypeOf(Request{}), tagHeader, "header"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
 					require.Len(t, params, 2)
@@ -101,7 +100,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						Session string `cookie:"session"`
 						Token   string `cookie:"token"`
 					}
-					return reflect.TypeOf(Request{}), binding.TagCookie, "cookie"
+					return reflect.TypeOf(Request{}), tagCookie, "cookie"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
 					require.Len(t, params, 2)
@@ -178,7 +177,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				typ := tt.structFn()
-				params := extractParamsFromTag(typ, binding.TagQuery, "query")
+				params := extractParamsFromTag(typ, tagQuery, "query")
 				require.Len(t, params, tt.expected)
 				if tt.validate != nil {
 					tt.validate(t, params)
@@ -249,7 +248,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				typ := tt.structFn()
-				params := extractParamsFromTag(typ, binding.TagQuery, "query")
+				params := extractParamsFromTag(typ, tagQuery, "query")
 				tt.validate(t, params)
 			})
 		}
@@ -310,7 +309,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				typ := tt.structFn()
-				params := extractParamsFromTag(typ, binding.TagQuery, "query")
+				params := extractParamsFromTag(typ, tagQuery, "query")
 				tt.validate(t, params)
 			})
 		}
@@ -323,7 +322,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 		}
 
 		typ := reflect.TypeOf(Request{})
-		params := extractParamsFromTag(typ, binding.TagQuery, "query")
+		params := extractParamsFromTag(typ, tagQuery, "query")
 
 		require.Len(t, params, 1)
 		assert.Equal(t, "public", params[0].Name)
@@ -337,7 +336,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 		}
 
 		typ := reflect.TypeOf(Request{})
-		params := extractParamsFromTag(typ, binding.TagQuery, "query")
+		params := extractParamsFromTag(typ, tagQuery, "query")
 
 		require.Len(t, params, 3)
 		paramMap := make(map[string]ParamSpec)
@@ -352,7 +351,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 
 	t.Run("handles embedded structs", func(t *testing.T) {
 		type BaseParams struct {
-			ID int `params:"id"`
+			ID int `path:"id"`
 		}
 
 		type Request struct {
@@ -361,8 +360,8 @@ func TestExtractParamsFromTag(t *testing.T) {
 		}
 
 		typ := reflect.TypeOf(Request{})
-		pathParams := extractParamsFromTag(typ, binding.TagParams, "path")
-		queryParams := extractParamsFromTag(typ, binding.TagQuery, "query")
+		pathParams := extractParamsFromTag(typ, tagPath, "path")
+		queryParams := extractParamsFromTag(typ, tagQuery, "query")
 
 		require.Len(t, pathParams, 1)
 		assert.Equal(t, "id", pathParams[0].Name)
@@ -378,7 +377,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 		}
 
 		typ := reflect.TypeOf(Request{})
-		params := extractParamsFromTag(typ, binding.TagQuery, "query")
+		params := extractParamsFromTag(typ, tagQuery, "query")
 
 		require.Len(t, params, 2)
 		paramMap := make(map[string]ParamSpec)
@@ -408,7 +407,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 		}
 
 		typ := reflect.TypeOf(Request{})
-		params := extractParamsFromTag(typ, binding.TagQuery, "query")
+		params := extractParamsFromTag(typ, tagQuery, "query")
 
 		require.Len(t, params, 14)
 		paramMap := make(map[string]ParamSpec)
@@ -703,11 +702,11 @@ func TestIsParamRequired(t *testing.T) {
 			name: "path params always required (non-pointer)",
 			structFn: func() (reflect.StructField, string) {
 				type Request struct {
-					ID1 string `params:"id1"`
+					ID1 string `path:"id1"`
 				}
 				typ := reflect.TypeOf(Request{})
 				field, _ := typ.FieldByName("ID1")
-				return field, binding.TagParams
+				return field, tagPath
 			},
 			expected: true,
 		},
@@ -715,11 +714,11 @@ func TestIsParamRequired(t *testing.T) {
 			name: "path params always required (pointer)",
 			structFn: func() (reflect.StructField, string) {
 				type Request struct {
-					ID2 *int `params:"id2"`
+					ID2 *int `path:"id2"`
 				}
 				typ := reflect.TypeOf(Request{})
 				field, _ := typ.FieldByName("ID2")
-				return field, binding.TagParams
+				return field, tagPath
 			},
 			expected: true,
 		},
@@ -731,7 +730,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeOf(Request{})
 				field, _ := typ.FieldByName("ID")
-				return field, binding.TagQuery
+				return field, tagQuery
 			},
 			expected: false,
 		},
@@ -743,7 +742,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeOf(Request{})
 				field, _ := typ.FieldByName("Required")
-				return field, binding.TagQuery
+				return field, tagQuery
 			},
 			expected: true,
 		},
@@ -755,7 +754,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeOf(Request{})
 				field, _ := typ.FieldByName("Optional")
-				return field, binding.TagQuery
+				return field, tagQuery
 			},
 			expected: false,
 		},
@@ -767,7 +766,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeOf(Request{})
 				field, _ := typ.FieldByName("Field")
-				return field, binding.TagQuery
+				return field, tagQuery
 			},
 			expected: true,
 		},
@@ -779,7 +778,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeOf(Request{})
 				field, _ := typ.FieldByName("Field")
-				return field, binding.TagQuery
+				return field, tagQuery
 			},
 			expected: false,
 		},
@@ -858,7 +857,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 			name: "multiple tag types on same struct",
 			structFn: func() reflect.Type {
 				type Request struct {
-					ID      int    `params:"id"`
+					ID      int    `path:"id"`
 					Page    int    `query:"page"`
 					APIKey  string `header:"X-API-Key"`
 					Session string `cookie:"session"`
@@ -899,7 +898,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 			name: "all tag types with all metadata",
 			structFn: func() reflect.Type {
 				type Request struct {
-					ID      int    `params:"id" doc:"User ID" example:"123"`
+					ID      int    `path:"id" doc:"User ID" example:"123"`
 					Page    int    `query:"page" doc:"Page number" default:"1" example:"1"`
 					APIKey  string `header:"X-API-Key" validate:"required" doc:"API key"`
 					Session string `cookie:"session" doc:"Session token" example:"abc123"`
@@ -1002,7 +1001,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 			name: "no body when only params",
 			structFn: func() reflect.Type {
 				type Request struct {
-					ID int `params:"id"`
+					ID int `path:"id"`
 				}
 				return reflect.TypeOf(Request{})
 			},
@@ -1028,7 +1027,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 				}
 				type Request struct {
 					Body
-					ID int `params:"id"`
+					ID int `path:"id"`
 				}
 				return reflect.TypeOf(Request{})
 			},
