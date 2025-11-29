@@ -28,7 +28,7 @@ type CreateUserRequest struct {
 
 // UserPathParams represents user-related path parameters extracted from URL paths.
 type UserPathParams struct {
-	ID int `params:"id"`
+	ID int `path:"id"`
 }
 
 // UserResponse represents a user response returned by the API.
@@ -83,5 +83,5 @@ type SearchParams struct {
 
 // ProductPathParams represents product-related path parameters extracted from URL paths.
 type ProductPathParams struct {
-	ID string `params:"id"`
+	ID string `path:"id"`
 }
