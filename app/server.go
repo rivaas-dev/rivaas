@@ -51,7 +51,7 @@ func (a *App) logStartupInfo(addr, protocol string) {
 	}
 
 	if a.metrics != nil {
-		attrs = append(attrs, "metrics_enabled", true, "metrics_address", a.metrics.GetServerAddress())
+		attrs = append(attrs, "metrics_enabled", true, "metrics_address", a.metrics.ServerAddress())
 	}
 
 	a.logLifecycleEvent(context.Background(), slog.LevelInfo, "server starting", attrs...)

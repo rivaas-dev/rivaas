@@ -381,7 +381,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 			),
 		)
 		require.NoError(t, err)
@@ -396,7 +396,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 			),
 		)
 		require.NoError(t, err)
@@ -442,7 +442,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithServiceVersion("1.0.0"),
 			WithObservability(
 				WithLogging(logging.WithLevel(logging.LevelDebug)),
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
 			),
 		)
@@ -461,7 +461,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithServiceVersion("1.0.0"),
 			WithObservability(
 				WithLogging(logging.WithLevel(logging.LevelInfo)),
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
 			),
 		)
@@ -480,7 +480,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithServiceVersion("v2.1.0"),
 			WithObservability(
 				WithLogging(logging.WithJSONHandler()),
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
 			),
 		)
@@ -973,7 +973,7 @@ func TestApp_GetMetricsHandler(t *testing.T) {
 					WithServiceName("test"),
 					WithServiceVersion("1.0.0"),
 					WithObservability(
-						WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+						WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 					),
 				)
 			},
@@ -1032,8 +1032,8 @@ func TestApp_GetMetricsServerAddress(t *testing.T) {
 					WithServiceVersion("1.0.0"),
 					WithObservability(
 						WithMetrics(
-							metrics.WithProvider(metrics.PrometheusProvider),
-							metrics.WithPort(":9090"),
+							metrics.WithPrometheus(":9090", "/metrics"),
+							
 						),
 					),
 				)
@@ -1141,7 +1141,7 @@ func TestApp_Metrics(t *testing.T) {
 		name        string
 		setup       func() *App
 		wantNil     bool
-		validateCfg func(*testing.T, *App, *metrics.Config)
+		validateCfg func(*testing.T, *App, *metrics.Recorder)
 	}{
 		{
 			name: "returns nil when metrics not enabled",
@@ -1154,20 +1154,20 @@ func TestApp_Metrics(t *testing.T) {
 			wantNil: true,
 		},
 		{
-			name: "returns config when metrics enabled",
+			name: "returns recorder when metrics enabled",
 			setup: func() *App {
 				return MustNew(
 					WithServiceName("test"),
 					WithServiceVersion("1.0.0"),
 					WithObservability(
-						WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+						WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 					),
 				)
 			},
 			wantNil: false,
-			validateCfg: func(t *testing.T, app *App, cfg *metrics.Config) {
-				assert.NotNil(t, cfg)
-				assert.Equal(t, app.metrics, cfg)
+			validateCfg: func(t *testing.T, app *App, recorder *metrics.Recorder) {
+				assert.NotNil(t, recorder)
+				assert.Equal(t, app.metrics, recorder)
 			},
 		},
 	}

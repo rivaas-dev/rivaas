@@ -196,7 +196,7 @@ func TestWithObservability_Components(t *testing.T) {
 		app, err := New(
 			WithServiceName("test-service"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 			),
 		)
 		require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestWithObservability_Components(t *testing.T) {
 			WithServiceVersion("1.0.0"),
 			WithObservability(
 				WithLogging(logging.WithJSONHandler()),
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
 				WithExcludePaths("/custom"),
 				WithLogOnlyErrors(),
@@ -281,7 +281,7 @@ func TestWithMetricsOnMainRouter(t *testing.T) {
 		app, err := New(
 			WithServiceName("test-service"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(), // WithMetricsOnMainRouter provides the provider
 				WithMetricsOnMainRouter("/metrics"),
 			),
 		)
@@ -305,7 +305,7 @@ func TestWithMetricsOnMainRouter(t *testing.T) {
 		app, err := New(
 			WithServiceName("test-service"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(), // WithMetricsOnMainRouter provides the provider
 				WithMetricsOnMainRouter("/metrics"),
 			),
 		)
@@ -321,7 +321,7 @@ func TestWithMetricsOnMainRouter(t *testing.T) {
 		app, err := New(
 			WithServiceName("test-service"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(), // WithMetricsOnMainRouter provides the provider
 				WithMetricsOnMainRouter("/custom-metrics"),
 			),
 		)
@@ -340,7 +340,7 @@ func TestWithMetricsOnMainRouter(t *testing.T) {
 		app, err := New(
 			WithServiceName("test-service"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(),               // WithMetricsOnMainRouter provides the provider
 				WithMetricsOnMainRouter(""), // Empty should default to /metrics
 			),
 		)
@@ -362,7 +362,7 @@ func TestWithMetricsSeparateServer(t *testing.T) {
 		app, err := New(
 			WithServiceName("test-service"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(), // WithMetricsSeparateServer provides the provider
 				WithMetricsSeparateServer(":19091", "/metrics"),
 			),
 		)
@@ -379,7 +379,7 @@ func TestWithMetricsSeparateServer(t *testing.T) {
 		_, err := New(
 			WithServiceName("test-service"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(),
 				WithMetricsOnMainRouter("/metrics"),
 				WithMetricsSeparateServer(":19092", "/metrics"),
 			),
@@ -394,7 +394,7 @@ func TestWithMetricsSeparateServer(t *testing.T) {
 		_, err := New(
 			WithServiceName("test-service"),
 			WithObservability(
-				WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+				WithMetrics(),
 				WithMetricsSeparateServer(":19093", "/metrics"),
 				WithMetricsOnMainRouter("/metrics"),
 			),

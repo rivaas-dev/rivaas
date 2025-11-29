@@ -116,7 +116,7 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	metricsLabel := labelStyle.Render("Metrics:")
 	var metricsValue string
 	if a.metrics != nil {
-		metricsAddr := a.metrics.GetServerAddress()
+		metricsAddr := a.metrics.ServerAddress()
 		// Normalize metrics address: ":9090" -> "0.0.0.0:9090"
 		if strings.HasPrefix(metricsAddr, ":") {
 			metricsAddr = "0.0.0.0" + metricsAddr

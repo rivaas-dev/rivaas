@@ -34,7 +34,7 @@ import (
 // metrics, tracing, and logging into a single lifecycle.
 // observabilityRecorder coordinates observability data collection across all three pillars.
 type observabilityRecorder struct {
-	metrics    *metrics.Config
+	metrics    *metrics.Recorder
 	tracing    *tracing.Config
 	logger     *slog.Logger
 	pathFilter *pathFilter
@@ -47,7 +47,7 @@ type observabilityRecorder struct {
 
 // observabilityConfig configures the unified observability recorder.
 type observabilityConfig struct {
-	Metrics           *metrics.Config
+	Metrics           *metrics.Recorder
 	Tracing           *tracing.Config
 	Logger            *slog.Logger
 	PathFilter        *pathFilter
@@ -78,10 +78,10 @@ func newObservabilityRecorder(cfg *observabilityConfig) router.ObservabilityReco
 // observabilityState holds per-request observability state.
 // observabilityState is the opaque token passed between lifecycle methods.
 type observabilityState struct {
-	metricsData any           // Opaque metrics state from metrics.StartRequest
-	span        trace.Span    // Active span from tracing
-	startTime   time.Time     // Request start time for duration calculation
-	req         *http.Request // Original request for access logging
+	metricsData *metrics.RequestMetrics // Metrics state from metrics.Start
+	span        trace.Span              // Active span from tracing
+	startTime   time.Time               // Request start time for duration calculation
+	req         *http.Request           // Original request for access logging
 }
 
 func (o *observabilityRecorder) OnRequestStart(ctx context.Context, req *http.Request) (context.Context, any) {
@@ -105,8 +105,7 @@ func (o *observabilityRecorder) OnRequestStart(ctx context.Context, req *http.Re
 	// Start metrics (if enabled)
 	// Note: We'll update with route pattern in OnRequestEnd for cardinality control
 	if o.metrics != nil && o.metrics.IsEnabled() {
-		// Pass empty string for now; will use routePattern in FinishRequest
-		state.metricsData = o.metrics.StartRequest(ctx, "", false)
+		state.metricsData = o.metrics.Start(ctx)
 	}
 
 	return ctx, state
@@ -150,11 +149,11 @@ func (o *observabilityRecorder) OnRequestEnd(ctx context.Context, state any, wri
 	if s.metricsData != nil {
 		// Use routePattern for metrics to avoid high cardinality
 		// If no route matched, use sentinel value
-		metricsPath := routePattern
-		if metricsPath == "" {
-			metricsPath = "_unmatched"
+		route := routePattern
+		if route == "" {
+			route = "_unmatched"
 		}
-		o.metrics.FinishRequest(ctx, s.metricsData, statusCode, responseSize, metricsPath)
+		o.metrics.Finish(ctx, s.metricsData, statusCode, responseSize, route)
 	}
 
 	// Access logging (if enabled)

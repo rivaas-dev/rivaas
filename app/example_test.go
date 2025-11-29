@@ -51,7 +51,7 @@ func Example_withObservability() {
 		app.WithServiceName("example-api"),
 		app.WithServiceVersion("v1.0.0"),
 		app.WithObservability(
-			app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+			app.WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 			app.WithTracing(tracing.WithProvider(tracing.NoopProvider)),
 		),
 	)

@@ -872,7 +872,7 @@ app.WithServerConfig(
 
 - Ensure metrics are enabled: `app.WithMetrics()`
 - Check the metrics path: `app.Metrics().Path()` (default: `/metrics`)
-- Verify the metrics server is running: `app.Metrics().GetServerAddress()`
+- Verify the metrics server is running: `app.Metrics().ServerAddress()`
 - In development mode, check the startup banner for metrics address
 
 #### Tracing Not Working
@@ -941,7 +941,7 @@ app.WithServerConfig(
 
    ```go
    if app.Metrics() != nil {
-       fmt.Println("Metrics enabled:", app.Metrics().GetServerAddress())
+       fmt.Println("Metrics enabled:", app.Metrics().ServerAddress())
    }
    if app.Tracing() != nil {
        fmt.Println("Tracing enabled")
@@ -987,7 +987,7 @@ app.WithServerConfig(
 | `Use(middleware ...HandlerFunc)` | Add middleware | - |
 | `Static(prefix, root string)` | Serve static files | - |
 | `Router()` | Get underlying router | `*router.Router` |
-| `Metrics()` | Get metrics configuration | `*metrics.Config` |
+| `Metrics()` | Get metrics recorder | `*metrics.Recorder` |
 | `Tracing()` | Get tracing configuration | `*tracing.Config` |
 | `Route(name string)` | Get route by name | `(*router.Route, bool)` |
 | `Routes()` | Get all named routes | `[]*router.Route` |

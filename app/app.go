@@ -62,7 +62,7 @@ var noopLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 // Create an App using [New] or [MustNew].
 type App struct {
 	router      *router.Router
-	metrics     *metrics.Config
+	metrics     *metrics.Recorder
 	tracing     *tracing.Config
 	logging     *logging.Config // Logging configuration (can be nil, uses noopLogger fallback)
 	config      *config
@@ -421,7 +421,7 @@ func New(opts ...Option) (*App, error) {
 	}
 
 	// Initialize observability components (metrics, tracing)
-	var metricsCfg *metrics.Config
+	var metricsCfg *metrics.Recorder
 	var tracingCfg *tracing.Config
 
 	if obsSettings.metrics != nil && obsSettings.metrics.enabled {
@@ -440,18 +440,22 @@ func New(opts ...Option) (*App, error) {
 
 		// Configure metrics server based on user choice
 		if obsSettings.metricsOnMainRouter {
-			// Mount on main router: disable separate server
+			// Mount on main router: use Prometheus provider but disable separate server
+			metricsOpts = append([]metrics.Option{metrics.WithPrometheus(":9090", "/metrics")}, metricsOpts...)
 			metricsOpts = append(metricsOpts, metrics.WithServerDisabled())
 		} else if obsSettings.metricsSeparateServer {
-			// Custom separate server configuration
-			if obsSettings.metricsSeparateAddr != "" {
-				metricsOpts = append(metricsOpts, metrics.WithPort(obsSettings.metricsSeparateAddr))
+			// Custom separate server configuration with Prometheus
+			addr := obsSettings.metricsSeparateAddr
+			if addr == "" {
+				addr = ":9090"
 			}
-			if obsSettings.metricsSeparatePath != "" {
-				metricsOpts = append(metricsOpts, metrics.WithPath(obsSettings.metricsSeparatePath))
+			path := obsSettings.metricsSeparatePath
+			if path == "" {
+				path = "/metrics"
 			}
+			metricsOpts = append([]metrics.Option{metrics.WithPrometheus(addr, path)}, metricsOpts...)
 		}
-		// Default: use metrics package defaults (:9090/metrics)
+		// Default: user provides provider option via their metrics options
 
 		metricsCfg, err = metrics.New(metricsOpts...)
 		if err != nil {
@@ -461,7 +465,7 @@ func New(opts ...Option) (*App, error) {
 
 		// Mount metrics endpoint on main router if configured
 		if obsSettings.metricsOnMainRouter {
-			handler, handlerErr := metricsCfg.GetHandler()
+			handler, handlerErr := metricsCfg.Handler()
 			if handlerErr != nil {
 				return nil, fmt.Errorf("failed to get metrics handler: %w", handlerErr)
 			}
@@ -928,7 +932,7 @@ func (a *App) GetMetricsHandler() (http.Handler, error) {
 	if a.metrics == nil {
 		return nil, fmt.Errorf("metrics not enabled, use WithObservability(WithMetrics(...)) to enable metrics")
 	}
-	return a.metrics.GetHandler()
+	return a.metrics.Handler()
 }
 
 // GetMetricsServerAddress returns the metrics server address if metrics are enabled.
@@ -944,7 +948,7 @@ func (a *App) GetMetricsServerAddress() string {
 	if a.metrics == nil {
 		return ""
 	}
-	return a.metrics.GetServerAddress()
+	return a.metrics.ServerAddress()
 }
 
 // ServiceName returns the configured service name.
@@ -983,10 +987,10 @@ func (a *App) Environment() string {
 //
 // Example:
 //
-//	if cfg := app.Metrics(); cfg != nil {
-//	    // Access metrics configuration
+//	if recorder := app.Metrics(); recorder != nil {
+//	    // Access metrics recorder
 //	}
-func (a *App) Metrics() *metrics.Config {
+func (a *App) Metrics() *metrics.Recorder {
 	return a.metrics
 }
 

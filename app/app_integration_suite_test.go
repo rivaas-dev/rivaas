@@ -445,7 +445,7 @@ var _ = Describe("App Integration", func() {
 					app.WithServiceVersion("1.0.0"),
 					app.WithObservability(
 						app.WithLogging(logging.WithLevel(logging.LevelInfo)),
-						app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+						app.WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 						app.WithTracing(tracing.WithProvider(tracing.NoopProvider)),
 					),
 				)
