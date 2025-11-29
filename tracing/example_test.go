@@ -128,29 +128,3 @@ func ExampleWithExcludePaths() {
 	fmt.Printf("Tracing enabled: %v\n", config.IsEnabled())
 	// Output: Tracing enabled: true
 }
-
-// ExampleNewProduction demonstrates production configuration.
-func ExampleNewProduction() {
-	config, err := tracing.NewProduction("my-api", "v1.2.3")
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-	defer config.Shutdown(context.Background())
-
-	fmt.Printf("Service: %s, Version: %s\n", config.ServiceName(), config.ServiceVersion())
-	// Output: Service: my-api, Version: v1.2.3
-}
-
-// ExampleNewDevelopment demonstrates development configuration.
-func ExampleNewDevelopment() {
-	config, err := tracing.NewDevelopment("my-api", "dev")
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-	defer config.Shutdown(context.Background())
-
-	fmt.Printf("Service: %s\n", config.ServiceName())
-	// Output: Service: my-api
-}

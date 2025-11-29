@@ -111,26 +111,6 @@ if err != nil {
 defer config.Shutdown(context.Background())
 ```
 
-### Production and Development Helpers
-
-Pre-configured setups for common scenarios:
-
-```go
-// Production configuration: OTLP with conservative sampling
-config, err := tracing.NewProduction("my-service", "v1.2.3")
-if err != nil {
-    log.Fatal(err)
-}
-defer config.Shutdown(context.Background())
-
-// Development configuration: Stdout with full sampling
-config, err := tracing.NewDevelopment("my-service", "dev")
-if err != nil {
-    log.Fatal(err)
-}
-defer config.Shutdown(context.Background())
-```
-
 ### Comparison with Metrics Package
 
 The tracing package follows the same design pattern as the metrics package:
@@ -191,7 +171,7 @@ func main() {
 
 ### Production-Ready Configuration
 
-For production deployments, use the `NewProduction()` helper:
+For production deployments, configure with appropriate options:
 
 ```go
 package main
@@ -206,7 +186,15 @@ import (
 
 func main() {
     // Production config: OTLP, 10% sampling, sensitive data protection
-    config, err := tracing.NewProduction("my-api", "v1.0.0")
+    config, err := tracing.New(
+        tracing.WithServiceName("my-api"),
+        tracing.WithServiceVersion("v1.0.0"),
+        tracing.WithProvider(tracing.OTLPProvider),
+        tracing.WithOTLPEndpoint("localhost:4317"),
+        tracing.WithSampleRate(0.1), // 10% sampling
+        tracing.WithExcludePaths("/health", "/metrics", "/ready", "/live"),
+        tracing.WithDisableParams(), // Don't record potentially sensitive query params
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -229,7 +217,13 @@ For local development with maximum visibility:
 
 ```go
 // Development config: Stdout, 100% sampling, all params recorded
-config, err := tracing.NewDevelopment("my-api", "dev")
+config, err := tracing.New(
+    tracing.WithServiceName("my-api"),
+    tracing.WithServiceVersion("dev"),
+    tracing.WithProvider(tracing.StdoutProvider),
+    tracing.WithSampleRate(1.0), // 100% sampling
+    tracing.WithExcludePaths("/health", "/healthz"),
+)
 if err != nil {
     log.Fatal(err)
 }
@@ -315,26 +309,6 @@ config := tracing.New(
 - **Error**: Shutdown failures, provider errors
 
 ## Configuration Options
-
-### Convenience Helpers
-
-For common use cases, use the built-in configuration helpers:
-
-```go
-// Production: OTLP, 10% sampling, safe defaults
-config, err := tracing.NewProduction("my-service", "v1.0.0")
-if err != nil {
-    log.Fatal(err)
-}
-defer config.Shutdown(context.Background())
-
-// Development: Stdout, 100% sampling, maximum visibility
-config, err := tracing.NewDevelopment("my-service", "dev")
-if err != nil {
-    log.Fatal(err)
-}
-defer config.Shutdown(context.Background())
-```
 
 ### Basic Configuration
 
@@ -1072,9 +1046,22 @@ func setupTracing(environment string) (*tracing.Config, error) {
     
     switch environment {
     case "production":
-        return tracing.NewProduction(serviceName, serviceVersion)
+        return tracing.New(
+            tracing.WithServiceName(serviceName),
+            tracing.WithServiceVersion(serviceVersion),
+            tracing.WithProvider(tracing.OTLPProvider),
+            tracing.WithOTLPEndpoint("localhost:4317"),
+            tracing.WithSampleRate(0.1), // 10% sampling
+            tracing.WithExcludePaths("/health", "/metrics", "/ready", "/live"),
+            tracing.WithDisableParams(),
+        )
     case "development":
-        return tracing.NewDevelopment(serviceName, serviceVersion)
+        return tracing.New(
+            tracing.WithServiceName(serviceName),
+            tracing.WithServiceVersion(serviceVersion),
+            tracing.WithProvider(tracing.StdoutProvider),
+            tracing.WithSampleRate(1.0),
+        )
     case "test":
         return tracing.New(
             tracing.WithServiceName(serviceName),
@@ -1082,7 +1069,11 @@ func setupTracing(environment string) (*tracing.Config, error) {
             tracing.WithProvider(tracing.NoopProvider),
         )
     default:
-        return tracing.NewDevelopment(serviceName, serviceVersion)
+        return tracing.New(
+            tracing.WithServiceName(serviceName),
+            tracing.WithServiceVersion(serviceVersion),
+            tracing.WithProvider(tracing.StdoutProvider),
+        )
     }
 }
 

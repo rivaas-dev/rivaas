@@ -981,41 +981,6 @@ func TestContextTracing(t *testing.T) {
 	})
 }
 
-// TestProductionHelper tests the production configuration helper
-func TestProductionHelper(t *testing.T) {
-	config, err := NewProduction("prod-service", "v2.0.0")
-	require.NoError(t, err)
-	require.NotNil(t, config)
-	defer config.Shutdown(context.Background())
-
-	assert.Equal(t, "prod-service", config.ServiceName())
-	assert.Equal(t, "v2.0.0", config.ServiceVersion())
-	assert.Equal(t, 0.1, config.sampleRate)
-	assert.False(t, config.recordParams)
-	assert.True(t, config.ShouldExcludePath("/health"))
-	assert.True(t, config.ShouldExcludePath("/metrics"))
-	assert.True(t, config.ShouldExcludePath("/ready"))
-	assert.Equal(t, OTLPProvider, config.GetProvider())
-}
-
-// TestDevelopmentHelper tests the development configuration helper
-func TestDevelopmentHelper(t *testing.T) {
-	t.Parallel()
-
-	config, err := NewDevelopment("dev-service", "dev")
-	require.NoError(t, err)
-	require.NotNil(t, config)
-	defer config.Shutdown(context.Background())
-
-	assert.Equal(t, "dev-service", config.ServiceName())
-	assert.Equal(t, "dev", config.ServiceVersion())
-	assert.Equal(t, 1.0, config.sampleRate)
-	assert.True(t, config.recordParams)
-	assert.True(t, config.ShouldExcludePath("/health"))
-	assert.False(t, config.ShouldExcludePath("/metrics")) // Not excluded in dev
-	assert.Equal(t, StdoutProvider, config.GetProvider())
-}
-
 // TestProviderSetup tests the provider setup functions
 func TestProviderSetup(t *testing.T) {
 	t.Run("StdoutProvider", func(t *testing.T) {

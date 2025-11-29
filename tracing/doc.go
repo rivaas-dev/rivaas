@@ -86,16 +86,6 @@
 // and makes it easier to integrate Rivaas into larger binaries that already
 // manage their own global tracer provider.
 //
-// # Production and Development Helpers
-//
-// Pre-configured setups for common scenarios:
-//
-//	// Production configuration: OTLP with conservative sampling
-//	config, err := tracing.NewProduction("my-service", "v1.2.3")
-//
-//	// Development configuration: Stdout with full sampling
-//	config, err := tracing.NewDevelopment("my-service", "dev")
-//
 // # Path Filtering
 //
 // Exclude specific paths from tracing:

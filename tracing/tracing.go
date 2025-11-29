@@ -1315,59 +1315,6 @@ func AddSpanEventFromContext(ctx context.Context, name string, attrs ...attribut
 	}
 }
 
-// NewProduction creates a tracing configuration with conservative defaults
-// suitable for production workloads:
-//   - 10% sampling rate
-//   - Common health/metrics endpoints excluded
-//   - Query parameter recording disabled to prevent sensitive data leakage
-//   - OTLP provider (configure endpoint via WithOTLPEndpoint)
-//
-// Returns an error if the tracing provider fails to initialize.
-//
-// Example:
-//
-//	config, err := tracing.NewProduction("my-api", "v1.2.3")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer config.Shutdown(context.Background())
-func NewProduction(serviceName, serviceVersion string) (*Config, error) {
-	return New(
-		WithServiceName(serviceName),
-		WithServiceVersion(serviceVersion),
-		WithProvider(OTLPProvider),
-		WithSampleRate(0.1), // 10% sampling
-		WithExcludePaths("/health", "/metrics", "/ready", "/live", "/healthz"),
-		WithDisableParams(), // Don't record potentially sensitive query params
-	)
-}
-
-// NewDevelopment creates a tracing configuration with settings for maximum
-// visibility during development:
-//   - 100% sampling rate for full trace coverage
-//   - Query parameter recording enabled
-//   - Only basic health checks excluded
-//   - Stdout provider for easy debugging
-//
-// Returns an error if the tracing provider fails to initialize.
-//
-// Example:
-//
-//	config, err := tracing.NewDevelopment("my-api", "dev")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer config.Shutdown(context.Background())
-func NewDevelopment(serviceName, serviceVersion string) (*Config, error) {
-	return New(
-		WithServiceName(serviceName),
-		WithServiceVersion(serviceVersion),
-		WithProvider(StdoutProvider),
-		WithSampleRate(1.0), // 100% sampling
-		WithExcludePaths("/health", "/healthz"),
-	)
-}
-
 // TraceContext returns the OpenTelemetry trace context.
 // This can be used for manual span creation or context propagation.
 // If tracing is not enabled, it returns the request context for proper cancellation support.
