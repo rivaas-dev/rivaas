@@ -82,7 +82,7 @@
 // The router provides comprehensive request binding with support for 15+ types:
 //
 //	type UserRequest struct {
-//	    ID    int    `params:"id"`
+//	    ID    int    `path:"id"`
 //	    Name  string `query:"name"`
 //	    Email string `json:"email"`
 //	}

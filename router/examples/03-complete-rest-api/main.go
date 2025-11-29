@@ -257,12 +257,12 @@ func main() {
 	// Uses BindParams to extract path parameters from URL (e.g., /users/123)
 	api.GET("/users/:id", func(c *router.Context) {
 		type PathParams struct {
-			ID int `params:"id"`
+			ID int `path:"id"`
 		}
 
 		var params PathParams
 		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
+		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -341,7 +341,7 @@ func main() {
 	// Uses BindParams for path parameter and Bind for request body
 	api.PUT("/users/:id", func(c *router.Context) {
 		type PathParams struct {
-			ID int `params:"id"`
+			ID int `path:"id"`
 		}
 
 		type UpdateUserRequest struct {
@@ -351,7 +351,7 @@ func main() {
 
 		var params PathParams
 		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
+		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -413,12 +413,12 @@ func main() {
 	// Uses BindParams to extract user ID from path
 	api.DELETE("/users/:id", func(c *router.Context) {
 		type PathParams struct {
-			ID int `params:"id"`
+			ID int `path:"id"`
 		}
 
 		var params PathParams
 		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
+		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -444,12 +444,12 @@ func main() {
 	// Get all posts for a user
 	api.GET("/users/:id/posts", func(c *router.Context) {
 		type PathParams struct {
-			UserID int `params:"id"`
+			UserID int `path:"id"`
 		}
 
 		var params PathParams
 		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
+		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -479,7 +479,7 @@ func main() {
 	// Create post for a user
 	api.POST("/users/:id/posts", func(c *router.Context) {
 		type PathParams struct {
-			UserID int `params:"id"`
+			UserID int `path:"id"`
 		}
 
 		type CreatePostRequest struct {
@@ -489,7 +489,7 @@ func main() {
 
 		var params PathParams
 		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewParamsGetter(allParams), binding.TagParams); err != nil {
+		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
