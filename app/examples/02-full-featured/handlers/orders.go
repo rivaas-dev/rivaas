@@ -104,7 +104,7 @@ func CreateOrder(c *app.Context) {
 //	Returns order data for the specified ID.
 func GetOrderByID(c *app.Context) {
 	var params struct {
-		ID int `params:"id"`
+		ID int `path:"id"`
 	}
 	if err := c.Bind(&params); err != nil {
 		HandleError(c, WrapError(ErrInvalidInput, "%v", err))

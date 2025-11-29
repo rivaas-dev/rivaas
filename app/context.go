@@ -57,7 +57,7 @@ type bindingMetadata struct {
 // Bind introspects the struct and binds values based on the tags present.
 //
 // Supported sources based on tags:
-//   - params:"name" - URL path parameters
+//   - path:"name"   - URL path parameters
 //   - query:"name"  - Query string parameters
 //   - header:"name" - HTTP headers
 //   - cookie:"name" - Cookies
@@ -71,7 +71,7 @@ type bindingMetadata struct {
 // Example:
 //
 //	type GetUserRequest struct {
-//	    ID      int    `params:"id"`
+//	    ID      int    `path:"id"`
 //	    Expand  string `query:"expand"`
 //	    APIKey  string `header:"X-API-Key"`
 //	    Session string `cookie:"session"`
@@ -102,7 +102,7 @@ func (c *Context) Bind(out any) error {
 	// For structs, bind from non-body sources (params, query, header, cookie)
 	if !isMap {
 		sources := []binding.SourceConfig{
-			{Tag: binding.TagParams, Getter: binding.NewParamsGetter(c.AllParams())},
+			{Tag: binding.TagPath, Getter: binding.NewPathGetter(c.AllParams())},
 			{Tag: binding.TagQuery, Getter: binding.NewQueryGetter(c.Request.URL.Query())},
 			{Tag: binding.TagHeader, Getter: binding.NewHeaderGetter(c.Request.Header)},
 			{Tag: binding.TagCookie, Getter: binding.NewCookieGetter(c.Request.Cookies())},
