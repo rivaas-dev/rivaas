@@ -15,13 +15,13 @@
 package metrics
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 )
 
-// pathFilter handles path exclusion logic for metrics.
+// pathFilter handles path exclusion logic for metrics middleware.
 // It supports exact paths, prefixes, and regex patterns.
+// This is used internally by the Middleware function.
 type pathFilter struct {
 	paths    map[string]bool
 	prefixes []string
@@ -78,64 +78,4 @@ func (pf *pathFilter) shouldExclude(path string) bool {
 	}
 
 	return false
-}
-
-// WithExcludePrefixes excludes paths with the given prefixes from metrics collection.
-// This is useful for excluding entire path hierarchies like /debug/, /internal/, etc.
-//
-// Example:
-//
-//	config := metrics.MustNew(
-//	    metrics.WithExcludePrefixes("/debug/", "/internal/"),
-//	)
-func WithExcludePrefixes(prefixes ...string) Option {
-	return func(c *Config) {
-		if c.pathFilter == nil {
-			c.pathFilter = newPathFilter()
-		}
-		c.pathFilter.addPrefixes(prefixes...)
-	}
-}
-
-// WithExcludePatterns excludes paths matching the given regex patterns from metrics collection.
-// The patterns are compiled once during configuration.
-// Invalid regex patterns will cause New() to return an error.
-//
-// Example:
-//
-//	config := metrics.MustNew(
-//	    metrics.WithExcludePatterns(`^/v[0-9]+/internal/.*`, `^/debug/.*`),
-//	)
-func WithExcludePatterns(patterns ...string) Option {
-	return func(c *Config) {
-		if c.pathFilter == nil {
-			c.pathFilter = newPathFilter()
-		}
-		for _, pattern := range patterns {
-			compiled, err := regexp.Compile(pattern)
-			if err != nil {
-				// Store error to be returned during validation
-				if c.validationErrors == nil {
-					c.validationErrors = make([]error, 0, 1)
-				}
-				c.validationErrors = append(c.validationErrors,
-					fmt.Errorf("invalid regex pattern for path exclusion %q: %w", pattern, err))
-				c.emitError("Invalid regex pattern for path exclusion",
-					"pattern", pattern,
-					"error", err,
-				)
-				continue
-			}
-			c.pathFilter.addPatterns(compiled)
-		}
-	}
-}
-
-// ShouldExcludePath returns true if the given path should be excluded from metrics.
-// Checks exact paths, prefixes, and regex patterns.
-func (c *Config) ShouldExcludePath(path string) bool {
-	if c.pathFilter == nil {
-		return false
-	}
-	return c.pathFilter.shouldExclude(path)
 }

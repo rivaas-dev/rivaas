@@ -35,25 +35,25 @@ func TestWithCustomMeterProvider(t *testing.T) {
 	reader := sdkmetric.NewPeriodicReader(exporter)
 	customProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 
-	// Create config with custom provider
-	config, err := New(
+	// Create recorder with custom provider
+	recorder, err := New(
 		WithMeterProvider(customProvider),
 		WithServiceName("test-service"),
 	)
 	require.NoError(t, err)
-	assert.NotNil(t, config)
+	assert.NotNil(t, recorder)
 
 	// Verify custom provider is used
-	assert.True(t, config.customMeterProvider)
-	assert.Equal(t, customProvider, config.meterProvider)
+	assert.True(t, recorder.customMeterProvider)
+	assert.Equal(t, customProvider, recorder.meterProvider)
 
-	// Verify metrics work
-	config.IncrementCounter(context.Background(), "test_counter")
-	config.RecordMetric(context.Background(), "test_metric", 1.5)
-	config.SetGauge(context.Background(), "test_gauge", 42)
+	// Verify metrics work (errors are returned but we ignore them for this test)
+	_ = recorder.IncrementCounter(context.Background(), "test_counter")
+	_ = recorder.RecordHistogram(context.Background(), "test_metric", 1.5)
+	_ = recorder.SetGauge(context.Background(), "test_gauge", 42)
 
 	// Shutdown should NOT shut down the custom provider (user manages it)
-	err = config.Shutdown(context.Background())
+	err = recorder.Shutdown(context.Background())
 	assert.NoError(t, err)
 
 	// User should shutdown their own provider
@@ -71,19 +71,19 @@ func TestCustomProviderIgnoresBuiltInProvider(t *testing.T) {
 	reader := sdkmetric.NewPeriodicReader(exporter)
 	customProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 
-	// Create config with both custom provider and built-in provider option
+	// Create recorder with both custom provider and built-in provider option
 	// Built-in provider option should be ignored
-	config, err := New(
+	recorder, err := New(
 		WithMeterProvider(customProvider),
-		WithProvider(PrometheusProvider), // This should be ignored
+		WithPrometheus(":9090", "/metrics"), // This should be ignored
 		WithServiceName("test-service"),
 	)
 	require.NoError(t, err)
 
 	// Verify custom provider is used, not Prometheus
-	assert.True(t, config.customMeterProvider)
-	assert.Nil(t, config.prometheusHandler) // Prometheus handler shouldn't be initialized
-	assert.Nil(t, config.metricsServer)     // Prometheus server shouldn't be started
+	assert.True(t, recorder.customMeterProvider)
+	assert.Nil(t, recorder.prometheusHandler) // Prometheus handler shouldn't be initialized
+	assert.Nil(t, recorder.metricsServer)     // Prometheus server shouldn't be started
 
 	err = customProvider.Shutdown(context.Background())
 	assert.NoError(t, err)
@@ -93,55 +93,48 @@ func TestCustomProviderIgnoresBuiltInProvider(t *testing.T) {
 func TestNilCustomMeterProvider(t *testing.T) {
 	t.Parallel()
 
-	config := newDefaultConfig()
-	config.customMeterProvider = true
-	config.meterProvider = nil
+	recorder := newDefaultRecorder()
+	recorder.customMeterProvider = true
+	recorder.meterProvider = nil
 
-	err := config.initializeProvider()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "custom meter provider is nil")
+	err := recorder.initializeProvider()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nil")
 }
 
-// TestMultipleIndependentConfigurations demonstrates how to use custom providers
-// for multiple independent metrics configurations without global state conflicts
-func TestMultipleIndependentConfigurations(t *testing.T) {
+// TestGlobalMeterProviderOption tests the WithGlobalMeterProvider option
+func TestGlobalMeterProviderOption(t *testing.T) {
 	t.Parallel()
 
-	// Create first metrics configuration with custom provider
-	exporter1, err := stdoutmetric.New()
+	recorder := newDefaultRecorder()
+	assert.False(t, recorder.registerGlobal) // Default is false
+
+	// Apply option
+	WithGlobalMeterProvider()(recorder)
+	assert.True(t, recorder.registerGlobal)
+}
+
+// TestCustomProviderWithGlobalRegistration tests combining custom provider with global registration
+func TestCustomProviderWithGlobalRegistration(t *testing.T) {
+	t.Parallel()
+
+	exporter, err := stdoutmetric.New()
 	require.NoError(t, err)
 
-	provider1 := sdkmetric.NewMeterProvider(
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter1)),
-	)
+	reader := sdkmetric.NewPeriodicReader(exporter)
+	customProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 
-	config1, err := New(
-		WithMeterProvider(provider1),
-		WithServiceName("service-1"),
-	)
-	require.NoError(t, err)
-
-	// Create second metrics configuration with its own custom provider
-	exporter2, err := stdoutmetric.New()
-	require.NoError(t, err)
-
-	provider2 := sdkmetric.NewMeterProvider(
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter2)),
-	)
-
-	config2, err := New(
-		WithMeterProvider(provider2),
-		WithServiceName("service-2"),
+	// Even with custom provider, user can request global registration
+	recorder, err := New(
+		WithMeterProvider(customProvider),
+		WithGlobalMeterProvider(), // User can still request global registration
+		WithServiceName("test-service"),
 	)
 	require.NoError(t, err)
 
-	// Both configurations should work independently
-	config1.IncrementCounter(context.Background(), "service1_counter")
-	config2.IncrementCounter(context.Background(), "service2_counter")
+	assert.True(t, recorder.customMeterProvider)
+	assert.True(t, recorder.registerGlobal)
 
-	// Cleanup
-	assert.NoError(t, config1.Shutdown(context.Background()))
-	assert.NoError(t, config2.Shutdown(context.Background()))
-	assert.NoError(t, provider1.Shutdown(context.Background()))
-	assert.NoError(t, provider2.Shutdown(context.Background()))
+	err = customProvider.Shutdown(context.Background())
+	assert.NoError(t, err)
 }

@@ -33,83 +33,83 @@ import (
 )
 
 // initializeProvider initializes the metrics provider based on configuration.
-func (c *Config) initializeProvider() error {
+func (r *Recorder) initializeProvider() error {
 	// If user provided a custom meter provider, skip built-in provider initialization
-	if c.customMeterProvider {
-		if c.meterProvider == nil {
+	if r.customMeterProvider {
+		if r.meterProvider == nil {
 			return fmt.Errorf("custom meter provider is nil")
 		}
-		c.emitDebug("Using custom user-provided meter provider")
-		c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
-		return c.initializeMetrics()
+		r.emitDebug("Using custom user-provided meter provider")
+		r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
+		return r.initializeMetrics()
 	}
 
 	// Otherwise, initialize built-in provider
-	switch c.provider {
+	switch r.provider {
 	case PrometheusProvider:
-		return c.initPrometheusProvider()
+		return r.initPrometheusProvider()
 	case OTLPProvider:
-		return c.initOTLPProvider()
+		return r.initOTLPProvider()
 	case StdoutProvider:
-		return c.initStdoutProvider()
+		return r.initStdoutProvider()
 	default:
-		return fmt.Errorf("unsupported metrics provider: %s", c.provider)
+		return fmt.Errorf("unsupported metrics provider: %s", r.provider)
 	}
 }
 
 // initPrometheusProvider initializes the Prometheus metrics provider.
-func (c *Config) initPrometheusProvider() error {
+func (r *Recorder) initPrometheusProvider() error {
 	// Create a custom Prometheus registry to avoid conflicts with global registry
-	c.prometheusRegistry = promclient.NewRegistry()
+	r.prometheusRegistry = promclient.NewRegistry()
 
 	// Create Prometheus exporter with custom registry
 	exporter, err := prometheus.New(
-		prometheus.WithRegisterer(c.prometheusRegistry),
+		prometheus.WithRegisterer(r.prometheusRegistry),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create Prometheus exporter: %w", err)
 	}
 
-	c.meterProvider = sdkmetric.NewMeterProvider(
+	r.meterProvider = sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(exporter),
 	)
 
 	// Create handler for the custom registry
-	c.prometheusHandler = promhttp.HandlerFor(
-		c.prometheusRegistry,
+	r.prometheusHandler = promhttp.HandlerFor(
+		r.prometheusRegistry,
 		promhttp.HandlerOpts{},
 	)
 
 	// Set global meter provider only if requested
-	if c.registerGlobal {
-		c.emitDebug("Setting global OpenTelemetry meter provider", "provider", "prometheus")
-		otel.SetMeterProvider(c.meterProvider)
+	if r.registerGlobal {
+		r.emitDebug("Setting global OpenTelemetry meter provider", "provider", "prometheus")
+		otel.SetMeterProvider(r.meterProvider)
 	} else {
-		c.emitDebug("Skipping global meter provider registration", "provider", "prometheus")
+		r.emitDebug("Skipping global meter provider registration", "provider", "prometheus")
 	}
 
-	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
+	r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
 
 	// Initialize metrics instruments
-	if err := c.initializeMetrics(); err != nil {
+	if err := r.initializeMetrics(); err != nil {
 		return err
 	}
 
 	// Start the metrics server if auto-start is enabled
-	if c.autoStartServer {
-		c.startMetricsServer()
+	if r.autoStartServer {
+		r.startMetricsServer()
 	}
 
 	return nil
 }
 
 // initOTLPProvider initializes the OTLP metrics provider.
-func (c *Config) initOTLPProvider() error {
+func (r *Recorder) initOTLPProvider() error {
 	opts := []otlpmetrichttp.Option{}
 
-	if c.endpoint != "" {
+	if r.otlpEndpoint != "" {
 		// Parse endpoint to extract host:port and determine if HTTP or HTTPS
-		endpoint := c.endpoint
+		endpoint := r.otlpEndpoint
 		isHTTP := false
 
 		// Remove protocol prefix if present
@@ -138,27 +138,27 @@ func (c *Config) initOTLPProvider() error {
 
 	reader := sdkmetric.NewPeriodicReader(
 		exporter,
-		sdkmetric.WithInterval(c.exportInterval),
+		sdkmetric.WithInterval(r.exportInterval),
 	)
 
-	c.meterProvider = sdkmetric.NewMeterProvider(
+	r.meterProvider = sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(reader),
 	)
 
 	// Set global meter provider only if requested
-	if c.registerGlobal {
-		c.emitDebug("Setting global OpenTelemetry meter provider", "provider", "otlp")
-		otel.SetMeterProvider(c.meterProvider)
+	if r.registerGlobal {
+		r.emitDebug("Setting global OpenTelemetry meter provider", "provider", "otlp")
+		otel.SetMeterProvider(r.meterProvider)
 	} else {
-		c.emitDebug("Skipping global meter provider registration", "provider", "otlp")
+		r.emitDebug("Skipping global meter provider registration", "provider", "otlp")
 	}
 
-	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
-	return c.initializeMetrics()
+	r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
+	return r.initializeMetrics()
 }
 
 // initStdoutProvider initializes the stdout metrics provider.
-func (c *Config) initStdoutProvider() error {
+func (r *Recorder) initStdoutProvider() error {
 	exporter, err := stdoutmetric.New()
 	if err != nil {
 		return fmt.Errorf("failed to create stdout exporter: %w", err)
@@ -166,72 +166,65 @@ func (c *Config) initStdoutProvider() error {
 
 	reader := sdkmetric.NewPeriodicReader(
 		exporter,
-		sdkmetric.WithInterval(c.exportInterval),
+		sdkmetric.WithInterval(r.exportInterval),
 	)
 
-	c.meterProvider = sdkmetric.NewMeterProvider(
+	r.meterProvider = sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(reader),
 	)
 
 	// Set global meter provider only if requested
-	if c.registerGlobal {
-		c.emitDebug("Setting global OpenTelemetry meter provider", "provider", "stdout")
-		otel.SetMeterProvider(c.meterProvider)
+	if r.registerGlobal {
+		r.emitDebug("Setting global OpenTelemetry meter provider", "provider", "stdout")
+		otel.SetMeterProvider(r.meterProvider)
 	} else {
-		c.emitDebug("Skipping global meter provider registration", "provider", "stdout")
+		r.emitDebug("Skipping global meter provider registration", "provider", "stdout")
 	}
 
-	c.meter = c.meterProvider.Meter("rivaas.dev/metrics")
-	return c.initializeMetrics()
+	r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
+	return r.initializeMetrics()
 }
 
 // startMetricsServer starts a dedicated HTTP server for Prometheus metrics.
-func (c *Config) startMetricsServer() {
-	if c.prometheusHandler == nil {
+func (r *Recorder) startMetricsServer() {
+	if r.prometheusHandler == nil {
 		return
 	}
 
 	// Check if shutting down
-	if c.isShuttingDown.Load() {
-		c.emitDebug("Not starting metrics server: shutdown in progress")
+	if r.isShuttingDown.Load() {
+		r.emitDebug("Not starting metrics server: shutdown in progress")
 		return
 	}
 
 	var actualPort string
 	var err error
-	originalPort := c.metricsPort
+	originalPort := r.metricsPort
 
-	if c.strictPort {
+	if r.strictPort {
 		// Strict mode: use exact port only
-		listener, err := net.Listen("tcp", c.metricsPort)
+		listener, err := net.Listen("tcp", r.metricsPort)
 		if err != nil {
-			c.emitError("Failed to start metrics server on required port (strict mode)",
-				"error", err, "port", c.metricsPort)
+			r.emitError("Failed to start metrics server on required port (strict mode)",
+				"error", err, "port", r.metricsPort)
 			return
 		}
 		listener.Close() // Close immediately, we'll reopen in ListenAndServe
-		actualPort = c.metricsPort
+		actualPort = r.metricsPort
 	} else {
 		// Flexible mode: try to find an available port
-		actualPort, err = findAvailablePort(c.metricsPort)
+		actualPort, err = findAvailablePort(r.metricsPort)
 		if err != nil {
-			c.emitError("Failed to find available port for metrics server", "error", err, "preferred_port", c.metricsPort)
+			r.emitError("Failed to find available port for metrics server", "error", err, "preferred_port", r.metricsPort)
 			return
 		}
 	}
 
 	// Update the metrics port to the actual port we're using
-	c.metricsPort = actualPort
+	r.metricsPort = actualPort
 
 	mux := http.NewServeMux()
-	mux.Handle(c.metricsPath, c.prometheusHandler)
-
-	// Add a health endpoint for the metrics server
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy","service":"metrics-server"}`))
-	})
+	mux.Handle(r.metricsPath, r.prometheusHandler)
 
 	server := &http.Server{
 		Addr:         actualPort,
@@ -241,53 +234,53 @@ func (c *Config) startMetricsServer() {
 	}
 
 	// Set the server reference with mutex protection
-	c.serverMutex.Lock()
-	c.metricsServer = server
-	c.serverMutex.Unlock()
+	r.serverMutex.Lock()
+	r.metricsServer = server
+	r.serverMutex.Unlock()
 
 	// Capture metricsPath and originalPort before goroutine to avoid race
-	metricsPath := c.metricsPath
+	metricsPath := r.metricsPath
 	capturedOriginalPort := originalPort
 
 	go func() {
 		// Log which port we're actually using
 		if actualPort != capturedOriginalPort {
-			c.emitWarning("Metrics server using different port than requested",
+			r.emitWarning("Metrics server using different port than requested",
 				"actual_address", actualPort+metricsPath,
 				"requested_port", capturedOriginalPort,
 				"path", metricsPath,
 				"reason", "requested port was unavailable",
 				"recommendation", "use WithStrictPort() to fail instead of auto-discovering")
 		} else {
-			c.emitInfo("Metrics server starting",
+			r.emitInfo("Metrics server starting",
 				"address", actualPort+metricsPath,
 				"path", metricsPath)
 		}
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			// Clear the server reference on error with mutex protection
-			c.serverMutex.Lock()
-			c.metricsServer = nil
-			c.serverMutex.Unlock()
-			c.emitError("Metrics server error", "error", err)
+			r.serverMutex.Lock()
+			r.metricsServer = nil
+			r.serverMutex.Unlock()
+			r.emitError("Metrics server error", "error", err)
 		}
 	}()
 }
 
 // stopMetricsServer stops the dedicated metrics server.
-func (c *Config) stopMetricsServer(ctx context.Context) error {
-	c.serverMutex.Lock()
-	server := c.metricsServer
-	c.metricsServer = nil // Clear first to avoid race conditions
-	c.serverMutex.Unlock()
+func (r *Recorder) stopMetricsServer(ctx context.Context) error {
+	r.serverMutex.Lock()
+	server := r.metricsServer
+	r.metricsServer = nil // Clear first to avoid race conditions
+	r.serverMutex.Unlock()
 
 	if server != nil {
-		c.emitDebug("Shutting down metrics server")
+		r.emitDebug("Shutting down metrics server")
 		if err := server.Shutdown(ctx); err != nil {
-			c.emitError("Error shutting down metrics server", "error", err)
+			r.emitError("Error shutting down metrics server", "error", err)
 			return fmt.Errorf("metrics server shutdown: %w", err)
 		}
-		c.emitDebug("Metrics server shut down successfully")
+		r.emitDebug("Metrics server shut down successfully")
 	}
 	return nil
 }

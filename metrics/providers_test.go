@@ -32,119 +32,100 @@ func TestProviderInitialization(t *testing.T) {
 
 	t.Run("PrometheusProviderSuccess", func(t *testing.T) {
 		t.Parallel()
-		config, err := New(
+		recorder, err := New(
+			WithPrometheus(":19301", "/metrics"),
 			WithServiceName("test-service"),
-			WithProvider(PrometheusProvider),
-			WithPort(":19301"),
 			WithServerDisabled(),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, config)
-		assert.Equal(t, PrometheusProvider, config.GetProvider())
+		require.NotNil(t, recorder)
+		assert.Equal(t, PrometheusProvider, recorder.Provider())
 
 		// Verify handler is available
-		handler, err := config.GetHandler()
+		handler, err := recorder.Handler()
 		require.NoError(t, err)
 		require.NotNil(t, handler)
 
 		// Cleanup
-		err = config.Shutdown(context.Background())
+		err = recorder.Shutdown(context.Background())
 		assert.NoError(t, err)
 	})
 
 	t.Run("OTLPProviderWithEndpoint", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		recorder, err := New(
+			WithOTLP("http://localhost:4318"),
 			WithServiceName("test-service"),
-			WithProvider(OTLPProvider),
-			WithOTLPEndpoint("http://localhost:4318"),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, config)
-		assert.Equal(t, OTLPProvider, config.GetProvider())
+		require.NotNil(t, recorder)
+		assert.Equal(t, OTLPProvider, recorder.Provider())
 
 		// Cleanup (may error if collector not running)
-		_ = config.Shutdown(context.Background())
+		_ = recorder.Shutdown(context.Background())
 	})
 
 	t.Run("OTLPProviderWithHTTPS", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		recorder, err := New(
+			WithOTLP("https://collector.example.com:4318"),
 			WithServiceName("test-service"),
-			WithProvider(OTLPProvider),
-			WithOTLPEndpoint("https://collector.example.com:4318"),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, config)
+		require.NotNil(t, recorder)
 
-		_ = config.Shutdown(context.Background())
+		_ = recorder.Shutdown(context.Background())
 	})
 
 	t.Run("OTLPProviderWithPath", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		recorder, err := New(
+			WithOTLP("http://localhost:4318/v1/metrics"),
 			WithServiceName("test-service"),
-			WithProvider(OTLPProvider),
-			WithOTLPEndpoint("http://localhost:4318/v1/metrics"),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, config)
+		require.NotNil(t, recorder)
 
-		_ = config.Shutdown(context.Background())
-	})
-
-	t.Run("OTLPProviderDefaultEndpoint", func(t *testing.T) {
-		t.Parallel()
-
-		config, err := New(
-			WithServiceName("test-service"),
-			WithProvider(OTLPProvider),
-			// No endpoint specified, should use default
-		)
-		require.NoError(t, err)
-		require.NotNil(t, config)
-		assert.Equal(t, OTLPProvider, config.GetProvider())
-
-		_ = config.Shutdown(context.Background())
+		_ = recorder.Shutdown(context.Background())
 	})
 
 	t.Run("StdoutProvider", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		recorder, err := New(
+			WithStdout(),
 			WithServiceName("test-service"),
-			WithProvider(StdoutProvider),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, config)
-		assert.Equal(t, StdoutProvider, config.GetProvider())
+		require.NotNil(t, recorder)
+		assert.Equal(t, StdoutProvider, recorder.Provider())
 
 		// Test that metrics can be recorded
 		ctx := context.Background()
-		config.IncrementCounter(ctx, "test_counter")
-		config.RecordMetric(ctx, "test_histogram", 1.5)
-		config.SetGauge(ctx, "test_gauge", 42.0)
+		_ = recorder.IncrementCounter(ctx, "test_counter")
+		_ = recorder.RecordHistogram(ctx, "test_histogram", 1.5)
+		_ = recorder.SetGauge(ctx, "test_gauge", 42.0)
 
 		// Cleanup
-		err = config.Shutdown(context.Background())
+		err = recorder.Shutdown(context.Background())
 		assert.NoError(t, err)
 	})
 
 	t.Run("StdoutProviderWithCustomInterval", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		recorder, err := New(
+			WithStdout(),
 			WithServiceName("test-service"),
-			WithProvider(StdoutProvider),
 			WithExportInterval(5*time.Second),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, config)
+		require.NotNil(t, recorder)
 
-		err = config.Shutdown(context.Background())
+		err = recorder.Shutdown(context.Background())
 		assert.NoError(t, err)
 	})
 }
@@ -160,8 +141,8 @@ func TestPortDiscovery(t *testing.T) {
 
 		// First, occupy a port
 		config1, err := New(
+			WithPrometheus(":19307", "/metrics"),
 			WithServiceName("test-service-1"),
-			WithPort(":19307"),
 			WithStrictPort(),
 		)
 		require.NoError(t, err)
@@ -174,8 +155,8 @@ func TestPortDiscovery(t *testing.T) {
 		// Try to use the same port in strict mode - should fail to start server
 		// Note: New() still succeeds, but the server goroutine will fail
 		config2, err := New(
+			WithPrometheus(":19307", "/metrics"),
 			WithServiceName("test-service-2"),
-			WithPort(":19307"),
 			WithStrictPort(),
 		)
 		require.NoError(t, err) // New() succeeds
@@ -183,10 +164,10 @@ func TestPortDiscovery(t *testing.T) {
 		// Wait a bit for server start attempt
 		time.Sleep(100 * time.Millisecond)
 
-		// In strict mode, GetServerAddress still returns configured port
+		// In strict mode, ServerAddress still returns configured port
 		// (even if server failed to start - this is current behavior)
 		// The failure is logged but doesn't prevent New() from succeeding
-		assert.Equal(t, ":19307", config2.GetServerAddress())
+		assert.Equal(t, ":19307", config2.ServerAddress())
 
 		config2.Shutdown(context.Background())
 	})
@@ -197,8 +178,8 @@ func TestPortDiscovery(t *testing.T) {
 
 		// First, occupy a port
 		config1, err := New(
+			WithPrometheus(":19308", "/metrics"),
 			WithServiceName("test-service-1"),
-			WithPort(":19308"),
 		)
 		require.NoError(t, err)
 		defer config1.Shutdown(context.Background())
@@ -208,17 +189,17 @@ func TestPortDiscovery(t *testing.T) {
 
 		// Try to use the same port without strict mode - should find alternative
 		config2, err := New(
+			WithPrometheus(":19308", "/metrics"),
 			WithServiceName("test-service-2"),
-			WithPort(":19308"),
 			// No WithStrictPort() - should auto-discover
 		)
 		require.NoError(t, err)
 		defer config2.Shutdown(context.Background())
 
 		// Should have found a different port
-		assert.NotEqual(t, ":19308", config2.GetServerAddress())
+		assert.NotEqual(t, ":19308", config2.ServerAddress())
 		// Should have a port assigned
-		assert.NotEmpty(t, config2.GetServerAddress())
+		assert.NotEmpty(t, config2.ServerAddress())
 	})
 }
 
@@ -229,63 +210,50 @@ func TestValidationEdgeCases(t *testing.T) {
 	t.Run("VeryLowExportInterval", func(t *testing.T) {
 		t.Parallel()
 		// Should warn but not error
-		config, err := New(
+		recorder, err := New(
+			WithStdout(),
 			WithServiceName("test-service"),
-			WithProvider(StdoutProvider),
 			WithExportInterval(500*time.Millisecond), // Very low
 		)
 		require.NoError(t, err) // Should succeed despite warning
-		require.NotNil(t, config)
+		require.NotNil(t, recorder)
 
-		config.Shutdown(context.Background())
+		recorder.Shutdown(context.Background())
 	})
 
 	t.Run("CustomPrometheusPath", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		recorder, err := New(
+			WithPrometheus(":19309", "/custom-metrics"),
 			WithServiceName("test-service"),
-			WithProvider(PrometheusProvider),
-			WithPath("/custom-metrics"),
-			WithPort(":19309"),
 			WithServerDisabled(),
 		)
 		require.NoError(t, err)
-		assert.Equal(t, "/custom-metrics", config.metricsPath)
+		assert.Equal(t, "/custom-metrics", recorder.metricsPath)
 
-		config.Shutdown(context.Background())
+		recorder.Shutdown(context.Background())
 	})
 
-	t.Run("ExcludeMultiplePaths", func(t *testing.T) {
+	t.Run("ExcludeMultiplePaths_Middleware", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
-			WithServiceName("test-service"),
-			WithExcludePaths("/health", "/metrics", "/debug"),
-			WithPort(":19310"),
-			WithServerDisabled(),
-		)
-		require.NoError(t, err)
-		assert.True(t, config.ShouldExcludePath("/health"))
-		assert.True(t, config.ShouldExcludePath("/metrics"))
-		assert.True(t, config.ShouldExcludePath("/debug"))
-
-		config.Shutdown(context.Background())
+		// Path filtering is now in middleware, test the middleware config
+		cfg := newMiddlewareConfig()
+		WithExcludePaths("/health", "/metrics", "/debug")(cfg)
+		assert.True(t, cfg.pathFilter.shouldExclude("/health"))
+		assert.True(t, cfg.pathFilter.shouldExclude("/metrics"))
+		assert.True(t, cfg.pathFilter.shouldExclude("/debug"))
 	})
 
-	t.Run("RecordSpecificHeaders", func(t *testing.T) {
+	t.Run("RecordSpecificHeaders_Middleware", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
-			WithServiceName("test-service"),
-			WithHeaders("Authorization", "X-Request-ID", "User-Agent"),
-			WithPort(":19311"),
-			WithServerDisabled(),
-		)
-		require.NoError(t, err)
-		assert.Len(t, config.recordHeaders, 3)
-
-		config.Shutdown(context.Background())
+		// Header filtering is now in middleware, test the middleware config
+		cfg := newMiddlewareConfig()
+		WithHeaders("Authorization", "X-Request-ID", "User-Agent")(cfg) // Authorization filtered
+		// Authorization is filtered as sensitive header, so only 2 remain
+		assert.Len(t, cfg.recordHeaders, 2)
 	})
 }
 
@@ -295,23 +263,23 @@ func TestShutdownEdgeCases(t *testing.T) {
 
 	t.Run("ShutdownWithoutServer", func(t *testing.T) {
 		t.Parallel()
-		config, err := New(
+		recorder, err := New(
+			WithStdout(),
 			WithServiceName("test-service"),
-			WithProvider(StdoutProvider),
 			WithServerDisabled(),
 		)
 		require.NoError(t, err)
 
-		err = config.Shutdown(context.Background())
+		err = recorder.Shutdown(context.Background())
 		assert.NoError(t, err)
 	})
 
 	t.Run("ShutdownWithCancelledContext", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		recorder, err := New(
+			WithPrometheus(":19312", "/metrics"),
 			WithServiceName("test-service"),
-			WithPort(":19312"),
 		)
 		require.NoError(t, err)
 
@@ -323,7 +291,7 @@ func TestShutdownEdgeCases(t *testing.T) {
 		cancel()
 
 		// Shutdown with cancelled context - should still work
-		err = config.Shutdown(ctx)
+		err = recorder.Shutdown(ctx)
 		// May error due to cancelled context, but shouldn't panic
 		_ = err
 	})
@@ -331,9 +299,9 @@ func TestShutdownEdgeCases(t *testing.T) {
 	t.Run("ShutdownWithTimeout", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		recorder, err := New(
+			WithPrometheus(":19313", "/metrics"),
 			WithServiceName("test-service"),
-			WithPort(":19313"),
 		)
 		require.NoError(t, err)
 
@@ -345,7 +313,7 @@ func TestShutdownEdgeCases(t *testing.T) {
 		defer cancel()
 
 		// Shutdown might timeout but shouldn't panic
-		_ = config.Shutdown(ctx)
+		_ = recorder.Shutdown(ctx)
 	})
 }
 
@@ -371,23 +339,23 @@ func TestMetricNameValidationEdgeCases(t *testing.T) {
 		{"RouterPrefix", "router_metric", false}, // Invalid: reserved prefix
 	}
 
-	config := MustNew(
+	recorder := MustNew(
+		WithPrometheus(":19314", "/metrics"),
 		WithServiceName("test-service"),
-		WithPort(":19314"),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Note: Cannot use t.Parallel() here because test cases share the same config
+			// Note: Cannot use t.Parallel() here because test cases share the same recorder
 			// instance and check a shared atomic failure counter, which would cause race conditions.
 
-			initialFailures := config.getAtomicCustomMetricFailures()
-			config.IncrementCounter(ctx, tt.metricName)
-			newFailures := config.getAtomicCustomMetricFailures()
+			initialFailures := recorder.getAtomicCustomMetricFailures()
+			_ = recorder.IncrementCounter(ctx, tt.metricName)
+			newFailures := recorder.getAtomicCustomMetricFailures()
 
 			if tt.shouldSucceed {
 				assert.Equal(t, initialFailures, newFailures,
@@ -453,8 +421,8 @@ func TestResponseWriterEdgeCases(t *testing.T) {
 	})
 }
 
-// TestGetStatusClass tests HTTP status code classification
-func TestGetStatusClass(t *testing.T) {
+// TestStatusClass tests HTTP status code classification
+func TestStatusClass(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -470,88 +438,47 @@ func TestGetStatusClass(t *testing.T) {
 		{500, "5xx"},
 		{599, "5xx"},
 		{100, "unknown"},
-		{600, "5xx"},
+		{600, "unknown"}, // Status codes > 599 are not standard HTTP codes
 	}
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("Status%d", tt.code), func(t *testing.T) {
 			t.Parallel()
 
-			result := getStatusClass(tt.code)
+			result := statusClass(tt.code)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-// TestContextMetrics tests the ContextMetrics helper
-func TestContextMetrics(t *testing.T) {
-	t.Parallel()
-
-	config := MustNew(
-		WithServiceName("test-service"),
-		WithPort(":19315"),
-		WithServerDisabled(),
-	)
-	defer config.Shutdown(context.Background())
-
-	cm := NewContextMetrics(config)
-	ctx := context.Background()
-
-	// Test all methods
-	cm.RecordMetric(ctx, "test_metric", 1.5)
-	cm.IncrementCounter(ctx, "test_counter")
-	cm.SetGauge(ctx, "test_gauge", 42.0)
-
-	// Test GetConfig
-	assert.Equal(t, config, cm.GetConfig())
 }
 
 // TestMetricsWithDisabledState tests behavior when metrics are disabled
 func TestMetricsWithDisabledState(t *testing.T) {
 	t.Parallel()
 
-	config := &Config{
+	recorder := &Recorder{
 		enabled: false,
 	}
 
 	ctx := context.Background()
 
-	// These should all be no-ops
-	config.IncrementCounter(ctx, "test")
-	config.RecordMetric(ctx, "test", 1.0)
-	config.SetGauge(ctx, "test", 1.0)
-	config.RecordRouteRegistration(ctx, "GET", "/test")
-	config.RecordContextPoolHit(ctx)
-	config.RecordContextPoolMiss(ctx)
-	config.RecordConstraintFailure(ctx, "test")
+	// These should all be no-ops (return nil for disabled recorder)
+	_ = recorder.IncrementCounter(ctx, "test")
+	_ = recorder.RecordHistogram(ctx, "test", 1.0)
+	_ = recorder.SetGauge(ctx, "test", 1.0)
 
-	result := config.StartRequest(ctx, "/test", false)
+	result := recorder.Start(ctx)
 	assert.Nil(t, result)
 
 	// Shutdown should succeed
-	err := config.Shutdown(context.Background())
+	err := recorder.Shutdown(context.Background())
 	assert.NoError(t, err)
 
 	// IsEnabled should return false
-	assert.False(t, config.IsEnabled())
+	assert.False(t, recorder.IsEnabled())
 
-	// GetProvider should return empty string
-	assert.Equal(t, Provider(""), config.GetProvider())
+	// Provider should return empty string
+	assert.Equal(t, Provider(""), recorder.Provider())
 
-	// GetServerAddress should return empty string
-	assert.Equal(t, "", config.GetServerAddress())
-}
-
-// TestNewStandalone tests the standalone constructor
-func TestNewStandalone(t *testing.T) {
-	t.Parallel()
-
-	config := NewStandalone(
-		WithServiceName("standalone-service"),
-		WithProvider(StdoutProvider),
-	)
-	require.NotNil(t, config)
-	assert.True(t, config.IsEnabled())
-
-	config.Shutdown(context.Background())
+	// ServerAddress should return empty string
+	assert.Equal(t, "", recorder.ServerAddress())
 }

@@ -20,7 +20,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -43,32 +42,31 @@ func waitForMetricsServer(t *testing.T, address string, timeout time.Duration) e
 	return fmt.Errorf("metrics server not ready after %v", timeout)
 }
 
-func TestMetricsConfig(t *testing.T) {
+func TestRecorderConfig(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	recorder := MustNew(
+		WithPrometheus(":9091", "/metrics"),
 		WithServiceName("test-service"),
 		WithServiceVersion("v1.0.0"),
-		WithProvider(PrometheusProvider),
-		WithPort(":9091"),
 		WithStrictPort(), // Require exact port for deterministic test
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
-	assert.True(t, config.IsEnabled())
-	assert.Equal(t, "test-service", config.ServiceName())
-	assert.Equal(t, "v1.0.0", config.ServiceVersion())
-	assert.Equal(t, ":9091", config.GetServerAddress())
-	assert.Equal(t, PrometheusProvider, config.GetProvider())
+	assert.True(t, recorder.IsEnabled())
+	assert.Equal(t, "test-service", recorder.ServiceName())
+	assert.Equal(t, "v1.0.0", recorder.ServiceVersion())
+	assert.Equal(t, ":9091", recorder.ServerAddress())
+	assert.Equal(t, PrometheusProvider, recorder.Provider())
 }
 
-func TestMetricsWithHTTP(t *testing.T) {
+func TestRecorderWithHTTP(t *testing.T) {
 	t.Parallel()
 
-	// Create metrics config
-	config := MustNew(
+	// Create metrics recorder
+	recorder := MustNew(
+		WithPrometheus(":9092", "/metrics"),
 		WithServiceName("test-service"),
-		WithPort(":9092"), // Use unique port to avoid conflicts
 	)
 
 	// Wait for server to be ready
@@ -76,7 +74,7 @@ func TestMetricsWithHTTP(t *testing.T) {
 	require.NoError(t, err, "Metrics server should start")
 
 	// Create HTTP handler with metrics middleware
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := Middleware(recorder)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -88,62 +86,64 @@ func TestMetricsWithHTTP(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestMetricsProviders(t *testing.T) {
+func TestRecorderProviders(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
-		config := MustNew(
-			WithProvider(PrometheusProvider),
-			WithPort(":9093"),
+		recorder := MustNew(
+			WithPrometheus(":9093", "/metrics"),
 		)
-		assert.Equal(t, PrometheusProvider, config.GetProvider())
+		assert.Equal(t, PrometheusProvider, recorder.Provider())
 	})
 
 	t.Run("OTLP", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
-			WithProvider(OTLPProvider),
-			WithOTLPEndpoint("http://localhost:4318"),
+		recorder := MustNew(
+			WithOTLP("http://localhost:4318"),
 		)
-		assert.Equal(t, OTLPProvider, config.GetProvider())
+		assert.Equal(t, OTLPProvider, recorder.Provider())
 	})
 
 	t.Run("Stdout", func(t *testing.T) {
 		t.Parallel()
-		config := MustNew(
-			WithProvider(StdoutProvider),
+		recorder := MustNew(
+			WithStdout(),
 		)
-		assert.Equal(t, StdoutProvider, config.GetProvider())
+		assert.Equal(t, StdoutProvider, recorder.Provider())
 	})
 }
 
 func TestCustomMetrics(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	recorder := MustNew(
+		WithPrometheus(":9094", "/metrics"),
 		WithServiceName("test-service"),
-		WithPort(":9094"),
 	)
 
 	ctx := context.Background()
 
-	// Test custom metrics recording
-	config.RecordMetric(ctx, "test_histogram", 1.5)
-	config.IncrementCounter(ctx, "test_counter")
-	config.SetGauge(ctx, "test_gauge", 42.0)
+	// Test custom metrics recording - now returns errors
+	err := recorder.RecordHistogram(ctx, "test_histogram", 1.5)
+	assert.NoError(t, err)
 
-	// These should not panic
-	assert.True(t, config.IsEnabled())
+	err = recorder.IncrementCounter(ctx, "test_counter")
+	assert.NoError(t, err)
+
+	err = recorder.SetGauge(ctx, "test_gauge", 42.0)
+	assert.NoError(t, err)
+
+	assert.True(t, recorder.IsEnabled())
 }
 
-func TestMetricsMiddleware(t *testing.T) {
+func TestRecorderMiddleware(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	recorder := MustNew(
+		WithPrometheus(":9095", "/metrics"),
 		WithServiceName("test-service"),
-		WithPort(":9095"),
 	)
 
 	// Create a test handler
@@ -153,7 +153,7 @@ func TestMetricsMiddleware(t *testing.T) {
 	})
 
 	// Wrap with metrics middleware
-	middleware := Middleware(config)
+	middleware := Middleware(recorder)
 	wrappedHandler := middleware(handler)
 
 	// Test the wrapped handler
@@ -165,67 +165,71 @@ func TestMetricsMiddleware(t *testing.T) {
 	assert.Equal(t, "OK", w.Body.String())
 }
 
-func TestMetricsExcludePaths(t *testing.T) {
+func TestPathFilterExcludePaths(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
-		WithServiceName("test-service"),
-		WithExcludePaths("/health", "/metrics"),
-	)
+	// Path filtering is now in middleware, test pathFilter directly
+	pf := newPathFilter()
+	pf.addPaths("/health", "/metrics")
 
-	// Test that excluded paths are properly configured
-	// This is an internal test - in real usage, the router would check this
-	assert.True(t, config.IsEnabled())
+	// Test that excluded paths work correctly
+	assert.True(t, pf.shouldExclude("/health"))
+	assert.True(t, pf.shouldExclude("/metrics"))
+	assert.False(t, pf.shouldExclude("/api/users"))
 }
 
-func TestMetricsOptions(t *testing.T) {
+func TestRecorderOptions(t *testing.T) {
 	t.Parallel()
-
-	t.Run("WithHeaders", func(t *testing.T) {
-		t.Parallel()
-		config := MustNew(
-			WithHeaders("Authorization", "X-Request-ID"),
-		)
-		assert.True(t, config.IsEnabled())
-	})
-
-	t.Run("WithDisableParams", func(t *testing.T) {
-		t.Parallel()
-
-		config := MustNew(
-			WithDisableParams(),
-		)
-		assert.True(t, config.IsEnabled())
-	})
 
 	t.Run("WithMaxCustomMetrics", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		recorder := MustNew(
 			WithMaxCustomMetrics(500),
 		)
-		assert.True(t, config.IsEnabled())
+		assert.True(t, recorder.IsEnabled())
 	})
 
 	t.Run("WithServerDisabled", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		recorder := MustNew(
 			WithServerDisabled(),
 		)
-		assert.True(t, config.IsEnabled())
-		assert.Equal(t, "", config.GetServerAddress())
+		assert.True(t, recorder.IsEnabled())
+		assert.Equal(t, "", recorder.ServerAddress())
 	})
 }
 
-func TestMetricsIntegration(t *testing.T) {
+func TestMiddlewareOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WithHeaders", func(t *testing.T) {
+		t.Parallel()
+		cfg := newMiddlewareConfig()
+		WithHeaders("X-Request-ID", "X-Custom-Header")(cfg)
+		assert.Equal(t, 2, len(cfg.recordHeaders))
+		assert.Contains(t, cfg.recordHeaders, "X-Request-ID")
+		assert.Contains(t, cfg.recordHeaders, "X-Custom-Header")
+	})
+
+	t.Run("WithExcludePaths", func(t *testing.T) {
+		t.Parallel()
+		cfg := newMiddlewareConfig()
+		WithExcludePaths("/health", "/metrics")(cfg)
+		assert.True(t, cfg.pathFilter.shouldExclude("/health"))
+		assert.True(t, cfg.pathFilter.shouldExclude("/metrics"))
+		assert.False(t, cfg.pathFilter.shouldExclude("/api/users"))
+	})
+}
+
+func TestRecorderIntegration(t *testing.T) {
 	t.Parallel()
 
 	// Test full integration with HTTP middleware
-	config := MustNew(
+	recorder := MustNew(
+		WithPrometheus(":9096", "/metrics"),
 		WithServiceName("integration-test"),
-		WithPort(":9096"),
-		WithExcludePaths("/health"),
 	)
 
 	// Create HTTP mux
@@ -242,8 +246,8 @@ func TestMetricsIntegration(t *testing.T) {
 		w.Write([]byte(`{"status":"healthy"}`))
 	})
 
-	// Wrap with metrics middleware
-	handler := Middleware(config)(mux)
+	// Wrap with metrics middleware (path exclusion is now a middleware option)
+	handler := Middleware(recorder, WithExcludePaths("/health"))(mux)
 
 	// Test normal route
 	req := httptest.NewRequest("GET", "/", nil)
@@ -258,17 +262,16 @@ func TestMetricsIntegration(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestMetricsHandler(t *testing.T) {
+func TestRecorderHandler(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	recorder := MustNew(
+		WithPrometheus(":9097", "/metrics"),
 		WithServiceName("test-service"),
-		WithProvider(PrometheusProvider),
-		WithPort(":9097"),
 	)
 
 	// Create HTTP handler with metrics to generate some data
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := Middleware(recorder)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -280,7 +283,7 @@ func TestMetricsHandler(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// Now test the metrics handler
-	metricsHandler, err := config.GetHandler()
+	metricsHandler, err := recorder.Handler()
 	require.NoError(t, err)
 	require.NotNil(t, metricsHandler)
 
@@ -294,19 +297,18 @@ func TestMetricsHandler(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "http_requests_total")
 }
 
-func TestGetHandlerErrors(t *testing.T) {
+func TestHandlerErrors(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ErrorWhenNotPrometheusProvider", func(t *testing.T) {
 		t.Parallel()
-		config := MustNew(
+		recorder := MustNew(
+			WithOTLP("http://localhost:4318"),
 			WithServiceName("test-service"),
-			WithProvider(OTLPProvider),
-			WithOTLPEndpoint("http://localhost:4318"),
 		)
-		defer config.Shutdown(context.Background())
+		defer recorder.Shutdown(context.Background())
 
-		handler, err := config.GetHandler()
+		handler, err := recorder.Handler()
 		assert.Error(t, err)
 		assert.Nil(t, handler)
 		assert.Contains(t, err.Error(), "only available with Prometheus provider")
@@ -316,13 +318,13 @@ func TestGetHandlerErrors(t *testing.T) {
 	t.Run("ErrorWhenStdoutProvider", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		recorder := MustNew(
+			WithStdout(),
 			WithServiceName("test-service"),
-			WithProvider(StdoutProvider),
 		)
-		defer config.Shutdown(context.Background())
+		defer recorder.Shutdown(context.Background())
 
-		handler, err := config.GetHandler()
+		handler, err := recorder.Handler()
 		assert.Error(t, err)
 		assert.Nil(t, handler)
 		assert.Contains(t, err.Error(), "only available with Prometheus provider")
@@ -330,53 +332,14 @@ func TestGetHandlerErrors(t *testing.T) {
 	})
 }
 
-func TestRecordContextPoolMetrics(t *testing.T) {
-	t.Parallel()
-
-	config := MustNew(
-		WithServiceName("test-service"),
-		WithPort(":9101"),
-	)
-
-	ctx := context.Background()
-
-	// Record some pool hits and misses
-	config.RecordContextPoolHit(ctx)
-	config.RecordContextPoolHit(ctx)
-	config.RecordContextPoolMiss(ctx)
-
-	// Verify atomic counters were updated
-	assert.Equal(t, int64(2), config.getAtomicContextPoolHits())
-	assert.Equal(t, int64(1), config.getAtomicContextPoolMisses())
-}
-
-func TestRecordConstraintFailure(t *testing.T) {
-	t.Parallel()
-
-	config := MustNew(
-		WithServiceName("test-service"),
-		WithPort(":9102"),
-	)
-
-	ctx := context.Background()
-
-	// Record constraint failures
-	config.RecordConstraintFailure(ctx, "regex")
-	config.RecordConstraintFailure(ctx, "int")
-
-	// Should not panic
-	assert.True(t, config.IsEnabled())
-}
-
 func TestShutdown(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
-		config := MustNew(
+		recorder := MustNew(
+			WithPrometheus(":9103", "/metrics"),
 			WithServiceName("test-service"),
-			WithProvider(PrometheusProvider),
-			WithPort(":9103"),
 		)
 
 		// Wait for server to be ready
@@ -385,22 +348,21 @@ func TestShutdown(t *testing.T) {
 
 		// Shutdown should not error
 		ctx := context.Background()
-		err = config.Shutdown(ctx)
+		err = recorder.Shutdown(ctx)
 		assert.NoError(t, err)
 	})
 
 	t.Run("OTLP", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		recorder := MustNew(
+			WithOTLP("http://localhost:4318"),
 			WithServiceName("test-service"),
-			WithProvider(OTLPProvider),
-			WithOTLPEndpoint("http://localhost:4318"),
 		)
 
 		// Shutdown may error if OTLP collector is not running (expected in tests)
 		ctx := context.Background()
-		err := config.Shutdown(ctx)
+		err := recorder.Shutdown(ctx)
 		// We don't assert no error here because OTLP requires a running collector
 		// The important thing is that Shutdown() doesn't panic
 		_ = err
@@ -408,24 +370,23 @@ func TestShutdown(t *testing.T) {
 
 	t.Run("Stdout", func(t *testing.T) {
 		t.Parallel()
-		config := MustNew(
+		recorder := MustNew(
+			WithStdout(),
 			WithServiceName("test-service"),
-			WithProvider(StdoutProvider),
 		)
 
 		// Shutdown should not error
 		ctx := context.Background()
-		err := config.Shutdown(ctx)
+		err := recorder.Shutdown(ctx)
 		assert.NoError(t, err)
 	})
 
 	t.Run("IdempotentShutdown", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		recorder := MustNew(
+			WithPrometheus(":9106", "/metrics"),
 			WithServiceName("test-service"),
-			WithProvider(PrometheusProvider),
-			WithPort(":9106"),
 		)
 
 		// Wait for server to be ready
@@ -435,19 +396,19 @@ func TestShutdown(t *testing.T) {
 		ctx := context.Background()
 
 		// First shutdown
-		err = config.Shutdown(ctx)
+		err = recorder.Shutdown(ctx)
 		assert.NoError(t, err)
 
 		// Second shutdown should also succeed (idempotent)
-		err = config.Shutdown(ctx)
+		err = recorder.Shutdown(ctx)
 		assert.NoError(t, err)
 
 		// Third shutdown for good measure
-		err = config.Shutdown(ctx)
+		err = recorder.Shutdown(ctx)
 		assert.NoError(t, err)
 
 		// Verify shutdown flag is still true
-		assert.True(t, config.isShuttingDown.Load())
+		assert.True(t, recorder.isShuttingDown.Load())
 	})
 }
 
@@ -455,9 +416,9 @@ func TestCustomMetricsLimitRaceCondition(t *testing.T) {
 	t.Parallel()
 
 	// Test that the limit is enforced correctly under concurrent access
-	config := MustNew(
+	recorder := MustNew(
+		WithPrometheus(":9104", "/metrics"),
 		WithServiceName("test-service"),
-		WithPort(":9104"),
 		WithMaxCustomMetrics(10), // Small limit for testing
 	)
 
@@ -472,7 +433,7 @@ func TestCustomMetricsLimitRaceCondition(t *testing.T) {
 		go func(id int) {
 			for j := range metricsPerGoroutine {
 				metricName := fmt.Sprintf("metric_%d_%d", id, j)
-				config.IncrementCounter(ctx, metricName)
+				_ = recorder.IncrementCounter(ctx, metricName)
 			}
 			done <- true
 		}(i)
@@ -483,32 +444,31 @@ func TestCustomMetricsLimitRaceCondition(t *testing.T) {
 		<-done
 	}
 
-	// Get total metrics count from atomic counter
-	totalMetrics := atomic.LoadInt64(&config.atomicCustomMetricsCount)
+	// Get total metrics count
+	totalMetrics := recorder.CustomMetricCount()
 
 	// Should not exceed the limit
-	assert.LessOrEqual(t, int(totalMetrics), 10, "Total metrics should not exceed limit")
+	assert.LessOrEqual(t, totalMetrics, 10, "Total metrics should not exceed limit")
 
 	// Should have created some metrics (not zero)
-	assert.Greater(t, int(totalMetrics), 0, "Should have created some metrics")
+	assert.Greater(t, totalMetrics, 0, "Should have created some metrics")
 }
 
 func TestNewReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// Test that New() returns errors properly
-	config, err := New(
+	recorder, err := New(
+		WithPrometheus(":9100", "/metrics"),
 		WithServiceName("test-service"),
-		WithProvider(PrometheusProvider),
-		WithPort(":9100"),
 	)
 	require.NoError(t, err)
-	require.NotNil(t, config)
-	assert.True(t, config.IsEnabled())
+	require.NotNil(t, recorder)
+	assert.True(t, recorder.IsEnabled())
 
-	// Shutdown the config
+	// Shutdown the recorder
 	ctx := context.Background()
-	err = config.Shutdown(ctx)
+	err = recorder.Shutdown(ctx)
 	assert.NoError(t, err)
 }
 
@@ -518,44 +478,107 @@ func TestMustNewPanics(t *testing.T) {
 	// Test that MustNew panics on error
 	// We can't easily test this without creating an invalid config
 	// Just verify it works normally
-	config := MustNew(
+	recorder := MustNew(
+		WithStdout(),
 		WithServiceName("test-service"),
-		WithProvider(StdoutProvider),
 	)
-	require.NotNil(t, config)
-	assert.True(t, config.IsEnabled())
+	require.NotNil(t, recorder)
+	assert.True(t, recorder.IsEnabled())
 
-	// Shutdown the config
+	// Shutdown the recorder
 	ctx := context.Background()
-	err := config.Shutdown(ctx)
+	err := recorder.Shutdown(ctx)
 	assert.NoError(t, err)
 }
 
 func TestCustomMetricsLimitEnforcement(t *testing.T) {
 	t.Parallel()
 
-	// Test that limit is enforced and errors are recorded
-	config := MustNew(
+	// Test that limit is enforced and errors are returned
+	recorder := MustNew(
+		WithPrometheus(":9105", "/metrics"),
 		WithServiceName("test-service"),
-		WithPort(":9105"),
 		WithMaxCustomMetrics(3),
 	)
 
 	ctx := context.Background()
 
 	// Create 3 metrics (should succeed)
-	config.IncrementCounter(ctx, "counter1")
-	config.RecordMetric(ctx, "histogram1", 1.0)
-	config.SetGauge(ctx, "gauge1", 1.0)
+	err := recorder.IncrementCounter(ctx, "counter1")
+	assert.NoError(t, err)
 
-	// Try to create a 4th metric (should fail silently)
-	config.IncrementCounter(ctx, "counter2")
+	err = recorder.RecordHistogram(ctx, "histogram1", 1.0)
+	assert.NoError(t, err)
+
+	err = recorder.SetGauge(ctx, "gauge1", 1.0)
+	assert.NoError(t, err)
+
+	// Try to create a 4th metric (should fail with error)
+	err = recorder.IncrementCounter(ctx, "counter2")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "limit reached")
 
 	// Verify we have exactly 3 metrics
-	totalMetrics := atomic.LoadInt64(&config.atomicCustomMetricsCount)
-	assert.Equal(t, int64(3), totalMetrics, "Should have exactly 3 metrics")
+	totalMetrics := recorder.CustomMetricCount()
+	assert.Equal(t, 3, totalMetrics, "Should have exactly 3 metrics")
+}
 
-	// Verify failure was recorded
-	failures := config.getAtomicCustomMetricFailures()
-	assert.Greater(t, failures, int64(0), "Should have recorded at least one failure")
+func TestSensitiveHeaderFiltering(t *testing.T) {
+	t.Parallel()
+
+	// WithHeaders is now a middleware option, test the config directly
+	cfg := newMiddlewareConfig()
+	WithHeaders("Authorization", "X-Request-ID", "Cookie", "X-Custom")(cfg)
+
+	// Sensitive headers should be filtered out
+	assert.Equal(t, 2, len(cfg.recordHeaders))
+	assert.Contains(t, cfg.recordHeaders, "X-Request-ID")
+	assert.Contains(t, cfg.recordHeaders, "X-Custom")
+	// Authorization and Cookie should be filtered
+	assert.NotContains(t, cfg.recordHeaders, "Authorization")
+	assert.NotContains(t, cfg.recordHeaders, "Cookie")
+}
+
+func TestPrometheusNormalization(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PortWithColon", func(t *testing.T) {
+		t.Parallel()
+		recorder := MustNew(
+			WithPrometheus(":8080", "/metrics"),
+			WithServiceName("test-service"),
+			WithServerDisabled(),
+		)
+		assert.Equal(t, ":8080", recorder.metricsPort)
+	})
+
+	t.Run("PortWithoutColon", func(t *testing.T) {
+		t.Parallel()
+		recorder := MustNew(
+			WithPrometheus("8080", "/metrics"),
+			WithServiceName("test-service"),
+			WithServerDisabled(),
+		)
+		assert.Equal(t, ":8080", recorder.metricsPort)
+	})
+
+	t.Run("PathWithSlash", func(t *testing.T) {
+		t.Parallel()
+		recorder := MustNew(
+			WithPrometheus(":9090", "/custom-metrics"),
+			WithServiceName("test-service"),
+			WithServerDisabled(),
+		)
+		assert.Equal(t, "/custom-metrics", recorder.metricsPath)
+	})
+
+	t.Run("PathWithoutSlash", func(t *testing.T) {
+		t.Parallel()
+		recorder := MustNew(
+			WithPrometheus(":9090", "custom-metrics"),
+			WithServiceName("test-service"),
+			WithServerDisabled(),
+		)
+		assert.Equal(t, "/custom-metrics", recorder.metricsPath)
+	})
 }

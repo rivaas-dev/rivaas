@@ -15,107 +15,140 @@
 package metrics
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPathFilter_ExactPaths(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
-		WithServiceName("test-service"),
-		WithExcludePaths("/health", "/metrics", "/ready"),
-	)
-	defer config.Shutdown(nil)
+	pf := newPathFilter()
+	pf.addPaths("/health", "/metrics", "/ready")
 
-	assert.True(t, config.ShouldExcludePath("/health"))
-	assert.True(t, config.ShouldExcludePath("/metrics"))
-	assert.True(t, config.ShouldExcludePath("/ready"))
-	assert.False(t, config.ShouldExcludePath("/api/users"))
-	assert.False(t, config.ShouldExcludePath("/health/check")) // Not exact match
+	assert.True(t, pf.shouldExclude("/health"))
+	assert.True(t, pf.shouldExclude("/metrics"))
+	assert.True(t, pf.shouldExclude("/ready"))
+	assert.False(t, pf.shouldExclude("/api/users"))
+	assert.False(t, pf.shouldExclude("/health/check")) // Not exact match
 }
 
 func TestPathFilter_Prefixes(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
-		WithServiceName("test-service"),
-		WithExcludePrefixes("/debug/", "/internal/"),
-	)
-	defer config.Shutdown(nil)
+	pf := newPathFilter()
+	pf.addPrefixes("/debug/", "/internal/")
 
-	assert.True(t, config.ShouldExcludePath("/debug/pprof"))
-	assert.True(t, config.ShouldExcludePath("/debug/vars"))
-	assert.True(t, config.ShouldExcludePath("/internal/status"))
-	assert.True(t, config.ShouldExcludePath("/internal/config/reload"))
-	assert.False(t, config.ShouldExcludePath("/api/users"))
-	assert.False(t, config.ShouldExcludePath("/debugger")) // Doesn't start with /debug/
+	assert.True(t, pf.shouldExclude("/debug/pprof"))
+	assert.True(t, pf.shouldExclude("/debug/vars"))
+	assert.True(t, pf.shouldExclude("/internal/status"))
+	assert.True(t, pf.shouldExclude("/internal/config/reload"))
+	assert.False(t, pf.shouldExclude("/api/users"))
+	assert.False(t, pf.shouldExclude("/debugger")) // Doesn't start with /debug/
 }
 
 func TestPathFilter_Patterns(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
-		WithServiceName("test-service"),
-		WithExcludePatterns(`^/v[0-9]+/internal/.*`, `^/admin/.*`),
-	)
-	defer config.Shutdown(nil)
+	pf := newPathFilter()
+	pattern1, _ := regexp.Compile(`^/v[0-9]+/internal/.*`)
+	pattern2, _ := regexp.Compile(`^/admin/.*`)
+	pf.addPatterns(pattern1, pattern2)
 
-	assert.True(t, config.ShouldExcludePath("/v1/internal/status"))
-	assert.True(t, config.ShouldExcludePath("/v2/internal/config"))
-	assert.True(t, config.ShouldExcludePath("/admin/users"))
-	assert.True(t, config.ShouldExcludePath("/admin/settings/global"))
-	assert.False(t, config.ShouldExcludePath("/api/users"))
-	assert.False(t, config.ShouldExcludePath("/v1/users")) // Doesn't match internal
+	assert.True(t, pf.shouldExclude("/v1/internal/status"))
+	assert.True(t, pf.shouldExclude("/v2/internal/config"))
+	assert.True(t, pf.shouldExclude("/admin/users"))
+	assert.True(t, pf.shouldExclude("/admin/settings/global"))
+	assert.False(t, pf.shouldExclude("/api/users"))
+	assert.False(t, pf.shouldExclude("/v1/users")) // Doesn't match internal
 }
 
 func TestPathFilter_Combined(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
-		WithServiceName("test-service"),
-		WithExcludePaths("/health", "/ready"),
-		WithExcludePrefixes("/debug/"),
-		WithExcludePatterns(`^/v[0-9]+/internal/.*`),
-	)
-	defer config.Shutdown(nil)
+	pf := newPathFilter()
+	pf.addPaths("/health", "/ready")
+	pf.addPrefixes("/debug/")
+	pattern, _ := regexp.Compile(`^/v[0-9]+/internal/.*`)
+	pf.addPatterns(pattern)
 
 	// Exact paths
-	assert.True(t, config.ShouldExcludePath("/health"))
-	assert.True(t, config.ShouldExcludePath("/ready"))
+	assert.True(t, pf.shouldExclude("/health"))
+	assert.True(t, pf.shouldExclude("/ready"))
 
 	// Prefixes
-	assert.True(t, config.ShouldExcludePath("/debug/pprof"))
+	assert.True(t, pf.shouldExclude("/debug/pprof"))
 
 	// Patterns
-	assert.True(t, config.ShouldExcludePath("/v1/internal/status"))
+	assert.True(t, pf.shouldExclude("/v1/internal/status"))
 
 	// Not excluded
-	assert.False(t, config.ShouldExcludePath("/api/users"))
-}
-
-func TestPathFilter_InvalidPattern(t *testing.T) {
-	t.Parallel()
-
-	_, err := New(
-		WithServiceName("test-service"),
-		WithExcludePatterns("[invalid-regex"),
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid regex pattern")
+	assert.False(t, pf.shouldExclude("/api/users"))
 }
 
 func TestPathFilter_EmptyConfig(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
-		WithServiceName("test-service"),
-	)
-	defer config.Shutdown(nil)
+	pf := newPathFilter()
 
 	// With no exclusions configured, nothing should be excluded
-	assert.False(t, config.ShouldExcludePath("/health"))
-	assert.False(t, config.ShouldExcludePath("/api/users"))
+	assert.False(t, pf.shouldExclude("/health"))
+	assert.False(t, pf.shouldExclude("/api/users"))
+}
+
+func TestPathFilter_NilFilter(t *testing.T) {
+	t.Parallel()
+
+	var pf *pathFilter = nil
+
+	// Nil filter should not exclude anything
+	assert.False(t, pf.shouldExclude("/health"))
+	assert.False(t, pf.shouldExclude("/api/users"))
+}
+
+func TestMiddlewareOption_WithExcludePaths(t *testing.T) {
+	t.Parallel()
+
+	cfg := newMiddlewareConfig()
+	WithExcludePaths("/health", "/metrics")(cfg)
+
+	assert.True(t, cfg.pathFilter.shouldExclude("/health"))
+	assert.True(t, cfg.pathFilter.shouldExclude("/metrics"))
+	assert.False(t, cfg.pathFilter.shouldExclude("/api/users"))
+}
+
+func TestMiddlewareOption_WithExcludePrefixes(t *testing.T) {
+	t.Parallel()
+
+	cfg := newMiddlewareConfig()
+	WithExcludePrefixes("/debug/", "/internal/")(cfg)
+
+	assert.True(t, cfg.pathFilter.shouldExclude("/debug/pprof"))
+	assert.True(t, cfg.pathFilter.shouldExclude("/internal/status"))
+	assert.False(t, cfg.pathFilter.shouldExclude("/api/users"))
+}
+
+func TestMiddlewareOption_WithExcludePatterns(t *testing.T) {
+	t.Parallel()
+
+	cfg := newMiddlewareConfig()
+	WithExcludePatterns(`^/v[0-9]+/internal/.*`, `^/admin/.*`)(cfg)
+
+	assert.True(t, cfg.pathFilter.shouldExclude("/v1/internal/status"))
+	assert.True(t, cfg.pathFilter.shouldExclude("/admin/users"))
+	assert.False(t, cfg.pathFilter.shouldExclude("/api/users"))
+}
+
+func TestMiddlewareOption_WithExcludePatterns_InvalidPattern(t *testing.T) {
+	t.Parallel()
+
+	cfg := newMiddlewareConfig()
+	// Invalid patterns are silently ignored
+	WithExcludePatterns("[invalid-regex", `^/valid/.*`)(cfg)
+
+	// Valid pattern should still work
+	assert.True(t, cfg.pathFilter.shouldExclude("/valid/path"))
+	// Invalid pattern didn't break anything
+	assert.False(t, cfg.pathFilter.shouldExclude("/api/users"))
 }

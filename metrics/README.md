@@ -6,12 +6,12 @@ A comprehensive metrics collection package for Go applications using OpenTelemet
 
 - **Multiple Providers**: Prometheus, OTLP, and stdout exporters
 - **Built-in HTTP Metrics**: Request duration, count, active requests, and more
-- **Custom Metrics**: Support for counters, histograms, and gauges
-- **Thread-Safe**: Atomic operations for optimal performance
-- **Context Support**: All metrics methods accept context for cancellation and timeout support
+- **Custom Metrics**: Support for counters, histograms, and gauges with error handling
+- **Thread-Safe**: RWMutex-based operations for optimal performance
+- **Context Support**: All metrics methods accept context for cancellation
 - **Structured Logging**: Pluggable logger interface for error and warning messages
-- **Router Integration**: Seamless integration with Rivaas router
-- **Environment Configuration**: Automatic configuration from environment variables
+- **HTTP Middleware**: Easy integration with any HTTP framework
+- **Security**: Automatic filtering of sensitive headers
 - **Memory Optimized**: Pre-allocated slices and efficient memory usage
 
 ## Quick Start
@@ -28,34 +28,41 @@ import (
     "time"
     
     "rivaas.dev/metrics"
-    "rivaas.dev/router"
 )
 
 func main() {
-    // Create metrics config
-    metricsConfig := metrics.New(
+    // Create metrics recorder with Prometheus
+    recorder, err := metrics.New(
+        metrics.WithPrometheus(":9090", "/metrics"),
         metrics.WithServiceName("my-api"),
         metrics.WithServiceVersion("v1.0.0"),
     )
+    if err != nil {
+        log.Fatal(err)
+    }
     
     // Ensure metrics are flushed on exit
     defer func() {
         ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
         defer cancel()
-        if err := metricsConfig.Shutdown(ctx); err != nil {
+        if err := recorder.Shutdown(ctx); err != nil {
             log.Printf("Metrics shutdown error: %v", err)
         }
     }()
 
-    // Create router with metrics
-    r := router.New()
-    r.SetMetricsRecorder(metricsConfig)
-
-    r.GET("/", func(c *router.Context) {
-        c.JSON(http.StatusOK, map[string]string{"message": "Hello"})
+    // Create HTTP handler with metrics middleware
+    mux := http.NewServeMux()
+    mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        w.Write([]byte(`{"message": "Hello"}`))
     })
 
-    log.Fatal(http.ListenAndServe(":8080", r))
+    // Wrap with metrics middleware (with optional path exclusions)
+    handler := metrics.Middleware(recorder,
+        metrics.WithExcludePaths("/health", "/metrics"),
+    )(mux)
+
+    log.Fatal(http.ListenAndServe(":8080", handler))
 }
 ```
 
@@ -66,30 +73,35 @@ package main
 
 import (
     "context"
+    "log"
     
     "rivaas.dev/metrics"
     "go.opentelemetry.io/otel/attribute"
 )
 
 func main() {
-    // Create metrics configuration
-    config := metrics.New(
+    // Create metrics recorder with Prometheus
+    recorder := metrics.MustNew(
+        metrics.WithPrometheus(":9090", "/metrics"),
         metrics.WithServiceName("my-service"),
-        metrics.WithProvider(metrics.PrometheusProvider),
     )
+    defer recorder.Shutdown(context.Background())
     
     ctx := context.Background()
 
-    // Record custom metrics
-    config.RecordMetric(ctx, "processing_duration", 1.5,
+    // Record custom metrics with error handling
+    if err := recorder.RecordHistogram(ctx, "processing_duration", 1.5,
         attribute.String("operation", "create_user"),
-    )
+    ); err != nil {
+        log.Printf("metrics error: %v", err)
+    }
     
-    config.IncrementCounter(ctx, "requests_total",
+    // Or fire-and-forget (ignore errors)
+    _ = recorder.IncrementCounter(ctx, "requests_total",
         attribute.String("status", "success"),
     )
     
-    config.SetGauge(ctx, "active_connections", 42)
+    _ = recorder.SetGauge(ctx, "active_connections", 42)
 }
 ```
 
@@ -97,28 +109,29 @@ func main() {
 
 ### Provider Options
 
-Configure the provider **before** calling `New()`:
+The recommended way to configure providers is with composite options:
 
 ```go
-// Prometheus (default)
-metrics.New(
-    metrics.WithProvider(metrics.PrometheusProvider),
+// Prometheus (recommended for production)
+recorder := metrics.MustNew(
+    metrics.WithPrometheus(":9090", "/metrics"),
     metrics.WithServiceName("my-service"),
 )
 
-// OTLP
-metrics.New(
-    metrics.WithProvider(metrics.OTLPProvider),
-    metrics.WithOTLPEndpoint("http://localhost:4318"),
+// OTLP (for OpenTelemetry collectors)
+recorder := metrics.MustNew(
+    metrics.WithOTLP("http://localhost:4318"),
     metrics.WithServiceName("my-service"),
 )
 
-// Stdout (for development)
-metrics.New(
-    metrics.WithProvider(metrics.StdoutProvider),
+// Stdout (for development/debugging)
+recorder := metrics.MustNew(
+    metrics.WithStdout(),
     metrics.WithServiceName("my-service"),
 )
 ```
+
+**Note**: Only one provider option can be used. Using multiple provider options (e.g., `WithPrometheus` and `WithStdout` together) will result in a validation error.
 
 ### Service Configuration
 
@@ -130,8 +143,6 @@ metrics.WithServiceVersion("v1.0.0")
 ### Prometheus-Specific Options
 
 ```go
-metrics.WithPort(":9090")           // Metrics server port (default :9090)
-metrics.WithPath("/metrics")        // Metrics endpoint path (default /metrics)
 metrics.WithStrictPort()            // Fail if port unavailable (recommended for production)
 metrics.WithServerDisabled()        // Disable auto-server
 ```
@@ -144,33 +155,22 @@ metrics.WithServerDisabled()        // Disable auto-server
 
 ```go
 // Production: Fail if port 9090 is not available
-config := metrics.New(
-    metrics.WithPort(":9090"),
+recorder := metrics.MustNew(
+    metrics.WithPrometheus(":9090", "/metrics"),
     metrics.WithStrictPort(),  // Recommended for production
 )
-```
-
-If the port is unavailable with `WithStrictPort()`, initialization will log an error and the metrics server won't start (metrics recording still works).
-
-**Without strict mode**, if auto-discovery occurs, a **WARNING** is logged:
-
-```text
-WARN: Metrics server using different port than requested
-  actual_address=:9091/metrics
-  requested_port=:9090
-  recommendation=use WithStrictPort() to fail instead of auto-discovering
 ```
 
 To manually serve metrics when using `WithServerDisabled()`:
 
 ```go
-config := metrics.New(
-    metrics.WithProvider(metrics.PrometheusProvider),
+recorder := metrics.MustNew(
+    metrics.WithPrometheus(":9090", "/metrics"),
     metrics.WithServerDisabled(),
 )
 
 // Get the handler (only works with Prometheus provider)
-handler, err := config.GetHandler()
+handler, err := recorder.Handler()
 if err != nil {
     log.Fatalf("Failed to get metrics handler: %v", err)
 }
@@ -180,25 +180,23 @@ http.Handle("/metrics", handler)
 http.ListenAndServe(":8080", nil)
 ```
 
-### Filtering Options
+### Histogram Bucket Configuration
 
 ```go
-metrics.WithExcludePaths("/health", "/metrics")  // Exclude paths
-metrics.WithHeaders("Authorization")             // Record headers
-metrics.WithDisableParams()                      // Disable URL params
+// Custom histogram buckets for request duration
+metrics.WithDurationBuckets(0.001, 0.01, 0.1, 0.5, 1, 5, 10)
+
+// Custom histogram buckets for request/response sizes
+metrics.WithSizeBuckets(100, 1000, 10000, 100000, 1000000)
 ```
 
 ### Advanced Options
 
 ```go
 // Use stdlib slog for logging internal events
-metrics.WithLogger(slog.Default())               // Use default slog logger
+metrics.WithLogger(slog.Default())
 
-// Or create a custom slog logger
-logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-metrics.WithLogger(logger)
-
-// Custom event handler for advanced use cases (e.g., send errors to Sentry)
+// Custom event handler for advanced use cases
 metrics.WithEventHandler(func(e metrics.Event) {
     if e.Type == metrics.EventError {
         sentry.CaptureMessage(e.Message)
@@ -206,7 +204,7 @@ metrics.WithEventHandler(func(e metrics.Event) {
     slog.Default().Info(e.Message, e.Args...)
 })
 
-metrics.WithMaxCustomMetrics(1000)               // Set custom metrics limit
+metrics.WithMaxCustomMetrics(1000)  // Set custom metrics limit
 ```
 
 ## Built-in Metrics
@@ -219,12 +217,7 @@ The package automatically collects the following HTTP metrics:
 - `http_request_size_bytes` - Request size histogram
 - `http_response_size_bytes` - Response size histogram
 - `http_errors_total` - Error count
-- `http_routes_total` - Route registration count
-- `http_constraint_failures_total` - Route constraint validation failures
-- `router_context_pool_hits_total` - Context pool reuse hits
-- `router_context_pool_misses_total` - Context pool allocation misses
-- `router_custom_metric_failures_total` - Custom metric creation failures
-- `router_metrics_cas_retries_total` - CAS retry attempts (contention indicator)
+- `custom_metric_failures_total` - Custom metric creation failures
 
 ## Custom Metrics
 
@@ -238,16 +231,25 @@ Custom metric names must follow OpenTelemetry conventions:
 ### Counters
 
 ```go
-c.IncrementCounter("orders_total",
+// With error handling
+if err := recorder.IncrementCounter(ctx, "orders_total",
     attribute.String("status", "success"),
     attribute.String("type", "online"),
-)
+); err != nil {
+    log.Printf("metrics error: %v", err)
+}
+
+// Fire-and-forget
+_ = recorder.IncrementCounter(ctx, "events_total")
+
+// Add specific value
+_ = recorder.AddCounter(ctx, "bytes_processed", 1024)
 ```
 
 ### Histograms
 
 ```go
-c.RecordMetric("order_processing_duration_seconds", 2.5,
+_ = recorder.RecordHistogram(ctx, "order_processing_duration_seconds", 2.5,
     attribute.String("currency", "USD"),
     attribute.String("payment_method", "card"),
 )
@@ -256,7 +258,7 @@ c.RecordMetric("order_processing_duration_seconds", 2.5,
 ### Gauges
 
 ```go
-c.SetGauge("active_connections", 42,
+_ = recorder.SetGauge(ctx, "active_connections", 42,
     attribute.String("service", "api"),
 )
 ```
@@ -266,103 +268,90 @@ c.SetGauge("active_connections", 42,
 #### Good custom metric names
 
 ```go
-config.IncrementCounter(ctx, "orders_processed_total")
-config.RecordMetric(ctx, "payment_processing_duration_seconds", 1.5)
-config.SetGauge(ctx, "active_websocket_connections", 42)
+_ = recorder.IncrementCounter(ctx, "orders_processed_total")
+_ = recorder.RecordHistogram(ctx, "payment_processing_duration_seconds", 1.5)
+_ = recorder.SetGauge(ctx, "active_websocket_connections", 42)
 ```
 
-#### Invalid metric names (will be rejected)
+#### Invalid metric names (will return error)
 
 ```go
-config.IncrementCounter(ctx, "__internal_metric")     // Reserved: __ prefix
-config.RecordMetric(ctx, "http_custom_duration", 1.0) // Reserved: http_ prefix
-config.SetGauge(ctx, "router_custom_gauge", 10)       // Reserved: router_ prefix
-config.IncrementCounter(ctx, "1st_metric")            // Invalid: starts with number
+recorder.IncrementCounter(ctx, "__internal_metric")     // Reserved: __ prefix
+recorder.RecordHistogram(ctx, "http_custom_duration", 1.0) // Reserved: http_ prefix
+recorder.SetGauge(ctx, "router_custom_gauge", 10)       // Reserved: router_ prefix
+recorder.IncrementCounter(ctx, "1st_metric")            // Invalid: starts with number
 ```
 
 ## Middleware Usage
 
-For manual integration with other HTTP frameworks:
+For standalone HTTP integration (without the app package):
 
 ```go
 import "rivaas.dev/metrics"
 
-config := metrics.New(
-    metrics.WithServiceName("my-service"),
+recorder := metrics.MustNew(
+    metrics.WithPrometheus(":9090", "/metrics"),
+    metrics.WithServiceName("my-api"),
 )
+defer recorder.Shutdown(context.Background())
 
-// Create middleware
-middleware := metrics.Middleware(config)
+mux := http.NewServeMux()
+mux.HandleFunc("/", yourHandler)
+mux.HandleFunc("/health", healthHandler)
 
-// Use with any http.Handler
-http.Handle("/", middleware(yourHandler))
+// Create middleware with options
+handler := metrics.Middleware(recorder,
+    // Exclude paths from metrics collection
+    metrics.WithExcludePaths("/health", "/metrics", "/ready"),
+    // Exclude path prefixes
+    metrics.WithExcludePrefixes("/debug/", "/internal/"),
+    // Exclude paths matching regex patterns
+    metrics.WithExcludePatterns(`^/v[0-9]+/internal/.*`),
+    // Record specific headers as metric attributes
+    // (sensitive headers like Authorization, Cookie are auto-filtered)
+    metrics.WithHeaders("X-Request-ID", "X-Correlation-ID"),
+)(mux)
+
+http.ListenAndServe(":8080", handler)
+```
+
+### Middleware Options
+
+| Option | Description |
+|--------|-------------|
+| `WithExcludePaths(paths...)` | Exclude exact paths from metrics |
+| `WithExcludePrefixes(prefixes...)` | Exclude path prefixes (e.g., `/debug/`) |
+| `WithExcludePatterns(patterns...)` | Exclude paths matching regex patterns |
+| `WithHeaders(headers...)` | Record specific headers as attributes |
+
+## Security
+
+### Sensitive Header Filtering
+
+When using `WithHeaders()` in middleware options, sensitive headers are automatically filtered out to prevent accidental exposure in metrics:
+
+- `Authorization`
+- `Cookie`
+- `Set-Cookie`
+- `X-API-Key`
+- `X-Auth-Token`
+- `Proxy-Authorization`
+- `WWW-Authenticate`
+
+```go
+// Only X-Request-ID will be recorded; Authorization and Cookie are filtered
+handler := metrics.Middleware(recorder,
+    metrics.WithHeaders("Authorization", "X-Request-ID", "Cookie"),
+)(mux)
 ```
 
 ## Performance
 
-- **Thread-Safe**: Uses atomic operations for lock-free performance
+- **Thread-Safe**: Uses RWMutex for efficient concurrent access
 - **Memory Efficient**: Minimal allocations during request processing
 - **Configurable Limits**: Set maximum custom metrics to prevent memory leaks
 - **Provider-Specific Optimizations**: Each provider is optimized for its use case
-- **Double-Checked Locking**: Optimized custom metric creation avoids unnecessary work
 - **Idempotent Operations**: Safe to call `Shutdown()` multiple times
-
-### Performance Characteristics
-
-#### Lock-Free Custom Metrics
-
-The package uses a Compare-And-Swap (CAS) based approach for managing custom metrics, which provides excellent performance under normal conditions:
-
-- **Low contention**: Single atomic operation, extremely fast
-- **Moderate contention**: Automatic retry with exponential backoff
-- **High contention**: After 100 retries, falls back to logging (prevents infinite loops)
-
-#### When High Contention Might Occur
-
-High contention on custom metric creation is rare but can happen when:
-
-- Many goroutines simultaneously create **new, unique** metrics (not incrementing existing ones)
-- Metric names are dynamically generated with high cardinality
-- Application startup creates many metrics concurrently
-
-Under extreme contention (>100 failed CAS attempts), the operation will fail gracefully and increment `router_custom_metric_failures_total`.
-
-#### Monitoring Contention
-
-The package exposes `router_metrics_cas_retries_total` to track CAS retry attempts. Monitor this metric to detect contention:
-
-- **Low values (< 100/sec)**: Normal operation, lock-free design working well
-- **Medium values (100-1000/sec)**: Some contention, but within acceptable limits
-- **High values (> 1000/sec)**: Significant contention, consider:
-  - Reducing metric name cardinality
-  - Pre-creating metrics at startup
-  - Investigating if many goroutines create unique metrics concurrently
-
-Example Prometheus alert:
-
-```yaml
-- alert: HighMetricsCASContention
-  expr: rate(router_metrics_cas_retries_total[5m]) > 1000
-  for: 5m
-  annotations:
-    summary: High CAS contention in metrics package
-    description: CAS retry rate is {{ $value }}/sec, indicating lock contention
-```
-
-#### Memory Trade-offs
-
-The CAS-based approach creates temporary map copies during updates. Under high contention:
-
-- Failed CAS attempts create discarded map copies (GC pressure)
-- Reads remain extremely fast (just pointer load + dereference)
-- Trade-off: Lower latency and no lock contention vs. potential GC pressure
-
-For most applications, this trade-off strongly favors the lock-free approach. If you observe high `router_metrics_cas_retries_total` (>1000/sec sustained), high `router_custom_metric_failures_total`, or GC pressure from metric creation, consider:
-
-1. **Reducing metric name cardinality** - Avoid dynamically generated metric names with unbounded cardinality
-2. **Pre-creating metrics at startup** - Create all expected metrics during initialization instead of on-demand
-3. **Using a smaller `maxCustomMetrics` limit** - Prevents unbounded metric creation
-4. **Future: Mutex-based alternative** - A `WithMutexBasedMetrics()` option may be added for extreme contention scenarios (not yet implemented)
 
 ## Important Limitations
 
@@ -372,7 +361,7 @@ For most applications, this trade-off strongly favors the lock-free approach. If
 
 This means:
 
-- **Multiple metrics configurations can coexist** in the same process without conflicts
+- **Multiple Recorder instances can coexist** in the same process without conflicts
 - The global meter provider is only set if you explicitly opt-in with `WithGlobalMeterProvider()`
 - You can use custom meter providers for complete control
 
@@ -381,166 +370,32 @@ This means:
 Multiple independent configurations work out of the box:
 
 ```go
-// Create independent metrics configurations (no global state!)
-config1, _ := metrics.New(
+// Create independent metrics recorders (no global state!)
+recorder1, _ := metrics.New(
+    metrics.WithPrometheus(":9090", "/metrics"),
     metrics.WithServiceName("service-1"),
-    metrics.WithProvider(metrics.PrometheusProvider),
-    metrics.WithPort(":9090"),
 )
 
-config2, _ := metrics.New(
+recorder2, _ := metrics.New(
+    metrics.WithStdout(),
     metrics.WithServiceName("service-2"),
-    metrics.WithProvider(metrics.StdoutProvider),
 )
 
 // ✅ Both work independently without conflicts!
-// ✅ No global state, no overwriting
-defer config1.Shutdown(context.Background())
-defer config2.Shutdown(context.Background())
+defer recorder1.Shutdown(context.Background())
+defer recorder2.Shutdown(context.Background())
 ```
 
 **Opt-in to Global Registration**
 
-If you need the meter provider to be globally registered (e.g., for third-party libraries that use the global OpenTelemetry provider):
+If you need the meter provider to be globally registered:
 
 ```go
-config := metrics.New(
+recorder := metrics.MustNew(
+    metrics.WithPrometheus(":9090", "/metrics"),
     metrics.WithServiceName("my-service"),
-    metrics.WithProvider(metrics.PrometheusProvider),
     metrics.WithGlobalMeterProvider(),  // ✅ Explicit opt-in
 )
-```
-
-**Advanced: Custom Meter Provider**
-
-For complete control over the meter provider lifecycle:
-
-```go
-// Create your own meter provider
-provider := sdkmetric.NewMeterProvider(...)
-
-config := metrics.New(
-    metrics.WithMeterProvider(provider),  // Use custom provider
-    metrics.WithServiceName("service-1"),
-)
-
-// Manage provider lifecycle yourself
-defer provider.Shutdown(context.Background())
-```
-
-**When to use each approach:**
-
-**Default (non-global):**
-- ✅ Multiple services in one process
-- ✅ Testing with isolated metrics
-- ✅ Library code that shouldn't affect globals
-- ✅ Most applications (recommended)
-
-**Global registration (`WithGlobalMeterProvider`):**
-- ✅ Single service application
-- ✅ Integration with third-party OpenTelemetry libraries
-- ✅ Existing code expects global provider
-
-**Custom provider (`WithMeterProvider`):**
-- ✅ Full control over provider lifecycle
-- ✅ Complex multi-provider setups
-- ✅ Integration with existing OpenTelemetry infrastructure
-
-### Context Cancellation
-
-All metrics recording methods (`RecordMetric`, `IncrementCounter`, `SetGauge`) respect context cancellation. If the provided context is cancelled, the operation returns early without recording the metric. This prevents unnecessary work during shutdown or request cancellation.
-
-## Monitoring and Observability
-
-### Key Metrics to Watch
-
-Monitor these internal metrics to ensure healthy operation:
-
-#### Performance Indicators
-
-- `router_metrics_cas_retries_total` - **Most important for detecting contention**
-  - Rate > 1000/sec sustained = High contention, investigate metric cardinality
-  - Rate 100-1000/sec = Moderate contention, acceptable for most workloads  
-  - Rate < 100/sec = Low contention, optimal performance
-
-- `router_custom_metric_failures_total` - Metric creation failures
-  - Should be zero in normal operation
-  - Non-zero indicates hitting `maxCustomMetrics` limit or CAS max retries
-
-#### Efficiency Indicators
-
-- `router_context_pool_hits_total` / `router_context_pool_misses_total`
-  - High hit ratio (> 90%) = Good pool efficiency
-  - Low hit ratio = Consider increasing pool size or investigating allocation patterns
-
-### Alerting Examples
-
-**Prometheus Alerting Rules**:
-
-```yaml
-groups:
-  - name: rivaas_metrics
-    rules:
-      # Alert on high CAS contention
-      - alert: HighMetricsCASContention
-        expr: rate(router_metrics_cas_retries_total[5m]) > 1000
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: High CAS retry rate in metrics package
-          description: |
-            CAS retry rate is {{ $value | humanize }}/sec.
-            This indicates high contention on custom metric creation.
-            Consider reducing metric name cardinality or pre-creating metrics.
-      
-      # Alert on metric creation failures
-      - alert: MetricsCreationFailures
-        expr: increase(router_custom_metric_failures_total[5m]) > 0
-        for: 1m
-        labels:
-          severity: error
-        annotations:
-          summary: Custom metrics failing to create
-          description: |
-            {{ $value }} metric creation failures in the last 5 minutes.
-            Check if maxCustomMetrics limit is too low or if there's a bug.
-      
-      # Alert on low context pool efficiency
-      - alert: LowContextPoolEfficiency
-        expr: |
-          (
-            rate(router_context_pool_hits_total[5m]) / 
-            (rate(router_context_pool_hits_total[5m]) + rate(router_context_pool_misses_total[5m]))
-          ) < 0.7
-        for: 10m
-        labels:
-          severity: info
-        annotations:
-          summary: Context pool hit rate below 70%
-          description: Pool efficiency is {{ $value | humanizePercentage }}
-```
-
-### Grafana Dashboard Queries
-
-**CAS Contention Panel**:
-
-```promql
-rate(router_metrics_cas_retries_total[5m])
-```
-
-**Metric Creation Success Rate**:
-
-```promql
-sum(rate(router_custom_metric_failures_total[5m])) / 
-sum(rate(router_custom_metric_failures_total[5m]) + rate(router_metrics_cas_retries_total[5m]))
-```
-
-**Context Pool Efficiency**:
-
-```promql
-rate(router_context_pool_hits_total[5m]) / 
-(rate(router_context_pool_hits_total[5m]) + rate(router_context_pool_misses_total[5m]))
 ```
 
 ## Examples

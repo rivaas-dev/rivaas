@@ -18,15 +18,15 @@
 //
 // # Basic Usage
 //
-//	config := metrics.MustNew(
+//	recorder := metrics.MustNew(
+//	    metrics.WithPrometheus(":9090", "/metrics"),
 //	    metrics.WithServiceName("my-service"),
-//	    metrics.WithProvider(metrics.PrometheusProvider),
 //	)
-//	defer config.Shutdown(context.Background())
+//	defer recorder.Shutdown(context.Background())
 //
 //	// Record custom metrics
 //	ctx := context.Background()
-//	config.IncrementCounter(ctx, "requests_total",
+//	_ = recorder.IncrementCounter(ctx, "requests_total",
 //	    attribute.String("method", "GET"),
 //	    attribute.String("status", "200"),
 //	)
@@ -36,11 +36,11 @@
 // All methods are safe for concurrent use. Custom metrics are limited
 // (default 1000) to prevent unbounded metric creation.
 //
-// # Global State Warning
+// # Global State
 //
-// This package sets the global OpenTelemetry meter provider via otel.SetMeterProvider().
-// Only one metrics configuration should be active per process. Creating multiple
-// configurations will cause them to overwrite each other's global meter provider.
+// By default, this package does NOT set the global OpenTelemetry meter provider.
+// Use WithGlobalMeterProvider() if you want global registration.
+// This allows multiple Recorder instances to coexist in the same process.
 //
 // # Providers
 //
@@ -51,11 +51,22 @@
 //
 // # Custom Metrics
 //
-// Record custom metrics using the provided methods:
+// Record custom metrics using the provided methods. All methods return errors
+// for explicit error handling:
 //
-//	config.RecordMetric(ctx, "processing_duration", 1.5,
-//	    attribute.String("operation", "create_user"))
-//	config.IncrementCounter(ctx, "requests_total",
+//	// Handle errors explicitly
+//	if err := recorder.RecordHistogram(ctx, "processing_duration", 1.5,
+//	    attribute.String("operation", "create_user")); err != nil {
+//	    log.Printf("metrics error: %v", err)
+//	}
+//
+//	// Or ignore errors with _ (fire-and-forget)
+//	_ = recorder.IncrementCounter(ctx, "requests_total",
 //	    attribute.String("status", "success"))
-//	config.SetGauge(ctx, "active_connections", 42)
+//	_ = recorder.SetGauge(ctx, "active_connections", 42)
+//
+// # Security
+//
+// Sensitive headers (Authorization, Cookie, X-API-Key, etc.) are automatically
+// filtered out when using WithHeaders() to prevent accidental credential exposure.
 package metrics

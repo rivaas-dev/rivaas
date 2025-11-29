@@ -17,119 +17,160 @@ package metrics_test
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"go.opentelemetry.io/otel/attribute"
 	"rivaas.dev/metrics"
 )
 
-// ExampleNew demonstrates creating a new metrics configuration.
+// ExampleNew demonstrates creating a new metrics Recorder.
 func ExampleNew() {
-	config, err := metrics.New(
+	recorder, err := metrics.New(
+		metrics.WithPrometheus(":9090", "/metrics"),
 		metrics.WithServiceName("my-service"),
 		metrics.WithServiceVersion("1.0.0"),
-		metrics.WithProvider(metrics.PrometheusProvider),
+		metrics.WithServerDisabled(),
 	)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
-	fmt.Printf("Metrics enabled: %v\n", config.IsEnabled())
+	fmt.Printf("Metrics enabled: %v\n", recorder.IsEnabled())
 	// Output: Metrics enabled: true
 }
 
-// ExampleMustNew demonstrates creating metrics configuration that panics on error.
+// ExampleMustNew demonstrates creating Recorder that panics on error.
 func ExampleMustNew() {
-	config := metrics.MustNew(
+	recorder := metrics.MustNew(
+		metrics.WithPrometheus(":9090", "/metrics"),
 		metrics.WithServiceName("my-service"),
-		metrics.WithProvider(metrics.PrometheusProvider),
+		metrics.WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
-	fmt.Printf("Service: %s\n", config.ServiceName())
+	fmt.Printf("Service: %s\n", recorder.ServiceName())
 	// Output: Service: my-service
 }
 
-// ExampleRecordMetric demonstrates recording custom metrics.
-func ExampleConfig_RecordMetric() {
-	config := metrics.MustNew(
+// ExampleRecorder_RecordHistogram demonstrates recording custom histogram metrics.
+func ExampleRecorder_RecordHistogram() {
+	recorder := metrics.MustNew(
+		metrics.WithStdout(),
 		metrics.WithServiceName("my-service"),
-		metrics.WithProvider(metrics.StdoutProvider),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
-	config.RecordMetric(ctx, "processing_duration", 1.5,
+
+	// Record histogram with error handling
+	if err := recorder.RecordHistogram(ctx, "processing_duration", 1.5,
 		attribute.String("operation", "create_user"),
 		attribute.String("status", "success"),
-	)
+	); err != nil {
+		fmt.Printf("Error: %v\n", err)
+	}
+
+	// Or fire-and-forget (ignore errors)
+	_ = recorder.RecordHistogram(ctx, "processing_duration", 2.3)
 }
 
-// ExampleIncrementCounter demonstrates incrementing a counter.
-func ExampleConfig_IncrementCounter() {
-	config := metrics.MustNew(
+// ExampleRecorder_IncrementCounter demonstrates incrementing a counter.
+func ExampleRecorder_IncrementCounter() {
+	recorder := metrics.MustNew(
+		metrics.WithStdout(),
 		metrics.WithServiceName("my-service"),
-		metrics.WithProvider(metrics.StdoutProvider),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
-	config.IncrementCounter(ctx, "requests_total",
+
+	// Increment counter with error handling
+	if err := recorder.IncrementCounter(ctx, "requests_total",
 		attribute.String("method", "GET"),
 		attribute.String("status", "200"),
-	)
+	); err != nil {
+		fmt.Printf("Error: %v\n", err)
+	}
+
+	// Or fire-and-forget (ignore errors)
+	_ = recorder.IncrementCounter(ctx, "events_total")
 }
 
-// ExampleSetGauge demonstrates setting a gauge value.
-func ExampleConfig_SetGauge() {
-	config := metrics.MustNew(
+// ExampleRecorder_SetGauge demonstrates setting a gauge value.
+func ExampleRecorder_SetGauge() {
+	recorder := metrics.MustNew(
+		metrics.WithStdout(),
 		metrics.WithServiceName("my-service"),
-		metrics.WithProvider(metrics.StdoutProvider),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
-	config.SetGauge(ctx, "active_connections", 42,
+
+	// Set gauge with error handling
+	if err := recorder.SetGauge(ctx, "active_connections", 42,
 		attribute.String("server", "api-1"),
-	)
+	); err != nil {
+		fmt.Printf("Error: %v\n", err)
+	}
+
+	// Or fire-and-forget (ignore errors)
+	_ = recorder.SetGauge(ctx, "cache_size", 1024)
 }
 
-// ExampleWithOTLPEndpoint demonstrates configuring OTLP exporter.
-func ExampleWithOTLPEndpoint() {
-	config := metrics.MustNew(
+// ExampleWithOTLP demonstrates configuring OTLP exporter.
+func ExampleWithOTLP() {
+	recorder := metrics.MustNew(
+		metrics.WithOTLP("http://localhost:4318"),
 		metrics.WithServiceName("my-service"),
-		metrics.WithProvider(metrics.OTLPProvider),
-		metrics.WithOTLPEndpoint("localhost:4318"),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
-	fmt.Printf("Provider: %s\n", config.GetProvider())
+	fmt.Printf("Provider: %s\n", recorder.Provider())
 	// Output: Provider: otlp
 }
 
-// ExampleWithExcludePaths demonstrates excluding paths from metrics.
-func ExampleWithExcludePaths() {
-	config := metrics.MustNew(
+// ExampleMiddleware_WithExcludePaths demonstrates excluding paths from metrics via middleware.
+func ExampleMiddleware_withExcludePaths() {
+	recorder := metrics.MustNew(
 		metrics.WithServiceName("my-service"),
-		metrics.WithProvider(metrics.PrometheusProvider),
-		metrics.WithExcludePaths("/health", "/metrics", "/ready"),
+		metrics.WithPrometheus(":9090", "/metrics"),
+		metrics.WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
-	fmt.Printf("Metrics enabled: %v\n", config.IsEnabled())
+	// Path exclusion is now configured on the middleware
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
+
+	// Apply middleware with path exclusions
+	_ = metrics.Middleware(recorder,
+		metrics.WithExcludePaths("/health", "/metrics", "/ready"),
+	)(mux)
+
+	fmt.Printf("Metrics enabled: %v\n", recorder.IsEnabled())
 	// Output: Metrics enabled: true
 }
 
-// ExampleWithHeaders demonstrates recording specific headers as attributes.
-func ExampleWithHeaders() {
-	config := metrics.MustNew(
+// ExampleMiddleware_WithHeaders demonstrates recording specific headers as attributes.
+// Note: Sensitive headers like Authorization and Cookie are automatically filtered.
+func ExampleMiddleware_withHeaders() {
+	recorder := metrics.MustNew(
 		metrics.WithServiceName("my-service"),
-		metrics.WithProvider(metrics.PrometheusProvider),
-		metrics.WithHeaders("X-Request-ID", "X-User-ID"),
+		metrics.WithPrometheus(":9090", "/metrics"),
+		metrics.WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
-	fmt.Printf("Service: %s\n", config.ServiceName())
+	// Header recording is now configured on the middleware
+	mux := http.NewServeMux()
+	_ = metrics.Middleware(recorder,
+		metrics.WithHeaders("X-Request-ID", "X-User-ID"),
+	)(mux)
+
+	fmt.Printf("Service: %s\n", recorder.ServiceName())
 	// Output: Service: my-service
 }

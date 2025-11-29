@@ -21,39 +21,40 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 )
 
-// BenchmarkRecordMetric_Cached benchmarks recording to an existing (cached) histogram.
+// BenchmarkRecordHistogram_Cached benchmarks recording to an existing (cached) histogram.
 // This is the hot path - metric already exists, just recording values.
-func BenchmarkRecordMetric_Cached(b *testing.B) {
-	config := MustNew(
+func BenchmarkRecordHistogram_Cached(b *testing.B) {
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 	// Pre-create the metric so it's cached
-	config.RecordMetric(ctx, "test.cached.metric", 1.0)
+	_ = recorder.RecordHistogram(ctx, "test.cached.metric", 1.0)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		config.RecordMetric(ctx, "test.cached.metric", 1.0)
+		_ = recorder.RecordHistogram(ctx, "test.cached.metric", 1.0)
 	}
 }
 
-// BenchmarkRecordMetric_CachedWithAttributes benchmarks recording to cached histogram with attributes.
-func BenchmarkRecordMetric_CachedWithAttributes(b *testing.B) {
-	config := MustNew(
+// BenchmarkRecordHistogram_CachedWithAttributes benchmarks recording to cached histogram with attributes.
+func BenchmarkRecordHistogram_CachedWithAttributes(b *testing.B) {
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 	attrs := []attribute.KeyValue{
@@ -63,26 +64,26 @@ func BenchmarkRecordMetric_CachedWithAttributes(b *testing.B) {
 	}
 
 	// Pre-create the metric
-	config.RecordMetric(ctx, "test.cached.with.attrs", 1.0, attrs...)
+	_ = recorder.RecordHistogram(ctx, "test.cached.with.attrs", 1.0, attrs...)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		config.RecordMetric(ctx, "test.cached.with.attrs", 1.0, attrs...)
+		_ = recorder.RecordHistogram(ctx, "test.cached.with.attrs", 1.0, attrs...)
 	}
 }
 
-// BenchmarkRecordMetric_New benchmarks creating new histogram metrics.
+// BenchmarkRecordHistogram_New benchmarks creating new histogram metrics.
 // This is the slow path - metric doesn't exist yet.
-func BenchmarkRecordMetric_New(b *testing.B) {
-	config := MustNew(
+func BenchmarkRecordHistogram_New(b *testing.B) {
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 		WithMaxCustomMetrics(100000), // Allow many metrics
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 	b.ResetTimer()
@@ -91,40 +92,40 @@ func BenchmarkRecordMetric_New(b *testing.B) {
 	i := 0
 	for b.Loop() {
 		// Each iteration creates a new metric
-		config.RecordMetric(ctx, "test.new.metric."+string(rune(i)), float64(i))
+		_ = recorder.RecordHistogram(ctx, "test.new.metric."+string(rune(i)), float64(i))
 		i++
 	}
 }
 
 // BenchmarkIncrementCounter_Cached benchmarks incrementing an existing (cached) counter.
 func BenchmarkIncrementCounter_Cached(b *testing.B) {
-	config := MustNew(
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 	// Pre-create the counter
-	config.IncrementCounter(ctx, "test.cached.counter")
+	_ = recorder.IncrementCounter(ctx, "test.cached.counter")
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		config.IncrementCounter(ctx, "test.cached.counter")
+		_ = recorder.IncrementCounter(ctx, "test.cached.counter")
 	}
 }
 
 // BenchmarkIncrementCounter_CachedWithAttributes benchmarks counter increment with attributes.
 func BenchmarkIncrementCounter_CachedWithAttributes(b *testing.B) {
-	config := MustNew(
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 	attrs := []attribute.KeyValue{
@@ -133,106 +134,105 @@ func BenchmarkIncrementCounter_CachedWithAttributes(b *testing.B) {
 	}
 
 	// Pre-create the counter
-	config.IncrementCounter(ctx, "test.cached.counter.attrs", attrs...)
+	_ = recorder.IncrementCounter(ctx, "test.cached.counter.attrs", attrs...)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		config.IncrementCounter(ctx, "test.cached.counter.attrs", attrs...)
+		_ = recorder.IncrementCounter(ctx, "test.cached.counter.attrs", attrs...)
 	}
 }
 
 // BenchmarkSetGauge_Cached benchmarks setting an existing (cached) gauge.
 func BenchmarkSetGauge_Cached(b *testing.B) {
-	config := MustNew(
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 	// Pre-create the gauge
-	config.SetGauge(ctx, "test.cached.gauge", 1.0)
+	_ = recorder.SetGauge(ctx, "test.cached.gauge", 1.0)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	i := 0
 	for b.Loop() {
-		config.SetGauge(ctx, "test.cached.gauge", float64(i))
+		_ = recorder.SetGauge(ctx, "test.cached.gauge", float64(i))
 		i++
 	}
 }
 
-// BenchmarkStartRequest benchmarks the StartRequest operation.
-func BenchmarkStartRequest(b *testing.B) {
-	config := MustNew(
+// BenchmarkStart benchmarks the Start operation.
+func BenchmarkStart(b *testing.B) {
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		config.StartRequest(ctx, "/api/users", false)
+		recorder.Start(ctx)
 	}
 }
 
-// BenchmarkStartRequest_WithAttributes benchmarks StartRequest with multiple attributes.
-func BenchmarkStartRequest_WithAttributes(b *testing.B) {
-	config := MustNew(
+// BenchmarkStart_WithAttributes benchmarks Start with added attributes.
+func BenchmarkStart_WithAttributes(b *testing.B) {
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
-	attrs := []attribute.KeyValue{
-		attribute.String("http.method", "GET"),
-		attribute.String("http.url", "http://localhost/api/users"),
-		attribute.String("http.scheme", "http"),
-		attribute.String("http.host", "localhost"),
-		attribute.String("http.user_agent", "Go-http-client/1.1"),
-		attribute.Int64("http.request.size", 1024),
-	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		config.StartRequest(ctx, "/api/users", false, attrs...)
+		m := recorder.Start(ctx)
+		m.AddAttributes(
+			attribute.String("http.method", "GET"),
+			attribute.String("http.url", "http://localhost/api/users"),
+			attribute.String("http.scheme", "http"),
+			attribute.String("http.host", "localhost"),
+			attribute.String("http.user_agent", "Go-http-client/1.1"),
+		)
 	}
 }
 
-// BenchmarkStartFinishRequest benchmarks full request lifecycle.
-func BenchmarkStartFinishRequest(b *testing.B) {
-	config := MustNew(
+// BenchmarkStartFinish benchmarks full request lifecycle.
+func BenchmarkStartFinish(b *testing.B) {
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
-	attrs := []attribute.KeyValue{
-		attribute.String("http.method", "GET"),
-		attribute.String("http.url", "http://localhost/api/users"),
-		attribute.Int64("http.request.size", 1024),
-	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		metrics := config.StartRequest(ctx, "/api/users", false, attrs...)
-		config.FinishRequest(ctx, metrics, 200, 2048, "/api/users")
+		m := recorder.Start(ctx)
+		m.AddAttributes(
+			attribute.String("http.method", "GET"),
+			attribute.String("http.url", "http://localhost/api/users"),
+		)
+		recorder.RecordRequestSize(ctx, m, 1024)
+		recorder.Finish(ctx, m, 200, 2048, "/api/users")
 	}
 }
 
@@ -317,31 +317,31 @@ func BenchmarkPrecomputedAttributes(b *testing.B) {
 // BenchmarkCASContention benchmarks CAS operations under different contention levels.
 func BenchmarkCASContention(b *testing.B) {
 	b.Run("LowContention_1Goroutine", func(b *testing.B) {
-		config := MustNew(
+		recorder := MustNew(
 			WithServiceName("bench-service"),
-			WithProvider(StdoutProvider),
+			WithStdout(),
 			WithServerDisabled(),
 			WithMaxCustomMetrics(100000),
 		)
-		defer config.Shutdown(context.Background())
+		defer recorder.Shutdown(context.Background())
 
 		ctx := context.Background()
 		b.ResetTimer()
 		b.ReportAllocs()
 
 		for b.Loop() {
-			config.IncrementCounter(ctx, "counter.low.contention")
+			_ = recorder.IncrementCounter(ctx, "counter.low.contention")
 		}
 	})
 
 	b.Run("MediumContention_4Goroutines", func(b *testing.B) {
-		config := MustNew(
+		recorder := MustNew(
 			WithServiceName("bench-service"),
-			WithProvider(StdoutProvider),
+			WithStdout(),
 			WithServerDisabled(),
 			WithMaxCustomMetrics(100000),
 		)
-		defer config.Shutdown(context.Background())
+		defer recorder.Shutdown(context.Background())
 
 		ctx := context.Background()
 		b.ResetTimer()
@@ -351,20 +351,20 @@ func BenchmarkCASContention(b *testing.B) {
 			i := 0
 			for pb.Next() {
 				// Each goroutine creates different metrics
-				config.IncrementCounter(ctx, "counter.medium.contention."+string(rune(i%4)))
+				_ = recorder.IncrementCounter(ctx, "counter.medium.contention."+string(rune(i%4)))
 				i++
 			}
 		})
 	})
 
 	b.Run("HighContention_Parallel", func(b *testing.B) {
-		config := MustNew(
+		recorder := MustNew(
 			WithServiceName("bench-service"),
-			WithProvider(StdoutProvider),
+			WithStdout(),
 			WithServerDisabled(),
 			WithMaxCustomMetrics(100000),
 		)
-		defer config.Shutdown(context.Background())
+		defer recorder.Shutdown(context.Background())
 
 		ctx := context.Background()
 		b.ResetTimer()
@@ -374,7 +374,7 @@ func BenchmarkCASContention(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			i := 0
 			for pb.Next() {
-				config.IncrementCounter(ctx, "counter.high.contention."+string(rune(i)))
+				_ = recorder.IncrementCounter(ctx, "counter.high.contention."+string(rune(i)))
 				i++
 			}
 		})
@@ -408,56 +408,15 @@ func BenchmarkValidateMetricName(b *testing.B) {
 	})
 }
 
-// BenchmarkRecordRouteRegistration benchmarks route registration recording.
-func BenchmarkRecordRouteRegistration(b *testing.B) {
-	config := MustNew(
-		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
-		WithServerDisabled(),
-	)
-	defer config.Shutdown(context.Background())
-
-	ctx := context.Background()
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		config.RecordRouteRegistration(ctx, "GET", "/api/users/:id")
-	}
-}
-
-// BenchmarkRecordConstraintFailure benchmarks constraint failure recording.
-func BenchmarkRecordConstraintFailure(b *testing.B) {
-	config := MustNew(
-		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
-		WithServerDisabled(),
-	)
-	defer config.Shutdown(context.Background())
-
-	ctx := context.Background()
-	attrs := []attribute.KeyValue{
-		attribute.String("constraint.value", "abc"),
-		attribute.String("expected", "numeric"),
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		config.RecordConstraintFailure(ctx, "numeric", attrs...)
-	}
-}
-
 // BenchmarkMetricCreation_Parallel benchmarks concurrent metric creation.
 func BenchmarkMetricCreation_Parallel(b *testing.B) {
-	config := MustNew(
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 		WithMaxCustomMetrics(1000000),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 	var counter int64
@@ -470,47 +429,50 @@ func BenchmarkMetricCreation_Parallel(b *testing.B) {
 			// Each goroutine creates unique metrics
 			i := counter
 			counter++
-			config.RecordMetric(ctx, "parallel.metric."+string(rune(i)), float64(i))
+			recorder.RecordHistogram(ctx, "parallel.metric."+string(rune(i)), float64(i))
 		}
 	})
 }
 
 // BenchmarkNoopProvider benchmarks with a custom noop provider for baseline.
 func BenchmarkNoopProvider(b *testing.B) {
-	// Create config with noop meter provider
+	// Create recorder with noop meter provider
 	noopProvider := noop.NewMeterProvider()
-	config := &Config{
+	recorder := &Recorder{
 		enabled:          true,
 		serviceName:      "bench-service",
 		serviceVersion:   "1.0.0",
 		meterProvider:    noopProvider,
 		meter:            noopProvider.Meter("bench"),
-		pathFilter:       newPathFilter(),
 		maxCustomMetrics: 1000,
+		durationBuckets:  DefaultDurationBuckets,
+		sizeBuckets:      DefaultSizeBuckets,
+		customCounters:   make(map[string]metric.Int64Counter),
+		customHistograms: make(map[string]metric.Float64Histogram),
+		customGauges:     make(map[string]metric.Float64Gauge),
 	}
-	config.initAtomicMaps()
-	config.initCommonAttributes()
+	recorder.initCommonAttributes()
 
 	// Initialize all required noop metrics
-	config.requestDuration, _ = config.meter.Float64Histogram("http_request_duration_seconds")
-	config.requestCount, _ = config.meter.Int64Counter("http_requests_total")
-	config.activeRequests, _ = config.meter.Int64UpDownCounter("http_requests_active")
-	config.requestSize, _ = config.meter.Int64Histogram("http_request_size_bytes")
-	config.responseSize, _ = config.meter.Int64Histogram("http_response_size_bytes")
-	config.errorCount, _ = config.meter.Int64Counter("http_errors_total")
+	recorder.requestDuration, _ = recorder.meter.Float64Histogram("http_request_duration_seconds")
+	recorder.requestCount, _ = recorder.meter.Int64Counter("http_requests_total")
+	recorder.activeRequests, _ = recorder.meter.Int64UpDownCounter("http_requests_active")
+	recorder.requestSize, _ = recorder.meter.Int64Histogram("http_request_size_bytes")
+	recorder.responseSize, _ = recorder.meter.Int64Histogram("http_response_size_bytes")
+	recorder.errorCount, _ = recorder.meter.Int64Counter("http_errors_total")
 
 	ctx := context.Background()
-	attrs := []attribute.KeyValue{
-		attribute.String("http.method", "GET"),
-		attribute.String("http.url", "http://localhost/api/users"),
-	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		metrics := config.StartRequest(ctx, "/api/users", false, attrs...)
-		config.FinishRequest(ctx, metrics, 200, 2048, "/api/users")
+		m := recorder.Start(ctx)
+		m.AddAttributes(
+			attribute.String("http.method", "GET"),
+			attribute.String("http.url", "http://localhost/api/users"),
+		)
+		recorder.Finish(ctx, m, 200, 2048, "/api/users")
 	}
 }
 
@@ -557,74 +519,44 @@ func toLower(s string) string {
 	return string(result)
 }
 
-// BenchmarkExcludedPath benchmarks the excluded path check.
+// BenchmarkExcludedPath benchmarks the path filter check.
 func BenchmarkExcludedPath(b *testing.B) {
-	config := MustNew(
-		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
-		WithServerDisabled(),
-		WithExcludePaths("/health", "/metrics", "/debug"),
-	)
-	defer config.Shutdown(context.Background())
-
-	ctx := context.Background()
+	// Path filtering is now in middleware, benchmark the pathFilter directly
+	pf := newPathFilter()
+	pf.addPaths("/health", "/metrics", "/debug")
 
 	b.Run("ExcludedPath", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			metrics := config.StartRequest(ctx, "/health", false)
-			_ = metrics
+			_ = pf.shouldExclude("/health")
 		}
 	})
 
 	b.Run("NonExcludedPath", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			metrics := config.StartRequest(ctx, "/api/users", false)
-			config.FinishRequest(ctx, metrics, 200, 1024, "/test")
+			_ = pf.shouldExclude("/api/users")
 		}
 	})
 }
 
-// BenchmarkContextPoolOperations benchmarks context pool hit/miss recording.
-func BenchmarkContextPoolOperations(b *testing.B) {
-	config := MustNew(
+// BenchmarkRWMutexOperations benchmarks RWMutex-based metric operations.
+func BenchmarkRWMutexOperations(b *testing.B) {
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
-
-	b.Run("PoolHit", func(b *testing.B) {
-		b.ReportAllocs()
-		for b.Loop() {
-			config.RecordContextPoolHit(ctx)
-		}
-	})
-
-	b.Run("PoolMiss", func(b *testing.B) {
-		b.ReportAllocs()
-		for b.Loop() {
-			config.RecordContextPoolMiss(ctx)
-		}
-	})
-}
-
-// BenchmarkAtomicOperations benchmarks atomic counter operations.
-func BenchmarkAtomicOperations(b *testing.B) {
-	config := MustNew(
-		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
-		WithServerDisabled(),
-	)
-	defer config.Shutdown(context.Background())
+	// Pre-create a counter to test the read path
+	_ = recorder.IncrementCounter(ctx, "rwmutex_test_counter")
 
 	b.Run("SingleThreaded", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			config.recordRequestCountAtomically()
+			_ = recorder.IncrementCounter(ctx, "rwmutex_test_counter")
 		}
 	})
 
@@ -632,7 +564,7 @@ func BenchmarkAtomicOperations(b *testing.B) {
 		b.ReportAllocs()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				config.recordRequestCountAtomically()
+				_ = recorder.IncrementCounter(ctx, "rwmutex_test_counter")
 			}
 		})
 	})
@@ -640,13 +572,13 @@ func BenchmarkAtomicOperations(b *testing.B) {
 
 // BenchmarkCASRetryBackoff benchmarks different backoff strategies.
 func BenchmarkCASRetryBackoff(b *testing.B) {
-	config := MustNew(
+	recorder := MustNew(
 		WithServiceName("bench-service"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 		WithServerDisabled(),
 		WithMaxCustomMetrics(1000000),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 
@@ -655,7 +587,7 @@ func BenchmarkCASRetryBackoff(b *testing.B) {
 		b.ReportAllocs()
 		i := 0
 		for b.Loop() {
-			config.IncrementCounter(ctx, "seq.counter."+string(rune(i)))
+			_ = recorder.IncrementCounter(ctx, "seq.counter."+string(rune(i)))
 			i++
 		}
 	})
@@ -673,7 +605,7 @@ func BenchmarkCASRetryBackoff(b *testing.B) {
 			go func(goroutineID int) {
 				defer wg.Done()
 				for i := range itemsPerGoroutine {
-					config.IncrementCounter(ctx, "parallel.counter."+string(rune(goroutineID*itemsPerGoroutine+i)))
+					_ = recorder.IncrementCounter(ctx, "parallel.counter."+string(rune(goroutineID*itemsPerGoroutine+i)))
 				}
 			}(g)
 		}
@@ -683,13 +615,13 @@ func BenchmarkCASRetryBackoff(b *testing.B) {
 
 // BenchmarkCustomMetricsCreation benchmarks custom metrics creation
 func BenchmarkCustomMetricsCreation(b *testing.B) {
-	config := MustNew(
+	recorder := MustNew(
+		WithPrometheus(":19208", "/metrics"),
 		WithServiceName("benchmark-service"),
-		WithPort(":19208"),
 		WithMaxCustomMetrics(10000),
 		WithServerDisabled(),
 	)
-	defer config.Shutdown(context.Background())
+	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
 
@@ -697,7 +629,7 @@ func BenchmarkCustomMetricsCreation(b *testing.B) {
 		b.ResetTimer()
 		for i := range b.N {
 			metricName := fmt.Sprintf("counter_%d", i%1000)
-			config.IncrementCounter(ctx, metricName)
+			_ = recorder.IncrementCounter(ctx, metricName)
 		}
 	})
 
@@ -707,7 +639,7 @@ func BenchmarkCustomMetricsCreation(b *testing.B) {
 			i := 0
 			for pb.Next() {
 				metricName := fmt.Sprintf("parallel_counter_%d", i%1000)
-				config.IncrementCounter(ctx, metricName)
+				_ = recorder.IncrementCounter(ctx, metricName)
 				i++
 			}
 		})
