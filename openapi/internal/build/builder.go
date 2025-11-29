@@ -14,7 +14,6 @@ import (
 	"strings"
 	"unicode"
 
-	"rivaas.dev/binding"
 	"rivaas.dev/openapi/internal/schema"
 	"rivaas.dev/openapi/model"
 )
@@ -267,7 +266,7 @@ func (b *Builder) buildOperation(er EnrichedRoute, sg *schema.SchemaGenerator, s
 	if md := doc.RequestMetadata; md != nil && md.HasBody {
 		ct := first(doc.Consumes, "application/json")
 		bodySchema := sg.GenerateProjected(doc.RequestType, func(f reflect.StructField) bool {
-			jt := f.Tag.Get(binding.TagJSON)
+			jt := f.Tag.Get("json")
 			return jt != "" && jt != "-"
 		})
 

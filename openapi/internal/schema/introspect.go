@@ -7,8 +7,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+)
 
-	"rivaas.dev/binding"
+// Struct tag names for OpenAPI parameter extraction.
+// These match the conventions used by the binding package.
+const (
+	tagQuery  = "query"  // Query parameter struct tag
+	tagPath   = "path"   // URL path parameter struct tag
+	tagHeader = "header" // HTTP header struct tag
+	tagCookie = "cookie" // Cookie struct tag
 )
 
 // RequestMetadata contains auto-discovered information about a request struct.
@@ -42,7 +49,7 @@ type ParamSpec struct {
 //
 // This function automatically discovers:
 //   - Query parameters from `query` tags
-//   - Path parameters from `params` tags
+//   - Path parameters from `path` tags
 //   - Header parameters from `header` tags
 //   - Cookie parameters from `cookie` tags
 //   - Request body presence from `json` tags
@@ -65,15 +72,15 @@ func IntrospectRequest(t reflect.Type) *RequestMetadata {
 		Parameters: make([]ParamSpec, 0),
 	}
 
-	// Extract parameters from tags (query, params, header, cookie)
+	// Extract parameters from tags (query, path, header, cookie)
 	for _, tag := range []struct {
 		name string
 		loc  string
 	}{
-		{binding.TagQuery, "query"},
-		{binding.TagParams, "path"},
-		{binding.TagHeader, "header"},
-		{binding.TagCookie, "cookie"},
+		{tagQuery, "query"},
+		{tagPath, "path"},
+		{tagHeader, "header"},
+		{tagCookie, "cookie"},
 	} {
 		meta.Parameters = append(meta.Parameters, extractParamsFromTag(t, tag.name, tag.loc)...)
 	}
@@ -84,7 +91,7 @@ func IntrospectRequest(t reflect.Type) *RequestMetadata {
 		if !f.IsExported() {
 			return
 		}
-		if s := f.Tag.Get(binding.TagJSON); s != "" && s != "-" {
+		if s := f.Tag.Get("json"); s != "" && s != "-" {
 			hasBody = true
 		}
 	})
@@ -148,7 +155,7 @@ func extractParamsFromTag(t reflect.Type, tagName, location string) []ParamSpec 
 // isParamRequired determines if a parameter is required.
 func isParamRequired(field reflect.StructField, tagName string) bool {
 	// Path parameters are always required
-	if tagName == binding.TagParams {
+	if tagName == tagPath {
 		return true
 	}
 

@@ -7,10 +7,7 @@ require (
 	github.com/onsi/gomega v1.38.2
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/stretchr/testify v1.11.1
-	rivaas.dev/binding v0.1.0
 )
-
-replace rivaas.dev/binding => ../binding
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect

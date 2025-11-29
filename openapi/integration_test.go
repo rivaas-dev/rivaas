@@ -39,7 +39,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 
 			// Register multiple routes
 			type GetUserRequest struct {
-				ID int `params:"id" doc:"User ID"`
+				ID int `path:"id" doc:"User ID"`
 			}
 
 			type User struct {

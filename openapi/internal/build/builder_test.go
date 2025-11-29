@@ -252,7 +252,7 @@ func TestBuilder_Parameters(t *testing.T) {
 	t.Parallel()
 
 	type GetUserRequest struct {
-		ID     int    `params:"id"`
+		ID     int    `path:"id"`
 		Expand string `query:"expand"`
 	}
 

@@ -222,7 +222,7 @@ func TestSchemaGenerator_StructTags(t *testing.T) {
 func TestSchemaGenerator_GenerateProjected(t *testing.T) {
 	type MixedStruct struct {
 		QueryParam string `query:"q"`
-		PathParam  int    `params:"id"`
+		PathParam  int    `path:"id"`
 		BodyField  string `json:"body"`
 		Ignored    string // no tags
 	}
@@ -607,7 +607,7 @@ func BenchmarkSchemaGenerator_ComplexStruct(b *testing.B) {
 func BenchmarkSchemaGenerator_GenerateProjected(b *testing.B) {
 	type MixedStruct struct {
 		QueryParam string `query:"q"`
-		PathParam  int    `params:"id"`
+		PathParam  int    `path:"id"`
 		BodyField  string `json:"body"`
 		Ignored    string // no tags
 	}
