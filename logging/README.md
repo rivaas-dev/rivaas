@@ -265,17 +265,22 @@ r := router.New(
 
 ### With Full Observability
 
+For full observability (logging, metrics, tracing), use the `app` package which wires everything together:
+
 ```go
 import (
+    "rivaas.dev/app"
     "rivaas.dev/logging"
-    "rivaas.dev/metrics"
     "rivaas.dev/tracing"
 )
 
-r := router.New(
-    logging.WithLogging(logging.WithJSONHandler()),
-    metrics.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-    tracing.WithTracing(tracing.WithProvider(tracing.JaegerProvider)),
+a, err := app.New(
+    app.WithServiceName("my-api"),
+    app.WithObservability(
+        app.WithLogging(logging.WithJSONHandler()),
+        app.WithMetrics(), // Prometheus is default
+        app.WithTracing(tracing.WithOTLP("localhost:4317")),
+    ),
 )
 ```
 
@@ -741,7 +746,7 @@ logger := logging.MustNew(
 
 ```go
 // Ensure tracing is initialized and context is propagated
-tracer := tracing.MustNew(tracing.WithProvider(tracing.JaegerProvider))
+tracer := tracing.MustNew(tracing.WithOTLP("localhost:4317"))
 ctx, span := tracer.Start(context.Background(), "operation")
 defer span.End()
 
