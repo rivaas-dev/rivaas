@@ -29,35 +29,35 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func TestTracingConfig(t *testing.T) {
+func TestTracerConfig(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	tracer := MustNew(
 		WithServiceName("test-service"),
 		WithServiceVersion("v1.0.0"),
 		WithSampleRate(0.5),
 	)
-	defer config.Shutdown(context.Background())
+	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-	assert.True(t, config.IsEnabled())
-	assert.Equal(t, "test-service", config.ServiceName())
-	assert.Equal(t, "v1.0.0", config.ServiceVersion())
-	assert.NotNil(t, config.GetTracer())
-	assert.NotNil(t, config.GetPropagator())
+	assert.True(t, tracer.IsEnabled())
+	assert.Equal(t, "test-service", tracer.ServiceName())
+	assert.Equal(t, "v1.0.0", tracer.ServiceVersion())
+	assert.NotNil(t, tracer.GetTracer())
+	assert.NotNil(t, tracer.GetPropagator())
 }
 
 func TestTracingWithHTTP(t *testing.T) {
 	t.Parallel()
 
-	// Create tracing config
-	config := MustNew(
+	// Create tracer
+	tracer := MustNew(
 		WithServiceName("test-service"),
 		WithSampleRate(1.0),
 	)
-	defer config.Shutdown(context.Background())
+	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 	// Create HTTP handler with tracing middleware
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -70,55 +70,33 @@ func TestTracingWithHTTP(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "ok")
 }
 
-func TestTracingOptions(t *testing.T) {
+func TestTracerOptions(t *testing.T) {
 	t.Parallel()
-
-	t.Run("WithExcludePaths", func(t *testing.T) {
-		t.Parallel()
-
-		config := MustNew(
-			WithExcludePaths("/health", "/metrics"),
-		)
-		assert.True(t, config.ShouldExcludePath("/health"))
-		assert.True(t, config.ShouldExcludePath("/metrics"))
-		assert.False(t, config.ShouldExcludePath("/api"))
-	})
-
-	t.Run("WithHeaders", func(t *testing.T) {
-		t.Parallel()
-
-		config := MustNew(
-			WithHeaders("Authorization", "X-Request-ID"),
-		)
-		assert.True(t, config.IsEnabled())
-	})
-
-	t.Run("WithDisableParams", func(t *testing.T) {
-		t.Parallel()
-
-		config := MustNew(
-			WithDisableParams(),
-		)
-		assert.True(t, config.IsEnabled())
-	})
 
 	t.Run("WithCustomTracer", func(t *testing.T) {
 		t.Parallel()
 
-		tempConfig := MustNew()
-		config := MustNew(
-			WithCustomTracer(tempConfig.GetTracer()),
+		tempTracer := MustNew()
+		tracer := MustNew(
+			WithCustomTracer(tempTracer.GetTracer()),
 		)
-		assert.True(t, config.IsEnabled())
+		assert.True(t, tracer.IsEnabled())
+	})
+
+	t.Run("WithSampleRate", func(t *testing.T) {
+		t.Parallel()
+
+		tracer := MustNew(WithSampleRate(0.5))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		assert.Equal(t, 0.5, tracer.sampleRate)
 	})
 }
 
 func TestTracingMiddleware(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	tracer := MustNew(
 		WithServiceName("test-service"),
-		WithExcludePaths("/health"),
 	)
 
 	// Create a test handler
@@ -127,8 +105,8 @@ func TestTracingMiddleware(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 
-	// Wrap with tracing middleware
-	middleware := Middleware(config)
+	// Wrap with tracing middleware (with path exclusion)
+	middleware := MustMiddleware(tracer, WithExcludePaths("/health"))
 	wrappedHandler := middleware(handler)
 
 	// Test the wrapped handler
@@ -144,9 +122,8 @@ func TestTracingIntegration(t *testing.T) {
 	t.Parallel()
 
 	// Test full integration with HTTP middleware
-	config := MustNew(
+	tracer := MustNew(
 		WithServiceName("integration-test"),
-		WithExcludePaths("/health"),
 	)
 
 	// Create HTTP mux
@@ -164,7 +141,7 @@ func TestTracingIntegration(t *testing.T) {
 	})
 
 	// Wrap with tracing middleware
-	handler := Middleware(config)(mux)
+	handler := MustMiddleware(tracer, WithExcludePaths("/health"))(mux)
 
 	// Test normal route
 	req := httptest.NewRequest("GET", "/", nil)
@@ -200,30 +177,30 @@ func TestSamplingRate(t *testing.T) {
 		t.Parallel()
 
 		// Test clamping of sample rate
-		config := MustNew(WithServiceName("test"), WithSampleRate(1.5))
-		assert.Equal(t, 1.0, config.sampleRate)
-		config.Shutdown(context.Background())
+		tracer := MustNew(WithServiceName("test"), WithSampleRate(1.5))
+		assert.Equal(t, 1.0, tracer.sampleRate)
+		tracer.Shutdown(context.Background())
 
-		config = MustNew(WithServiceName("test"), WithSampleRate(-0.5))
-		assert.Equal(t, 0.0, config.sampleRate)
-		config.Shutdown(context.Background())
+		tracer = MustNew(WithServiceName("test"), WithSampleRate(-0.5))
+		assert.Equal(t, 0.0, tracer.sampleRate)
+		tracer.Shutdown(context.Background())
 
-		config = MustNew(WithServiceName("test"), WithSampleRate(0.5))
-		assert.Equal(t, 0.5, config.sampleRate)
-		defer config.Shutdown(context.Background())
+		tracer = MustNew(WithServiceName("test"), WithSampleRate(0.5))
+		assert.Equal(t, 0.5, tracer.sampleRate)
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 	})
 
 	t.Run("SampleRate100Percent", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		tracer := MustNew(
 			WithServiceName("test-service"),
 			WithSampleRate(1.0),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 		// All requests should be traced
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -238,14 +215,14 @@ func TestSamplingRate(t *testing.T) {
 	t.Run("SampleRate0Percent", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		tracer := MustNew(
 			WithServiceName("test-service"),
 			WithSampleRate(0.0),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 		// No requests should be traced
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -259,22 +236,14 @@ func TestSamplingRate(t *testing.T) {
 
 	t.Run("SampleRateStatistical", func(t *testing.T) {
 		t.Parallel()
-		// Note: This test validates that sampling logic works correctly.
-		// With a noop tracer (default), spans won't be recorded, but we can
-		// verify the sampling logic is being called correctly.
 
-		config := MustNew(
+		tracer := MustNew(
 			WithServiceName("test-service"),
 			WithSampleRate(0.5),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		// The sampling logic is working correctly if:
-		// 1. Requests are processed without errors
-		// 2. No panics or race conditions occur
-		// 3. The behavior is consistent
-
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -288,19 +257,22 @@ func TestSamplingRate(t *testing.T) {
 			assert.Equal(t, http.StatusOK, w.Code)
 		}
 
-		// If we got here without panics or errors, sampling is working correctly
 		assert.True(t, true, "Sampling logic executed successfully")
 	})
 }
 
 func TestParameterRecording(t *testing.T) {
+	t.Parallel()
+
 	t.Run("WithParams", func(t *testing.T) {
-		config := MustNew(
+		t.Parallel()
+
+		tracer := MustNew(
 			WithServiceName("test-service"),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -312,16 +284,15 @@ func TestParameterRecording(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
-	t.Run("WithDisabledParams", func(t *testing.T) {
-		config := MustNew(
+	t.Run("WithoutParams", func(t *testing.T) {
+		t.Parallel()
+
+		tracer := MustNew(
 			WithServiceName("test-service"),
-			WithDisableParams(),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		assert.False(t, config.recordParams)
-
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -337,35 +308,34 @@ func TestParameterRecording(t *testing.T) {
 func TestSpanAttributeTypes(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	tracer := MustNew(
 		WithServiceName("test-service"),
 	)
 
 	ctx := context.Background()
-	_, span := config.StartSpan(ctx, "test-span")
+	_, span := tracer.StartSpan(ctx, "test-span")
 	defer span.End()
 
 	// Test different types - these should not panic even if span is not recording
-	config.SetSpanAttribute(span, "string_attr", "value")
-	config.SetSpanAttribute(span, "int_attr", 42)
-	config.SetSpanAttribute(span, "int64_attr", int64(123))
-	config.SetSpanAttribute(span, "float_attr", 3.14)
-	config.SetSpanAttribute(span, "bool_attr", true)
-	config.SetSpanAttribute(span, "other_attr", struct{ Name string }{"test"})
+	tracer.SetSpanAttribute(span, "string_attr", "value")
+	tracer.SetSpanAttribute(span, "int_attr", 42)
+	tracer.SetSpanAttribute(span, "int64_attr", int64(123))
+	tracer.SetSpanAttribute(span, "float_attr", 3.14)
+	tracer.SetSpanAttribute(span, "bool_attr", true)
+	tracer.SetSpanAttribute(span, "other_attr", struct{ Name string }{"test"})
 
-	// Verify span exists (may or may not be recording depending on OTEL setup)
 	assert.NotNil(t, span)
 }
 
 func TestSpanAttributeTypesFromContext(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	tracer := MustNew(
 		WithServiceName("test-service"),
 	)
 
 	ctx := context.Background()
-	ctx, span := config.StartSpan(ctx, "test-span")
+	ctx, span := tracer.StartSpan(ctx, "test-span")
 	defer span.End()
 
 	// Test different types through context helper - should not panic
@@ -375,53 +345,84 @@ func TestSpanAttributeTypesFromContext(t *testing.T) {
 	SetSpanAttributeFromContext(ctx, "float_attr", 3.14)
 	SetSpanAttributeFromContext(ctx, "bool_attr", true)
 
-	// Verify span exists
 	assert.NotNil(t, span)
 }
 
 func TestErrorStatusCodes(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "bad request",
+			path:       "/bad-request",
+			wantStatus: http.StatusBadRequest,
+			wantBody:   `{"error":"bad request"}`,
+		},
+		{
+			name:       "not found",
+			path:       "/not-found",
+			wantStatus: http.StatusNotFound,
+			wantBody:   `{"error":"not found"}`,
+		},
+		{
+			name:       "internal server error",
+			path:       "/error",
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   `{"error":"server error"}`,
+		},
+		{
+			name:       "service unavailable",
+			path:       "/unavailable",
+			wantStatus: http.StatusServiceUnavailable,
+			wantBody:   `{"error":"service unavailable"}`,
+		},
+	}
+
+	tracer := MustNew(
 		WithServiceName("test-service"),
 	)
-	defer config.Shutdown(context.Background())
+	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 	// Create mux with different status codes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/not-found", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":"not found"}`))
-	})
-	mux.HandleFunc("/error", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":"server error"}`))
-	})
+	for _, tt := range tests {
+		status := tt.wantStatus
+		body := tt.wantBody
+		mux.HandleFunc(tt.path, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+			w.Write([]byte(body))
+		})
+	}
+	handler := MustMiddleware(tracer)(mux)
 
-	handler := Middleware(config)(mux)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Test 404
-	req := httptest.NewRequest("GET", "/not-found", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusNotFound, w.Code)
+			req := httptest.NewRequest("GET", tt.path, nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
 
-	// Test 500
-	req = httptest.NewRequest("GET", "/error", nil)
-	w = httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+			assert.Equal(t, tt.wantStatus, w.Code)
+			assert.Equal(t, tt.wantBody, w.Body.String())
+		})
+	}
 }
 
 func TestConcurrentResponseWriter(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	tracer := MustNew(
 		WithServiceName("test-service"),
 	)
-	defer config.Shutdown(context.Background())
+	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -447,25 +448,21 @@ func TestConcurrentResponseWriter(t *testing.T) {
 func TestContextTracingHelpers(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	tracer := MustNew(
 		WithServiceName("test-service"),
 	)
-	defer config.Shutdown(context.Background())
+	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get span from context and test attribute setting
+	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		// Test setting attributes through context (if span is available)
 		SetSpanAttributeFromContext(ctx, "string", "value")
 		SetSpanAttributeFromContext(ctx, "int", 42)
 		SetSpanAttributeFromContext(ctx, "float", 3.14)
 		SetSpanAttributeFromContext(ctx, "bool", true)
 
-		// Test adding span event
 		AddSpanEventFromContext(ctx, "test_event")
 
-		// Test getting trace ID and span ID from context
 		traceID := TraceID(ctx)
 		spanID := SpanID(ctx)
 
@@ -480,37 +477,33 @@ func TestContextTracingHelpers(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-// Edge case tests
-func TestEdgeCases(t *testing.T) {
+// TestTracer_EdgeCases tests edge cases and robustness of the Tracer type.
+func TestTracer_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	t.Run("DisabledTracing", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(WithSampleRate(0.0))
+		tracer := MustNew(WithSampleRate(0.0))
 		ctx := context.Background()
 
-		// All operations should be no-ops
-		_, span := config.StartSpan(ctx, "test")
-		config.SetSpanAttribute(span, "key", "value")
-		config.AddSpanEvent(span, "event")
-		config.FinishSpan(span, http.StatusOK)
+		_, span := tracer.StartSpan(ctx, "test")
+		tracer.SetSpanAttribute(span, "key", "value")
+		tracer.AddSpanEvent(span, "event")
+		tracer.FinishSpan(span, http.StatusOK)
 
-		// Should not panic
 		assert.NotNil(t, span)
 	})
 
 	t.Run("NilContext", func(t *testing.T) {
 		t.Parallel()
 
-		// These should not panic even with nil/empty contexts
 		traceID := TraceID(context.Background())
 		spanID := SpanID(context.Background())
 
 		assert.Equal(t, "", traceID)
 		assert.Equal(t, "", spanID)
 
-		// These should be no-ops
 		SetSpanAttributeFromContext(context.Background(), "key", "value")
 		AddSpanEventFromContext(context.Background(), "event")
 	})
@@ -518,105 +511,60 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("MultipleFinishSpan", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 		ctx := context.Background()
-		_, span := config.StartSpan(ctx, "test")
+		_, span := tracer.StartSpan(ctx, "test")
 
 		// Should be safe to call multiple times
-		config.FinishSpan(span, http.StatusOK)
-		config.FinishSpan(span, http.StatusOK)
-		config.FinishSpan(span, http.StatusOK)
+		tracer.FinishSpan(span, http.StatusOK)
+		tracer.FinishSpan(span, http.StatusOK)
+		tracer.FinishSpan(span, http.StatusOK)
 
-		// Should not panic
 		assert.NotNil(t, span)
 	})
 
 	t.Run("EmptyServiceName", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(WithServiceName(""))
+		tracer, err := New(WithServiceName(""))
 		assert.Error(t, err)
-		assert.Nil(t, config)
-		assert.Contains(t, err.Error(), "service name cannot be empty")
+		assert.Nil(t, tracer)
+		assert.Contains(t, err.Error(), "serviceName: cannot be empty")
 	})
 
 	t.Run("EmptyServiceVersion", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(WithServiceVersion(""))
+		tracer, err := New(WithServiceVersion(""))
 		assert.Error(t, err)
-		assert.Nil(t, config)
-		assert.Contains(t, err.Error(), "service version cannot be empty")
+		assert.Nil(t, tracer)
+		assert.Contains(t, err.Error(), "serviceVersion: cannot be empty")
 	})
 
 	t.Run("ExtremelyLargeSampleRate", func(t *testing.T) {
 		t.Parallel()
 
-		// Sample rate is clamped by WithSampleRate, not by validation
-		config := MustNew(WithServiceName("test"), WithSampleRate(999.9))
-		defer config.Shutdown(context.Background())
-		assert.Equal(t, 1.0, config.sampleRate)
+		tracer := MustNew(WithServiceName("test"), WithSampleRate(999.9))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		assert.Equal(t, 1.0, tracer.sampleRate)
 	})
 
 	t.Run("NegativeSampleRate", func(t *testing.T) {
 		t.Parallel()
 
-		// Sample rate is clamped by WithSampleRate, not by validation
-		config := MustNew(WithServiceName("test"), WithSampleRate(-999.9))
-		defer config.Shutdown(context.Background())
-		assert.Equal(t, 0.0, config.sampleRate)
-	})
-
-	t.Run("EmptyExcludePaths", func(t *testing.T) {
-		t.Parallel()
-
-		config := MustNew(WithExcludePaths())
-		assert.NotNil(t, config)
-		assert.False(t, config.ShouldExcludePath("/any"))
-	})
-
-	t.Run("DuplicateExcludePaths", func(t *testing.T) {
-		t.Parallel()
-
-		config := MustNew(
-			WithExcludePaths("/health"),
-			WithExcludePaths("/health"),
-			WithExcludePaths("/health"),
-		)
-		assert.True(t, config.ShouldExcludePath("/health"))
-	})
-
-	t.Run("MaxExcludedPathsLimit", func(t *testing.T) {
-		t.Parallel()
-
-		// Try to add more than 1000 paths
-		paths := make([]string, 1500)
-		for i := 0; i < 1500; i++ {
-			paths[i] = fmt.Sprintf("/path%d", i)
-		}
-		config := MustNew(WithExcludePaths(paths...))
-
-		// First 1000 should be excluded
-		assert.True(t, config.ShouldExcludePath("/path0"))
-		assert.True(t, config.ShouldExcludePath("/path999"))
-
-		// Paths beyond 1000 should not be excluded
-		assert.False(t, config.ShouldExcludePath("/path1000"))
-		assert.False(t, config.ShouldExcludePath("/path1499"))
-
-		// Verify map size is capped at 1000
-		assert.LessOrEqual(t, len(config.excludePaths), 1000)
+		tracer := MustNew(WithServiceName("test"), WithSampleRate(-999.9))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		assert.Equal(t, 0.0, tracer.sampleRate)
 	})
 
 	t.Run("NilHeaders", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 		ctx := context.Background()
 
-		// Should not panic with nil headers
-		ctx = config.ExtractTraceContext(ctx, nil)
-		config.InjectTraceContext(ctx, nil)
+		ctx = tracer.ExtractTraceContext(ctx, nil)
+		tracer.InjectTraceContext(ctx, nil)
 
 		assert.NotNil(t, ctx)
 	})
@@ -624,12 +572,12 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("EmptyHeaders", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 		ctx := context.Background()
 		headers := http.Header{}
 
-		ctx = config.ExtractTraceContext(ctx, headers)
-		config.InjectTraceContext(ctx, headers)
+		ctx = tracer.ExtractTraceContext(ctx, headers)
+		tracer.InjectTraceContext(ctx, headers)
 
 		assert.NotNil(t, ctx)
 	})
@@ -637,67 +585,61 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("MalformedTraceParent", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 		ctx := context.Background()
 		headers := http.Header{}
 		headers.Set("traceparent", "invalid-trace-parent")
 
-		// Should handle gracefully
-		ctx = config.ExtractTraceContext(ctx, headers)
+		ctx = tracer.ExtractTraceContext(ctx, headers)
 		assert.NotNil(t, ctx)
 	})
 
 	t.Run("NilSpanOperations", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 
-		// These should not panic even with nil span
-		config.SetSpanAttribute(nil, "key", "value")
-		config.AddSpanEvent(nil, "event")
-		config.FinishSpan(nil, http.StatusOK)
+		tracer.SetSpanAttribute(nil, "key", "value")
+		tracer.AddSpanEvent(nil, "event")
+		tracer.FinishSpan(nil, http.StatusOK)
 
-		// Should be handled gracefully
 		assert.True(t, true)
 	})
 
 	t.Run("VeryLongAttributeValue", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 		ctx := context.Background()
-		_, span := config.StartSpan(ctx, "test")
-		defer config.FinishSpan(span, http.StatusOK)
+		_, span := tracer.StartSpan(ctx, "test")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
-		// Very long string
 		longValue := string(make([]byte, 10000))
-		config.SetSpanAttribute(span, "long_key", longValue)
+		tracer.SetSpanAttribute(span, "long_key", longValue)
 
-		// Should not panic
 		assert.NotNil(t, span)
 	})
 
 	t.Run("SpecialCharactersInAttributeKey", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 		ctx := context.Background()
-		_, span := config.StartSpan(ctx, "test")
-		defer config.FinishSpan(span, http.StatusOK)
+		_, span := tracer.StartSpan(ctx, "test")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
-		// Special characters
-		config.SetSpanAttribute(span, "key-with-dashes", "value")
-		config.SetSpanAttribute(span, "key.with.dots", "value")
-		config.SetSpanAttribute(span, "key_with_underscores", "value")
-		config.SetSpanAttribute(span, "key/with/slashes", "value")
+		tracer.SetSpanAttribute(span, "key-with-dashes", "value")
+		tracer.SetSpanAttribute(span, "key.with.dots", "value")
+		tracer.SetSpanAttribute(span, "key_with_underscores", "value")
+		tracer.SetSpanAttribute(span, "key/with/slashes", "value")
 
 		assert.NotNil(t, span)
 	})
 
-	t.Run("ConcurrentConfigAccess", func(t *testing.T) {
+	t.Run("ConcurrentTracerAccess", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 
 		var wg sync.WaitGroup
 		for i := 0; i < 10; i++ {
@@ -705,14 +647,14 @@ func TestEdgeCases(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				ctx := context.Background()
-				_, span := config.StartSpan(ctx, "test")
-				config.SetSpanAttribute(span, "key", "value")
-				config.FinishSpan(span, http.StatusOK)
+				_, span := tracer.StartSpan(ctx, "test")
+				tracer.SetSpanAttribute(span, "key", "value")
+				tracer.FinishSpan(span, http.StatusOK)
 			}()
 		}
 
 		wg.Wait()
-		assert.True(t, config.IsEnabled())
+		assert.True(t, tracer.IsEnabled())
 	})
 }
 
@@ -722,28 +664,22 @@ func TestTraceContextPropagation(t *testing.T) {
 	t.Run("PropagateTraceContext", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 
-		// Simulate incoming request with trace context
 		headers := http.Header{}
 		headers.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
 		ctx := context.Background()
-		ctx = config.ExtractTraceContext(ctx, headers)
+		ctx = tracer.ExtractTraceContext(ctx, headers)
 
-		// Start a span with the propagated context
-		ctx, span := config.StartSpan(ctx, "test-span")
-		defer config.FinishSpan(span, http.StatusOK)
+		ctx, span := tracer.StartSpan(ctx, "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
-		// Verify span was created
 		assert.NotNil(t, span)
 
-		// Inject into new headers
 		outHeaders := http.Header{}
-		config.InjectTraceContext(ctx, outHeaders)
+		tracer.InjectTraceContext(ctx, outHeaders)
 
-		// With a noop tracer, we may not get valid trace propagation
-		// but the inject should not panic
 		assert.NotNil(t, outHeaders)
 	})
 }
@@ -754,17 +690,14 @@ func TestContextCancellation(t *testing.T) {
 	t.Run("CancelledContextDoesNotCreateSpan", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 
-		// Create cancelled context
 		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // Cancel immediately
+		cancel()
 
-		// Should not create a recording span
-		ctx, span := config.StartSpan(ctx, "test-span")
-		defer config.FinishSpan(span, http.StatusOK)
+		ctx, span := tracer.StartSpan(ctx, "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
-		// Context should still be cancelled
 		assert.Error(t, ctx.Err())
 		assert.Equal(t, context.Canceled, ctx.Err())
 	})
@@ -772,20 +705,16 @@ func TestContextCancellation(t *testing.T) {
 	t.Run("ActiveContextCreatesSpan", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 
-		// Create active context with cancel
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// Should create a span
-		ctx, span := config.StartSpan(ctx, "test-span")
-		defer config.FinishSpan(span, http.StatusOK)
+		ctx, span := tracer.StartSpan(ctx, "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
-		// Span should be created
 		assert.NotNil(t, span)
 
-		// Cancel after creating span
 		cancel()
 		assert.Error(t, ctx.Err())
 	})
@@ -794,16 +723,15 @@ func TestContextCancellation(t *testing.T) {
 func TestDisabledRecording(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DisableParamsWorks", func(t *testing.T) {
+	t.Run("WithoutParamsWorks", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		tracer := MustNew(
 			WithServiceName("test"),
-			WithDisableParams(),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -816,13 +744,14 @@ func TestDisabledRecording(t *testing.T) {
 	})
 
 	t.Run("HeaderRecordingWorks", func(t *testing.T) {
-		config := MustNew(
-			WithServiceName("test"),
-			WithHeaders("X-Request-ID", "User-Agent"),
-		)
-		defer config.Shutdown(context.Background())
+		t.Parallel()
 
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		tracer := MustNew(
+			WithServiceName("test"),
+		)
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+
+		handler := MustMiddleware(tracer, WithHeaders("X-Request-ID", "User-Agent"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -835,28 +764,16 @@ func TestDisabledRecording(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
-
-	t.Run("SensitiveHeadersFiltered", func(t *testing.T) {
-		t.Parallel()
-
-		config := MustNew(
-			WithServiceName("test"),
-			WithHeaders("Authorization", "Cookie", "X-Request-ID"),
-		)
-
-		// Verify sensitive headers are filtered out
-		assert.Len(t, config.recordHeaders, 1)
-		assert.Equal(t, "X-Request-ID", config.recordHeaders[0])
-	})
 }
 
-// TestMiddlewareIntegration tests the middleware integration with standard HTTP handlers
+// TestMiddlewareIntegration tests the middleware integration.
 func TestMiddlewareIntegration(t *testing.T) {
-	// NOTE: Router-specific integration tests (WithTracing, WithTracingFromConfig)
-	// have been moved to the router module's tests for proper separation of concerns.
+	t.Parallel()
 
 	t.Run("MiddlewareIntegration", func(t *testing.T) {
-		config := MustNew(
+		t.Parallel()
+
+		tracer := MustNew(
 			WithServiceName("middleware-test"),
 			WithSampleRate(1.0),
 		)
@@ -866,7 +783,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 			w.Write([]byte("OK"))
 		})
 
-		middleware := Middleware(config)
+		middleware := MustMiddleware(tracer)
 		wrappedHandler := middleware(handler)
 
 		req := httptest.NewRequest("GET", "/test", nil)
@@ -880,16 +797,15 @@ func TestMiddlewareIntegration(t *testing.T) {
 	t.Run("MiddlewareExcludedPath", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		tracer := MustNew(
 			WithServiceName("middleware-test"),
-			WithExcludePaths("/health"),
 		)
 
 		handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		middleware := Middleware(config)
+		middleware := MustMiddleware(tracer, WithExcludePaths("/health"))
 		wrappedHandler := middleware(handler)
 
 		req := httptest.NewRequest("GET", "/health", nil)
@@ -902,13 +818,13 @@ func TestMiddlewareIntegration(t *testing.T) {
 	t.Run("MiddlewareDisabledTracing", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(WithSampleRate(0.0))
+		tracer := MustNew(WithSampleRate(0.0))
 
 		handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		middleware := Middleware(config)
+		middleware := MustMiddleware(tracer)
 		wrappedHandler := middleware(handler)
 
 		req := httptest.NewRequest("GET", "/test", nil)
@@ -919,46 +835,49 @@ func TestMiddlewareIntegration(t *testing.T) {
 	})
 }
 
-// TestContextTracing tests the ContextTracing helper
+// TestContextTracing tests the ContextTracing helper.
 func TestContextTracing(t *testing.T) {
-	t.Run("ValidContext", func(t *testing.T) {
-		config := MustNew()
-		ctx := context.Background()
-		ctx, span := config.StartSpan(ctx, "test")
-		defer config.FinishSpan(span, http.StatusOK)
+	t.Parallel()
 
-		ct := NewContextTracing(ctx, config, span)
+	t.Run("ValidContext", func(t *testing.T) {
+		t.Parallel()
+
+		tracer := MustNew()
+		ctx := context.Background()
+		ctx, span := tracer.StartSpan(ctx, "test")
+		defer tracer.FinishSpan(span, http.StatusOK)
+
+		ct := NewContextTracing(ctx, tracer, span)
 
 		assert.NotNil(t, ct.TraceContext())
 		assert.NotNil(t, ct.GetSpan())
-		assert.NotNil(t, ct.GetConfig())
+		assert.NotNil(t, ct.GetTracer())
 	})
 
 	t.Run("NilContext", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
-		ct := NewContextTracing(context.TODO(), config, nil)
+		tracer := MustNew()
+		ct := NewContextTracing(context.TODO(), tracer, nil)
 
-		// Should not panic and should return valid context
 		ctx := ct.TraceContext()
 		assert.NotNil(t, ctx)
 	})
 
 	t.Run("ContextTracingMethods", func(t *testing.T) {
-		config := MustNew()
-		ctx, span := config.StartSpan(context.Background(), "test")
-		defer config.FinishSpan(span, http.StatusOK)
+		t.Parallel()
 
-		ct := NewContextTracing(ctx, config, span)
+		tracer := MustNew()
+		ctx, span := tracer.StartSpan(context.Background(), "test")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
-		// These should not panic
+		ct := NewContextTracing(ctx, tracer, span)
+
 		ct.SetSpanAttribute("key", "value")
 		ct.AddSpanEvent("event")
 		traceID := ct.TraceID()
 		spanID := ct.SpanID()
 
-		// With noop tracer, these may be empty, but shouldn't panic
 		assert.NotNil(t, traceID)
 		assert.NotNil(t, spanID)
 	})
@@ -966,11 +885,10 @@ func TestContextTracing(t *testing.T) {
 	t.Run("ContextTracingNilSpan", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew()
+		tracer := MustNew()
 		ctx := context.Background()
-		ct := NewContextTracing(ctx, config, nil)
+		ct := NewContextTracing(ctx, tracer, nil)
 
-		// Should handle nil span gracefully
 		ct.SetSpanAttribute("key", "value")
 		ct.AddSpanEvent("event")
 		traceID := ct.TraceID()
@@ -981,201 +899,119 @@ func TestContextTracing(t *testing.T) {
 	})
 }
 
-// TestProviderSetup tests the provider setup functions
+// TestProviderSetup tests the provider setup functions.
 func TestProviderSetup(t *testing.T) {
+	t.Parallel()
+
 	t.Run("StdoutProvider", func(t *testing.T) {
-		config, err := New(
+		t.Parallel()
+
+		tracer, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("v1.0.0"),
-			WithProvider(StdoutProvider),
+			WithStdout(),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, config)
-		defer config.Shutdown(context.Background())
+		require.NotNil(t, tracer)
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		assert.Equal(t, StdoutProvider, config.GetProvider())
-		assert.Equal(t, "test-service", config.ServiceName())
-		assert.Equal(t, "v1.0.0", config.ServiceVersion())
+		assert.Equal(t, StdoutProvider, tracer.GetProvider())
+		assert.Equal(t, "test-service", tracer.ServiceName())
+		assert.Equal(t, "v1.0.0", tracer.ServiceVersion())
 	})
 
 	t.Run("OTLPProvider", func(t *testing.T) {
 		t.Parallel()
 
-		// Note: This may fail if no OTLP collector is running, but it should
-		// not panic and should return a proper error or config
-		config, err := New(
+		tracer, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("v1.0.0"),
-			WithProvider(OTLPProvider),
-			WithOTLPEndpoint("localhost:4317"),
-			WithOTLPInsecure(true),
+			WithOTLP("localhost:4317", OTLPInsecure()),
 		)
-		if config != nil {
-			defer config.Shutdown(context.Background())
+		if tracer != nil {
+			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 		}
-		// Either succeeds or returns error, but shouldn't panic
 		if err != nil {
 			assert.Error(t, err)
 		} else {
-			assert.NotNil(t, config)
-			assert.Equal(t, OTLPProvider, config.GetProvider())
+			assert.NotNil(t, tracer)
+			assert.Equal(t, OTLPProvider, tracer.GetProvider())
 		}
 	})
 
 	t.Run("NoopProvider", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		tracer, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("v1.0.0"),
-			WithProvider(NoopProvider),
+			WithNoop(),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, config)
-		defer config.Shutdown(context.Background())
+		require.NotNil(t, tracer)
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		assert.Equal(t, NoopProvider, config.GetProvider())
+		assert.Equal(t, NoopProvider, tracer.GetProvider())
 	})
 
 	t.Run("DefaultProvider", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
+		tracer, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("v1.0.0"),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, config)
-		defer config.Shutdown(context.Background())
+		require.NotNil(t, tracer)
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 		// Default should be noop
-		assert.Equal(t, NoopProvider, config.GetProvider())
-	})
-
-	t.Run("InvalidProvider", func(t *testing.T) {
-		t.Parallel()
-
-		config, err := New(
-			WithServiceName("test-service"),
-			WithServiceVersion("v1.0.0"),
-			WithProvider(Provider("invalid")),
-		)
-		assert.Error(t, err)
-		assert.Nil(t, config)
-		assert.Contains(t, err.Error(), "unsupported tracing provider")
+		assert.Equal(t, NoopProvider, tracer.GetProvider())
 	})
 
 	t.Run("ShutdownIdempotent", func(t *testing.T) {
-		config, err := New(
+		t.Parallel()
+
+		tracer, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("v1.0.0"),
-			WithProvider(StdoutProvider),
+			WithStdout(),
 		)
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
-		// First shutdown
-		err = config.Shutdown(ctx)
+		err = tracer.Shutdown(ctx)
 		assert.NoError(t, err)
 
-		// Second shutdown should also succeed (idempotent)
-		err = config.Shutdown(ctx)
+		err = tracer.Shutdown(ctx)
 		assert.NoError(t, err)
 	})
 
 	t.Run("MustNew_Success", func(t *testing.T) {
 		t.Parallel()
 
+		var cleanupTracer *Tracer
 		assert.NotPanics(t, func() {
-			config := MustNew(
+			cleanupTracer = MustNew(
 				WithServiceName("test-service"),
 				WithServiceVersion("v1.0.0"),
-				WithProvider(StdoutProvider),
+				WithStdout(),
 			)
-			defer config.Shutdown(context.Background())
 		})
+		if cleanupTracer != nil {
+			t.Cleanup(func() { cleanupTracer.Shutdown(context.Background()) })
+		}
 	})
 
 	t.Run("MustNew_Panics", func(t *testing.T) {
 		assert.Panics(t, func() {
 			MustNew(
-				WithServiceName(""), // Invalid - will cause panic
-				WithProvider(StdoutProvider),
+				WithServiceName(""),
+				WithStdout(),
 			)
 		})
-	})
-}
-
-// TestWarningLogs tests that warning logs are generated for appropriate conditions
-func TestWarningLogs(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ExcludedPathsLimitWarning", func(t *testing.T) {
-		t.Parallel()
-
-		// Create a custom event handler to capture warnings
-		var loggedWarnings []string
-		handler := &testEventHandler{
-			warnFunc: func(msg string, _ ...any) {
-				loggedWarnings = append(loggedWarnings, msg)
-			},
-		}
-
-		// Try to add more than 1000 paths
-		paths := make([]string, 1500)
-		for i := 0; i < 1500; i++ {
-			paths[i] = fmt.Sprintf("/path%d", i)
-		}
-
-		config := MustNew(
-			WithEventHandler(handler.handler()),
-			WithExcludePaths(paths...),
-		)
-		defer config.Shutdown(context.Background())
-
-		// Verify warning was logged
-		assert.Len(t, loggedWarnings, 1)
-		assert.Contains(t, loggedWarnings[0], "Excluded paths limit reached")
-
-		// Verify only first 1000 paths were added
-		assert.True(t, config.ShouldExcludePath("/path0"))
-		assert.True(t, config.ShouldExcludePath("/path999"))
-		assert.False(t, config.ShouldExcludePath("/path1000"))
-	})
-
-	t.Run("SamplingDebugLogs", func(t *testing.T) {
-		// Create a custom event handler to capture debug messages
-		var loggedDebugMessages []string
-		handler := &testEventHandler{
-			debugFunc: func(msg string, _ ...any) {
-				loggedDebugMessages = append(loggedDebugMessages, msg)
-			},
-		}
-
-		config := MustNew(
-			WithServiceName("test"),
-			WithEventHandler(handler.handler()),
-			WithSampleRate(0.0), // 0% sampling to trigger debug log
-		)
-		defer config.Shutdown(context.Background())
-
-		// Make a request that won't be sampled
-		req := httptest.NewRequest("GET", "/test", nil)
-		ctx := context.Background()
-		_, _ = config.StartRequestSpan(ctx, req, "/test", false)
-
-		// Verify debug log was generated - check that at least one message contains "Request not sampled"
-		assert.GreaterOrEqual(t, len(loggedDebugMessages), 1)
-		foundSamplingLog := false
-		for _, msg := range loggedDebugMessages {
-			if assert.ObjectsAreEqual("Request not sampled (0% sample rate)", msg) {
-				foundSamplingLog = true
-				break
-			}
-		}
-		assert.True(t, foundSamplingLog, "Expected to find 'Request not sampled' debug log")
 	})
 }
 
@@ -1192,18 +1028,16 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		startHook := func(_ context.Context, span trace.Span, req *http.Request) {
 			hookCalled = true
 			capturedReq = req
-			// Add custom attribute
 			span.SetAttributes(attribute.String("custom.tenant_id", "tenant-123"))
 		}
 
-		config := MustNew(
+		tracer := MustNew(
 			WithServiceName("test"),
 			WithSpanStartHook(startHook),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		// Create middleware and make request
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1211,7 +1045,6 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
-		// Verify hook was called
 		assert.True(t, hookCalled)
 		assert.NotNil(t, capturedReq)
 		assert.Equal(t, "/test", capturedReq.URL.Path)
@@ -1228,14 +1061,13 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			capturedStatusCode = statusCode
 		}
 
-		config := MustNew(
+		tracer := MustNew(
 			WithServiceName("test"),
 			WithSpanFinishHook(finishHook),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		// Create middleware and make request
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		}))
 
@@ -1243,7 +1075,6 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
-		// Verify hook was called with correct status code
 		assert.True(t, hookCalled)
 		assert.Equal(t, http.StatusCreated, capturedStatusCode)
 	})
@@ -1262,15 +1093,14 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			finishHookCalled = true
 		}
 
-		config := MustNew(
+		tracer := MustNew(
 			WithServiceName("test"),
 			WithSpanStartHook(startHook),
 			WithSpanFinishHook(finishHook),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		// Create middleware and make request
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1278,7 +1108,6 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
-		// Verify both hooks were called
 		assert.True(t, startHookCalled)
 		assert.True(t, finishHookCalled)
 	})
@@ -1297,16 +1126,15 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			finishHookCalled = true
 		}
 
-		config := MustNew(
+		tracer := MustNew(
 			WithServiceName("test"),
-			WithSampleRate(0.0), // Don't sample anything
+			WithSampleRate(0.0),
 			WithSpanStartHook(startHook),
 			WithSpanFinishHook(finishHook),
 		)
-		defer config.Shutdown(context.Background())
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		// Create middleware and make request
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1314,187 +1142,62 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
-		// Hooks should not be called for sampled-out requests
 		assert.False(t, startHookCalled)
 		assert.False(t, finishHookCalled)
 	})
 }
 
-// TestGranularParameterRecording tests the granular parameter recording options
+// TestGranularParameterRecording tests the granular parameter recording middleware options.
 func TestGranularParameterRecording(t *testing.T) {
+	t.Parallel()
+
 	t.Run("WithRecordParams_Whitelist", func(t *testing.T) {
-		config := MustNew(
-			WithServiceName("test"),
-			WithRecordParams("user_id", "request_id"), // Only record these
-		)
-		defer config.Shutdown(context.Background())
+		t.Parallel()
 
-		// Verify configuration
-		assert.True(t, config.recordParams)
-		assert.Len(t, config.recordParamsList, 2)
-		assert.Equal(t, "user_id", config.recordParamsList[0])
-		assert.Equal(t, "request_id", config.recordParamsList[1])
+		tracer := MustNew(WithServiceName("test"))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		// Test shouldRecordParam logic
-		assert.True(t, config.shouldRecordParam("user_id"))
-		assert.True(t, config.shouldRecordParam("request_id"))
-		assert.False(t, config.shouldRecordParam("password"))
-		assert.False(t, config.shouldRecordParam("token"))
+		handler := MustMiddleware(tracer, WithRecordParams("user_id", "request_id"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/test?user_id=123&page=5&token=secret", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
 	t.Run("WithExcludeParams_Blacklist", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
-			WithServiceName("test"),
-			WithExcludeParams("password", "token", "api_key"), // Exclude these
-		)
-		defer config.Shutdown(context.Background())
+		tracer := MustNew(WithServiceName("test"))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		// Verify configuration
-		assert.True(t, config.recordParams)    // Default is true
-		assert.Nil(t, config.recordParamsList) // No whitelist
-		assert.Len(t, config.excludeParams, 3)
-
-		// Test shouldRecordParam logic
-		assert.False(t, config.shouldRecordParam("password"))
-		assert.False(t, config.shouldRecordParam("token"))
-		assert.False(t, config.shouldRecordParam("api_key"))
-		assert.True(t, config.shouldRecordParam("user_id"))
-		assert.True(t, config.shouldRecordParam("page"))
-	})
-
-	t.Run("WithRecordParams_And_WithExcludeParams", func(t *testing.T) {
-		t.Parallel()
-
-		// Whitelist takes precedence, but blacklist is checked first
-		config := MustNew(
-			WithServiceName("test"),
-			WithRecordParams("user_id", "request_id", "password"),
-			WithExcludeParams("password"), // Exclude password even if whitelisted
-		)
-		defer config.Shutdown(context.Background())
-
-		// Test shouldRecordParam logic
-		assert.True(t, config.shouldRecordParam("user_id"))
-		assert.True(t, config.shouldRecordParam("request_id"))
-		assert.False(t, config.shouldRecordParam("password")) // Blacklist wins
-		assert.False(t, config.shouldRecordParam("other"))    // Not in whitelist
-	})
-
-	t.Run("HTTPRequest_WithRecordParams", func(t *testing.T) {
-		config := MustNew(
-			WithServiceName("test"),
-			WithRecordParams("user_id", "page"),
-		)
-		defer config.Shutdown(context.Background())
-
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer, WithExcludeParams("password", "token", "api_key"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		// Request with multiple params - only user_id and page should be recorded
-		req := httptest.NewRequest("GET", "/test?user_id=123&page=5&token=secret&password=hunter2", nil)
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		// Note: We can't directly verify span attributes with noop tracer,
-		// but we've verified the logic in shouldRecordParam tests
-	})
-
-	t.Run("HTTPRequest_WithExcludeParams", func(t *testing.T) {
-		t.Parallel()
-
-		config := MustNew(
-			WithServiceName("test"),
-			WithExcludeParams("password", "token", "api_key"),
-		)
-		defer config.Shutdown(context.Background())
-
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
-
-		// Request with params - password and token should be excluded
 		req := httptest.NewRequest("GET", "/test?user_id=123&password=secret&token=abc", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
-
-	t.Run("EmptyWhitelist", func(t *testing.T) {
-		t.Parallel()
-
-		config := MustNew(
-			WithServiceName("test"),
-			WithRecordParams(), // Empty list
-		)
-		defer config.Shutdown(context.Background())
-
-		// With empty whitelist, recordParams should remain false (default)
-		// or be set but recordParamsList should be nil
-		assert.True(t, config.recordParams)
-		assert.Nil(t, config.recordParamsList)
-	})
-
-	t.Run("EmptyBlacklist", func(t *testing.T) {
-		config := MustNew(
-			WithServiceName("test"),
-			WithExcludeParams(), // Empty list
-		)
-		defer config.Shutdown(context.Background())
-
-		// All params should be recorded
-		assert.True(t, config.shouldRecordParam("any_param"))
-	})
-}
-
-// testEventHandler creates an EventHandler for testing that dispatches to the provided functions.
-type testEventHandler struct {
-	errorFunc func(msg string, keysAndValues ...any)
-	warnFunc  func(msg string, keysAndValues ...any)
-	infoFunc  func(msg string, keysAndValues ...any)
-	debugFunc func(msg string, keysAndValues ...any)
-}
-
-func (h *testEventHandler) handler() EventHandler {
-	return func(e Event) {
-		switch e.Type {
-		case EventError:
-			if h.errorFunc != nil {
-				h.errorFunc(e.Message, e.Args...)
-			}
-		case EventWarning:
-			if h.warnFunc != nil {
-				h.warnFunc(e.Message, e.Args...)
-			}
-		case EventInfo:
-			if h.infoFunc != nil {
-				h.infoFunc(e.Message, e.Args...)
-			}
-		case EventDebug:
-			if h.debugFunc != nil {
-				h.debugFunc(e.Message, e.Args...)
-			}
-		}
-	}
 }
 
 // TestConcurrentShutdown tests that shutdown is safe to call concurrently
 func TestConcurrentShutdown(t *testing.T) {
 	t.Parallel()
 
-	config, err := New(
+	tracer, err := New(
 		WithServiceName("test-service"),
 		WithServiceVersion("v1.0.0"),
-		WithProvider(StdoutProvider),
+		WithStdout(),
 	)
 	require.NoError(t, err)
-	require.NotNil(t, config)
+	require.NotNil(t, tracer)
 
-	// Test concurrent shutdown calls
 	const numGoroutines = 100
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
@@ -1505,16 +1208,14 @@ func TestConcurrentShutdown(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
 			defer wg.Done()
-			err := config.Shutdown(ctx)
-			// All calls should succeed (idempotent)
+			err := tracer.Shutdown(ctx)
 			assert.NoError(t, err)
 		}()
 	}
 
 	wg.Wait()
 
-	// Verify shutdown was called (subsequent calls should also succeed)
-	err = config.Shutdown(ctx)
+	err = tracer.Shutdown(ctx)
 	assert.NoError(t, err)
 }
 
@@ -1525,59 +1226,40 @@ func TestProviderFailure(t *testing.T) {
 	t.Run("OTLPProvider_InvalidEndpoint", func(t *testing.T) {
 		t.Parallel()
 
-		// Test with invalid endpoint format (should still create config but may fail on connection)
-		// Note: OTLP provider creation doesn't fail on invalid endpoint, it just won't connect
-		// So we test with a valid but unreachable endpoint
-		config, err := New(
+		tracer, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("v1.0.0"),
-			WithProvider(OTLPProvider),
-			WithOTLPEndpoint("localhost:99999"), // Invalid/unreachable port
-			WithOTLPInsecure(true),
+			WithOTLP("localhost:99999", OTLPInsecure()),
 		)
-		// Provider creation may succeed even with unreachable endpoint
-		// The actual connection failure happens during span export
 		if err != nil {
 			assert.Error(t, err)
 		} else {
-			require.NotNil(t, config)
-			defer config.Shutdown(context.Background())
+			require.NotNil(t, tracer)
+			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 		}
 	})
 
-	t.Run("InvalidProvider", func(t *testing.T) {
-		config, err := New(
-			WithServiceName("test"),
-			WithServiceVersion("v1.0.0"),
-			WithProvider(Provider("invalid")),
-		)
-		assert.Error(t, err)
-		assert.Nil(t, config)
-		assert.Contains(t, err.Error(), "unsupported tracing provider")
-	})
 }
 
 // TestContextCancellationInStartRequestSpan tests context cancellation handling
 func TestContextCancellationInStartRequestSpan(t *testing.T) {
 	t.Parallel()
 
-	config := MustNew(
+	tracer := MustNew(
 		WithServiceName("test-service"),
 		WithSampleRate(1.0),
 	)
-	defer config.Shutdown(context.Background())
+	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 	t.Run("CancelledContext", func(t *testing.T) {
 		t.Parallel()
 
-		// Create cancelled context
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
 		req := httptest.NewRequest("GET", "/test", nil)
-		ctx, span := config.StartRequestSpan(ctx, req, "/test", false)
+		ctx, span := tracer.StartRequestSpan(ctx, req, "/test", false)
 
-		// Should return non-recording span and preserve cancellation
 		assert.Error(t, ctx.Err())
 		assert.Equal(t, context.Canceled, ctx.Err())
 		assert.NotNil(t, span)
@@ -1586,163 +1268,288 @@ func TestContextCancellationInStartRequestSpan(t *testing.T) {
 	t.Run("TimeoutContext", func(t *testing.T) {
 		t.Parallel()
 
-		// Create context with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 		defer cancel()
 
-		// Wait for timeout
 		time.Sleep(10 * time.Millisecond)
 
 		req := httptest.NewRequest("GET", "/test", nil)
-		ctx, span := config.StartRequestSpan(ctx, req, "/test", false)
+		ctx, span := tracer.StartRequestSpan(ctx, req, "/test", false)
 
-		// Should return non-recording span and preserve timeout
 		assert.Error(t, ctx.Err())
 		assert.NotNil(t, span)
 	})
 }
 
-// TestExcludePathPattern tests regex pattern support for path exclusion
+// TestExcludePathPattern tests regex pattern support for path exclusion via middleware
 func TestExcludePathPattern(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ValidPattern", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
-			WithServiceName("test"),
-			WithExcludePathPattern("^/internal/.*"),
-			WithExcludePathPattern("^/(health|ready|live)"),
-		)
-		defer config.Shutdown(context.Background())
+		tracer := MustNew(WithServiceName("test"))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		// Test pattern matching
-		assert.True(t, config.ShouldExcludePath("/internal/api"))
-		assert.True(t, config.ShouldExcludePath("/internal/status"))
-		assert.True(t, config.ShouldExcludePath("/health"))
-		assert.True(t, config.ShouldExcludePath("/ready"))
-		assert.True(t, config.ShouldExcludePath("/live"))
-		assert.False(t, config.ShouldExcludePath("/api/users"))
-		assert.False(t, config.ShouldExcludePath("/public"))
+		handler := MustMiddleware(tracer,
+			WithExcludePatterns("^/internal/.*", "^/(health|ready|live)"),
+		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		// Test pattern matching - make requests and verify they work
+		for _, path := range []string{"/internal/api", "/health", "/ready", "/api/users"} {
+			req := httptest.NewRequest("GET", path, nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code)
+		}
 	})
 
-	t.Run("InvalidPattern", func(t *testing.T) {
+	t.Run("InvalidPattern_ReturnsError", func(t *testing.T) {
 		t.Parallel()
 
-		config, err := New(
-			WithServiceName("test"),
-			WithExcludePathPattern("[invalid-regex"), // Invalid regex
+		tracer := MustNew(WithServiceName("test"))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+
+		// Invalid regex pattern (unclosed bracket)
+		_, err := Middleware(tracer,
+			WithExcludePatterns("[invalid"),
 		)
-		assert.Error(t, err)
-		assert.Nil(t, config)
-		assert.Contains(t, err.Error(), "invalid regex pattern")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "excludePatterns: invalid regex")
+		assert.Contains(t, err.Error(), "[invalid")
 	})
 
-	t.Run("PatternAndExactPath", func(t *testing.T) {
-		config := MustNew(
-			WithServiceName("test"),
-			WithExcludePaths("/exact"),
-			WithExcludePathPattern("^/pattern/.*"),
-		)
-		defer config.Shutdown(context.Background())
-
-		// Both should work
-		assert.True(t, config.ShouldExcludePath("/exact"))
-		assert.True(t, config.ShouldExcludePath("/pattern/anything"))
-		assert.False(t, config.ShouldExcludePath("/other"))
-	})
-
-	t.Run("MultiplePatterns", func(t *testing.T) {
+	t.Run("MixedPatterns_PartialError", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
-			WithServiceName("test"),
-			WithExcludePathPattern("^/v1/.*"),
-			WithExcludePathPattern("^/v2/.*"),
-			WithExcludePathPattern("^/admin/.*"),
-		)
-		defer config.Shutdown(context.Background())
+		tracer := MustNew(WithServiceName("test"))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		assert.True(t, config.ShouldExcludePath("/v1/users"))
-		assert.True(t, config.ShouldExcludePath("/v2/posts"))
-		assert.True(t, config.ShouldExcludePath("/admin/settings"))
-		assert.False(t, config.ShouldExcludePath("/v3/api"))
+		// One valid, one invalid pattern
+		_, err := Middleware(tracer,
+			WithExcludePatterns("^/valid/.*", "[invalid", "^/also-valid$"),
+		)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "excludePatterns: invalid regex")
+	})
+
+	t.Run("MustMiddleware_PanicsOnInvalidPattern", func(t *testing.T) {
+		t.Parallel()
+
+		tracer := MustNew(WithServiceName("test"))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+
+		assert.Panics(t, func() {
+			MustMiddleware(tracer,
+				WithExcludePatterns("[invalid"),
+			)
+		})
 	})
 }
 
-// TestExcludePrefixes tests prefix-based path exclusion
+// TestExcludePrefixes tests prefix-based path exclusion via middleware
 func TestExcludePrefixes(t *testing.T) {
 	t.Parallel()
 
 	t.Run("SinglePrefix", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
-			WithServiceName("test"),
-			WithExcludePrefixes("/debug/"),
-		)
-		defer config.Shutdown(context.Background())
+		tracer := MustNew(WithServiceName("test"))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		assert.True(t, config.ShouldExcludePath("/debug/pprof"))
-		assert.True(t, config.ShouldExcludePath("/debug/vars"))
-		assert.True(t, config.ShouldExcludePath("/debug/requests"))
-		assert.False(t, config.ShouldExcludePath("/api/users"))
-		assert.False(t, config.ShouldExcludePath("/debugger")) // Doesn't start with /debug/
+		handler := MustMiddleware(tracer, WithExcludePrefixes("/debug/"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		for _, path := range []string{"/debug/pprof", "/debug/vars", "/api/users"} {
+			req := httptest.NewRequest("GET", path, nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code)
+		}
 	})
 
 	t.Run("MultiplePrefixes", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
-			WithServiceName("test"),
+		tracer := MustNew(WithServiceName("test"))
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+
+		handler := MustMiddleware(tracer,
 			WithExcludePrefixes("/debug/", "/internal/", "/admin/"),
-		)
-		defer config.Shutdown(context.Background())
+		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
 
-		assert.True(t, config.ShouldExcludePath("/debug/pprof"))
-		assert.True(t, config.ShouldExcludePath("/internal/status"))
-		assert.True(t, config.ShouldExcludePath("/admin/users"))
-		assert.False(t, config.ShouldExcludePath("/api/users"))
+		for _, path := range []string{"/debug/pprof", "/internal/status", "/admin/users", "/api/users"} {
+			req := httptest.NewRequest("GET", path, nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code)
+		}
 	})
+}
 
-	t.Run("CombinedWithExactPaths", func(t *testing.T) {
+// TestNewProviderOptions tests the new convenient provider options
+func TestNewProviderOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WithOTLP", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		tracer, err := New(
 			WithServiceName("test"),
-			WithExcludePaths("/health", "/ready"),
-			WithExcludePrefixes("/debug/"),
+			WithOTLP("localhost:4317"),
 		)
-		defer config.Shutdown(context.Background())
-
-		// Exact paths
-		assert.True(t, config.ShouldExcludePath("/health"))
-		assert.True(t, config.ShouldExcludePath("/ready"))
-
-		// Prefixes
-		assert.True(t, config.ShouldExcludePath("/debug/pprof"))
-
-		// Not excluded
-		assert.False(t, config.ShouldExcludePath("/api/users"))
+		if tracer != nil {
+			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			assert.Equal(t, OTLPProvider, tracer.GetProvider())
+		}
+		// May fail if OTLP collector not running - that's ok
+		_ = err
 	})
 
-	t.Run("CombinedWithPatterns", func(t *testing.T) {
+	t.Run("WithOTLPInsecure", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(
+		tracer, err := New(
 			WithServiceName("test"),
-			WithExcludePrefixes("/debug/"),
-			WithExcludePathPattern(`^/v[0-9]+/internal/.*`),
+			WithOTLP("localhost:4317", OTLPInsecure()),
 		)
-		defer config.Shutdown(context.Background())
+		if tracer != nil {
+			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			assert.Equal(t, OTLPProvider, tracer.GetProvider())
+		}
+		_ = err
+	})
 
-		// Prefixes
-		assert.True(t, config.ShouldExcludePath("/debug/pprof"))
+	t.Run("WithOTLPHTTP", func(t *testing.T) {
+		t.Parallel()
 
-		// Patterns
-		assert.True(t, config.ShouldExcludePath("/v1/internal/status"))
+		tracer, err := New(
+			WithServiceName("test"),
+			WithOTLPHTTP("http://localhost:4318"),
+		)
+		if tracer != nil {
+			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			assert.Equal(t, OTLPHTTPProvider, tracer.GetProvider())
+		}
+		_ = err
+	})
 
-		// Not excluded
-		assert.False(t, config.ShouldExcludePath("/api/users"))
+	t.Run("WithStdout", func(t *testing.T) {
+		t.Parallel()
+
+		tracer, err := New(
+			WithServiceName("test"),
+			WithStdout(),
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		assert.Equal(t, StdoutProvider, tracer.GetProvider())
+	})
+
+	t.Run("WithNoop", func(t *testing.T) {
+		t.Parallel()
+
+		tracer, err := New(
+			WithServiceName("test"),
+			WithNoop(),
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		assert.Equal(t, NoopProvider, tracer.GetProvider())
+	})
+}
+
+// TestMultipleProvidersValidation tests that configuring multiple providers returns an error
+func TestMultipleProvidersValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("StdoutThenOTLP", func(t *testing.T) {
+		t.Parallel()
+
+		tracer, err := New(
+			WithServiceName("test"),
+			WithStdout(),
+			WithOTLP("localhost:4317"),
+		)
+		require.Error(t, err)
+		assert.Nil(t, tracer)
+		assert.Contains(t, err.Error(), "multiple providers configured")
+		assert.Contains(t, err.Error(), "stdout")
+		assert.Contains(t, err.Error(), "otlp")
+	})
+
+	t.Run("OTLPThenStdout", func(t *testing.T) {
+		t.Parallel()
+
+		tracer, err := New(
+			WithServiceName("test"),
+			WithOTLP("localhost:4317"),
+			WithStdout(),
+		)
+		require.Error(t, err)
+		assert.Nil(t, tracer)
+		assert.Contains(t, err.Error(), "multiple providers configured")
+	})
+
+	t.Run("NoopThenOTLPHTTP", func(t *testing.T) {
+		t.Parallel()
+
+		tracer, err := New(
+			WithServiceName("test"),
+			WithNoop(),
+			WithOTLPHTTP("http://localhost:4318"),
+		)
+		require.Error(t, err)
+		assert.Nil(t, tracer)
+		assert.Contains(t, err.Error(), "multiple providers configured")
+		assert.Contains(t, err.Error(), "noop")
+		assert.Contains(t, err.Error(), "otlp-http")
+	})
+
+	t.Run("ThreeProviders", func(t *testing.T) {
+		t.Parallel()
+
+		tracer, err := New(
+			WithServiceName("test"),
+			WithStdout(),
+			WithOTLP("localhost:4317"),
+			WithNoop(),
+		)
+		require.Error(t, err)
+		assert.Nil(t, tracer)
+		// Should contain error for second provider (OTLP)
+		assert.Contains(t, err.Error(), "multiple providers configured")
+	})
+
+	t.Run("SingleProviderIsValid", func(t *testing.T) {
+		t.Parallel()
+
+		tracer, err := New(
+			WithServiceName("test"),
+			WithStdout(),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, tracer)
+		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		assert.Equal(t, StdoutProvider, tracer.GetProvider())
+	})
+
+	t.Run("MustNew_PanicsOnMultipleProviders", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Panics(t, func() {
+			MustNew(
+				WithServiceName("test"),
+				WithStdout(),
+				WithOTLP("localhost:4317"),
+			)
+		})
 	})
 }

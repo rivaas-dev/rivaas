@@ -24,11 +24,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// BenchmarkTracingOverhead measures the overhead of tracing operations
+// BenchmarkTracingOverhead measures the overhead of tracing operations.
 func BenchmarkTracingOverhead(b *testing.B) {
 	b.Run("NoTracing", func(b *testing.B) {
-		config := MustNew(WithSampleRate(0.0))
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		tracer := MustNew(WithSampleRate(0.0))
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -37,15 +37,15 @@ func BenchmarkTracingOverhead(b *testing.B) {
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 		}
 	})
 
 	b.Run("WithTracing100Percent", func(b *testing.B) {
-		config := MustNew(WithSampleRate(1.0))
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		tracer := MustNew(WithSampleRate(1.0))
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -54,15 +54,15 @@ func BenchmarkTracingOverhead(b *testing.B) {
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 		}
 	})
 
 	b.Run("WithTracing50Percent", func(b *testing.B) {
-		config := MustNew(WithSampleRate(0.5))
-		handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		tracer := MustNew(WithSampleRate(0.5))
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -71,79 +71,79 @@ func BenchmarkTracingOverhead(b *testing.B) {
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 		}
 	})
 }
 
-// BenchmarkSpanOperations measures the cost of individual span operations
+// BenchmarkSpanOperations measures the cost of individual span operations.
 func BenchmarkSpanOperations(b *testing.B) {
-	config := MustNew(WithServiceName("benchmark"))
+	tracer := MustNew(WithServiceName("benchmark"))
 	ctx := context.Background()
 
 	b.Run("StartFinishSpan", func(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			_, span := config.StartSpan(ctx, "test-span")
-			config.FinishSpan(span, http.StatusOK)
+		for b.Loop() {
+			_, span := tracer.StartSpan(ctx, "test-span")
+			tracer.FinishSpan(span, http.StatusOK)
 		}
 	})
 
 	b.Run("SetStringAttribute", func(b *testing.B) {
-		_, span := config.StartSpan(ctx, "test-span")
-		defer config.FinishSpan(span, http.StatusOK)
+		_, span := tracer.StartSpan(ctx, "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			config.SetSpanAttribute(span, "key", "value")
+		for b.Loop() {
+			tracer.SetSpanAttribute(span, "key", "value")
 		}
 	})
 
 	b.Run("SetIntAttribute", func(b *testing.B) {
-		_, span := config.StartSpan(ctx, "test-span")
-		defer config.FinishSpan(span, http.StatusOK)
+		_, span := tracer.StartSpan(ctx, "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			config.SetSpanAttribute(span, "key", 42)
+		for b.Loop() {
+			tracer.SetSpanAttribute(span, "key", 42)
 		}
 	})
 
 	b.Run("SetBoolAttribute", func(b *testing.B) {
-		_, span := config.StartSpan(ctx, "test-span")
-		defer config.FinishSpan(span, http.StatusOK)
+		_, span := tracer.StartSpan(ctx, "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			config.SetSpanAttribute(span, "key", true)
+		for b.Loop() {
+			tracer.SetSpanAttribute(span, "key", true)
 		}
 	})
 
 	b.Run("AddEvent", func(b *testing.B) {
-		_, span := config.StartSpan(ctx, "test-span")
-		defer config.FinishSpan(span, http.StatusOK)
+		_, span := tracer.StartSpan(ctx, "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			config.AddSpanEvent(span, "test-event")
+		for b.Loop() {
+			tracer.AddSpanEvent(span, "test-event")
 		}
 	})
 
 	b.Run("AddEventWithAttributes", func(b *testing.B) {
-		_, span := config.StartSpan(ctx, "test-span")
-		defer config.FinishSpan(span, http.StatusOK)
+		_, span := tracer.StartSpan(ctx, "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			config.AddSpanEvent(span, "test-event",
+		for b.Loop() {
+			tracer.AddSpanEvent(span, "test-event",
 				attribute.String("key1", "value1"),
 				attribute.Int("key2", 42),
 			)
@@ -151,9 +151,9 @@ func BenchmarkSpanOperations(b *testing.B) {
 	})
 }
 
-// BenchmarkContextPropagation measures trace context propagation overhead
+// BenchmarkContextPropagation measures trace context propagation overhead.
 func BenchmarkContextPropagation(b *testing.B) {
-	config := MustNew(WithServiceName("benchmark"))
+	tracer := MustNew(WithServiceName("benchmark"))
 	ctx := context.Background()
 	headers := http.Header{}
 
@@ -162,27 +162,28 @@ func BenchmarkContextPropagation(b *testing.B) {
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			config.ExtractTraceContext(ctx, headers)
+		for b.Loop() {
+			tracer.ExtractTraceContext(ctx, headers)
 		}
 	})
 
 	b.Run("InjectTraceContext", func(b *testing.B) {
-		newCtx, span := config.StartSpan(ctx, "test-span")
-		defer config.FinishSpan(span, http.StatusOK)
+		newCtx, span := tracer.StartSpan(ctx, "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		b.ReportAllocs()
+		for b.Loop() {
 			h := http.Header{}
-			config.InjectTraceContext(newCtx, h)
+			tracer.InjectTraceContext(newCtx, h)
 		}
 	})
 }
 
-// BenchmarkResponseWriterConcurrency measures responseWriter mutex contention
+// BenchmarkResponseWriterConcurrency measures responseWriter mutex contention.
 func BenchmarkResponseWriterConcurrency(b *testing.B) {
-	config := MustNew(WithSampleRate(1.0))
-	handler := Middleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	tracer := MustNew(WithSampleRate(1.0))
+	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -199,55 +200,119 @@ func BenchmarkResponseWriterConcurrency(b *testing.B) {
 	})
 }
 
-// BenchmarkExcludedPaths measures path exclusion overhead
+// BenchmarkExcludedPaths measures path exclusion overhead (via middleware).
 func BenchmarkExcludedPaths(b *testing.B) {
 	b.Run("NoExclusions", func(b *testing.B) {
-		config := MustNew()
+		tracer := MustNew()
+		pf := newPathFilter()
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			config.ShouldExcludePath("/api/users")
+		for b.Loop() {
+			pf.shouldExclude("/api/users")
 		}
+		_ = tracer // keep reference
 	})
 
 	b.Run("With10Exclusions", func(b *testing.B) {
-		config := MustNew(WithExcludePaths(
-			"/health", "/metrics", "/ready", "/live", "/debug",
-			"/status", "/ping", "/version", "/info", "/admin",
-		))
+		tracer := MustNew()
+		pf := newPathFilter()
+		pf.addPaths("/health", "/metrics", "/ready", "/live", "/debug",
+			"/status", "/ping", "/version", "/info", "/admin")
 
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			config.ShouldExcludePath("/api/users")
+		for b.Loop() {
+			pf.shouldExclude("/api/users")
 		}
+		_ = tracer // keep reference
 	})
 
 	b.Run("With100Exclusions", func(b *testing.B) {
+		tracer := MustNew()
+		pf := newPathFilter()
 		paths := make([]string, 100)
 		for i := 0; i < 100; i++ {
 			paths[i] = fmt.Sprintf("/excluded%d", i)
 		}
-		config := MustNew(WithExcludePaths(paths...))
+		pf.addPaths(paths...)
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			config.ShouldExcludePath("/api/users")
+		b.ReportAllocs()
+		for b.Loop() {
+			pf.shouldExclude("/api/users")
+		}
+		_ = tracer // keep reference
+	})
+}
+
+// BenchmarkMiddlewareWithExclusions measures middleware overhead with path exclusion.
+func BenchmarkMiddlewareWithExclusions(b *testing.B) {
+	b.Run("NoExclusions", func(b *testing.B) {
+		tracer := MustNew()
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/api/users", nil)
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for b.Loop() {
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+		}
+	})
+
+	b.Run("With10Exclusions_NotExcluded", func(b *testing.B) {
+		tracer := MustNew()
+		handler := MustMiddleware(tracer,
+			WithExcludePaths("/health", "/metrics", "/ready", "/live", "/debug",
+				"/status", "/ping", "/version", "/info", "/admin"),
+		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/api/users", nil)
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for b.Loop() {
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+		}
+	})
+
+	b.Run("With10Exclusions_Excluded", func(b *testing.B) {
+		tracer := MustNew()
+		handler := MustMiddleware(tracer,
+			WithExcludePaths("/health", "/metrics", "/ready", "/live", "/debug",
+				"/status", "/ping", "/version", "/info", "/admin"),
+		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/health", nil)
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for b.Loop() {
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
 		}
 	})
 }
 
-// BenchmarkSamplingDecision measures sampling decision overhead
+// BenchmarkSamplingDecision measures sampling decision overhead.
 func BenchmarkSamplingDecision(b *testing.B) {
-	config := MustNew(WithSampleRate(0.5))
+	tracer := MustNew(WithSampleRate(0.5))
 	req := httptest.NewRequest("GET", "/test", nil)
 	ctx := context.Background()
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, span := config.StartRequestSpan(ctx, req, "/test", false)
-		config.FinishRequestSpan(span, http.StatusOK)
+	for b.Loop() {
+		_, span := tracer.StartRequestSpan(ctx, req, "/test", false)
+		tracer.FinishRequestSpan(span, http.StatusOK)
 	}
 }

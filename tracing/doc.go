@@ -24,33 +24,61 @@
 //	    "rivaas.dev/tracing"
 //	)
 //
-//	config, err := tracing.New(
+//	tracer, err := tracing.New(
 //	    tracing.WithServiceName("my-service"),
 //	    tracing.WithServiceVersion("v1.0.0"),
-//	    tracing.WithProvider(tracing.StdoutProvider),
+//	    tracing.WithStdout(),
 //	)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
-//	defer config.Shutdown(context.Background())
+//	defer tracer.Shutdown(context.Background())
 //
 // # Providers
 //
-// Three providers are supported:
+// Three providers are supported with convenient options:
 //
-//   - NoopProvider (default): No traces exported (safe default)
-//   - StdoutProvider: Prints traces to stdout (for development/testing)
-//   - OTLPProvider: Sends traces to OTLP collector (for production)
+//   - WithNoop() (default): No traces exported (safe default)
+//   - WithStdout(): Prints traces to stdout (for development/testing)
+//   - WithOTLP(endpoint): Sends traces to OTLP collector via gRPC (for production)
+//   - WithOTLPHTTP(endpoint): Sends traces to OTLP collector via HTTP
+//
+// # HTTP Middleware
+//
+// Use the middleware for automatic request tracing:
+//
+//	tracer := tracing.MustNew(
+//	    tracing.WithServiceName("my-api"),
+//	    tracing.WithOTLP("localhost:4317"),
+//	)
+//	defer tracer.Shutdown(context.Background())
+//
+//	// Use MustMiddleware for convenience (panics on error)
+//	handler := tracing.MustMiddleware(tracer,
+//	    tracing.WithExcludePaths("/health", "/metrics"),
+//	    tracing.WithHeaders("X-Request-ID"),
+//	)(mux)
+//
+//	// Or use Middleware with error handling
+//	middleware, err := tracing.Middleware(tracer,
+//	    tracing.WithExcludePaths("/health", "/metrics"),
+//	)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	handler := middleware(mux)
+//
+//	http.ListenAndServe(":8080", handler)
 //
 // # Custom Spans
 //
 // Create and manage spans using the provided methods:
 //
-//	ctx, span := config.StartSpan(ctx, "database-query")
-//	defer config.FinishSpan(span, http.StatusOK)
+//	ctx, span := tracer.StartSpan(ctx, "database-query")
+//	defer tracer.FinishSpan(span, http.StatusOK)
 //
-//	config.SetSpanAttribute(span, "user.id", "123")
-//	config.AddSpanEvent(span, "cache_hit",
+//	tracer.SetSpanAttribute(span, "user.id", "123")
+//	tracer.AddSpanEvent(span, "cache_hit",
 //	    attribute.String("key", "user:123"),
 //	)
 //
@@ -58,21 +86,21 @@
 //
 // Automatically propagate trace context across service boundaries:
 //
-//	ctx = config.ExtractTraceContext(ctx, req.Header)
-//	config.InjectTraceContext(ctx, resp.Header)
+//	ctx = tracer.ExtractTraceContext(ctx, req.Header)
+//	tracer.InjectTraceContext(ctx, resp.Header)
 //
 // # Sampling
 //
 // Control which requests are traced using sampling:
 //
-//	config := tracing.New(
+//	tracer := tracing.MustNew(
 //	    tracing.WithServiceName("my-service"),
 //	    tracing.WithSampleRate(0.1), // Sample 10% of requests
 //	)
 //
 // # Thread Safety
 //
-// All methods are thread-safe. The Config struct is immutable after creation,
+// All methods are thread-safe. The Tracer struct is immutable after creation,
 // with read-only maps and slices ensuring safe concurrent access without locks.
 // Span operations use OpenTelemetry's thread-safe primitives.
 //
@@ -86,20 +114,21 @@
 // and makes it easier to integrate Rivaas into larger binaries that already
 // manage their own global tracer provider.
 //
-// # Path Filtering
+// # Path Filtering (Middleware Option)
 //
-// Exclude specific paths from tracing:
+// Exclude specific paths from tracing via middleware options:
 //
-//	config := tracing.New(
-//	    tracing.WithServiceName("my-service"),
+//	handler := tracing.Middleware(tracer,
 //	    tracing.WithExcludePaths("/health", "/metrics", "/ready"),
-//	)
+//	    tracing.WithExcludePrefixes("/debug/"),
+//	    tracing.WithExcludePatterns("^/internal/.*"),
+//	)(mux)
 //
 // # Custom Tracer Provider
 //
 // For advanced use cases, provide your own OpenTelemetry tracer provider:
 //
-//	config := tracing.New(
+//	tracer := tracing.MustNew(
 //	    tracing.WithServiceName("my-service"),
 //	    tracing.WithTracerProvider(customProvider),
 //	)
