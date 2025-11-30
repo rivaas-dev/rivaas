@@ -43,28 +43,18 @@ func main() {
 	serviceName := getEnv("SERVICE_NAME", "full-featured-api")
 	serviceVersion := getEnv("SERVICE_VERSION", "v1.0.0")
 
-	// Set up tracing provider based on environment
-	var tracingProvider tracing.Provider
-	var otlpEndpoint string
-
+	// Set up tracing options based on environment
+	var tracingOpts []tracing.Option
 	switch environment {
 	case "production":
-		tracingProvider = tracing.OTLPProvider
-		otlpEndpoint = getEnv("OTLP_ENDPOINT", "localhost:4317")
+		otlpEndpoint := getEnv("OTLP_ENDPOINT", "localhost:4317")
+		tracingOpts = append(tracingOpts, tracing.WithOTLP(otlpEndpoint))
 	default:
-		tracingProvider = tracing.StdoutProvider
+		tracingOpts = append(tracingOpts, tracing.WithStdout())
 	}
 
-	// Configure metrics provider
-	var metricsProvider metrics.Provider
+	// Configure metrics port
 	metricsPort := getEnv("METRICS_PORT", ":9090")
-
-	switch environment {
-	case "production":
-		metricsProvider = metrics.PrometheusProvider
-	default:
-		metricsProvider = metrics.PrometheusProvider
-	}
 
 	a, err := app.New(
 		app.WithServiceName(serviceName),
@@ -88,16 +78,13 @@ func main() {
 				logging.WithDebugLevel(),
 			),
 			// Metrics - service name/version auto-injected
+			// Prometheus is default; use metrics.WithOTLP() for OTLP
 			app.WithMetrics(
-				metrics.WithProvider(metricsProvider),
-				metrics.WithPort(metricsPort),
+				metrics.WithPrometheus(metricsPort, "/metrics"),
 			),
 			// Tracing - service name/version auto-injected
 			app.WithTracing(
-				tracing.WithProvider(tracingProvider),
-				tracing.WithOTLPEndpoint(otlpEndpoint),
-				tracing.WithOTLPInsecure(environment != "production"),
-				tracing.WithSampleRate(getSampleRate(environment)),
+				append(tracingOpts, tracing.WithSampleRate(getSampleRate(environment)))...,
 			),
 			// Shared exclusions (apply to all observability components)
 			app.WithExcludePaths("/healthz", "/readyz", "/metrics"),

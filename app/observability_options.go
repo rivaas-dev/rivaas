@@ -75,7 +75,7 @@ func defaultObservabilitySettings() *observabilitySettings {
 //	app.MustNew(
 //	    app.WithServiceName("orders-api"),
 //	    app.WithObservability(
-//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+//	        app.WithMetrics(), // Prometheus is default
 //	    ),
 //	)
 func WithMetrics(opts ...metrics.Option) ObservabilityOption {
@@ -95,7 +95,7 @@ func WithMetrics(opts ...metrics.Option) ObservabilityOption {
 //	app.MustNew(
 //	    app.WithServiceName("orders-api"),
 //	    app.WithObservability(
-//	        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+//	        app.WithTracing(tracing.WithOTLP("localhost:4317")),
 //	    ),
 //	)
 func WithTracing(opts ...tracing.Option) ObservabilityOption {
@@ -153,7 +153,7 @@ func WithLogging(opts ...logging.Option) ObservabilityOption {
 //	app.MustNew(
 //	    app.WithServiceName("orders-api"),
 //	    app.WithObservability(
-//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+//	        app.WithMetrics(), // Prometheus is default
 //	        app.WithMetricsOnMainRouter("/metrics"),
 //	    ),
 //	)
@@ -184,7 +184,7 @@ func WithMetricsOnMainRouter(path string) ObservabilityOption {
 //	app.MustNew(
 //	    app.WithServiceName("orders-api"),
 //	    app.WithObservability(
-//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+//	        app.WithMetrics(), // Prometheus is default
 //	        app.WithMetricsSeparateServer(":9091", "/custom-metrics"),
 //	    ),
 //	)

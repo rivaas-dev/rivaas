@@ -237,8 +237,8 @@ ENVIRONMENT=testing go run main.go
 This is exactly like switching metrics providers:
 
 ```go
-metrics.WithProvider(metrics.PrometheusProvider)  // or OTLPProvider, StdoutProvider
-tracing.WithExporter(tracing.StdoutExporter)      // or OTLPExporter, NoopExporter
+metrics.WithPrometheus(":9090", "/metrics")  // or WithOTLP(), WithStdout()
+tracing.WithStdout()                         // or WithOTLP(), WithNoop()
 ```
 
 ## Testing the Full Stack

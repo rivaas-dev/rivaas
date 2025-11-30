@@ -210,7 +210,7 @@ func TestWithObservability_Components(t *testing.T) {
 		app, err := New(
 			WithServiceName("test-service"),
 			WithObservability(
-				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+				WithTracing(tracing.WithNoop()),
 			),
 		)
 		require.NoError(t, err)
@@ -227,7 +227,7 @@ func TestWithObservability_Components(t *testing.T) {
 			WithObservability(
 				WithLogging(logging.WithJSONHandler()),
 				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
-				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+				WithTracing(tracing.WithNoop()),
 				WithExcludePaths("/custom"),
 				WithLogOnlyErrors(),
 			),

@@ -63,7 +63,7 @@ var noopLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 type App struct {
 	router      *router.Router
 	metrics     *metrics.Recorder
-	tracing     *tracing.Config
+	tracing     *tracing.Tracer
 	logging     *logging.Config // Logging configuration (can be nil, uses noopLogger fallback)
 	config      *config
 	hooks       *Hooks
@@ -324,8 +324,8 @@ func defaultConfig() *config {
 //	app, err := app.New(
 //	    app.WithServiceName("my-service"),
 //	    app.WithObservability(
-//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-//	        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+//	        app.WithMetrics(), // Prometheus is default
+//	        app.WithTracing(tracing.WithOTLP("localhost:4317")),
 //	    ),
 //	)
 //	if err != nil {
@@ -422,7 +422,7 @@ func New(opts ...Option) (*App, error) {
 
 	// Initialize observability components (metrics, tracing)
 	var metricsCfg *metrics.Recorder
-	var tracingCfg *tracing.Config
+	var tracingCfg *tracing.Tracer
 
 	if obsSettings.metrics != nil && obsSettings.metrics.enabled {
 		// Prepend service metadata to user options
@@ -554,8 +554,8 @@ func New(opts ...Option) (*App, error) {
 //	    app.WithServiceVersion("v1.0.0"),
 //	    app.WithObservability(
 //	        app.WithLogging(logging.WithJSONHandler()),
-//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-//	        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+//	        app.WithMetrics(), // Prometheus is default
+//	        app.WithTracing(tracing.WithOTLP("localhost:4317")),
 //	    ),
 //	)
 func MustNew(opts ...Option) *App {
@@ -1002,7 +1002,7 @@ func (a *App) Metrics() *metrics.Recorder {
 //	if cfg := app.Tracing(); cfg != nil {
 //	    // Access tracing configuration
 //	}
-func (a *App) Tracing() *tracing.Config {
+func (a *App) Tracing() *tracing.Tracer {
 	return a.tracing
 }
 

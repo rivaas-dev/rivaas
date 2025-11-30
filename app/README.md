@@ -97,8 +97,8 @@ func main() {
         // Observability: logging, metrics, tracing
         app.WithObservability(
             app.WithLogging(logging.WithJSONHandler()),
-            app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-            app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+            app.WithMetrics(), // Prometheus is default
+            app.WithTracing(tracing.WithOTLP("localhost:4317")),
             app.WithExcludePaths("/healthz", "/readyz", "/metrics"),
         ),
         // Health endpoints: GET /healthz (liveness), GET /readyz (readiness)
@@ -184,8 +184,7 @@ app.WithEnvironment("production") // or "development"
 // Configure individually
 // Note: Service name and version are automatically injected from app-level configuration
 app.WithMetrics(
-    metrics.WithProvider(metrics.PrometheusProvider),
-    metrics.WithPort(":9090"),
+    metrics.WithPrometheus(":9090", "/metrics"), // or WithOTLP(), WithStdout()
 )
 
 app.WithTracing(
@@ -252,8 +251,8 @@ a, err := app.New(
     app.WithServiceVersion("v1.0.0"),
     app.WithObservability(
         app.WithLogging(logging.WithConsoleHandler()),
-        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-        app.WithTracing(tracing.WithProvider(tracing.StdoutProvider)),
+        app.WithMetrics(), // Prometheus is default
+        app.WithTracing(tracing.WithStdout()),
     ),
 )
 if err != nil {
@@ -799,8 +798,8 @@ a, err := app.New(
     app.WithServiceVersion("v1.0.0"),
     app.WithObservability(
         app.WithLogging(logging.WithJSONHandler()),
-        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+        app.WithMetrics(), // Prometheus is default
+        app.WithTracing(tracing.WithOTLP("localhost:4317")),
     ),
 )
 if err != nil {
@@ -883,7 +882,7 @@ app.WithServerConfig(
 
 - Verify tracing is enabled: `app.WithTracing()`
 - Check OTLP endpoint configuration: `OTLP_ENDPOINT=jaeger:4317`
-- Ensure the tracing provider is correct: `tracing.WithProvider(tracing.OTLPProvider)`
+- Ensure the tracing provider is correct: `tracing.WithOTLP("localhost:4317")`
 - Check network connectivity to the tracing backend
 - Review logs for tracing initialization errors
 
@@ -988,7 +987,7 @@ app.WithServerConfig(
 | `Static(prefix, root string)` | Serve static files | - |
 | `Router()` | Get underlying router | `*router.Router` |
 | `Metrics()` | Get metrics recorder | `*metrics.Recorder` |
-| `Tracing()` | Get tracing configuration | `*tracing.Config` |
+| `Tracing()` | Get tracing configuration | `*tracing.Tracer` |
 | `Route(name string)` | Get route by name | `(*router.Route, bool)` |
 | `Routes()` | Get all named routes | `[]*router.Route` |
 | `PrintRoutes()` | Print all registered routes | - |

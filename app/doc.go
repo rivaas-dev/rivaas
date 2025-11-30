@@ -89,8 +89,8 @@
 //	    // Observability: all three pillars in one place
 //	    app.WithObservability(
 //	        app.WithLogging(logging.WithJSONHandler()),
-//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-//	        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+//	        app.WithMetrics(), // Prometheus is default
+//	        app.WithTracing(tracing.WithOTLP("localhost:4317")),
 //	    ),
 //	    // Health endpoints: /healthz and /readyz
 //	    app.WithHealthEndpoints(
@@ -119,7 +119,7 @@
 //	app := app.MustNew(
 //	    app.WithServiceName("my-service"),
 //	    app.WithObservability(
-//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+//	        app.WithMetrics(), // Prometheus is default
 //	    ),
 //	)
 //
@@ -135,8 +135,8 @@
 //
 //	app.New(
 //	    app.WithObservability(
-//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-//	        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+//	        app.WithMetrics(), // Prometheus is default; use metrics.WithOTLP() for OTLP
+//	        app.WithTracing(tracing.WithOTLP("localhost:4317")),
 //	        app.WithLogging(logging.WithJSONHandler()),
 //	    ),
 //	)

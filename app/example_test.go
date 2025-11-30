@@ -52,7 +52,7 @@ func Example_withObservability() {
 		app.WithServiceVersion("v1.0.0"),
 		app.WithObservability(
 			app.WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
-			app.WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			app.WithTracing(tracing.WithNoop()),
 		),
 	)
 	if err != nil {

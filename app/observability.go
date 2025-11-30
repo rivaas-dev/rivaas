@@ -35,7 +35,7 @@ import (
 // observabilityRecorder coordinates observability data collection across all three pillars.
 type observabilityRecorder struct {
 	metrics    *metrics.Recorder
-	tracing    *tracing.Config
+	tracing    *tracing.Tracer
 	logger     *slog.Logger
 	pathFilter *pathFilter
 
@@ -48,7 +48,7 @@ type observabilityRecorder struct {
 // observabilityConfig configures the unified observability recorder.
 type observabilityConfig struct {
 	Metrics           *metrics.Recorder
-	Tracing           *tracing.Config
+	Tracing           *tracing.Tracer
 	Logger            *slog.Logger
 	PathFilter        *pathFilter
 	LogAccessRequests bool

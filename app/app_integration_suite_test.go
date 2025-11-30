@@ -446,7 +446,7 @@ var _ = Describe("App Integration", func() {
 					app.WithObservability(
 						app.WithLogging(logging.WithLevel(logging.LevelInfo)),
 						app.WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
-						app.WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+						app.WithTracing(tracing.WithNoop()),
 					),
 				)
 				Expect(err).NotTo(HaveOccurred())

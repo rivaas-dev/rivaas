@@ -101,15 +101,12 @@ func (c *Context) Bind(out any) error {
 
 	// For structs, bind from non-body sources (params, query, header, cookie)
 	if !isMap {
-		sources := []binding.SourceConfig{
-			{Tag: binding.TagPath, Getter: binding.NewPathGetter(c.AllParams())},
-			{Tag: binding.TagQuery, Getter: binding.NewQueryGetter(c.Request.URL.Query())},
-			{Tag: binding.TagHeader, Getter: binding.NewHeaderGetter(c.Request.Header)},
-			{Tag: binding.TagCookie, Getter: binding.NewCookieGetter(c.Request.Cookies())},
-		}
-
-		// Bind from non-body sources
-		if err := binding.BindMulti(out, sources); err != nil {
+		if err := binding.BindTo(out,
+			binding.FromPath(c.AllParams()),
+			binding.FromQuery(c.Request.URL.Query()),
+			binding.FromHeader(c.Request.Header),
+			binding.FromCookie(c.Request.Cookies()),
+		); err != nil {
 			return err
 		}
 	}
@@ -186,7 +183,7 @@ func (c *Context) bindJSON(out any) error {
 		)
 	}
 
-	return binding.BindJSONBytes(out, c.bindingMeta.rawBody)
+	return binding.JSONTo(c.bindingMeta.rawBody, out)
 }
 
 // BindJSONStrict binds JSON request body with unknown field rejection.
@@ -230,8 +227,8 @@ func (c *Context) BindJSONStrict(out any) error {
 		)
 	}
 
-	// Use strict binding
-	err := binding.BindJSONStrictBytes(out, c.bindingMeta.rawBody)
+	// Use strict binding (reject unknown fields)
+	err := binding.JSONTo(c.bindingMeta.rawBody, out, binding.WithUnknownFields(binding.UnknownError))
 
 	// Translate binding.UnknownFieldError to validation.Error (only here!)
 	if unkErr, ok := err.(*binding.UnknownFieldError); ok {
@@ -285,7 +282,7 @@ func (c *Context) bindForm(out any) error {
 		}
 	}
 
-	return binding.Bind(out, binding.NewFormGetter(req.Form), binding.TagForm)
+	return binding.FormTo(req.Form, out)
 }
 
 // BindAndValidate binds the request body and validates it.

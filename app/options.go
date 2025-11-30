@@ -392,8 +392,8 @@ func WithDefaultErrorFormat(mediaType string) Option {
 //	    app.WithServiceVersion("v1.0.0"),
 //	    app.WithObservability(
 //	        app.WithLogging(logging.WithJSONHandler(), logging.WithDebugLevel()),
-//	        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-//	        app.WithTracing(tracing.WithProvider(tracing.OTLPProvider)),
+//	        app.WithMetrics(), // Prometheus is default; use metrics.WithOTLP() for OTLP
+//	        app.WithTracing(tracing.WithOTLP("localhost:4317")),
 //	        app.WithExcludePaths("/custom-health"),
 //	        app.WithExcludePrefixes("/internal/", "/admin/"),
 //	        app.WithLogOnlyErrors(),

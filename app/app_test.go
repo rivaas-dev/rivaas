@@ -411,7 +411,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
 			WithObservability(
-				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+				WithTracing(tracing.WithNoop()),
 			),
 		)
 		require.NoError(t, err)
@@ -426,7 +426,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
 			WithObservability(
-				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+				WithTracing(tracing.WithNoop()),
 			),
 		)
 		require.NoError(t, err)
@@ -443,7 +443,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithObservability(
 				WithLogging(logging.WithLevel(logging.LevelDebug)),
 				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
-				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+				WithTracing(tracing.WithNoop()),
 			),
 		)
 		require.NoError(t, err)
@@ -462,7 +462,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithObservability(
 				WithLogging(logging.WithLevel(logging.LevelInfo)),
 				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
-				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+				WithTracing(tracing.WithNoop()),
 			),
 		)
 		require.NoError(t, err)
@@ -481,7 +481,7 @@ func TestNew_ObservabilityInitialization(t *testing.T) {
 			WithObservability(
 				WithLogging(logging.WithJSONHandler()),
 				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
-				WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+				WithTracing(tracing.WithNoop()),
 			),
 		)
 		require.NoError(t, err)
@@ -1033,7 +1033,6 @@ func TestApp_GetMetricsServerAddress(t *testing.T) {
 					WithObservability(
 						WithMetrics(
 							metrics.WithPrometheus(":9090", "/metrics"),
-							
 						),
 					),
 				)
@@ -1199,7 +1198,7 @@ func TestApp_Tracing(t *testing.T) {
 		name        string
 		setup       func() *App
 		wantNil     bool
-		validateCfg func(*testing.T, *App, *tracing.Config)
+		validateCfg func(*testing.T, *App, *tracing.Tracer)
 	}{
 		{
 			name: "returns nil when tracing not enabled",
@@ -1218,12 +1217,12 @@ func TestApp_Tracing(t *testing.T) {
 					WithServiceName("test"),
 					WithServiceVersion("1.0.0"),
 					WithObservability(
-						WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+						WithTracing(tracing.WithNoop()),
 					),
 				)
 			},
 			wantNil: false,
-			validateCfg: func(t *testing.T, app *App, cfg *tracing.Config) {
+			validateCfg: func(t *testing.T, app *App, cfg *tracing.Tracer) {
 				assert.NotNil(t, cfg)
 				assert.Equal(t, app.tracing, cfg)
 			},

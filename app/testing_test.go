@@ -658,7 +658,7 @@ func TestApp_Test_WithTracingEnabled(t *testing.T) {
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
 		WithObservability(
-			WithTracing(tracing.WithProvider(tracing.NoopProvider)),
+			WithTracing(tracing.WithNoop()),
 		),
 	)
 
