@@ -106,7 +106,7 @@ func TestMaxDepth_Enforcement(t *testing.T) {
 		// This path has 34 levels of nesting (depth 33 when binding Level34)
 		values.Set("level2.level3.level4.level5.level6.level7.level8.level9.level10.level11.level12.level13.level14.level15.level16.level17.level18.level19.level20.level21.level22.level23.level24.level25.level26.level27.level28.level29.level30.level31.level32.level33.level34.value", "test")
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "exceeded maximum nesting depth")
 		require.ErrorContains(t, err, "32")
@@ -129,7 +129,7 @@ func TestMaxDepth_Enforcement(t *testing.T) {
 
 		// Set custom max depth to 1 (should fail at depth 2)
 		// Depth 0: Nested, Depth 1: Inner, Depth 2: Deeper (exceeds limit)
-		err := Bind(&params, NewQueryGetter(values), TagQuery, WithMaxDepth(1))
+		err := Raw(NewQueryGetter(values), TagQuery, &params, WithMaxDepth(1))
 		require.Error(t, err)
 		require.ErrorContains(t, err, "exceeded maximum nesting depth")
 		require.ErrorContains(t, err, "1")
@@ -149,7 +149,7 @@ func TestMaxDepth_Enforcement(t *testing.T) {
 		values.Set("inner.value", "test")
 
 		// Should succeed with default depth (32)
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "test", params.Inner.Value)
 	})
@@ -244,7 +244,7 @@ func TestMaxMapSize_Enforcement(t *testing.T) {
 			var params Params
 			values := tt.setupValues()
 
-			err := Bind(&params, NewQueryGetter(values), TagQuery, tt.opts...)
+			err := Raw(NewQueryGetter(values), TagQuery, &params, tt.opts...)
 			if tt.wantError {
 				require.Error(t, err)
 				for _, contains := range tt.errorContains {
@@ -329,7 +329,7 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 				values.Set("tags", "tag,tag,tag,tag,tag,tag,tag,tag,tag,tag,tag")
 				return values
 			},
-			opts:          []Option{WithSliceParseMode(SliceCSV), WithMaxSliceLen(10)},
+			opts:          []Option{WithSliceMode(SliceCSV), WithMaxSliceLen(10)},
 			wantError:     true,
 			errorContains: []string{"slice exceeds max length"},
 			validate:      nil,
@@ -360,7 +360,7 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 			var params Params
 			values := tt.setupValues()
 
-			err := Bind(&params, NewQueryGetter(values), TagQuery, tt.opts...)
+			err := Raw(NewQueryGetter(values), TagQuery, &params, tt.opts...)
 			if tt.wantError {
 				require.Error(t, err)
 				for _, contains := range tt.errorContains {
@@ -380,12 +380,12 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 func TestDefaultOptions_SafeDefaults(t *testing.T) {
 	t.Parallel()
 
-	opts := defaultOptions()
+	opts := defaultConfig()
 
-	assert.Equal(t, DefaultMaxDepth, opts.MaxDepth, "MaxDepth should default to DefaultMaxDepth")
+	assert.Equal(t, DefaultMaxDepth, opts.maxDepth, "MaxDepth should default to DefaultMaxDepth")
 	assert.Equal(t, DefaultMaxMapSize, opts.maxMapSize, "maxMapSize should default to DefaultMaxMapSize")
 	assert.Equal(t, DefaultMaxSliceLen, opts.maxSliceLen, "maxSliceLen should default to DefaultMaxSliceLen")
-	assert.Equal(t, UnknownIgnore, opts.UnknownFields, "UnknownFields should default to UnknownIgnore")
+	assert.Equal(t, UnknownIgnore, opts.unknownFields, "UnknownFields should default to UnknownIgnore")
 }
 
 // TestOptions_ConcurrencySafety tests that options can be safely reused
@@ -401,8 +401,8 @@ func TestOptions_ConcurrencySafety(t *testing.T) {
 		opts1 := applyOptions([]Option{opt})
 		opts2 := applyOptions([]Option{opt})
 
-		assert.Equal(t, 10, opts1.MaxDepth)
-		assert.Equal(t, 10, opts2.MaxDepth)
+		assert.Equal(t, 10, opts1.maxDepth)
+		assert.Equal(t, 10, opts2.maxDepth)
 		assert.NotSame(t, opts1, opts2, "Each call should create a new Options instance")
 	})
 
@@ -412,7 +412,7 @@ func TestOptions_ConcurrencySafety(t *testing.T) {
 		opts1 := applyOptions([]Option{WithMaxDepth(10)})
 		opts2 := applyOptions([]Option{WithMaxDepth(20)})
 
-		assert.Equal(t, 10, opts1.MaxDepth)
-		assert.Equal(t, 20, opts2.MaxDepth)
+		assert.Equal(t, 10, opts1.maxDepth)
+		assert.Equal(t, 20, opts2.maxDepth)
 	})
 }

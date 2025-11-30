@@ -1,0 +1,60 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package testdata;
+
+option go_package = "rivaas.dev/binding/proto/testdata";
+
+// User is a test message for binding tests.
+message User {
+    string name = 1;
+    string email = 2;
+    int32 age = 3;
+    bool active = 4;
+}
+
+// Config is a test message with nested types.
+message Config {
+    string title = 1;
+    Server server = 2;
+    Database database = 3;
+}
+
+message Server {
+    string host = 1;
+    int32 port = 2;
+}
+
+message Database {
+    string host = 1;
+    int32 port = 2;
+    string name = 3;
+    string user = 4;
+    string password = 5;
+}
+
+// Product is a test message with arrays.
+message Product {
+    string name = 1;
+    repeated string tags = 2;
+    repeated int32 prices = 3;
+}
+
+// Settings is a test message with maps.
+message Settings {
+    string name = 1;
+    map<string, string> metadata = 2;
+}

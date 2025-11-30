@@ -523,7 +523,7 @@ func TestBind_PrefixGetterGetAllThroughNestedBinding(t *testing.T) {
 			t.Parallel()
 
 			getter, tag, params := tt.setup()
-			require.NoError(t, Bind(params, getter, tag), "%s should succeed", tt.name)
+			require.NoError(t, Raw(getter, tag, params), "%s should succeed", tt.name)
 			tt.validate(t, params)
 		})
 	}

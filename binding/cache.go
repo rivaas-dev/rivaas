@@ -50,7 +50,7 @@ type cacheKey struct {
 //
 // Parameters:
 //   - typ: The struct type to parse (must be reflect.Struct, not pointer)
-//   - tag: The struct tag name to use for field binding (e.g., "json", "query")
+//   - tag: The struct tag name to use for field binding (e.g., [TagJSON], [TagQuery])
 //
 // Returns cached metadata containing field information and validation rules.
 func getStructInfo(typ reflect.Type, tag string) *structInfo {
@@ -107,7 +107,7 @@ func getStructInfo(typ reflect.Type, tag string) *structInfo {
 // Call this during application startup after defining your structs to populate
 // the cache for known request types.
 //
-// Invalid types are silently skipped. Use MustWarmupCache to panic on errors.
+// Invalid types are silently skipped. Use [MustWarmupCache] to panic on errors.
 //
 // Example:
 //
@@ -142,7 +142,7 @@ func WarmupCache(types ...any) {
 	}
 }
 
-// MustWarmupCache is like WarmupCache but panics on invalid types.
+// MustWarmupCache is like [WarmupCache] but panics on invalid types.
 // Use during application startup to validate struct tags at startup.
 //
 // Example:

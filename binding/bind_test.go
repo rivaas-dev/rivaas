@@ -69,7 +69,7 @@ func TestBind_ErrorPaths(t *testing.T) {
 			t.Parallel()
 
 			params, getter := tt.setup()
-			err := Bind(params, getter, TagQuery)
+			err := Raw(getter, TagQuery, params)
 
 			require.Error(t, err, "Expected error for %s", tt.name)
 			require.ErrorContains(t, err, tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
@@ -132,7 +132,7 @@ func TestBind_PointerHandling(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				err := Bind(tt.params, NewQueryGetter(tt.values), TagQuery)
+				err := Raw(NewQueryGetter(tt.values), TagQuery, tt.params)
 
 				require.Error(t, err, "Expected error for %s", tt.name)
 				require.ErrorContains(t, err, tt.expectedErrMsg, "Error should mention field name %q", tt.expectedErrMsg)
@@ -179,7 +179,7 @@ func TestBind_PointerHandling(t *testing.T) {
 				t.Parallel()
 
 				var params Params
-				require.NoError(t, Bind(&params, NewQueryGetter(tt.values), TagQuery), "Bind should succeed for %s", tt.name)
+				require.NoError(t, Raw(NewQueryGetter(tt.values), TagQuery, &params), "Bind should succeed for %s", tt.name)
 				tt.validate(t, params)
 			})
 		}
@@ -252,7 +252,7 @@ func TestBind_InvalidURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := Bind(tt.params, NewQueryGetter(tt.values), TagQuery)
+			err := Raw(NewQueryGetter(tt.values), TagQuery, tt.params)
 
 			if tt.wantErr {
 				require.Error(t, err, "Expected error for %s", tt.name)
@@ -309,7 +309,7 @@ func TestBind_SliceFieldErrorPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := Bind(tt.params, NewQueryGetter(tt.values), TagQuery)
+			err := Raw(NewQueryGetter(tt.values), TagQuery, tt.params)
 
 			require.Error(t, err, "Expected error for %s", tt.name)
 			if tt.expectedErrMsg != "" {
@@ -375,7 +375,7 @@ func TestBind_ConvertValueEdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := Bind(tt.params, NewQueryGetter(tt.values), TagQuery)
+			err := Raw(NewQueryGetter(tt.values), TagQuery, tt.params)
 
 			if tt.wantErr {
 				require.Error(t, err, "Expected error for %s", tt.name)
@@ -404,7 +404,7 @@ func TestBind_SkipUnexportedFields(t *testing.T) {
 	values.Set("age", "30")
 
 	var params Params
-	require.NoError(t, Bind(&params, NewQueryGetter(values), TagQuery), "Bind should succeed")
+	require.NoError(t, Raw(NewQueryGetter(values), TagQuery, &params), "Bind should succeed")
 
 	assert.Equal(t, "john", params.Name, "Expected Name=john")
 	assert.Equal(t, 30, params.Age, "Expected Age=30")
@@ -435,7 +435,7 @@ func TestBind_NestedStructError(t *testing.T) {
 			}{},
 			expectedField: "Address",
 			validate: func(t *testing.T, bindErr *BindError) {
-				assert.Equal(t, "query", bindErr.Tag, "Expected Tag='query'")
+				assert.Equal(t, SourceQuery, bindErr.Source, "Expected Source=SourceQuery")
 				assert.Empty(t, bindErr.Value, "Expected empty Value for nested struct error")
 				assert.NotNil(t, bindErr.Err, "Expected underlying error")
 			},
@@ -493,7 +493,7 @@ func TestBind_NestedStructError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := Bind(tt.params, NewQueryGetter(tt.values), TagQuery)
+			err := Raw(NewQueryGetter(tt.values), TagQuery, tt.params)
 
 			require.Error(t, err, "Expected error for %s", tt.name)
 
@@ -592,7 +592,7 @@ func TestBind_ParseStructTypeRemainingPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := Bind(tt.params, NewQueryGetter(tt.values), TagQuery)
+			err := Raw(NewQueryGetter(tt.values), TagQuery, tt.params)
 			require.NoError(t, err, "%s should succeed", tt.name)
 			tt.validate(t, tt.params)
 		})
@@ -617,7 +617,7 @@ func TestBind_Errors(t *testing.T) {
 				}
 				values := url.Values{}
 				values.Set("name", "test")
-				return Bind(params, NewQueryGetter(values), TagQuery) // Not a pointer!
+				return Raw(NewQueryGetter(values), TagQuery, params) // Not a pointer!
 			},
 			wantErr: true,
 			validate: func(t *testing.T, err error) {
@@ -632,7 +632,7 @@ func TestBind_Errors(t *testing.T) {
 				}
 				values := url.Values{}
 				values.Set("name", "test")
-				return Bind(params, NewQueryGetter(values), TagQuery)
+				return Raw(NewQueryGetter(values), TagQuery, params)
 			},
 			wantErr: true,
 			validate: func(t *testing.T, err error) {
@@ -645,7 +645,7 @@ func TestBind_Errors(t *testing.T) {
 				var str string
 				values := url.Values{}
 				values.Set("name", "test")
-				return Bind(&str, NewQueryGetter(values), TagQuery)
+				return Raw(NewQueryGetter(values), TagQuery, &str)
 			},
 			wantErr: true,
 			validate: func(t *testing.T, err error) {
@@ -682,13 +682,13 @@ func TestBind_BindErrorDetails(t *testing.T) {
 	values.Set("age", "invalid")
 
 	var params Params
-	err := Bind(&params, NewQueryGetter(values), TagQuery)
+	err := Raw(NewQueryGetter(values), TagQuery, &params)
 	require.Error(t, err, "Expected BindError")
 
 	var bindErr *BindError
 	require.ErrorAs(t, err, &bindErr, "Expected BindError type")
 	assert.Equal(t, "Age", bindErr.Field)
-	assert.Equal(t, "query", bindErr.Tag)
+	assert.Equal(t, SourceQuery, bindErr.Source)
 	assert.Equal(t, "invalid", bindErr.Value)
 }
 
@@ -731,7 +731,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 				p, ok := params.(*JSONDataOmitempty)
 				require.True(t, ok)
 				jsonData := `{"name":"John","email":"john@example.com","age":30}`
-				err := BindJSONBytes(p, []byte(jsonData))
+				err := JSONTo([]byte(jsonData), p)
 				require.NoError(t, err)
 				assert.Equal(t, "John", p.Name)
 				assert.Equal(t, "john@example.com", p.Email)
@@ -762,7 +762,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 				p, ok := params.(*JSONDataEmptyName)
 				require.True(t, ok)
 				jsonData := `{"FieldName":"test"}`
-				err := BindJSONBytes(p, []byte(jsonData))
+				err := JSONTo([]byte(jsonData), p)
 				require.NoError(t, err)
 				assert.Equal(t, "test", p.FieldName)
 			},
@@ -776,7 +776,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 				p, ok := params.(*JSONDataSkipField)
 				require.True(t, ok)
 				jsonData := `{"public":"visible","Private":"should be ignored"}`
-				err := BindJSONBytes(p, []byte(jsonData))
+				err := JSONTo([]byte(jsonData), p)
 				require.NoError(t, err)
 				assert.Equal(t, "visible", p.Public)
 				assert.Empty(t, p.Private, "Private should be empty (skipped)")
@@ -790,7 +790,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 
 			getter, tag, params := tt.setup()
 			if getter != nil {
-				require.NoError(t, Bind(params, getter, tag), "%s should succeed", tt.name)
+				require.NoError(t, Raw(getter, tag, params), "%s should succeed", tt.name)
 			}
 			tt.validate(t, params)
 		})
@@ -813,7 +813,7 @@ func TestFieldAliases(t *testing.T) {
 		values := url.Values{}
 		values.Set("user_id", "123")
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "123", params.UserID)
 	})
@@ -829,7 +829,7 @@ func TestFieldAliases(t *testing.T) {
 		values := url.Values{}
 		values.Set("id", "456")
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "456", params.UserID)
 	})
@@ -846,7 +846,7 @@ func TestFieldAliases(t *testing.T) {
 		values.Set("user_id", "123")
 		values.Set("id", "456")
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "123", params.UserID) // Primary should win
 	})
@@ -862,7 +862,7 @@ func TestFieldAliases(t *testing.T) {
 		values := url.Values{}
 		values.Set("uid", "789")
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "789", params.UserID)
 	})
@@ -879,7 +879,7 @@ func TestFieldAliases(t *testing.T) {
 		values.Set("id", "first")
 		values.Set("uid", "second")
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "first", params.UserID) // First alias should win
 	})
@@ -896,7 +896,7 @@ func TestFieldAliases(t *testing.T) {
 		values.Set("id", "123")
 
 		// Test that aliases work with form tags
-		err := Bind(&params, NewFormGetter(values), TagForm)
+		err := Raw(NewFormGetter(values), TagForm, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "123", params.UserID)
 	})
@@ -912,7 +912,7 @@ func TestFieldAliases(t *testing.T) {
 		values := url.Values{}
 		values.Set("id", "123")
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "123", params.UserID)
 	})
@@ -933,7 +933,7 @@ func TestTypedDefaults(t *testing.T) {
 		var params Params
 		values := url.Values{}
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "John", params.Name)
 	})
@@ -948,7 +948,7 @@ func TestTypedDefaults(t *testing.T) {
 		var params Params
 		values := url.Values{}
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, 30, params.Age)
 	})
@@ -963,7 +963,7 @@ func TestTypedDefaults(t *testing.T) {
 		var params Params
 		values := url.Values{}
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.True(t, params.Active)
 	})
@@ -978,7 +978,7 @@ func TestTypedDefaults(t *testing.T) {
 		var params Params
 		values := url.Values{}
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, 99.99, params.Price)
 	})
@@ -993,7 +993,7 @@ func TestTypedDefaults(t *testing.T) {
 		var params Params
 		values := url.Values{}
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		require.NotNil(t, params.Age)
 		assert.Equal(t, 25, *params.Age)
@@ -1010,7 +1010,7 @@ func TestTypedDefaults(t *testing.T) {
 		values := url.Values{}
 		values.Set("name", "Jane")
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		assert.Equal(t, "Jane", params.Name) // Provided value should win
 	})
@@ -1025,7 +1025,7 @@ func TestTypedDefaults(t *testing.T) {
 		var params Params
 		values := url.Values{}
 
-		err := Bind(&params, NewQueryGetter(values), TagQuery)
+		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
 		expected, err := time.Parse(time.RFC3339, "2024-01-01T00:00:00Z")
 		require.NoError(t, err)
@@ -1033,7 +1033,7 @@ func TestTypedDefaults(t *testing.T) {
 	})
 }
 
-func TestBindMulti(t *testing.T) {
+func TestBindTo(t *testing.T) {
 	t.Parallel()
 
 	t.Run("binds from multiple sources", func(t *testing.T) {
@@ -1047,14 +1047,12 @@ func TestBindMulti(t *testing.T) {
 		}
 
 		var req Request
-		sources := []SourceConfig{
-			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
-			{Tag: TagQuery, Getter: NewQueryGetter(url.Values{"page": {"5"}})},
-			{Tag: TagHeader, Getter: NewHeaderGetter(http.Header{"X-Api-Key": {"secret-key"}})},
-			{Tag: TagCookie, Getter: NewCookieGetter([]*http.Cookie{{Name: "session", Value: "abc123"}})},
-		}
-
-		err := BindMulti(&req, sources)
+		err := BindTo(&req,
+			FromPath(map[string]string{"id": "123"}),
+			FromQuery(url.Values{"page": {"5"}}),
+			FromHeader(http.Header{"X-Api-Key": {"secret-key"}}),
+			FromCookie([]*http.Cookie{{Name: "session", Value: "abc123"}}),
+		)
 		require.NoError(t, err)
 		assert.Equal(t, 123, req.ID)
 		assert.Equal(t, 5, req.Page)
@@ -1072,14 +1070,12 @@ func TestBindMulti(t *testing.T) {
 		}
 
 		var req Request
-		sources := []SourceConfig{
-			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
-			{Tag: TagQuery, Getter: NewQueryGetter(url.Values{"page": {"5"}})},
-			{Tag: TagHeader, Getter: NewHeaderGetter(http.Header{"X-Api-Key": {"secret-key"}})},
-			{Tag: TagCookie, Getter: NewCookieGetter([]*http.Cookie{{Name: "session", Value: "abc123"}})},
-		}
-
-		err := BindMulti(&req, sources)
+		err := BindTo(&req,
+			FromPath(map[string]string{"id": "123"}),
+			FromQuery(url.Values{"page": {"5"}}),
+			FromHeader(http.Header{"X-Api-Key": {"secret-key"}}),
+			FromCookie([]*http.Cookie{{Name: "session", Value: "abc123"}}),
+		)
 		require.NoError(t, err)
 		assert.Equal(t, 123, req.ID)
 		assert.Equal(t, 5, req.Page)
@@ -1095,12 +1091,10 @@ func TestBindMulti(t *testing.T) {
 		}
 
 		var req Request
-		sources := []SourceConfig{
-			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
-			{Tag: TagQuery, Getter: NewQueryGetter(url.Values{"page": {"99"}})}, // Invalid enum value
-		}
-
-		err := BindMulti(&req, sources)
+		err := BindTo(&req,
+			FromPath(map[string]string{"id": "123"}),
+			FromQuery(url.Values{"page": {"99"}}), // Invalid enum value
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "query")
 		assert.Contains(t, err.Error(), "allowed values")
@@ -1123,12 +1117,10 @@ func TestBindMulti(t *testing.T) {
 		}
 
 		var req Request
-		sources := []SourceConfig{
-			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
-			{Tag: TagQuery, Getter: NewQueryGetter(url.Values{"page": {"5"}})},
-		}
-
-		err := BindMulti(&req, sources)
+		err := BindTo(&req,
+			FromPath(map[string]string{"id": "123"}),
+			FromQuery(url.Values{"page": {"5"}}),
+		)
 		require.NoError(t, err)
 		assert.Equal(t, 123, req.ID)
 		assert.Equal(t, 5, req.Page)
@@ -1141,19 +1133,19 @@ func TestBindMulti(t *testing.T) {
 			ID int `path:"id"`
 		}
 
-		var req Request
-		sources := []SourceConfig{
-			{Tag: TagPath, Getter: NewPathGetter(map[string]string{"id": "123"})},
-		}
-
 		// Non-pointer should fail
-		err := BindMulti(req, sources)
+		var req Request
+		err := BindTo(req,
+			FromPath(map[string]string{"id": "123"}),
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "pointer")
 
 		// Nil pointer should fail
 		var nilReq *Request
-		err = BindMulti(nilReq, sources)
+		err = BindTo(nilReq,
+			FromPath(map[string]string{"id": "123"}),
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil")
 	})

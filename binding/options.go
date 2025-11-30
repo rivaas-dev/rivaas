@@ -15,7 +15,10 @@
 package binding
 
 import (
+	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -75,6 +78,11 @@ type TypeConverter func(string) (any, error)
 // Common uses include case-folding and canonicalization.
 type KeyNormalizer func(string) string
 
+// Validator validates a struct after binding.
+type Validator interface {
+	Validate(v any) error
+}
+
 // Events provides hooks for observability without coupling.
 type Events struct {
 	// FieldBound is called after successfully binding a field.
@@ -99,40 +107,222 @@ type Stats struct {
 	Duration          time.Duration // Total binding time (if tracked externally)
 }
 
-// Options configures binding behavior.
-//
-// Options are applied per-call via functional options. It is safe to reuse
-// Option functions across goroutines, but Options instances should not be
-// reused (applyOptions creates a fresh instance each time).
-//
-// Options control type conversion, validation, error handling, and observability
-// hooks for binding operations.
-type Options struct {
-	// Existing options
-	TimeLayouts         []string // Custom time layouts (default: RFC3339, etc.)
-	CaseInsensitiveKeys bool     // For query/form params (not implemented yet, reserved for future)
-	MaxDepth            int      // Max nesting depth for structs
-	ErrorsAsMulti       bool     // Return MultiError instead of first error (not implemented yet, reserved for future)
+// sourceEntry represents a binding source with its getter and tag.
+type sourceEntry struct {
+	getter ValueGetter
+	tag    string
+}
 
-	// New options
-	UnknownFields  UnknownFieldPolicy             // How to handle unknown JSON fields
-	TypeConverters map[reflect.Type]TypeConverter // Custom type converters
-	Events         Events                         // Observability hooks
-	SliceMode      SliceParseMode                 // How to parse slice values
-	IntBaseAuto    bool                           // Auto-detect integer bases (0x, 0, 0b)
-	JSONUseNumber  bool                           // Use json.Number instead of float64
-	KeyNormalizer  KeyNormalizer                  // Custom key normalization
+// config holds internal binding configuration.
+type config struct {
+	// Parsing options
+	timeLayouts []string       // Custom time layouts (default: RFC3339, etc.)
+	sliceMode   SliceParseMode // How to parse slice values
+	intBaseAuto bool           // Auto-detect integer bases (0x, 0, 0b)
 
-	// Internal limits (not exported; use WithMaxXxx options to configure)
+	// Limits
+	maxDepth    int // Max nesting depth for structs
 	maxMapSize  int // Maximum map entries per field
 	maxSliceLen int // Maximum slice elements per field
+
+	// JSON options
+	unknownFields UnknownFieldPolicy // How to handle unknown JSON fields
+	jsonUseNumber bool               // Use json.Number instead of float64
+
+	// XML options
+	xmlStrict bool // Use strict XML parsing mode
+
+	// Type conversion
+	typeConverters map[reflect.Type]TypeConverter // Custom type converters
+
+	// Validation
+	required  bool      // Check required tags
+	validator Validator // External validator
+
+	// Error handling
+	allErrors bool // Collect all errors instead of returning on first
+
+	// Observability
+	events Events // Event hooks
+
+	// Key normalization
+	keyNormalizer KeyNormalizer // Custom key normalization
+
+	// Sources for multi-source binding (populated by From* options)
+	sources []sourceEntry
 
 	// Internal state (not set by users)
 	stats Stats // Accumulated statistics during binding
 }
 
 // Option configures binding behavior.
-type Option func(*Options)
+type Option func(*config)
+
+// FromQuery specifies query parameters as a binding source for [Bind] or [BindTo].
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromQuery(r.URL.Query()),
+//	    binding.FromPath(pathParams),
+//	)
+func FromQuery(values url.Values) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: NewQueryGetter(values),
+			tag:    TagQuery,
+		})
+	}
+}
+
+// FromPath specifies path parameters as a binding source.
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromPath(pathParams),
+//	)
+func FromPath(params map[string]string) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: NewPathGetter(params),
+			tag:    TagPath,
+		})
+	}
+}
+
+// FromForm specifies form data as a binding source for [Bind] or [BindTo].
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromForm(r.PostForm),
+//	)
+func FromForm(values url.Values) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: NewFormGetter(values),
+			tag:    TagForm,
+		})
+	}
+}
+
+// FromHeader specifies HTTP headers as a binding source.
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromHeader(r.Header),
+//	)
+func FromHeader(h http.Header) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: NewHeaderGetter(h),
+			tag:    TagHeader,
+		})
+	}
+}
+
+// FromCookie specifies cookies as a binding source for [Bind] or [BindTo].
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromCookie(r.Cookies()),
+//	)
+func FromCookie(cookies []*http.Cookie) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: NewCookieGetter(cookies),
+			tag:    TagCookie,
+		})
+	}
+}
+
+// FromJSON specifies JSON body as a binding source for [Bind] or [BindTo].
+// Note: JSON binding is handled separately from other sources.
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromQuery(r.URL.Query()),
+//	    binding.FromJSON(body),
+//	)
+func FromJSON(body []byte) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: &jsonSourceGetter{body: body},
+			tag:    TagJSON,
+		})
+	}
+}
+
+// FromJSONReader specifies JSON from io.Reader as a binding source.
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromJSONReader(r.Body),
+//	)
+func FromJSONReader(r io.Reader) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: &jsonReaderSourceGetter{reader: r},
+			tag:    TagJSON,
+		})
+	}
+}
+
+// FromXML specifies XML body as a binding source.
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromQuery(r.URL.Query()),
+//	    binding.FromXML(body),
+//	)
+func FromXML(body []byte) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: &xmlSourceGetter{body: body},
+			tag:    TagXML,
+		})
+	}
+}
+
+// FromXMLReader specifies XML from io.Reader as a binding source.
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromXMLReader(r.Body),
+//	)
+func FromXMLReader(r io.Reader) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: &xmlReaderSourceGetter{reader: r},
+			tag:    TagXML,
+		})
+	}
+}
+
+// FromGetter specifies a custom ValueGetter as a binding source.
+// Use this for custom binding sources not covered by the built-in options.
+//
+// Example:
+//
+//	customGetter := &MyCustomGetter{...}
+//	req, err := binding.Bind[Request](
+//	    binding.FromGetter(customGetter, "custom"),
+//	)
+func FromGetter(getter ValueGetter, tag string) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: getter,
+			tag:    tag,
+		})
+	}
+}
 
 // WithTimeLayouts sets custom time parsing layouts.
 // Default layouts are tried first, then custom layouts are attempted.
@@ -140,125 +330,25 @@ type Option func(*Options)
 //
 // Example:
 //
-//	Bind(&result, getter, "query",
-//		WithTimeLayouts("2006-01-02", "01/02/2006"))
-func WithTimeLayouts(layouts ...string) Option {
-	return func(o *Options) {
-		o.TimeLayouts = layouts
-	}
-}
-
-// WithCaseInsensitiveKeys enables case-insensitive key matching for query/form params.
-// Reserved for future implementation.
-func WithCaseInsensitiveKeys(v bool) Option {
-	return func(o *Options) {
-		o.CaseInsensitiveKeys = v
-	}
-}
-
-// WithMaxDepth sets the maximum nesting depth for structs and maps.
-// When exceeded, binding returns ErrMaxDepthExceeded.
-// The default is DefaultMaxDepth (32).
-//
-// Example:
-//
-//	Bind(&result, getter, "query", WithMaxDepth(10))
-func WithMaxDepth(depth int) Option {
-	return func(o *Options) {
-		o.MaxDepth = depth
-	}
-}
-
-// WithUnknownFieldPolicy sets how to handle unknown JSON fields.
-//
-// Example:
-//
-//	BindJSON(&result, reader,
-//		WithUnknownFieldPolicy(UnknownError))
-func WithUnknownFieldPolicy(policy UnknownFieldPolicy) Option {
-	return func(o *Options) {
-		o.UnknownFields = policy
-	}
-}
-
-// WithTypeConverter registers a custom converter for a type.
-// The converter is called before built-in type handling.
-// It works transparently for both T and *T (pointer normalization).
-//
-// Example:
-//
-//	WithTypeConverter(
-//		reflect.TypeFor[uuid.UUID](),
-//		func(s string) (any, error) {
-//			return uuid.Parse(s)
-//		},
+//	binding.Query[T](values,
+//	    binding.WithTimeLayouts("2006-01-02", "01/02/2006"),
 //	)
-//
-// Parameters:
-//   - targetType: The reflect.Type to convert to
-//   - converter: Function that converts string to the target type
-func WithTypeConverter(targetType reflect.Type, converter TypeConverter) Option {
-	return func(o *Options) {
-		if o.TypeConverters == nil {
-			o.TypeConverters = make(map[reflect.Type]TypeConverter)
-		}
-		o.TypeConverters[targetType] = converter
+func WithTimeLayouts(layouts ...string) Option {
+	return func(c *config) {
+		c.timeLayouts = layouts
 	}
 }
 
-// WithTypedConverter provides type-safe converter registration.
-// It enforces type correctness at compile time, making it safer than
-// WithTypeConverter which uses reflect.Type.
-//
-// Example:
-//
-//	WithTypedConverter(func(s string) (uuid.UUID, error) {
-//		return uuid.Parse(s)
-//	})
-func WithTypedConverter[T any](fn func(string) (T, error)) Option {
-	return func(o *Options) {
-		targetType := reflect.TypeFor[T]()
-
-		if o.TypeConverters == nil {
-			o.TypeConverters = make(map[reflect.Type]TypeConverter)
-		}
-
-		// Wrap the typed function into TypeConverter
-		o.TypeConverters[targetType] = func(s string) (any, error) {
-			return fn(s)
-		}
-	}
-}
-
-// WithEvents sets observability hooks.
-//
-// Example:
-//
-//	WithEvents(Events{
-//		FieldBound: func(name, tag string) {
-//			log.Printf("Bound field %s from %s", name, tag)
-//		},
-//		Done: func(stats Stats) {
-//			log.Printf("Binding complete: %d fields processed", stats.FieldsProcessed)
-//		},
-//	})
-func WithEvents(events Events) Option {
-	return func(o *Options) {
-		o.Events = events
-	}
-}
-
-// WithSliceParseMode sets how to parse slice values from query/form data.
+// WithSliceMode sets how slice values are parsed from query/form data.
 // SliceRepeat (default) expects repeated keys: ?tags=a&tags=b&tags=c
 // SliceCSV expects comma-separated values: ?tags=a,b,c
 //
 // Example:
 //
-//	// Parse comma-separated values
-//	Bind(&result, getter, "query", WithSliceParseMode(SliceCSV))
-func WithSliceParseMode(mode SliceParseMode) Option {
-	return func(o *Options) {
-		o.SliceMode = mode
+//	binding.Query[T](values, binding.WithSliceMode(binding.SliceCSV))
+func WithSliceMode(mode SliceParseMode) Option {
+	return func(c *config) {
+		c.sliceMode = mode
 	}
 }
 
@@ -267,35 +357,36 @@ func WithSliceParseMode(mode SliceParseMode) Option {
 //
 // Example:
 //
-//	Bind(&result, getter, "query", WithIntBaseAuto(true))
-func WithIntBaseAuto(enabled bool) Option {
-	return func(o *Options) {
-		o.IntBaseAuto = enabled
+//	binding.Query[T](values, binding.WithIntBaseAuto())
+func WithIntBaseAuto() Option {
+	return func(c *config) {
+		c.intBaseAuto = true
 	}
 }
 
-// WithJSONUseNumber configures the JSON decoder to use json.Number instead of float64.
-// This preserves numeric precision for large integers that would otherwise be
-// represented as floats.
+// WithMaxDepth sets the maximum nesting depth for structs and maps.
+// When exceeded, binding returns [ErrMaxDepthExceeded].
+// The default is [DefaultMaxDepth] (32).
 //
 // Example:
 //
-//	BindJSON(&result, reader, WithJSONUseNumber(true))
-func WithJSONUseNumber(enabled bool) Option {
-	return func(o *Options) {
-		o.JSONUseNumber = enabled
+//	binding.JSON[T](body, binding.WithMaxDepth(16))
+func WithMaxDepth(depth int) Option {
+	return func(c *config) {
+		c.maxDepth = depth
 	}
 }
 
-// WithKeyNormalizer sets a custom key normalization function.
+// WithMaxSliceLen sets the maximum number of slice elements per field.
+// When exceeded, binding returns ErrSliceExceedsMaxLength.
+// The default is DefaultMaxSliceLen (10,000). Set to 0 to disable the limit.
 //
 // Example:
 //
-//	Bind(&result, getter, "header",
-//		WithKeyNormalizer(CanonicalMIME))
-func WithKeyNormalizer(normalizer KeyNormalizer) Option {
-	return func(o *Options) {
-		o.KeyNormalizer = normalizer
+//	binding.Query[T](values, binding.WithMaxSliceLen(1000))
+func WithMaxSliceLen(n int) Option {
+	return func(c *config) {
+		c.maxSliceLen = n
 	}
 }
 
@@ -305,19 +396,166 @@ func WithKeyNormalizer(normalizer KeyNormalizer) Option {
 //
 // Example:
 //
-//	Bind(&result, getter, "query", WithMaxMapSize(500))
+//	binding.Query[T](values, binding.WithMaxMapSize(500))
 func WithMaxMapSize(n int) Option {
-	return func(o *Options) {
-		o.maxMapSize = n
+	return func(c *config) {
+		c.maxMapSize = n
 	}
 }
 
-// WithMaxSliceLen sets the maximum number of slice elements per field.
-// When exceeded, binding returns ErrSliceExceedsMaxLength.
-// The default is DefaultMaxSliceLen (10,000). Set to 0 to disable the limit.
-func WithMaxSliceLen(n int) Option {
-	return func(o *Options) {
-		o.maxSliceLen = n
+// WithUnknownFields sets how to handle unknown JSON fields.
+// See [UnknownFieldPolicy] for available policies.
+//
+// Example:
+//
+//	binding.JSON[T](body, binding.WithUnknownFields(binding.UnknownError))
+func WithUnknownFields(policy UnknownFieldPolicy) Option {
+	return func(c *config) {
+		c.unknownFields = policy
+	}
+}
+
+// WithJSONUseNumber configures the JSON decoder to use json.Number instead of float64.
+// This preserves numeric precision for large integers that would otherwise be
+// represented as floats.
+//
+// Example:
+//
+//	binding.JSON[T](body, binding.WithJSONUseNumber())
+func WithJSONUseNumber() Option {
+	return func(c *config) {
+		c.jsonUseNumber = true
+	}
+}
+
+// WithXMLStrict enables strict XML parsing mode.
+// When enabled, the XML decoder will be more strict about element/attribute names.
+//
+// Example:
+//
+//	binding.XML[T](body, binding.WithXMLStrict())
+func WithXMLStrict() Option {
+	return func(c *config) {
+		c.xmlStrict = true
+	}
+}
+
+// WithConverter registers a custom type converter.
+// Type-safe registration using generics.
+//
+// Example:
+//
+//	binding.MustNew(
+//	    binding.WithConverter[uuid.UUID](uuid.Parse),
+//	    binding.WithConverter[decimal.Decimal](decimal.NewFromString),
+//	)
+func WithConverter[T any](fn func(string) (T, error)) Option {
+	return func(c *config) {
+		targetType := reflect.TypeFor[T]()
+		if c.typeConverters == nil {
+			c.typeConverters = make(map[reflect.Type]TypeConverter)
+		}
+		c.typeConverters[targetType] = func(s string) (any, error) {
+			return fn(s)
+		}
+	}
+}
+
+// WithTypeConverter registers a custom converter using reflect.Type.
+// Use WithConverter[T] for type-safe registration when possible.
+//
+// Example:
+//
+//	binding.MustNew(
+//	    binding.WithTypeConverter(
+//	        reflect.TypeFor[uuid.UUID](),
+//	        func(s string) (any, error) { return uuid.Parse(s) },
+//	    ),
+//	)
+func WithTypeConverter(targetType reflect.Type, converter TypeConverter) Option {
+	return func(c *config) {
+		if c.typeConverters == nil {
+			c.typeConverters = make(map[reflect.Type]TypeConverter)
+		}
+		c.typeConverters[targetType] = converter
+	}
+}
+
+// WithRequired enables checking of `required` struct tags.
+// When enabled, missing required fields return ErrRequiredField.
+//
+// Example:
+//
+//	type User struct {
+//	    Name  string `json:"name" required:"true"`
+//	    Email string `json:"email" required:"true"`
+//	}
+//
+//	user, err := binding.JSON[User](body, binding.WithRequired())
+func WithRequired() Option {
+	return func(c *config) {
+		c.required = true
+	}
+}
+
+// WithValidator integrates external validation via a [Validator] implementation.
+// The validator is called after successful binding.
+//
+// Example:
+//
+//	binding.MustNew(binding.WithValidator(myValidator))
+func WithValidator(v Validator) Option {
+	return func(c *config) {
+		c.validator = v
+	}
+}
+
+// WithAllErrors collects all binding errors instead of returning on first.
+// When enabled, returns *MultiError containing all field errors.
+//
+// Example:
+//
+//	user, err := binding.JSON[User](body, binding.WithAllErrors())
+//	if err != nil {
+//	    var multi *binding.MultiError
+//	    if errors.As(err, &multi) {
+//	        for _, e := range multi.Errors {
+//	            // Handle each error
+//	        }
+//	    }
+//	}
+func WithAllErrors() Option {
+	return func(c *config) {
+		c.allErrors = true
+	}
+}
+
+// WithEvents sets observability hooks.
+//
+// Example:
+//
+//	binding.MustNew(binding.WithEvents(binding.Events{
+//	    FieldBound: func(name, tag string) {
+//	        log.Printf("Bound field %s from %s", name, tag)
+//	    },
+//	    Done: func(stats binding.Stats) {
+//	        log.Printf("Binding complete: %d fields", stats.FieldsBound)
+//	    },
+//	}))
+func WithEvents(events Events) Option {
+	return func(c *config) {
+		c.events = events
+	}
+}
+
+// WithKeyNormalizer sets a custom key normalization function.
+//
+// Example:
+//
+//	binding.Header[T](h, binding.WithKeyNormalizer(binding.CanonicalMIME))
+func WithKeyNormalizer(normalizer KeyNormalizer) Option {
+	return func(c *config) {
+		c.keyNormalizer = normalizer
 	}
 }
 
@@ -330,10 +568,17 @@ var (
 	LowerCase KeyNormalizer = strings.ToLower
 )
 
-// defaultOptions returns default binding options.
-func defaultOptions() *Options {
-	return &Options{
-		TimeLayouts: []string{
+// defaultConfig returns a new config with default binding configuration.
+// Default values include:
+//   - maxDepth: [DefaultMaxDepth] (32)
+//   - maxMapSize: [DefaultMaxMapSize] (1,000)
+//   - maxSliceLen: [DefaultMaxSliceLen] (10,000)
+//   - unknownFields: [UnknownIgnore]
+//   - sliceMode: [SliceRepeat]
+//   - timeLayouts: RFC3339, RFC3339Nano, and common date formats
+func defaultConfig() *config {
+	return &config{
+		timeLayouts: []string{
 			time.RFC3339,
 			time.RFC3339Nano,
 			"2006-01-02",
@@ -341,21 +586,44 @@ func defaultOptions() *Options {
 			"2006-01-02T15:04:05",
 			"2006-01-02T15:04:05Z07:00",
 		},
-		MaxDepth:      DefaultMaxDepth,    // Safe default: 32
-		UnknownFields: UnknownIgnore,      // Safe default
-		SliceMode:     SliceRepeat,        // Default: repeated keys
-		maxMapSize:    DefaultMaxMapSize,  // Safe default: 1000
-		maxSliceLen:   DefaultMaxSliceLen, // Safe default: 10,000
+		maxDepth:      DefaultMaxDepth,
+		unknownFields: UnknownIgnore,
+		sliceMode:     SliceRepeat,
+		maxMapSize:    DefaultMaxMapSize,
+		maxSliceLen:   DefaultMaxSliceLen,
 	}
 }
 
-// applyOptions applies options to default options.
-func applyOptions(opts []Option) *Options {
-	o := defaultOptions()
-	for _, opt := range opts {
-		opt(o)
+// validate validates the configuration.
+func (c *config) validate() error {
+	if c.maxDepth < 0 {
+		return fmt.Errorf("binding: maxDepth must be non-negative, got %d", c.maxDepth)
 	}
-	return o
+	if c.maxMapSize < 0 {
+		return fmt.Errorf("binding: maxMapSize must be non-negative, got %d", c.maxMapSize)
+	}
+	if c.maxSliceLen < 0 {
+		return fmt.Errorf("binding: maxSliceLen must be non-negative, got %d", c.maxSliceLen)
+	}
+	return nil
+}
+
+// clone creates a copy of the config for per-call modification.
+func (c *config) clone() *config {
+	clone := *c
+	// Deep copy sources slice
+	if c.sources != nil {
+		clone.sources = make([]sourceEntry, len(c.sources))
+		copy(clone.sources, c.sources)
+	}
+	// Deep copy type converters map
+	if c.typeConverters != nil {
+		clone.typeConverters = make(map[reflect.Type]TypeConverter, len(c.typeConverters))
+		for k, v := range c.typeConverters {
+			clone.typeConverters[k] = v
+		}
+	}
+	return &clone
 }
 
 // eventFlags stores event presence flags.
@@ -366,33 +634,69 @@ type eventFlags struct {
 }
 
 // eventFlags computes event presence flags once.
-func (o *Options) eventFlags() eventFlags {
+func (c *config) eventFlags() eventFlags {
 	return eventFlags{
-		hasFieldBound:   o.Events.FieldBound != nil,
-		hasUnknownField: o.Events.UnknownField != nil,
-		hasDone:         o.Events.Done != nil,
+		hasFieldBound:   c.events.FieldBound != nil,
+		hasUnknownField: c.events.UnknownField != nil,
+		hasDone:         c.events.Done != nil,
 	}
 }
 
 // trackField records a field that was successfully bound, using event flags
 // to check for event handlers.
-func (o *Options) trackField(fieldName, sourceTag string, flags eventFlags) {
-	o.stats.FieldsProcessed++
-	o.stats.FieldsBound++
+func (c *config) trackField(fieldName, sourceTag string, flags eventFlags) {
+	c.stats.FieldsProcessed++
+	c.stats.FieldsBound++
 	if flags.hasFieldBound {
-		o.Events.FieldBound(fieldName, sourceTag)
+		c.events.FieldBound(fieldName, sourceTag)
 	}
 }
 
 // trackError records an error during binding.
-func (o *Options) trackError() {
-	o.stats.ErrorsEncountered++
+func (c *config) trackError() {
+	c.stats.ErrorsEncountered++
 }
 
 // finish emits the Done event with final statistics.
-// Always called via defer in Bind(), even on error.
-func (o *Options) finish() {
-	if o.Events.Done != nil {
-		o.Events.Done(o.stats)
+// Always called via defer in binding functions, even on error.
+func (c *config) finish() {
+	if c.events.Done != nil {
+		c.events.Done(c.stats)
 	}
 }
+
+// jsonSourceGetter is a marker type for JSON body source.
+type jsonSourceGetter struct {
+	body []byte
+}
+
+func (j *jsonSourceGetter) Get(key string) string      { return "" }
+func (j *jsonSourceGetter) GetAll(key string) []string { return nil }
+func (j *jsonSourceGetter) Has(key string) bool        { return false }
+
+// jsonReaderSourceGetter is a marker type for JSON reader source.
+type jsonReaderSourceGetter struct {
+	reader io.Reader
+}
+
+func (j *jsonReaderSourceGetter) Get(key string) string      { return "" }
+func (j *jsonReaderSourceGetter) GetAll(key string) []string { return nil }
+func (j *jsonReaderSourceGetter) Has(key string) bool        { return false }
+
+// xmlSourceGetter is a marker type for XML body source.
+type xmlSourceGetter struct {
+	body []byte
+}
+
+func (x *xmlSourceGetter) Get(key string) string      { return "" }
+func (x *xmlSourceGetter) GetAll(key string) []string { return nil }
+func (x *xmlSourceGetter) Has(key string) bool        { return false }
+
+// xmlReaderSourceGetter is a marker type for XML reader source.
+type xmlReaderSourceGetter struct {
+	reader io.Reader
+}
+
+func (x *xmlReaderSourceGetter) Get(key string) string      { return "" }
+func (x *xmlReaderSourceGetter) GetAll(key string) []string { return nil }
+func (x *xmlReaderSourceGetter) Has(key string) bool        { return false }

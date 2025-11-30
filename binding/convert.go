@@ -29,7 +29,7 @@ import (
 
 // setField sets a single struct field value with type conversion.
 // It handles pointer fields by creating a new pointer if the value is non-empty.
-func setField(field reflect.Value, value string, isPtr bool, opts *Options) error {
+func setField(field reflect.Value, value string, isPtr bool, opts *config) error {
 	fieldType := field.Type()
 
 	// Handle pointer fields
@@ -54,7 +54,7 @@ func setField(field reflect.Value, value string, isPtr bool, opts *Options) erro
 // setFieldValue sets the actual field value with type conversion.
 // It checks custom converters first, then handles special types, TextUnmarshaler
 // interface, and finally primitive types.
-func setFieldValue(field reflect.Value, value string, opts *Options) error {
+func setFieldValue(field reflect.Value, value string, opts *config) error {
 	fieldType := field.Type()
 
 	// Priority 0: Custom type converters (highest priority)
@@ -184,13 +184,13 @@ func setFieldValue(field reflect.Value, value string, opts *Options) error {
 
 // setSliceField sets a slice field from multiple string values.
 // It handles CSV mode (comma-separated values) and enforces maximum slice length limits.
-func setSliceField(field reflect.Value, values []string, opts *Options) error {
+func setSliceField(field reflect.Value, values []string, opts *config) error {
 	if len(values) == 0 {
 		return nil
 	}
 
 	// Handle CSV mode: if single value and CSV mode enabled, split it
-	if opts.SliceMode == SliceCSV && len(values) == 1 {
+	if opts.sliceMode == SliceCSV && len(values) == 1 {
 		split := strings.Split(values[0], ",")
 		// Trim whitespace from each element
 		for i := range split {
@@ -224,14 +224,14 @@ func setSliceField(field reflect.Value, values []string, opts *Options) error {
 
 // convertValue converts a string value to the target reflect.Kind.
 // It handles strings, integers, unsigned integers, floats, and booleans.
-func convertValue(value string, kind reflect.Kind, opts *Options) (any, error) {
+func convertValue(value string, kind reflect.Kind, opts *config) (any, error) {
 	switch kind {
 	case reflect.String:
 		return value, nil
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		base := 10
-		if opts.IntBaseAuto {
+		if opts.intBaseAuto {
 			base = 0 // Auto-detect: 0x=hex, 0=octal, 0b=binary
 		}
 		i, err := strconv.ParseInt(value, base, 64)
@@ -242,7 +242,7 @@ func convertValue(value string, kind reflect.Kind, opts *Options) (any, error) {
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		base := 10
-		if opts.IntBaseAuto {
+		if opts.intBaseAuto {
 			base = 0 // Auto-detect: 0x=hex, 0=octal, 0b=binary
 		}
 		u, err := strconv.ParseUint(value, base, 64)
@@ -287,7 +287,7 @@ func parseBoolGenerous(s string) (bool, error) {
 // parseTime attempts to parse a time string using multiple formats.
 // It tries default formats first (RFC3339, date-only, etc.), then custom layouts
 // from options. Returns an error if no format matches.
-func parseTime(value string, opts *Options) (time.Time, error) {
+func parseTime(value string, opts *config) (time.Time, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return time.Time{}, ErrEmptyTimeValue
@@ -315,7 +315,7 @@ func parseTime(value string, opts *Options) (time.Time, error) {
 	}
 
 	// Try custom layouts from options
-	for _, layout := range opts.TimeLayouts {
+	for _, layout := range opts.timeLayouts {
 		if t, err := time.Parse(layout, value); err == nil {
 			return t, nil
 		}
@@ -326,7 +326,7 @@ func parseTime(value string, opts *Options) (time.Time, error) {
 
 // convertToType converts a string value to the target reflect.Type.
 // It handles interface{} types and delegates to setFieldValue for concrete types.
-func convertToType(value string, targetType reflect.Type, opts *Options) (reflect.Value, error) {
+func convertToType(value string, targetType reflect.Type, opts *config) (reflect.Value, error) {
 	// Handle any (interface{})
 	if targetType.Kind() == reflect.Interface {
 		return reflect.ValueOf(value), nil
@@ -381,7 +381,7 @@ func validateEnum(value string, enumValues string) error {
 //   - map[string]string, map[string]int, map[string]float64
 //   - map[string]bool, map[string]time.Time, map[string]time.Duration
 //   - map[string]net.IP, map[string]any
-func setMapField(field reflect.Value, getter ValueGetter, prefix string, fieldType reflect.Type, opts *Options) error {
+func setMapField(field reflect.Value, getter ValueGetter, prefix string, fieldType reflect.Type, opts *config) error {
 	mapType := fieldType
 	isPtr := mapType.Kind() == reflect.Ptr
 	if isPtr {
@@ -581,7 +581,7 @@ func extractBracketKey(fullKey, prefix string) string {
 // It creates a prefix getter that filters values by the prefix (e.g., "address.")
 // and recursively binds the nested struct. Query syntax: ?address.street=Main&address.city=NYC
 func setNestedStructWithDepth(field reflect.Value, getter ValueGetter, prefix string,
-	tagName string, opts *Options, depth int) error {
+	tagName string, opts *config, depth int) error {
 
 	// Create nested value getter that filters by prefix
 	nestedGetter := &prefixGetter{
@@ -641,25 +641,25 @@ func (pg *prefixGetter) Has(key string) bool {
 // findConverter locates a registered converter for the given type.
 // It checks for direct matches, pointer normalization (T vs *T), and interface
 // implementations. Returns nil if no converter is found.
-func findConverter(fieldType reflect.Type, opts *Options) TypeConverter {
-	if opts.TypeConverters == nil {
+func findConverter(fieldType reflect.Type, opts *config) TypeConverter {
+	if opts.typeConverters == nil {
 		return nil
 	}
 
 	// Direct match: registered for exact type
-	if conv, ok := opts.TypeConverters[fieldType]; ok {
+	if conv, ok := opts.typeConverters[fieldType]; ok {
 		return conv
 	}
 
 	// Pointer normalization: if field is *T, check for converter registered for T
 	if fieldType.Kind() == reflect.Ptr {
-		if conv, ok := opts.TypeConverters[fieldType.Elem()]; ok {
+		if conv, ok := opts.typeConverters[fieldType.Elem()]; ok {
 			return conv // Will be wrapped transparently by caller
 		}
 	}
 
 	// Interface match: check if any registered interface is implemented by this type
-	for regType, conv := range opts.TypeConverters {
+	for regType, conv := range opts.typeConverters {
 		if regType.Kind() == reflect.Interface && fieldType.Implements(regType) {
 			return conv
 		}

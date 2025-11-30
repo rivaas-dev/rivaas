@@ -72,7 +72,7 @@ func TestParsing(t *testing.T) {
 				var result TestStruct
 				values := url.Values{}
 				values.Set("value", tt.input)
-				err := Bind(&result, NewQueryGetter(values), TagQuery)
+				err := Raw(NewQueryGetter(values), TagQuery, &result)
 				if tt.wantErr {
 					assert.Error(t, err, "Bind(%q) should return error", tt.input)
 				} else {
@@ -120,7 +120,7 @@ func TestParsing(t *testing.T) {
 				values.Set("time", tt.value)
 
 				var params Params
-				err := Bind(&params, NewQueryGetter(values), TagQuery)
+				err := Raw(NewQueryGetter(values), TagQuery, &params)
 
 				if tt.wantErr {
 					assert.Error(t, err, "Expected error for %q", tt.value)

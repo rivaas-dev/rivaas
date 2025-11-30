@@ -15,6 +15,7 @@
 package binding
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,26 +27,26 @@ func TestBindError_Unwrap(t *testing.T) {
 	t.Parallel()
 
 	originalErr := &BindError{
-		Field: "age",
-		Value: "invalid",
-		Type:  "int",
-		Tag:   "form",
-		Err:   nil,
+		Field:  "age",
+		Value:  "invalid",
+		Type:   reflect.TypeOf(0),
+		Source: SourceForm,
+		Err:    nil,
 	}
 
 	innerErr := &BindError{
-		Field: "nested",
-		Value: "bad",
-		Type:  "string",
-		Tag:   "json",
+		Field:  "nested",
+		Value:  "bad",
+		Type:   reflect.TypeOf(""),
+		Source: SourceJSON,
 	}
 
 	outerErr := &BindError{
-		Field: "age",
-		Value: "invalid",
-		Type:  "int",
-		Tag:   "form",
-		Err:   innerErr,
+		Field:  "age",
+		Value:  "invalid",
+		Type:   reflect.TypeOf(0),
+		Source: SourceForm,
+		Err:    innerErr,
 	}
 
 	unwrapped := outerErr.Unwrap()

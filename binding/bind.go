@@ -17,56 +17,289 @@ package binding
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 )
 
-// Bind maps values from a ValueGetter to struct fields using the specified tag.
-// It validates that out is a pointer to a struct, then binds matching values
-// from the getter to struct fields based on struct tags.
-//
-// Bind supports nested structs, slices, maps, pointers, and custom types.
-// It applies default values when specified in struct tags and validates enum
-// values when present.
+// Query binds URL query parameters to type T.
 //
 // Example:
 //
-//	type UserRequest struct {
-//	    Name  string `query:"name"`
-//	    Age   int    `query:"age"`
-//	    Email string `query:"email"`
-//	}
+//	params, err := binding.Query[ListParams](r.URL.Query())
 //
-//	var req UserRequest
-//	query := url.Values{"name": {"John"}, "age": {"30"}}
-//	err := Bind(&req, NewQueryGetter(query), "query")
+//	// With options
+//	params, err := binding.Query[ListParams](r.URL.Query(),
+//	    binding.WithRequired(),
+//	)
 //
-// Parameters:
-//   - out: Pointer to struct that will receive bound values
-//   - getter: ValueGetter that provides values (e.g., QueryGetter, FormGetter)
-//   - tag: Struct tag name to use for field matching (e.g., "query", "form", "json")
-//   - opts: Optional configuration options
-//
-// Returns an error if binding fails, including validation errors and type conversion errors.
-func Bind(out any, getter ValueGetter, tag string, opts ...Option) error {
-	options := applyOptions(opts)
-	defer options.finish() // Always fire Done event
+// Errors:
+//   - [ErrOutMustBePointer]: T is not a struct type
+//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
+//   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
+//   - [ErrSliceExceedsMaxLength]: slice length exceeds maximum
+//   - [ErrMapExceedsMaxSize]: map size exceeds maximum
+//   - [BindError]: field-level binding errors with detailed context
+func Query[T any](values url.Values, opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewQueryGetter(values), TagQuery, cfg); err != nil {
+		return result, err
+	}
+	return result, nil
+}
 
+// Path binds URL path parameters to type T.
+//
+// Example:
+//
+//	params, err := binding.Path[GetUserParams](pathParams)
+func Path[T any](params map[string]string, opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewPathGetter(params), TagPath, cfg); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+// Form binds form data to type T.
+//
+// Example:
+//
+//	data, err := binding.Form[FormData](r.PostForm)
+//
+// Errors:
+//   - [ErrOutMustBePointer]: T is not a struct type
+//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
+//   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
+//   - [ErrSliceExceedsMaxLength]: slice length exceeds maximum
+//   - [ErrMapExceedsMaxSize]: map size exceeds maximum
+//   - [BindError]: field-level binding errors with detailed context
+func Form[T any](values url.Values, opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewFormGetter(values), TagForm, cfg); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+// Header binds HTTP headers to type T.
+//
+// Example:
+//
+//	headers, err := binding.Header[RequestHeaders](r.Header)
+func Header[T any](h http.Header, opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewHeaderGetter(h), TagHeader, cfg); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+// Cookie binds cookies to type T.
+//
+// Example:
+//
+//	session, err := binding.Cookie[SessionData](r.Cookies())
+//
+// Errors:
+//   - [ErrOutMustBePointer]: T is not a struct type
+//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
+//   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
+//   - [BindError]: field-level binding errors with detailed context
+func Cookie[T any](cookies []*http.Cookie, opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewCookieGetter(cookies), TagCookie, cfg); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+// Bind binds from one or more sources specified via From* options.
+//
+// Example:
+//
+//	req, err := binding.Bind[CreateOrderRequest](
+//	    binding.FromPath(pathParams),
+//	    binding.FromQuery(r.URL.Query()),
+//	    binding.FromJSON(body),
+//	    binding.WithRequired(),
+//	)
+//
+// Errors:
+//   - [ErrNoSourcesProvided]: no binding sources provided via From* options
+//   - [ErrOutMustBePointer]: T is not a struct type
+//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
+//   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
+//   - [UnknownFieldError]: when [WithUnknownFields] is [UnknownError] and unknown fields are present
+//   - [BindError]: field-level binding errors with detailed context
+//   - [MultiError]: when [WithAllErrors] is used and multiple errors occur
+func Bind[T any](opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindMultiSource(&result, cfg); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+// QueryTo binds URL query parameters to out.
+//
+// Example:
+//
+//	var params ListParams
+//	err := binding.QueryTo(r.URL.Query(), &params)
+func QueryTo(values url.Values, out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	return bindFromSource(out, NewQueryGetter(values), TagQuery, cfg)
+}
+
+// PathTo binds URL path parameters to out.
+//
+// Example:
+//
+//	var params GetUserParams
+//	err := binding.PathTo(pathParams, &params)
+func PathTo(params map[string]string, out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	return bindFromSource(out, NewPathGetter(params), TagPath, cfg)
+}
+
+// FormTo binds form data to out.
+//
+// Example:
+//
+//	var data FormData
+//	err := binding.FormTo(r.PostForm, &data)
+func FormTo(values url.Values, out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	return bindFromSource(out, NewFormGetter(values), TagForm, cfg)
+}
+
+// HeaderTo binds HTTP headers to out.
+//
+// Example:
+//
+//	var headers RequestHeaders
+//	err := binding.HeaderTo(r.Header, &headers)
+func HeaderTo(h http.Header, out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	return bindFromSource(out, NewHeaderGetter(h), TagHeader, cfg)
+}
+
+// CookieTo binds cookies to out.
+//
+// Example:
+//
+//	var session SessionData
+//	err := binding.CookieTo(r.Cookies(), &session)
+func CookieTo(cookies []*http.Cookie, out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	return bindFromSource(out, NewCookieGetter(cookies), TagCookie, cfg)
+}
+
+// BindTo binds from one or more sources specified via From* options.
+//
+// Example:
+//
+//	var req CreateOrderRequest
+//	err := binding.BindTo(&req,
+//	    binding.FromPath(pathParams),
+//	    binding.FromQuery(r.URL.Query()),
+//	    binding.FromJSON(body),
+//	)
+func BindTo(out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	return bindMultiSource(out, cfg)
+}
+
+// Raw binds values from a [ValueGetter] to out using the specified tag.
+// This is the low-level binding function for custom sources.
+//
+// For built-in sources, prefer the type-safe functions: [Query], [Path], [Form], etc.
+//
+// Example:
+//
+//	customGetter := &MyCustomGetter{...}
+//	err := binding.Raw(customGetter, "custom", &result)
+//
+// Errors:
+//   - [ErrOutMustBePointer]: out is not a pointer to struct
+//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
+//   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
+//   - [BindError]: field-level binding errors with detailed context
+func Raw(getter ValueGetter, tag string, out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	return bindFromSource(out, getter, tag, cfg)
+}
+
+// RawInto binds values from a [ValueGetter] to type T using the specified tag.
+// This is the generic low-level binding function for custom sources.
+//
+// Example:
+//
+//	result, err := binding.RawInto[MyType](customGetter, "custom")
+//
+// Errors:
+//   - [ErrOutMustBePointer]: T is not a struct type
+//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
+//   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
+//   - [BindError]: field-level binding errors with detailed context
+func RawInto[T any](getter ValueGetter, tag string, opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindFromSource(&result, getter, tag, cfg); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+// applyOptions creates a new config with default values and applies the given options.
+// It returns a configured config instance ready for use in binding operations.
+func applyOptions(opts []Option) *config {
+	cfg := defaultConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return cfg
+}
+
+// bindFromSource binds values from a single source.
+func bindFromSource(out any, getter ValueGetter, tag string, cfg *config) error {
 	// Validate output is a pointer to struct
 	rv := reflect.ValueOf(out)
 	if rv.Kind() != reflect.Ptr {
-		options.trackError()
+		cfg.trackError()
 		return ErrOutMustBePointer
 	}
 
 	if rv.IsNil() {
-		options.trackError()
+		cfg.trackError()
 		return ErrOutPointerNil
 	}
 
 	elem := rv.Elem()
 	if elem.Kind() != reflect.Struct {
-		options.trackError()
+		cfg.trackError()
 		return ErrOutMustBePointer
 	}
 
@@ -74,21 +307,160 @@ func Bind(out any, getter ValueGetter, tag string, opts ...Option) error {
 	info := getStructInfo(elem.Type(), tag)
 
 	// Bind fields with depth tracking
-	return bindFieldsWithDepth(elem, getter, tag, info, options, 0)
+	if err := bindFieldsWithDepth(elem, getter, tag, info, cfg, 0); err != nil {
+		return err
+	}
+
+	// Run validator if configured
+	if cfg.validator != nil {
+		if err := cfg.validator.Validate(out); err != nil {
+			cfg.trackError()
+			return &BindError{
+				Field:  "",
+				Source: sourceFromTag(tag),
+				Reason: fmt.Sprintf("validation failed: %v", err),
+				Err:    err,
+			}
+		}
+	}
+
+	return nil
+}
+
+// bindMultiSource binds from multiple sources configured via From* options.
+// It handles JSON and XML sources specially, then processes other sources
+// using the standard binding flow.
+func bindMultiSource(out any, cfg *config) error {
+	if len(cfg.sources) == 0 {
+		cfg.trackError()
+		return ErrNoSourcesProvided
+	}
+
+	// Validate output is a pointer to struct
+	rv := reflect.ValueOf(out)
+	if rv.Kind() != reflect.Ptr {
+		cfg.trackError()
+		return ErrOutMustBePointer
+	}
+
+	if rv.IsNil() {
+		cfg.trackError()
+		return ErrOutPointerNil
+	}
+
+	elem := rv.Elem()
+	if elem.Kind() != reflect.Struct {
+		cfg.trackError()
+		return ErrOutMustBePointer
+	}
+
+	var errs []error
+
+	// Bind from each source
+	for _, src := range cfg.sources {
+		// Handle JSON sources specially
+		if jsonSrc, ok := src.getter.(*jsonSourceGetter); ok {
+			if err := bindJSONBytesInternal(out, jsonSrc.body, cfg); err != nil {
+				if cfg.allErrors {
+					errs = append(errs, err)
+				} else {
+					return err
+				}
+			}
+			continue
+		}
+
+		if jsonReaderSrc, ok := src.getter.(*jsonReaderSourceGetter); ok {
+			if err := bindJSONReaderInternal(out, jsonReaderSrc.reader, cfg); err != nil {
+				if cfg.allErrors {
+					errs = append(errs, err)
+				} else {
+					return err
+				}
+			}
+			continue
+		}
+
+		// Handle XML sources specially
+		if xmlSrc, ok := src.getter.(*xmlSourceGetter); ok {
+			if err := bindXMLBytesInternal(out, xmlSrc.body, cfg); err != nil {
+				if cfg.allErrors {
+					errs = append(errs, err)
+				} else {
+					return err
+				}
+			}
+			continue
+		}
+
+		if xmlReaderSrc, ok := src.getter.(*xmlReaderSourceGetter); ok {
+			if err := bindXMLReaderInternal(out, xmlReaderSrc.reader, cfg); err != nil {
+				if cfg.allErrors {
+					errs = append(errs, err)
+				} else {
+					return err
+				}
+			}
+			continue
+		}
+
+		// Check if struct has this tag
+		if HasStructTag(elem.Type(), src.tag) {
+			info := getStructInfo(elem.Type(), src.tag)
+			if err := bindFieldsWithDepth(elem, src.getter, src.tag, info, cfg, 0); err != nil {
+				if cfg.allErrors {
+					errs = append(errs, err)
+				} else {
+					return err
+				}
+			}
+		}
+	}
+
+	// Run validator if configured
+	if cfg.validator != nil {
+		if err := cfg.validator.Validate(out); err != nil {
+			cfg.trackError()
+			validationErr := &BindError{
+				Field:  "",
+				Source: SourceUnknown,
+				Reason: fmt.Sprintf("validation failed: %v", err),
+				Err:    err,
+			}
+			if cfg.allErrors {
+				errs = append(errs, validationErr)
+			} else {
+				return validationErr
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 // bindFieldsWithDepth binds all fields in a struct with depth enforcement.
+// It handles maps, nested structs, slices, and single-value fields, applying
+// defaults, validating required fields, and checking enum constraints.
 func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
-	info *structInfo, opts *Options, depth int) error {
+	info *structInfo, cfg *config, depth int) error {
 
 	// Enforce maximum nesting depth
-	if depth > opts.MaxDepth {
-		opts.trackError()
-		return fmt.Errorf("%w of %d", ErrMaxDepthExceeded, opts.MaxDepth)
+	if depth > cfg.maxDepth {
+		cfg.trackError()
+		return fmt.Errorf("%w of %d", ErrMaxDepthExceeded, cfg.maxDepth)
 	}
 
 	// Cache event presence flags once per bind call
-	evtFlags := opts.eventFlags()
+	evtFlags := cfg.eventFlags()
+
+	// Track errors for allErrors mode
+	var multiErr *MultiError
+	if cfg.allErrors {
+		multiErr = &MultiError{}
+	}
 
 	for _, field := range info.fields {
 		// Get the field value by index path
@@ -99,34 +471,44 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 
 		// Handle map fields
 		if field.isMap {
-			if err := setMapField(fieldValue, getter, field.tagName, field.fieldType, opts); err != nil {
-				opts.trackError()
-				return &BindError{
-					Field: field.name,
-					Tag:   tagName,
-					Value: "",
-					Type:  fieldValue.Type().String(),
-					Err:   err,
+			if err := setMapField(fieldValue, getter, field.tagName, field.fieldType, cfg); err != nil {
+				bindErr := &BindError{
+					Field:  field.name,
+					Source: sourceFromTag(tagName),
+					Value:  "",
+					Type:   fieldValue.Type(),
+					Err:    err,
 				}
+				if cfg.allErrors {
+					multiErr.Add(bindErr)
+					continue
+				}
+				cfg.trackError()
+				return bindErr
 			}
-			opts.trackField(field.name, tagName, evtFlags)
+			cfg.trackField(field.name, tagName, evtFlags)
 			continue
 		}
 
 		// Handle nested struct fields (with incremented depth)
 		if field.isStruct {
 			if err := setNestedStructWithDepth(fieldValue, getter, field.tagName,
-				tagName, opts, depth+1); err != nil {
-				opts.trackError()
-				return &BindError{
-					Field: field.name,
-					Tag:   tagName,
-					Value: "",
-					Type:  fieldValue.Type().String(),
-					Err:   err,
+				tagName, cfg, depth+1); err != nil {
+				bindErr := &BindError{
+					Field:  field.name,
+					Source: sourceFromTag(tagName),
+					Value:  "",
+					Type:   fieldValue.Type(),
+					Err:    err,
 				}
+				if cfg.allErrors {
+					multiErr.Add(bindErr)
+					continue
+				}
+				cfg.trackError()
+				return bindErr
 			}
-			opts.trackField(field.name, tagName, evtFlags)
+			cfg.trackField(field.name, tagName, evtFlags)
 			continue
 		}
 
@@ -164,12 +546,28 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 				} else {
 					fv.Set(reflect.ValueOf(field.typedDefault))
 				}
-				opts.trackField(field.name, tagName, evtFlags)
+				cfg.trackField(field.name, tagName, evtFlags)
 				continue
 			}
 			// Fallback: convert at runtime
 			value = field.defaultValue
 			hasValue = true
+		}
+
+		// Check required field
+		if !hasValue && cfg.required && field.isRequired {
+			bindErr := &BindError{
+				Field:  field.name,
+				Source: sourceFromTag(tagName),
+				Reason: "required field is missing",
+				Err:    ErrRequiredField,
+			}
+			if cfg.allErrors {
+				multiErr.Add(bindErr)
+				continue
+			}
+			cfg.trackError()
+			return bindErr
 		}
 
 		// Skip fields without values and no defaults
@@ -180,17 +578,22 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 		// Handle slice fields
 		if field.isSlice {
 			values := getter.GetAll(field.tagName)
-			if err := setSliceField(fieldValue, values, opts); err != nil {
-				opts.trackError()
-				return &BindError{
-					Field: field.name,
-					Tag:   tagName,
-					Value: strings.Join(values, ","),
-					Type:  fieldValue.Type().String(),
-					Err:   err,
+			if err := setSliceField(fieldValue, values, cfg); err != nil {
+				bindErr := &BindError{
+					Field:  field.name,
+					Source: sourceFromTag(tagName),
+					Value:  strings.Join(values, ","),
+					Type:   fieldValue.Type(),
+					Err:    err,
 				}
+				if cfg.allErrors {
+					multiErr.Add(bindErr)
+					continue
+				}
+				cfg.trackError()
+				return bindErr
 			}
-			opts.trackField(field.name, tagName, evtFlags)
+			cfg.trackField(field.name, tagName, evtFlags)
 			continue
 		}
 
@@ -199,29 +602,43 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 		// Enum validation
 		if field.enumValues != "" {
 			if err := validateEnum(value, field.enumValues); err != nil {
-				opts.trackError()
-				return &BindError{
-					Field: field.name,
-					Tag:   tagName,
-					Value: value,
-					Type:  fieldValue.Type().String(),
-					Err:   err,
+				bindErr := &BindError{
+					Field:  field.name,
+					Source: sourceFromTag(tagName),
+					Value:  value,
+					Type:   fieldValue.Type(),
+					Err:    err,
 				}
+				if cfg.allErrors {
+					multiErr.Add(bindErr)
+					continue
+				}
+				cfg.trackError()
+				return bindErr
 			}
 		}
 
-		if err := setField(fieldValue, value, field.isPtr, opts); err != nil {
-			opts.trackError()
-			return &BindError{
-				Field: field.name,
-				Tag:   tagName,
-				Value: value,
-				Type:  fieldValue.Type().String(),
-				Err:   err,
+		if err := setField(fieldValue, value, field.isPtr, cfg); err != nil {
+			bindErr := &BindError{
+				Field:  field.name,
+				Source: sourceFromTag(tagName),
+				Value:  value,
+				Type:   fieldValue.Type(),
+				Err:    err,
 			}
+			if cfg.allErrors {
+				multiErr.Add(bindErr)
+				continue
+			}
+			cfg.trackError()
+			return bindErr
 		}
 
-		opts.trackField(field.name, tagName, evtFlags)
+		cfg.trackField(field.name, tagName, evtFlags)
+	}
+
+	if cfg.allErrors && multiErr.HasErrors() {
+		return multiErr
 	}
 
 	return nil
@@ -280,6 +697,7 @@ func parseStructInfo(t reflect.Type, tagName string) *structInfo {
 // parseStructType recursively parses struct fields and extracts binding information.
 // It handles embedded structs, pointer types, slices, maps, and nested structs.
 // The indexPrefix parameter tracks the field index path for nested access.
+// Called by [parseStructInfo] during struct metadata parsing.
 func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structInfo {
 	info := &structInfo{
 		fields: make([]fieldInfo, 0, t.NumField()),
@@ -392,14 +810,17 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 		// Get default value from tag
 		defaultValue := field.Tag.Get("default")
 
+		// Check required tag
+		isRequired := field.Tag.Get("required") == "true"
+
 		// Compute typed default value
 		var typedDefault any
 		hasTypedDefault := false
 		if defaultValue != "" && !isSlice && !isMap {
 			// Attempt to convert default value to typed form
-			// Use default options for conversion (time layouts, etc.)
-			defaultOpts := defaultOptions()
-			if convertedVal, err := convertToType(defaultValue, field.Type, defaultOpts); err == nil {
+			// Use default config for conversion (time layouts, etc.)
+			defaultCfg := defaultConfig()
+			if convertedVal, err := convertToType(defaultValue, field.Type, defaultCfg); err == nil {
 				typedDefault = convertedVal.Interface()
 				hasTypedDefault = true
 			} else {
@@ -430,99 +851,11 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 			defaultValue:    defaultValue,
 			typedDefault:    typedDefault,
 			hasTypedDefault: hasTypedDefault,
+			isRequired:      isRequired,
 		})
 	}
 
 	return info
-}
-
-// BindInto binds values into a new instance of type T and returns it.
-// It is a convenience wrapper around Bind that eliminates the need to
-// create and pass a pointer manually.
-//
-// Example:
-//
-//	result, err := BindInto[UserRequest](getter, "query")
-//
-// Parameters:
-//   - getter: ValueGetter that provides values
-//   - tag: Struct tag name to use for field matching
-//   - opts: Optional configuration options
-//
-// Returns the bound value of type T and an error if binding fails.
-func BindInto[T any](getter ValueGetter, tag string, opts ...Option) (T, error) {
-	var result T
-	err := Bind(&result, getter, tag, opts...)
-	return result, err
-}
-
-// SourceConfig maps a struct tag name to its ValueGetter.
-// It is used by BindMulti to specify which source should be used for each tag type.
-type SourceConfig struct {
-	Tag    string      // Struct tag name (e.g., "query", "params", "header")
-	Getter ValueGetter // ValueGetter for this tag type
-}
-
-// BindMulti binds values from multiple sources based on struct tags.
-// It introspects the struct and only binds from sources where the corresponding
-// tags are present in the struct fields.
-//
-// This is useful when a single struct contains fields with different tag types
-// (e.g., query, params, header, cookie) and you want to bind them all at once.
-//
-// Example:
-//
-//	type Request struct {
-//	    ID     string `path:"id"`
-//	    Query  string `query:"q"`
-//	    UserID string `header:"X-User-Id"`
-//	}
-//
-//	sources := []SourceConfig{
-//		{Tag: TagPath, Getter: NewPathGetter(params)},
-//		{Tag: TagQuery, Getter: NewQueryGetter(query)},
-//		{Tag: TagHeader, Getter: NewHeaderGetter(headers)},
-//	}
-//	var req Request
-//	err := BindMulti(&req, sources)
-//
-// Parameters:
-//   - out: Pointer to struct that will receive bound values
-//   - sources: List of SourceConfig entries mapping tag names to ValueGetters
-//   - opts: Optional configuration options
-//
-// Returns an error if any binding operation fails. Multiple errors are joined.
-func BindMulti(out any, sources []SourceConfig, opts ...Option) error {
-	// Validate output is a pointer to struct
-	rv := reflect.ValueOf(out)
-	if rv.Kind() != reflect.Ptr {
-		return ErrOutMustBePointer
-	}
-	if rv.IsNil() {
-		return ErrOutPointerNil
-	}
-
-	elem := rv.Elem()
-	if elem.Kind() != reflect.Struct {
-		return ErrOutMustBePointer
-	}
-
-	t := elem.Type()
-	var errs []error
-
-	// Bind from each source where tags exist
-	for _, src := range sources {
-		if HasStructTag(t, src.Tag) {
-			if err := Bind(out, src.Getter, src.Tag, opts...); err != nil {
-				errs = append(errs, fmt.Errorf("%s: %w", src.Tag, err))
-			}
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-	return nil
 }
 
 // HasStructTag checks if any field in the struct has the given tag.
@@ -530,11 +863,11 @@ func BindMulti(out any, sources []SourceConfig, opts ...Option) error {
 // anywhere in the type hierarchy.
 //
 // This is useful for determining which binding sources should be used when
-// binding from multiple sources with BindMulti.
+// binding from multiple sources with [Bind] or [BindTo].
 //
 // Parameters:
 //   - t: Struct type to check
-//   - tag: Tag name to search for
+//   - tag: Tag name to search for (e.g., [TagJSON], [TagQuery])
 //
 // Returns true if any field (including in embedded structs) has the tag.
 func HasStructTag(t reflect.Type, tag string) bool {
@@ -544,6 +877,11 @@ func HasStructTag(t reflect.Type, tag string) bool {
 // hasStructTagRecursive recursively checks for tags, avoiding infinite loops
 // with embedded structs by tracking visited types.
 func hasStructTagRecursive(t reflect.Type, tag string, visited map[reflect.Type]bool) bool {
+	// Unwrap pointer
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
 	// Avoid infinite loops with circular embedded structs
 	if visited[t] {
 		return false

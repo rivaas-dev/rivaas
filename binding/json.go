@@ -18,150 +18,197 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
 )
 
-// BindJSON binds JSON request body to a struct.
-// It reads from the provided io.Reader and decodes JSON into the target struct.
-// Unknown field handling is controlled by UnknownFieldPolicy in options.
+// JSON binds JSON bytes to type T.
 //
-// Parameters:
-//   - out: Pointer to struct that will receive bound values
-//   - r: io.Reader containing JSON data
-//   - opts: Optional configuration options
+// Example:
 //
-// Returns an error if JSON decoding fails or validation errors occur.
-func BindJSON(out any, r io.Reader, opts ...Option) error {
-	return BindJSONWithContext(context.Background(), out, r, opts...)
+//	user, err := binding.JSON[CreateUserRequest](body)
+//
+//	// With options
+//	user, err := binding.JSON[CreateUserRequest](body,
+//	    binding.WithUnknownFields(binding.UnknownError),
+//	    binding.WithRequired(),
+//	)
+//
+// Errors:
+//   - [ErrOutMustBePointer]: T is not a struct type
+//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
+//   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
+//   - [UnknownFieldError]: when [WithUnknownFields] is [UnknownError] and unknown fields are present
+//   - [BindError]: field-level binding errors with detailed context
+//   - [MultiError]: when [WithAllErrors] is used and multiple errors occur
+func JSON[T any](body []byte, opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindJSONBytesInternal(&result, body, cfg); err != nil {
+		return result, err
+	}
+	return result, nil
 }
 
-// BindJSONWithContext binds JSON with context support for cancellation.
-// It respects context cancellation during JSON decoding.
+// JSONReader binds JSON from an io.Reader to type T.
 //
-// Parameters:
-//   - ctx: Context for cancellation
-//   - out: Pointer to struct that will receive bound values
-//   - r: io.Reader containing JSON data
-//   - opts: Optional configuration options
+// Example:
 //
-// Returns an error if context is cancelled, JSON decoding fails, or validation errors occur.
-func BindJSONWithContext(ctx context.Context, out any, r io.Reader, opts ...Option) error {
-	options := applyOptions(opts)
-	defer options.finish()
+//	user, err := binding.JSONReader[CreateUserRequest](r.Body)
+//
+// Errors:
+//   - [ErrOutMustBePointer]: T is not a struct type
+//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
+//   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
+//   - [UnknownFieldError]: when [WithUnknownFields] is [UnknownError] and unknown fields are present
+//   - [BindError]: field-level binding errors with detailed context
+func JSONReader[T any](r io.Reader, opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindJSONReaderInternal(&result, r, cfg); err != nil {
+		return result, err
+	}
+	return result, nil
+}
 
+// JSONTo binds JSON bytes to out.
+//
+// Example:
+//
+//	var user CreateUserRequest
+//	err := binding.JSONTo(body, &user)
+func JSONTo(body []byte, out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	return bindJSONBytesInternal(out, body, cfg)
+}
+
+// JSONReaderTo binds JSON from an io.Reader to out.
+//
+// Example:
+//
+//	var user CreateUserRequest
+//	err := binding.JSONReaderTo(r.Body, &user)
+func JSONReaderTo(r io.Reader, out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	return bindJSONReaderInternal(out, r, cfg)
+}
+
+// bindJSONReaderInternal binds JSON from an io.Reader.
+func bindJSONReaderInternal(out any, r io.Reader, cfg *config) error {
 	// For Warn/Error policies, we need the raw bytes to walk the structure
-	if options.UnknownFields == UnknownWarn || options.UnknownFields == UnknownError {
+	if cfg.unknownFields == UnknownWarn || cfg.unknownFields == UnknownError {
 		// Read body into memory
 		body, err := io.ReadAll(r)
 		if err != nil {
-			options.trackError()
+			cfg.trackError()
 			return err
 		}
-		return bindJSONBytesWithContext(ctx, out, body, options)
+		return bindJSONBytesInternal(out, body, cfg)
 	}
 
 	// No unknown field detection needed
 	decoder := json.NewDecoder(r)
-	if options.JSONUseNumber {
+	if cfg.jsonUseNumber {
 		decoder.UseNumber()
 	}
-	return decodeWithContext(ctx, decoder, out, options)
-}
-
-// BindJSONBytes binds JSON from a byte slice.
-// Use this when the request body is already available as bytes, such as when
-// it has been cached by the router.
-//
-// Parameters:
-//   - out: Pointer to struct that will receive bound values
-//   - body: JSON data as byte slice
-//   - opts: Optional configuration options
-//
-// Returns an error if JSON decoding fails or validation errors occur.
-func BindJSONBytes(out any, body []byte, opts ...Option) error {
-	return BindJSONBytesWithContext(context.Background(), out, body, opts...)
-}
-
-// BindJSONBytesWithContext binds JSON bytes with context support for cancellation.
-// It respects context cancellation during JSON decoding.
-//
-// Parameters:
-//   - ctx: Context for cancellation
-//   - out: Pointer to struct that will receive bound values
-//   - body: JSON data as byte slice
-//   - opts: Optional configuration options
-//
-// Returns an error if context is cancelled, JSON decoding fails, or validation errors occur.
-func BindJSONBytesWithContext(ctx context.Context, out any, body []byte, opts ...Option) error {
-	options := applyOptions(opts)
-	defer options.finish()
-	return bindJSONBytesWithContext(ctx, out, body, options)
-}
-
-// bindJSONBytesWithContext is the internal implementation.
-func bindJSONBytesWithContext(ctx context.Context, out any, body []byte, opts *Options) error {
-	// Check context before heavy work
-	if err := ctx.Err(); err != nil {
-		opts.trackError()
+	if err := decoder.Decode(out); err != nil {
+		cfg.trackError()
 		return err
 	}
 
-	switch opts.UnknownFields {
+	// Run validator if configured
+	if cfg.validator != nil {
+		if err := cfg.validator.Validate(out); err != nil {
+			cfg.trackError()
+			return &BindError{
+				Field:  "",
+				Source: SourceJSON,
+				Reason: fmt.Sprintf("validation failed: %v", err),
+				Err:    err,
+			}
+		}
+	}
+
+	return nil
+}
+
+// bindJSONBytesInternal is the internal implementation for JSON byte binding.
+func bindJSONBytesInternal(out any, body []byte, cfg *config) error {
+	switch cfg.unknownFields {
 	case UnknownError:
 		// Use standard decoder with DisallowUnknownFields
 		decoder := json.NewDecoder(bytes.NewReader(body))
 		decoder.DisallowUnknownFields()
-		if opts.JSONUseNumber {
+		if cfg.jsonUseNumber {
 			decoder.UseNumber()
 		}
 
 		if err := decoder.Decode(out); err != nil {
-			opts.trackError()
+			cfg.trackError()
 
 			// Check if error is due to unknown field
 			if strings.Contains(err.Error(), "unknown field") {
 				fieldName := extractUnknownFieldName(err.Error())
-				if opts.Events.UnknownField != nil {
-					opts.Events.UnknownField(fieldName)
+				if cfg.events.UnknownField != nil {
+					cfg.events.UnknownField(fieldName)
 				}
 				return &UnknownFieldError{Fields: []string{fieldName}}
 			}
 
 			return err
 		}
-		return nil
 
 	case UnknownWarn:
 		// Two-pass: detect unknowns, then decode
-		return bindJSONWithWarnings(ctx, out, body, opts)
+		if err := bindJSONWithWarnings(context.Background(), out, body, cfg); err != nil {
+			return err
+		}
 
 	default: // UnknownIgnore
 		decoder := json.NewDecoder(bytes.NewReader(body))
-		if opts.JSONUseNumber {
+		if cfg.jsonUseNumber {
 			decoder.UseNumber()
 		}
 		if err := decoder.Decode(out); err != nil {
-			opts.trackError()
+			cfg.trackError()
 			return err
 		}
-		return nil
 	}
+
+	// Run validator if configured
+	if cfg.validator != nil {
+		if err := cfg.validator.Validate(out); err != nil {
+			cfg.trackError()
+			return &BindError{
+				Field:  "",
+				Source: SourceJSON,
+				Reason: fmt.Sprintf("validation failed: %v", err),
+				Err:    err,
+			}
+		}
+	}
+
+	return nil
 }
 
 // bindJSONWithWarnings detects unknown fields at all nesting levels and warns.
-func bindJSONWithWarnings(ctx context.Context, out any, body []byte, opts *Options) error {
+func bindJSONWithWarnings(ctx context.Context, out any, body []byte, cfg *config) error {
 	// First: decode into generic map to get full structure
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(body, &raw); err != nil {
-		opts.trackError()
+		cfg.trackError()
 		return err
 	}
 
 	// Check context before expensive operations
 	if err := ctx.Err(); err != nil {
-		opts.trackError()
+		cfg.trackError()
 		return err
 	}
 
@@ -176,22 +223,22 @@ func bindJSONWithWarnings(ctx context.Context, out any, body []byte, opts *Optio
 	unknowns := []string{}
 	if err := walkJSONRawMessage(json.RawMessage(body), trie, nil, func(path string) {
 		unknowns = append(unknowns, path)
-		evtFlags := opts.eventFlags()
+		evtFlags := cfg.eventFlags()
 		if evtFlags.hasUnknownField {
-			opts.Events.UnknownField(path)
+			cfg.events.UnknownField(path)
 		}
 	}); err != nil {
-		opts.trackError()
+		cfg.trackError()
 		return err
 	}
 
 	// Second: decode into target struct (using original bytes for efficiency)
 	decoder := json.NewDecoder(bytes.NewReader(body))
-	if opts.JSONUseNumber {
+	if cfg.jsonUseNumber {
 		decoder.UseNumber()
 	}
 	if err := decoder.Decode(out); err != nil {
-		opts.trackError()
+		cfg.trackError()
 		return err
 	}
 
@@ -199,60 +246,6 @@ func bindJSONWithWarnings(ctx context.Context, out any, body []byte, opts *Optio
 	_ = unknowns
 
 	return nil
-}
-
-// BindJSONStrict is a convenience wrapper for strict JSON decoding.
-// It is equivalent to BindJSON with UnknownFieldPolicy set to UnknownError,
-// which returns an error when unknown fields are encountered.
-//
-// Parameters:
-//   - out: Pointer to struct that will receive bound values
-//   - r: io.Reader containing JSON data
-//   - opts: Optional configuration options (UnknownFieldPolicy is overridden)
-//
-// Returns an error if unknown fields are present, JSON decoding fails, or validation errors occur.
-func BindJSONStrict(out any, r io.Reader, opts ...Option) error {
-	opts = append(opts, WithUnknownFieldPolicy(UnknownError))
-	return BindJSON(out, r, opts...)
-}
-
-// BindJSONStrictBytes is a convenience wrapper for strict JSON decoding from bytes.
-// It is equivalent to BindJSONBytes with UnknownFieldPolicy set to UnknownError.
-//
-// Parameters:
-//   - out: Pointer to struct that will receive bound values
-//   - body: JSON data as byte slice
-//   - opts: Optional configuration options (UnknownFieldPolicy is overridden)
-//
-// Returns an error if unknown fields are present, JSON decoding fails, or validation errors occur.
-func BindJSONStrictBytes(out any, body []byte, opts ...Option) error {
-	opts = append(opts, WithUnknownFieldPolicy(UnknownError))
-	return BindJSONBytes(out, body, opts...)
-}
-
-// decodeWithContext performs JSON decoding with periodic context checks.
-func decodeWithContext(ctx context.Context, decoder *json.Decoder, out any, opts *Options) error {
-	// Create a channel to signal decode completion
-	type result struct {
-		err error
-	}
-
-	done := make(chan result, 1)
-
-	go func() {
-		done <- result{err: decoder.Decode(out)}
-	}()
-
-	select {
-	case <-ctx.Done():
-		opts.trackError()
-		return ctx.Err()
-	case res := <-done:
-		if res.err != nil {
-			opts.trackError()
-		}
-		return res.err
-	}
 }
 
 // extractUnknownFieldName parses json.Decoder error to extract field name.
@@ -267,23 +260,4 @@ func extractUnknownFieldName(errMsg string) string {
 		return ""
 	}
 	return errMsg[start+1 : start+1+end]
-}
-
-// BindJSONInto binds JSON into a new instance of type T and returns it.
-// It is a convenience wrapper around BindJSONBytes that eliminates the need to
-// create and pass a pointer manually.
-//
-// Example:
-//
-//	result, err := BindJSONInto[UserRequest](body)
-//
-// Parameters:
-//   - body: JSON data as byte slice
-//   - opts: Optional configuration options
-//
-// Returns the bound value of type T and an error if binding fails.
-func BindJSONInto[T any](body []byte, opts ...Option) (T, error) {
-	var result T
-	err := BindJSONBytes(&result, body, opts...)
-	return result, err
 }

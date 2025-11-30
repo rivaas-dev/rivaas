@@ -22,12 +22,17 @@ import (
 
 // Tag name constants for struct tags used in binding.
 const (
-	TagJSON   = "json"   // JSON struct tag
-	TagQuery  = "query"  // Query parameter struct tag
-	TagPath   = "path"   // URL path parameter struct tag
-	TagForm   = "form"   // Form data struct tag
-	TagHeader = "header" // HTTP header struct tag
-	TagCookie = "cookie" // Cookie struct tag
+	TagJSON    = "json"    // JSON struct tag
+	TagQuery   = "query"   // Query parameter struct tag
+	TagPath    = "path"    // URL path parameter struct tag
+	TagForm    = "form"    // Form data struct tag
+	TagHeader  = "header"  // HTTP header struct tag
+	TagCookie  = "cookie"  // Cookie struct tag
+	TagXML     = "xml"     // XML struct tag
+	TagYAML    = "yaml"    // YAML struct tag
+	TagTOML    = "toml"    // TOML struct tag
+	TagMsgPack = "msgpack" // MessagePack struct tag
+	TagProto   = "proto"   // Protocol Buffers struct tag
 )
 
 // ValueGetter abstracts different sources of input values for binding.
@@ -40,6 +45,10 @@ const (
 // This distinction enables proper partial update semantics and default value
 // application. The Has method should return true if the key exists in the
 // source, even if its value is empty.
+//
+// ValueGetter is the low-level interface for custom binding sources.
+// For built-in sources, use the type-safe functions: [Query], [Path], [Form], etc.
+// Use [Raw] or [RawInto] to bind from a custom ValueGetter implementation.
 type ValueGetter interface {
 	// Get returns the first value for the given key, or an empty string if not present.
 	Get(key string) string
@@ -52,16 +61,26 @@ type ValueGetter interface {
 	Has(key string) bool
 }
 
-// approxSizer is an optional interface for ValueGetter implementations that
+// approxSizer is an optional interface for [ValueGetter] implementations that
 // can estimate the number of keys matching a prefix. This is used for map
-// capacity estimation.
+// capacity estimation to improve performance when binding map fields.
 type approxSizer interface {
 	ApproxLen(prefix string) int
 }
 
-// GetterFunc is a function adapter that implements ValueGetter.
+// GetterFunc is a function adapter that implements [ValueGetter].
 // It allows using a function directly as a ValueGetter without creating
 // a custom type.
+//
+// Example:
+//
+//	getter := binding.GetterFunc(func(key string) ([]string, bool) {
+//	    if val, ok := myMap[key]; ok {
+//	        return []string{val}, true
+//	    }
+//	    return nil, false
+//	})
+//	err := binding.Raw(getter, "custom", &result)
 type GetterFunc func(key string) (values []string, has bool)
 
 // Get returns the first value for the key.
@@ -85,18 +104,17 @@ func (f GetterFunc) Has(key string) bool {
 	return has
 }
 
-// QueryGetter implements ValueGetter for URL query parameters.
+// QueryGetter implements [ValueGetter] for URL query parameters.
 type QueryGetter struct {
 	values url.Values
 }
 
-// NewQueryGetter creates a QueryGetter from url.Values.
+// NewQueryGetter creates a [QueryGetter] from url.Values.
 //
 // Example:
 //
-//	query := url.Values{"name": {"John"}, "age": {"30"}}
-//	getter := NewQueryGetter(query)
-//	Bind(&result, getter, "query")
+//	getter := binding.NewQueryGetter(r.URL.Query())
+//	err := binding.Raw(getter, "query", &result)
 func NewQueryGetter(v url.Values) ValueGetter {
 	return &QueryGetter{values: v}
 }
@@ -147,9 +165,7 @@ type PathGetter struct {
 //
 // Example:
 //
-//	params := map[string]string{"id": "123", "slug": "article-title"}
-//	getter := NewPathGetter(params)
-//	Bind(&result, getter, "path")
+//	getter := binding.NewPathGetter(map[string]string{"id": "123"})
 func NewPathGetter(p map[string]string) ValueGetter {
 	return &PathGetter{params: p}
 }
@@ -175,18 +191,17 @@ func (p *PathGetter) Has(key string) bool {
 	return ok
 }
 
-// FormGetter implements ValueGetter for form data.
+// FormGetter implements [ValueGetter] for form data.
 type FormGetter struct {
 	values url.Values
 }
 
-// NewFormGetter creates a FormGetter from url.Values.
+// NewFormGetter creates a [FormGetter] from url.Values.
 //
 // Example:
 //
-//	form := url.Values{"email": {"user@example.com"}, "password": {"secret"}}
-//	getter := NewFormGetter(form)
-//	Bind(&result, getter, "form")
+//	getter := binding.NewFormGetter(r.PostForm)
+//	err := binding.Raw(getter, "form", &result)
 func NewFormGetter(v url.Values) ValueGetter {
 	return &FormGetter{values: v}
 }
@@ -228,19 +243,18 @@ func (f *FormGetter) ApproxLen(prefix string) int {
 	return count
 }
 
-// CookieGetter implements ValueGetter for HTTP cookies.
+// CookieGetter implements [ValueGetter] for HTTP cookies.
 // Cookie names are case-sensitive per HTTP standard.
 type CookieGetter struct {
 	cookies []*http.Cookie
 }
 
-// NewCookieGetter creates a CookieGetter from a slice of HTTP cookies.
+// NewCookieGetter creates a [CookieGetter] from a slice of HTTP cookies.
 //
 // Example:
 //
-//	cookies := []*http.Cookie{{Name: "session", Value: "abc123"}}
-//	getter := NewCookieGetter(cookies)
-//	Bind(&result, getter, "cookie")
+//	getter := binding.NewCookieGetter(r.Cookies())
+//	err := binding.Raw(getter, "cookie", &result)
 func NewCookieGetter(c []*http.Cookie) ValueGetter {
 	return &CookieGetter{cookies: c}
 }
@@ -285,7 +299,7 @@ func (cg *CookieGetter) Has(key string) bool {
 	return false
 }
 
-// HeaderGetter implements ValueGetter for HTTP headers.
+// HeaderGetter implements [ValueGetter] for HTTP headers.
 // Headers are case-insensitive per HTTP standard, and keys are canonicalized
 // using http.CanonicalHeaderKey.
 type HeaderGetter struct {
@@ -293,14 +307,13 @@ type HeaderGetter struct {
 	normalized map[string]string // Canonical key -> first value
 }
 
-// NewHeaderGetter creates a HeaderGetter from http.Header.
+// NewHeaderGetter creates a [HeaderGetter] from http.Header.
 // Header keys are normalized to canonical MIME header format for consistent lookups.
 //
 // Example:
 //
-//	headers := http.Header{"X-User-Id": {"123"}, "X-Request-Id": {"req-456"}}
-//	getter := NewHeaderGetter(headers)
-//	Bind(&result, getter, "header")
+//	getter := binding.NewHeaderGetter(r.Header)
+//	err := binding.Raw(getter, "header", &result)
 func NewHeaderGetter(h http.Header) ValueGetter {
 	// Headers are already canonicalized by http.Header, but we store
 	// a normalized map for consistent lookups

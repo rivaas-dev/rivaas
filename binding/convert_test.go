@@ -74,7 +74,7 @@ func TestConvertValue_ErrorCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := defaultOptions()
+			opts := defaultConfig()
 			_, err := convertValue(tt.value, tt.kind, opts)
 
 			require.Error(t, err, "Expected error for %s", tt.name)

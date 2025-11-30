@@ -34,7 +34,7 @@ func TestBindJSON_BasicTypes(t *testing.T) {
 	body := []byte(`{"name":"John","email":"john@example.com","age":30}`)
 
 	var user User
-	err := BindJSONBytes(&user, body)
+	err := JSONTo(body, &user)
 
 	require.NoError(t, err)
 	assert.Equal(t, "John", user.Name)
@@ -62,7 +62,7 @@ func TestBindJSON_NestedStructs(t *testing.T) {
 	}`)
 
 	var user User
-	err := BindJSONBytes(&user, body)
+	err := JSONTo(body, &user)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Alice", user.Name)
@@ -82,7 +82,7 @@ func TestBindJSON_Arrays(t *testing.T) {
 	body := []byte(`{"tags":["go","rust","python"],"ids":[1,2,3]}`)
 
 	var data Data
-	err := BindJSONBytes(&data, body)
+	err := JSONTo(body, &data)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"go", "rust", "python"}, data.Tags)
@@ -125,7 +125,7 @@ func TestBindJSON_ErrorCases(t *testing.T) {
 			t.Parallel()
 
 			var user User
-			err := BindJSONBytes(&user, tt.body)
+			err := JSONTo(tt.body, &user)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -167,7 +167,7 @@ func TestBindJSONStrict_UnknownFields(t *testing.T) {
 			t.Parallel()
 
 			var user User
-			err := BindJSONStrictBytes(&user, tt.body)
+			err := JSONTo(tt.body, &user, WithUnknownFields(UnknownError))
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -191,7 +191,7 @@ func TestBindJSONInto_Generic(t *testing.T) {
 
 	body := []byte(`{"name":"Jane","age":25}`)
 
-	user, err := BindJSONInto[User](body)
+	user, err := JSON[User](body)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Jane", user.Name)

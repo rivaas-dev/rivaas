@@ -17,8 +17,110 @@ package binding
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 )
+
+// Source represents the binding source type.
+type Source int
+
+const (
+	// SourceUnknown is an unspecified source.
+	SourceUnknown Source = iota
+
+	// SourceQuery represents URL query parameters.
+	SourceQuery
+
+	// SourcePath represents URL path parameters.
+	SourcePath
+
+	// SourceForm represents form data.
+	SourceForm
+
+	// SourceHeader represents HTTP headers.
+	SourceHeader
+
+	// SourceCookie represents HTTP cookies.
+	SourceCookie
+
+	// SourceJSON represents JSON body.
+	SourceJSON
+
+	// SourceXML represents XML body.
+	SourceXML
+
+	// SourceYAML represents YAML body.
+	SourceYAML
+
+	// SourceTOML represents TOML body.
+	SourceTOML
+
+	// SourceMsgPack represents MessagePack body.
+	SourceMsgPack
+
+	// SourceProto represents Protocol Buffers body.
+	SourceProto
+)
+
+// String returns the string representation of the source.
+func (s Source) String() string {
+	switch s {
+	case SourceQuery:
+		return "query"
+	case SourcePath:
+		return "path"
+	case SourceForm:
+		return "form"
+	case SourceHeader:
+		return "header"
+	case SourceCookie:
+		return "cookie"
+	case SourceJSON:
+		return "json"
+	case SourceXML:
+		return "xml"
+	case SourceYAML:
+		return "yaml"
+	case SourceTOML:
+		return "toml"
+	case SourceMsgPack:
+		return "msgpack"
+	case SourceProto:
+		return "proto"
+	default:
+		return "unknown"
+	}
+}
+
+// sourceFromTag converts a tag string to Source type.
+func sourceFromTag(tag string) Source {
+	switch tag {
+	case TagQuery:
+		return SourceQuery
+	case TagPath:
+		return SourcePath
+	case TagForm:
+		return SourceForm
+	case TagHeader:
+		return SourceHeader
+	case TagCookie:
+		return SourceCookie
+	case TagJSON:
+		return SourceJSON
+	case TagXML:
+		return SourceXML
+	case TagYAML:
+		return SourceYAML
+	case TagTOML:
+		return SourceTOML
+	case TagMsgPack:
+		return SourceMsgPack
+	case TagProto:
+		return SourceProto
+	default:
+		return SourceUnknown
+	}
+}
 
 // Static errors for binding operations.
 var (
@@ -39,27 +141,40 @@ var (
 	ErrMapExceedsMaxSize       = errors.New("map exceeds max size")
 	ErrInvalidStructTag        = errors.New("invalid struct tag")
 	ErrInvalidUUIDFormat       = errors.New("invalid UUID format")
+	ErrRequiredField           = errors.New("required field is missing")
+	ErrNoSourcesProvided       = errors.New("no binding sources provided")
 )
 
 // BindError represents a binding error with field-level context.
 // It provides detailed information about which field failed, what value was
 // provided, and what type was expected.
+//
+// Use [errors.As] to check for BindError:
+//
+//	var bindErr *BindError
+//	if errors.As(err, &bindErr) {
+//	    fmt.Printf("Field: %s, Source: %s\n", bindErr.Field, bindErr.Source)
+//	}
 type BindError struct {
-	Field  string // Field name that failed binding
-	Tag    string // Source tag (query, params, form, etc.)
-	Value  string // The value that failed conversion
-	Type   string // Expected Go type name
-	Reason string // Human-readable reason for failure
-	Err    error  // Underlying error
+	Field  string       // Field name that failed binding
+	Source Source       // Binding source (typed)
+	Value  string       // The value that failed conversion
+	Type   reflect.Type // Expected Go type
+	Reason string       // Human-readable reason for failure
+	Err    error        // Underlying error
 }
 
 // Error returns a formatted error message.
 func (e *BindError) Error() string {
 	if e.Reason != "" {
-		return fmt.Sprintf("binding field %q (%s): %s", e.Field, e.Tag, e.Reason)
+		return fmt.Sprintf("binding field %q (%s): %s", e.Field, e.Source, e.Reason)
+	}
+	typeName := "unknown"
+	if e.Type != nil {
+		typeName = e.Type.String()
 	}
 	return fmt.Sprintf("binding field %q (%s): failed to convert %q to %s: %v",
-		e.Field, e.Tag, e.Value, e.Type, e.Err)
+		e.Field, e.Source, e.Value, typeName, e.Err)
 }
 
 // Unwrap returns the underlying error for errors.Is/As compatibility.
@@ -77,6 +192,27 @@ func (e *BindError) Code() string {
 	return "binding_error"
 }
 
+// IsRequired returns true if the error is due to a missing required field.
+func (e *BindError) IsRequired() bool {
+	return errors.Is(e.Err, ErrRequiredField)
+}
+
+// IsType returns true if the error is due to a type conversion failure.
+func (e *BindError) IsType() bool {
+	return e.Err != nil && !e.IsRequired() && !e.IsValidation() && !e.IsEnum()
+}
+
+// IsValidation returns true if the error is a validation error.
+func (e *BindError) IsValidation() bool {
+	// Check if it's from the validator
+	return e.Reason != "" && strings.Contains(e.Reason, "validation")
+}
+
+// IsEnum returns true if the error is due to an invalid enum value.
+func (e *BindError) IsEnum() bool {
+	return errors.Is(e.Err, ErrValueNotInAllowedValues)
+}
+
 // UnknownFieldError is returned when strict JSON decoding encounters unknown fields.
 // It contains the list of field names that were present in the JSON but not
 // defined in the target struct.
@@ -92,14 +228,36 @@ func (e *UnknownFieldError) Error() string {
 	return "unknown fields: " + strings.Join(e.Fields, ", ")
 }
 
+// HTTPStatus implements rivaas.dev/errors.ErrorType.
+func (e *UnknownFieldError) HTTPStatus() int {
+	return 400 // Bad Request
+}
+
+// Code implements rivaas.dev/errors.ErrorCode.
+func (e *UnknownFieldError) Code() string {
+	return "unknown_field"
+}
+
 // MultiError aggregates multiple binding errors.
-// It is returned when binding from multiple sources fails for multiple fields.
+// It is returned when [WithAllErrors] is used and multiple fields fail binding.
+//
+// Use [errors.As] to check for MultiError:
+//
+//	var multi *MultiError
+//	if errors.As(err, &multi) {
+//	    for _, e := range multi.Errors {
+//	        // Handle each error
+//	    }
+//	}
 type MultiError struct {
 	Errors []*BindError
 }
 
 // Error returns a formatted error message.
 func (m *MultiError) Error() string {
+	if len(m.Errors) == 0 {
+		return "no errors"
+	}
 	if len(m.Errors) == 1 {
 		return m.Errors[0].Error()
 	}
@@ -128,4 +286,22 @@ func (m *MultiError) Details() any {
 // Code implements rivaas.dev/errors.ErrorCode.
 func (m *MultiError) Code() string {
 	return "multiple_binding_errors"
+}
+
+// Add appends an error to the MultiError.
+func (m *MultiError) Add(err *BindError) {
+	m.Errors = append(m.Errors, err)
+}
+
+// HasErrors returns true if there are any errors.
+func (m *MultiError) HasErrors() bool {
+	return len(m.Errors) > 0
+}
+
+// ErrorOrNil returns nil if there are no errors, otherwise returns the MultiError.
+func (m *MultiError) ErrorOrNil() error {
+	if !m.HasErrors() {
+		return nil
+	}
+	return m
 }

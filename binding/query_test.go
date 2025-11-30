@@ -95,7 +95,7 @@ func TestBind_QueryBasic(t *testing.T) {
 
 			getter := NewQueryGetter(tt.values)
 			var params SearchParams
-			err := Bind(&params, getter, TagQuery)
+			err := Raw(getter, TagQuery, &params)
 
 			if tt.wantErr {
 				require.Error(t, err, "Expected error for %s", tt.name)
@@ -176,7 +176,7 @@ func TestBind_QuerySlices(t *testing.T) {
 
 			getter := NewQueryGetter(tt.values)
 			var params TagRequest
-			err := Bind(&params, getter, TagQuery)
+			err := Raw(getter, TagQuery, &params)
 
 			if tt.wantErr {
 				require.Error(t, err, "Expected error for %s", tt.name)
@@ -255,7 +255,7 @@ func TestBind_QueryPointers(t *testing.T) {
 
 			getter := NewQueryGetter(tt.values)
 			var params OptionalParams
-			require.NoError(t, Bind(&params, getter, TagQuery))
+			require.NoError(t, Raw(getter, TagQuery, &params))
 			tt.validate(t, params)
 		})
 	}
@@ -291,7 +291,7 @@ func TestBind_QueryDataTypes(t *testing.T) {
 	getter := NewQueryGetter(values)
 
 	var params AllTypes
-	err := Bind(&params, getter, TagQuery)
+	err := Raw(getter, TagQuery, &params)
 
 	require.NoError(t, err)
 	assert.Equal(t, "test", params.String)
@@ -382,7 +382,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 
 				getter := NewQueryGetter(tt.values)
 				var params EventParams
-				err := Bind(&params, getter, TagQuery)
+				err := Raw(getter, TagQuery, &params)
 
 				if tt.wantErr {
 					assert.Error(t, err, "Expected error for %s", tt.name)
@@ -457,7 +457,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 
 				getter := NewQueryGetter(tt.values)
 				var params TimeoutParams
-				err := Bind(&params, getter, TagQuery)
+				err := Raw(getter, TagQuery, &params)
 
 				if tt.wantErr {
 					assert.Error(t, err, "Expected error for %s", tt.name)
@@ -541,7 +541,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 
 				getter := NewQueryGetter(tt.values)
 				var params NetworkParams
-				err := Bind(&params, getter, TagQuery)
+				err := Raw(getter, TagQuery, &params)
 
 				if tt.wantErr {
 					assert.Error(t, err)
@@ -626,7 +626,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 
 				getter := NewQueryGetter(tt.values)
 				var params NetworkParams
-				err := Bind(&params, getter, TagQuery)
+				err := Raw(getter, TagQuery, &params)
 
 				if tt.wantErr {
 					require.Error(t, err, "Expected error for %s", tt.name)
@@ -684,7 +684,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 
 				getter := NewQueryGetter(tt.values)
 				var params WebhookParams
-				require.NoError(t, Bind(&params, getter, TagQuery))
+				require.NoError(t, Raw(getter, TagQuery, &params))
 				tt.validate(t, params)
 			})
 		}
@@ -737,7 +737,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 
 				getter := NewQueryGetter(tt.values)
 				var params PatternParams
-				err := Bind(&params, getter, TagQuery)
+				err := Raw(getter, TagQuery, &params)
 
 				if tt.wantErr {
 					require.Error(t, err, "Expected error for %s", tt.name)
@@ -820,7 +820,7 @@ func TestBind_QueryMaps(t *testing.T) {
 
 			getter := NewQueryGetter(tt.values)
 			var params MapParams
-			err := Bind(&params, getter, TagQuery)
+			err := Raw(getter, TagQuery, &params)
 
 			if tt.wantErr {
 				require.Error(t, err, "Expected error for %s", tt.name)
@@ -858,7 +858,7 @@ func TestBind_QueryNestedStructs(t *testing.T) {
 	getter := NewQueryGetter(values)
 
 	var params UserRequest
-	err := Bind(&params, getter, TagQuery)
+	err := Raw(getter, TagQuery, &params)
 
 	require.NoError(t, err)
 	assert.Equal(t, "John", params.Name)
@@ -931,7 +931,7 @@ func TestBind_QueryEnumValidation(t *testing.T) {
 
 			getter := NewQueryGetter(tt.values)
 			var params StatusParams
-			err := Bind(&params, getter, TagQuery)
+			err := Raw(getter, TagQuery, &params)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -1010,7 +1010,7 @@ func TestBind_QueryDefaultValues(t *testing.T) {
 
 			getter := NewQueryGetter(tt.values)
 			var params ParamsWithDefaults
-			require.NoError(t, Bind(&params, getter, TagQuery))
+			require.NoError(t, Raw(getter, TagQuery, &params))
 			tt.validate(t, params)
 		})
 	}
@@ -1076,7 +1076,7 @@ func TestBind_QueryErrorCases(t *testing.T) {
 
 			params := tt.setupParams()
 			getter := NewQueryGetter(tt.values)
-			err := Bind(params, getter, TagQuery)
+			err := Raw(getter, TagQuery, params)
 
 			require.Error(t, err)
 			if tt.expectedErrMsg != "" {
@@ -1165,7 +1165,7 @@ func TestBind_QueryRealWorld(t *testing.T) {
 			t.Parallel()
 
 			getter := NewQueryGetter(tt.values)
-			err := Bind(tt.params, getter, TagQuery)
+			err := Raw(getter, TagQuery, tt.params)
 
 			require.NoError(t, err)
 			tt.validate(t, tt.params)
@@ -1252,7 +1252,7 @@ func TestBind_QueryTextUnmarshaler(t *testing.T) {
 
 			params := &Request{}
 			getter := NewQueryGetter(tt.values)
-			err := Bind(params, getter, TagQuery)
+			err := Raw(getter, TagQuery, params)
 
 			if tt.wantErr {
 				require.Error(t, err, "Expected error for %s", tt.name)
@@ -1296,7 +1296,7 @@ func TestBind_QueryEmbeddedStruct(t *testing.T) {
 
 		getter := NewQueryGetter(values)
 		var params SearchRequest
-		err := Bind(&params, getter, TagQuery)
+		err := Raw(getter, TagQuery, &params)
 
 		require.NoError(t, err)
 		assert.Equal(t, "golang", params.Query)
@@ -1316,7 +1316,7 @@ func TestBind_QueryEmbeddedStruct(t *testing.T) {
 		params := AdvancedSearch{
 			Pagination: &Pagination{}, // Must initialize pointer
 		}
-		err := Bind(&params, getter, TagQuery)
+		err := Raw(getter, TagQuery, &params)
 
 		require.NoError(t, err)
 		assert.Equal(t, "test", params.Query)
@@ -1546,7 +1546,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			t.Parallel()
 
 			getter := NewQueryGetter(tt.values)
-			err := Bind(tt.params, getter, TagQuery)
+			err := Raw(getter, TagQuery, tt.params)
 
 			if tt.wantErr {
 				require.Error(t, err, "Expected error for %s", tt.name)
@@ -1617,7 +1617,7 @@ func TestBind_QueryPointerMap(t *testing.T) {
 			t.Parallel()
 
 			getter := NewQueryGetter(tt.values)
-			err := Bind(tt.params, getter, TagQuery)
+			err := Raw(getter, TagQuery, tt.params)
 
 			require.NoError(t, err)
 			tt.validate(t, tt.params)
@@ -1674,7 +1674,7 @@ func TestBind_QueryMapTypeConversionError(t *testing.T) {
 			t.Parallel()
 
 			getter := NewQueryGetter(tt.values)
-			err := Bind(tt.params, getter, TagQuery)
+			err := Raw(getter, TagQuery, tt.params)
 
 			if tt.wantErr {
 				require.Error(t, err, "Expected error for %s", tt.name)
@@ -1783,7 +1783,7 @@ func TestBind_QueryAllComplexTypes(t *testing.T) {
 			t.Parallel()
 
 			getter := NewQueryGetter(tt.values)
-			err := Bind(tt.params, getter, TagQuery)
+			err := Raw(getter, TagQuery, tt.params)
 
 			require.NoError(t, err)
 			tt.validate(t, tt.params)

@@ -224,7 +224,7 @@ func TestBind_Cookies(t *testing.T) {
 			t.Parallel()
 
 			getter := NewCookieGetter(tt.cookies)
-			err := Bind(tt.params, getter, TagCookie)
+			err := Raw(getter, TagCookie, tt.params)
 
 			require.NoError(t, err)
 			tt.validate(t, tt.params)
@@ -291,7 +291,7 @@ func TestBind_Headers(t *testing.T) {
 			t.Parallel()
 
 			getter := NewHeaderGetter(tt.headers)
-			err := Bind(tt.params, getter, TagHeader)
+			err := Raw(getter, TagHeader, tt.params)
 
 			require.NoError(t, err)
 			tt.validate(t, tt.params)
@@ -314,7 +314,7 @@ func TestBind_GetAll(t *testing.T) {
 		getter := NewPathGetter(params)
 
 		var p Params
-		require.NoError(t, Bind(&p, getter, TagPath), "BindPath should succeed")
+		require.NoError(t, Raw(getter, TagPath, &p), "BindPath should succeed")
 		assert.Equal(t, "123", p.ID, "Expected ID=123")
 
 		// Test that GetAll is used internally for slices
@@ -325,7 +325,7 @@ func TestBind_GetAll(t *testing.T) {
 		var paramsSlice ParamsWithSlice
 		params = map[string]string{"id": "456"}
 		getter = NewPathGetter(params)
-		require.NoError(t, Bind(&paramsSlice, getter, TagPath), "BindPath should succeed for slice")
+		require.NoError(t, Raw(getter, TagPath, &paramsSlice), "BindPath should succeed for slice")
 		require.Len(t, paramsSlice.IDs, 1, "Expected 1 ID")
 		assert.Equal(t, "456", paramsSlice.IDs[0], "Expected first ID to be '456'")
 	})
@@ -386,7 +386,7 @@ func TestBind_GetAll(t *testing.T) {
 				cookies := tt.setup()
 				getter := NewCookieGetter(cookies)
 
-				require.NoError(t, Bind(tt.params, getter, TagCookie), "BindCookies should succeed")
+				require.NoError(t, Raw(getter, TagCookie, tt.params), "BindCookies should succeed")
 				tt.validate(t, tt.params)
 			})
 		}
@@ -407,7 +407,7 @@ func TestBind_GetAll(t *testing.T) {
 		getter := NewHeaderGetter(headers)
 
 		var h Headers
-		require.NoError(t, Bind(&h, getter, TagHeader), "BindHeaders should succeed")
+		require.NoError(t, Raw(getter, TagHeader, &h), "BindHeaders should succeed")
 
 		require.Len(t, h.Tags, 3, "Expected 3 tags")
 		assert.Equal(t, "tag1", h.Tags[0], "Expected first tag")

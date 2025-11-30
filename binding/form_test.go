@@ -43,7 +43,7 @@ func TestBind_FormBasicTypes(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	assert.Equal(t, "John Doe", data.Name)
@@ -76,7 +76,7 @@ func TestBind_FormNestedStructs(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var user User
-	err := Bind(&user, getter, TagForm)
+	err := Raw(getter, TagForm, &user)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Alice", user.Name)
@@ -105,7 +105,7 @@ func TestBind_FormSlices(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"go", "rust", "python"}, data.Tags)
@@ -424,7 +424,7 @@ func TestBind_FormMaps(t *testing.T) {
 			t.Parallel()
 
 			getter := NewFormGetter(tt.values)
-			err := Bind(tt.params, getter, TagForm)
+			err := Raw(getter, TagForm, tt.params)
 
 			if tt.wantErr {
 				require.Error(t, err, "Expected error for %s", tt.name)
@@ -450,7 +450,7 @@ func TestBind_FormSpecialCharacters(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Hello & Goodbye! @#$%^&*()", data.Text)
@@ -470,7 +470,7 @@ func TestBind_FormErrorCases(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "Age")
@@ -492,7 +492,7 @@ func TestBind_FormDuplicateKeys(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	assert.Len(t, data.Values, 3)
@@ -512,7 +512,7 @@ func TestBind_FormEmptyForm(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	assert.Empty(t, data.Name)
@@ -534,7 +534,7 @@ func TestBind_FormUnicodeCharacters(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Hello 世界! 🌍", data.Text)
@@ -554,7 +554,7 @@ func TestBind_FormEmptySliceInitialization(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	// Slices without values should remain nil (not cause error)
@@ -574,7 +574,7 @@ func TestBind_FormEmptyMapInitialization(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	// Maps without values should remain nil (not cause error)
@@ -607,7 +607,7 @@ func TestBind_FormComplexNested(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	assert.Equal(t, "value1", data.Level1)
@@ -631,7 +631,7 @@ func TestBind_FormArrayNotation(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	assert.Len(t, data.Items, 3)
@@ -654,7 +654,7 @@ func TestBind_FormURLEncoded(t *testing.T) {
 	getter := NewFormGetter(values)
 
 	var data FormData
-	err := Bind(&data, getter, TagForm)
+	err := Raw(getter, TagForm, &data)
 
 	require.NoError(t, err)
 	assert.Equal(t, "https://example.com/path?foo=bar", data.URL)
@@ -699,7 +699,7 @@ func TestBind_FormAllTypes(t *testing.T) {
 	values.Set("bool", "true")
 
 	var data AllTypes
-	err := Bind(&data, NewFormGetter(values), TagForm)
+	err := Raw(NewFormGetter(values), TagForm, &data)
 
 	require.NoError(t, err, "Bind should succeed")
 	assert.Equal(t, "text", data.String)

@@ -63,7 +63,7 @@ func BenchmarkBind(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_ = Bind(&params, getter, TagQuery)
+			_ = Raw(getter, TagQuery, &params)
 		}
 	})
 
@@ -74,7 +74,7 @@ func BenchmarkBind(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_ = Bind(&params, getter, TagQuery)
+			_ = Raw(getter, TagQuery, &params)
 		}
 	})
 }
@@ -98,7 +98,7 @@ func BenchmarkBind_Parallel(b *testing.B) {
 		var params Params
 		getter := NewQueryGetter(values)
 		for pb.Next() {
-			_ = Bind(&params, getter, TagQuery)
+			_ = Raw(getter, TagQuery, &params)
 		}
 	})
 }
@@ -120,12 +120,12 @@ func BenchmarkBindInto(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = BindInto[Params](getter, TagPath)
+		_, _ = RawInto[Params](getter, TagPath)
 	}
 }
 
-// BenchmarkBindMulti benchmarks binding from multiple sources.
-func BenchmarkBindMulti(b *testing.B) {
+// BenchmarkBindTo benchmarks binding from multiple sources.
+func BenchmarkBindTo(b *testing.B) {
 	type Request struct {
 		UserID    int    `path:"user_id"`
 		Page      int    `query:"page"`
@@ -139,18 +139,16 @@ func BenchmarkBindMulti(b *testing.B) {
 		"User-Agent": {"MyApp/1.0"},
 	}
 
-	sources := []SourceConfig{
-		{Tag: TagPath, Getter: NewPathGetter(params)},
-		{Tag: TagQuery, Getter: NewQueryGetter(query)},
-		{Tag: TagHeader, Getter: NewHeaderGetter(headers)},
-	}
-
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
 		var req Request
-		_ = BindMulti(&req, sources)
+		_ = BindTo(&req,
+			FromPath(params),
+			FromQuery(query),
+			FromHeader(headers),
+		)
 	}
 }
 
@@ -192,7 +190,7 @@ func BenchmarkBind_Allocations(b *testing.B) {
 
 	for b.Loop() {
 		var params Params
-		_ = Bind(&params, getter, TagQuery)
+		_ = Raw(getter, TagQuery, &params)
 	}
 }
 
@@ -223,7 +221,7 @@ func BenchmarkBind_NestedStruct(b *testing.B) {
 
 	for b.Loop() {
 		var user User
-		_ = Bind(&user, getter, TagQuery)
+		_ = Raw(getter, TagQuery, &user)
 	}
 }
 
@@ -248,7 +246,7 @@ func BenchmarkBind_Slices(b *testing.B) {
 
 	for b.Loop() {
 		var params Params
-		_ = Bind(&params, getter, TagQuery)
+		_ = Raw(getter, TagQuery, &params)
 	}
 }
 
@@ -269,6 +267,6 @@ func BenchmarkBind_WithDefaults(b *testing.B) {
 
 	for b.Loop() {
 		var config Config
-		_ = Bind(&config, getter, TagQuery)
+		_ = Raw(getter, TagQuery, &config)
 	}
 }

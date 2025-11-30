@@ -119,7 +119,7 @@ func TestValidation(t *testing.T) {
 				t.Parallel()
 
 				var params Params
-				err := Bind(&params, NewQueryGetter(tt.values), TagQuery)
+				err := Raw(NewQueryGetter(tt.values), TagQuery, &params)
 
 				if tt.wantErr {
 					require.Error(t, err, "Expected error for %s", tt.name)
@@ -225,7 +225,7 @@ func TestValidation(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				err := Bind(tt.params, NewQueryGetter(tt.values), TagQuery)
+				err := Raw(NewQueryGetter(tt.values), TagQuery, tt.params)
 
 				if tt.wantErr {
 					require.Error(t, err, "Expected error for %s", tt.name)

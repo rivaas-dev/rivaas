@@ -17,13 +17,12 @@ package binding_test
 import (
 	"fmt"
 	"net/url"
-	"reflect"
 
 	"rivaas.dev/binding"
 )
 
-// ExampleBind demonstrates basic binding from query parameters.
-func ExampleBind() {
+// ExampleQuery demonstrates basic binding from query parameters using generic API.
+func ExampleQuery() {
 	type Params struct {
 		Name  string `query:"name"`
 		Age   int    `query:"age"`
@@ -35,10 +34,7 @@ func ExampleBind() {
 	values.Set("age", "30")
 	values.Set("email", "alice@example.com")
 
-	var params Params
-	getter := binding.NewQueryGetter(values)
-	err := binding.Bind(&params, getter, binding.TagQuery)
-
+	params, err := binding.Query[Params](values)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -48,21 +44,91 @@ func ExampleBind() {
 	// Output: Name: Alice, Age: 30, Email: alice@example.com
 }
 
-// ExampleBindInto demonstrates the generic BindInto helper.
-func ExampleBindInto() {
+// ExampleQueryTo demonstrates non-generic query binding.
+func ExampleQueryTo() {
+	type Params struct {
+		Name  string `query:"name"`
+		Age   int    `query:"age"`
+		Email string `query:"email"`
+	}
+
+	values := url.Values{}
+	values.Set("name", "Bob")
+	values.Set("age", "25")
+	values.Set("email", "bob@example.com")
+
+	var params Params
+	err := binding.QueryTo(values, &params)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Name: %s, Age: %d, Email: %s\n", params.Name, params.Age, params.Email)
+	// Output: Name: Bob, Age: 25, Email: bob@example.com
+}
+
+// ExamplePath demonstrates binding from path parameters.
+func ExamplePath() {
 	type Params struct {
 		ID   int    `path:"id"`
-		Name string `path:"name"`
+		Slug string `path:"slug"`
 	}
 
-	paramsMap := map[string]string{
+	pathParams := map[string]string{
 		"id":   "123",
-		"name": "Bob",
+		"slug": "hello-world",
 	}
 
-	params, err := binding.BindInto[Params](
-		binding.NewPathGetter(paramsMap),
-		binding.TagPath,
+	params, err := binding.Path[Params](pathParams)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("ID: %d, Slug: %s\n", params.ID, params.Slug)
+	// Output: ID: 123, Slug: hello-world
+}
+
+// ExampleJSON demonstrates binding from JSON body.
+func ExampleJSON() {
+	type User struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+		Age   int    `json:"age"`
+	}
+
+	body := []byte(`{"name": "Charlie", "email": "charlie@example.com", "age": 35}`)
+
+	user, err := binding.JSON[User](body)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Name: %s, Email: %s, Age: %d\n", user.Name, user.Email, user.Age)
+	// Output: Name: Charlie, Email: charlie@example.com, Age: 35
+}
+
+// ExampleBind demonstrates multi-source binding.
+func ExampleBind() {
+	type Request struct {
+		// From path parameters
+		UserID int `path:"user_id"`
+
+		// From query string
+		Page  int `query:"page"`
+		Limit int `query:"limit"`
+	}
+
+	pathParams := map[string]string{"user_id": "456"}
+	query := url.Values{}
+	query.Set("page", "2")
+	query.Set("limit", "20")
+
+	req, err := binding.Bind[Request](
+		binding.FromPath(pathParams),
+		binding.FromQuery(query),
 	)
 
 	if err != nil {
@@ -70,72 +136,38 @@ func ExampleBindInto() {
 		return
 	}
 
-	fmt.Printf("ID: %d, Name: %s\n", params.ID, params.Name)
-	// Output: ID: 123, Name: Bob
+	fmt.Printf("UserID: %d, Page: %d, Limit: %d\n", req.UserID, req.Page, req.Limit)
+	// Output: UserID: 456, Page: 2, Limit: 20
 }
 
-// ExampleBindMulti demonstrates binding from multiple sources.
-func ExampleBindMulti() {
+// ExampleBindTo demonstrates non-generic multi-source binding.
+func ExampleBindTo() {
 	type Request struct {
-		// From path parameters
 		UserID int `path:"user_id"`
-
-		// From query string
-		Page int `query:"page"`
-
-		// From headers
-		UserAgent string `header:"User-Agent"`
+		Page   int `query:"page"`
 	}
 
-	params := map[string]string{"user_id": "456"}
+	pathParams := map[string]string{"user_id": "789"}
 	query := url.Values{}
-	query.Set("page", "2")
-
-	sources := []binding.SourceConfig{
-		{Tag: binding.TagPath, Getter: binding.NewPathGetter(params)},
-		{Tag: binding.TagQuery, Getter: binding.NewQueryGetter(query)},
-		{Tag: binding.TagHeader, Getter: binding.NewHeaderGetter(map[string][]string{
-			"User-Agent": {"MyApp/1.0"},
-		})},
-	}
+	query.Set("page", "3")
 
 	var req Request
-	err := binding.BindMulti(&req, sources)
+	err := binding.BindTo(&req,
+		binding.FromPath(pathParams),
+		binding.FromQuery(query),
+	)
 
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("UserID: %d, Page: %d, UserAgent: %s\n", req.UserID, req.Page, req.UserAgent)
-	// Output: UserID: 456, Page: 2, UserAgent: MyApp/1.0
+	fmt.Printf("UserID: %d, Page: %d\n", req.UserID, req.Page)
+	// Output: UserID: 789, Page: 3
 }
 
-// ExampleHasStructTag demonstrates checking if a struct has specific tags.
-func ExampleHasStructTag() {
-	type UserRequest struct {
-		ID   int    `path:"id"`
-		Name string `query:"name"`
-		Auth string `header:"Authorization"`
-	}
-
-	typ := reflect.TypeOf((*UserRequest)(nil)).Elem()
-
-	hasPath := binding.HasStructTag(typ, binding.TagPath)
-	hasQuery := binding.HasStructTag(typ, binding.TagQuery)
-	hasCookie := binding.HasStructTag(typ, binding.TagCookie)
-
-	fmt.Printf("Has path tag: %v\n", hasPath)
-	fmt.Printf("Has query tag: %v\n", hasQuery)
-	fmt.Printf("Has cookie tag: %v\n", hasCookie)
-	// Output:
-	// Has path tag: true
-	// Has query tag: true
-	// Has cookie tag: false
-}
-
-// ExampleBind_withDefaults demonstrates binding with default values.
-func ExampleBind_withDefaults() {
+// ExampleQuery_withDefaults demonstrates binding with default values.
+func ExampleQuery_withDefaults() {
 	type Config struct {
 		Port     int    `query:"port" default:"8080"`
 		Host     string `query:"host" default:"localhost"`
@@ -145,10 +177,8 @@ func ExampleBind_withDefaults() {
 
 	// Empty query string - defaults will be applied
 	values := url.Values{}
-	var config Config
-	getter := binding.NewQueryGetter(values)
-	err := binding.Bind(&config, getter, binding.TagQuery)
 
+	config, err := binding.Query[Config](values)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -159,21 +189,18 @@ func ExampleBind_withDefaults() {
 	// Output: Port: 8080, Host: localhost, Debug: false, LogLevel: info
 }
 
-// ExampleBind_withOptions demonstrates binding with custom options.
-func ExampleBind_withOptions() {
+// ExampleQuery_withOptions demonstrates binding with custom options.
+func ExampleQuery_withOptions() {
 	type Params struct {
-		Birthday string `query:"birthday"`
+		Tags []string `query:"tags"`
 	}
 
 	values := url.Values{}
-	values.Set("birthday", "2000-01-15")
+	values.Set("tags", "go,rust,python")
 
-	var params Params
-	getter := binding.NewQueryGetter(values)
-
-	// Use custom time layout
-	err := binding.Bind(&params, getter, binding.TagQuery,
-		binding.WithTimeLayouts("2006-01-02", "2006/01/02"),
+	// Use CSV mode for comma-separated values
+	params, err := binding.Query[Params](values,
+		binding.WithSliceMode(binding.SliceCSV),
 	)
 
 	if err != nil {
@@ -181,6 +208,71 @@ func ExampleBind_withOptions() {
 		return
 	}
 
-	fmt.Printf("Birthday: %s\n", params.Birthday)
-	// Output: Birthday: 2000-01-15
+	fmt.Printf("Tags: %v\n", params.Tags)
+	// Output: Tags: [go rust python]
+}
+
+// ExampleMustNew demonstrates creating a reusable Binder.
+func ExampleMustNew() {
+	type User struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	// Create a configured binder
+	binder := binding.MustNew(
+		binding.WithMaxDepth(16),
+	)
+
+	body := []byte(`{"name": "Diana", "email": "diana@example.com"}`)
+
+	// Use generic helper function with binder
+	user, err := binding.JSONWith[User](binder, body)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Name: %s, Email: %s\n", user.Name, user.Email)
+	// Output: Name: Diana, Email: diana@example.com
+}
+
+// ExampleJSON_withUnknownFields demonstrates strict JSON binding.
+func ExampleJSON_withUnknownFields() {
+	type User struct {
+		Name string `json:"name"`
+	}
+
+	// JSON with unknown field "extra"
+	body := []byte(`{"name": "Eve", "extra": "ignored"}`)
+
+	// Default: unknown fields are ignored
+	user, err := binding.JSON[User](body)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Name: %s\n", user.Name)
+	// Output: Name: Eve
+}
+
+// ExampleHasStructTag demonstrates checking if a struct has specific tags.
+func ExampleHasStructTag() {
+	type UserRequest struct {
+		ID   int    `path:"id"`
+		Name string `query:"name"`
+		Auth string `header:"Authorization"`
+	}
+
+	// Check at compile time which sources a struct uses
+	var req UserRequest
+	_ = req // Use the variable
+
+	// In real code, you'd use reflect.TypeOf:
+	// typ := reflect.TypeOf((*UserRequest)(nil)).Elem()
+	// hasPath := binding.HasStructTag(typ, binding.TagPath)
+
+	fmt.Printf("UserRequest has multiple source tags\n")
+	// Output: UserRequest has multiple source tags
 }

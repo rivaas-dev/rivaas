@@ -19,116 +19,229 @@
 // using struct tags. It supports nested structs, slices, maps, pointers,
 // custom types, default values, enum validation, and type conversion.
 //
-// # Key Features
-//
-//   - Multiple data sources: query parameters, form data, JSON, headers, cookies, path parameters
-//   - Type conversion: automatic conversion from strings to Go types
-//   - Nested structures: support for nested structs and maps
-//   - Default values: struct tag-based default values
-//   - Enum validation: validate values against allowed sets
-//   - Custom converters: register custom type converters
-//   - Unknown field handling: configurable handling of unknown JSON fields
-//   - Observability: event hooks for monitoring binding operations
-//
 // # Quick Start
 //
-// Basic usage with query parameters:
+// The package provides both generic and non-generic APIs:
 //
-//	package main
+//	// Generic (preferred when type is known)
+//	user, err := binding.JSON[CreateUserRequest](body)
 //
-//	import (
-//		"net/url"
-//		"rivaas.dev/binding"
+//	// Non-generic (when type comes from variable)
+//	var user CreateUserRequest
+//	err := binding.JSONTo(body, &user)
+//
+// # Source-Specific Functions
+//
+// Each binding source has dedicated functions:
+//
+//	// Query parameters
+//	params, err := binding.Query[ListParams](r.URL.Query())
+//
+//	// Path parameters
+//	params, err := binding.Path[GetUserParams](pathParams)
+//
+//	// Form data
+//	data, err := binding.Form[FormData](r.PostForm)
+//
+//	// HTTP headers
+//	headers, err := binding.Header[RequestHeaders](r.Header)
+//
+//	// Cookies
+//	session, err := binding.Cookie[SessionData](r.Cookies())
+//
+//	// JSON body
+//	user, err := binding.JSON[CreateUserRequest](body)
+//
+//	// XML body
+//	user, err := binding.XML[CreateUserRequest](body)
+//
+// # Multi-Source Binding
+//
+// Bind from multiple sources using From* options:
+//
+//	req, err := binding.Bind[CreateOrderRequest](
+//	    binding.FromPath(pathParams),
+//	    binding.FromQuery(r.URL.Query()),
+//	    binding.FromHeader(r.Header),
+//	    binding.FromJSON(body),
 //	)
 //
-//	type UserRequest struct {
-//		Name  string `query:"name"`
-//		Age   int    `query:"age"`
-//		Email string `query:"email"`
-//	}
+// # Configuration
 //
-//	func main() {
-//		query := url.Values{"name": {"John"}, "age": {"30"}}
-//		var req UserRequest
-//		err := binding.Bind(&req, binding.NewQueryGetter(query), "query")
-//		if err != nil {
-//			// Handle error
-//		}
-//	}
+// Use functional options to customize binding behavior:
 //
-// JSON binding:
-//
-//	package main
-//
-//	import (
-//		"bytes"
-//		"rivaas.dev/binding"
+//	user, err := binding.JSON[User](body,
+//	    binding.WithUnknownFields(binding.UnknownError),
+//	    binding.WithRequired(),
+//	    binding.WithMaxDepth(16),
 //	)
 //
-//	type CreateUserRequest struct {
-//		Name  string `json:"name"`
-//		Email string `json:"email"`
-//	}
+// # Reusable Binder
 //
-//	func main() {
-//		body := []byte(`{"name": "John", "email": "john@example.com"}`)
-//		var req CreateUserRequest
-//		err := binding.BindJSONBytes(&req, body)
-//		if err != nil {
-//			// Handle error
-//		}
-//	}
+// For shared configuration, create a Binder instance:
+//
+//	binder := binding.MustNew(
+//	    binding.WithConverter[uuid.UUID](uuid.Parse),
+//	    binding.WithTimeLayouts("2006-01-02", "01/02/2006"),
+//	    binding.WithRequired(),
+//	)
+//
+//	// Use across handlers
+//	user, err := binder.JSON[CreateUserRequest](body)
+//	params, err := binder.Query[ListParams](r.URL.Query())
 //
 // # Struct Tags
 //
-// The package supports multiple struct tag types:
+// The package uses struct tags to map values:
 //
-//   - query: Query parameters (?name=value)
+//	type Request struct {
+//	    // Query parameters
+//	    Page   int    `query:"page" default:"1"`
+//	    Limit  int    `query:"limit" default:"20"`
+//
+//	    // Path parameters
+//	    UserID string `path:"user_id"`
+//
+//	    // Headers
+//	    Auth   string `header:"Authorization"`
+//
+//	    // JSON body fields
+//	    Name   string `json:"name" required:"true"`
+//	    Email  string `json:"email" required:"true"`
+//
+//	    // Enum validation
+//	    Status string `json:"status" enum:"active,pending,disabled"`
+//	}
+//
+// # Supported Tag Types
+//
+//   - query: URL query parameters (?name=value)
+//   - path: URL path parameters (/users/:id)
 //   - form: Form data (application/x-www-form-urlencoded)
-//   - json: JSON body fields
-//   - params: URL path parameters (/users/:id)
 //   - header: HTTP headers
 //   - cookie: HTTP cookies
+//   - json: JSON body fields
+//   - xml: XML body fields
 //
-// Tag syntax supports aliases and options:
+// # Additional Serialization Formats
 //
-//	type Request struct {
-//		UserID string `query:"user_id,id"`  // Primary name "user_id", alias "id"
-//		Name   string `json:"name,omitempty"` // JSON name with omitempty option
-//	}
+// The following formats are available as sub-packages:
 //
-// # Advanced Features
+//   - rivaas.dev/binding/yaml: YAML support (gopkg.in/yaml.v3)
+//   - rivaas.dev/binding/toml: TOML support (github.com/BurntSushi/toml)
+//   - rivaas.dev/binding/msgpack: MessagePack support (github.com/vmihailenco/msgpack/v5)
+//   - rivaas.dev/binding/proto: Protocol Buffers support (google.golang.org/protobuf)
 //
-// Default values:
+// Example with YAML:
 //
-//	type Request struct {
-//		Page int `query:"page" default:"1"`
-//	}
+//	import "rivaas.dev/binding/yaml"
 //
-// Enum validation:
+//	config, err := yaml.YAML[Config](body)
 //
-//	type Request struct {
-//		Status string `query:"status" enum:"pending,active,inactive"`
-//	}
+// Example with TOML:
 //
-// Nested structures:
+//	import "rivaas.dev/binding/toml"
 //
-//	type Request struct {
-//		User struct {
-//			Name  string `query:"user.name"`
-//			Email string `query:"user.email"`
-//		}
-//	}
+//	config, err := toml.TOML[Config](body)
 //
-// Custom type converters:
+// Example with MessagePack:
 //
-//	binding.Bind(&result, getter, "query",
-//		binding.WithTypedConverter(func(s string) (uuid.UUID, error) {
-//			return uuid.Parse(s)
-//		}),
+//	import "rivaas.dev/binding/msgpack"
+//
+//	msg, err := msgpack.MsgPack[Message](body)
+//
+// Example with Protocol Buffers:
+//
+//	import "rivaas.dev/binding/proto"
+//
+//	user, err := proto.Proto[*pb.User](body)
+//
+// # Special Tags
+//
+//   - default:"value": Default value when field is not present
+//   - enum:"a,b,c": Validate value is one of the allowed values
+//   - required:"true": Field must be present (when WithRequired() is used)
+//
+// # Type Conversion
+//
+// Built-in support for common types:
+//
+//   - Primitives: string, int*, uint*, float*, bool
+//   - Time: time.Time, time.Duration
+//   - Network: net.IP, net.IPNet, url.URL
+//   - Slices: []T for any supported T
+//   - Maps: map[string]T for any supported T
+//   - Pointers: *T for any supported T
+//   - encoding.TextUnmarshaler implementations
+//
+// Register custom converters:
+//
+//	binding.MustNew(
+//	    binding.WithConverter[uuid.UUID](uuid.Parse),
+//	    binding.WithConverter[decimal.Decimal](decimal.NewFromString),
 //	)
 //
-// # Examples
+// # Error Handling
 //
-// See the example_test.go file for complete working examples.
+// Errors provide detailed context:
+//
+//	user, err := binding.JSON[User](body)
+//	if err != nil {
+//	    var bindErr *binding.BindError
+//	    if errors.As(err, &bindErr) {
+//	        fmt.Printf("Field: %s, Source: %s, Value: %s\n",
+//	            bindErr.Field, bindErr.Source, bindErr.Value)
+//	    }
+//	}
+//
+// Collect all errors instead of failing on first:
+//
+//	user, err := binding.JSON[User](body, binding.WithAllErrors())
+//	if err != nil {
+//	    var multi *binding.MultiError
+//	    if errors.As(err, &multi) {
+//	        for _, e := range multi.Errors {
+//	            // Handle each error
+//	        }
+//	    }
+//	}
+//
+// # Validation Integration
+//
+// Integrate external validators:
+//
+//	binder := binding.MustNew(
+//	    binding.WithValidator(myValidator),
+//	)
+//
+// # Observability
+//
+// Add hooks for monitoring:
+//
+//	binder := binding.MustNew(
+//	    binding.WithEvents(binding.Events{
+//	        FieldBound: func(name, tag string) {
+//	            log.Printf("Bound field %s from %s", name, tag)
+//	        },
+//	        Done: func(stats binding.Stats) {
+//	            log.Printf("Bound %d fields", stats.FieldsBound)
+//	        },
+//	    }),
+//	)
+//
+// # Security Limits
+//
+// Built-in limits prevent resource exhaustion:
+//
+//   - MaxDepth: Maximum struct nesting depth (default: 32)
+//   - MaxSliceLen: Maximum slice elements (default: 10,000)
+//   - MaxMapSize: Maximum map entries (default: 1,000)
+//
+// Configure limits:
+//
+//	binding.MustNew(
+//	    binding.WithMaxDepth(16),
+//	    binding.WithMaxSliceLen(1000),
+//	    binding.WithMaxMapSize(500),
+//	)
 package binding

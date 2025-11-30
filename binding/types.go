@@ -49,6 +49,7 @@ type fieldInfo struct {
 	defaultValue    string       // Raw default value from tag
 	typedDefault    any          // Converted default value (nil if invalid or not set)
 	hasTypedDefault bool         // Whether typedDefault is valid
+	isRequired      bool         // Whether field has required:"true" tag
 }
 
 // structInfo holds cached parsing information for a struct type.
