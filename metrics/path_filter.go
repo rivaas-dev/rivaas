@@ -58,7 +58,7 @@ func (pf *pathFilter) shouldExclude(path string) bool {
 		return false
 	}
 
-	// Check exact paths (O(1) lookup)
+	// Check exact paths
 	if pf.paths[path] {
 		return true
 	}

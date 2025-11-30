@@ -210,7 +210,9 @@ func TestCustomMetricsLimitRaceConditionFixed(t *testing.T) {
 		WithMaxCustomMetrics(100), // Moderate limit
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(context.Background())
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	ctx := context.Background()
 
@@ -260,7 +262,9 @@ func TestCustomMetricsDoubleCheckRace(t *testing.T) {
 		WithMaxCustomMetrics(10),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(context.Background())
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	ctx := context.Background()
 
@@ -328,7 +332,9 @@ func TestContextCancellationInStart(t *testing.T) {
 		WithServiceName("test-service"),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(context.Background())
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	// Create cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -352,7 +358,9 @@ func TestContextCancellationInCustomMetrics(t *testing.T) {
 		WithServiceName("test-service"),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(context.Background())
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	// Create cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -373,7 +381,9 @@ func TestRWMutexOperationsSafety(t *testing.T) {
 		WithServiceName("test-service"),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(context.Background())
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	ctx := context.Background()
 
@@ -423,7 +433,9 @@ func TestMetricsCreationErrorHandling(t *testing.T) {
 		WithMaxCustomMetrics(5),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(context.Background())
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	ctx := context.Background()
 
@@ -459,7 +471,9 @@ func TestMetricNameValidation(t *testing.T) {
 		WithServiceName("test-service"),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(context.Background())
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	ctx := context.Background()
 
@@ -534,4 +548,286 @@ func TestMetricNameValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// Error Message Quality Tests
+// =============================================================================
+// These tests ensure error messages are descriptive and helpful for debugging.
+
+// TestErrorMessages_AreDescriptive verifies that error messages contain
+// relevant information for debugging.
+func TestErrorMessages_AreDescriptive(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		setup          func() error
+		wantSubstrings []string
+	}{
+		{
+			name: "EmptyMetricName",
+			setup: func() error {
+				return validateMetricName("")
+			},
+			wantSubstrings: []string{"empty"},
+		},
+		{
+			name: "MetricNameTooLong",
+			setup: func() error {
+				return validateMetricName(string(make([]byte, 300)))
+			},
+			wantSubstrings: []string{"too long", "255"},
+		},
+		{
+			name: "InvalidMetricNameFormat",
+			setup: func() error {
+				return validateMetricName("123invalid")
+			},
+			wantSubstrings: []string{"invalid", "123invalid", "letter"},
+		},
+		{
+			name: "ReservedPrefixHTTP",
+			setup: func() error {
+				return validateMetricName("http_custom_metric")
+			},
+			wantSubstrings: []string{"reserved", "http_"},
+		},
+		{
+			name: "ReservedPrefixRouter",
+			setup: func() error {
+				return validateMetricName("router_my_metric")
+			},
+			wantSubstrings: []string{"reserved", "router_"},
+		},
+		{
+			name: "ReservedPrefixPrometheus",
+			setup: func() error {
+				// Note: Names starting with __ fail regex before reserved check
+				// because they don't start with a letter
+				return validateMetricName("__prometheus_internal")
+			},
+			wantSubstrings: []string{"invalid", "__prometheus_internal"},
+		},
+		{
+			name: "InvalidCharacters",
+			setup: func() error {
+				return validateMetricName("metric@invalid")
+			},
+			wantSubstrings: []string{"invalid", "metric@invalid"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.setup()
+			require.Error(t, err, "Expected error for %s", tt.name)
+
+			errMsg := err.Error()
+			for _, substr := range tt.wantSubstrings {
+				assert.Contains(t, errMsg, substr,
+					"Error message should contain %q, got: %s", substr, errMsg)
+			}
+		})
+	}
+}
+
+// TestErrorMessages_MetricLimitReached verifies that the limit error message
+// contains useful debugging information.
+func TestErrorMessages_MetricLimitReached(t *testing.T) {
+	t.Parallel()
+
+	recorder := MustNew(
+		WithStdout(),
+		WithServiceName("error-message-test"),
+		WithMaxCustomMetrics(3),
+		WithServerDisabled(),
+	)
+	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+
+	ctx := context.Background()
+
+	// Fill up the limit
+	for i := range 3 {
+		err := recorder.IncrementCounter(ctx, fmt.Sprintf("counter_%d", i))
+		require.NoError(t, err)
+	}
+
+	// Try to create one more
+	err := recorder.IncrementCounter(ctx, "overflow_counter")
+	require.Error(t, err)
+
+	errMsg := err.Error()
+
+	// Error should contain:
+	// - The metric name that failed
+	assert.Contains(t, errMsg, "overflow_counter",
+		"Error should contain the metric name that failed")
+	// - The word "limit"
+	assert.Contains(t, errMsg, "limit",
+		"Error should indicate it's a limit issue")
+	// - Current count or limit value
+	assert.Contains(t, errMsg, "3",
+		"Error should contain the limit value")
+}
+
+// TestErrorMessages_ProviderConflict verifies that provider conflict errors
+// are clear about which options conflict.
+func TestErrorMessages_ProviderConflict(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(
+		WithPrometheus(":9090", "/metrics"),
+		WithStdout(),
+		WithServiceName("conflict-test"),
+	)
+	require.Error(t, err)
+
+	errMsg := err.Error()
+	assert.Contains(t, errMsg, "conflicting",
+		"Error should indicate options are conflicting")
+	assert.Contains(t, errMsg, "provider",
+		"Error should mention 'provider'")
+}
+
+// TestErrorMessages_ValidationErrors verifies that validation errors are clear.
+func TestErrorMessages_ValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		recorder       *Recorder
+		wantSubstrings []string
+	}{
+		{
+			name: "EmptyServiceName",
+			recorder: &Recorder{
+				enabled:          true,
+				serviceName:      "",
+				serviceVersion:   "1.0.0",
+				provider:         PrometheusProvider,
+				metricsPort:      ":9090",
+				metricsPath:      "/metrics",
+				maxCustomMetrics: 1000,
+			},
+			wantSubstrings: []string{"service name", "empty"},
+		},
+		{
+			name: "EmptyServiceVersion",
+			recorder: &Recorder{
+				enabled:          true,
+				serviceName:      "test-service",
+				serviceVersion:   "",
+				provider:         PrometheusProvider,
+				metricsPort:      ":9090",
+				metricsPath:      "/metrics",
+				maxCustomMetrics: 1000,
+			},
+			wantSubstrings: []string{"service version", "empty"},
+		},
+		{
+			name: "InvalidMaxCustomMetrics",
+			recorder: &Recorder{
+				enabled:          true,
+				serviceName:      "test-service",
+				serviceVersion:   "1.0.0",
+				provider:         PrometheusProvider,
+				metricsPort:      ":9090",
+				metricsPath:      "/metrics",
+				maxCustomMetrics: 0,
+			},
+			wantSubstrings: []string{"maxCustomMetrics", "at least 1"},
+		},
+		{
+			name: "EmptyMetricsPort",
+			recorder: &Recorder{
+				enabled:          true,
+				serviceName:      "test-service",
+				serviceVersion:   "1.0.0",
+				provider:         PrometheusProvider,
+				metricsPort:      "",
+				metricsPath:      "/metrics",
+				maxCustomMetrics: 1000,
+			},
+			wantSubstrings: []string{"metrics port", "empty"},
+		},
+		{
+			name: "EmptyMetricsPath",
+			recorder: &Recorder{
+				enabled:          true,
+				serviceName:      "test-service",
+				serviceVersion:   "1.0.0",
+				provider:         PrometheusProvider,
+				metricsPort:      ":9090",
+				metricsPath:      "",
+				maxCustomMetrics: 1000,
+			},
+			wantSubstrings: []string{"metrics path", "empty"},
+		},
+		{
+			name: "UnsupportedProvider",
+			recorder: &Recorder{
+				enabled:          true,
+				serviceName:      "test-service",
+				serviceVersion:   "1.0.0",
+				provider:         "invalid_provider",
+				maxCustomMetrics: 1000,
+			},
+			wantSubstrings: []string{"unsupported", "provider", "invalid_provider"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.recorder.validate()
+			require.Error(t, err, "Expected validation error for %s", tt.name)
+
+			errMsg := err.Error()
+			for _, substr := range tt.wantSubstrings {
+				assert.Contains(t, errMsg, substr,
+					"Error message should contain %q, got: %s", substr, errMsg)
+			}
+		})
+	}
+}
+
+// TestErrorMessages_HandlerNotAvailable verifies that Handler() errors are clear.
+func TestErrorMessages_HandlerNotAvailable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NotPrometheusProvider", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := MustNew(
+			WithOTLP("http://localhost:4318"),
+			WithServiceName("handler-error-test"),
+		)
+		t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+
+		_, err := recorder.Handler()
+		require.Error(t, err)
+
+		errMsg := err.Error()
+		assert.Contains(t, errMsg, "Prometheus",
+			"Error should mention Prometheus")
+		assert.Contains(t, errMsg, "otlp",
+			"Error should mention current provider")
+	})
+
+	t.Run("DisabledRecorder", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := &Recorder{enabled: false}
+
+		_, err := recorder.Handler()
+		require.Error(t, err)
+
+		errMsg := err.Error()
+		assert.Contains(t, errMsg, "not enabled",
+			"Error should indicate metrics are not enabled")
+	})
 }

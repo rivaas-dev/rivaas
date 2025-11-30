@@ -17,7 +17,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -27,19 +26,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// waitForMetricsServer waits for the metrics server to be ready
+// waitForMetricsServer is an internal alias for WaitForMetricsServer.
+// Kept for backward compatibility with existing tests.
 func waitForMetricsServer(t *testing.T, address string, timeout time.Duration) error {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", address, 100*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			return nil
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return fmt.Errorf("metrics server not ready after %v", timeout)
+	return WaitForMetricsServer(t, address, timeout)
 }
 
 func TestRecorderConfig(t *testing.T) {
@@ -51,7 +42,9 @@ func TestRecorderConfig(t *testing.T) {
 		WithServiceVersion("v1.0.0"),
 		WithStrictPort(), // Require exact port for deterministic test
 	)
-	defer recorder.Shutdown(context.Background())
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	assert.True(t, recorder.IsEnabled())
 	assert.Equal(t, "test-service", recorder.ServiceName())
@@ -68,6 +61,9 @@ func TestRecorderWithHTTP(t *testing.T) {
 		WithPrometheus(":9092", "/metrics"),
 		WithServiceName("test-service"),
 	)
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	// Wait for server to be ready
 	err := waitForMetricsServer(t, "localhost:9092", 1*time.Second)
@@ -94,6 +90,9 @@ func TestRecorderProviders(t *testing.T) {
 		recorder := MustNew(
 			WithPrometheus(":9093", "/metrics"),
 		)
+		t.Cleanup(func() {
+			recorder.Shutdown(context.Background())
+		})
 		assert.Equal(t, PrometheusProvider, recorder.Provider())
 	})
 
@@ -103,6 +102,9 @@ func TestRecorderProviders(t *testing.T) {
 		recorder := MustNew(
 			WithOTLP("http://localhost:4318"),
 		)
+		t.Cleanup(func() {
+			recorder.Shutdown(context.Background())
+		})
 		assert.Equal(t, OTLPProvider, recorder.Provider())
 	})
 
@@ -111,6 +113,9 @@ func TestRecorderProviders(t *testing.T) {
 		recorder := MustNew(
 			WithStdout(),
 		)
+		t.Cleanup(func() {
+			recorder.Shutdown(context.Background())
+		})
 		assert.Equal(t, StdoutProvider, recorder.Provider())
 	})
 }
@@ -122,6 +127,9 @@ func TestCustomMetrics(t *testing.T) {
 		WithPrometheus(":9094", "/metrics"),
 		WithServiceName("test-service"),
 	)
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	ctx := context.Background()
 
@@ -145,6 +153,9 @@ func TestRecorderMiddleware(t *testing.T) {
 		WithPrometheus(":9095", "/metrics"),
 		WithServiceName("test-service"),
 	)
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	// Create a test handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -231,6 +242,9 @@ func TestRecorderIntegration(t *testing.T) {
 		WithPrometheus(":9096", "/metrics"),
 		WithServiceName("integration-test"),
 	)
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	// Create HTTP mux
 	mux := http.NewServeMux()
@@ -269,6 +283,9 @@ func TestRecorderHandler(t *testing.T) {
 		WithPrometheus(":9097", "/metrics"),
 		WithServiceName("test-service"),
 	)
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	// Create HTTP handler with metrics to generate some data
 	handler := Middleware(recorder)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -306,7 +323,9 @@ func TestHandlerErrors(t *testing.T) {
 			WithOTLP("http://localhost:4318"),
 			WithServiceName("test-service"),
 		)
-		defer recorder.Shutdown(context.Background())
+		t.Cleanup(func() {
+			recorder.Shutdown(context.Background())
+		})
 
 		handler, err := recorder.Handler()
 		assert.Error(t, err)
@@ -322,7 +341,9 @@ func TestHandlerErrors(t *testing.T) {
 			WithStdout(),
 			WithServiceName("test-service"),
 		)
-		defer recorder.Shutdown(context.Background())
+		t.Cleanup(func() {
+			recorder.Shutdown(context.Background())
+		})
 
 		handler, err := recorder.Handler()
 		assert.Error(t, err)

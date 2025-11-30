@@ -94,10 +94,9 @@ type RequestMetrics struct {
 }
 
 // Start initializes metrics collection for a request.
-// This is the minimal API for app integration - it just starts timing.
-// Use StartHTTP for standalone usage with automatic attribute extraction.
-//
+// This is the minimal API for app integration; it starts timing.
 // Returns nil if metrics are disabled.
+// Call [Recorder.Finish] when the request completes to record the metrics.
 func (r *Recorder) Start(ctx context.Context) *RequestMetrics {
 	if !r.enabled {
 		return nil
@@ -122,7 +121,7 @@ func (r *Recorder) Start(ctx context.Context) *RequestMetrics {
 // This is the minimal API for app integration.
 //
 // Parameters:
-//   - m: RequestMetrics returned from Start (can be nil)
+//   - m: [RequestMetrics] returned from [Recorder.Start] (can be nil)
 //   - statusCode: HTTP status code
 //   - responseSize: Response body size in bytes
 //   - route: Route pattern for cardinality control (e.g., "/users/{id}")
@@ -162,7 +161,7 @@ func (r *Recorder) Finish(ctx context.Context, m *RequestMetrics, statusCode int
 }
 
 // RecordRequestSize records the request body size.
-// Call this after Start() if you have the request size available.
+// Call this after [Recorder.Start] if you have the request size available.
 func (r *Recorder) RecordRequestSize(ctx context.Context, m *RequestMetrics, size int64) {
 	if m == nil || size <= 0 {
 		return
@@ -171,7 +170,7 @@ func (r *Recorder) RecordRequestSize(ctx context.Context, m *RequestMetrics, siz
 }
 
 // AddAttributes adds attributes to the request metrics.
-// This should be called before Finish() to add custom attributes.
+// This should be called before [Recorder.Finish] to add custom attributes.
 func (m *RequestMetrics) AddAttributes(attrs ...attribute.KeyValue) {
 	if m == nil {
 		return
@@ -358,7 +357,7 @@ func (r *Recorder) initializeMetrics() error {
 }
 
 // getOrCreateCounter gets or creates a custom counter metric.
-// Uses RWMutex for thread-safe access with good read performance.
+// This method is safe for concurrent use.
 func (r *Recorder) getOrCreateCounter(name string) (metric.Int64Counter, error) {
 	// Fast path: read lock
 	r.customMu.RLock()
@@ -406,7 +405,7 @@ func (r *Recorder) getOrCreateCounter(name string) (metric.Int64Counter, error) 
 }
 
 // getOrCreateHistogram gets or creates a custom histogram metric.
-// Uses RWMutex for thread-safe access with good read performance.
+// This method is safe for concurrent use.
 func (r *Recorder) getOrCreateHistogram(name string) (metric.Float64Histogram, error) {
 	// Fast path: read lock
 	r.customMu.RLock()
@@ -454,7 +453,7 @@ func (r *Recorder) getOrCreateHistogram(name string) (metric.Float64Histogram, e
 }
 
 // getOrCreateGauge gets or creates a custom gauge metric.
-// Uses RWMutex for thread-safe access with good read performance.
+// This method is safe for concurrent use.
 func (r *Recorder) getOrCreateGauge(name string) (metric.Float64Gauge, error) {
 	// Fast path: read lock
 	r.customMu.RLock()

@@ -134,7 +134,9 @@ func WithHeaders(headers ...string) MiddlewareOption {
 // This is useful when you want to add metrics to an existing router
 // without using the app package.
 //
-// Path filtering and header recording are configured via MiddlewareOption.
+// Path filtering and header recording are configured via [MiddlewareOption].
+// Use [WithExcludePaths], [WithExcludePrefixes], [WithExcludePatterns], or [WithHeaders]
+// to customize behavior.
 //
 // Example:
 //
@@ -211,8 +213,8 @@ func Middleware(recorder *Recorder, opts ...MiddlewareOption) func(http.Handler)
 	}
 }
 
-// responseWriter wraps http.ResponseWriter to capture status code and size.
-// It also implements optional interfaces (Flusher, Hijacker, Pusher) if the
+// responseWriter wraps [http.ResponseWriter] to capture status code and size.
+// It also implements optional interfaces ([http.Flusher], [http.Hijacker], [http.Pusher]) if the
 // underlying ResponseWriter supports them.
 type responseWriter struct {
 	http.ResponseWriter
@@ -261,14 +263,14 @@ func (rw *responseWriter) Size() int {
 	return rw.size
 }
 
-// Flush implements http.Flusher if the underlying ResponseWriter supports it.
+// Flush implements [http.Flusher] if the underlying ResponseWriter supports it.
 func (rw *responseWriter) Flush() {
 	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
 }
 
-// Hijack implements http.Hijacker for WebSocket support.
+// Hijack implements [http.Hijacker] for WebSocket support.
 // Returns an error if the underlying ResponseWriter doesn't support hijacking.
 func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if h, ok := rw.ResponseWriter.(http.Hijacker); ok {
@@ -277,8 +279,8 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return nil, nil, fmt.Errorf("underlying ResponseWriter doesn't support Hijack")
 }
 
-// Push implements http.Pusher for HTTP/2 server push.
-// Returns http.ErrNotSupported if the underlying ResponseWriter doesn't support it.
+// Push implements [http.Pusher] for HTTP/2 server push.
+// Returns [http.ErrNotSupported] if the underlying ResponseWriter doesn't support it.
 func (rw *responseWriter) Push(target string, opts *http.PushOptions) error {
 	if p, ok := rw.ResponseWriter.(http.Pusher); ok {
 		return p.Push(target, opts)
@@ -286,7 +288,7 @@ func (rw *responseWriter) Push(target string, opts *http.PushOptions) error {
 	return http.ErrNotSupported
 }
 
-// Unwrap returns the underlying ResponseWriter for http.ResponseController support (Go 1.20+).
+// Unwrap returns the underlying ResponseWriter for [http.ResponseController] support (Go 1.20+).
 func (rw *responseWriter) Unwrap() http.ResponseWriter {
 	return rw.ResponseWriter
 }

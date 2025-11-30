@@ -1,18 +1,17 @@
 # Rivaas Metrics
 
-A comprehensive metrics collection package for Go applications using OpenTelemetry. This package provides easy-to-use metrics functionality with support for multiple exporters including Prometheus, OTLP, and stdout.
+A metrics collection package for Go applications using OpenTelemetry. This package provides metrics functionality with support for multiple exporters including Prometheus, OTLP, and stdout.
 
 ## Features
 
 - **Multiple Providers**: Prometheus, OTLP, and stdout exporters
 - **Built-in HTTP Metrics**: Request duration, count, active requests, and more
 - **Custom Metrics**: Support for counters, histograms, and gauges with error handling
-- **Thread-Safe**: RWMutex-based operations for optimal performance
+- **Thread-Safe**: All methods are safe for concurrent use
 - **Context Support**: All metrics methods accept context for cancellation
 - **Structured Logging**: Pluggable logger interface for error and warning messages
-- **HTTP Middleware**: Easy integration with any HTTP framework
+- **HTTP Middleware**: Integration with any HTTP framework
 - **Security**: Automatic filtering of sensitive headers
-- **Memory Optimized**: Pre-allocated slices and efficient memory usage
 
 ## Quick Start
 
@@ -345,13 +344,11 @@ handler := metrics.Middleware(recorder,
 )(mux)
 ```
 
-## Performance
+## Behavior
 
-- **Thread-Safe**: Uses RWMutex for efficient concurrent access
-- **Memory Efficient**: Minimal allocations during request processing
-- **Configurable Limits**: Set maximum custom metrics to prevent memory leaks
-- **Provider-Specific Optimizations**: Each provider is optimized for its use case
-- **Idempotent Operations**: Safe to call `Shutdown()` multiple times
+- **Thread-Safe**: All methods are safe for concurrent use
+- **Configurable Limits**: Set maximum custom metrics to prevent unbounded metric creation
+- **Idempotent Shutdown**: Safe to call `Shutdown()` multiple times
 
 ## Important Limitations
 

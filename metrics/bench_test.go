@@ -645,3 +645,161 @@ func BenchmarkCustomMetricsCreation(b *testing.B) {
 		})
 	})
 }
+
+// =============================================================================
+// Zero-Allocation Tests
+// =============================================================================
+// These tests verify that hot paths don't allocate memory, which is important
+// for high-performance metrics recording.
+
+// TestRecordHistogram_ZeroAlloc verifies that recording to a cached histogram
+// has minimal allocations.
+func TestRecordHistogram_ZeroAlloc(t *testing.T) {
+	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
+	recorder := MustNew(
+		WithStdout(),
+		WithServiceName("alloc-test"),
+		WithServerDisabled(),
+	)
+	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+
+	ctx := context.Background()
+	// Pre-create the metric so it's cached
+	_ = recorder.RecordHistogram(ctx, "prewarmed_histogram", 1.0)
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = recorder.RecordHistogram(ctx, "prewarmed_histogram", 1.0)
+	})
+
+	// Recording to existing histogram should have minimal allocations
+	// The OpenTelemetry SDK may have some internal allocations
+	if allocs > 5 {
+		t.Errorf("RecordHistogram to cached metric allocated %.1f times, want <= 5", allocs)
+	}
+}
+
+// TestIncrementCounter_ZeroAlloc verifies that incrementing a cached counter
+// has minimal allocations.
+func TestIncrementCounter_ZeroAlloc(t *testing.T) {
+	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
+	recorder := MustNew(
+		WithStdout(),
+		WithServiceName("alloc-test"),
+		WithServerDisabled(),
+	)
+	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+
+	ctx := context.Background()
+	// Pre-create the counter
+	_ = recorder.IncrementCounter(ctx, "prewarmed_counter")
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = recorder.IncrementCounter(ctx, "prewarmed_counter")
+	})
+
+	// Incrementing existing counter should have minimal allocations
+	if allocs > 5 {
+		t.Errorf("IncrementCounter to cached metric allocated %.1f times, want <= 5", allocs)
+	}
+}
+
+// TestSetGauge_ZeroAlloc verifies that setting a cached gauge
+// has minimal allocations.
+func TestSetGauge_ZeroAlloc(t *testing.T) {
+	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
+	recorder := MustNew(
+		WithStdout(),
+		WithServiceName("alloc-test"),
+		WithServerDisabled(),
+	)
+	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+
+	ctx := context.Background()
+	// Pre-create the gauge
+	_ = recorder.SetGauge(ctx, "prewarmed_gauge", 1.0)
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = recorder.SetGauge(ctx, "prewarmed_gauge", 42.0)
+	})
+
+	// Setting existing gauge should have minimal allocations
+	if allocs > 5 {
+		t.Errorf("SetGauge to cached metric allocated %.1f times, want <= 5", allocs)
+	}
+}
+
+// TestPathFilter_ZeroAlloc verifies that path filtering has zero allocations.
+func TestPathFilter_ZeroAlloc(t *testing.T) {
+	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
+	pf := newPathFilter()
+	pf.addPaths("/health", "/metrics", "/ready")
+	pf.addPrefixes("/debug/", "/internal/")
+
+	// Test exact path match
+	allocsExact := testing.AllocsPerRun(100, func() {
+		_ = pf.shouldExclude("/health")
+	})
+	if allocsExact > 0 {
+		t.Errorf("shouldExclude (exact match) allocated %.1f times, want 0", allocsExact)
+	}
+
+	// Test non-excluded path
+	allocsNonExcluded := testing.AllocsPerRun(100, func() {
+		_ = pf.shouldExclude("/api/users")
+	})
+	if allocsNonExcluded > 0 {
+		t.Errorf("shouldExclude (non-excluded) allocated %.1f times, want 0", allocsNonExcluded)
+	}
+
+	// Test prefix match
+	allocsPrefix := testing.AllocsPerRun(100, func() {
+		_ = pf.shouldExclude("/debug/pprof")
+	})
+	if allocsPrefix > 0 {
+		t.Errorf("shouldExclude (prefix match) allocated %.1f times, want 0", allocsPrefix)
+	}
+}
+
+// TestValidateMetricName_ZeroAlloc verifies that metric name validation
+// has minimal allocations for valid names.
+func TestValidateMetricName_ZeroAlloc(t *testing.T) {
+	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
+	validName := "my_valid_metric_name"
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = validateMetricName(validName)
+	})
+
+	// Validation of valid names should have minimal allocations
+	if allocs > 0 {
+		t.Errorf("validateMetricName for valid name allocated %.1f times, want 0", allocs)
+	}
+}
+
+// TestStart_Allocations verifies the allocation count for Start operation.
+func TestStart_Allocations(t *testing.T) {
+	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
+	recorder := MustNew(
+		WithStdout(),
+		WithServiceName("alloc-test"),
+		WithServerDisabled(),
+	)
+	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+
+	ctx := context.Background()
+
+	allocs := testing.AllocsPerRun(100, func() {
+		m := recorder.Start(ctx)
+		// Must use m to prevent compiler optimization
+		if m == nil {
+			t.Fatal("unexpected nil")
+		}
+	})
+
+	// Start allocates a RequestMetrics struct, attribute slice, and may have
+	// OpenTelemetry SDK internal allocations. The actual count varies slightly
+	// based on SDK version and Go version.
+	if allocs > 10 {
+		t.Errorf("Start allocated %.1f times, want <= 10", allocs)
+	}
+}

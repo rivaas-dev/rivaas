@@ -344,7 +344,9 @@ func TestMetricNameValidationEdgeCases(t *testing.T) {
 		WithServiceName("test-service"),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(context.Background())
+	t.Cleanup(func() {
+		recorder.Shutdown(context.Background())
+	})
 
 	ctx := context.Background()
 

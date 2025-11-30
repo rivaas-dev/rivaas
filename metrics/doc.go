@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package metrics provides comprehensive OpenTelemetry-based metrics collection
-// for Go applications. It supports multiple exporters (Prometheus, OTLP, stdout)
-// and integrates seamlessly with the Rivaas router.
+// Package metrics provides OpenTelemetry-based metrics collection for Go applications.
+// It supports multiple exporters (Prometheus, OTLP, stdout) and integrates with the Rivaas router.
 //
 // # Basic Usage
 //
@@ -33,21 +32,21 @@
 //
 // # Thread Safety
 //
-// All methods are safe for concurrent use. Custom metrics are limited
+// All [Recorder] methods are safe for concurrent use. Custom metrics are limited
 // (default 1000) to prevent unbounded metric creation.
 //
 // # Global State
 //
 // By default, this package does NOT set the global OpenTelemetry meter provider.
-// Use WithGlobalMeterProvider() if you want global registration.
-// This allows multiple Recorder instances to coexist in the same process.
+// Use [WithGlobalMeterProvider] if you want global registration.
+// This allows multiple [Recorder] instances to coexist in the same process.
 //
 // # Providers
 //
 // Three providers are supported:
-//   - PrometheusProvider (default): Exposes metrics via HTTP endpoint
-//   - OTLPProvider: Sends metrics to OTLP collector
-//   - StdoutProvider: Prints metrics to stdout (for development/testing)
+//   - [PrometheusProvider] (default): Exposes metrics via HTTP endpoint
+//   - [OTLPProvider]: Sends metrics to OTLP collector
+//   - [StdoutProvider]: Prints metrics to stdout (for development/testing)
 //
 // # Custom Metrics
 //
@@ -65,8 +64,11 @@
 //	    attribute.String("status", "success"))
 //	_ = recorder.SetGauge(ctx, "active_connections", 42)
 //
+// See [Recorder.RecordHistogram], [Recorder.IncrementCounter], and [Recorder.SetGauge]
+// for custom metric recording.
+//
 // # Security
 //
 // Sensitive headers (Authorization, Cookie, X-API-Key, etc.) are automatically
-// filtered out when using WithHeaders() to prevent accidental credential exposure.
+// filtered out when using [WithHeaders] to prevent accidental credential exposure.
 package metrics
