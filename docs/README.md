@@ -2,6 +2,14 @@
 
 This directory contains standards, guidelines, and documentation for the Rivaas project.
 
+## Architecture & Design
+
+- **[Design Principles](./DESIGN_PRINCIPLES.md)** - Core design philosophy and architectural decisions
+  - Developer Experience (DX) first approach
+  - Functional options pattern
+  - Standalone packages architecture
+  - The `app` package as integration layer
+
 ## Standards
 
 - **[Testing Standards](./TESTING_STANDARDS.md)** - Comprehensive testing patterns and best practices for all Rivaas packages
@@ -39,6 +47,5 @@ Each package in the Rivaas repository includes its own `README.md` with package-
 Additional documentation planned for this directory:
 
 - **Code style guidelines** - Go coding standards, naming conventions, and formatting rules
-- **Architecture decision records (ADRs)** - Documented architectural decisions and their rationale
 - **Contribution guidelines** - Detailed process for contributing code, documentation, and issues
-- **Performance benchmarks and guidelines** - Performance optimization patterns and benchmarking standards
+- **Performance guidelines** - Performance optimization patterns and benchmarking standards
