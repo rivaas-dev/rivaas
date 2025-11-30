@@ -39,8 +39,8 @@ a, err := app.New(
     app.WithServiceName("my-api"),
     app.WithObservability(
         app.WithLogging(logging.WithConsoleHandler()),
-        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
-        app.WithTracing(tracing.WithProvider(tracing.StdoutProvider)),
+        app.WithMetrics(), // Prometheus is default
+        app.WithTracing(tracing.WithStdout()),
     ),
 )
 ```
@@ -133,7 +133,7 @@ a, err := app.New(
     app.WithEnvironment("production"),
     app.WithObservability(
         app.WithLogging(logging.WithJSONHandler()),
-        app.WithMetrics(metrics.WithProvider(metrics.PrometheusProvider)),
+        app.WithMetrics(), // Prometheus is default
         app.WithTracing(tracing.WithSampleRate(0.1)),
         app.WithExcludePaths("/healthz", "/readyz"),
     ),

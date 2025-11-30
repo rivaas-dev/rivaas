@@ -161,7 +161,7 @@
             type = "app";
             program = toString (pkgs.writeShellScript "rivaas-tidy" ''
               # Run go mod tidy for all modules in the workspace
-              for dir in app binding errors logging metrics openapi router router/benchmarks telemetry tracing validation; do
+              for dir in app app/examples/02-full-featured binding errors logging metrics openapi router router/benchmarks telemetry tracing validation; do
                 if [ -d "$dir" ] && [ -f "$dir/go.mod" ]; then
                   echo "Running go mod tidy in $dir..."
                   (cd "$dir" && ${go}/bin/go mod tidy) || exit 1
