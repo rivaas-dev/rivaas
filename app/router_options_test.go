@@ -64,7 +64,7 @@ func TestWithRouterOptions(t *testing.T) {
 			),
 			WithRouterOptions(
 				router.WithCancellationCheck(false),
-				router.WithTemplateRouting(true),
+				router.WithRouteCompilation(true),
 			),
 		)
 		require.NoError(t, err)

@@ -22,14 +22,12 @@ import (
 	"rivaas.dev/router"
 )
 
-// contextPool provides pooling for app.Context instances.
-// contextPool reuses Context instances across requests.
+// contextPool provides pooling for [Context] instances, reusing them across requests.
 type contextPool struct {
 	pool sync.Pool
 }
 
 // newContextPool creates a new context pool.
-// newContextPool is a private helper for creating context pools.
 func newContextPool() *contextPool {
 	return &contextPool{
 		pool: sync.Pool{
@@ -40,15 +38,14 @@ func newContextPool() *contextPool {
 	}
 }
 
-// Get retrieves a Context from the pool.
-// Get returns a Context instance, creating a new one if the pool is empty.
+// Get retrieves a [Context] from the pool, creating a new one if the pool is empty.
 func (cp *contextPool) Get() *Context {
 	return cp.pool.Get().(*Context)
 }
 
 // Put returns a Context to the pool after resetting it.
 //
-// Put cleanup is also performed in wrapHandler's defer to ensure
+// Cleanup is also performed in wrapHandler's defer to ensure
 // contexts are reset even if handlers panic. This method's cleanup
 // is idempotent and provides an additional safety layer.
 func (cp *contextPool) Put(c *Context) {
@@ -61,7 +58,7 @@ func (cp *contextPool) Put(c *Context) {
 }
 
 // buildRequestLogger creates a request-scoped logger with automatic context.
-// buildRequestLogger adds HTTP metadata and OpenTelemetry trace correlation using semantic conventions.
+// It adds HTTP metadata and OpenTelemetry trace correlation using semantic conventions.
 //
 // Security considerations:
 //   - Uses router's ClientIP() which respects trusted proxy configuration
@@ -82,8 +79,8 @@ func buildRequestLogger(base *slog.Logger, rc *router.Context) *slog.Logger {
 	}
 
 	// Add route template if available (after routing completes)
-	if route := rc.RouteTemplate(); route != "" {
-		attrs = append(attrs, slog.String(fieldHTTPRoute, route)) // Template: /orders/:id
+	if pattern := rc.RoutePattern(); pattern != "" {
+		attrs = append(attrs, slog.String(fieldHTTPRoute, pattern)) // Template: /orders/:id
 	}
 
 	// Add client IP (proxy-aware if configured, otherwise socket peer)

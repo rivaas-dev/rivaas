@@ -403,3 +403,58 @@ func TestWithMetricsSeparateServer(t *testing.T) {
 		assert.Contains(t, err.Error(), "mutually exclusive")
 	})
 }
+
+func TestWithObservability_MultipleValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	// Test that ALL observability validation errors are returned, not just the first one
+	t.Run("all invalid regex patterns reported together", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := New(
+			WithServiceName("test-service"),
+			WithObservability(
+				WithExcludePatterns(
+					`[invalid`,   // Invalid regex: unclosed bracket
+					`(?invalid)`, // Invalid regex: unknown group flag
+					`.*valid.*`,  // Valid pattern (should not cause error)
+					`(unclosed`,  // Invalid regex: unclosed paren
+				),
+			),
+		)
+		require.Error(t, err)
+
+		// Verify it's a ValidationError containing multiple errors
+		var ve *ValidationError
+		require.ErrorAs(t, err, &ve)
+		assert.GreaterOrEqual(t, len(ve.Errors), 3, "should have at least 3 observability errors")
+
+		// Check that all invalid patterns are reported
+		errorStr := err.Error()
+		assert.Contains(t, errorStr, "[invalid")
+		assert.Contains(t, errorStr, "(?invalid)")
+		assert.Contains(t, errorStr, "(unclosed")
+	})
+
+	t.Run("observability errors combined with other config errors", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := New(
+			WithServiceName(""), // Empty service name error
+			WithObservability(
+				WithExcludePatterns(`[invalid`), // Invalid regex error
+			),
+		)
+		require.Error(t, err)
+
+		// Should contain both errors
+		var ve *ValidationError
+		require.ErrorAs(t, err, &ve)
+		assert.GreaterOrEqual(t, len(ve.Errors), 2, "should have at least 2 errors (serviceName + observability)")
+
+		// Both errors should be present
+		errorStr := err.Error()
+		assert.Contains(t, errorStr, "serviceName")
+		assert.Contains(t, errorStr, "[invalid")
+	})
+}

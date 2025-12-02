@@ -18,6 +18,7 @@ import (
 	"net/http"
 
 	"rivaas.dev/router"
+	"rivaas.dev/router/route"
 )
 
 // VersionGroup represents a version-specific route group that allows organizing
@@ -56,30 +57,30 @@ func (vg *VersionGroup) addRoute(method, path string, handlers []HandlerFunc) *R
 	fullPath := vg.prefix + path
 
 	// Register route with combined handlers
-	var route *router.Route
+	var rt *route.Route
 	switch method {
 	case http.MethodGet:
-		route = vg.versionRouter.GET(fullPath, allHandlers...)
+		rt = vg.versionRouter.GET(fullPath, allHandlers...)
 	case http.MethodPost:
-		route = vg.versionRouter.POST(fullPath, allHandlers...)
+		rt = vg.versionRouter.POST(fullPath, allHandlers...)
 	case http.MethodPut:
-		route = vg.versionRouter.PUT(fullPath, allHandlers...)
+		rt = vg.versionRouter.PUT(fullPath, allHandlers...)
 	case http.MethodDelete:
-		route = vg.versionRouter.DELETE(fullPath, allHandlers...)
+		rt = vg.versionRouter.DELETE(fullPath, allHandlers...)
 	case http.MethodPatch:
-		route = vg.versionRouter.PATCH(fullPath, allHandlers...)
+		rt = vg.versionRouter.PATCH(fullPath, allHandlers...)
 	case http.MethodHead:
-		route = vg.versionRouter.HEAD(fullPath, allHandlers...)
+		rt = vg.versionRouter.HEAD(fullPath, allHandlers...)
 	case http.MethodOptions:
-		route = vg.versionRouter.OPTIONS(fullPath, allHandlers...)
+		rt = vg.versionRouter.OPTIONS(fullPath, allHandlers...)
 	}
 
-	vg.app.fireRouteHook(route)
-	return vg.app.wrapRouteWithOpenAPI(route, method, fullPath)
+	vg.app.fireRouteHook(rt)
+	return vg.app.wrapRouteWithOpenAPI(rt, method, fullPath)
 }
 
 // GET adds a GET route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// GET executes any middleware added via Use() before the handler.
+// It executes any middleware added via Use() before the handler.
 //
 // Example:
 //
@@ -90,7 +91,7 @@ func (vg *VersionGroup) GET(path string, handlers ...HandlerFunc) *RouteWrapper 
 }
 
 // POST adds a POST route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// POST executes any middleware added via Use() before the handler.
+// It executes any middleware added via Use() before the handler.
 //
 // Example:
 //
@@ -101,7 +102,7 @@ func (vg *VersionGroup) POST(path string, handlers ...HandlerFunc) *RouteWrapper
 }
 
 // PUT adds a PUT route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// PUT executes any middleware added via Use() before the handler.
+// It executes any middleware added via Use() before the handler.
 //
 // Example:
 //
@@ -111,7 +112,7 @@ func (vg *VersionGroup) PUT(path string, handlers ...HandlerFunc) *RouteWrapper 
 }
 
 // DELETE adds a DELETE route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// DELETE executes any middleware added via Use() before the handler.
+// It executes any middleware added via Use() before the handler.
 //
 // Example:
 //
@@ -121,7 +122,7 @@ func (vg *VersionGroup) DELETE(path string, handlers ...HandlerFunc) *RouteWrapp
 }
 
 // PATCH adds a PATCH route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// PATCH executes any middleware added via Use() before the handler.
+// It executes any middleware added via Use() before the handler.
 //
 // Example:
 //
@@ -131,7 +132,7 @@ func (vg *VersionGroup) PATCH(path string, handlers ...HandlerFunc) *RouteWrappe
 }
 
 // HEAD adds a HEAD route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// HEAD executes any middleware added via Use() before the handler.
+// It executes any middleware added via Use() before the handler.
 //
 // Example:
 //
@@ -141,7 +142,7 @@ func (vg *VersionGroup) HEAD(path string, handlers ...HandlerFunc) *RouteWrapper
 }
 
 // OPTIONS adds an OPTIONS route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// OPTIONS executes any middleware added via Use() before the handler.
+// It executes any middleware added via Use() before the handler.
 //
 // Example:
 //
@@ -151,10 +152,10 @@ func (vg *VersionGroup) OPTIONS(path string, handlers ...HandlerFunc) *RouteWrap
 }
 
 // Use adds middleware to the version group that will be executed for all routes in this group.
-// Use middleware is executed after the router's global middleware but before
+// Middleware is executed after the router's global middleware but before
 // the route-specific handlers.
 //
-// Use applies middleware to all subsequent routes registered in this version group.
+// It applies middleware to all subsequent routes registered in this version group.
 //
 // Example:
 //
@@ -166,9 +167,9 @@ func (vg *VersionGroup) Use(middleware ...HandlerFunc) {
 }
 
 // Any registers a route that matches all HTTP methods.
-// Any is useful for catch-all endpoints like health checks or proxies.
+// It is useful for catch-all endpoints like health checks or proxies.
 //
-// Any registers 7 separate routes internally (GET, POST, PUT, DELETE,
+// It registers 7 separate routes internally (GET, POST, PUT, DELETE,
 // PATCH, HEAD, OPTIONS). For endpoints that only need specific methods,
 // use individual method registrations (GET, POST, etc.).
 //
@@ -189,8 +190,8 @@ func (vg *VersionGroup) Any(path string, handlers ...HandlerFunc) *RouteWrapper 
 }
 
 // Group creates a nested version group under the current version group.
-// Group combines the parent's prefix with the provided prefix.
-// Group inherits middleware from the parent group.
+// It combines the parent's prefix with the provided prefix.
+// It inherits middleware from the parent group.
 //
 // Example:
 //

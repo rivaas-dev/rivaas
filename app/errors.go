@@ -41,7 +41,7 @@ type ConfigError struct {
 }
 
 // Error implements the error interface and returns a formatted error message.
-// Error formats the ConfigError as a human-readable string.
+// It formats the ConfigError as a human-readable string.
 func (e *ConfigError) Error() string {
 	if e.Constraint != "" {
 		return fmt.Sprintf("configuration error in %s: %s (constraint: %s, value: %v)",
@@ -55,7 +55,7 @@ func (e *ConfigError) Error() string {
 }
 
 // Unwrap returns nil as ConfigError is a leaf error type.
-// Unwrap allows errors.Is() and errors.As() to work correctly.
+// It allows errors.Is() and errors.As() to work correctly.
 func (e *ConfigError) Unwrap() error {
 	return nil
 }
@@ -85,20 +85,20 @@ func (ve *ValidationError) Error() string {
 }
 
 // Add appends a new ConfigError to the ValidationError.
-// Add collects validation errors for batch reporting.
+// It collects validation errors for batch reporting.
 func (ve *ValidationError) Add(err *ConfigError) {
 	ve.Errors = append(ve.Errors, err)
 }
 
 // HasErrors returns true if there are any validation errors.
-// HasErrors checks if the ValidationError contains any errors.
+// It checks if the ValidationError contains any errors.
 func (ve *ValidationError) HasErrors() bool {
 	return len(ve.Errors) > 0
 }
 
 // ToError returns nil if there are no errors, otherwise returns the ValidationError
 // as an error.
-// ToError is useful for returning from validation functions.
+// It is useful for returning from validation functions.
 func (ve *ValidationError) ToError() error {
 	if !ve.HasErrors() {
 		return nil
@@ -108,8 +108,7 @@ func (ve *ValidationError) ToError() error {
 
 // Helper functions for creating common validation errors
 
-// newFieldError creates a ConfigError for a field validation failure.
-// newFieldError is a private helper for creating validation errors.
+// newFieldError creates a [ConfigError] for a field validation failure.
 func newFieldError(field string, value any, message, constraint string) *ConfigError {
 	return &ConfigError{
 		Field:      field,
@@ -119,37 +118,32 @@ func newFieldError(field string, value any, message, constraint string) *ConfigE
 	}
 }
 
-// newEmptyFieldError creates a ConfigError for an empty required field.
-// newEmptyFieldError is a private helper for creating validation errors.
+// newEmptyFieldError creates a [ConfigError] for an empty required field.
 func newEmptyFieldError(field string) *ConfigError {
 	return newFieldError(field, nil, "cannot be empty", "required")
 }
 
-// newInvalidValueError creates a ConfigError for an invalid field value.
-// newInvalidValueError is a private helper for creating validation errors.
+// newInvalidValueError creates a [ConfigError] for an invalid field value.
 func newInvalidValueError(field string, value any, message string) *ConfigError {
 	return newFieldError(field, value, message, "")
 }
 
-// newInvalidEnumError creates a ConfigError for an invalid enum value.
-// newInvalidEnumError is a private helper for creating validation errors.
+// newInvalidEnumError creates a [ConfigError] for an invalid enum value.
 func newInvalidEnumError(field string, value any, validValues []string) *ConfigError {
 	return newFieldError(field, value,
 		fmt.Sprintf("must be one of: %v", validValues),
 		fmt.Sprintf("enum: %v", validValues))
 }
 
-// newTimeoutError creates a ConfigError for an invalid timeout value.
-// newTimeoutError is a private helper for creating validation errors.
+// newTimeoutError creates a [ConfigError] for an invalid timeout value.
 func newTimeoutError(field string, value time.Duration, constraint string) *ConfigError {
 	return newFieldError(field, value,
 		fmt.Sprintf("timeout must be positive, got: %s", value),
 		constraint)
 }
 
-// newComparisonError creates a ConfigError for a field comparison failure
+// newComparisonError creates a [ConfigError] for a field comparison failure
 // (e.g., readTimeout > writeTimeout).
-// newComparisonError is a private helper for creating validation errors.
 func newComparisonError(field1, field2 string, value1, value2 any, message string) *ConfigError {
 	return newFieldError(field1, value1,
 		fmt.Sprintf("%s (compared with %s: %v)", message, field2, value2),

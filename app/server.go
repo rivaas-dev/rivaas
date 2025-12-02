@@ -29,11 +29,9 @@ import (
 )
 
 // serverStartFunc defines the function type for starting a server.
-// serverStartFunc is used internally by runServer().
 type serverStartFunc func() error
 
 // logLifecycleEvent logs a lifecycle event using the base logger.
-// logLifecycleEvent is a private helper for logging lifecycle events.
 func (a *App) logLifecycleEvent(ctx context.Context, level slog.Level, msg string, args ...any) {
 	logger := a.BaseLogger()
 	if logger.Enabled(ctx, level) {
@@ -41,8 +39,15 @@ func (a *App) logLifecycleEvent(ctx context.Context, level slog.Level, msg strin
 	}
 }
 
-// logStartupInfo logs startup information including address, environment, and observability status.
-// logStartupInfo is a private helper for logging startup information.
+// flushStartupLogs flushes any buffered startup logs.
+// This is called after the banner is printed to ensure clean terminal output.
+func (a *App) flushStartupLogs() {
+	if a.logging != nil {
+		_ = a.logging.FlushBuffer() // Ignore errors, logging is best-effort
+	}
+}
+
+// logStartupInfo logs startup information including address, environment, and observability.
 func (a *App) logStartupInfo(addr, protocol string) {
 	attrs := []any{
 		"address", addr,
@@ -62,7 +67,6 @@ func (a *App) logStartupInfo(addr, protocol string) {
 }
 
 // shutdownObservability gracefully shuts down all enabled observability components.
-// shutdownObservability is a private helper for shutting down metrics and tracing.
 func (a *App) shutdownObservability(ctx context.Context) {
 	// Shutdown metrics if running
 	if a.metrics != nil {
@@ -79,15 +83,19 @@ func (a *App) shutdownObservability(ctx context.Context) {
 	}
 }
 
-// runServer handles the common lifecycle logic for starting and shutting down an HTTP server.
-// runServer accepts an http.Server and a startFunc (either ListenAndServe or ListenAndServeTLS).
-// runServer is a private helper used by Run(), RunTLS(), and RunMTLS().
+// runServer handles the common lifecycle for starting and shutting down an HTTP server.
+// It is used by [App.Run], [App.RunTLS], and [App.RunMTLS].
 func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol string) error {
 	// Start server in a goroutine
 	serverErr := make(chan error, 1)
 	serverReady := make(chan struct{})
 	go func() {
 		a.printStartupBanner(server.Addr, protocol)
+
+		// Flush any buffered startup logs after the banner is printed.
+		// This ensures all initialization logs appear after the banner for cleaner DX.
+		a.flushStartupLogs()
+
 		a.logStartupInfo(server.Addr, protocol)
 		// Routes are now displayed as part of the startup banner
 
@@ -273,10 +281,10 @@ func (a *App) RunTLS(addr, certFile, keyFile string) error {
 }
 
 // RunMTLS starts an HTTPS server with mutual TLS (mTLS) authentication.
-// RunMTLS requires both client and server certificates for bidirectional authentication.
-// RunMTLS automatically freezes the router before starting, making routes immutable.
+// It requires both client and server certificates for bidirectional authentication.
+// It automatically freezes the router before starting, making routes immutable.
 //
-// RunMTLS configures the server to:
+// It configures the server to:
 //   - Require client certificates (ClientAuth: RequireAndVerifyClientCert)
 //   - Validate client certificates against ClientCAs
 //   - Optionally authorize clients using the WithAuthorize callback

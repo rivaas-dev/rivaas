@@ -17,7 +17,7 @@ package app
 import (
 	"rivaas.dev/openapi"
 	"rivaas.dev/openapi/example"
-	"rivaas.dev/router"
+	"rivaas.dev/router/route"
 )
 
 // RouteWrapper wraps a router.Route to provide both constraint
@@ -30,7 +30,7 @@ import (
 //	    Response(200, UserResponse{}).
 //	    WhereInt("id")
 type RouteWrapper struct {
-	route   *router.Route
+	route   *route.Route
 	openapi *openapi.RouteWrapper
 }
 
@@ -248,9 +248,9 @@ func (rw *RouteWrapper) Deprecated() *RouteWrapper {
 //
 // Example:
 //
-//	route := app.GET("/users/:id", handler).Route()
-//	route.SetName("get-user")
-func (rw *RouteWrapper) Route() *router.Route {
+//	rt := app.GET("/users/:id", handler).Route()
+//	rt.SetName("get-user")
+func (rw *RouteWrapper) Route() *route.Route {
 	return rw.route
 }
 

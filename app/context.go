@@ -68,6 +68,11 @@ type bindingMetadata struct {
 // For body binding (json/form), Bind automatically detects the Content-Type header.
 // Bind defaults to JSON if Content-Type header is missing.
 //
+// Errors:
+//   - [binding.ErrOutMustBePointer]: out is not a pointer to struct or map
+//   - [binding.ErrRequestBodyNil]: request body is nil when JSON/form binding is needed
+//   - [binding.ErrUnsupportedContentType]: Content-Type is not supported
+//
 // Example:
 //
 //	type GetUserRequest struct {
@@ -149,7 +154,6 @@ func hasJSONOrFormTag(t reflect.Type) bool {
 }
 
 // bindJSON binds JSON request body to a struct.
-// bindJSON is a private helper used by Bind().
 func (c *Context) bindJSON(out any) error {
 	req := c.Request
 	if req.Body == nil {
@@ -188,6 +192,10 @@ func (c *Context) bindJSON(out any) error {
 
 // BindJSONStrict binds JSON request body with unknown field rejection.
 // BindJSONStrict is useful for catching typos and API drift early.
+//
+// Errors:
+//   - [binding.ErrRequestBodyNil]: request body is nil
+//   - [validation.Error]: JSON contains unknown fields (code: "json.unknown_field")
 //
 // Example:
 //
@@ -266,7 +274,6 @@ func (c *Context) ResetBinding() {
 }
 
 // bindForm binds form data to a struct.
-// bindForm is a private helper used by Bind().
 func (c *Context) bindForm(out any) error {
 	req := c.Request
 	contentType := req.Header.Get("Content-Type")
@@ -291,6 +298,10 @@ func (c *Context) bindForm(out any) error {
 // BindAndValidate automatically:
 //   - Injects the request context into validation options
 //   - Injects the presence map for partial validation
+//
+// Errors:
+//   - Binding errors from [Context.Bind] (wrapped with "binding failed:")
+//   - [validation.Error]: one or more validation rules failed
 //
 // Example:
 //
@@ -336,6 +347,10 @@ func (c *Context) BindAndValidate(out any, opts ...validation.Option) error {
 
 // BindAndValidateStrict binds JSON with unknown field rejection and validates.
 // BindAndValidateStrict is useful for catching typos and API drift early.
+//
+// Errors:
+//   - [validation.Error]: JSON contains unknown fields or validation failed
+//   - [binding.ErrRequestBodyNil]: request body is nil
 //
 // Example:
 //
@@ -486,7 +501,6 @@ func (c *Context) ErrorStatus(err error, status int) {
 }
 
 // statusError wraps an error with an explicit status code.
-// statusError is used internally by ErrorStatus().
 type statusError struct {
 	err    error
 	status int
@@ -589,7 +603,11 @@ func (c *Context) MustBindAndValidate(out any, opts ...validation.Option) bool {
 }
 
 // BindAndValidateInto binds and validates into a specific type.
-// BindAndValidateInto is a generic helper that provides type-safe binding without needing to declare the variable.
+// T must be a struct type with exported fields; using non-struct types
+// returns [binding.ErrOutMustBePointer].
+//
+// BindAndValidateInto is a generic helper that provides type-safe binding
+// without needing to declare the variable separately.
 //
 // Example:
 //
@@ -609,8 +627,11 @@ func BindAndValidateInto[T any](c *Context, opts ...validation.Option) (T, error
 }
 
 // MustBindAndValidateInto binds and validates, writing an error response on failure.
+// T must be a struct type with exported fields; using non-struct types
+// writes an error response and returns false.
+//
 // MustBindAndValidateInto returns the typed value and a success flag.
-// MustBindAndValidateInto does not panic - it returns a boolean for control flow.
+// It does not panic - it returns a boolean for control flow.
 //
 // Example:
 //

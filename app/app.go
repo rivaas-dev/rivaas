@@ -28,6 +28,7 @@ import (
 	"rivaas.dev/openapi"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/recovery"
+	"rivaas.dev/router/route"
 	"rivaas.dev/tracing"
 )
 
@@ -64,7 +65,7 @@ type App struct {
 	router      *router.Router
 	metrics     *metrics.Recorder
 	tracing     *tracing.Tracer
-	logging     *logging.Config // Logging configuration (can be nil, uses noopLogger fallback)
+	logging     *logging.Logger // Logger instance (can be nil, uses noopLogger fallback)
 	config      *config
 	hooks       *Hooks
 	readiness   *ReadinessManager
@@ -271,20 +272,25 @@ func (c *config) validate() error {
 		errs.Add(newInvalidValueError("openapi", nil, c.openapi.initErr.Error()))
 	}
 
+	// Validate observability configuration
+	if c.observability != nil && len(c.observability.validationErrors) > 0 {
+		for _, err := range c.observability.validationErrors {
+			errs.Add(newInvalidValueError("observability", nil, err.Error()))
+		}
+	}
+
 	// Return all errors if any exist
 	return errs.ToError()
 }
 
-// shouldApplyDefaultMiddleware determines if default middleware should be applied.
-// shouldApplyDefaultMiddleware returns true unless WithoutDefaultMiddleware() was called.
+// shouldApplyDefaultMiddleware returns true unless [WithoutDefaultMiddleware] was called.
 func shouldApplyDefaultMiddleware(cfg *config) bool {
 	return !cfg.middleware.disableDefaults
 }
 
-// applyDefaultMiddleware applies default router middleware based on environment.
-// applyDefaultMiddleware always includes recovery middleware for panic recovery.
+// applyDefaultMiddleware applies default router middleware (recovery).
 // These are router middleware, applied directly to the router,
-// not through app.Use() to ensure they run at the correct position in the chain.
+// not through [App.Use] to ensure they run at the correct position in the chain.
 func applyDefaultMiddleware(r *router.Router, environment string) {
 	// Always include recovery middleware by default (router middleware)
 	r.Use(recovery.New())
@@ -397,13 +403,8 @@ func New(opts ...Option) (*App, error) {
 		obsSettings = defaultObservabilitySettings()
 	}
 
-	// Check for observability configuration errors
-	if len(obsSettings.validationErrors) > 0 {
-		return nil, obsSettings.validationErrors[0]
-	}
-
 	// Initialize logging if configured
-	var loggingCfg *logging.Config
+	var loggingCfg *logging.Logger
 	if obsSettings.logging != nil && obsSettings.logging.enabled {
 		// Prepend service metadata to user options (same pattern as metrics/tracing)
 		loggingOpts := []logging.Option{
@@ -418,6 +419,10 @@ func New(opts ...Option) (*App, error) {
 			return nil, fmt.Errorf("failed to initialize logging: %w", err)
 		}
 		app.logging = loggingCfg
+
+		// Start buffering logs during initialization.
+		// Logs will be flushed after the startup banner is printed for cleaner DX.
+		loggingCfg.StartBuffering()
 	}
 
 	// Initialize observability components (metrics, tracing)
@@ -505,15 +510,15 @@ func New(opts ...Option) (*App, error) {
 		}
 
 		// Get the *slog.Logger from logging config (if available)
-		var logger *slog.Logger
+		var slogger *slog.Logger
 		if loggingCfg != nil {
-			logger = loggingCfg.Logger()
+			slogger = loggingCfg.Logger()
 		}
 
 		obsRecorder := newObservabilityRecorder(&observabilityConfig{
 			Metrics:           metricsCfg,
 			Tracing:           tracingCfg,
-			Logger:            logger,
+			Logger:            slogger,
 			PathFilter:        obsSettings.pathFilter,
 			LogAccessRequests: obsSettings.accessLogging,
 			LogErrorsOnly:     logErrorsOnly,
@@ -545,7 +550,7 @@ func New(opts ...Option) (*App, error) {
 }
 
 // MustNew creates a new [App] instance or panics on error.
-// MustNew is a convenience function that panics if initialization fails, useful for initialization in main() functions.
+// It is a convenience function that panics if initialization fails, useful for initialization in main() functions.
 //
 // Example:
 //
@@ -567,7 +572,7 @@ func MustNew(opts ...Option) *App {
 }
 
 // Router returns the underlying router for advanced usage.
-// Router provides access to router-level features that are not exposed through App.
+// It provides access to router-level features that are not exposed through App.
 //
 // Example:
 //
@@ -592,28 +597,27 @@ func (a *App) Readiness() *ReadinessManager {
 	return a.readiness
 }
 
-// wrapRouteWithOpenAPI creates a RouteWrapper that combines router.Route and OpenAPI metadata.
-// wrapRouteWithOpenAPI is used internally when registering routes.
-func (a *App) wrapRouteWithOpenAPI(route *router.Route, method, path string) *RouteWrapper {
+// wrapRouteWithOpenAPI creates a [RouteWrapper] combining route and OpenAPI metadata.
+func (a *App) wrapRouteWithOpenAPI(rt *route.Route, method, path string) *RouteWrapper {
 	var oapi *openapi.RouteWrapper
 	if a.openapi != nil {
 		// Register route with OpenAPI and get wrapper
-		oapi = a.openapi.OnRouteAdded(route)
+		oapi = a.openapi.OnRouteAdded(rt)
 	}
 	return &RouteWrapper{
-		route:   route,
+		route:   rt,
 		openapi: oapi,
 	}
 }
 
 // WrapHandler wraps an app.HandlerFunc to convert it to a router.HandlerFunc.
-// WrapHandler creates an app.Context from the router.Context and manages pooling.
+// It creates an app.Context from the router.Context and manages pooling.
 //
 // The context is guaranteed to be returned to the pool even if the handler panics,
 // ensuring no context leaks occur. The recovery middleware will still catch panics
 // for proper error handling, but this ensures resource cleanup.
 //
-// WrapHandler is useful when you need to use router-level features (like route constraints)
+// It is useful when you need to use router-level features (like route constraints)
 // while still using app.HandlerFunc with full app.Context support.
 //
 // Example:
@@ -623,12 +627,11 @@ func (a *App) WrapHandler(handler HandlerFunc) router.HandlerFunc {
 	return a.wrapHandler(handler)
 }
 
-// wrapHandler wraps an app.HandlerFunc to convert it to a router.HandlerFunc.
-// wrapHandler creates an app.Context from the router.Context and manages pooling.
+// wrapHandler wraps an [HandlerFunc] to convert it to a [router.HandlerFunc].
+// It creates an [Context] from the [router.Context] and manages pooling.
 //
 // The context is guaranteed to be returned to the pool even if the handler panics,
-// ensuring no context leaks occur. The recovery middleware will still catch panics
-// for proper error handling, but this ensures resource cleanup.
+// ensuring no context leaks occur.
 func (a *App) wrapHandler(handler HandlerFunc) router.HandlerFunc {
 	return func(rc *router.Context) {
 		// Get app context from pool
@@ -850,9 +853,9 @@ func (a *App) Static(prefix, root string) {
 }
 
 // Any registers a route that matches all HTTP methods.
-// Any is useful for catch-all endpoints like health checks or proxies.
+// It is useful for catch-all endpoints like health checks or proxies.
 //
-// Any registers 7 separate routes internally (GET, POST, PUT, DELETE,
+// It registers 7 separate routes internally (GET, POST, PUT, DELETE,
 // PATCH, HEAD, OPTIONS). For endpoints that only need specific methods,
 // use individual method registrations (GET, POST, etc.).
 //
@@ -919,7 +922,7 @@ func (a *App) NoRoute(handler HandlerFunc) {
 }
 
 // GetMetricsHandler returns the metrics HTTP handler if metrics are enabled.
-// GetMetricsHandler returns an error if metrics are not enabled or if using a non-Prometheus provider.
+// It returns an error if metrics are not enabled or if using a non-Prometheus provider.
 //
 // Example:
 //
@@ -936,7 +939,7 @@ func (a *App) GetMetricsHandler() (http.Handler, error) {
 }
 
 // GetMetricsServerAddress returns the metrics server address if metrics are enabled.
-// GetMetricsServerAddress returns an empty string if metrics are not enabled.
+// It returns an empty string if metrics are not enabled.
 //
 // Example:
 //
@@ -983,7 +986,7 @@ func (a *App) Environment() string {
 }
 
 // Metrics returns the metrics configuration if enabled.
-// Metrics returns nil if metrics are not enabled.
+// It returns nil if metrics are not enabled.
 //
 // Example:
 //
@@ -995,7 +998,7 @@ func (a *App) Metrics() *metrics.Recorder {
 }
 
 // Tracing returns the tracing configuration if enabled.
-// Tracing returns nil if tracing is not enabled.
+// It returns nil if tracing is not enabled.
 //
 // Example:
 //
@@ -1007,8 +1010,8 @@ func (a *App) Tracing() *tracing.Tracer {
 }
 
 // Route retrieves a route by name.
-// Route returns the route and true if found, false otherwise.
-// Route panics if the router is not frozen (call after app.Run() or app.Router().Freeze()).
+// It returns the route and true if found, false otherwise.
+// It panics if the router is not frozen (call after app.Run() or app.Router().Freeze()).
 //
 // Example:
 //
@@ -1016,7 +1019,7 @@ func (a *App) Tracing() *tracing.Tracer {
 //	if ok {
 //	    fmt.Printf("Route: %s %s\n", route.Method(), route.Path())
 //	}
-func (a *App) Route(name string) (*router.Route, bool) {
+func (a *App) Route(name string) (*route.Route, bool) {
 	return a.router.GetRoute(name)
 }
 
@@ -1029,7 +1032,7 @@ func (a *App) Route(name string) (*router.Route, bool) {
 //	for _, route := range routes {
 //	    fmt.Printf("%s: %s %s\n", route.Name(), route.Method(), route.Path())
 //	}
-func (a *App) Routes() []*router.Route {
+func (a *App) Routes() []*route.Route {
 	return a.router.GetRoutes()
 }
 

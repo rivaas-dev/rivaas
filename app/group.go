@@ -18,12 +18,12 @@ import (
 	"net/http"
 	"strings"
 
-	"rivaas.dev/router"
+	"rivaas.dev/router/route"
 )
 
 // Group represents a route group that allows organizing related routes
 // under a common path prefix with shared middleware.
-// Group enables hierarchical organization of API endpoints and middleware application.
+// It enables hierarchical organization of API endpoints and middleware application.
 //
 // Groups created from App support app.HandlerFunc (with app.Context),
 // providing access to binding and validation features.
@@ -35,7 +35,7 @@ import (
 //	api.POST("/users", handler)    // handler receives *app.Context
 type Group struct {
 	app        *App
-	router     *router.Group
+	router     *route.Group
 	prefix     string        // Track prefix for building full paths
 	middleware []HandlerFunc // Group-specific middleware
 }
@@ -54,8 +54,8 @@ func (g *Group) Use(middleware ...HandlerFunc) {
 }
 
 // Group creates a nested route group under the current group.
-// Group combines the parent's prefix with the provided prefix.
-// Group inherits middleware from the parent group.
+// It combines the parent's prefix with the provided prefix.
+// It inherits middleware from the parent group.
 //
 // Example:
 //
@@ -84,10 +84,9 @@ func (g *Group) Group(prefix string, middleware ...HandlerFunc) *Group {
 
 // addRoute adds a route to the group by combining the group's middleware with handlers.
 // addRoute returns a [RouteWrapper] for route configuration and OpenAPI documentation.
-// addRoute is an internal method used by the HTTP method functions.
 func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *RouteWrapper {
 	// Combine group middleware with route handlers
-	allHandlers := make([]router.HandlerFunc, 0, len(g.middleware)+len(handlers))
+	allHandlers := make([]route.Handler, 0, len(g.middleware)+len(handlers))
 	for _, m := range g.middleware {
 		allHandlers = append(allHandlers, g.app.wrapHandler(m))
 	}
@@ -96,31 +95,31 @@ func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *RouteWrap
 	}
 
 	// Register route with combined handlers
-	var route *router.Route
+	var rt *route.Route
 	switch method {
 	case http.MethodGet:
-		route = g.router.GET(path, allHandlers...)
+		rt = g.router.GET(path, allHandlers...)
 	case http.MethodPost:
-		route = g.router.POST(path, allHandlers...)
+		rt = g.router.POST(path, allHandlers...)
 	case http.MethodPut:
-		route = g.router.PUT(path, allHandlers...)
+		rt = g.router.PUT(path, allHandlers...)
 	case http.MethodDelete:
-		route = g.router.DELETE(path, allHandlers...)
+		rt = g.router.DELETE(path, allHandlers...)
 	case http.MethodPatch:
-		route = g.router.PATCH(path, allHandlers...)
+		rt = g.router.PATCH(path, allHandlers...)
 	case http.MethodHead:
-		route = g.router.HEAD(path, allHandlers...)
+		rt = g.router.HEAD(path, allHandlers...)
 	case http.MethodOptions:
-		route = g.router.OPTIONS(path, allHandlers...)
+		rt = g.router.OPTIONS(path, allHandlers...)
 	}
 
-	g.app.fireRouteHook(route)
+	g.app.fireRouteHook(rt)
 	fullPath := g.buildFullPath(path)
-	return g.app.wrapRouteWithOpenAPI(route, method, fullPath)
+	return g.app.wrapRouteWithOpenAPI(rt, method, fullPath)
 }
 
 // GET adds a GET route to the group with the group's prefix.
-// GET combines the group prefix with the provided path.
+// It combines the group prefix with the provided path.
 //
 // Example:
 //
@@ -132,7 +131,7 @@ func (g *Group) GET(path string, handlers ...HandlerFunc) *RouteWrapper {
 }
 
 // POST adds a POST route to the group with the group's prefix.
-// POST combines the group prefix with the provided path.
+// It combines the group prefix with the provided path.
 //
 // Example:
 //
@@ -144,7 +143,7 @@ func (g *Group) POST(path string, handlers ...HandlerFunc) *RouteWrapper {
 }
 
 // PUT adds a PUT route to the group with the group's prefix.
-// PUT combines the group prefix with the provided path.
+// It combines the group prefix with the provided path.
 //
 // Example:
 //
@@ -155,7 +154,7 @@ func (g *Group) PUT(path string, handlers ...HandlerFunc) *RouteWrapper {
 }
 
 // DELETE adds a DELETE route to the group with the group's prefix.
-// DELETE combines the group prefix with the provided path.
+// It combines the group prefix with the provided path.
 //
 // Example:
 //
@@ -166,7 +165,7 @@ func (g *Group) DELETE(path string, handlers ...HandlerFunc) *RouteWrapper {
 }
 
 // PATCH adds a PATCH route to the group with the group's prefix.
-// PATCH combines the group prefix with the provided path.
+// It combines the group prefix with the provided path.
 //
 // Example:
 //
@@ -177,7 +176,7 @@ func (g *Group) PATCH(path string, handlers ...HandlerFunc) *RouteWrapper {
 }
 
 // HEAD adds a HEAD route to the group with the group's prefix.
-// HEAD combines the group prefix with the provided path.
+// It combines the group prefix with the provided path.
 //
 // Example:
 //
@@ -188,7 +187,7 @@ func (g *Group) HEAD(path string, handlers ...HandlerFunc) *RouteWrapper {
 }
 
 // OPTIONS adds an OPTIONS route to the group with the group's prefix.
-// OPTIONS combines the group prefix with the provided path.
+// It combines the group prefix with the provided path.
 //
 // Example:
 //
@@ -199,9 +198,9 @@ func (g *Group) OPTIONS(path string, handlers ...HandlerFunc) *RouteWrapper {
 }
 
 // Any registers a route that matches all HTTP methods.
-// Any is useful for catch-all endpoints like health checks or proxies.
+// It is useful for catch-all endpoints like health checks or proxies.
 //
-// Any registers 7 separate routes internally (GET, POST, PUT, DELETE,
+// It registers 7 separate routes internally (GET, POST, PUT, DELETE,
 // PATCH, HEAD, OPTIONS). For endpoints that only need specific methods,
 // use individual method registrations (GET, POST, etc.).
 //
@@ -223,7 +222,6 @@ func (g *Group) Any(path string, handlers ...HandlerFunc) *RouteWrapper {
 }
 
 // buildFullPath builds the full path by combining group prefix with the route path.
-// buildFullPath is a private helper used internally.
 func (g *Group) buildFullPath(path string) string {
 	if len(g.prefix) == 0 {
 		return path

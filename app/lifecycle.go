@@ -20,23 +20,23 @@ import (
 	"log/slog"
 	"sync"
 
-	"rivaas.dev/router"
+	"rivaas.dev/router/route"
 )
 
 // Hooks manages application lifecycle hooks.
-// Hooks stores callbacks for different lifecycle events.
+// It stores callbacks for different lifecycle events.
 type Hooks struct {
 	onStart    []func(context.Context) error // Sequential, stops on first error
 	onReady    []func()                      // Async OK
 	onShutdown []func(context.Context)       // LIFO order
 	onStop     []func()                      // Best effort
-	onRoute    []func(*router.Route)         // Fire during registration
+	onRoute    []func(*route.Route)          // Fire during registration
 	mu         sync.Mutex                    // Protects hook slices
 }
 
 // OnStart registers a hook that runs before the server starts listening.
-// OnStart hooks run sequentially, and if any hook returns an error, startup is aborted.
-// OnStart should be used for initialization that must succeed (database connections, migrations, etc.).
+// Hooks run sequentially, and if any hook returns an error, startup is aborted.
+// It should be used for initialization that must succeed (database connections, migrations, etc.).
 //
 // Example:
 //
@@ -53,8 +53,8 @@ func (a *App) OnStart(fn func(context.Context) error) {
 }
 
 // OnReady registers a hook that runs after the server starts listening.
-// OnReady hooks can run asynchronously and errors are logged but don't stop the server.
-// OnReady should be used for warmup tasks, service discovery registration, etc.
+// Hooks can run asynchronously and errors are logged but don't stop the server.
+// It should be used for warmup tasks, service discovery registration, etc.
 //
 // Example:
 //
@@ -72,8 +72,8 @@ func (a *App) OnReady(fn func()) {
 }
 
 // OnShutdown registers a hook that runs during graceful shutdown.
-// OnShutdown hooks run in reverse order (LIFO) and receive a context with the shutdown timeout.
-// OnShutdown should be used for cleanup that must complete within the timeout (closing connections, flushing buffers).
+// Hooks run in reverse order (LIFO) and receive a context with the shutdown timeout.
+// It should be used for cleanup that must complete within the timeout (closing connections, flushing buffers).
 //
 // Example:
 //
@@ -91,8 +91,8 @@ func (a *App) OnShutdown(fn func(context.Context)) {
 }
 
 // OnStop registers a hook that runs after the server stops.
-// OnStop hooks run in best-effort mode - panics are caught and logged.
-// OnStop should be used for final cleanup that doesn't need to complete within a timeout.
+// Hooks run in best-effort mode - panics are caught and logged.
+// It should be used for final cleanup that doesn't need to complete within a timeout.
 //
 // Example:
 //
@@ -114,10 +114,10 @@ func (a *App) OnStop(fn func()) {
 //
 // Example:
 //
-//	app.OnRoute(func(route *router.Route) {
-//	    log.Printf("Registered: %s %s", route.Method(), route.Path())
+//	app.OnRoute(func(rt *route.Route) {
+//	    log.Printf("Registered: %s %s", rt.Method(), rt.Path())
 //	})
-func (a *App) OnRoute(fn func(*router.Route)) {
+func (a *App) OnRoute(fn func(*route.Route)) {
 	if a.router.Frozen() {
 		panic("cannot register hooks after router is frozen")
 	}
@@ -128,23 +128,23 @@ func (a *App) OnRoute(fn func(*router.Route)) {
 
 // fireRouteHook fires all OnRoute hooks for a newly registered route.
 // fireRouteHook only fires if router is not frozen (hooks disabled after freeze).
-func (a *App) fireRouteHook(route *router.Route) {
+func (a *App) fireRouteHook(rt *route.Route) {
 	if a.router.Frozen() {
 		return // Hooks disabled after freeze
 	}
 
 	a.hooks.mu.Lock()
-	hooks := make([]func(*router.Route), len(a.hooks.onRoute))
+	hooks := make([]func(*route.Route), len(a.hooks.onRoute))
 	copy(hooks, a.hooks.onRoute)
 	a.hooks.mu.Unlock()
 
 	for _, hook := range hooks {
-		hook(route)
+		hook(rt)
 	}
 }
 
 // executeStartHooks runs all OnStart hooks sequentially.
-// executeStartHooks returns an error if any hook fails.
+// It returns an error if any hook fails.
 func (a *App) executeStartHooks(ctx context.Context) error {
 	a.hooks.mu.Lock()
 	hooks := make([]func(context.Context) error, len(a.hooks.onStart))
@@ -160,7 +160,7 @@ func (a *App) executeStartHooks(ctx context.Context) error {
 }
 
 // executeReadyHooks runs all OnReady hooks asynchronously.
-// executeReadyHooks runs hooks in fire-and-forget mode with panic recovery to prevent silent failures.
+// It runs hooks in fire-and-forget mode with panic recovery to prevent silent failures.
 func (a *App) executeReadyHooks() {
 	a.hooks.mu.Lock()
 	hooks := make([]func(), len(a.hooks.onReady))
@@ -180,7 +180,6 @@ func (a *App) executeReadyHooks() {
 }
 
 // executeShutdownHooks runs all OnShutdown hooks in reverse order (LIFO).
-// executeShutdownHooks is a private helper used during graceful shutdown.
 func (a *App) executeShutdownHooks(ctx context.Context) {
 	a.hooks.mu.Lock()
 	hooks := make([]func(context.Context), len(a.hooks.onShutdown))
@@ -194,7 +193,6 @@ func (a *App) executeShutdownHooks(ctx context.Context) {
 }
 
 // executeStopHooks runs all OnStop hooks in best-effort mode.
-// executeStopHooks is a private helper used after server shutdown.
 func (a *App) executeStopHooks() {
 	a.hooks.mu.Lock()
 	hooks := make([]func(), len(a.hooks.onStop))

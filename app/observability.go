@@ -30,9 +30,9 @@ import (
 	"rivaas.dev/tracing"
 )
 
-// observabilityRecorder implements router.ObservabilityRecorder by unifying
+// observabilityRecorder implements [router.ObservabilityRecorder] by unifying
 // metrics, tracing, and logging into a single lifecycle.
-// observabilityRecorder coordinates observability data collection across all three pillars.
+// It coordinates observability data collection across all three pillars.
 type observabilityRecorder struct {
 	metrics    *metrics.Recorder
 	tracing    *tracing.Tracer
@@ -56,8 +56,7 @@ type observabilityConfig struct {
 	SlowThreshold     time.Duration
 }
 
-// newObservabilityRecorder creates an observabilityRecorder from configuration.
-// newObservabilityRecorder initializes path filtering and all observability components.
+// newObservabilityRecorder creates an [observabilityRecorder] from configuration.
 func newObservabilityRecorder(cfg *observabilityConfig) router.ObservabilityRecorder {
 	pf := cfg.PathFilter
 	if pf == nil {
@@ -75,8 +74,8 @@ func newObservabilityRecorder(cfg *observabilityConfig) router.ObservabilityReco
 	}
 }
 
-// observabilityState holds per-request observability state.
-// observabilityState is the opaque token passed between lifecycle methods.
+// observabilityState is the opaque token holding per-request observability state
+// passed between lifecycle methods.
 type observabilityState struct {
 	metricsData *metrics.RequestMetrics // Metrics state from metrics.Start
 	span        trace.Span              // Active span from tracing
@@ -267,8 +266,8 @@ func (o *observabilityRecorder) BuildRequestLogger(ctx context.Context, req *htt
 	return logger
 }
 
-// observabilityResponseWriter wraps http.ResponseWriter to capture metadata.
-// observabilityResponseWriter implements router.ResponseInfo plus common optional interfaces.
+// observabilityResponseWriter wraps [http.ResponseWriter] to capture metadata.
+// It implements [router.ResponseInfo] plus common optional interfaces.
 type observabilityResponseWriter struct {
 	http.ResponseWriter
 	statusCode int

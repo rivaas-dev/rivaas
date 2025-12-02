@@ -27,8 +27,8 @@ import (
 // Option functions are used to configure an App instance during creation.
 type Option func(*config)
 
-// WithServiceName sets the service name.
-// WithServiceName configures the service name used in observability metadata.
+// WithServiceName sets the service name used in observability metadata.
+// An empty name causes validation to fail during [New].
 //
 // Example:
 //
@@ -39,8 +39,8 @@ func WithServiceName(name string) Option {
 	}
 }
 
-// WithServiceVersion sets the service version.
-// WithServiceVersion configures the service version used in observability metadata.
+// WithServiceVersion sets the service version used in observability metadata.
+// An empty version causes validation to fail during [New].
 //
 // Example:
 //
@@ -51,8 +51,14 @@ func WithServiceVersion(version string) Option {
 	}
 }
 
-// WithEnvironment sets the environment (development/production).
-// WithEnvironment accepts "development" or "production" as valid values.
+// WithEnvironment sets the environment mode.
+// Valid values are "development" or "production". Invalid values cause
+// validation to fail during [New].
+//
+// Environment affects:
+//   - Logging verbosity (production defaults to error-only access logs)
+//   - Startup banner (development shows route table)
+//   - Terminal colors (production strips ANSI sequences)
 //
 // Example:
 //

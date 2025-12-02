@@ -38,8 +38,10 @@ type Gate interface {
 }
 
 // ReadinessManager manages readiness gates for runtime health checks.
-// This complements the static WithReadinessCheck options by allowing
-// dynamic registration and unregistration of readiness gates.
+// ReadinessManager is safe for concurrent use by multiple goroutines.
+//
+// This complements the static [WithReadinessCheck] options by allowing
+// dynamic registration and unregistration of readiness gates at runtime.
 //
 // Typical use cases:
 //   - Database connection pools that manage their own health

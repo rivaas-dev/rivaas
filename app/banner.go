@@ -20,6 +20,8 @@ import (
 	"os"
 	"strings"
 
+	"net/http"
+
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -39,8 +41,8 @@ func (a *App) getColorWriter(w io.Writer) *colorprofile.Writer {
 	return cpw
 }
 
-// printStartupBanner prints an ASCII art startup banner with service information.
-// printStartupBanner displays dynamically generated ASCII art of the service name along with version, environment, address, and routes.
+// printStartupBanner prints the startup banner to stdout.
+// It is called by [App.Run], [App.RunTLS], and [App.RunMTLS].
 func (a *App) printStartupBanner(addr, protocol string) {
 	w := a.getColorWriter(os.Stdout)
 
@@ -75,15 +77,26 @@ func (a *App) printStartupBanner(addr, protocol string) {
 		_, _ = styledArt.WriteString("\n") //nolint:errcheck // strings.Builder.WriteString rarely fails
 	}
 
-	// Create a compact info box with vertical layout
+	// Define styles for categorized banner
+	categoryStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		Bold(true)
+
 	labelStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
-		Width(12).
-		Align(lipgloss.Right)
+		Width(14).
+		PaddingLeft(2).
+		Align(lipgloss.Left)
 
 	valueStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("15")).
 		Bold(true)
+
+	disabledStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240"))
+
+	providerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("243")) // Dimmed gray for provider brackets
 
 	// Normalize address display: ":8080" -> "0.0.0.0:8080"
 	displayAddr := addr
@@ -98,58 +111,69 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	}
 	displayAddr = scheme + displayAddr
 
-	versionLabel := labelStyle.Render("Version:")
-	versionValue := valueStyle.Foreground(lipgloss.Color("14")).Render(a.config.serviceVersion)
-	envLabel := labelStyle.Render("Environment:")
-	envValue := valueStyle.Foreground(lipgloss.Color("11")).Render(a.config.environment)
-	addrLabel := labelStyle.Render("Address:")
-	addrValue := valueStyle.Foreground(lipgloss.Color("10")).Render(displayAddr)
+	// Build categorized sections
+	var output strings.Builder
 
-	// Build info box content
-	infoLines := []string{
-		versionLabel + "  " + versionValue,
-		envLabel + "  " + envValue,
-		addrLabel + "  " + addrValue,
-	}
+	// === Service Section ===
+	_, _ = output.WriteString(categoryStyle.Render("Service") + "\n")
+	_, _ = output.WriteString(labelStyle.Render("Version:") + "  " + valueStyle.Foreground(lipgloss.Color("14")).Render(a.config.serviceVersion) + "\n")
+	_, _ = output.WriteString(labelStyle.Render("Environment:") + "  " + valueStyle.Foreground(lipgloss.Color("11")).Render(a.config.environment) + "\n")
+	_, _ = output.WriteString(labelStyle.Render("Address:") + "  " + valueStyle.Foreground(lipgloss.Color("10")).Render(displayAddr) + "\n")
 
-	// Always show observability info with status
-	metricsLabel := labelStyle.Render("Metrics:")
-	var metricsValue string
+	// === Observability Section ===
+	_, _ = output.WriteString("\n" + categoryStyle.Render("Observability") + "\n")
+
+	// Metrics
+	var metricsLine string
 	if a.metrics != nil {
 		metricsAddr := a.metrics.ServerAddress()
-		// Normalize metrics address: ":9090" -> "0.0.0.0:9090"
 		if strings.HasPrefix(metricsAddr, ":") {
 			metricsAddr = "0.0.0.0" + metricsAddr
 		}
-		// Prepend scheme (metrics server is always HTTP) and append path
 		metricsPath := a.metrics.Path()
 		if metricsPath == "" {
-			metricsPath = "/metrics" // Default path
+			metricsPath = "/metrics"
 		}
 		metricsAddr = "http://" + metricsAddr + metricsPath
-		metricsValue = valueStyle.Foreground(lipgloss.Color("13")).Render(metricsAddr)
+		metricsLine = labelStyle.Render("Metrics:") + "  " +
+			valueStyle.Foreground(lipgloss.Color("13")).Render(metricsAddr) + "  " +
+			providerStyle.Render(fmt.Sprintf("[%s]", a.metrics.Provider()))
 	} else {
-		metricsValue = valueStyle.Foreground(lipgloss.Color("240")).Render("Disabled")
+		metricsLine = labelStyle.Render("Metrics:") + "  " + disabledStyle.Render("Disabled")
 	}
-	infoLines = append(infoLines, metricsLabel+"  "+metricsValue)
+	_, _ = output.WriteString(metricsLine + "\n")
 
-	tracingLabel := labelStyle.Render("Tracing:")
-	var tracingValue string
+	// Tracing
+	var tracingLine string
 	if a.tracing != nil {
-		tracingValue = valueStyle.Foreground(lipgloss.Color("12")).Render("Enabled")
+		tracingLine = labelStyle.Render("Tracing:") + "  " +
+			valueStyle.Foreground(lipgloss.Color("12")).Render("Enabled") + "  " +
+			providerStyle.Render(fmt.Sprintf("[%s]", a.tracing.GetProvider()))
 	} else {
-		tracingValue = valueStyle.Foreground(lipgloss.Color("240")).Render("Disabled")
+		tracingLine = labelStyle.Render("Tracing:") + "  " + disabledStyle.Render("Disabled")
 	}
-	infoLines = append(infoLines, tracingLabel+"  "+tracingValue)
+	_, _ = output.WriteString(tracingLine + "\n")
 
-	// Create compact info box
-	infoContent := strings.Join(infoLines, "\n")
+	// === Documentation Section ===
+	if a.openapi != nil {
+		_, _ = output.WriteString("\n" + categoryStyle.Render("Documentation") + "\n")
 
+		// Always show API Docs (Swagger UI) if enabled
+		if a.openapi.ServeUI() {
+			docsAddr := displayAddr + a.openapi.UIPath()
+			_, _ = output.WriteString(labelStyle.Render("API Docs:") + "  " + valueStyle.Foreground(lipgloss.Color("14")).Render(docsAddr) + "\n")
+		}
+
+		// Always show OpenAPI spec endpoint
+		specAddr := displayAddr + a.openapi.SpecPath()
+		_, _ = output.WriteString(labelStyle.Render("OpenAPI:") + "  " + valueStyle.Foreground(lipgloss.Color("14")).Render(specAddr) + "\n")
+	}
+
+	// Print the banner
 	_, _ = fmt.Fprintln(w)                   //nolint:errcheck // Display output, errors are non-critical
 	_, _ = fmt.Fprint(w, styledArt.String()) //nolint:errcheck // Display output, errors are non-critical
 	_, _ = fmt.Fprintln(w)                   //nolint:errcheck // Display output, errors are non-critical
-	_, _ = fmt.Fprint(w, infoContent)        //nolint:errcheck // Display output, errors are non-critical
-	_, _ = fmt.Fprintln(w)                   //nolint:errcheck // Display output, errors are non-critical
+	_, _ = fmt.Fprint(w, output.String())    //nolint:errcheck // Display output, errors are non-critical
 
 	// Add routes section (only in development mode)
 	if a.config.environment == EnvironmentDevelopment {
@@ -174,13 +198,13 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 
 	// Define styles for different HTTP methods
 	methodStyles := map[string]lipgloss.Style{
-		"GET":     lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true), // Green
-		"POST":    lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // Blue
-		"PUT":     lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true), // Yellow
-		"DELETE":  lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true),  // Red
-		"PATCH":   lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true), // Magenta
-		"HEAD":    lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true), // Cyan
-		"OPTIONS": lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),  // Gray
+		http.MethodGet:     lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true), // Green
+		http.MethodPost:    lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // Blue
+		http.MethodPut:     lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true), // Yellow
+		http.MethodDelete:  lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true),  // Red
+		http.MethodPatch:   lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true), // Magenta
+		http.MethodHead:    lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true), // Cyan
+		http.MethodOptions: lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),  // Gray
 	}
 
 	// Style for version column
@@ -213,25 +237,16 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 		}
 
 		// Calculate content widths (use original values, not styled ones, for accurate measurement)
-		if len(route.Method) > maxMethodWidth {
-			maxMethodWidth = len(route.Method)
-		}
+		maxMethodWidth = max(maxMethodWidth, len(route.Method))
 
 		versionLen := len(route.Version)
 		if versionLen == 0 {
 			versionLen = 1 // "-" is 1 char
 		}
-		if versionLen > maxVersionWidth {
-			maxVersionWidth = versionLen
-		}
+		maxVersionWidth = max(maxVersionWidth, versionLen)
 
-		if len(route.Path) > maxPathWidth {
-			maxPathWidth = len(route.Path)
-		}
-
-		if len(route.HandlerName) > maxHandlerWidth {
-			maxHandlerWidth = len(route.HandlerName)
-		}
+		maxPathWidth = max(maxPathWidth, len(route.Path))
+		maxHandlerWidth = max(maxHandlerWidth, len(route.HandlerName))
 
 		rows = append(rows, []string{
 			method,
@@ -326,9 +341,9 @@ func getTerminalSize(file *os.File) (int, int, error) {
 }
 
 // PrintRoutes prints all registered routes to stdout in a formatted table.
-// PrintRoutes is useful for development and debugging to see all available routes.
+// It is useful for development and debugging to see all available routes.
 //
-// PrintRoutes uses lipgloss/table for terminal output with color-coded HTTP methods
+// It uses lipgloss/table for terminal output with color-coded HTTP methods
 // and proper table formatting. A colorprofile.Writer automatically downsamples
 // ANSI colors to match the terminal's capabilities (TrueColor → ANSI256 → ANSI).
 // If output is not a TTY, ANSI sequences are stripped entirely. This respects

@@ -51,7 +51,7 @@ func newMTLSConfig(serverCert tls.Certificate, opts ...MTLSOption) *mtlsConfig {
 }
 
 // WithClientCAs sets the certificate authority pool for validating client certificates.
-// WithClientCAs is required for mTLS - without it, client certificate validation will fail.
+// It is required for mTLS - without it, client certificate validation will fail.
 func WithClientCAs(pool *x509.CertPool) MTLSOption {
 	return func(cfg *mtlsConfig) {
 		cfg.clientCAs = pool
@@ -68,7 +68,7 @@ func WithMinVersion(version uint16) MTLSOption {
 }
 
 // WithAuthorize sets a callback that maps client certificates to principal identity and authorization.
-// WithAuthorize returns the principal (e.g., CN, SAN SPIFFE ID) and whether access is allowed.
+// The callback returns the principal (e.g., CN, SAN SPIFFE ID) and whether access is allowed.
 // If not set, any valid client certificate is accepted.
 //
 // Example:
@@ -154,10 +154,10 @@ func (cfg *mtlsConfig) buildTLSConfig() *tls.Config {
 }
 
 // GetMTLSCertificate extracts the client certificate from an HTTP request.
-// GetMTLSCertificate returns the first peer certificate if available, or nil if the request
+// It returns the first peer certificate if available, or nil if the request
 // is not using mTLS or no certificate is present.
 //
-// GetMTLSCertificate is useful for extracting principal information (e.g., CN, SAN) in handlers
+// It is useful for extracting principal information (e.g., CN, SAN) in handlers
 // after the connection has been authorized via WithAuthorize.
 //
 // Example:

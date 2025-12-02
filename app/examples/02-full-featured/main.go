@@ -75,7 +75,7 @@ func main() {
 			// Logging - service name/version auto-injected
 			app.WithLogging(
 				logging.WithConsoleHandler(),
-				logging.WithDebugLevel(),
+				// logging.WithDebugLevel(),
 			),
 			// Metrics - service name/version auto-injected
 			// Prometheus is default; use metrics.WithOTLP() for OTLP
@@ -107,9 +107,9 @@ func main() {
 		),
 		// Debug endpoints - enable pprof conditionally
 		// WARNING: Only enable in development or behind authentication
-		app.WithDebugEndpoints(
-			app.WithPprofIf(environment == "development" || os.Getenv("PPROF_ENABLED") == "true"),
-		),
+		// app.WithDebugEndpoints(
+		// 	app.WithPprofIf(environment == "development" || os.Getenv("PPROF_ENABLED") == "true"),
+		// ),
 		// Server config
 		app.WithServerConfig(
 			app.WithReadTimeout(15*time.Second),
