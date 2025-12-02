@@ -335,8 +335,7 @@ func (r *Router) validate() error {
 //
 // This method is typically called by the app package during initialization,
 // but can also be used with standalone routers for custom observability implementations.
-// SetObservabilityRecorder sets the observability recorder for metrics, tracing, and logging.
-// This allows you to configure observability after router creation or change it at runtime.
+// It allows you to configure observability after router creation or change it at runtime.
 //
 // Example:
 //
