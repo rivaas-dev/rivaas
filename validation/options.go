@@ -14,9 +14,15 @@
 
 package validation
 
-import "context"
+import (
+	"context"
+	"errors"
+
+	"github.com/go-playground/validator/v10"
+)
 
 // Strategy defines the validation approach to use.
+// Use [WithStrategy] to set a strategy, or leave as [StrategyAuto] for automatic selection.
 type Strategy int
 
 const (
@@ -34,8 +40,9 @@ const (
 	StrategyInterface
 )
 
-// Redactor function for sensitive fields.
-// Redactor returns true if the field at the given path should be redacted.
+// Redactor is a function that determines if a field should be redacted in error messages.
+// Redactor returns true if the field at the given path should have its value hidden.
+// Use [WithRedactor] to configure a redactor for a [Validator].
 //
 // Example:
 //
@@ -44,7 +51,13 @@ const (
 //	}
 type Redactor func(path string) bool
 
-// config holds internal validation configuration.
+// customTag holds a custom validation tag registration for use with [WithCustomTag].
+type customTag struct {
+	name string
+	fn   validator.Func
+}
+
+// config holds internal validation configuration used by [Validator].
 type config struct {
 	strategy              Strategy
 	runAll                bool
@@ -54,25 +67,50 @@ type config struct {
 	maxFields             int // Max fields to validate in partial mode (0 = default)
 	maxCachedSchemas      int // Max schemas to cache (0 = default)
 	disallowUnknownFields bool
-	//nolint:containedctx // ctx is intentionally stored for validation context
-	ctx             context.Context
-	ctxExplicit     bool // Track if context was explicitly set via WithContext()
-	presence        PresenceMap
-	customSchema    string
-	customSchemaID  string
-	customValidator func(any) error
-	fieldNameMapper func(string) string
-	redactor        Redactor
+	ctx                   context.Context // Optional context override
+	presence              PresenceMap
+	customSchema          string
+	customSchemaID        string
+	customValidator       func(any) error
+	fieldNameMapper       func(string) string
+	redactor              Redactor
+	customTags            []customTag
+}
+
+// validate checks the configuration for errors.
+func (c *config) validate() error {
+	if c.maxErrors < 0 {
+		return errors.New("maxErrors must be non-negative")
+	}
+	if c.maxFields < 0 {
+		return errors.New("maxFields must be non-negative")
+	}
+	if c.maxCachedSchemas < 0 {
+		return errors.New("maxCachedSchemas must be non-negative")
+	}
+	return nil
+}
+
+// clone creates a copy of the config for per-call option merging.
+func (c *config) clone() *config {
+	clone := *c
+	// Deep copy slices
+	if c.customTags != nil {
+		clone.customTags = make([]customTag, len(c.customTags))
+		copy(clone.customTags, c.customTags)
+	}
+	return &clone
 }
 
 // Option is a functional option for configuring validation.
+// Options can be passed to [New], [MustNew], [Validate], or [Validator.Validate].
 type Option func(*config)
 
 // WithStrategy sets the validation strategy.
 //
 // Example:
 //
-//	Validate(ctx, &req, WithStrategy(StrategyTags))
+//	validator.Validate(ctx, &req, WithStrategy(StrategyTags))
 func WithStrategy(strategy Strategy) Option {
 	return func(c *config) {
 		c.strategy = strategy
@@ -84,7 +122,7 @@ func WithStrategy(strategy Strategy) Option {
 //
 // Example:
 //
-//	Validate(ctx, &req, WithRunAll(true))
+//	validator.Validate(ctx, &req, WithRunAll(true))
 func WithRunAll(runAll bool) Option {
 	return func(c *config) {
 		c.runAll = runAll
@@ -101,7 +139,7 @@ func WithRunAll(runAll bool) Option {
 // Example:
 //
 //	// Validate with all strategies, succeed if any one passes
-//	err := Validate(ctx, &req,
+//	err := validator.Validate(ctx, &req,
 //	    WithRunAll(true),
 //	    WithRequireAny(true),
 //	)
@@ -117,7 +155,7 @@ func WithRequireAny(require bool) Option {
 //
 // Example:
 //
-//	Validate(ctx, &req, WithPartial(true), WithPresence(presenceMap))
+//	validator.Validate(ctx, &req, WithPartial(true), WithPresence(presenceMap))
 func WithPartial(partial bool) Option {
 	return func(c *config) {
 		c.partial = partial
@@ -129,7 +167,7 @@ func WithPartial(partial bool) Option {
 //
 // Example:
 //
-//	Validate(ctx, &req, WithMaxErrors(10))
+//	validator.Validate(ctx, &req, WithMaxErrors(10))
 func WithMaxErrors(maxErrors int) Option {
 	return func(c *config) {
 		c.maxErrors = maxErrors
@@ -148,30 +186,29 @@ func WithDisallowUnknownFields(disallow bool) Option {
 	}
 }
 
-// WithContext sets the context for validation.
-// Context is used for:
-//   - Locale-aware validation messages
-//   - Tenant-specific rules
-//   - Time-bound schema fetching
-//   - Passing raw JSON body
+// WithContext overrides the context used for validation.
+// This is useful when you need a different context than the one passed to Validate().
+//
+// Note: In most cases, you should simply pass the context directly to Validate().
+// This option exists for advanced use cases where context override is needed.
 //
 // Example:
 //
-//	Validate(ctx, &req, WithContext(ctx))
+//	validator.Validate(requestCtx, &req, WithContext(backgroundCtx))
 func WithContext(ctx context.Context) Option {
 	return func(c *config) {
 		c.ctx = ctx
-		c.ctxExplicit = true
 	}
 }
 
 // WithPresence sets the presence map for partial validation.
-// The presence map tracks which fields were provided in the request body.
+// The [PresenceMap] tracks which fields were provided in the request body.
+// Use [ComputePresence] to create a PresenceMap from raw JSON.
 //
 // Example:
 //
-//	presence := c.Presence()
-//	Validate(ctx, &req, WithPresence(presence), WithPartial(true))
+//	presence, _ := ComputePresence(rawJSON)
+//	validator.Validate(ctx, &req, WithPresence(presence), WithPartial(true))
 func WithPresence(presence PresenceMap) Option {
 	return func(c *config) {
 		c.presence = presence
@@ -179,11 +216,12 @@ func WithPresence(presence PresenceMap) Option {
 }
 
 // WithCustomSchema sets a custom JSON Schema for validation.
+// This overrides any schema provided by the [JSONSchemaProvider] interface.
 //
 // Example:
 //
 //	schema := `{"type": "object", "properties": {"email": {"type": "string", "format": "email"}}}`
-//	Validate(ctx, &req, WithCustomSchema("user-schema", schema))
+//	validator.Validate(ctx, &req, WithCustomSchema("user-schema", schema))
 func WithCustomSchema(id, schema string) Option {
 	return func(c *config) {
 		c.customSchemaID = id
@@ -196,7 +234,7 @@ func WithCustomSchema(id, schema string) Option {
 //
 // Example:
 //
-//	Validate(ctx, &req, WithCustomValidator(func(v any) error {
+//	validator.Validate(ctx, &req, WithCustomValidator(func(v any) error {
 //	    req := v.(*UserRequest)
 //	    if req.Age < 18 {
 //	        return errors.New("must be 18 or older")
@@ -214,7 +252,7 @@ func WithCustomValidator(fn func(any) error) Option {
 //
 // Example:
 //
-//	Validate(ctx, &req, WithFieldNameMapper(func(name string) string {
+//	validator.Validate(ctx, &req, WithFieldNameMapper(func(name string) string {
 //	    return strings.ReplaceAll(name, "_", " ")
 //	}))
 func WithFieldNameMapper(mapper func(string) string) Option {
@@ -223,12 +261,12 @@ func WithFieldNameMapper(mapper func(string) string) Option {
 	}
 }
 
-// WithRedactor sets a function to redact sensitive values in error messages.
-// WithRedactor returns true if the field at the given path should be redacted.
+// WithRedactor sets a [Redactor] function to hide sensitive values in error messages.
+// The redactor returns true if the field at the given path should be redacted.
 //
 // Example:
 //
-//	Validate(ctx, &req, WithRedactor(func(path string) bool {
+//	validator.Validate(ctx, &req, WithRedactor(func(path string) bool {
 //	    return strings.Contains(path, "password") || strings.Contains(path, "token")
 //	}))
 func WithRedactor(redactor Redactor) Option {
@@ -243,7 +281,7 @@ func WithRedactor(redactor Redactor) Option {
 //
 // Example:
 //
-//	Validate(ctx, &req, WithMaxFields(5000), WithPartial(true))
+//	validator.Validate(ctx, &req, WithMaxFields(5000), WithPartial(true))
 func WithMaxFields(maxFields int) Option {
 	return func(c *config) {
 		c.maxFields = maxFields
@@ -255,16 +293,36 @@ func WithMaxFields(maxFields int) Option {
 //
 // Example:
 //
-//	Validate(ctx, &req, WithMaxCachedSchemas(2048))
+//	validation.MustNew(validation.WithMaxCachedSchemas(2048))
 func WithMaxCachedSchemas(maxCachedSchemas int) Option {
 	return func(c *config) {
 		c.maxCachedSchemas = maxCachedSchemas
 	}
 }
 
-// defaultConfig creates a new validation config with defaults and applies options.
-func defaultConfig(opts ...Option) *config {
-	cfg := &config{
+// WithCustomTag registers a custom validation tag for use in struct tags.
+// Custom tags are registered when the [Validator] is created.
+//
+// Example:
+//
+//	validator := validation.MustNew(
+//	    validation.WithCustomTag("phone", func(fl validator.FieldLevel) bool {
+//	        return phoneRegex.MatchString(fl.Field().String())
+//	    }),
+//	)
+//
+//	type User struct {
+//	    Phone string `validate:"phone"`
+//	}
+func WithCustomTag(name string, fn validator.Func) Option {
+	return func(c *config) {
+		c.customTags = append(c.customTags, customTag{name: name, fn: fn})
+	}
+}
+
+// newConfig creates a new validation config with defaults.
+func newConfig() *config {
+	return &config{
 		strategy:              StrategyAuto,
 		runAll:                false,
 		requireAny:            false,
@@ -273,12 +331,18 @@ func defaultConfig(opts ...Option) *config {
 		maxFields:             0, // 0 means use default (10000)
 		maxCachedSchemas:      0, // 0 means use default (1024)
 		disallowUnknownFields: false,
-		ctx:                   context.Background(),
 	}
+}
 
+// applyOptions applies options to a config, returning a new config.
+// This is used for per-call options that override the validator's base config.
+func applyOptions(base *config, opts ...Option) *config {
+	if len(opts) == 0 {
+		return base
+	}
+	cfg := base.clone()
 	for _, opt := range opts {
 		opt(cfg)
 	}
-
 	return cfg
 }

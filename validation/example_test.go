@@ -45,6 +45,53 @@ func ExampleValidate() {
 	// email: must be a valid email address
 }
 
+// ExampleNew demonstrates creating a configured Validator instance.
+func ExampleNew() {
+	// Create a validator with custom configuration
+	validator, err := validation.New(
+		validation.WithMaxErrors(5),
+		validation.WithRedactor(func(path string) bool {
+			return path == "password" || path == "token"
+		}),
+	)
+	if err != nil {
+		fmt.Printf("Failed to create validator: %v\n", err)
+		return
+	}
+
+	type User struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	user := User{Email: "john@example.com"}
+	if err := validator.Validate(context.Background(), &user); err != nil {
+		fmt.Printf("Validation failed: %v\n", err)
+	} else {
+		fmt.Println("Validation passed")
+	}
+	// Output: Validation passed
+}
+
+// ExampleMustNew demonstrates creating a Validator with MustNew (panics on error).
+func ExampleMustNew() {
+	// MustNew panics if configuration is invalid - suitable for use in main() or init()
+	validator := validation.MustNew(
+		validation.WithMaxErrors(10),
+	)
+
+	type User struct {
+		Name string `json:"name" validate:"required"`
+	}
+
+	user := User{Name: "Alice"}
+	if err := validator.Validate(context.Background(), &user); err != nil {
+		fmt.Printf("Validation failed: %v\n", err)
+	} else {
+		fmt.Println("User is valid")
+	}
+	// Output: User is valid
+}
+
 // ExampleValidatePartial demonstrates partial validation for PATCH requests.
 func ExampleValidatePartial() {
 	type User struct {
@@ -68,28 +115,27 @@ func ExampleValidatePartial() {
 	// Output: Validation passed
 }
 
-// ExampleValidate_customInterface demonstrates custom validation using the Validator interface.
-//
-// To use custom validation, implement the Validator interface in your type:
-//
-//	type User struct {
-//	    Email string
-//	}
-//
-//	func (u *User) Validate() error {
-//	    if u.Email == "" {
-//	        return errors.New("email is required")
-//	    }
-//	    if len(u.Email) < 5 {
-//	        return errors.New("email must be at least 5 characters")
-//	    }
-//	    return nil
-//	}
-//
-// Then call validation.Validate(ctx, &user) as usual.
-func ExampleValidate_customInterface() {
-	fmt.Println("See package documentation for custom validation examples")
-	// Output: See package documentation for custom validation examples
+// ExampleValidator_Validate demonstrates using a Validator instance.
+func ExampleValidator_Validate() {
+	validator := validation.MustNew()
+
+	type User struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	user := User{Email: "invalid-email"}
+	err := validator.Validate(context.Background(), &user)
+
+	if err != nil {
+		var verr *validation.Error
+		if errors.As(err, &verr) {
+			fmt.Printf("Found %d error(s)\n", len(verr.Fields))
+			fmt.Printf("First error: %s\n", verr.Fields[0].Message)
+		}
+	}
+	// Output:
+	// Found 1 error(s)
+	// First error: must be a valid email address
 }
 
 // ExampleValidate_withOptions demonstrates validation with various options.

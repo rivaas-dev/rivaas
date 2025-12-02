@@ -16,8 +16,11 @@ package validation
 
 import "context"
 
-// Validator interface for custom validation methods.
-// Validator, when implemented by a struct, causes Validate() to be called during validation.
+// ValidatorInterface is the interface for custom validation methods.
+// ValidatorInterface, when implemented by a struct, causes Validate() to be called during validation.
+//
+// Note: This interface is named ValidatorInterface to avoid confusion with the
+// [Validator] struct which is the main validation engine.
 //
 // Example:
 //
@@ -31,12 +34,12 @@ import "context"
 //	    }
 //	    return nil
 //	}
-type Validator interface {
+type ValidatorInterface interface {
 	Validate() error
 }
 
 // ValidatorWithContext interface for context-aware validation methods.
-// ValidatorWithContext is preferred over Validator when a context is available,
+// ValidatorWithContext is preferred over ValidatorInterface when a context is available,
 // as it allows for tenant-specific rules, request-scoped data, etc.
 //
 // Example:

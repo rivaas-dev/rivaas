@@ -16,113 +16,19 @@ package validation
 
 import (
 	"fmt"
-	"log"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 
 	"github.com/go-playground/validator/v10"
 )
 
-var (
-	tagValidator      *validator.Validate
-	tagValidatorOnce  sync.Once
-	tagValidatorMu    sync.Mutex
-	validationsFrozen atomic.Bool
+// validateWithTags validates using go-playground/validator struct tags ([StrategyTags]).
+// validateWithTags supports both full and partial validation modes.
+func (v *Validator) validateWithTags(val any, cfg *config) error {
+	v.initTagValidator()
 
-	reUsername = regexp.MustCompile(`^[a-zA-Z0-9_]{3,20}$`)
-	reSlug     = regexp.MustCompile(`^[a-z0-9-]+$`)
-
-	// Path cache: Type -> namespace -> JSON path
-	pathCache sync.Map // map[reflect.Type]*sync.Map[string]string
-
-	// Field map cache: Type -> JSON field name -> field index
-	fieldMapCache sync.Map // map[reflect.Type]map[string]int
-)
-
-// initTagValidator initializes the tag validator (private, lazy).
-// initTagValidator uses sync.Once to ensure thread-safe, single initialization.
-func initTagValidator() {
-	tagValidatorOnce.Do(func() {
-		tagValidator = validator.New(validator.WithRequiredStructEnabled())
-
-		// Use json tags as field names for better error messages
-		tagValidator.RegisterTagNameFunc(func(fld reflect.StructField) string {
-			name := fld.Tag.Get("json")
-			if name == "-" {
-				return ""
-			}
-			if idx := strings.Index(name, ","); idx != -1 {
-				name = name[:idx]
-			}
-			if name == "" {
-				return fld.Name
-			}
-			return name
-		})
-
-		if err := registerBuiltinValidators(tagValidator); err != nil {
-			log.Printf("warning: failed to register built-in validators: %v", err)
-		}
-
-		// Freeze after initialization
-		validationsFrozen.Store(true)
-	})
-}
-
-// RegisterTag registers a custom validation tag.
-// RegisterTag must be called at startup before any validation.
-// After the first validation, registration is frozen for thread safety.
-//
-// Example:
-//
-//	RegisterTag("custom_tag", func(fl validator.FieldLevel) bool {
-//	    return fl.Field().String() == "valid"
-//	})
-func RegisterTag(name string, fn validator.Func) error {
-	tagValidatorMu.Lock()
-	defer tagValidatorMu.Unlock()
-
-	// Check frozen status inside mutex to avoid race condition
-	if validationsFrozen.Load() {
-		return ErrCannotRegisterValidators
-	}
-
-	initTagValidator()
-
-	return tagValidator.RegisterValidation(name, fn)
-}
-
-func registerBuiltinValidators(v *validator.Validate) error {
-	if err := v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
-		return reUsername.MatchString(fl.Field().String())
-	}); err != nil {
-		return fmt.Errorf("failed to register username validator: %w", err)
-	}
-
-	if err := v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
-		return reSlug.MatchString(fl.Field().String())
-	}); err != nil {
-		return fmt.Errorf("failed to register slug validator: %w", err)
-	}
-
-	if err := v.RegisterValidation("strong_password", func(fl validator.FieldLevel) bool {
-		return len(fl.Field().String()) >= 8
-	}); err != nil {
-		return fmt.Errorf("failed to register strong_password validator: %w", err)
-	}
-
-	return nil
-}
-
-// validateWithTags validates using go-playground/validator struct tags.
-func validateWithTags(v any, cfg *config) error {
-	initTagValidator()
-
-	rv := reflect.ValueOf(v)
+	rv := reflect.ValueOf(val)
 	if rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
 			return nil
@@ -136,25 +42,26 @@ func validateWithTags(v any, cfg *config) error {
 
 	// Partial mode: validate only leaf fields that are present
 	if cfg.partial && cfg.presence != nil {
-		return validatePartialLeafsOnly(v, cfg)
+		return v.validatePartialLeafsOnly(val, cfg)
 	}
 
 	// Full validation
-	err := tagValidator.Struct(v)
+	err := v.tagValidator.Struct(val)
 	if err == nil {
 		return nil
 	}
 
 	if validationErrs, ok := err.(validator.ValidationErrors); ok {
-		return formatTagErrors(validationErrs, v, cfg)
+		return v.formatTagErrors(validationErrs, val, cfg)
 	}
 
 	return &Error{Fields: []FieldError{{Code: "tag_error", Message: err.Error()}}}
 }
 
-// validatePartialLeafsOnly validates only leaf fields present in request.
-// validatePartialLeafsOnly avoids enforcing "required" on nested fields that weren't provided.
-func validatePartialLeafsOnly(v any, cfg *config) error {
+// validatePartialLeafsOnly validates only leaf fields present in the [PresenceMap].
+// validatePartialLeafsOnly avoids enforcing "required" on nested fields that weren't provided,
+// making it suitable for PATCH request validation.
+func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 	leaves := cfg.presence.LeafPaths()
 	if len(leaves) == 0 {
 		return nil
@@ -170,14 +77,14 @@ func validatePartialLeafsOnly(v any, cfg *config) error {
 	}
 
 	var result Error
-	structType := reflect.TypeOf(v)
+	structType := reflect.TypeOf(val)
 	for structType.Kind() == reflect.Ptr {
 		structType = structType.Elem()
 	}
 
 	for _, path := range leaves {
 		// Resolve field value and struct field
-		fieldVal, structField, ok := resolvePath(v, path)
+		fieldVal, structField, ok := v.resolvePath(val, path)
 		if !ok {
 			continue
 		}
@@ -189,7 +96,7 @@ func validatePartialLeafsOnly(v any, cfg *config) error {
 		}
 
 		// Validate this single field
-		if err := tagValidator.Var(fieldVal.Interface(), validateTag); err != nil {
+		if err := v.tagValidator.Var(fieldVal.Interface(), validateTag); err != nil {
 			if verrs, ok := err.(validator.ValidationErrors); ok {
 				// Format with proper path context
 				for _, e := range verrs {
@@ -228,10 +135,11 @@ func validatePartialLeafsOnly(v any, cfg *config) error {
 	return nil
 }
 
-// resolvePath resolves "items.2.name" to reflect.Value and reflect.StructField.
-func resolvePath(v any, path string) (reflect.Value, reflect.StructField, bool) {
+// resolvePath resolves a dot-path (e.g., "items.2.name") to its reflect.Value and StructField.
+// resolvePath returns (zero, zero, false) if the path cannot be resolved.
+func (v *Validator) resolvePath(val any, path string) (reflect.Value, reflect.StructField, bool) {
 	parts := strings.Split(path, ".")
-	currentVal := reflect.ValueOf(v)
+	currentVal := reflect.ValueOf(val)
 	var currentField reflect.StructField
 
 	for i, part := range parts {
@@ -257,7 +165,7 @@ func resolvePath(v any, path string) (reflect.Value, reflect.StructField, bool) 
 		// Handle struct field
 		if currentVal.Kind() == reflect.Struct {
 			structType := currentVal.Type()
-			fieldMap := getFieldMap(structType)
+			fieldMap := v.getFieldMap(structType)
 
 			if fieldIndex, found := fieldMap[part]; found {
 				currentField = structType.Field(fieldIndex)
@@ -292,29 +200,6 @@ func getJSONFieldName(field reflect.StructField) string {
 	return jsonTag
 }
 
-// getFieldMap returns a map of JSON field names to field indices for a struct type.
-func getFieldMap(structType reflect.Type) map[string]int {
-	if cached, ok := fieldMapCache.Load(structType); ok {
-		if fieldMap, ok := cached.(map[string]int); ok {
-			return fieldMap
-		}
-		// Type mismatch in cache - recompute
-	}
-
-	// Build field map
-	fieldMap := buildFieldMap(structType)
-
-	// Use LoadOrStore for atomic semantics
-	actual, loaded := fieldMapCache.LoadOrStore(structType, fieldMap)
-	if loaded {
-		// Another goroutine stored first, use their result
-		if result, ok := actual.(map[string]int); ok {
-			return result
-		}
-	}
-	return fieldMap
-}
-
 // buildFieldMap builds a map of JSON field names to field indices for a struct type.
 func buildFieldMap(structType reflect.Type) map[string]int {
 	fieldMap := make(map[string]int, structType.NumField())
@@ -328,8 +213,8 @@ func buildFieldMap(structType reflect.Type) map[string]int {
 	return fieldMap
 }
 
-// formatTagErrors formats validator errors with stable codes.
-func formatTagErrors(errs validator.ValidationErrors, structValue any, cfg *config) error {
+// formatTagErrors formats go-playground/validator errors into an [*Error] with stable codes.
+func (v *Validator) formatTagErrors(errs validator.ValidationErrors, structValue any, cfg *config) error {
 	var result Error
 	structType := reflect.TypeOf(structValue)
 	for structType.Kind() == reflect.Ptr {
@@ -345,7 +230,7 @@ func formatTagErrors(errs validator.ValidationErrors, structValue any, cfg *conf
 			ns = ns[idx+1:]
 		}
 
-		path := getCachedJSONPath(ns, structType)
+		path := v.getCachedJSONPath(ns, structType)
 
 		if cfg.fieldNameMapper != nil {
 			path = cfg.fieldNameMapper(path)
@@ -376,60 +261,6 @@ func formatTagErrors(errs validator.ValidationErrors, structValue any, cfg *conf
 
 	result.Sort()
 	return &result
-}
-
-// getCachedJSONPath gets or computes JSON path.
-func getCachedJSONPath(ns string, structType reflect.Type) string {
-	cacheVal, ok := pathCache.Load(structType)
-	if !ok {
-		// Create new cache for this type
-		newCache := &sync.Map{}
-		actual, loaded := pathCache.LoadOrStore(structType, newCache)
-		if loaded {
-			cacheVal = actual
-		} else {
-			cacheVal = newCache
-		}
-	}
-
-	// Type assertion with proper error handling
-	typeCache, ok := cacheVal.(*sync.Map)
-	if !ok {
-		// This should never happen, but handle it defensively
-		// Recreate the cache entry
-		newCache := &sync.Map{}
-		actual, loaded := pathCache.LoadOrStore(structType, newCache)
-		if loaded {
-			if tc, ok := actual.(*sync.Map); ok {
-				typeCache = tc
-			} else {
-				typeCache = newCache
-			}
-		} else {
-			typeCache = newCache
-		}
-	}
-
-	// Check if path already computed
-	if cached, ok := typeCache.Load(ns); ok {
-		if result, ok := cached.(string); ok {
-			return result
-		}
-		// Type mismatch in cache - recompute
-	}
-
-	// Compute and cache
-	jsonPath := namespaceToJSONPath(ns, structType)
-
-	// Use LoadOrStore for atomic semantics
-	actual, loaded := typeCache.LoadOrStore(ns, jsonPath)
-	if loaded {
-		// Another goroutine stored first, use their result
-		if result, ok := actual.(string); ok {
-			return result
-		}
-	}
-	return jsonPath
 }
 
 // namespaceToJSONPath converts validator namespace to JSON path using struct tags.

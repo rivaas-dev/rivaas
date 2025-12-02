@@ -19,50 +19,46 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sync"
 )
 
-var (
-	validatorTypeCache sync.Map // map[reflect.Type]bool
-
-	validatorWithContextTypeCache sync.Map // map[reflect.Type]bool
-)
-
+// errNotImplemented is returned internally when a type doesn't implement
+// [ValidatorInterface] or [ValidatorWithContext].
 var errNotImplemented = fmt.Errorf("validator not implemented")
 
-// validateWithInterface validates using custom Validate() or ValidateContext() methods.
-func validateWithInterface(v any, cfg *config) error {
+// validateWithInterface validates using [ValidatorInterface] or [ValidatorWithContext] methods.
+// This implements [StrategyInterface] validation.
+func (v *Validator) validateWithInterface(ctx context.Context, val any, cfg *config) error {
 	// Prefer ValidatorWithContext if context is available
-	if cfg.ctx != nil {
-		if validator, ok := v.(ValidatorWithContext); ok {
-			if err := validator.ValidateContext(cfg.ctx); err != nil {
-				return coerceToValidationErrors(err, cfg)
+	if ctx != nil {
+		if validator, ok := val.(ValidatorWithContext); ok {
+			if err := validator.ValidateContext(ctx); err != nil {
+				return v.coerceToValidationErrors(err, cfg)
 			}
 			return nil
 		}
 
 		// Try pointer receiver with context
-		if err := callValidatorWithContext(cfg.ctx, v); err != nil {
+		if err := v.callValidatorWithContext(ctx, val); err != nil {
 			if !errors.Is(err, errNotImplemented) {
-				return coerceToValidationErrors(err, cfg)
+				return v.coerceToValidationErrors(err, cfg)
 			}
 		} else {
 			return nil
 		}
 	}
 
-	// Try Validator interface
-	if validator, ok := v.(Validator); ok {
+	// Try ValidatorInterface interface
+	if validator, ok := val.(ValidatorInterface); ok {
 		if err := validator.Validate(); err != nil {
-			return coerceToValidationErrors(err, cfg)
+			return v.coerceToValidationErrors(err, cfg)
 		}
 		return nil
 	}
 
 	// Try pointer receiver
-	if err := callValidator(v); err != nil {
+	if err := v.callValidator(val); err != nil {
 		if !errors.Is(err, errNotImplemented) {
-			return coerceToValidationErrors(err, cfg)
+			return v.coerceToValidationErrors(err, cfg)
 		}
 	} else {
 		return nil
@@ -72,33 +68,13 @@ func validateWithInterface(v any, cfg *config) error {
 	return nil
 }
 
-// typeImplementsValidator checks if a type implements Validator interface.
-func typeImplementsValidator(t reflect.Type) bool {
-	if cached, ok := validatorTypeCache.Load(t); ok {
-		if result, ok := cached.(bool); ok {
-			return result
-		}
-	}
-
-	implements := t.Implements(reflect.TypeFor[Validator]())
-
-	actual, loaded := validatorTypeCache.LoadOrStore(t, implements)
-	if loaded {
-		// Another goroutine stored first, use their result
-		if result, ok := actual.(bool); ok {
-			return result
-		}
-	}
-	return implements
-}
-
 // callValidator calls Validate() method using reflection to support both value and pointer receivers.
-func callValidator(v any) error {
-	rv := reflect.ValueOf(v)
-	rt := reflect.TypeOf(v)
+func (v *Validator) callValidator(val any) error {
+	rv := reflect.ValueOf(val)
+	rt := reflect.TypeOf(val)
 
 	// Try direct call
-	if typeImplementsValidator(rt) {
+	if v.typeImplementsValidator(rt) {
 		method := rv.MethodByName("Validate")
 		if method.IsValid() {
 			results := method.Call(nil)
@@ -115,7 +91,7 @@ func callValidator(v any) error {
 	if rv.CanAddr() {
 		ptrVal := rv.Addr()
 		ptrType := ptrVal.Type()
-		if typeImplementsValidator(ptrType) {
+		if v.typeImplementsValidator(ptrType) {
 			method := ptrVal.MethodByName("Validate")
 			if method.IsValid() {
 				results := method.Call(nil)
@@ -133,7 +109,7 @@ func callValidator(v any) error {
 	if rv.Kind() == reflect.Ptr && !rv.IsNil() {
 		elemVal := rv.Elem()
 		elemType := elemVal.Type()
-		if typeImplementsValidator(elemType) {
+		if v.typeImplementsValidator(elemType) {
 			method := elemVal.MethodByName("Validate")
 			if method.IsValid() {
 				results := method.Call(nil)
@@ -150,33 +126,14 @@ func callValidator(v any) error {
 	return errNotImplemented
 }
 
-// typeImplementsValidatorWithContext checks if a type implements ValidatorWithContext interface.
-func typeImplementsValidatorWithContext(t reflect.Type) bool {
-	if cached, ok := validatorWithContextTypeCache.Load(t); ok {
-		if result, ok := cached.(bool); ok {
-			return result
-		}
-	}
-
-	implements := t.Implements(reflect.TypeFor[ValidatorWithContext]())
-
-	actual, loaded := validatorWithContextTypeCache.LoadOrStore(t, implements)
-	if loaded {
-		// Another goroutine stored first, use their result
-		if result, ok := actual.(bool); ok {
-			return result
-		}
-	}
-	return implements
-}
-
-// callValidatorWithContext calls ValidateContext() method using reflection.
-func callValidatorWithContext(ctx context.Context, v any) error {
-	rv := reflect.ValueOf(v)
-	rt := reflect.TypeOf(v)
+// callValidatorWithContext calls the ValidateContext() method using reflection.
+// callValidatorWithContext supports both value and pointer receivers for [ValidatorWithContext].
+func (v *Validator) callValidatorWithContext(ctx context.Context, val any) error {
+	rv := reflect.ValueOf(val)
+	rt := reflect.TypeOf(val)
 
 	// Try direct call
-	if typeImplementsValidatorWithContext(rt) {
+	if v.typeImplementsValidatorWithContext(rt) {
 		method := rv.MethodByName("ValidateContext")
 		if method.IsValid() {
 			ctxVal := reflect.ValueOf(ctx)
@@ -194,7 +151,7 @@ func callValidatorWithContext(ctx context.Context, v any) error {
 	if rv.CanAddr() {
 		ptrVal := rv.Addr()
 		ptrType := ptrVal.Type()
-		if typeImplementsValidatorWithContext(ptrType) {
+		if v.typeImplementsValidatorWithContext(ptrType) {
 			method := ptrVal.MethodByName("ValidateContext")
 			if method.IsValid() {
 				ctxVal := reflect.ValueOf(ctx)
@@ -213,7 +170,7 @@ func callValidatorWithContext(ctx context.Context, v any) error {
 	if rv.Kind() == reflect.Ptr && !rv.IsNil() {
 		elemVal := rv.Elem()
 		elemType := elemVal.Type()
-		if typeImplementsValidatorWithContext(elemType) {
+		if v.typeImplementsValidatorWithContext(elemType) {
 			method := elemVal.MethodByName("ValidateContext")
 			if method.IsValid() {
 				ctxVal := reflect.ValueOf(ctx)
@@ -229,4 +186,44 @@ func callValidatorWithContext(ctx context.Context, v any) error {
 	}
 
 	return errNotImplemented
+}
+
+// coerceToValidationErrors converts an error to [*Error].
+// coerceToValidationErrors handles [FieldError], [Error], and generic errors.
+func (v *Validator) coerceToValidationErrors(err error, cfg *config) error {
+	if err == nil {
+		return nil
+	}
+
+	// Already an Error
+	if verrs, ok := err.(*Error); ok {
+		if cfg.maxErrors > 0 && len(verrs.Fields) > cfg.maxErrors {
+			verrs.Fields = verrs.Fields[:cfg.maxErrors]
+			verrs.Truncated = true
+		}
+		verrs.Sort()
+		return verrs
+	}
+
+	// Already a FieldError
+	if fe, ok := err.(FieldError); ok {
+		return &Error{Fields: []FieldError{fe}}
+	}
+
+	// Generic error - wrap it
+	result := &Error{
+		Fields: []FieldError{
+			{
+				Code:    "validation_error",
+				Message: err.Error(),
+			},
+		},
+	}
+
+	// Check if it's the sentinel error
+	if errors.Is(err, ErrValidation) {
+		return result
+	}
+
+	return result
 }

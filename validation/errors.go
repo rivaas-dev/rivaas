@@ -27,20 +27,28 @@ var ErrValidation = errors.New("validation")
 
 // Predefined validation errors.
 var (
-	ErrCannotValidateNilValue     = errors.New("cannot validate nil value")
+	// ErrCannotValidateNilValue is returned when attempting to validate a nil value.
+	ErrCannotValidateNilValue = errors.New("cannot validate nil value")
+
+	// ErrCannotValidateInvalidValue is returned when the value is not valid for reflection.
 	ErrCannotValidateInvalidValue = errors.New("cannot validate invalid value")
-	ErrUnknownValidationStrategy  = errors.New("unknown validation strategy")
-	ErrCannotRegisterValidators   = errors.New("cannot register validators after first use")
-	ErrValidationFailed           = errors.New("validation failed")
-	ErrGenericError               = errors.New("generic error")
-	ErrInvalidType                = errors.New("invalid type")
-	ErrNameRequired               = errors.New("custom: name is required")
-	ErrGenericValidationError     = errors.New("generic validation error")
-	ErrCustomErrorMessage         = errors.New("custom error message")
-	ErrOuterError                 = errors.New("outer error")
+
+	// ErrUnknownValidationStrategy is returned when an unknown validation strategy is specified.
+	ErrUnknownValidationStrategy = errors.New("unknown validation strategy")
+
+	// ErrValidationFailed is a generic validation failure error.
+	ErrValidationFailed = errors.New("validation failed")
+
+	// ErrInvalidType is returned when a value has an unexpected type.
+	ErrInvalidType = errors.New("invalid type")
+
+	// ErrCannotRegisterValidators is returned when attempting to register validators
+	// after the default validator has been initialized.
+	ErrCannotRegisterValidators = errors.New("cannot register validators after initialization")
 )
 
 // FieldError represents a single validation error for a specific field.
+// Multiple FieldError values are collected in an [Error].
 //
 // Example:
 //
@@ -57,8 +65,7 @@ type FieldError struct {
 	Meta    map[string]any `json:"meta,omitempty"` // Additional metadata (tag, param, value, etc.)
 }
 
-// Error returns a formatted error message.
-// Error formats the field error as "path: message" or just "message" if path is empty.
+// Error returns a formatted error message as "path: message" or just "message" if path is empty.
 func (e FieldError) Error() string {
 	if e.Path == "" {
 		return e.Message
@@ -66,7 +73,7 @@ func (e FieldError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Path, e.Message)
 }
 
-// Unwrap returns ErrValidation for errors.Is/errors.As compatibility.
+// Unwrap returns [ErrValidation] for errors.Is/errors.As compatibility.
 func (e FieldError) Unwrap() error {
 	return ErrValidation
 }
@@ -78,6 +85,7 @@ func (e FieldError) HTTPStatus() int {
 
 // Error represents validation errors for one or more fields.
 // Error implements error and can be used with errors.Is/errors.As.
+// It contains a slice of [FieldError] values, one for each field that failed validation.
 //
 // Example:
 //
@@ -87,9 +95,6 @@ func (e FieldError) HTTPStatus() int {
 //	        fmt.Printf("%s: %s\n", fieldErr.Path, fieldErr.Message)
 //	    }
 //	}
-//
-// FieldError does not implement ErrorCode because it has a Code field.
-// Formatters can access e.Code directly when handling FieldError.
 type Error struct {
 	Fields    []FieldError `json:"errors"`              // List of field errors
 	Truncated bool         `json:"truncated,omitempty"` // True if errors were truncated due to maxErrors limit
@@ -116,7 +121,7 @@ func (v Error) Error() string {
 	return fmt.Sprintf("validation failed: %s%s", strings.Join(msgs, "; "), suffix)
 }
 
-// Unwrap returns ErrValidation for errors.Is/errors.As compatibility.
+// Unwrap returns [ErrValidation] for errors.Is/errors.As compatibility.
 func (v Error) Unwrap() error {
 	return ErrValidation
 }
@@ -136,7 +141,7 @@ func (v Error) Code() string {
 	return "validation_error"
 }
 
-// Add adds a new field error to the collection.
+// Add adds a new [FieldError] to the collection.
 //
 // Example:
 //
@@ -152,7 +157,7 @@ func (v *Error) Add(path, code, message string, meta map[string]any) {
 }
 
 // AddError adds an error to the collection, handling different error types.
-// AddError accepts FieldError, Error, or generic errors and converts them appropriately.
+// AddError accepts [FieldError], [Error], or generic errors and converts them appropriately.
 //
 // Example:
 //
@@ -169,6 +174,14 @@ func (v *Error) AddError(err error) {
 	}
 
 	if ve, ok := err.(Error); ok {
+		v.Fields = append(v.Fields, ve.Fields...)
+		if ve.Truncated {
+			v.Truncated = true
+		}
+		return
+	}
+
+	if ve, ok := err.(*Error); ok {
 		v.Fields = append(v.Fields, ve.Fields...)
 		if ve.Truncated {
 			v.Truncated = true
@@ -219,7 +232,7 @@ func (v Error) Has(path string) bool {
 	return false
 }
 
-// GetField returns the first error for a given path, or nil.
+// GetField returns the first [FieldError] for a given path, or nil if not found.
 //
 // Example:
 //

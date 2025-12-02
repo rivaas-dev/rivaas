@@ -591,7 +591,7 @@ func TestValidationErrors_UnwrapChain(t *testing.T) {
 				return verr
 			},
 			checkErr: func(t *testing.T, verr Error) {
-				outerErr := ErrOuterError
+				outerErr := errOuterError
 				wrapped := fmt.Errorf("%w: %w", outerErr, &verr)
 				// Note: FieldError and validation.Error already implement Unwrap
 				// This test verifies the chain works

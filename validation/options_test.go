@@ -250,7 +250,7 @@ func TestWithCustomValidator(t *testing.T) {
 		}
 
 		if user.Name == "" {
-			return ErrNameRequired
+			return errCustomNameRequired
 		}
 		return nil
 	}

@@ -14,20 +14,9 @@
 
 // Package validation provides flexible, multi-strategy validation for Go structs.
 //
-// # Validation Strategies
+// # Getting Started
 //
-// The package supports three validation strategies:
-//
-//  1. Struct Tags - Using go-playground/validator tags (e.g., `validate:"required,email"`)
-//  2. JSON Schema - RFC-compliant JSON Schema validation via JSONSchemaProvider interface
-//  3. Custom Interfaces - Implement Validator or ValidatorWithContext for custom validation logic
-//
-// The package automatically selects the best strategy based on the value type, or you can
-// explicitly choose a strategy using WithStrategy().
-//
-// # Usage
-//
-// Basic validation with struct tags:
+// The simplest way to use this package is with the package-level [Validate] function:
 //
 //	type User struct {
 //		Email string `json:"email" validate:"required,email"`
@@ -44,12 +33,39 @@
 //		}
 //	}
 //
-// Partial validation for PATCH requests:
+// For more control, create a [Validator] instance with [New] or [MustNew]:
 //
-//	presence := validation.ComputePresence(rawJSON)
-//	err := validation.ValidatePartial(ctx, &user, presence)
+//	validator := validation.MustNew(
+//		validation.WithRedactor(sensitiveFieldRedactor),
+//		validation.WithMaxErrors(10),
+//		validation.WithCustomTag("phone", phoneValidator),
+//	)
 //
-// Custom validation with interface:
+//	if err := validator.Validate(ctx, &user); err != nil {
+//		// Handle validation errors
+//	}
+//
+// # Validation Strategies
+//
+// The package supports three validation strategies:
+//
+//  1. Struct Tags - Using go-playground/validator tags (e.g., `validate:"required,email"`)
+//  2. JSON Schema - RFC-compliant JSON Schema validation via [JSONSchemaProvider] interface
+//  3. Custom Interfaces - Implement [ValidatorInterface] or [ValidatorWithContext] for custom validation logic
+//
+// The package automatically selects the best strategy based on the value type, or you can
+// explicitly choose a strategy using [WithStrategy].
+//
+// # Partial Validation
+//
+// For PATCH requests where only some fields are provided, use [ValidatePartial]:
+//
+//	presence, _ := validation.ComputePresence(rawJSON)
+//	err := validator.ValidatePartial(ctx, &user, presence)
+//
+// # Custom Validation Interface
+//
+// Implement [ValidatorInterface] for custom validation logic:
 //
 //	type User struct {
 //		Email string
@@ -62,12 +78,22 @@
 //		return nil
 //	}
 //
+//	// validation.Validate will automatically call u.Validate()
 //	err := validation.Validate(ctx, &user)
+//
+// For context-aware validation, implement [ValidatorWithContext]:
+//
+//	func (u *User) ValidateContext(ctx context.Context) error {
+//		// Access request-scoped data from context
+//		tenant := ctx.Value("tenant").(string)
+//		// Apply tenant-specific validation rules
+//		return nil
+//	}
 //
 // # Thread Safety
 //
-// All validation functions are safe for concurrent use. Custom validator registration
-// must happen before first use and is then frozen for thread safety.
+// [Validator] instances are safe for concurrent use by multiple goroutines.
+// The package-level functions use a default validator that is also thread-safe.
 //
 // # Security
 //
@@ -75,5 +101,14 @@
 //
 //   - Stack overflow from deeply nested structures (max depth: 100)
 //   - Unbounded memory usage (configurable limits on errors and fields)
-//   - Sensitive data exposure (redaction support via WithRedactor)
+//   - Sensitive data exposure (redaction support via [WithRedactor])
+//
+// # Standalone Usage
+//
+// This package can be used independently without the full Rivaas framework:
+//
+//	import "rivaas.dev/validation"
+//
+//	validator := validation.MustNew()
+//	err := validator.Validate(ctx, &user)
 package validation

@@ -408,7 +408,7 @@ func TestValidationErrors_AddError(t *testing.T) {
 		{
 			name: "add generic error",
 			setup: func() error {
-				return ErrGenericError
+				return errGenericError
 			},
 			expectedCount: 1,
 			expectedCode:  "validation_error",
@@ -448,7 +448,7 @@ func TestValidationErrors_AddError(t *testing.T) {
 		verr.AddError(verr2)
 		assert.Len(t, verr.Fields, 2)
 
-		verr.AddError(ErrGenericError)
+		verr.AddError(errGenericError)
 		assert.Len(t, verr.Fields, 3)
 		assert.Equal(t, "validation_error", verr.Fields[2].Code)
 

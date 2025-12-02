@@ -384,7 +384,7 @@ func TestCoerceToValidationErrors_GenericError(t *testing.T) {
 			name: "generic error should be converted to validation error",
 			user: &User{},
 			validator: func(v any) error {
-				return ErrGenericValidationError
+				return errGenericValidationError
 			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
@@ -399,7 +399,7 @@ func TestCoerceToValidationErrors_GenericError(t *testing.T) {
 			name: "custom error message should be preserved",
 			user: &User{},
 			validator: func(v any) error {
-				return ErrCustomErrorMessage
+				return errCustomErrorMessage
 			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {

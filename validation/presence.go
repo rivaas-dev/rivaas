@@ -23,11 +23,14 @@ import (
 )
 
 // PresenceMap tracks which fields are present in the request body.
-// Keys are normalized dot paths (e.g., "items.2.price"), values are booleans.
+// Keys are normalized dot paths (e.g., "items.2.price"), values are always true.
 //
 // PresenceMap is used for partial update validation (PATCH requests),
 // where only present fields should be validated, while absent fields
 // should be ignored even if they have "required" constraints.
+//
+// Use [ComputePresence] to create a PresenceMap from raw JSON,
+// and [WithPresence] to pass it to validation.
 type PresenceMap map[string]bool
 
 // Has returns true if the exact path is present.
@@ -93,8 +96,12 @@ func (pm PresenceMap) LeafPaths() []string {
 	return leaves
 }
 
-// ComputePresence analyzes raw JSON and returns a map of present field paths.
+// ComputePresence analyzes raw JSON and returns a [PresenceMap] of present field paths.
 // ComputePresence enables partial validation where only provided fields are validated.
+//
+// ComputePresence returns (nil, nil) if rawJSON is empty.
+// ComputePresence has a maximum recursion depth of 100 to prevent stack overflow
+// from deeply nested JSON structures.
 //
 // Example:
 //
@@ -102,8 +109,8 @@ func (pm PresenceMap) LeafPaths() []string {
 //	presence, err := ComputePresence(rawJSON)
 //	// Returns: {"user": true, "user.name": true, "user.age": true}
 //
-// ComputePresence has a maximum recursion depth of 100 to prevent stack overflow
-// from deeply nested JSON structures.
+// Errors:
+//   - Returns error if rawJSON is not valid JSON
 func ComputePresence(rawJSON []byte) (PresenceMap, error) {
 	if len(rawJSON) == 0 {
 		return nil, nil
@@ -119,8 +126,8 @@ func ComputePresence(rawJSON []byte) (PresenceMap, error) {
 	return pm, nil
 }
 
-// markPresence recursively marks fields as present in the PresenceMap.
-// depth tracks recursion depth to prevent stack overflow from malicious input.
+// markPresence recursively marks fields as present in the [PresenceMap].
+// The depth parameter tracks recursion depth to prevent stack overflow (max: maxRecursionDepth).
 func markPresence(m map[string]any, prefix string, pm PresenceMap, depth int) {
 	if depth > maxRecursionDepth {
 		return // Prevent stack overflow from deeply nested structures

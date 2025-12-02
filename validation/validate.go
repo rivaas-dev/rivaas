@@ -16,22 +16,85 @@ package validation
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
+	"sync"
+
+	"github.com/go-playground/validator/v10"
 )
 
-// Validate validates a value using the specified validation strategy.
-// Validate is the main entry point for validation.
+// Package-level validator state for convenience functions [Validate] and [ValidatePartial].
+var (
+	defaultValidator     *Validator
+	defaultValidatorOnce sync.Once
+	defaultValidatorMu   sync.Mutex
+	defaultValidatorInit bool
+)
+
+// getDefaultValidator returns the default [Validator], creating it if necessary.
+func getDefaultValidator() *Validator {
+	defaultValidatorOnce.Do(func() {
+		defaultValidator = MustNew()
+		defaultValidatorInit = true
+	})
+	return defaultValidator
+}
+
+// RegisterTag registers a custom validation tag with the default [Validator].
 //
-// Validate returns nil if validation passes, or an error if validation fails.
+// IMPORTANT: RegisterTag must be called before any validation is performed
+// (i.e., before the first call to [Validate] or [ValidatePartial]).
+//
+// For new code, prefer using [WithCustomTag] when creating a [Validator]:
+//
+//	validator := validation.MustNew(
+//	    validation.WithCustomTag("phone", phoneValidator),
+//	)
+//
+// Example of package-level registration (must be in init() or before main()):
+//
+//	func init() {
+//	    validation.RegisterTag("phone", func(fl validator.FieldLevel) bool {
+//	        return phoneRegex.MatchString(fl.Field().String())
+//	    })
+//	}
+//
+// Errors:
+//   - [ErrCannotRegisterValidators]: returned if called after validation has been performed
+func RegisterTag(name string, fn validator.Func) error {
+	defaultValidatorMu.Lock()
+	defer defaultValidatorMu.Unlock()
+
+	// If validation has already run, we can't register more tags
+	if defaultValidatorInit {
+		return ErrCannotRegisterValidators
+	}
+
+	// Initialize the default validator if not yet done (without setting init flag)
+	defaultValidatorOnce.Do(func() {
+		defaultValidator = MustNew()
+	})
+
+	// Register the tag
+	return defaultValidator.RegisterTag(name, fn)
+}
+
+// Validate validates a value using the default [Validator].
+// For customized validation, create a Validator with [New] or [MustNew].
+//
+// Validate returns nil if validation passes, or an [*Error] if validation fails.
 // The error can be type-asserted to *Error for structured field errors.
+//
+// Parameters:
+//   - ctx: Context passed to [ValidatorWithContext] implementations
+//   - v: The value to validate (typically a pointer to a struct)
+//   - opts: Optional per-call configuration (see [Option])
 //
 // Example:
 //
 //	var req CreateUserRequest
-//	if err := Validate(ctx, &req); err != nil {
-//	    var verr *Error
+//	if err := validation.Validate(ctx, &req); err != nil {
+//	    var verr *validation.Error
 //	    if errors.As(err, &verr) {
 //	        // Handle structured validation errors
 //	    }
@@ -39,26 +102,60 @@ import (
 //
 // With options:
 //
-//	if err := Validate(ctx, &req,
-//	    WithStrategy(StrategyTags),
-//	    WithPartial(true),
-//	    WithPresence(presenceMap),
+//	if err := validation.Validate(ctx, &req,
+//	    validation.WithStrategy(StrategyTags),
+//	    validation.WithPartial(true),
+//	    validation.WithPresence(presenceMap),
 //	); err != nil {
 //	    // Handle validation error
 //	}
 func Validate(ctx context.Context, v any, opts ...Option) error {
-	if v == nil {
+	return getDefaultValidator().Validate(ctx, v, opts...)
+}
+
+// ValidatePartial validates only fields present in the [PresenceMap] using the default [Validator].
+// ValidatePartial is useful for PATCH requests where only provided fields should be validated.
+// Use [ComputePresence] to create a PresenceMap from raw JSON.
+func ValidatePartial(ctx context.Context, v any, pm PresenceMap, opts ...Option) error {
+	return getDefaultValidator().ValidatePartial(ctx, v, pm, opts...)
+}
+
+// Validate validates a value using this validator's configuration.
+//
+// Validate returns nil if validation passes, or an [*Error] if validation fails.
+// The error can be type-asserted to *Error for structured field errors.
+// Per-call options override the validator's base configuration.
+//
+// Parameters:
+//   - ctx: Context passed to [ValidatorWithContext] implementations
+//   - val: The value to validate (typically a pointer to a struct)
+//   - opts: Optional per-call configuration overrides (see [Option])
+//
+// Example:
+//
+//	validator := validation.MustNew(validation.WithMaxErrors(10))
+//
+//	if err := validator.Validate(ctx, &req); err != nil {
+//	    var verr *validation.Error
+//	    if errors.As(err, &verr) {
+//	        // Handle structured validation errors
+//	    }
+//	}
+func (v *Validator) Validate(ctx context.Context, val any, opts ...Option) error {
+	if val == nil {
 		return &Error{Fields: []FieldError{{Code: "nil", Message: ErrCannotValidateNilValue.Error()}}}
 	}
 
-	cfg := defaultConfig(opts...)
-	// Use the context parameter if it wasn't explicitly set via WithContext() option
-	if !cfg.ctxExplicit {
-		cfg.ctx = ctx
+	// Apply per-call options on top of validator's base config
+	cfg := applyOptions(v.cfg, opts...)
+
+	// Use context from config if explicitly set via WithContext, otherwise use the ctx parameter
+	if cfg.ctx != nil {
+		ctx = cfg.ctx
 	}
 
 	// Handle nil pointers and invalid values
-	rv := reflect.ValueOf(v)
+	rv := reflect.ValueOf(val)
 	if !rv.IsValid() {
 		return &Error{Fields: []FieldError{{Code: "invalid", Message: ErrCannotValidateInvalidValue.Error()}}}
 	}
@@ -77,45 +174,46 @@ func Validate(ctx context.Context, v any, opts ...Option) error {
 	// Custom validator runs first (on dereferenced value)
 	if cfg.customValidator != nil {
 		if err := cfg.customValidator(concreteV); err != nil {
-			return coerceToValidationErrors(err, cfg)
+			return v.coerceToValidationErrors(err, cfg)
 		}
 	}
 
-	// Run all strategies if requested (use original v to preserve pointer)
+	// Run all strategies if requested (use original val to preserve pointer)
 	if cfg.runAll {
-		return validateAll(v, cfg)
+		return v.validateAll(ctx, val, cfg)
 	}
 
-	// Determine strategy (use original v to check interfaces)
+	// Determine strategy (use original val to check interfaces)
 	strategy := cfg.strategy
 	if strategy == StrategyAuto {
-		strategy = determineStrategy(v, cfg)
+		strategy = v.determineStrategy(ctx, val, cfg)
 	}
 
-	// Run single strategy (use original v to preserve pointer for interface validation)
-	return validateByStrategy(v, strategy, cfg)
+	// Run single strategy (use original val to preserve pointer for interface validation)
+	return v.validateByStrategy(ctx, val, strategy, cfg)
 }
 
-// ValidatePartial validates only fields present in the PresenceMap.
-// Useful for PATCH requests where only provided fields should be validated.
-func ValidatePartial(ctx context.Context, v any, pm PresenceMap, opts ...Option) error {
+// ValidatePartial validates only fields present in the [PresenceMap].
+// ValidatePartial is useful for PATCH requests where only provided fields should be validated.
+// Use [ComputePresence] to create a PresenceMap from raw JSON.
+func (v *Validator) ValidatePartial(ctx context.Context, val any, pm PresenceMap, opts ...Option) error {
 	opts = append([]Option{WithPresence(pm), WithPartial(true)}, opts...)
-	return Validate(ctx, v, opts...)
+	return v.Validate(ctx, val, opts...)
 }
 
-// validateAll runs all applicable validation strategies and aggregates errors.
-func validateAll(v any, cfg *config) error {
+// validateAll runs all applicable validation strategies and aggregates errors into an [*Error].
+func (v *Validator) validateAll(ctx context.Context, val any, cfg *config) error {
 	var all Error
 	strategies := []Strategy{StrategyInterface, StrategyTags, StrategyJSONSchema}
 	applied := 0
 
 	for _, strategy := range strategies {
-		if !isApplicable(v, strategy, cfg) {
+		if !v.isApplicable(ctx, val, strategy, cfg) {
 			continue
 		}
 
 		applied++
-		if err := validateByStrategy(v, strategy, cfg); err != nil {
+		if err := v.validateByStrategy(ctx, val, strategy, cfg); err != nil {
 			all.AddError(err)
 
 			// Check max errors
@@ -139,27 +237,27 @@ func validateAll(v any, cfg *config) error {
 	return nil
 }
 
-// isApplicable checks if a validation strategy can apply to the value.
-func isApplicable(v any, strategy Strategy, cfg *config) bool {
+// isApplicable checks if a validation [Strategy] can apply to the value.
+func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy, cfg *config) bool {
 	switch strategy {
 	case StrategyInterface:
-		// Check if value implements Validator or ValidatorWithContext
+		// Check if value implements ValidatorInterface or ValidatorWithContext
 		// Check both value and pointer types
-		if _, ok := v.(Validator); ok {
+		if _, ok := val.(ValidatorInterface); ok {
 			return true
 		}
-		if cfg.ctx != nil {
-			if _, ok := v.(ValidatorWithContext); ok {
+		if ctx != nil {
+			if _, ok := val.(ValidatorWithContext); ok {
 				return true
 			}
 		}
 		// Also check if pointer type implements (for pointer receivers)
-		rv := reflect.ValueOf(v)
+		rv := reflect.ValueOf(val)
 		if rv.Kind() == reflect.Ptr && !rv.IsNil() {
-			if rv.Type().Implements(reflect.TypeFor[Validator]()) {
+			if rv.Type().Implements(reflect.TypeFor[ValidatorInterface]()) {
 				return true
 			}
-			if cfg.ctx != nil {
+			if ctx != nil {
 				if rv.Type().Implements(reflect.TypeFor[ValidatorWithContext]()) {
 					return true
 				}
@@ -168,10 +266,10 @@ func isApplicable(v any, strategy Strategy, cfg *config) bool {
 		// Check if value can be addressed and pointer implements
 		if rv.IsValid() && rv.CanAddr() {
 			ptrType := rv.Addr().Type()
-			if ptrType.Implements(reflect.TypeFor[Validator]()) {
+			if ptrType.Implements(reflect.TypeFor[ValidatorInterface]()) {
 				return true
 			}
-			if cfg.ctx != nil {
+			if ctx != nil {
 				if ptrType.Implements(reflect.TypeFor[ValidatorWithContext]()) {
 					return true
 				}
@@ -181,7 +279,7 @@ func isApplicable(v any, strategy Strategy, cfg *config) bool {
 
 	case StrategyTags:
 		// Tags require a struct type with actual validation tags
-		rv := reflect.ValueOf(v)
+		rv := reflect.ValueOf(val)
 		for rv.Kind() == reflect.Ptr {
 			if rv.IsNil() {
 				return false
@@ -206,7 +304,7 @@ func isApplicable(v any, strategy Strategy, cfg *config) bool {
 		if cfg.customSchema != "" {
 			return true
 		}
-		if _, ok := v.(JSONSchemaProvider); ok {
+		if _, ok := val.(JSONSchemaProvider); ok {
 			return true
 		}
 		return false
@@ -217,26 +315,26 @@ func isApplicable(v any, strategy Strategy, cfg *config) bool {
 }
 
 // determineStrategy automatically determines the best validation strategy.
-func determineStrategy(v any, cfg *config) Strategy {
+func (v *Validator) determineStrategy(ctx context.Context, val any, cfg *config) Strategy {
 	// Priority order:
 	// 1. Interface validation (Validate/ValidateContext)
 	// 2. Tag validation (struct tags)
 	// 3. JSON Schema
 
-	if isApplicable(v, StrategyInterface, cfg) {
+	if v.isApplicable(ctx, val, StrategyInterface, cfg) {
 		return StrategyInterface
 	}
 
-	if isApplicable(v, StrategyTags, cfg) {
+	if v.isApplicable(ctx, val, StrategyTags, cfg) {
 		return StrategyTags
 	}
 
-	if isApplicable(v, StrategyJSONSchema, cfg) {
+	if v.isApplicable(ctx, val, StrategyJSONSchema, cfg) {
 		return StrategyJSONSchema
 	}
 
 	// Default to tags if it's a struct
-	rv := reflect.ValueOf(v)
+	rv := reflect.ValueOf(val)
 	for rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
 			return StrategyTags
@@ -250,69 +348,30 @@ func determineStrategy(v any, cfg *config) Strategy {
 	return StrategyTags
 }
 
-// validateByStrategy dispatches to the appropriate validation function.
-func validateByStrategy(v any, strategy Strategy, cfg *config) error {
+// validateByStrategy dispatches to the appropriate validation function based on [Strategy].
+func (v *Validator) validateByStrategy(ctx context.Context, val any, strategy Strategy, cfg *config) error {
 	switch strategy {
 	case StrategyInterface:
 		// Use original value (may be pointer) for interface validation
-		return validateWithInterface(v, cfg)
+		return v.validateWithInterface(ctx, val, cfg)
 
 	case StrategyTags:
 		// Dereference for tag validation (tags work on struct values)
-		rv := reflect.ValueOf(v)
+		rv := reflect.ValueOf(val)
 		for rv.Kind() == reflect.Ptr && !rv.IsNil() {
 			rv = rv.Elem()
 		}
-		return validateWithTags(rv.Interface(), cfg)
+		return v.validateWithTags(rv.Interface(), cfg)
 
 	case StrategyJSONSchema:
 		// Dereference for schema validation
-		rv := reflect.ValueOf(v)
+		rv := reflect.ValueOf(val)
 		for rv.Kind() == reflect.Ptr && !rv.IsNil() {
 			rv = rv.Elem()
 		}
-		return validateWithSchema(rv.Interface(), cfg)
+		return v.validateWithSchema(ctx, rv.Interface(), cfg)
 
 	default:
 		return &Error{Fields: []FieldError{{Code: "unknown_strategy", Message: fmt.Sprintf("%v: %d", ErrUnknownValidationStrategy, strategy)}}}
 	}
-}
-
-// coerceToValidationErrors converts an error to Error.
-func coerceToValidationErrors(err error, cfg *config) error {
-	if err == nil {
-		return nil
-	}
-
-	// Already an Error
-	if verrs, ok := err.(*Error); ok {
-		if cfg.maxErrors > 0 && len(verrs.Fields) > cfg.maxErrors {
-			verrs.Fields = verrs.Fields[:cfg.maxErrors]
-			verrs.Truncated = true
-		}
-		verrs.Sort()
-		return verrs
-	}
-
-	// Already a FieldError
-	if fe, ok := err.(FieldError); ok {
-		return &Error{Fields: []FieldError{fe}}
-	}
-
-	// Generic error - wrap it
-	result := &Error{
-		Fields: []FieldError{
-			{
-				Code:    "validation_error",
-				Message: err.Error(),
-			},
-		},
-	}
-
-	// Check if it's the sentinel error
-	if errors.Is(err, ErrValidation) {
-		return result
-	}
-
-	return result
 }

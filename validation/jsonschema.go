@@ -15,42 +15,37 @@
 package validation
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
+// JSON Schema validation constants.
 const (
+	// defaultMaxCachedSchemas is the default maximum number of JSON schemas to cache.
+	// Override with [WithMaxCachedSchemas].
 	defaultMaxCachedSchemas = 1024
-	maxRecursionDepth       = 100 // Maximum recursion depth to prevent stack overflow
+
+	// maxRecursionDepth limits recursion depth to prevent stack overflow from deeply nested structures.
+	maxRecursionDepth = 100
 )
 
-// schemaCacheEntry holds a cached schema and its last access time.
-type schemaCacheEntry struct {
-	schema     *jsonschema.Schema
-	lastAccess atomic.Int64 // Unix nanoseconds for thread-safe access
-}
+// jsonschemaSchema is a type alias for the github.com/santhosh-tekuri/jsonschema/v6 Schema type.
+type jsonschemaSchema = jsonschema.Schema
 
-var (
-	schemaCache   = make(map[string]*schemaCacheEntry)
-	schemaCacheMu sync.RWMutex
-)
-
-// validateWithSchema validates using JSON Schema.
-func validateWithSchema(v any, cfg *config) error {
-	schemaID, schemaJSON := getSchemaForValue(v, cfg)
+// validateWithSchema validates using JSON Schema ([StrategyJSONSchema]).
+// The schema can be provided via [JSONSchemaProvider] interface or [WithCustomSchema] option.
+func (v *Validator) validateWithSchema(ctx context.Context, val any, cfg *config) error {
+	schemaID, schemaJSON := getSchemaForValue(val, cfg)
 	if schemaJSON == "" {
 		return nil
 	}
 
-	maxCached := cfg.maxCachedSchemas
-	schema, err := getOrCompileSchema(schemaID, schemaJSON, maxCached)
+	schema, err := v.getOrCompileSchema(schemaID, schemaJSON)
 	if err != nil {
 		return &Error{Fields: []FieldError{{Code: "schema_compile_error", Message: err.Error()}}}
 	}
@@ -59,7 +54,7 @@ func validateWithSchema(v any, cfg *config) error {
 
 	// Use raw JSON from context if available and not partial
 	if !cfg.partial {
-		if rawJSON, ok := ExtractRawJSONCtx(cfg.ctx); ok && len(rawJSON) > 0 {
+		if rawJSON, ok := ExtractRawJSONCtx(ctx); ok && len(rawJSON) > 0 {
 			jsonBytes = rawJSON
 		}
 	}
@@ -67,7 +62,7 @@ func validateWithSchema(v any, cfg *config) error {
 	// Otherwise marshal
 	if jsonBytes == nil {
 		var err error
-		jsonBytes, err = json.Marshal(v)
+		jsonBytes, err = json.Marshal(val)
 		if err != nil {
 			return &Error{Fields: []FieldError{{Code: "marshal_error", Message: err.Error()}}}
 		}
@@ -112,7 +107,7 @@ func validateWithSchema(v any, cfg *config) error {
 
 // pruneByPresence removes non-present fields from JSON data for partial validation.
 // pruneByPresence uses nil placeholders for arrays to maintain array length.
-// depth tracks recursion depth to prevent stack overflow from deeply nested structures.
+// The depth parameter tracks recursion depth to prevent stack overflow (max: [maxRecursionDepth]).
 func pruneByPresence(data any, prefix string, pm PresenceMap, depth int) any {
 	if depth > maxRecursionDepth {
 		return data // Prevent stack overflow from deeply nested structures
@@ -165,22 +160,8 @@ func getSchemaForValue(v any, cfg *config) (id, schema string) {
 	return "", ""
 }
 
-// getOrCompileSchema gets a schema or compiles a new one.
-func getOrCompileSchema(id, schemaJSON string, maxCached int) (*jsonschema.Schema, error) {
-	now := time.Now()
-
-	if id != "" {
-		schemaCacheMu.RLock()
-		if entry, ok := schemaCache[id]; ok {
-			schema := entry.schema
-			schemaCacheMu.RUnlock()
-			entry.lastAccess.Store(now.UnixNano())
-			return schema, nil
-		}
-		schemaCacheMu.RUnlock()
-	}
-
-	// Compile schema using jsonschema.Compiler
+// compileSchema compiles a JSON Schema from a JSON string.
+func compileSchema(id, schemaJSON string) (*jsonschemaSchema, error) {
 	compiler := jsonschema.NewCompiler()
 	compiler.AssertFormat()  // Enable format validation
 	compiler.AssertContent() // Enable content validation
@@ -206,46 +187,11 @@ func getOrCompileSchema(id, schemaJSON string, maxCached int) (*jsonschema.Schem
 		return nil, fmt.Errorf("failed to compile schema: %w", err)
 	}
 
-	if id != "" {
-		schemaCacheMu.Lock()
-		defer schemaCacheMu.Unlock()
-
-		maxCache := maxCached
-		if maxCache == 0 {
-			maxCache = defaultMaxCachedSchemas
-		}
-
-		if len(schemaCache) >= maxCache {
-			var oldestID string
-			var oldestNano int64
-			found := false
-
-			for cacheID, entry := range schemaCache {
-				entryNano := entry.lastAccess.Load()
-				if !found || entryNano < oldestNano {
-					oldestID = cacheID
-					oldestNano = entryNano
-					found = true
-				}
-			}
-
-			if found {
-				delete(schemaCache, oldestID)
-			}
-		}
-
-		entry := &schemaCacheEntry{
-			schema: schema,
-		}
-		entry.lastAccess.Store(now.UnixNano())
-		schemaCache[id] = entry
-	}
-
 	return schema, nil
 }
 
-// formatSchemaErrors formats JSON Schema errors with stable codes.
-// formatSchemaErrors flattens the structured ValidationError tree into field errors.
+// formatSchemaErrors formats JSON Schema errors into an [*Error] with stable codes.
+// formatSchemaErrors flattens the structured ValidationError tree into [FieldError] values.
 func formatSchemaErrors(verr *jsonschema.ValidationError, cfg *config) error {
 	var result Error
 
@@ -256,7 +202,7 @@ func formatSchemaErrors(verr *jsonschema.ValidationError, cfg *config) error {
 	return &result
 }
 
-// collectSchemaErrors recursively collects validation errors from the error tree.
+// collectSchemaErrors recursively collects validation errors from the error tree into [*Error].
 func collectSchemaErrors(verr *jsonschema.ValidationError, result *Error, cfg *config) {
 	if verr == nil {
 		return
