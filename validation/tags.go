@@ -24,7 +24,7 @@ import (
 )
 
 // validateWithTags validates using go-playground/validator struct tags ([StrategyTags]).
-// validateWithTags supports both full and partial validation modes.
+// It supports both full and partial validation modes.
 func (v *Validator) validateWithTags(val any, cfg *config) error {
 	v.initTagValidator()
 
@@ -59,7 +59,7 @@ func (v *Validator) validateWithTags(val any, cfg *config) error {
 }
 
 // validatePartialLeafsOnly validates only leaf fields present in the [PresenceMap].
-// validatePartialLeafsOnly avoids enforcing "required" on nested fields that weren't provided,
+// It avoids enforcing "required" on nested fields that weren't provided,
 // making it suitable for PATCH request validation.
 func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 	leaves := cfg.presence.LeafPaths()
@@ -136,7 +136,7 @@ func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 }
 
 // resolvePath resolves a dot-path (e.g., "items.2.name") to its reflect.Value and StructField.
-// resolvePath returns (zero, zero, false) if the path cannot be resolved.
+// It returns (zero, zero, false) if the path cannot be resolved.
 func (v *Validator) resolvePath(val any, path string) (reflect.Value, reflect.StructField, bool) {
 	parts := strings.Split(path, ".")
 	currentVal := reflect.ValueOf(val)

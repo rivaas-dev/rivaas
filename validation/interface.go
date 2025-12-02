@@ -127,7 +127,7 @@ func (v *Validator) callValidator(val any) error {
 }
 
 // callValidatorWithContext calls the ValidateContext() method using reflection.
-// callValidatorWithContext supports both value and pointer receivers for [ValidatorWithContext].
+// It supports both value and pointer receivers for [ValidatorWithContext].
 func (v *Validator) callValidatorWithContext(ctx context.Context, val any) error {
 	rv := reflect.ValueOf(val)
 	rt := reflect.TypeOf(val)
@@ -189,7 +189,7 @@ func (v *Validator) callValidatorWithContext(ctx context.Context, val any) error
 }
 
 // coerceToValidationErrors converts an error to [*Error].
-// coerceToValidationErrors handles [FieldError], [Error], and generic errors.
+// It handles [FieldError], [Error], and generic errors.
 func (v *Validator) coerceToValidationErrors(err error, cfg *config) error {
 	if err == nil {
 		return nil

@@ -106,7 +106,7 @@ func (v *Validator) validateWithSchema(ctx context.Context, val any, cfg *config
 }
 
 // pruneByPresence removes non-present fields from JSON data for partial validation.
-// pruneByPresence uses nil placeholders for arrays to maintain array length.
+// It uses nil placeholders for arrays to maintain array length.
 // The depth parameter tracks recursion depth to prevent stack overflow (max: [maxRecursionDepth]).
 func pruneByPresence(data any, prefix string, pm PresenceMap, depth int) any {
 	if depth > maxRecursionDepth {

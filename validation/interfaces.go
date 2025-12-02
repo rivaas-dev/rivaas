@@ -17,7 +17,7 @@ package validation
 import "context"
 
 // ValidatorInterface is the interface for custom validation methods.
-// ValidatorInterface, when implemented by a struct, causes Validate() to be called during validation.
+// When implemented by a struct, it causes Validate() to be called during validation.
 //
 // Note: This interface is named ValidatorInterface to avoid confusion with the
 // [Validator] struct which is the main validation engine.
@@ -39,7 +39,7 @@ type ValidatorInterface interface {
 }
 
 // ValidatorWithContext interface for context-aware validation methods.
-// ValidatorWithContext is preferred over ValidatorInterface when a context is available,
+// It is preferred over ValidatorInterface when a context is available,
 // as it allows for tenant-specific rules, request-scoped data, etc.
 //
 // Example:
@@ -58,7 +58,7 @@ type ValidatorWithContext interface {
 }
 
 // JSONSchemaProvider interface for types that provide their own JSON Schema.
-// JSONSchemaProvider, when implemented by a struct, causes the returned schema to be used for validation.
+// When implemented by a struct, it causes the returned schema to be used for validation.
 //
 // Example:
 //

@@ -41,7 +41,7 @@ const (
 )
 
 // Redactor is a function that determines if a field should be redacted in error messages.
-// Redactor returns true if the field at the given path should have its value hidden.
+// It returns true if the field at the given path should have its value hidden.
 // Use [WithRedactor] to configure a redactor for a [Validator].
 //
 // Example:
@@ -130,10 +130,10 @@ func WithRunAll(runAll bool) Option {
 }
 
 // WithRequireAny requires at least one validation strategy to pass when using WithRunAll.
-// WithRequireAny, when enabled with WithRunAll(true), causes validation to succeed if at least one strategy
+// When enabled with WithRunAll(true), it causes validation to succeed if at least one strategy
 // produces no errors, even if other strategies fail.
 //
-// WithRequireAny is useful when you have multiple validation strategies and want to accept
+// It is useful when you have multiple validation strategies and want to accept
 // the value if it passes any one of them (OR logic).
 //
 // Example:
@@ -150,7 +150,7 @@ func WithRequireAny(require bool) Option {
 }
 
 // WithPartial enables partial update validation mode (for PATCH requests).
-// WithPartial validates only present fields and ignores "required" constraints
+// It validates only present fields and ignores "required" constraints
 // for absent fields.
 //
 // Example:
@@ -175,7 +175,7 @@ func WithMaxErrors(maxErrors int) Option {
 }
 
 // WithDisallowUnknownFields rejects JSON with unknown fields (typo detection).
-// WithDisallowUnknownFields, when enabled, causes BindJSONStrict to reject requests with fields not defined in the struct.
+// When enabled, it causes BindJSONStrict to reject requests with fields not defined in the struct.
 //
 // Example:
 //
@@ -230,7 +230,7 @@ func WithCustomSchema(id, schema string) Option {
 }
 
 // WithCustomValidator sets a custom validation function.
-// WithCustomValidator calls the function before any other validation strategies.
+// It calls the function before any other validation strategies.
 //
 // Example:
 //
@@ -248,7 +248,7 @@ func WithCustomValidator(fn func(any) error) Option {
 }
 
 // WithFieldNameMapper sets a function to transform field names in error messages.
-// WithFieldNameMapper is useful for localization or custom naming conventions.
+// It is useful for localization or custom naming conventions.
 //
 // Example:
 //
@@ -276,7 +276,7 @@ func WithRedactor(redactor Redactor) Option {
 }
 
 // WithMaxFields sets the maximum number of fields to validate in partial mode.
-// WithMaxFields prevents pathological inputs with extremely large presence maps.
+// It prevents pathological inputs with extremely large presence maps.
 // Set to 0 to use the default (10000).
 //
 // Example:

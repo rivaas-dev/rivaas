@@ -25,10 +25,10 @@ const (
 
 // InjectRawJSONCtx injects raw JSON bytes into context for [StrategyJSONSchema] validation.
 //
-// InjectRawJSONCtx is an internal API used by request binding frameworks. The raw bytes are used
+// It is an internal API used by request binding frameworks. The raw bytes are used
 // directly for schema validation instead of re-encoding the Go struct back to JSON.
 //
-// Do not call InjectRawJSONCtx directly in application code unless you are implementing a custom
+// Do not call it directly in application code unless you are implementing a custom
 // binding framework.
 //
 // Parameters:
@@ -39,7 +39,7 @@ func InjectRawJSONCtx(ctx context.Context, raw []byte) context.Context {
 }
 
 // ExtractRawJSONCtx retrieves raw JSON bytes from context if present.
-// ExtractRawJSONCtx returns (nil, false) if the context does not contain raw JSON
+// It returns (nil, false) if the context does not contain raw JSON
 // (i.e., [InjectRawJSONCtx] was not called).
 func ExtractRawJSONCtx(ctx context.Context) ([]byte, bool) {
 	raw, ok := ctx.Value(ctxKeyRawJSON).([]byte)

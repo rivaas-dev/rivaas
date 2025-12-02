@@ -194,7 +194,7 @@ func (v *Validator) Validate(ctx context.Context, val any, opts ...Option) error
 }
 
 // ValidatePartial validates only fields present in the [PresenceMap].
-// ValidatePartial is useful for PATCH requests where only provided fields should be validated.
+// It is useful for PATCH requests where only provided fields should be validated.
 // Use [ComputePresence] to create a PresenceMap from raw JSON.
 func (v *Validator) ValidatePartial(ctx context.Context, val any, pm PresenceMap, opts ...Option) error {
 	opts = append([]Option{WithPresence(pm), WithPartial(true)}, opts...)
