@@ -41,7 +41,7 @@ import (
 //
 // Thread-safe: Safe to use concurrently by multiple goroutines.
 type BatchLogger struct {
-	cfg       *Config
+	logger    *Logger
 	entries   []batchEntry
 	mu        sync.Mutex
 	batchSize int
@@ -58,7 +58,7 @@ type batchEntry struct {
 // NewBatchLogger creates a logger that batches entries before writing.
 //
 // Parameters:
-//   - cfg: Underlying logger configuration for final output
+//   - logger: Underlying Logger for final output
 //   - batchSize: Maximum entries before automatic flush (typical: 100-1000)
 //   - flushInterval: Maximum time between flushes (typical: 1-5 seconds)
 //
@@ -83,9 +83,9 @@ type batchEntry struct {
 //	    batchLogger.Info("high frequency event", "id", i)
 //	}
 //	// Logs are written in batches of 100 or every 1 second
-func NewBatchLogger(cfg *Config, batchSize int, flushInterval time.Duration) *BatchLogger {
+func NewBatchLogger(logger *Logger, batchSize int, flushInterval time.Duration) *BatchLogger {
 	bl := &BatchLogger{
-		cfg:       cfg,
+		logger:    logger,
 		entries:   make([]batchEntry, 0, batchSize),
 		batchSize: batchSize,
 		ticker:    time.NewTicker(flushInterval),
@@ -97,21 +97,25 @@ func NewBatchLogger(cfg *Config, batchSize int, flushInterval time.Duration) *Ba
 }
 
 // Debug logs a debug message (batched).
+// The msg and args are held in memory until the batch is flushed.
 func (bl *BatchLogger) Debug(msg string, args ...any) {
 	bl.add(slog.LevelDebug, msg, args...)
 }
 
 // Info logs an info message (batched).
+// The msg and args are held in memory until the batch is flushed.
 func (bl *BatchLogger) Info(msg string, args ...any) {
 	bl.add(slog.LevelInfo, msg, args...)
 }
 
 // Warn logs a warning message (batched).
+// The msg and args are held in memory until the batch is flushed.
 func (bl *BatchLogger) Warn(msg string, args ...any) {
 	bl.add(slog.LevelWarn, msg, args...)
 }
 
 // Error logs an error message (batched).
+// The msg and args are held in memory until the batch is flushed.
 func (bl *BatchLogger) Error(msg string, args ...any) {
 	bl.add(slog.LevelError, msg, args...)
 }
@@ -155,13 +159,13 @@ func (bl *BatchLogger) flushLocked() {
 	for _, e := range bl.entries {
 		switch e.level {
 		case slog.LevelDebug:
-			bl.cfg.Debug(e.msg, e.attrs...)
+			bl.logger.Debug(e.msg, e.attrs...)
 		case slog.LevelInfo:
-			bl.cfg.Info(e.msg, e.attrs...)
+			bl.logger.Info(e.msg, e.attrs...)
 		case slog.LevelWarn:
-			bl.cfg.Warn(e.msg, e.attrs...)
+			bl.logger.Warn(e.msg, e.attrs...)
 		case slog.LevelError:
-			bl.cfg.Error(e.msg, e.attrs...)
+			bl.logger.Error(e.msg, e.attrs...)
 		}
 	}
 	bl.entries = bl.entries[:0]

@@ -15,8 +15,10 @@
 package logging
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,13 +29,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// LogEntry represents a parsed log entry for testing.
+type LogEntry struct {
+	Time    time.Time
+	Level   string
+	Message string
+	Attrs   map[string]any
+}
+
+// NewTestLogger creates a [Logger] for testing with an in-memory buffer.
+// The returned buffer can be used with [ParseJSONLogEntries] to inspect log output.
+func NewTestLogger() (*Logger, *bytes.Buffer) {
+	buf := &bytes.Buffer{}
+	logger := MustNew(
+		WithJSONHandler(),
+		WithOutput(buf),
+		WithLevel(LevelDebug),
+	)
+	return logger, buf
+}
+
+// ParseJSONLogEntries parses JSON log entries from buffer into [LogEntry] slices.
+// It creates a copy of the buffer so the original is not consumed.
+func ParseJSONLogEntries(buf *bytes.Buffer) ([]LogEntry, error) {
+	// Create a copy to avoid consuming the original buffer
+	data := buf.Bytes()
+	reader := bytes.NewReader(data)
+
+	var entries []LogEntry
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		var entry map[string]any
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			return nil, err
+		}
+
+		le := LogEntry{
+			Message: entry["msg"].(string),
+			Level:   entry["level"].(string),
+			Attrs:   make(map[string]any),
+		}
+
+		for k, v := range entry {
+			if k != "time" && k != "level" && k != "msg" {
+				le.Attrs[k] = v
+			}
+		}
+
+		entries = append(entries, le)
+	}
+	return entries, scanner.Err()
+}
+
 // TestHelper provides utilities for testing with the logging package.
 type TestHelper struct {
-	Logger *Config
+	Logger *Logger
 	Buffer *bytes.Buffer
 }
 
-// NewTestHelper creates a test helper with in-memory logging.
+// NewTestHelper creates a [TestHelper] with in-memory logging.
+// Additional [Option] values can be passed to customize the logger.
 func NewTestHelper(t *testing.T, opts ...Option) *TestHelper {
 	t.Helper()
 
@@ -338,7 +393,7 @@ func (sw *SlowWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// HandlerSpy records all slog.Handler.Handle calls for testing custom handlers.
+// HandlerSpy implements [slog.Handler] and records all Handle calls for testing.
 //
 // Use cases:
 //   - Test custom handler implementations
@@ -366,12 +421,12 @@ type HandlerSpy struct {
 	mu      sync.Mutex
 }
 
-// Enabled implements slog.Handler.
+// Enabled implements [slog.Handler.Enabled].
 func (hs *HandlerSpy) Enabled(_ context.Context, _ slog.Level) bool {
 	return true
 }
 
-// Handle implements slog.Handler.
+// Handle implements [slog.Handler.Handle].
 func (hs *HandlerSpy) Handle(_ context.Context, r slog.Record) error {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
@@ -379,12 +434,12 @@ func (hs *HandlerSpy) Handle(_ context.Context, r slog.Record) error {
 	return nil
 }
 
-// WithAttrs implements slog.Handler.
+// WithAttrs implements [slog.Handler.WithAttrs].
 func (hs *HandlerSpy) WithAttrs(_ []slog.Attr) slog.Handler {
 	return hs
 }
 
-// WithGroup implements slog.Handler.
+// WithGroup implements [slog.Handler.WithGroup].
 func (hs *HandlerSpy) WithGroup(_ string) slog.Handler {
 	return hs
 }

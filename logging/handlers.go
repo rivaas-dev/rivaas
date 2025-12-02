@@ -39,25 +39,21 @@ const (
 	colorDim    = "\033[2m"
 )
 
-// Pool for strings.Builder used by console handler.
-//
-// The console handler formats every log entry into a colored string. The pool
-// reuses strings.Builder instances across log calls. Initial buffer capacity
-// grows as needed; pool maintains the grown buffers for reuse, naturally
-// adapting to your typical log entry size.
+// consoleBuilderPool provides reusable [strings.Builder] instances
+// for formatting console log entries.
 var consoleBuilderPool = sync.Pool{
 	New: func() any {
 		return &strings.Builder{}
 	},
 }
 
-// consoleHandler implements a human-readable colored console handler.
+// consoleHandler implements [slog.Handler] for human-readable colored console output.
 //
 // Design rationale:
 //   - Designed for human readability during development
 //   - ANSI colors help distinguish log levels at a glance
 //   - Compact format reduces visual clutter vs JSON
-//   - Not recommended for production log aggregation (use JSONHandler)
+//   - Not recommended for production log aggregation (use [JSONHandler])
 //
 // Thread-safe: Safe for concurrent use by multiple goroutines.
 type consoleHandler struct {
@@ -67,7 +63,7 @@ type consoleHandler struct {
 	groups []string
 }
 
-// newConsoleHandler creates a new console handler.
+// newConsoleHandler creates a new console handler with the given options.
 func newConsoleHandler(w io.Writer, opts *slog.HandlerOptions) *consoleHandler {
 	if opts == nil {
 		opts = &slog.HandlerOptions{}
@@ -128,7 +124,7 @@ func (h *consoleHandler) Handle(_ context.Context, r slog.Record) error {
 
 	// Source location
 	if h.opts.AddSource && r.PC != 0 {
-		if src := recordSource(r.PC); src != "" {
+		if src := handlerRecordSource(r.PC); src != "" {
 			b.WriteString(" ")
 			b.WriteString(colorGray)
 			b.WriteString("(" + src + ")")
@@ -143,6 +139,7 @@ func (h *consoleHandler) Handle(_ context.Context, r slog.Record) error {
 }
 
 // WithAttrs returns a new handler with additional attributes.
+// Implements [slog.Handler.WithAttrs].
 func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
 	copy(newAttrs, h.attrs)
@@ -156,6 +153,7 @@ func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 // WithGroup returns a new handler with a group name.
+// Implements [slog.Handler.WithGroup].
 func (h *consoleHandler) WithGroup(name string) slog.Handler {
 	newGroups := make([]string, len(h.groups)+1)
 	copy(newGroups, h.groups)
@@ -236,7 +234,7 @@ func (h *consoleHandler) appendAttr(b *strings.Builder, a slog.Attr) {
 	b.WriteString(" ")
 }
 
-// recordSource returns "file:line" for a pc if available.
+// handlerRecordSource returns "file:line" for a pc if available.
 //
 // Why only filename, not full path:
 //   - Reduces visual clutter in console output
@@ -244,7 +242,7 @@ func (h *consoleHandler) appendAttr(b *strings.Builder, a slog.Attr) {
 //   - Still uniquely identifies source location within project
 //
 // Only called when AddSource is enabled, which should be limited to debug mode.
-func recordSource(pc uintptr) string {
+func handlerRecordSource(pc uintptr) string {
 	fs := runtime.CallersFrames([]uintptr{pc})
 	f, _ := fs.Next()
 	if f.File == "" {

@@ -63,7 +63,7 @@ func BenchmarkLogging_FewAttrs(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message", "key", "value")
 	}
 }
@@ -72,7 +72,7 @@ func BenchmarkLogging_ManyAttrs(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message",
 			"key1", "value1",
 			"key2", "value2",
@@ -108,7 +108,7 @@ func BenchmarkContextLogger(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		cl := NewContextLogger(ctx, logger)
 		cl.Info("message", "key", "value")
 	}
@@ -132,7 +132,7 @@ func BenchmarkContextLogger_Pooled(b *testing.B) {
 func BenchmarkBatchLogger(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	bl := NewBatchLogger(logger, 100, time.Second)
-	defer bl.Close()
+	b.Cleanup(func() { bl.Close() })
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -156,8 +156,8 @@ func BenchmarkSampledLogging(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		logger.Info("sampled message", "iteration", i)
+	for b.Loop() {
+		logger.Info("sampled message", "iteration", 1)
 	}
 }
 
@@ -168,7 +168,7 @@ func BenchmarkErrorWithStack(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.ErrorWithStack("error occurred", err, true, "context", "test")
 	}
 }
@@ -179,7 +179,7 @@ func BenchmarkErrorWithoutStack(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.ErrorWithStack("error occurred", err, false, "context", "test")
 	}
 }
@@ -191,7 +191,7 @@ func BenchmarkLogRequest(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.LogRequest(req, "status", 200, "duration_ms", 45)
 	}
 }
@@ -202,7 +202,7 @@ func BenchmarkLogError(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.LogError(err, "operation failed", "retry", 3)
 	}
 }
@@ -213,7 +213,7 @@ func BenchmarkLogDuration(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.LogDuration("operation completed", start, "rows", 100)
 	}
 }
@@ -223,7 +223,7 @@ func BenchmarkOutput_Stdout(b *testing.B) {
 	logger := MustNew(WithJSONHandler())
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message", "key", "value")
 	}
 }
@@ -232,7 +232,7 @@ func BenchmarkOutput_Discard(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message", "key", "value")
 	}
 }
@@ -242,7 +242,7 @@ func BenchmarkOutput_Buffer(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(&buf))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message", "key", "value")
 	}
 }
@@ -267,7 +267,7 @@ func BenchmarkPool_ContextLogger(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		cl := NewContextLogger(ctx, logger)
 		_ = cl
 	}
@@ -279,7 +279,7 @@ func BenchmarkMetricsOverhead(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message with metrics", "key", "value")
 	}
 }
@@ -290,8 +290,8 @@ func BenchmarkNoSampling(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		logger.Info("message", "iteration", i)
+	for b.Loop() {
+		logger.Info("message", "iteration", 1)
 	}
 }
 
@@ -304,8 +304,8 @@ func BenchmarkWithSampling(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		logger.Info("message", "iteration", i)
+	for b.Loop() {
+		logger.Info("message", "iteration", 1)
 	}
 }
 
@@ -313,8 +313,8 @@ func BenchmarkWithSampling(b *testing.B) {
 func BenchmarkConfigValidation(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		cfg := defaultConfig()
+	for b.Loop() {
+		cfg := defaultLogger()
 		_ = cfg.Validate()
 	}
 }
@@ -325,12 +325,14 @@ func BenchmarkSetLevel(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		if i%2 == 0 {
+	toggle := false
+	for b.Loop() {
+		if toggle {
 			logger.SetLevel(LevelDebug)
 		} else {
 			logger.SetLevel(LevelInfo)
 		}
+		toggle = !toggle
 	}
 }
 
@@ -344,15 +346,9 @@ func BenchmarkDebugInfo(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = logger.DebugInfo()
 	}
-}
-
-// Benchmark metrics retrieval
-func BenchmarkGetMetrics(b *testing.B) {
-	// Benchmark removed - metrics feature has been removed from the package
-	b.Skip("Metrics feature has been removed")
 }
 
 // Benchmark different log levels
@@ -360,7 +356,7 @@ func BenchmarkLevel_Debug(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard), WithDebugLevel())
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Debug("debug message", "key", "value")
 	}
 }
@@ -369,7 +365,7 @@ func BenchmarkLevel_Info(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("info message", "key", "value")
 	}
 }
@@ -378,7 +374,7 @@ func BenchmarkLevel_Warn(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Warn("warn message", "key", "value")
 	}
 }
@@ -387,7 +383,7 @@ func BenchmarkLevel_Error(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Error("error message", "key", "value")
 	}
 }
@@ -402,7 +398,7 @@ func BenchmarkWithSource(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message with source", "key", "value")
 	}
 }
@@ -416,7 +412,7 @@ func BenchmarkWithoutSource(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message without source", "key", "value")
 	}
 }
@@ -426,7 +422,7 @@ func BenchmarkConsoleHandler_StringAttr(b *testing.B) {
 	logger := MustNew(WithConsoleHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message", "string_key", "string_value")
 	}
 }
@@ -435,7 +431,7 @@ func BenchmarkConsoleHandler_IntAttr(b *testing.B) {
 	logger := MustNew(WithConsoleHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message", "int_key", 42)
 	}
 }
@@ -444,7 +440,7 @@ func BenchmarkConsoleHandler_MixedAttrs(b *testing.B) {
 	logger := MustNew(WithConsoleHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message",
 			"string", "value",
 			"int", 42,
@@ -461,20 +457,20 @@ func BenchmarkRegularLogger_HighFrequency(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		logger.Info("high frequency event", "iteration", i)
+	for b.Loop() {
+		logger.Info("high frequency event", "iteration", 1)
 	}
 }
 
 func BenchmarkBatchLogger_HighFrequency(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	bl := NewBatchLogger(logger, 1000, 100*time.Millisecond)
-	defer bl.Close()
+	b.Cleanup(func() { bl.Close() })
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		bl.Info("high frequency event", "iteration", i)
+	for b.Loop() {
+		bl.Info("high frequency event", "iteration", 1)
 	}
 }
 
@@ -482,7 +478,7 @@ func BenchmarkBatchLogger_HighFrequency(b *testing.B) {
 func BenchmarkNewTestLogger(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger, buf := NewTestLogger()
 		logger.Info("test message")
 		_ = buf
@@ -497,7 +493,7 @@ func BenchmarkParseLogEntries(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = ParseJSONLogEntries(buf)
 	}
 }
@@ -507,7 +503,7 @@ func BenchmarkLoggerAccess_NoContention(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = logger.Logger()
 	}
 }
@@ -557,7 +553,7 @@ func BenchmarkContextAllocation(b *testing.B) {
 	b.Run("cached_context", func(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			logger.Info("message", "key", "value")
 		}
 	})
@@ -567,7 +563,7 @@ func BenchmarkContextAllocation(b *testing.B) {
 		l := logger.Logger()
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			l.InfoContext(context.Background(), "message", "key", "value")
 		}
 	})
@@ -579,7 +575,7 @@ func BenchmarkAllocs_Simple(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message")
 	}
 }
@@ -589,7 +585,7 @@ func BenchmarkAllocs_WithAttrs(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("message", "key1", "value1", "key2", 42)
 	}
 }
@@ -600,7 +596,7 @@ func BenchmarkAllocs_ErrorWithStack(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.ErrorWithStack("error", err, true)
 	}
 }

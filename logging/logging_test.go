@@ -96,32 +96,32 @@ func TestConfig_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		cfg     *Config
+		cfg     *Logger
 		wantErr bool
 	}{
 		{
 			name: "valid config",
-			cfg:  defaultConfig(),
+			cfg:  defaultLogger(),
 		},
 		{
 			name: "nil output",
-			cfg: &Config{
+			cfg: &Logger{
 				output:      nil,
 				serviceName: "test",
 			},
 			wantErr: true,
 		},
 		{
-			name: "empty service name",
-			cfg: &Config{
+			name: "empty service name is valid",
+			cfg: &Logger{
 				output:      io.Discard,
 				serviceName: "",
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "nil custom logger",
-			cfg: &Config{
+			cfg: &Logger{
 				output:       io.Discard,
 				serviceName:  "test",
 				useCustom:    true,
@@ -131,7 +131,7 @@ func TestConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid sampling config",
-			cfg: &Config{
+			cfg: &Logger{
 				output:      io.Discard,
 				serviceName: "test",
 				samplingConfig: &SamplingConfig{
@@ -157,8 +157,8 @@ func TestConfig_Validate(t *testing.T) {
 	}
 }
 
-// Test logging methods
-func TestLoggingMethods(t *testing.T) {
+// TestLogger_LogMethods tests the basic logging methods.
+func TestLogger_LogMethods(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
@@ -179,8 +179,8 @@ func TestLoggingMethods(t *testing.T) {
 	}
 }
 
-// Test sensitive data redaction
-func TestSensitiveDataRedaction(t *testing.T) {
+// TestLogger_SensitiveDataRedaction tests that sensitive fields are redacted.
+func TestLogger_SensitiveDataRedaction(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
@@ -210,8 +210,8 @@ func TestSensitiveDataRedaction(t *testing.T) {
 	assert.Equal(t, "john", entry.Attrs["username"], "username should not be redacted")
 }
 
-// Test ErrorWithStack
-func TestErrorWithStack(t *testing.T) {
+// TestLogger_ErrorWithStack tests error logging with stack traces.
+func TestLogger_ErrorWithStack(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
@@ -240,8 +240,8 @@ func TestErrorWithStack(t *testing.T) {
 	assert.False(t, hasStack, "did not expect stack trace in log entry")
 }
 
-// Test sampling
-func TestSampling(t *testing.T) {
+// TestLogger_Sampling tests log sampling behavior.
+func TestLogger_Sampling(t *testing.T) {
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -271,8 +271,8 @@ func TestSampling(t *testing.T) {
 	assert.Greater(t, written, 0, "expected some logs to be written")
 }
 
-// Test sampling with errors (errors should never be sampled)
-func TestSampling_ErrorsAlwaysLogged(t *testing.T) {
+// TestLogger_Sampling_ErrorsAlwaysLogged tests that errors bypass sampling.
+func TestLogger_Sampling_ErrorsAlwaysLogged(t *testing.T) {
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -307,8 +307,8 @@ func TestSampling_ErrorsAlwaysLogged(t *testing.T) {
 	assert.Equal(t, 50, errorCount, "expected 50 errors logged")
 }
 
-// Test DebugInfo
-func TestDebugInfo(t *testing.T) {
+// TestLogger_DebugInfo tests the debug info accessor.
+func TestLogger_DebugInfo(t *testing.T) {
 	t.Parallel()
 
 	logger := MustNew(
@@ -326,8 +326,8 @@ func TestDebugInfo(t *testing.T) {
 	assert.Equal(t, true, info["debug_mode"])
 }
 
-// Test SetLevel
-func TestSetLevel(t *testing.T) {
+// TestLogger_SetLevel tests dynamic level changes.
+func TestLogger_SetLevel(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t, WithLevel(LevelInfo))
@@ -345,8 +345,8 @@ func TestSetLevel(t *testing.T) {
 	assert.True(t, th.ContainsLog("debug message 2"), "debug message should be logged at DEBUG level")
 }
 
-// Test SetLevel with custom logger
-func TestSetLevel_CustomLogger(t *testing.T) {
+// TestLogger_SetLevel_CustomLogger tests that SetLevel fails with custom loggers.
+func TestLogger_SetLevel_CustomLogger(t *testing.T) {
 	t.Parallel()
 
 	customLogger := slog.New(slog.NewJSONHandler(io.Discard, nil))
@@ -356,8 +356,8 @@ func TestSetLevel_CustomLogger(t *testing.T) {
 	assert.ErrorIs(t, err, ErrCannotChangeLevel)
 }
 
-// Test shutdown
-func TestShutdown(t *testing.T) {
+// TestLogger_Shutdown tests graceful shutdown behavior.
+func TestLogger_Shutdown(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
@@ -375,8 +375,8 @@ func TestShutdown(t *testing.T) {
 	assert.False(t, th.ContainsLog("after shutdown"), "should not log after shutdown")
 }
 
-// Test convenience methods
-func TestLogRequest(t *testing.T) {
+// TestLogger_LogRequest tests the LogRequest helper method.
+func TestLogger_LogRequest(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
@@ -389,7 +389,8 @@ func TestLogRequest(t *testing.T) {
 	assert.True(t, th.ContainsAttr("query", "foo=bar"), "missing query attribute")
 }
 
-func TestLogError(t *testing.T) {
+// TestLogger_LogError tests the LogError helper method.
+func TestLogger_LogError(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
@@ -401,7 +402,8 @@ func TestLogError(t *testing.T) {
 	assert.True(t, th.ContainsAttr("retry", 3), "missing retry attribute")
 }
 
-func TestLogDuration(t *testing.T) {
+// TestLogger_LogDuration tests the LogDuration helper method.
+func TestLogger_LogDuration(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
@@ -423,13 +425,13 @@ func TestLogDuration(t *testing.T) {
 	}
 }
 
-// Test batch logger
+// TestBatchLogger tests batch logger basic functionality.
 func TestBatchLogger(t *testing.T) {
 	t.Parallel()
 
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 	bl := NewBatchLogger(logger, 5, time.Second)
-	defer bl.Close()
+	t.Cleanup(func() { bl.Close() })
 
 	// Add entries
 	for i := 0; i < 3; i++ {
@@ -450,12 +452,13 @@ func TestBatchLogger(t *testing.T) {
 	assert.Equal(t, 0, bl.Size(), "expected 0 entries after flush")
 }
 
+// TestBatchLogger_ManualFlush tests manual flushing of batch logger.
 func TestBatchLogger_ManualFlush(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
 	bl := NewBatchLogger(th.Logger, 100, time.Hour) // Large batch, long interval
-	defer bl.Close()
+	t.Cleanup(func() { bl.Close() })
 
 	bl.Info("message 1")
 	bl.Info("message 2")
@@ -470,13 +473,13 @@ func TestBatchLogger_ManualFlush(t *testing.T) {
 	assert.True(t, th.ContainsLog("message 2"), "message 2 should be logged after flush")
 }
 
-// Test all batch logger methods
+// TestBatchLogger_AllLevels tests all log level methods on batch logger.
 func TestBatchLogger_AllLevels(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
 	bl := NewBatchLogger(th.Logger, 10, 100*time.Millisecond)
-	defer bl.Close()
+	t.Cleanup(func() { bl.Close() })
 
 	bl.Debug("debug msg")
 	bl.Info("info msg")
@@ -489,7 +492,7 @@ func TestBatchLogger_AllLevels(t *testing.T) {
 	assert.Equal(t, 1, levels, "expected 1 DEBUG log")
 }
 
-// Test test helpers
+// TestTestHelper tests the test helper utilities.
 func TestTestHelper(t *testing.T) {
 	t.Parallel()
 
@@ -521,7 +524,7 @@ func TestTestHelper(t *testing.T) {
 	th.AssertLog(t, "INFO", "another message", map[string]any{"key": "value"})
 }
 
-// Test mock writer
+// TestMockWriter tests the mock writer test utility.
 func TestMockWriter(t *testing.T) {
 	t.Parallel()
 
@@ -541,7 +544,7 @@ func TestMockWriter(t *testing.T) {
 	assert.Equal(t, 0, mw.WriteCount(), "expected write count to be 0 after reset")
 }
 
-// Test slow writer (timeout testing)
+// TestSlowWriter tests the slow writer for timeout scenarios.
 func TestSlowWriter(t *testing.T) {
 	t.Parallel()
 
@@ -554,7 +557,7 @@ func TestSlowWriter(t *testing.T) {
 	assert.GreaterOrEqual(t, elapsed, 50*time.Millisecond, "expected at least 50ms delay")
 }
 
-// Test counting writer
+// TestCountingWriter tests the counting writer test utility.
 func TestCountingWriter(t *testing.T) {
 	t.Parallel()
 
@@ -570,7 +573,7 @@ func TestCountingWriter(t *testing.T) {
 	assert.GreaterOrEqual(t, cw.Count(), int64(50), "expected at least 50 bytes")
 }
 
-// Test handler spy
+// TestHandlerSpy tests the handler spy test utility.
 func TestHandlerSpy(t *testing.T) {
 	t.Parallel()
 
@@ -590,8 +593,8 @@ func TestHandlerSpy(t *testing.T) {
 	assert.Equal(t, 0, spy.RecordCount(), "expected 0 records after reset")
 }
 
-// Test With and WithGroup
-func TestWith(t *testing.T) {
+// TestLogger_With tests the With method for adding attributes.
+func TestLogger_With(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t)
@@ -602,7 +605,8 @@ func TestWith(t *testing.T) {
 	assert.True(t, th.ContainsAttr("request_id", "req-123"), "expected request_id in log")
 }
 
-func TestWithGroup(t *testing.T) {
+// TestLogger_WithGroup tests the WithGroup method for grouping attributes.
+func TestLogger_WithGroup(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -615,8 +619,8 @@ func TestWithGroup(t *testing.T) {
 	assert.Contains(t, output, "\"request\"", "expected request group in output")
 }
 
-// Test debug mode
-func TestDebugMode(t *testing.T) {
+// TestLogger_DebugMode tests the debug mode configuration.
+func TestLogger_DebugMode(t *testing.T) {
 	t.Parallel()
 
 	logger := MustNew(
@@ -632,8 +636,8 @@ func TestDebugMode(t *testing.T) {
 	assert.Equal(t, "DEBUG", info["level"], "debug mode should set level to DEBUG")
 }
 
-// Test sampling with ticker reset
-func TestSampling_WithTicker(t *testing.T) {
+// TestLogger_Sampling_WithTicker tests sampling with periodic counter reset.
+func TestLogger_Sampling_WithTicker(t *testing.T) {
 	t.Parallel()
 
 	logger := MustNew(
@@ -645,7 +649,7 @@ func TestSampling_WithTicker(t *testing.T) {
 			Tick:       50 * time.Millisecond,
 		}),
 	)
-	defer logger.Shutdown(context.Background())
+	t.Cleanup(func() { logger.Shutdown(context.Background()) })
 
 	// First batch: should log first 2
 	logger.Info("msg 1")
@@ -664,8 +668,8 @@ func TestSampling_WithTicker(t *testing.T) {
 	// The exact count depends on sampling, but we should have at least some logs
 }
 
-// Test parseLogEntries edge cases
-func TestParseLogEntries_Empty(t *testing.T) {
+// TestParseJSONLogEntries_Empty tests parsing an empty buffer.
+func TestParseJSONLogEntries_Empty(t *testing.T) {
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -675,7 +679,8 @@ func TestParseLogEntries_Empty(t *testing.T) {
 	assert.Len(t, entries, 0, "expected 0 entries")
 }
 
-func TestParseLogEntries_Invalid(t *testing.T) {
+// TestParseJSONLogEntries_Invalid tests parsing invalid JSON.
+func TestParseJSONLogEntries_Invalid(t *testing.T) {
 	t.Parallel()
 
 	buf := bytes.NewBufferString("not json\n")
@@ -684,7 +689,7 @@ func TestParseLogEntries_Invalid(t *testing.T) {
 	assert.Error(t, err, "expected error parsing invalid JSON")
 }
 
-// Test captureStack
+// TestCaptureStack tests the stack trace capture utility.
 func TestCaptureStack(t *testing.T) {
 	t.Parallel()
 
@@ -695,8 +700,8 @@ func TestCaptureStack(t *testing.T) {
 	assert.Contains(t, stack, "logging_test.go", "stack should contain file name")
 }
 
-// Test all handler types output
-func TestHandlerTypes_Output(t *testing.T) {
+// TestLogger_HandlerTypes tests output from different handler types.
+func TestLogger_HandlerTypes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -736,8 +741,8 @@ func TestHandlerTypes_Output(t *testing.T) {
 	}
 }
 
-// Test concurrent access safety
-func TestConcurrentAccess(t *testing.T) {
+// TestLogger_ConcurrentAccess tests thread safety of concurrent logging.
+func TestLogger_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
@@ -763,37 +768,30 @@ func TestConcurrentAccess(t *testing.T) {
 	// All logs should have been written successfully
 }
 
-// Test metrics accuracy
-func TestMetrics_Accuracy(t *testing.T) {
-	t.Parallel()
-	// This test is removed as metrics have been removed from the package
-	t.Skip("Metrics feature has been removed")
-}
-
-// Test validation errors
-func TestValidation_Errors(t *testing.T) {
+// TestLogger_Validate_Errors tests validation error cases.
+func TestLogger_Validate_Errors(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil output
 	_, err := New(WithOutput(nil))
 	assert.Error(t, err, "expected error with nil output")
 
-	// Test with empty service name
-	cfg := defaultConfig()
+	// Empty service name is now valid (sensible defaults)
+	cfg := defaultLogger()
 	cfg.serviceName = ""
 	err = cfg.Validate()
-	assert.Error(t, err, "expected error with empty service name")
+	assert.NoError(t, err, "empty service name should be valid")
 
 	// Test with nil custom logger
-	cfg2 := defaultConfig()
+	cfg2 := defaultLogger()
 	cfg2.useCustom = true
 	cfg2.customLogger = nil
 	err = cfg2.Validate()
 	assert.Error(t, err, "expected error with nil custom logger")
 }
 
-// Test with replace attr
-func TestWithReplaceAttr(t *testing.T) {
+// TestLogger_WithReplaceAttr tests custom attribute replacement.
+func TestLogger_WithReplaceAttr(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t, WithReplaceAttr(func(_ []string, a slog.Attr) slog.Attr {
@@ -808,7 +806,7 @@ func TestWithReplaceAttr(t *testing.T) {
 	assert.True(t, th.ContainsAttr("custom_field", "***CUSTOM***"), "custom field should be redacted by custom replacer")
 }
 
-// Test MustNew panic
+// TestMustNew_Panic tests that MustNew panics on invalid config.
 func TestMustNew_Panic(t *testing.T) {
 	t.Parallel()
 
@@ -822,8 +820,8 @@ func TestMustNew_Panic(t *testing.T) {
 	MustNew(WithOutput(nil))
 }
 
-// Test level filtering
-func TestLevel_Filtering(t *testing.T) {
+// TestLogger_Level_Filtering tests that logs below minimum level are filtered.
+func TestLogger_Level_Filtering(t *testing.T) {
 	t.Parallel()
 
 	th := NewTestHelper(t, WithLevel(LevelWarn))
@@ -845,21 +843,21 @@ func TestLevel_Filtering(t *testing.T) {
 	}
 }
 
-// Test Logger() accessor
-func TestLogger_Accessor(t *testing.T) {
+// TestLogger_Logger_Accessor tests the Logger() accessor method.
+func TestLogger_Logger_Accessor(t *testing.T) {
 	t.Parallel()
 
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 
 	slogger := logger.Logger()
-	assert.NotNil(t, slogger, "Logger() should return non-nil slog.Logger")
+	assert.NotNil(t, slogger, "Slogger() should return non-nil slog.Logger")
 
 	// Should be usable
 	slogger.Info("test from slogger")
 }
 
-// Test Level() accessor
-func TestLevel_Accessor(t *testing.T) {
+// TestLogger_Level_Accessor tests the Level() accessor method.
+func TestLogger_Level_Accessor(t *testing.T) {
 	t.Parallel()
 
 	logger := MustNew(WithLevel(LevelWarn))
@@ -867,8 +865,8 @@ func TestLevel_Accessor(t *testing.T) {
 	assert.Equal(t, LevelWarn, logger.Level())
 }
 
-// Test error tracking
-func TestErrorCount(t *testing.T) {
+// TestLogger_ErrorCount tests error counting behavior.
+func TestLogger_ErrorCount(t *testing.T) {
 	t.Parallel()
 
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
@@ -882,8 +880,8 @@ func TestErrorCount(t *testing.T) {
 	// Errors are always logged regardless of sampling
 }
 
-// Test sampling edge cases
-func TestSampling_EdgeCases(t *testing.T) {
+// TestLogger_Sampling_EdgeCases tests sampling with edge case configurations.
+func TestLogger_Sampling_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -905,25 +903,25 @@ func TestSampling_EdgeCases(t *testing.T) {
 	assert.Len(t, entries, 10, "expected 10 logs")
 }
 
-// Benchmark comparison: Regular vs Batch vs Sampling
+// BenchmarkCompareLoggingStrategies compares regular, batch, and sampling logging.
 func BenchmarkCompareLoggingStrategies(b *testing.B) {
 	b.Run("Regular", func(b *testing.B) {
 		logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			logger.Info("message", "i", i)
+		for b.Loop() {
+			logger.Info("message", "i", 1)
 		}
 	})
 
 	b.Run("Batch", func(b *testing.B) {
 		logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
 		bl := NewBatchLogger(logger, 100, time.Second)
-		defer bl.Close()
+		b.Cleanup(func() { bl.Close() })
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			bl.Info("message", "i", i)
+		for b.Loop() {
+			bl.Info("message", "i", 1)
 		}
 	})
 
@@ -935,8 +933,8 @@ func BenchmarkCompareLoggingStrategies(b *testing.B) {
 		)
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			logger.Info("message", "i", i)
+		for b.Loop() {
+			logger.Info("message", "i", 1)
 		}
 	})
 }

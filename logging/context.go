@@ -46,8 +46,12 @@ type ContextLogger struct {
 // NewContextLogger creates a context-aware logger.
 // If the context contains an active OpenTelemetry span, trace and span IDs
 // will be automatically added to all log entries.
-func NewContextLogger(ctx context.Context, cfg *Config) *ContextLogger {
-	l := cfg.Logger()
+//
+// Parameters:
+//   - ctx: Context to extract trace information from
+//   - logger: The [Logger] instance to wrap
+func NewContextLogger(ctx context.Context, logger *Logger) *ContextLogger {
+	sl := logger.Logger()
 
 	// Extract trace information from context
 	if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
@@ -56,13 +60,13 @@ func NewContextLogger(ctx context.Context, cfg *Config) *ContextLogger {
 		spanID := sc.SpanID().String()
 
 		// Add trace IDs to logger
-		l = l.With(
+		sl = sl.With(
 			slog.String("trace_id", traceID),
 			slog.String("span_id", spanID),
 		)
 
 		return &ContextLogger{
-			logger:  l,
+			logger:  sl,
 			ctx:     ctx,
 			traceID: traceID,
 			spanID:  spanID,
@@ -70,12 +74,12 @@ func NewContextLogger(ctx context.Context, cfg *Config) *ContextLogger {
 	}
 
 	return &ContextLogger{
-		logger: l,
+		logger: sl,
 		ctx:    ctx,
 	}
 }
 
-// Logger returns the underlying slog.Logger.
+// Logger returns the underlying [slog.Logger].
 func (cl *ContextLogger) Logger() *slog.Logger {
 	return cl.logger
 }
@@ -90,7 +94,7 @@ func (cl *ContextLogger) SpanID() string {
 	return cl.spanID
 }
 
-// With returns a logger with additional attributes.
+// With returns a [slog.Logger] with additional attributes.
 func (cl *ContextLogger) With(args ...any) *slog.Logger {
 	return cl.logger.With(args...)
 }

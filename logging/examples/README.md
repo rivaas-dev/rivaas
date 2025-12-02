@@ -1,69 +1,91 @@
 # Logging Examples
 
-This directory contains complete examples demonstrating various logging features.
+Practical examples demonstrating the logging package features.
 
-## Examples
-
-Run any example with:
+## Running Examples
 
 ```bash
 cd <example-directory>
 go run main.go
 ```
 
-### Basic Usage
+## Examples
 
-- **01-basic-init-and-levels** - Console handler, log levels, SetLevel
-- **02-structured-attrs** - Structured fields, nested-style keys, redaction-friendly keys
-- **03-functional-options-and-validate** - Functional options, Validate errors
-- **04-dynamic-level-change** - Level from env, runtime SetLevel
+### 01-quickstart — Development Basics
 
-### Production Patterns
+Getting started with logging for development environments.
 
-- **05-json-handler** - JSON handler in production-style setup
-- **06-batch-logger** - NewBatchLogger, periodic flush, graceful close
-- **07-error-with-stack** - ErrorWithStack vs regular Error
-- **08-log-duration** - Duration logging for success/error paths
-
-### Advanced Features
-
-- **09-log-request-standalone** - Request logging without router/metrics/tracing
-- **10-context-fields-only** - Add request/user IDs from context as structured fields
-- **11-debug-info** - DebugInfo() diagnostic information
-- **12-test-helper-standalone** - NewTestLogger() + ParseJSONLogEntries() in-memory
-
-### HTTP Integration
-
-- **13-http-middleware** - HTTP middleware for request/response logging
-
-## Running All Examples
+**Covers:**
+- Console handler initialization (human-readable output)
+- Log levels: Debug, Info, Warn, Error
+- Structured attributes with key-value pairs
+- Dynamic level changes at runtime
 
 ```bash
-# From the examples directory
-for dir in */; do
-    if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
-        echo "Running $dir..."
-        (cd "$dir" && go run main.go)
-        echo ""
-    fi
-done
+cd 01-quickstart && go run main.go
+
+# Enable debug logging
+LOG_DEBUG=true go run main.go
 ```
 
-## Common Patterns
+### 02-production — Production Configuration
+
+Production-ready logging setup with JSON output and high-throughput patterns.
+
+**Covers:**
+- JSON handler for structured, machine-readable logs
+- Service metadata (name, version, environment)
+- Configuration validation
+- Batch logging for high-throughput scenarios
+- Sampling to reduce log volume
+
+```bash
+cd 02-production && go run main.go
+```
+
+### 03-helper-methods — Logging Utilities
+
+Convenience methods for common logging patterns.
+
+**Covers:**
+- `LogDuration` — timing operations
+- `LogError` / `ErrorWithStack` — error handling with optional stack traces
+- `LogRequest` — HTTP request logging
+- Context-based request-scoped loggers
+- `DebugInfo()` — diagnostic information
+
+```bash
+cd 03-helper-methods && go run main.go
+```
+
+### 04-testing — Test Utilities
+
+Utilities for testing logging behavior in your applications.
+
+**Covers:**
+- `NewTestLogger()` — in-memory log capture
+- `ParseJSONLogEntries()` — parsing logs for assertions
+- Common test patterns for verifying logging behavior
+
+```bash
+cd 04-testing && go run main.go
+```
+
+## Quick Reference
 
 ### Console Logging (Development)
 
 ```go
-log := logging.MustNew(
+logger := logging.MustNew(
     logging.WithConsoleHandler(),
-    logging.WithDebugLevel(),
+    logging.WithLevel(logging.LevelDebug),
 )
 ```
 
 ### JSON Logging (Production)
 
 ```go
-log := logging.MustNew(
+logger := logging.MustNew(
     logging.WithJSONHandler(),
     logging.WithServiceName("my-api"),
     logging.WithServiceVersion("v1.0.0"),
@@ -74,14 +96,13 @@ log := logging.MustNew(
 ### With Router
 
 ```go
-r := router.New(
-    logging.WithLogging(
-        logging.WithJSONHandler(),
-        logging.WithServiceName("api"),
-        logging.WithServiceVersion("v1"),
-        logging.WithEnvironment("prod"),
-    ),
+logger := logging.MustNew(
+    logging.WithJSONHandler(),
+    logging.WithServiceName("api"),
 )
+
+r := router.MustNew()
+r.SetLogger(logger)
 ```
 
 ### With App (Recommended)
@@ -93,10 +114,6 @@ app := app.New(
     ),
 )
 ```
-
-## Testing
-
-Each example can be tested individually. Start the server and use `curl` or your favorite HTTP client to test the endpoints.
 
 ## Learn More
 

@@ -17,6 +17,16 @@ Structured logging for Rivaas using Go's standard `log/slog` package.
 go get rivaas.dev/logging
 ```
 
+## Dependencies
+
+| Dependency | Purpose | Required |
+|------------|---------|----------|
+| Go stdlib (`log/slog`) | Core logging | Yes |
+| `go.opentelemetry.io/otel/trace` | Trace correlation in `ContextLogger` | Optional* |
+| `github.com/stretchr/testify` | Test utilities | Test only |
+
+\* The OpenTelemetry trace dependency is only used by `NewContextLogger()` for automatic trace/span ID extraction. If you don't use context-aware logging with tracing, this dependency has no runtime impact.
+
 ## Quick Start
 
 ### Basic Usage
@@ -119,10 +129,17 @@ logging.WithOutput(&buf)
 
 ### Service Information
 
+When configured, service metadata is automatically added to every log entry:
+
 ```go
-logging.WithServiceName("my-api"),
-logging.WithServiceVersion("v1.0.0"),
-logging.WithEnvironment("production")
+logger := logging.MustNew(
+    logging.WithServiceName("my-api"),
+    logging.WithServiceVersion("v1.0.0"),
+    logging.WithEnvironment("production"),
+)
+
+logger.Info("server started", "port", 8080)
+// Output: {"level":"INFO","msg":"server started","service":"my-api","version":"v1.0.0","env":"production","port":8080}
 ```
 
 ### Source Code Location
@@ -144,6 +161,28 @@ logging.WithReplaceAttr(func(groups []string, a slog.Attr) slog.Attr {
     return a
 })
 ```
+
+### Global Logger Registration
+
+By default, loggers are not registered globally, allowing multiple logger instances to coexist. Use `WithGlobalLogger()` to set your logger as the `slog` default:
+
+```go
+// Register as the global slog default
+logger := logging.MustNew(
+    logging.WithJSONHandler(),
+    logging.WithServiceName("my-api"),
+    logging.WithGlobalLogger(), // Now slog.Info() uses this logger
+)
+defer logger.Shutdown(context.Background())
+
+// These now use your configured logger
+slog.Info("using global logger", "key", "value")
+```
+
+This is useful when:
+- You want third-party libraries using `slog` to use your configured logger
+- You prefer using `slog.Info()` directly instead of `logger.Info()`
+- You're migrating from direct `slog` usage to Rivaas logging
 
 ## Sensitive Data Redaction
 
@@ -185,7 +224,7 @@ log := logging.MustNew(logging.WithJSONHandler())
 
 // In a traced request
 func handler(ctx context.Context) {
-    cl := logging.NewContextLogger(log, ctx)
+    cl := logging.NewContextLogger(ctx, log)
     
     cl.Info("processing request", "user_id", "123")
     // Output includes: "trace_id":"abc123...", "span_id":"def456..."
@@ -219,7 +258,7 @@ requestLogger.Info("received",
 
 ## Router Integration
 
-The logging package integrates seamlessly with the Rivaas router using the same pattern as metrics and tracing.
+The logging package integrates with the Rivaas router via the `SetLogger` method.
 
 ### Basic Integration
 
@@ -230,12 +269,15 @@ import (
 )
 
 func main() {
-    r := router.New(
-        logging.WithLogging(
-            logging.WithConsoleHandler(),
-            logging.WithDebugLevel(),
-        ),
+    // Create logger
+    logger := logging.MustNew(
+        logging.WithConsoleHandler(),
+        logging.WithDebugLevel(),
     )
+    
+    // Create router and set logger
+    r := router.MustNew()
+    r.SetLogger(logger)
     
     r.GET("/", func(c *router.Context) {
         c.Logger().Info("handling request")
@@ -244,23 +286,6 @@ func main() {
     
     r.Run(":8080")
 }
-```
-
-### From Existing Config
-
-```go
-// Create logger once
-logger := logging.MustNew(
-    logging.WithJSONHandler(),
-    logging.WithServiceName("my-api"),
-    logging.WithServiceVersion("v1.0.0"),
-    logging.WithEnvironment("production"),
-)
-
-// Use in router
-r := router.New(
-    logging.WithLoggingFromConfig(logger),
-)
 ```
 
 ### With Full Observability
@@ -422,32 +447,6 @@ log.Error("failed to save user data",
 
 The logging package is designed for high-performance production use with minimal overhead.
 
-### Handler Performance
-
-Benchmark results on a modern CPU (Apple M3 Max, go1.24.0):
-
-| Handler | ns/op | B/op | allocs/op | Use Case |
-|---------|-------|------|-----------|----------|
-| JSON | ~800 | 0 | 0 | Production (fast, structured) |
-| Text | ~750 | 0 | 0 | Production (human-readable) |
-| Console | ~1200 | 0 | 0 | Development (colored output) |
-
-**Recommendation**: Use JSON or Text handlers in production for best performance.
-
-### Concurrent Performance
-
-The logger is designed for concurrent use with minimal lock contention:
-
-- **Thread-safe**: All operations safe for concurrent use
-- **RWMutex**: Read-heavy operations use RLock for better parallelism
-- **No global state**: Each logger instance is independent
-- **Allocation-free**: Zero allocations per log call in hot paths
-
-```go
-// Parallel benchmark: ~15M ops/sec with 14 goroutines
-BenchmarkConcurrentLogging-14  15,000,000  75 ns/op  0 B/op  0 allocs/op
-```
-
 ### Optimization Tips
 
 1. **Set appropriate log levels**: Debug logging has overhead; use INFO+ in production
@@ -503,19 +502,6 @@ go tool pprof cpu.prof
 go test -bench=BenchmarkConcurrentLogging -memprofile=mem.prof
 go tool pprof mem.prof
 ```
-
-### Comparison to Other Loggers
-
-Compared to popular Go logging libraries:
-
-| Library | ns/op | Allocations | Notes |
-|---------|-------|-------------|-------|
-| logging (JSON) | ~800 | 0 | Uses stdlib slog |
-| zap (production) | ~600 | 0 | Fastest but more complex |
-| zerolog | ~700 | 0 | Similar performance |
-| logrus (JSON) | ~3,500 | 5 | Slower, more allocations |
-
-**Trade-off**: Slightly slower than zap/zerolog but uses standard library with zero external dependencies (except OpenTelemetry for tracing).
 
 ## Examples
 
@@ -697,24 +683,6 @@ When migrating from another logger:
 - [ ] Update imports
 - [ ] Remove old logger dependency
 
-### Performance Comparison
-
-| Library | ns/op | Allocations | Stdlib | Notes |
-|---------|-------|-------------|--------|-------|
-| **rivaas/logging** | ~2,800 | Low | ✅ Yes | Best balance |
-| zap (production) | ~2,100 | Very low | ❌ No | Fastest |
-| zerolog | ~2,300 | Very low | ❌ No | Very fast |
-| logrus (JSON) | ~8,500 | High | ❌ No | Slowest |
-| stdlib log | ~1,000 | Low | ✅ Yes | Unstructured |
-
-**Trade-off**: Rivaas logging is slightly slower than zap/zerolog but offers:
-
-- Standard library compatibility (using slog)
-- Zero external dependencies (except OpenTelemetry)
-- Simpler, cleaner API
-- Automatic sensitive data redaction
-- Native OpenTelemetry integration
-
 ## Troubleshooting
 
 ### Common Issues
@@ -821,18 +789,17 @@ go test -bench=. -benchmem ./logging
 
 ### Core Types
 
-- `Config` - Main logger configuration
+- `Logger` - Main logging type (created via `New()` or `MustNew()`)
 - `Option` - Functional option type
 - `HandlerType` - Log output format type
 - `Level` - Log level type
-- `LoggingRecorder` - Interface for router integration
 - `ContextLogger` - Context-aware logger with trace correlation
 
 ### Main Functions
 
-- `New(opts ...Option) (*Config, error)` - Create new logger
-- `MustNew(opts ...Option) *Config` - Create new logger or panic
-- `NewContextLogger(cfg *Config, ctx context.Context)` - Context logger
+- `New(opts ...Option) (*Logger, error)` - Create new logger
+- `MustNew(opts ...Option) *Logger` - Create new logger or panic
+- `NewContextLogger(ctx context.Context, logger *Logger) *ContextLogger` - Create context logger
 
 ### Logger Methods
 
@@ -867,11 +834,8 @@ go test -bench=. -benchmem ./logging
 - `WithSource(enabled bool)` - Add source location to logs
 - `WithReplaceAttr(fn)` - Custom attribute replacer
 - `WithCustomLogger(logger *slog.Logger)` - Use custom logger
-
-### Router Options
-
-- `WithLogging(opts ...Option)` - Enable logging in router
-- `WithLoggingFromConfig(cfg *Config)` - Use existing logger
+- `WithGlobalLogger()` - Register as global slog default
+- `WithSampling(cfg SamplingConfig)` - Configure log sampling
 
 ### Error Types
 

@@ -43,6 +43,13 @@
 //	    "status", 200,
 //	)
 //
+// To register as the global slog default (for use with slog.Info(), etc.):
+//
+//	logger := logging.MustNew(
+//	    logging.WithJSONHandler(),
+//	    logging.WithGlobalLogger(), // Sets slog.SetDefault()
+//	)
+//
 // Sensitive data (password, token, secret, api_key, authorization) is
 // automatically redacted from all log output. Additional sanitization can be
 // configured using WithReplaceAttr.
