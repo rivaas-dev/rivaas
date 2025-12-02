@@ -59,14 +59,14 @@ func TestMount_BasicRouteRegistration(t *testing.T) {
 	assert.True(t, routePaths["POST /api/v1/users"], "mounted POST users route should exist")
 }
 
-func TestMount_RouteTemplatePreservedForObservability(t *testing.T) {
+func TestMount_RoutePatternPreservedForObservability(t *testing.T) {
 	t.Parallel()
 
 	// Create subrouter with routes
 	sub := MustNew()
-	var capturedTemplate string
+	var capturedPattern string
 	sub.GET("/users/:id", func(c *Context) {
-		capturedTemplate = c.RouteTemplate()
+		capturedPattern = c.RoutePattern()
 		c.String(http.StatusOK, "user "+c.Param("id"))
 	})
 
@@ -83,9 +83,9 @@ func TestMount_RouteTemplatePreservedForObservability(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "user 123", w.Body.String())
 
-	// Verify route template is the FULL path, not a catch-all
-	assert.Equal(t, "/api/v1/users/:id", capturedTemplate,
-		"route template should be full path for observability, not /api/v1/*")
+	// Verify route pattern is the FULL path, not a catch-all
+	assert.Equal(t, "/api/v1/users/:id", capturedPattern,
+		"route pattern should be full path for observability, not /api/v1/*")
 }
 
 func TestMount_MiddlewareInheritance(t *testing.T) {
@@ -439,16 +439,16 @@ func TestMount_AllHTTPMethods(t *testing.T) {
 func TestMount_ObservabilityIntegration(t *testing.T) {
 	t.Parallel()
 
-	// Track route templates seen by observability
-	var observedTemplates []string
+	// Track route patterns seen by observability
+	var observedPatterns []string
 
 	sub := MustNew()
 	sub.GET("/users/:id", func(c *Context) {
-		observedTemplates = append(observedTemplates, c.RouteTemplate())
+		observedPatterns = append(observedPatterns, c.RoutePattern())
 		c.String(http.StatusOK, "ok")
 	})
 	sub.GET("/products/:category/:id", func(c *Context) {
-		observedTemplates = append(observedTemplates, c.RouteTemplate())
+		observedPatterns = append(observedPatterns, c.RoutePattern())
 		c.String(http.StatusOK, "ok")
 	})
 
@@ -468,11 +468,11 @@ func TestMount_ObservabilityIntegration(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code)
 	}
 
-	// Verify templates are full paths, not catch-all patterns
+	// Verify patterns are full paths, not catch-all patterns
 	expected := []string{
 		"/api/v1/users/:id",
 		"/api/v1/products/:category/:id",
 	}
-	assert.Equal(t, expected, observedTemplates,
-		"route templates should be full paths for correct metrics/tracing")
+	assert.Equal(t, expected, observedPatterns,
+		"route patterns should be full paths for correct metrics/tracing")
 }

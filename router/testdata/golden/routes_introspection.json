@@ -1,0 +1,49 @@
+{
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/",
+      "name": "root"
+    },
+    {
+      "method": "GET",
+      "path": "/users",
+      "name": "users.list"
+    },
+    {
+      "method": "GET",
+      "path": "/users/:id",
+      "name": "users.get"
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "name": "users.create"
+    },
+    {
+      "method": "PUT",
+      "path": "/users/:id",
+      "name": "users.update"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/:id",
+      "name": "users.delete"
+    },
+    {
+      "method": "GET",
+      "path": "/users/:id/posts",
+      "name": "users.posts.list"
+    },
+    {
+      "method": "GET",
+      "path": "/users/:id/posts/:postId",
+      "name": "users.posts.get"
+    },
+    {
+      "method": "GET",
+      "path": "/static/*",
+      "name": "static.files"
+    }
+  ]
+}

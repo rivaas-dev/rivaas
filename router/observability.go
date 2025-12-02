@@ -87,7 +87,7 @@ type ObservabilityRecorder interface {
 	// The writer is the final ResponseWriter (potentially wrapped by WrapResponseWriter).
 	// Implementation should type-assert writer to ResponseInfo to extract status/size.
 	//
-	// routePattern is the matched route template (e.g., "/users/{id}"), or a sentinel
+	// routePattern is the matched route pattern (e.g., "/users/{id}"), or a sentinel
 	// value like "_not_found" or "_unmatched" if no route matched.
 	// Implementations should use routePattern (not raw path) for metrics/traces
 	// to prevent cardinality explosion.

@@ -404,23 +404,23 @@ func TestWithCancellationCheck_ContextCancelled(t *testing.T) {
 	})
 }
 
-// TestWithTemplateRouting tests template routing enable/disable
-func TestWithTemplateRouting(t *testing.T) {
+// TestWithRouteCompilation tests route compilation enable/disable
+func TestWithRouteCompilation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
 		enabled bool
 	}{
-		{"templates enabled", true},
-		{"templates disabled", false},
+		{"compilation enabled", true},
+		{"compilation disabled", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := MustNew(WithTemplateRouting(tt.enabled))
+			r := MustNew(WithRouteCompilation(tt.enabled))
 
-			assert.Equal(t, tt.enabled, r.useTemplates)
+			assert.Equal(t, tt.enabled, r.useCompiledRoutes)
 
 			// Verify routing still works
 			r.GET("/users/:id", func(c *Context) {
@@ -458,7 +458,7 @@ func TestRouterOptions_Defaults(t *testing.T) {
 	assert.Equal(t, uint64(1000), r.bloomFilterSize)
 	assert.Equal(t, 3, r.bloomHashFunctions)
 	assert.True(t, r.checkCancellation, "expected cancellation check to be enabled by default")
-	assert.True(t, r.useTemplates, "expected templates to be enabled by default")
+	assert.True(t, r.useCompiledRoutes, "expected compiled routes to be enabled by default")
 	assert.NotNil(t, r.routeCompiler, "route compiler should be initialized")
 }
 

@@ -39,12 +39,8 @@ func WithGzipLevel(level int) Option {
 //	compression.New(compression.WithBrotliLevel(5))
 func WithBrotliLevel(level int) Option {
 	return func(cfg *config) {
-		if level < 0 {
-			level = 0
-		} else if level > 11 {
-			level = 11
-		}
-		cfg.brotliLevel = level
+		// Clamp to valid Brotli level range [0, 11]
+		cfg.brotliLevel = max(0, min(level, 11))
 	}
 }
 

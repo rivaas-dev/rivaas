@@ -1,6 +1,6 @@
 # Rivaas Router
 
-A high-performance HTTP router for Go, designed for cloud-native applications with minimal memory allocations and maximum throughput.
+An HTTP router for Go, designed for cloud-native applications with comprehensive routing, middleware, and observability features.
 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.23.0-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -9,13 +9,12 @@ A high-performance HTTP router for Go, designed for cloud-native applications wi
 
 - [Features](#features)
   - [Core Routing & Request Handling](#core-routing-request-handling)
-  - [Request Binding](#request-binding-new-industry-leading)
-  - [Request Validation](#request-validation---industry-leading)
+  - [Request Binding](#request-binding)
+  - [Request Validation](#request-validation)
   - [Content Negotiation](#content-negotiation-rfc-7231-compliant)
   - [API Versioning](#api-versioning-built-in)
   - [Middleware](#middleware-built-in)
   - [Observability](#observability-opentelemetry-native)
-  - [Performance Optimizations](#performance-optimizations)
   - [Security Features](#security-features)
   - [Developer Experience](#developer-experience)
 - [Validation Guide](#validation-guide)
@@ -27,7 +26,7 @@ A high-performance HTTP router for Go, designed for cloud-native applications wi
   - [Partial Validation (PATCH)](#partial-validation-patch)
   - [Validation Options](#validation-options)
   - [Validation Error Handling](#validation-error-handling)
-  - [Validation Optimizations](#validation-optimizations)
+  - [Validation Caching](#validation-caching)
   - [Common Patterns](#common-patterns)
   - [Validation Best Practices](#validation-best-practices)
   - [Validation Thread Safety](#validation-thread-safety)
@@ -43,12 +42,6 @@ A high-performance HTTP router for Go, designed for cloud-native applications wi
 - [Testing & Quality](#testing-quality)
 - [Use Cases](#use-cases)
 - [Examples](#examples)
-- [Performance Metrics](#performance-metrics)
-  - [Throughput & Latency](#throughput-latency)
-  - [Memory Efficiency](#memory-efficiency)
-  - [Performance Benchmarks](#performance-benchmarks)
-  - [Routing Algorithm](#routing-algorithm)
-  - [Framework Comparison](#framework-comparison)
 - [Contributing](#contributing)
 - [License](#license)
 - [Links](#links)
@@ -57,21 +50,21 @@ A high-performance HTTP router for Go, designed for cloud-native applications wi
 
 ### Core Routing & Request Handling {#core-routing-request-handling}
 
-- **Ultra-fast radix tree routing** - O(k) path matching performance with bloom filters
-- **Optimized path matching** - Optimized for static routes with compiled route tables
-- **Path Parameters**: `/users/:id`, `/posts/:id/:action` - Fast array-based storage for ≤8 params
-- **Wildcard Routes**: `/files/*filepath` - Flexible catch-all routing
+- **Radix tree routing** - Path matching with bloom filters for static route lookups
+- **Compiled route tables** - Pre-compiled routes for static and dynamic path matching
+- **Path Parameters**: `/users/:id`, `/posts/:id/:action` - Array-based storage for route parameters
+- **Wildcard Routes**: `/files/*filepath` - Catch-all routing for file serving and similar use cases
 - **Route Groups**: Organize routes with shared prefixes and middleware
 - **Middleware Chain**: Global, group-level, and route-level middleware support
-- **Static File Serving**: Efficient directory and single file serving
+- **Static File Serving**: Directory and single file serving
 - **Route Constraints**: Numeric, UUID, Alpha, Alphanumeric, Custom regex validation
-- **Concurrent Safe**: Lock-free parallel request handling with atomic operations
-- **Memory Efficient**: Only 1 allocation per request, context pooling
+- **Concurrent Safe**: Thread-safe for use by multiple goroutines
+- **Context Pooling**: Contexts are pooled and reused across requests
 - **HTTP/2 and HTTP/1.1 support** - Modern protocol compatibility
 
-### Request Binding {#request-binding-new-industry-leading}
+### Request Binding {#request-binding}
 
-Automatically bind request data to structs with **the most comprehensive type support in Go**:
+Automatically bind request data to structs with comprehensive type support:
 
 **Methods**:
 
@@ -104,9 +97,9 @@ Automatically bind request data to structs with **the most comprehensive type su
 - Default values in struct tags
 - Quoted bracket keys for special characters
 
-### Request Validation - Industry-Leading
+### Request Validation {#request-validation}
 
-Comprehensive validation with multiple strategies and zero configuration:
+Comprehensive validation with multiple strategies:
 
 **Validation Strategies**:
 
@@ -128,7 +121,7 @@ Comprehensive validation with multiple strategies and zero configuration:
 - **Partial validation** - PATCH request support (validate only present fields)
 - **Structured errors** - Machine-readable error codes and field paths
 - **Context-aware** - Request-scoped validation rules
-- **Performance optimized** - Cached reflection, LRU schema cache
+- **Cached reflection** - Type information cached per struct type
 - **Configurable limits** - Prevent DoS with field/error limits
 - **Sensitive data redaction** - Hide passwords/tokens in errors
 
@@ -382,26 +375,14 @@ if verrs.HasCode("tag.required") {
 }
 ```
 
-### Validation Optimizations
+### Validation Caching {#validation-caching}
 
-**Optimizations:**
+**Caching Behavior:**
 
-- Type interface checks cached (avoids reflection overhead)
-- Field maps cached per struct type
-- JSON Schema compiled and cached with LRU eviction
-- Partial validation only processes leaf fields
-
-**Complexity:**
-
-- Interface validation: O(1) + custom logic
-- Tag validation: O(n) fields
-- JSON Schema: O(n) data size + schema compilation (cached)
-
-**Memory:**
-
-- Validation: Minimal overhead (cached type info)
-- Schema cache: ~2-10KB per schema (configurable max)
-- Field maps: ~24 bytes per struct field
+- Type interface checks are cached per struct type
+- Field maps are cached per struct type
+- JSON Schema is compiled and cached with LRU eviction
+- Partial validation only processes fields present in the request
 
 ### Common Patterns
 
@@ -531,18 +512,17 @@ if !ok {
 - `TraceContext()` - Context propagation
 - Built-in instrumentation, no wrapper middleware needed
 
-### Performance Optimizations
+### Implementation Details
 
-- **Context Pooling**: Reuse context objects, reduce GC pressure
-- **Fast Parameter Storage**: Array-based for ≤8 params (zero allocs)
-- **Compiled Routes**: O(1) hash lookups for static routes
-- **Bloom Filters**: 99% negative lookup elimination
-- **Type Caching**: Cache reflection info for bindings
-- **Accept Header Caching**: 2x speedup for repeated headers
-- **Atomic Operations**: Lock-free route registration and lookups
-- **Struct Field Alignment**: Optimized memory layout
-- **Cache Warmup**: `WarmupBindingCache()` for predictable startup
-- **Template Cache Index**: ASCII-only first-segment index (performance-first design)
+- **Context Pooling**: Contexts are pooled and reused across requests
+- **Parameter Storage**: Array-based storage for up to 8 parameters, map fallback for more
+- **Compiled Routes**: Static routes use hash table lookups, dynamic routes use pattern matching
+- **Bloom Filters**: Used for negative lookups on static routes
+- **Type Caching**: Reflection information is cached per struct type
+- **Accept Header Caching**: Parsed Accept headers are cached per request
+- **Atomic Operations**: Route trees use atomic operations for concurrent access
+- **Cache Warmup**: `WarmupBindingCache()` pre-populates caches at startup
+- **Route Compiler Index**: First-segment index for route narrowing (ASCII paths only)
 
 ### Security Features
 
@@ -556,12 +536,12 @@ if !ok {
 
 ### Developer Experience
 
-- **Clean API**: Intuitive, chainable methods
+- **Chainable API**: Methods return routes for fluent configuration
 - **Type-Safe**: Compile-time safety with generics
 - **Clear Error Messages**: Detailed binding errors with field context
-- **Comprehensive Docs**: 2,446-line README, 8 progressive examples
+- **Progressive Examples**: 8 examples from basic to advanced usage
 - **Zero Dependencies** (core): Only standard library
-- **Hot Reload Friendly**: Thread-safe route registration
+- **Thread-Safe Registration**: Routes can be registered from multiple goroutines
 
 ## Migration Guide
 
@@ -734,9 +714,6 @@ func handler(c *router.Context) {
 
 ### FAQ
 
-**Q: How does Rivaas Router compare to Gin/Echo/Chi/Fiber in terms of performance?**
-A: Rivaas achieves 155 ns/op (6.5M ops/sec) with only 16B memory and 1 allocation, matching Gin's speed (157 ns/op) while using 5× less memory (80B, 3 allocs), and outperforming Chi (439 ns/op, 720B, 5 allocs) and Fiber (1,404 ns/op, 2KB, 20 allocs). Echo is faster at 117 ns/op but uses 2× memory (32B) and 2× allocations.
-
 **Q: Can I use Rivaas Router with existing HTTP middleware?**
 A: Yes! Rivaas Context is compatible with standard HTTP patterns. You can adapt existing middleware:
 
@@ -749,7 +726,7 @@ func adaptMiddleware(next http.Handler) router.HandlerFunc {
 ```
 
 **Q: Is Rivaas Router production-ready?**
-A: Yes. Rivaas Router is production-ready with 6.5M+ req/s throughput, comprehensive test coverage, and memory-efficient design (16B/req, 1 alloc).
+A: Yes. Rivaas Router is production-ready with comprehensive test coverage and has been designed for concurrent use.
 
 **Q: How do I handle CORS with Rivaas Router?**
 A: Use middleware for CORS handling:
@@ -3188,9 +3165,9 @@ r.GET("/users/:id", userHandler)
 r.GET("/posts/:id/comments", commentsHandler)
 ```
 
-#### Template Cache Index (ASCII-Only)
+#### Route Compiler Index (ASCII-Only)
 
-The template cache uses a first-segment index for fast route filtering:
+The route compiler uses a first-segment index for fast route filtering:
 
 - **ASCII paths** (0-127): O(1) array lookup - fastest path
 - **UTF-8 beyond ASCII**: Falls back to O(n) linear scan (still correct, just slower)

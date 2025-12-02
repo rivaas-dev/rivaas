@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package router
+package route
 
 import (
 	"strings"
@@ -32,10 +32,19 @@ import (
 //	users := api.Group("/users", RateLimitMiddleware())
 //	users.GET("/:id", getUserHandler) // Final path: /api/v1/users/:id
 type Group struct {
-	router     *Router       // Reference to the parent router
-	prefix     string        // Path prefix for all routes in this group
-	middleware []HandlerFunc // Group-specific middleware
-	namePrefix string        // Name prefix for all routes in this group (e.g., "api.v1.")
+	registrar  Registrar // Reference to the parent router (implements Registrar)
+	prefix     string    // Path prefix for all routes in this group
+	middleware []Handler // Group-specific middleware
+	namePrefix string    // Name prefix for all routes in this group (e.g., "api.v1.")
+}
+
+// NewGroup creates a new Group with the given registrar, prefix, and middleware.
+func NewGroup(registrar Registrar, prefix string, middleware []Handler) *Group {
+	return &Group{
+		registrar:  registrar,
+		prefix:     prefix,
+		middleware: middleware,
+	}
 }
 
 // Use adds middleware to the group that will be executed for all routes in this group.
@@ -47,7 +56,7 @@ type Group struct {
 //	api := r.Group("/api")
 //	api.Use(AuthMiddleware(), LoggingMiddleware())
 //	api.GET("/users", getUsersHandler) // Will execute auth + logging + handler
-func (g *Group) Use(middleware ...HandlerFunc) {
+func (g *Group) Use(middleware ...Handler) {
 	g.middleware = append(g.middleware, middleware...)
 }
 
@@ -67,6 +76,11 @@ func (g *Group) SetNamePrefix(prefix string) *Group {
 	return g
 }
 
+// NamePrefix returns the current name prefix for this group.
+func (g *Group) NamePrefix() string {
+	return g.namePrefix
+}
+
 // Group creates a nested route group under the current group.
 // The new group's prefix will be the parent's prefix + the provided prefix.
 // Middleware and name prefix from the parent group are inherited by the nested group.
@@ -76,7 +90,7 @@ func (g *Group) SetNamePrefix(prefix string) *Group {
 //	api := r.Group("/api")
 //	v1 := api.Group("/v1")  // Creates /api/v1 prefix
 //	v1.GET("/users", handler)  // Matches /api/v1/users
-func (g *Group) Group(prefix string, middleware ...HandlerFunc) *Group {
+func (g *Group) Group(prefix string, middleware ...Handler) *Group {
 	var fullPrefix string
 	if len(g.prefix) == 0 {
 		fullPrefix = prefix
@@ -91,12 +105,12 @@ func (g *Group) Group(prefix string, middleware ...HandlerFunc) *Group {
 	}
 
 	// Combine parent middleware with new middleware
-	allMiddleware := make([]HandlerFunc, 0, len(g.middleware)+len(middleware))
+	allMiddleware := make([]Handler, 0, len(g.middleware)+len(middleware))
 	allMiddleware = append(allMiddleware, g.middleware...)
 	allMiddleware = append(allMiddleware, middleware...)
 
 	return &Group{
-		router:     g.router,
+		registrar:  g.registrar,
 		prefix:     fullPrefix,
 		middleware: allMiddleware,
 		namePrefix: g.namePrefix, // Inherit parent's name prefix
@@ -110,7 +124,7 @@ func (g *Group) Group(prefix string, middleware ...HandlerFunc) *Group {
 //
 //	api := r.Group("/api/v1")
 //	api.GET("/users", handler) // Final path: /api/v1/users
-func (g *Group) GET(path string, handlers ...HandlerFunc) *Route {
+func (g *Group) GET(path string, handlers ...Handler) *Route {
 	return g.addRoute("GET", path, handlers)
 }
 
@@ -121,7 +135,7 @@ func (g *Group) GET(path string, handlers ...HandlerFunc) *Route {
 //
 //	api := r.Group("/api/v1")
 //	api.POST("/users", handler) // Final path: /api/v1/users
-func (g *Group) POST(path string, handlers ...HandlerFunc) *Route {
+func (g *Group) POST(path string, handlers ...Handler) *Route {
 	return g.addRoute("POST", path, handlers)
 }
 
@@ -132,7 +146,7 @@ func (g *Group) POST(path string, handlers ...HandlerFunc) *Route {
 //
 //	api := r.Group("/api/v1")
 //	api.PUT("/users/:id", handler) // Final path: /api/v1/users/:id
-func (g *Group) PUT(path string, handlers ...HandlerFunc) *Route {
+func (g *Group) PUT(path string, handlers ...Handler) *Route {
 	return g.addRoute("PUT", path, handlers)
 }
 
@@ -143,7 +157,7 @@ func (g *Group) PUT(path string, handlers ...HandlerFunc) *Route {
 //
 //	api := r.Group("/api/v1")
 //	api.DELETE("/users/:id", handler) // Final path: /api/v1/users/:id
-func (g *Group) DELETE(path string, handlers ...HandlerFunc) *Route {
+func (g *Group) DELETE(path string, handlers ...Handler) *Route {
 	return g.addRoute("DELETE", path, handlers)
 }
 
@@ -154,7 +168,7 @@ func (g *Group) DELETE(path string, handlers ...HandlerFunc) *Route {
 //
 //	api := r.Group("/api/v1")
 //	api.PATCH("/users/:id", handler) // Final path: /api/v1/users/:id
-func (g *Group) PATCH(path string, handlers ...HandlerFunc) *Route {
+func (g *Group) PATCH(path string, handlers ...Handler) *Route {
 	return g.addRoute("PATCH", path, handlers)
 }
 
@@ -165,7 +179,7 @@ func (g *Group) PATCH(path string, handlers ...HandlerFunc) *Route {
 //
 //	api := r.Group("/api/v1")
 //	api.OPTIONS("/users", handler) // Final path: /api/v1/users
-func (g *Group) OPTIONS(path string, handlers ...HandlerFunc) *Route {
+func (g *Group) OPTIONS(path string, handlers ...Handler) *Route {
 	return g.addRoute("OPTIONS", path, handlers)
 }
 
@@ -176,14 +190,14 @@ func (g *Group) OPTIONS(path string, handlers ...HandlerFunc) *Route {
 //
 //	api := r.Group("/api/v1")
 //	api.HEAD("/users/:id", handler) // Final path: /api/v1/users/:id
-func (g *Group) HEAD(path string, handlers ...HandlerFunc) *Route {
+func (g *Group) HEAD(path string, handlers ...Handler) *Route {
 	return g.addRoute("HEAD", path, handlers)
 }
 
 // addRoute adds a route to the group by combining the group's prefix with the path
 // and merging group middleware with the route handlers. This is an internal method
 // used by the HTTP method functions on groups.
-func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *Route {
+func (g *Group) addRoute(method, path string, handlers []Handler) *Route {
 	var fullPath string
 
 	if len(g.prefix) == 0 {
@@ -198,12 +212,12 @@ func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *Route {
 		fullPath = sb.String()
 	}
 
-	allHandlers := make([]HandlerFunc, 0, len(g.middleware)+len(handlers))
+	allHandlers := make([]Handler, 0, len(g.middleware)+len(handlers))
 	allHandlers = append(allHandlers, g.middleware...)
 	allHandlers = append(allHandlers, handlers...)
 
-	route := g.router.addRouteWithConstraints(method, fullPath, allHandlers)
+	route := g.registrar.AddRouteWithConstraints(method, fullPath, allHandlers)
 	// Set group reference for name prefixing
-	route.group = g
+	route.SetGroup(g)
 	return route
 }

@@ -111,7 +111,7 @@ type ResponseWriter interface {
 
 // ContextReader combines ParameterReader with additional context reading methods.
 // This interface extends ParameterReader with methods that read context-specific
-// information like version, route template, and request metadata.
+// information like version, route pattern, and request metadata.
 //
 // Example usage:
 //
@@ -131,9 +131,9 @@ type ContextReader interface {
 	// IsVersion checks if the current API version matches the specified version.
 	IsVersion(version string) bool
 
-	// RouteTemplate returns the matched route template.
+	// RoutePattern returns the matched route pattern.
 	// Example: "/users/:id" or "_not_found"
-	RouteTemplate() string
+	RoutePattern() string
 }
 
 // ContextWriter combines ResponseWriter with additional context writing methods.

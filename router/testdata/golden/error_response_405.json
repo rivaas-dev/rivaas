@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": 405,
+    "message": "Method Not Allowed",
+    "path": "/users",
+    "allowed_methods": ["GET", "POST"]
+  }
+}

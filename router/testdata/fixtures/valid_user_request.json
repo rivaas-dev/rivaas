@@ -1,0 +1,12 @@
+{
+  "id": 123,
+  "name": "John Doe",
+  "email": "john.doe@example.com",
+  "age": 30,
+  "active": true,
+  "roles": ["admin", "user"],
+  "metadata": {
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-15T12:30:00Z"
+  }
+}

@@ -15,6 +15,7 @@
 package router
 
 import (
+	"errors"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +23,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+// Test-specific errors used in mock implementations.
+var (
+	errCookieNotFound       = errors.New("cookie not found")
+	errUserIDRequired       = errors.New("user ID is required")
+	errPageParameterInvalid = errors.New("page parameter is invalid")
 )
 
 // mockParameterReader is a mock implementation of ParameterReader for testing.
@@ -76,7 +84,7 @@ func (m *mockParameterReader) GetCookie(name string) (string, error) {
 	if val, ok := m.cookies[name]; ok {
 		return val, nil
 	}
-	return "", ErrCookieNotFound
+	return "", errCookieNotFound
 }
 
 // mockResponseWriter is a mock implementation of ResponseWriter for testing.
@@ -179,12 +187,12 @@ func (m *mockResponseWriter) SetCookie(name, value string, maxAge int, path, dom
 func processUserRequest(reader ParameterReader) (string, error) {
 	userID := reader.Param("id")
 	if userID == "" {
-		return "", ErrUserIDRequired
+		return "", errUserIDRequired
 	}
 
 	page := reader.QueryDefault("page", "1")
 	if page == "" {
-		return "", ErrPageParameterInvalid
+		return "", errPageParameterInvalid
 	}
 
 	return userID + ":" + page, nil

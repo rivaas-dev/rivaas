@@ -90,13 +90,8 @@ func WithExcludePrefixes(prefixes ...string) Option {
 //	)
 func WithSampleRate(rate float64) Option {
 	return func(c *config) {
-		if rate < 0 {
-			rate = 0
-		}
-		if rate > 1 {
-			rate = 1
-		}
-		c.sampleRate = rate
+		// Clamp to valid sample rate range [0.0, 1.0]
+		c.sampleRate = max(0.0, min(rate, 1.0))
 	}
 }
 

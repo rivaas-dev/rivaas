@@ -24,36 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockContextParamWriter is a mock implementation of ContextParamWriter for testing.
-type mockContextParamWriter struct {
-	mu     sync.Mutex
-	params map[string]string
-	count  int32
-}
-
-func (m *mockContextParamWriter) SetParam(index int, key, value string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.params == nil {
-		m.params = make(map[string]string)
-	}
-	m.params[key] = value
-}
-
-func (m *mockContextParamWriter) SetParamMap(key, value string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.params == nil {
-		m.params = make(map[string]string)
-	}
-	m.params[key] = value
-}
-
-func (m *mockContextParamWriter) SetParamCount(count int32) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.count = count
-}
+// Note: testContextParamWriter is defined in testing.go
+// Note: BloomFilter tests are in bloom_test.go
+// Note: Benchmarks are in compiler_bench_test.go
 
 // TestCompileRoute tests route compilation with various patterns.
 func TestCompileRoute(t *testing.T) {
@@ -413,7 +386,7 @@ func TestRouteCompiler_MatchDynamic(t *testing.T) {
 				rc.AddRoute(route)
 			}
 
-			ctx := &mockContextParamWriter{}
+			ctx := &testContextParamWriter{}
 			matched := rc.MatchDynamic("GET", tt.testPath, ctx)
 
 			if tt.wantMatch {
@@ -456,7 +429,7 @@ func TestRouteCompiler_MatchDynamic_FirstSegmentIndex(t *testing.T) {
 		rc.AddRoute(route)
 	}
 
-	ctx := &mockContextParamWriter{}
+	ctx := &testContextParamWriter{}
 
 	// This should trigger index building
 	matched := rc.MatchDynamic("GET", "/users/123", ctx)
@@ -470,7 +443,7 @@ func TestRouteCompiler_MatchDynamic_FirstSegmentIndex(t *testing.T) {
 	assert.True(t, hasIndex, "first segment index should be built")
 
 	// Test matching with index
-	ctx = &mockContextParamWriter{}
+	ctx = &testContextParamWriter{}
 	matched = rc.MatchDynamic("GET", "/products/456", ctx)
 	require.NotNil(t, matched)
 	assert.Equal(t, "456", ctx.params["id"])
@@ -535,7 +508,7 @@ func TestRouteCompiler_MatchDynamic_Constraints(t *testing.T) {
 			route := CompileRoute("GET", tt.pattern, nil, tt.constraints)
 			rc.AddRoute(route)
 
-			ctx := &mockContextParamWriter{}
+			ctx := &testContextParamWriter{}
 			matched := rc.MatchDynamic("GET", tt.testPath, ctx)
 
 			if tt.wantMatch {
@@ -561,7 +534,7 @@ func TestRouteCompiler_Concurrent(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	ctx := &mockContextParamWriter{}
+	ctx := &testContextParamWriter{}
 
 	// Concurrent reads
 	for range 10 {
@@ -582,150 +555,4 @@ func TestRouteCompiler_Concurrent(t *testing.T) {
 	}
 
 	wg.Wait()
-}
-
-// TestBloomFilter tests bloom filter operations.
-func TestBloomFilter(t *testing.T) {
-	t.Parallel()
-
-	bf := NewBloomFilter(1000, 3)
-
-	// Add some items
-	bf.Add([]byte("test1"))
-	bf.Add([]byte("test2"))
-	bf.Add([]byte("test3"))
-
-	// Test membership (should return true for added items)
-	assert.True(t, bf.Test([]byte("test1")), "should contain test1")
-	assert.True(t, bf.Test([]byte("test2")), "should contain test2")
-	assert.True(t, bf.Test([]byte("test3")), "should contain test3")
-
-	// Test non-membership (may return false positives, but unlikely for small sets)
-	// We can't assert false here as bloom filters have false positives
-	bf.Test([]byte("nonexistent"))
-}
-
-// TestBloomFilter_FalsePositives tests bloom filter false positive behavior.
-func TestBloomFilter_FalsePositives(t *testing.T) {
-	t.Parallel()
-
-	bf := NewBloomFilter(100, 3) // Small size to increase false positive rate
-
-	// Add items
-	for i := range 50 {
-		bf.Add([]byte("/route" + string(rune('0'+i))))
-	}
-
-	// Test that added items are all positive
-	for i := range 50 {
-		assert.True(t, bf.Test([]byte("/route"+string(rune('0'+i)))), "added items should test positive")
-	}
-
-	// Test items not added - may have false positives
-	falsePositives := 0
-	for i := range 100 {
-		if bf.Test([]byte("/nonexistent" + string(rune('0'+i)))) {
-			falsePositives++
-		}
-	}
-
-	// With 100 tests, we expect some false positives but not all
-	assert.Less(t, falsePositives, 100, "should have some true negatives")
-}
-
-// BenchmarkCompileRoute benchmarks route compilation.
-func BenchmarkCompileRoute(b *testing.B) {
-	b.Run("StaticRoute", func(b *testing.B) {
-		b.ReportAllocs()
-
-		for b.Loop() {
-			_ = CompileRoute("GET", "/api/users", nil, nil)
-		}
-	})
-
-	b.Run("DynamicRoute", func(b *testing.B) {
-		b.ReportAllocs()
-
-		for b.Loop() {
-			_ = CompileRoute("GET", "/api/users/:id/posts/:pid", nil, nil)
-		}
-	})
-
-	b.Run("WithConstraints", func(b *testing.B) {
-		constraints := []RouteConstraint{
-			{Param: "id", Pattern: regexp.MustCompile(`^\d+$`)},
-			{Param: "pid", Pattern: regexp.MustCompile(`^\d+$`)},
-		}
-
-		b.ResetTimer()
-		b.ReportAllocs()
-
-		for b.Loop() {
-			_ = CompileRoute("GET", "/api/users/:id/posts/:pid", nil, constraints)
-		}
-	})
-}
-
-// BenchmarkRouteCompiler_LookupStatic benchmarks static route lookup.
-func BenchmarkRouteCompiler_LookupStatic(b *testing.B) {
-	rc := NewRouteCompiler(1000, 3)
-
-	// Add some static routes
-	for _, path := range []string{"/users", "/posts", "/comments", "/admin", "/api"} {
-		route := CompileRoute("GET", path, nil, nil)
-		rc.AddRoute(route)
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		_ = rc.LookupStatic("GET", "/users")
-	}
-}
-
-// BenchmarkRouteCompiler_MatchDynamic benchmarks dynamic route matching.
-func BenchmarkRouteCompiler_MatchDynamic(b *testing.B) {
-	rc := NewRouteCompiler(1000, 3)
-
-	// Add some dynamic routes
-	for _, pattern := range []string{
-		"/users/:id",
-		"/posts/:pid",
-		"/users/:id/posts/:pid",
-		"/api/:version/users/:id",
-	} {
-		route := CompileRoute("GET", pattern, nil, nil)
-		rc.AddRoute(route)
-	}
-
-	ctx := &mockContextParamWriter{}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		ctx.params = nil
-		ctx.count = 0
-		_ = rc.MatchDynamic("GET", "/users/123/posts/456", ctx)
-	}
-}
-
-// BenchmarkBloomFilter benchmarks bloom filter operations.
-func BenchmarkBloomFilter(b *testing.B) {
-	bf := NewBloomFilter(10000, 3)
-
-	// Add items
-	for i := range 100 {
-		bf.Add([]byte("/route" + string(rune('0'+i))))
-	}
-
-	key := []byte("/route50")
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for b.Loop() {
-		_ = bf.Test(key)
-	}
 }

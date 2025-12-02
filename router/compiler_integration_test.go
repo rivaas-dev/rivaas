@@ -221,7 +221,7 @@ func TestCompilerIntegration_Constraints(t *testing.T) {
 	}
 }
 
-// TestCompilerIntegration_MatchingCorrectness tests template matching correctness.
+// TestCompilerIntegration_MatchingCorrectness tests route pattern matching correctness.
 func TestCompilerIntegration_MatchingCorrectness(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -380,7 +380,7 @@ func TestCompilerIntegration_Sorting(t *testing.T) {
 	assert.Equal(t, "posts", w.Body.String())
 }
 
-// TestCompilerIntegration_Concurrent tests concurrent template operations.
+// TestCompilerIntegration_Concurrent tests concurrent route compilation operations.
 func TestCompilerIntegration_Concurrent(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -534,7 +534,7 @@ func BenchmarkCompilerIntegration_DynamicRoute(b *testing.B) {
 // BenchmarkCompilerIntegration_WithVsWithoutCompiler compares performance.
 func BenchmarkCompilerIntegration_WithVsWithoutCompiler(b *testing.B) {
 	b.Run("WithCompiler", func(b *testing.B) {
-		r := router.MustNew(router.WithTemplateRouting(true))
+		r := router.MustNew(router.WithRouteCompilation(true))
 		r.GET("/api/users/:id/posts/:pid/comments/:cid", func(c *router.Context) {
 			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 		})
@@ -554,7 +554,7 @@ func BenchmarkCompilerIntegration_WithVsWithoutCompiler(b *testing.B) {
 	})
 
 	b.Run("WithoutCompiler", func(b *testing.B) {
-		r := router.MustNew(router.WithTemplateRouting(false))
+		r := router.MustNew(router.WithRouteCompilation(false))
 		r.GET("/api/users/:id/posts/:pid/comments/:cid", func(c *router.Context) {
 			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 		})
@@ -574,7 +574,7 @@ func BenchmarkCompilerIntegration_WithVsWithoutCompiler(b *testing.B) {
 	})
 }
 
-// BenchmarkCompilerIntegration_Matching benchmarks template matching logic.
+// BenchmarkCompilerIntegration_Matching benchmarks compiled route matching logic.
 func BenchmarkCompilerIntegration_Matching(b *testing.B) {
 	r := router.MustNew()
 	r.GET("/api/users/:id/posts/:pid", func(_ *router.Context) {})
@@ -602,7 +602,7 @@ func BenchmarkCompilerIntegration_ConstrainedRoute(b *testing.B) {
 		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 	}).Where("id", `^\d+$`)
 
-	// Warmup to compile templates
+	// Warmup to compile routes
 	r.Warmup()
 
 	req := httptest.NewRequest("GET", "/api/users/123", nil)

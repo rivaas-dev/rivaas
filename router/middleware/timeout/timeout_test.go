@@ -115,7 +115,7 @@ func TestTimeout_RespectsContextCancellation(t *testing.T) {
 	case <-contextCancelled:
 		// Good - context was cancelled
 	case <-time.After(200 * time.Millisecond):
-		t.Error("Handler should detect context cancellation")
+		assert.Fail(t, "Handler should detect context cancellation")
 	}
 
 	assert.Equal(t, http.StatusRequestTimeout, w.Code)

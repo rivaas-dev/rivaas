@@ -23,6 +23,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"rivaas.dev/router/route"
 )
 
 // TestGetHandlerName_NilHandler tests getHandlerName when handler is nil.
@@ -82,13 +84,13 @@ func TestGetHandlerName_InvalidPointer_Alternative(t *testing.T) {
 	r := MustNew()
 
 	// Register route with empty handlers - this should use "anonymous" as default
-	r.addRouteWithConstraints(http.MethodGet, "/test", []HandlerFunc{})
+	r.GET("/test")
 
 	routes := r.Routes()
 	require.NotEmpty(t, routes, "Expected at least one route")
 
 	// Find the test route
-	var testRoute *RouteInfo
+	var testRoute *route.Info
 	for i := range routes {
 		if routes[i].Path == "/test" {
 			testRoute = &routes[i]
@@ -108,13 +110,13 @@ func TestGetHandlerName_NilHandlerThroughRoute(t *testing.T) {
 
 	// Register route with nil handler explicitly
 	var nilHandler HandlerFunc
-	r.addRouteWithConstraints(http.MethodGet, "/nil-test", []HandlerFunc{nilHandler})
+	r.GET("/nil-test", nilHandler)
 
 	routes := r.Routes()
 	require.NotEmpty(t, routes, "Expected at least one route")
 
 	// Find the test route
-	var testRoute *RouteInfo
+	var testRoute *route.Info
 	for i := range routes {
 		if routes[i].Path == "/nil-test" {
 			testRoute = &routes[i]

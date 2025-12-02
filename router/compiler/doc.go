@@ -26,7 +26,7 @@
 // The compiler uses a three-tier strategy for route matching:
 //
 //  1. Static routes: Hash table lookup
-//  2. Dynamic routes: Pre-compiled templates with segment-based matching
+//  2. Dynamic routes: Pre-compiled patterns with segment-based matching
 //  3. Complex routes: Tree fallback
 //
 // This hybrid approach handles the most common cases
@@ -63,8 +63,7 @@
 //   - Rare false positives (< 1% with proper sizing)
 //   - Checks
 //
-// The bloom filter eliminates map lookups for non-existent routes,
-// making 404 responses.
+// The bloom filter eliminates map lookups for non-existent routes.
 //
 // # First-Segment Index
 //
@@ -94,8 +93,6 @@
 //   - Static lookup: Hash table lookup
 //   - Dynamic match: Segment-based matching
 //   - Constrained match: Pattern validation with matching
-//
-// Works well for workloads with many routes (>100 routes).
 //
 // # Design Decisions
 //

@@ -144,9 +144,9 @@ func New(opts ...Option) router.HandlerFunc {
 			"proto", c.Request.Proto,
 		}
 
-		// Add route template (including sentinels)
-		if routeTemplate := c.RouteTemplate(); routeTemplate != "" {
-			fields = append(fields, "route", routeTemplate)
+		// Add route pattern (including sentinels)
+		if routePattern := c.RoutePattern(); routePattern != "" {
+			fields = append(fields, "route", routePattern)
 		}
 
 		if isSlow {

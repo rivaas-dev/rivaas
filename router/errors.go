@@ -33,6 +33,8 @@ var (
 	// Router configuration errors
 	ErrBloomFilterSizeZero       = errors.New("bloom filter size must be non-zero")
 	ErrBloomHashFunctionsInvalid = errors.New("bloom hash functions must be positive")
+	ErrVersioningConfigInvalid   = errors.New("versioning configuration invalid")
+	ErrServerTimeoutInvalid      = errors.New("server timeout must be positive")
 
 	// Route errors
 	ErrRoutesNotFrozen       = errors.New("routes not frozen yet")
@@ -50,17 +52,6 @@ var (
 	ErrUnknownValidationStrategy  = errors.New("unknown validation strategy")
 	ErrCannotRegisterValidators   = errors.New("cannot register validators after first use")
 
-	// Test errors (for test files)
-	ErrInvalidUUIDFormat    = errors.New("invalid UUID format: must be 36 characters")
-	ErrReadError            = errors.New("read error")
-	ErrBindingFailed        = errors.New("binding failed")
-	ErrCookieNotFound       = errors.New("cookie not found")
-	ErrUserIDRequired       = errors.New("user ID is required")
-	ErrPageParameterInvalid = errors.New("page parameter is invalid")
-	ErrInvalidType          = errors.New("invalid type")
-	ErrCustomNameRequired   = errors.New("custom: name is required")
-	ErrGenericValidation    = errors.New("generic validation error")
-	ErrOuterError           = errors.New("outer error")
-	ErrGenericError         = errors.New("generic error")
-	ErrQueryInvalidInteger  = errors.New("query: invalid integer")
+	// Query parameter errors
+	ErrQueryInvalidInteger = errors.New("query: invalid integer")
 )

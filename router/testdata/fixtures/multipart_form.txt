@@ -1,0 +1,10 @@
+--boundary123
+Content-Disposition: form-data; name="username"
+
+testuser
+--boundary123
+Content-Disposition: form-data; name="avatar"; filename="avatar.png"
+Content-Type: image/png
+
+[binary data placeholder]
+--boundary123--

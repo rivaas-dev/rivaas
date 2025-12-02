@@ -35,7 +35,7 @@ type Meta struct {
 	ResetSeconds int           // Seconds until window reset
 	Window       time.Duration // Window duration
 	Key          string        // Rate limit key (e.g., "ip:192.168.1.1")
-	Route        string        // Matched route template
+	Route        string        // Matched route pattern
 	Method       string        // HTTP method
 	ClientIP     string        // Client IP address
 }
@@ -163,7 +163,7 @@ func WithTokenBucket(tb TokenBucket, opts CommonOptions) router.HandlerFunc {
 				ResetSeconds: resetSeconds,
 				Window:       time.Second, // Token bucket uses 1-second windows
 				Key:          key,
-				Route:        c.RouteTemplate(),
+				Route:        c.RoutePattern(),
 				Method:       c.Request.Method,
 				ClientIP:     c.ClientIP(),
 			}
@@ -223,31 +223,19 @@ func WithSlidingWindow(sw SlidingWindow, opts CommonOptions) router.HandlerFunc 
 
 		// Calculate effective usage using sliding window algorithm
 		// Effective = curr + prev * (1 - elapsed/window)
-		elapsed := now.Sub(time.Unix(windowStart, 0))
-		if elapsed > sw.Window {
-			elapsed = sw.Window
-		}
-		prevWeight := 1.0 - float64(elapsed)/float64(sw.Window)
-		if prevWeight < 0 {
-			prevWeight = 0
-		}
+		elapsed := min(now.Sub(time.Unix(windowStart, 0)), sw.Window)
+		prevWeight := max(0.0, 1.0-float64(elapsed)/float64(sw.Window))
 		effectiveUsage := float64(curr) + float64(prev)*prevWeight
 
 		// Increment current window
 		_ = sw.Store.Incr(c.Request.Context(), key, sw.Window)
 
 		// Calculate remaining and reset
-		remaining := int(float64(sw.Limit) - effectiveUsage)
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := max(0, int(float64(sw.Limit)-effectiveUsage))
 
 		// Calculate reset time (seconds until current window ends)
 		windowEnd := windowStart + int64(sw.Window.Seconds())
-		resetSeconds := int(windowEnd - now.Unix())
-		if resetSeconds < 0 {
-			resetSeconds = 0
-		}
+		resetSeconds := max(0, int(windowEnd-now.Unix()))
 
 		// Set headers if enabled
 		if opts.Headers {
@@ -265,7 +253,7 @@ func WithSlidingWindow(sw SlidingWindow, opts CommonOptions) router.HandlerFunc 
 				ResetSeconds: resetSeconds,
 				Window:       sw.Window,
 				Key:          key,
-				Route:        c.RouteTemplate(),
+				Route:        c.RoutePattern(),
 				Method:       c.Request.Method,
 				ClientIP:     c.ClientIP(),
 			}

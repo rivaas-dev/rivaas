@@ -420,7 +420,7 @@ func TestAccessLog_ErrorBypassesSampling(t *testing.T) {
 	assert.NotEmpty(t, handler.getRecords(slog.LevelWarn), "Error request should bypass sampling and be logged")
 }
 
-func TestAccessLog_RouteTemplate(t *testing.T) {
+func TestAccessLog_RoutePattern(t *testing.T) {
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()

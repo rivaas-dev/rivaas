@@ -1099,9 +1099,9 @@ func TestContextCustomMetricsWithoutMetricsRecorder(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-// TestContextCustomMetricsWithTemplateCache tests that custom metrics work
-// when routes are matched via template cache.
-func TestContextCustomMetricsWithTemplateCache(t *testing.T) {
+// TestContextCustomMetricsWithCompiledRoutes tests that custom metrics work
+// when routes are matched via compiled routes.
+func TestContextCustomMetricsWithCompiledRoutes(t *testing.T) {
 	t.Parallel()
 	r := MustNew()
 
@@ -1110,7 +1110,7 @@ func TestContextCustomMetricsWithTemplateCache(t *testing.T) {
 
 	var metricsCalled bool
 
-	// Register a static route that will be template-cached
+	// Register a static route that will be compiled
 	r.GET("/api/v1/products/:id", func(c *Context) {
 		c.IncrementCounter("product_views_total",
 			attribute.String("product_id", c.Param("id")),
@@ -1119,7 +1119,7 @@ func TestContextCustomMetricsWithTemplateCache(t *testing.T) {
 		c.Stringf(http.StatusOK, "product: %s", c.Param("id"))
 	})
 
-	// Compile routes to enable template cache
+	// Compile routes for optimized matching
 	r.CompileAllRoutes()
 
 	// Make request
@@ -1129,7 +1129,7 @@ func TestContextCustomMetricsWithTemplateCache(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, metricsCalled, "Custom metrics should work with template cache")
+	assert.True(t, metricsCalled, "Custom metrics should work with compiled routes")
 }
 
 // TestContextCustomMetricsWithVersionedRoutes tests that custom metrics work

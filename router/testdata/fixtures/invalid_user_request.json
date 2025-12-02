@@ -1,0 +1,7 @@
+{
+  "id": "not_a_number",
+  "name": "",
+  "email": "invalid-email",
+  "age": -5,
+  "active": "yes"
+}

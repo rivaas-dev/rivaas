@@ -118,8 +118,7 @@ import (
 //
 // If you have routes with many parameters, consider refactoring your API design.
 type Context struct {
-	// === COMMONLY ACCESSED FIELDS (accessed on every request) ===
-	// These fields are accessed on every HTTP request and are grouped together.
+	// Core request fields - accessed on every HTTP request.
 	Request  *http.Request       // The HTTP request object
 	Response http.ResponseWriter // The HTTP response writer
 	handlers []HandlerFunc       // Handler chain for this request
@@ -128,13 +127,11 @@ type Context struct {
 	index      int32 // Current handler index in the chain
 	paramCount int32 // Number of parameters in arrays (0-8)
 
-	// === PARAMETER STORAGE (accessed when route has params) ===
-	// Arrays provide storage for route parameters.
+	// Parameter storage - arrays provide storage for route parameters.
 	paramKeys   [8]string // Parameter names
 	paramValues [8]string // Parameter values
 
-	// === RARELY ACCESSED FIELDS ===
-	// These fields are only accessed in specific scenarios.
+	// Additional fields - accessed in specific scenarios.
 	//
 	// Params map is nil unless route has many parameters.
 	// When Params is populated, it contains additional parameters while paramKeys/paramValues
@@ -144,7 +141,7 @@ type Context struct {
 	metricsRecorder ContextMetricsRecorder // Metrics recorder for this context
 	tracingRecorder ContextTracingRecorder // Tracing recorder for this context
 	version         string                 // Current API version (e.g., "v1", "v2")
-	routeTemplate   string                 // Matched route template (e.g., "/users/:id" or "_not_found")
+	routePattern    string                 // Matched route pattern (e.g., "/users/:id" or "_not_found")
 	logger          *slog.Logger           // Request-scoped logger (set by observability recorder)
 
 	// Header parsing cache (per-request)
@@ -1221,10 +1218,10 @@ func (c *Context) Span() trace.Span {
 	return c.span
 }
 
-// RouteTemplate returns the matched route template (e.g., "/users/:id").
-// Returns empty string if template is not available.
-func (c *Context) RouteTemplate() string {
-	return c.routeTemplate
+// RoutePattern returns the matched route pattern (e.g., "/users/:id").
+// Returns empty string if pattern is not available.
+func (c *Context) RoutePattern() string {
+	return c.routePattern
 }
 
 // SetETag sets an ETag header for the response.
@@ -1492,7 +1489,7 @@ func (c *Context) reset() {
 	c.metricsRecorder = nil
 	c.tracingRecorder = nil
 	c.version = ""
-	c.routeTemplate = ""
+	c.routePattern = ""
 	c.logger = nil
 
 	// Reset state flags
@@ -1584,7 +1581,7 @@ func (c *Context) initForRequest(req *http.Request, w http.ResponseWriter, handl
 }
 
 // initForRequestWithParams initializes context WITHOUT resetting parameters.
-// Used when parameters have already been extracted (e.g., from template matching).
+// Used when parameters have already been extracted (e.g., from compiled route matching).
 func (c *Context) initForRequestWithParams(req *http.Request, w http.ResponseWriter, handlers []HandlerFunc, router *Router) {
 	c.Request = req
 	c.Response = w
@@ -1592,7 +1589,7 @@ func (c *Context) initForRequestWithParams(req *http.Request, w http.ResponseWri
 	c.router = router
 	c.index = -1
 	c.version = "" // Reset version for non-versioned routes
-	// Note: paramCount and param arrays NOT reset - already populated by template
+	// Note: paramCount and param arrays NOT reset - already populated by compiled route matching
 
 	// NOTE: metricsRecorder is now set by app/observability if needed
 	// Handler-level custom metrics work through Context.RecordMetric(), IncrementCounter(), SetGauge()

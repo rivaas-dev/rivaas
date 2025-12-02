@@ -142,7 +142,7 @@ func TestMatchAndExtract_EdgeCases(t *testing.T) {
 			t.Parallel()
 
 			route := CompileRoute("GET", tt.pattern, nil, nil)
-			ctx := &mockContextParamWriter{}
+			ctx := &testContextParamWriter{}
 			matched := route.matchAndExtract(tt.testPath, ctx)
 
 			if tt.wantMatch {
@@ -236,7 +236,7 @@ func TestMatchAndExtract_Constraints(t *testing.T) {
 			t.Parallel()
 
 			route := CompileRoute("GET", tt.pattern, nil, tt.constraints)
-			ctx := &mockContextParamWriter{}
+			ctx := &testContextParamWriter{}
 			matched := route.matchAndExtract(tt.testPath, ctx)
 
 			assert.Equal(t, tt.wantMatch, matched)
@@ -266,7 +266,7 @@ func TestMatchDynamic_MethodMismatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := &mockContextParamWriter{}
+			ctx := &testContextParamWriter{}
 			matched := rc.MatchDynamic(tt.method, "/users/123", ctx)
 
 			if tt.wantMatch {
@@ -311,7 +311,7 @@ func TestMatchDynamic_NonASCIIPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := &mockContextParamWriter{}
+			ctx := &testContextParamWriter{}
 			matched := rc.MatchDynamic("GET", tt.path, ctx)
 
 			if tt.wantMatch {
@@ -457,7 +457,7 @@ func TestMatchDynamic_PathEdgeCases(t *testing.T) {
 			route := CompileRoute("GET", tt.pattern, nil, nil)
 			rc.AddRoute(route)
 
-			ctx := &mockContextParamWriter{}
+			ctx := &testContextParamWriter{}
 			matched := rc.MatchDynamic("GET", tt.testPath, ctx)
 
 			if tt.wantMatch {

@@ -15,21 +15,21 @@
 package router
 
 import (
-	"fmt"
 	"maps"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"unsafe"
 
+	"rivaas.dev/router/route"
 	"rivaas.dev/router/version"
 )
 
 // WithVersioning configures the router with API versioning support using functional options.
 // This enables version detection from headers, query parameters, paths, or Accept headers.
 //
-// Panics if the versioning configuration is invalid. Use New() instead of MustNew() if you need
-// to handle configuration errors gracefully.
+// Returns an error through New() if the versioning configuration is invalid.
+// This follows the fail-fast design principle by validating configuration at startup.
 //
 // Example:
 //
@@ -52,15 +52,18 @@ import (
 //	        version.WithSunsetEnforcement(),
 //	    ),
 //	)
+//
+// Error handling with New():
+//
+//	router, err := router.New(router.WithVersioning(invalidOpts...))
+//	if err != nil {
+//	    // Handle versioning configuration error
+//	}
 func WithVersioning(opts ...version.Option) Option {
 	return func(r *Router) {
-		// Create engine with options
-		engine, err := version.New(opts...)
-		if err != nil {
-			panic(fmt.Sprintf("failed to create versioning engine: %v", err))
-		}
-
-		r.versionEngine = engine
+		// Store options for deferred validation in validate()
+		// This ensures errors are returned through New() instead of panicking
+		r.versionOpts = opts
 	}
 }
 
@@ -196,7 +199,7 @@ func (r *Router) getVersionTree(ver, method string) *node {
 // - Phase 1 handles existing version/method combinations directly
 // - Phase 2 ensures thread-safe creation of new version trees
 // - Deep copy prevents race conditions when creating new method trees
-func (r *Router) addVersionRoute(ver, method, path string, handlers []HandlerFunc, constraints []RouteConstraint) {
+func (r *Router) addVersionRoute(ver, method, path string, handlers []HandlerFunc, constraints []route.Constraint) {
 	// Try to get the existing tree for this version/method combination
 	// This is the common case after initial setup
 	versionTreesPtr := atomic.LoadPointer(&r.versionTrees.trees)
@@ -353,48 +356,48 @@ func (vr *VersionRouter) Configure(opts ...version.LifecycleOption) *VersionRout
 //
 //	vr.Handle("GET", "/users", getUserHandler)
 //	vr.Handle("POST", "/users", createUserHandler)
-func (vr *VersionRouter) Handle(method, path string, handlers ...HandlerFunc) *Route {
+func (vr *VersionRouter) Handle(method, path string, handlers ...HandlerFunc) *route.Route {
 	return vr.addVersionRoute(method, path, handlers)
 }
 
 // GET adds a GET route to the version-specific router
-func (vr *VersionRouter) GET(path string, handlers ...HandlerFunc) *Route {
+func (vr *VersionRouter) GET(path string, handlers ...HandlerFunc) *route.Route {
 	return vr.Handle("GET", path, handlers...)
 }
 
 // POST adds a POST route to the version-specific router
-func (vr *VersionRouter) POST(path string, handlers ...HandlerFunc) *Route {
+func (vr *VersionRouter) POST(path string, handlers ...HandlerFunc) *route.Route {
 	return vr.Handle("POST", path, handlers...)
 }
 
 // PUT adds a PUT route to the version-specific router
-func (vr *VersionRouter) PUT(path string, handlers ...HandlerFunc) *Route {
+func (vr *VersionRouter) PUT(path string, handlers ...HandlerFunc) *route.Route {
 	return vr.Handle("PUT", path, handlers...)
 }
 
 // DELETE adds a DELETE route to the version-specific router
-func (vr *VersionRouter) DELETE(path string, handlers ...HandlerFunc) *Route {
+func (vr *VersionRouter) DELETE(path string, handlers ...HandlerFunc) *route.Route {
 	return vr.Handle("DELETE", path, handlers...)
 }
 
 // PATCH adds a PATCH route to the version-specific router
-func (vr *VersionRouter) PATCH(path string, handlers ...HandlerFunc) *Route {
+func (vr *VersionRouter) PATCH(path string, handlers ...HandlerFunc) *route.Route {
 	return vr.Handle("PATCH", path, handlers...)
 }
 
 // OPTIONS adds an OPTIONS route to the version-specific router
-func (vr *VersionRouter) OPTIONS(path string, handlers ...HandlerFunc) *Route {
+func (vr *VersionRouter) OPTIONS(path string, handlers ...HandlerFunc) *route.Route {
 	return vr.Handle("OPTIONS", path, handlers...)
 }
 
 // HEAD adds a HEAD route to the version-specific router
-func (vr *VersionRouter) HEAD(path string, handlers ...HandlerFunc) *Route {
+func (vr *VersionRouter) HEAD(path string, handlers ...HandlerFunc) *route.Route {
 	return vr.Handle("HEAD", path, handlers...)
 }
 
 // addVersionRoute adds a route to the version-specific router using deferred registration.
 // The route's version field is set so it will be registered to the correct tree during Warmup().
-func (vr *VersionRouter) addVersionRoute(method, path string, handlers []HandlerFunc) *Route {
+func (vr *VersionRouter) addVersionRoute(method, path string, handlers []HandlerFunc) *route.Route {
 	// Analyze route for introspection
 	handlerName := "anonymous"
 	if len(handlers) > 0 {
@@ -418,7 +421,7 @@ func (vr *VersionRouter) addVersionRoute(method, path string, handlers []Handler
 
 	// Store route info for introspection
 	vr.router.routeTree.routesMutex.Lock()
-	vr.router.routeTree.routes = append(vr.router.routeTree.routes, RouteInfo{
+	vr.router.routeTree.routes = append(vr.router.routeTree.routes, route.Info{
 		Method:      method,
 		Path:        path,
 		HandlerName: handlerName,
@@ -433,14 +436,14 @@ func (vr *VersionRouter) addVersionRoute(method, path string, handlers []Handler
 	// Record route registration for metrics
 	vr.router.recordRouteRegistration(method, path)
 
-	// Create route object with version field set for deferred registration
-	route := &Route{
-		router:   vr.router,
-		version:  vr.version, // KEY: This ensures the route goes to the version-specific tree
-		method:   method,
-		path:     path,
-		handlers: handlers,
+	// Convert handlers to route.Handler
+	routeHandlers := make([]route.Handler, len(handlers))
+	for i, h := range handlers {
+		routeHandlers[i] = h
 	}
+
+	// Create route object with version field set for deferred registration
+	rt := route.NewRoute(vr.router, vr.version, method, path, routeHandlers)
 
 	// Add to pending routes for deferred registration during Warmup()
 	// If warmup has already been called, register immediately
@@ -448,13 +451,13 @@ func (vr *VersionRouter) addVersionRoute(method, path string, handlers []Handler
 	if vr.router.warmedUp {
 		// Warmup already happened, register immediately
 		vr.router.pendingRoutesMu.Unlock()
-		route.registerRoute()
+		rt.RegisterRoute()
 	} else {
-		vr.router.pendingRoutes = append(vr.router.pendingRoutes, route)
+		vr.router.pendingRoutes = append(vr.router.pendingRoutes, rt)
 		vr.router.pendingRoutesMu.Unlock()
 	}
 
-	return route
+	return rt
 }
 
 // Group creates a version-specific route group
@@ -492,49 +495,54 @@ func (vg *VersionGroup) SetNamePrefix(prefix string) *VersionGroup {
 
 // Handle adds a route with the specified HTTP method to the version group.
 // This is the generic method used by all HTTP method shortcuts.
-func (vg *VersionGroup) Handle(method, path string, handlers ...HandlerFunc) *Route {
+func (vg *VersionGroup) Handle(method, path string, handlers ...HandlerFunc) *route.Route {
 	fullPath := vg.prefix + path
 	// Create a new slice to avoid modifying vg.middleware's backing array
 	allHandlers := make([]HandlerFunc, 0, len(vg.middleware)+len(handlers))
 	allHandlers = append(allHandlers, vg.middleware...)
 	allHandlers = append(allHandlers, handlers...)
-	route := vg.versionRouter.addVersionRoute(method, fullPath, allHandlers)
+	rt := vg.versionRouter.addVersionRoute(method, fullPath, allHandlers)
 	// Set version group reference for name prefixing
-	route.versionGroup = vg
-	return route
+	rt.SetVersionGroup(vg)
+	return rt
 }
 
 // GET adds a GET route to the version group
-func (vg *VersionGroup) GET(path string, handlers ...HandlerFunc) *Route {
+func (vg *VersionGroup) GET(path string, handlers ...HandlerFunc) *route.Route {
 	return vg.Handle("GET", path, handlers...)
 }
 
 // POST adds a POST route to the version group
-func (vg *VersionGroup) POST(path string, handlers ...HandlerFunc) *Route {
+func (vg *VersionGroup) POST(path string, handlers ...HandlerFunc) *route.Route {
 	return vg.Handle("POST", path, handlers...)
 }
 
 // PUT adds a PUT route to the version group
-func (vg *VersionGroup) PUT(path string, handlers ...HandlerFunc) *Route {
+func (vg *VersionGroup) PUT(path string, handlers ...HandlerFunc) *route.Route {
 	return vg.Handle("PUT", path, handlers...)
 }
 
 // DELETE adds a DELETE route to the version group
-func (vg *VersionGroup) DELETE(path string, handlers ...HandlerFunc) *Route {
+func (vg *VersionGroup) DELETE(path string, handlers ...HandlerFunc) *route.Route {
 	return vg.Handle("DELETE", path, handlers...)
 }
 
 // PATCH adds a PATCH route to the version group
-func (vg *VersionGroup) PATCH(path string, handlers ...HandlerFunc) *Route {
+func (vg *VersionGroup) PATCH(path string, handlers ...HandlerFunc) *route.Route {
 	return vg.Handle("PATCH", path, handlers...)
 }
 
 // OPTIONS adds an OPTIONS route to the version group
-func (vg *VersionGroup) OPTIONS(path string, handlers ...HandlerFunc) *Route {
+func (vg *VersionGroup) OPTIONS(path string, handlers ...HandlerFunc) *route.Route {
 	return vg.Handle("OPTIONS", path, handlers...)
 }
 
 // HEAD adds a HEAD route to the version group
-func (vg *VersionGroup) HEAD(path string, handlers ...HandlerFunc) *Route {
+func (vg *VersionGroup) HEAD(path string, handlers ...HandlerFunc) *route.Route {
 	return vg.Handle("HEAD", path, handlers...)
+}
+
+// NamePrefix returns the name prefix for this version group.
+func (vg *VersionGroup) NamePrefix() string {
+	return vg.namePrefix
 }

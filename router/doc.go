@@ -23,7 +23,7 @@
 //   - Parameter extraction from URL paths
 //   - Context pooling for request handling
 //   - Route grouping for hierarchical API organization
-//   - Template-based routing for route patterns
+//   - Compiled route matching with bloom filters and hash tables
 //   - API versioning support (path, header, query, Accept-based)
 //   - OpenTelemetry tracing and metrics integration
 //   - Comprehensive request binding (query, params, headers, cookies, body)
@@ -38,21 +38,28 @@
 //
 // # Constructor Pattern
 //
-// The router follows a pragmatic constructor pattern:
+// The router follows the standard Rivaas constructor pattern:
 //
-//   - New() returns *Router (no error) because router initialization cannot fail.
-//     The router is a simple data structure that allocates memory and applies options.
-//     There is no network I/O, file system access, or external dependencies during construction.
+//   - New() returns (*Router, error) for cases where error handling is needed.
+//     Configuration is validated at startup rather than at runtime.
 //
-//   - Options are validated at application time (e.g., invalid configuration panics on invalid input).
-//     This approach is appropriate for configuration errors that should be caught during development.
+//   - MustNew() panics on error, suitable for main() where configuration errors
+//     should cause immediate failure.
 //
-//   - All configuration options use the "With" prefix for consistency (e.g., WithH2C, WithLogger).
+//   - All configuration options use the "With" prefix for consistency (e.g., WithH2C, WithVersioning).
 //
 //   - Grouping options (e.g., WithServerTimeouts) accept multiple related settings to reduce API surface.
 //
-// This pattern differs from packages that initialize external resources (metrics, tracing, logging),
-// which return errors because they may fail to connect to backends or validate complex configurations.
+// Example:
+//
+//	// In main() - panic is acceptable
+//	r := router.MustNew(router.WithH2C(true))
+//
+//	// In tests or libraries - handle errors
+//	r, err := router.New(router.WithVersioning(...))
+//	if err != nil {
+//	    return fmt.Errorf("failed to create router: %w", err)
+//	}
 //
 // # Quick Start
 //

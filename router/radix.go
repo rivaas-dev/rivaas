@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"rivaas.dev/router/compiler"
+	"rivaas.dev/router/route"
 )
 
 // CompiledRoute represents a compiled static route for lookup
@@ -51,7 +52,7 @@ type node struct {
 	children    map[string]*node    // Static child routes
 	param       *param              // Parameter child route (if any)
 	wildcard    *wildcard           // Wildcard child route (if any)
-	constraints []RouteConstraint   // Parameter constraints for this route
+	constraints []route.Constraint  // Parameter constraints for this route
 	path        string              // Full path for this node
 	compiled    *CompiledRouteTable // Route table for static route matching
 	mu          sync.RWMutex        // Protects concurrent access to this node
@@ -83,7 +84,7 @@ type wildcard struct {
 // - "/users" → root.children["users"]
 // - "/users/:id" → root.children["users"].param.node
 // - "/static/*" → root.children["static"].wildcard.node
-func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, constraints []RouteConstraint) {
+func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, constraints []route.Constraint) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -354,7 +355,7 @@ func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
 //
 // For routes with many constraints and many parameters,
 // build a temporary map to avoid nested loops. Otherwise use array lookup.
-func validateConstraints(constraints []RouteConstraint, ctx *Context) bool {
+func validateConstraints(constraints []route.Constraint, ctx *Context) bool {
 	if len(constraints) == 0 {
 		return true // No constraints to validate
 	}

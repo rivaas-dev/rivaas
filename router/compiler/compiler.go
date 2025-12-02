@@ -83,7 +83,7 @@ type RouteCompiler struct {
 	staticRoutes map[uint64]*CompiledRoute
 	staticBloom  *BloomFilter
 
-	// Dynamic route templates: ordered by specificity
+	// Dynamic routes: ordered by specificity
 	dynamicRoutes []*CompiledRoute
 
 	// First-segment index for filtering (ASCII-only)

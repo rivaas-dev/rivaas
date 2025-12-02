@@ -191,13 +191,13 @@ var _ = Describe("Router Integration", func() {
 	})
 
 	Describe("Router with all features", func() {
-		Context("with bloom filter and template routing", func() {
+		Context("with bloom filter and route compilation", func() {
 			It("should work correctly", func() {
 				r := router.MustNew(
 					router.WithBloomFilterSize(2000),
 					router.WithBloomFilterHashFunctions(5),
 					router.WithCancellationCheck(true),
-					router.WithTemplateRouting(true),
+					router.WithRouteCompilation(true),
 				)
 
 				// Add middleware
@@ -771,7 +771,7 @@ var _ = Describe("Router Integration", func() {
 				router.WithBloomFilterSize(2000),
 				router.WithBloomFilterHashFunctions(5),
 				router.WithCancellationCheck(false),
-				router.WithTemplateRouting(true),
+				router.WithRouteCompilation(true),
 			)
 
 			// Verify router works with all options
@@ -791,10 +791,10 @@ var _ = Describe("Router Integration", func() {
 			Expect(response["id"]).To(Equal("42"))
 		})
 
-		Describe("Template routing", func() {
-			Context("with templates enabled", func() {
+		Describe("Route compilation", func() {
+			Context("with compilation enabled", func() {
 				It("should route static and dynamic routes", func() {
-					r := router.MustNew(router.WithTemplateRouting(true))
+					r := router.MustNew(router.WithRouteCompilation(true))
 
 					staticCalled := false
 					dynamicCalled := false
@@ -831,9 +831,9 @@ var _ = Describe("Router Integration", func() {
 				})
 			})
 
-			Context("with templates disabled", func() {
+			Context("with compilation disabled", func() {
 				It("should still route static and dynamic routes", func() {
-					r := router.MustNew(router.WithTemplateRouting(false))
+					r := router.MustNew(router.WithRouteCompilation(false))
 
 					staticCalled := false
 					dynamicCalled := false
@@ -848,7 +848,7 @@ var _ = Describe("Router Integration", func() {
 						c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 					})
 
-					// Both should work even without templates
+					// Both should work even without compilation
 					req := httptest.NewRequest(http.MethodGet, "/static/path", nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
@@ -866,7 +866,7 @@ var _ = Describe("Router Integration", func() {
 			})
 
 			It("should work after routes are registered", func() {
-				r := router.MustNew(router.WithTemplateRouting(true))
+				r := router.MustNew(router.WithRouteCompilation(true))
 
 				r.GET("/test1", func(c *router.Context) {
 					c.String(http.StatusOK, "test1")

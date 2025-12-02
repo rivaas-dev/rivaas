@@ -16,7 +16,6 @@ package router
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -29,10 +28,8 @@ import (
 	"time"
 	"unsafe"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
 	"rivaas.dev/router/compiler"
+	"rivaas.dev/router/route"
 	"rivaas.dev/router/version"
 )
 
@@ -145,13 +142,14 @@ type Router struct {
 	diagnostics   DiagnosticHandler     // Optional diagnostic event handler
 
 	// Deferred route registration
-	pendingRoutes   []*Route   // Routes waiting to be registered during Warmup
-	pendingRoutesMu sync.Mutex // Protects pendingRoutes slice and warmedUp flag
-	warmupOnce      sync.Once  // Ensures warmup runs exactly once
-	warmedUp        bool       // True after Warmup has completed
+	pendingRoutes   []*route.Route // Routes waiting to be registered during Warmup
+	pendingRoutesMu sync.Mutex     // Protects pendingRoutes slice and warmedUp flag
+	warmupOnce      sync.Once      // Ensures warmup runs exactly once
+	warmedUp        bool           // True after Warmup has completed
 
 	// Routing features
 	versionEngine *version.Engine    // API versioning engine for version detection
+	versionOpts   []version.Option   // Pending versioning options (validated during validate())
 	versionTrees  atomicVersionTrees // Version-specific route trees
 	versionCache  sync.Map           // Version-specific compiled routes
 
@@ -161,8 +159,8 @@ type Router struct {
 	checkCancellation  bool   // Enable context cancellation checks in Next() (default: true)
 
 	// Route compilation
-	routeCompiler *compiler.RouteCompiler // Pre-compiled routes for matching
-	useTemplates  bool                    // Enable template-based routing (default: true)
+	routeCompiler     *compiler.RouteCompiler // Pre-compiled routes for matching
+	useCompiledRoutes bool                    // Enable compiled route matching (default: true)
 
 	// Custom 404 handler
 	noRouteHandler HandlerFunc  // Custom handler for unmatched routes (nil means use http.NotFound)
@@ -176,10 +174,10 @@ type Router struct {
 	realip *realIPConfig // Compiled trusted proxy configuration
 
 	// Route freezing and naming
-	frozen             atomic.Bool       // Routes are frozen (immutable) after freeze
-	namedRoutes        map[string]*Route // name -> route mapping
-	routeSnapshot      []*Route          // Immutable snapshot built at freeze time
-	routeSnapshotMutex sync.RWMutex      // Protects routeSnapshot
+	frozen             atomic.Bool             // Routes are frozen (immutable) after freeze
+	namedRoutes        map[string]*route.Route // name -> route mapping
+	routeSnapshot      []*route.Route          // Immutable snapshot built at freeze time
+	routeSnapshotMutex sync.RWMutex            // Protects routeSnapshot
 }
 
 // serverTimeouts holds HTTP server timeout configuration.
@@ -238,8 +236,8 @@ func New(opts ...Option) (*Router, error) {
 		bloomFilterSize:    defaultBloomFilterSize,
 		bloomHashFunctions: defaultBloomHashFunctions,
 		checkCancellation:  true, // Enable cancellation checks by default
-		useTemplates:       true, // Enable template-based routing by default
-		namedRoutes:        make(map[string]*Route),
+		useCompiledRoutes:  true, // Enable compiled route matching by default
+		namedRoutes:        make(map[string]*route.Route),
 	}
 
 	// Initialize the atomic route tree with an empty map
@@ -287,6 +285,7 @@ func MustNew(opts ...Option) *Router {
 // Validation checks:
 //   - Bloom filter parameters are positive
 //   - Versioning configuration is valid (if present)
+//   - Server timeouts are positive (if configured)
 //
 // Note: Routes are validated at registration time, not at router creation time,
 // because routes are registered after New() returns.
@@ -300,12 +299,31 @@ func (r *Router) validate() error {
 		return fmt.Errorf("%w: got %d", ErrBloomHashFunctionsInvalid, r.bloomHashFunctions)
 	}
 
-	// Validate versioning configuration if present
-	// Note: Versioning validation is handled internally by the versioning system
-	// We just verify it exists and was properly initialized
-	// Engine validates configuration during construction
-	if r.versionEngine != nil {
-		_ = r.versionEngine // Verify it exists
+	// Validate and create versioning engine from pending options
+	// This deferred creation ensures errors are returned through New() instead of panicking
+	if len(r.versionOpts) > 0 {
+		engine, err := version.New(r.versionOpts...)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrVersioningConfigInvalid, err)
+		}
+		r.versionEngine = engine
+		r.versionOpts = nil // Clear pending options after successful creation
+	}
+
+	// Validate server timeouts if configured
+	if r.serverTimeouts != nil {
+		if r.serverTimeouts.readHeader <= 0 {
+			return fmt.Errorf("%w: readHeaderTimeout must be positive", ErrServerTimeoutInvalid)
+		}
+		if r.serverTimeouts.read <= 0 {
+			return fmt.Errorf("%w: readTimeout must be positive", ErrServerTimeoutInvalid)
+		}
+		if r.serverTimeouts.write <= 0 {
+			return fmt.Errorf("%w: writeTimeout must be positive", ErrServerTimeoutInvalid)
+		}
+		if r.serverTimeouts.idle <= 0 {
+			return fmt.Errorf("%w: idleTimeout must be positive", ErrServerTimeoutInvalid)
+		}
 	}
 
 	return nil
@@ -461,9 +479,9 @@ func (r *Router) handleMethodNotAllowed(w http.ResponseWriter, req *http.Request
 		c.version = r.versionEngine.DetectVersion(req)
 	}
 
-	// Set route template: if we matched a node but wrong method, try to determine template
+	// Set route pattern: if we matched a node but wrong method, try to determine pattern
 	// Otherwise use sentinel to avoid cardinality explosion
-	c.routeTemplate = "_method_not_allowed"
+	c.routePattern = "_method_not_allowed"
 
 	// Send 405 response (MethodNotAllowed already sets Allow header)
 	c.MethodNotAllowed(allowed)
@@ -503,8 +521,8 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 			c.version = r.versionEngine.DetectVersion(req)
 		}
 
-		// Set route template for metrics/tracing
-		c.routeTemplate = "_not_found"
+		// Set route pattern for metrics/tracing
+		c.routePattern = "_not_found"
 
 		// Execute the custom handler
 		handler(c)
@@ -520,8 +538,8 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 		c.paramCount = 0
 		c.router = r
 
-		// Set route template for metrics/tracing (sentinel, not raw path)
-		c.routeTemplate = "_not_found"
+		// Set route pattern for metrics/tracing (sentinel, not raw path)
+		c.routePattern = "_not_found"
 
 		if r.versionEngine != nil {
 			c.version = r.versionEngine.DetectVersion(req)
@@ -530,188 +548,6 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 		c.NotFound()
 
 		releaseGlobalContext(c)
-	}
-}
-
-// WithDiagnostics sets a diagnostic handler for the router.
-//
-// Diagnostic events are optional informational events that may indicate
-// configuration issues or security concerns.
-// The router functions correctly whether diagnostics are collected or not.
-//
-// Example with logging:
-//
-//	import "log/slog"
-//
-//	handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
-//	    slog.Warn(e.Message, "kind", e.Kind, "fields", e.Fields)
-//	})
-//	r := router.MustNew(router.WithDiagnostics(handler))
-//
-// Example with metrics:
-//
-//	handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
-//	    metrics.Increment("router.diagnostics", "kind", string(e.Kind))
-//	})
-//
-// Example with OpenTelemetry:
-//
-//	import "go.opentelemetry.io/otel/attribute"
-//	import "go.opentelemetry.io/otel/trace"
-//
-//	handler := router.DiagnosticHandlerFunc(func(e router.DiagnosticEvent) {
-//	    span := trace.SpanFromContext(ctx)
-//	    if span.IsRecording() {
-//	        attrs := []attribute.KeyValue{
-//	            attribute.String("diagnostic.kind", string(e.Kind)),
-//	        }
-//	        for k, v := range e.Fields {
-//	            attrs = append(attrs, attribute.String(k, fmt.Sprint(v)))
-//	        }
-//	        span.AddEvent(e.Message, trace.WithAttributes(attrs...))
-//	    }
-//	})
-func WithDiagnostics(handler DiagnosticHandler) Option {
-	return func(r *Router) {
-		r.diagnostics = handler
-	}
-}
-
-// WithH2C enables HTTP/2 Cleartext support.
-//
-// ⚠️ SECURITY WARNING: Only use in development or behind a trusted load balancer.
-// DO NOT enable on public-facing servers without TLS.
-//
-// Common deployment patterns:
-//   - Dev/local testing: Enable h2c for direct HTTP/2 testing
-//   - Behind Envoy/Caddy: LB speaks h2c to app (configure LB accordingly)
-//   - Behind Nginx: Typically uses HTTP/1.1 upstream (h2c not needed)
-//
-// Requires: golang.org/x/net/http2/h2c
-//
-// Example:
-//
-//	r := router.MustNew(router.WithH2C(true))
-//	r.Serve(":8080")
-func WithH2C(enable bool) Option {
-	return func(r *Router) {
-		r.enableH2C = enable
-	}
-}
-
-// WithServerTimeouts configures HTTP server timeouts.
-// These are critical for preventing slowloris attacks and resource exhaustion.
-//
-// Defaults (if not set):
-//
-//	ReadHeaderTimeout: 5s  - Time to read request headers
-//	ReadTimeout:       15s - Time to read entire request
-//	WriteTimeout:      30s - Time to write response
-//	IdleTimeout:       60s - Keep-alive idle time
-//
-// Example:
-//
-//	r := router.MustNew(router.WithServerTimeouts(
-//	    10*time.Second,  // ReadHeaderTimeout
-//	    30*time.Second,  // ReadTimeout
-//	    60*time.Second,  // WriteTimeout
-//	    120*time.Second, // IdleTimeout
-//	))
-func WithServerTimeouts(readHeader, read, write, idle time.Duration) Option {
-	return func(r *Router) {
-		r.serverTimeouts = &serverTimeouts{
-			readHeader: readHeader,
-			read:       read,
-			write:      write,
-			idle:       idle,
-		}
-	}
-}
-
-// defaultServerTimeouts returns default timeout configuration.
-func defaultServerTimeouts() *serverTimeouts {
-	return &serverTimeouts{
-		readHeader: 5 * time.Second,
-		read:       15 * time.Second,
-		write:      30 * time.Second,
-		idle:       60 * time.Second,
-	}
-}
-
-// WithBloomFilterSize returns a RouterOption that sets the bloom filter size for compiled routes.
-// The bloom filter is used for negative lookups in static route matching.
-// Larger sizes reduce false positives.
-//
-// Default: 1000
-// Recommended: Set to 2-3x the number of static routes
-// Must be > 0 or validation will fail.
-//
-// Example:
-//
-//	r := router.MustNew(router.WithBloomFilterSize(2000)) // For ~1000 routes
-func WithBloomFilterSize(size uint64) Option {
-	return func(r *Router) {
-		r.bloomFilterSize = size
-	}
-}
-
-// WithBloomFilterHashFunctions returns a RouterOption that sets the number of hash functions
-// used in bloom filters for compiled routes. More hash functions reduce false positives.
-//
-// Default: 3
-// Range: 1-10 (values outside this range are clamped)
-// Recommended: 3-5 for most use cases
-//
-// False positive rate formula: (1 - e^(-kn/m))^k
-// where k = hash functions, n = items, m = bits
-//
-// Example:
-//
-//	r := router.MustNew(router.WithBloomFilterHashFunctions(4))
-func WithBloomFilterHashFunctions(numFuncs int) Option {
-	return func(r *Router) {
-		// Clamp to reasonable range
-		if numFuncs < 1 {
-			numFuncs = 1
-		} else if numFuncs > 10 {
-			numFuncs = 10
-		}
-		r.bloomHashFunctions = numFuncs
-	}
-}
-
-// WithCancellationCheck returns a RouterOption that enables/disables context cancellation
-// checking in the middleware chain. When enabled, the router checks for cancelled contexts
-// between each handler, preventing wasted work on timed-out requests.
-//
-// Default: true (enabled)
-//
-// Disable if:
-//   - You don't use request timeouts
-//   - You handle cancellation manually in handlers
-//
-// Example:
-//
-//	r := router.MustNew(router.WithCancellationCheck(false))
-func WithCancellationCheck(enabled bool) Option {
-	return func(r *Router) {
-		r.checkCancellation = enabled
-	}
-}
-
-// WithTemplateRouting returns a RouterOption that enables/disables template-based routing.
-// When enabled, routes are compiled into templates for lookup.
-//
-// Default: true (enabled)
-//
-// Disable only for debugging or if you encounter issues.
-//
-// Example:
-//
-//	r := router.MustNew(router.WithTemplateRouting(true))  // Enabled by default
-func WithTemplateRouting(enabled bool) Option {
-	return func(r *Router) {
-		r.useTemplates = enabled
 	}
 }
 
@@ -745,7 +581,7 @@ func (r *Router) updateTrees(updater func(map[string]*node) map[string]*node) {
 
 // addRouteToTree adds a route to the tree.
 // This method uses copy-on-write semantics, only copying when necessary.
-func (r *Router) addRouteToTree(method, path string, handlers []HandlerFunc, constraints []RouteConstraint) {
+func (r *Router) addRouteToTree(method, path string, handlers []HandlerFunc, constraints []route.Constraint) {
 	// Phase 1: Check if method tree already exists
 	// This read is atomic and safe even during concurrent writes
 	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
@@ -791,705 +627,4 @@ func (r *Router) Use(middleware ...HandlerFunc) {
 	r.middlewareMu.Lock()
 	r.middleware = append(r.middleware, middleware...)
 	r.middlewareMu.Unlock()
-}
-
-// Group creates a new route group with the specified prefix and optional middleware.
-// Route groups allow you to organize related routes under a common path prefix
-// and apply middleware that is specific to that group.
-//
-// The prefix will be prepended to all routes registered with the group.
-// Group middleware is executed after global middleware but before route handlers.
-//
-// Example:
-//
-//	api := r.Group("/api/v1", AuthMiddleware())
-//	api.GET("/users", getUsersHandler)    // Matches: GET /api/v1/users
-//	api.POST("/users", createUserHandler) // Matches: POST /api/v1/users
-func (r *Router) Group(prefix string, middleware ...HandlerFunc) *Group {
-	return &Group{
-		router:     r,
-		prefix:     prefix,
-		middleware: middleware,
-	}
-}
-
-// ServeHTTP implements the http.Handler interface for Router.
-// It matches the incoming HTTP request to a registered route and executes
-// the associated handler chain.
-//
-// The routing algorithm uses explicit versioning - routes are only versioned
-// if registered via r.Version(). The precedence is:
-//
-//  1. Main tree (non-versioned routes registered via r.GET, r.POST, etc.)
-//     - These routes bypass version detection entirely
-//     - Common for: /health, /metrics, /docs, static assets
-//  2. Version-specific trees (routes registered via r.Version().GET, etc.)
-//     - Only checked if main tree has no match
-//     - Subject to version detection (header/path/query/accept)
-//
-// Within each tree, the lookup order is:
-//  1. Compiled static routes (hash table O(1) lookup)
-//  2. Compiled dynamic routes (pre-compiled patterns with bloom filter)
-//  3. Dynamic tree traversal (fallback for uncached routes)
-//
-// For each request:
-//  1. Resets a pooled context for the request
-//  2. Matches the path to a route (main tree first, then version trees)
-//  3. Extracts URL parameters (for dynamic routes)
-//  4. Executes the handler chain with middleware
-//  5. Returns the context to the pool
-//
-// Static routes and dynamic routes both use context pooling.
-func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	// Lazy warmup: ensure routes are registered on first request
-	// This is safe to call multiple times due to sync.Once
-	r.Warmup()
-
-	path := req.URL.Path
-	ctx := req.Context()
-	var obsState any
-
-	// Observability lifecycle - start
-	if r.observability != nil {
-		var enrichedCtx context.Context
-		enrichedCtx, obsState = r.observability.OnRequestStart(ctx, req)
-
-		// Only attach enriched context if it actually changed
-		// This avoids unnecessary creation when observability doesn't enrich the context
-		if enrichedCtx != ctx {
-			ctx = enrichedCtx
-			req = req.WithContext(ctx)
-		}
-	}
-
-	// Only wrap ResponseWriter if not excluded
-	if r.observability != nil && obsState != nil {
-		w = r.observability.WrapResponseWriter(w, obsState)
-	}
-
-	// ══════════════════════════════════════════════════════════════════════════
-	// STEP 1: Try main tree FIRST (non-versioned routes)
-	// Routes registered via r.GET(), r.POST() etc. bypass version detection.
-	// This is the fast path for infrastructure endpoints like /health, /metrics.
-	// ══════════════════════════════════════════════════════════════════════════
-
-	// Try compiled routes from main tree (if enabled)
-	if r.useTemplates && r.routeCompiler != nil {
-		// Try static route table first (O(1) hash lookup)
-		if route := r.routeCompiler.LookupStatic(req.Method, path); route != nil {
-			r.serveCompiledRoute(w, req, route, obsState)
-			return
-		}
-
-		// Try dynamic routes (pre-compiled patterns with bloom filter)
-		poolCtx := getContextFromGlobalPool()
-		poolCtx.SetParamCount(0)
-
-		if route := r.routeCompiler.MatchDynamic(req.Method, path, poolCtx); route != nil {
-			r.serveCompiledRouteWithParams(w, req, route, poolCtx, obsState)
-			return
-		}
-
-		releaseGlobalContext(poolCtx)
-	}
-
-	// Try main tree's dynamic routing (tree traversal fallback)
-	tree := r.getTreeForMethodDirect(req.Method)
-	if tree != nil {
-		// Try per-tree compiled routes (legacy path)
-		if tree.compiled != nil {
-			if handlers := tree.compiled.getRoute(path); handlers != nil {
-				r.serveStaticRoute(w, req, handlers, path, "", false, obsState)
-				return
-			}
-		}
-
-		// Try dynamic tree traversal
-		c := getContextFromGlobalPool()
-		c.Request = req
-		c.Response = w
-		c.index = -1
-		c.paramCount = 0
-		c.router = r
-		c.version = "" // Non-versioned route
-
-		handlers, routePattern := tree.getRoute(path, c)
-		if handlers != nil {
-			// Found in main tree - serve without version context
-			c.routeTemplate = routePattern
-			if c.routeTemplate == "" {
-				c.routeTemplate = "_unmatched"
-			}
-
-			var logger *slog.Logger
-			if r.observability != nil {
-				logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-			} else {
-				logger = noopLogger
-			}
-			c.logger = logger
-
-			c.handlers = handlers
-			c.index = -1
-			c.Next()
-
-			releaseGlobalContext(c)
-
-			if obsState != nil {
-				r.observability.OnRequestEnd(ctx, obsState, w, routePattern)
-			}
-			return
-		}
-
-		releaseGlobalContext(c)
-	}
-
-	// ══════════════════════════════════════════════════════════════════════════
-	// STEP 2: No match in main tree → try version-specific trees
-	// Routes registered via r.Version().GET() are subject to version detection.
-	// ══════════════════════════════════════════════════════════════════════════
-
-	// Only do version detection if versioning is enabled
-	if r.versionEngine != nil {
-		vc := r.processVersioning(req, path)
-
-		if vc.tree != nil {
-			r.serveVersionedRequest(w, req, vc.tree, vc.routingPath, vc.version, obsState)
-			return
-		}
-	}
-
-	// ══════════════════════════════════════════════════════════════════════════
-	// STEP 3: No match anywhere → 404
-	// ══════════════════════════════════════════════════════════════════════════
-	r.handleNotFoundWithObs(w, req, obsState)
-}
-
-// handleNotFoundWithObs handles 404 responses with observability support.
-func (r *Router) handleNotFoundWithObs(w http.ResponseWriter, req *http.Request, obsState any) {
-	// Build request-scoped logger for 404 handler (for future use)
-	// Currently handleNotFound doesn't use the logger, but it could in the future
-	if r.observability != nil {
-		_ = r.observability.BuildRequestLogger(req.Context(), req, "_not_found")
-	}
-
-	// Call the 404 handler
-	r.handleNotFound(w, req)
-
-	// Finish observability with "_not_found" sentinel
-	if obsState != nil {
-		r.observability.OnRequestEnd(req.Context(), obsState, w, "_not_found")
-	}
-}
-
-// serveStaticRoute serves a static (compiled) route with observability support.
-func (r *Router) serveStaticRoute(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, routePattern, version string, hasVersioning bool, obsState any) {
-	ctx := req.Context()
-
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-	} else {
-		logger = noopLogger
-	}
-
-	// Get context from pool
-	c := getContextFromGlobalPool()
-	c.Request = req
-	c.Response = w
-	c.handlers = handlers
-	c.router = r
-	c.logger = logger
-	c.routeTemplate = routePattern
-	c.index = -1
-	c.paramCount = 0
-
-	// Set version: explicitly set to provided value or empty for non-versioned routes
-	// Important: Must always set to avoid leftover values from pooled context
-	if hasVersioning {
-		c.version = version
-	} else {
-		c.version = ""
-	}
-
-	// Execute handlers
-	c.Next()
-
-	// Reset and return to pool
-	releaseGlobalContext(c)
-
-	// Finish observability
-	if obsState != nil {
-		r.observability.OnRequestEnd(ctx, obsState, w, routePattern)
-	}
-}
-
-// serveVersionedRequest handles requests with version-specific routing.
-func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request, tree *node, path, version string, obsState any) {
-	ctx := req.Context()
-
-	// Check if version has compiled routes
-	// NOTE: Version cache lookup uses version+method as key because different HTTP methods
-	// have different handlers even for the same path
-	cacheKey := version + ":" + req.Method
-	if compiledValue, ok := r.versionCache.Load(cacheKey); ok {
-		if compiled, ok := compiledValue.(*CompiledRouteTable); ok && compiled != nil {
-			// Try compiled routes first - get both handlers and route pattern
-			if handlers, routePath := compiled.getRouteWithPath(path); handlers != nil {
-				// Use the actual route path (pattern) for route template, version for deprecation headers
-				r.serveVersionedHandlers(w, req, handlers, routePath, version, obsState)
-				return
-			}
-		}
-	}
-
-	// Fallback to dynamic routing
-	c := getContextFromGlobalPool()
-	c.Request = req
-	c.Response = w
-	c.index = -1
-	c.paramCount = 0
-	c.router = r
-	c.version = version
-
-	defer releaseGlobalContext(c)
-
-	// Find the route and extract parameters
-	handlers, routePattern := tree.getRoute(path, c)
-	if handlers == nil {
-		r.handleNotFound(w, req)
-		return
-	}
-
-	// Set lifecycle headers (deprecation, sunset, etc.) and check if version is past sunset
-	if r.versionEngine != nil {
-		if isSunset := r.versionEngine.SetLifecycleHeaders(w, version, routePattern); isSunset {
-			// Version is past sunset date - return 410 Gone
-			w.WriteHeader(http.StatusGone)
-			w.Write([]byte(fmt.Sprintf("API %s was removed. Please upgrade to a supported version.", version)))
-			return
-		}
-	}
-
-	// Set route template from the matched pattern
-	c.routeTemplate = routePattern
-	if c.routeTemplate == "" {
-		c.routeTemplate = "_unmatched" // Fallback (should rarely happen)
-	}
-
-	// Execute handlers with the context that has extracted parameters
-	c.handlers = handlers
-
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-	} else {
-		logger = noopLogger
-	}
-	c.logger = logger
-
-	// Execute
-	c.Next()
-
-	// Finish observability
-	if obsState != nil {
-		r.observability.OnRequestEnd(ctx, obsState, w, routePattern)
-	}
-}
-
-// serveVersionedHandlers executes handlers with version information
-// routeTemplate is the actual route pattern (e.g., "/test") used for logging/metrics
-// version is the API version (e.g., "v1") used for deprecation headers and context
-func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, routeTemplate, version string, obsState any) {
-	ctx := req.Context()
-
-	// Set lifecycle headers (deprecation, sunset, etc.) and check if version is past sunset
-	// This is called before handler execution to ensure headers are set early
-	if r.versionEngine != nil {
-		if isSunset := r.versionEngine.SetLifecycleHeaders(w, version, routeTemplate); isSunset {
-			// Version is past sunset date - return 410 Gone
-			w.WriteHeader(http.StatusGone)
-			w.Write([]byte(fmt.Sprintf("API %s was removed. Please upgrade to a supported version.", version)))
-			return
-		}
-	}
-
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routeTemplate)
-	} else {
-		logger = noopLogger
-	}
-
-	// Use global context pool
-	c := getContextFromGlobalPool()
-	c.Request = req
-	c.Response = w
-	c.index = -1
-	c.paramCount = 0
-	c.router = r
-	c.version = version
-	c.routeTemplate = routeTemplate // Set route template for access log
-	c.logger = logger
-	c.handlers = handlers
-
-	// Execute
-	c.Next()
-
-	// Reset and return to pool
-	releaseGlobalContext(c)
-
-	// Finish observability
-	if obsState != nil {
-		r.observability.OnRequestEnd(ctx, obsState, w, routeTemplate)
-	}
-}
-
-// countStaticRoutesForMethod counts the number of static routes (no parameters) in a method tree.
-// This is used to determine optimal bloom filter size.
-func (r *Router) countStaticRoutesForMethod(method string) int {
-	tree := r.getTreeForMethodDirect(method)
-	if tree == nil {
-		return 0
-	}
-	return tree.countStaticRoutes()
-}
-
-// optimalBloomFilterSize calculates the bloom filter size based on route count.
-// Uses the formula: m = -n*ln(p) / (ln(2)^2) where:
-//   - n = number of routes
-//   - p = desired false positive rate (0.01 = 1%)
-//   - m = bits needed
-//
-// Uses 10 bits per route for approximately 1% false positive rate.
-func optimalBloomFilterSize(routeCount int) uint64 {
-	if routeCount <= 0 {
-		return defaultBloomFilterSize
-	}
-	// Calculate size based on route count
-	// Minimum size of 100 to avoid degenerate cases
-	size := uint64(routeCount * 10)
-	if size < 100 {
-		return 100
-	}
-	// Cap at maximum size
-	if size > 1000000 {
-		return 1000000
-	}
-	return size
-}
-
-func (r *Router) compileRoutesForMethod(method string) {
-	tree := r.getTreeForMethodDirect(method)
-	if tree == nil {
-		return
-	}
-
-	// Calculate optimal bloom filter size based on route count
-	// If user hasn't explicitly set a size, auto-size based on routes
-	bloomSize := r.bloomFilterSize
-	if bloomSize == defaultBloomFilterSize {
-		// Count static routes in this tree to determine optimal size
-		routeCount := r.countStaticRoutesForMethod(method)
-		bloomSize = optimalBloomFilterSize(routeCount)
-	}
-
-	// Compile routes
-	_ = tree.compileStaticRoutes(bloomSize, r.bloomHashFunctions)
-}
-
-// CompileAllRoutes pre-compiles all static routes.
-// This should be called after all routes are registered.
-func (r *Router) CompileAllRoutes() {
-	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
-	trees := (*map[string]*node)(treesPtr)
-
-	for method := range *trees {
-		r.compileRoutesForMethod(method)
-	}
-}
-
-// Warmup registers all pending routes and pre-compiles them for optimal request handling.
-// This should be called after all routes are registered and before serving requests.
-//
-// Warmup phases:
-// 1. Register all pending routes to their appropriate trees (standard or version-specific)
-// 2. Compile all static routes into hash tables with bloom filters
-// 3. Compile version-specific routes if versioning is enabled
-//
-// Warmup prepares the router for handling requests by registering routes,
-// compiling data structures, and initializing caches before traffic arrives.
-//
-// Calling Warmup() multiple times is safe - routes are only registered once.
-func (r *Router) Warmup() {
-	r.warmupOnce.Do(r.doWarmup)
-}
-
-// doWarmup performs the actual warmup work (called via sync.Once).
-func (r *Router) doWarmup() {
-	// CRITICAL: Set warmedUp=true BEFORE clearing pendingRoutes to avoid race condition
-	// Without this, routes added between clearing pendingRoutes and setting warmedUp=true
-	// would be lost (added to empty pendingRoutes, but warmedUp still false, warmup done)
-	r.pendingRoutesMu.Lock()
-	r.warmedUp = true
-	routes := r.pendingRoutes
-	r.pendingRoutes = nil // Clear pending routes
-	r.pendingRoutesMu.Unlock()
-
-	// Phase 1: Register all pending routes to their appropriate trees
-	for _, route := range routes {
-		route.registerRoute()
-	}
-
-	// Phase 2: Compile all standard (non-versioned) routes
-	r.CompileAllRoutes()
-
-	// Phase 3: Compile version-specific routes if versioning is enabled
-	if r.versionEngine != nil {
-		r.compileVersionRoutes()
-	}
-}
-
-// compileVersionRoutes compiles static routes for all version-specific trees
-// and stores them in the version cache (sync.Map).
-// This enables lookup for versioned static routes.
-// Cache key format: "version:method" (e.g., "v1:GET")
-func (r *Router) compileVersionRoutes() {
-	// Load version trees atomically
-	versionTreesPtr := atomic.LoadPointer(&r.versionTrees.trees)
-	if versionTreesPtr == nil {
-		return // No version-specific routes registered
-	}
-
-	versionTrees := *(*map[string]map[string]*node)(versionTreesPtr)
-
-	// Compile static routes for each version AND method
-	// Each method gets its own compiled table to avoid handler conflicts
-	for version, methodTrees := range versionTrees {
-		for method, tree := range methodTrees {
-			if tree == nil {
-				continue
-			}
-
-			// Count static routes for this method tree
-			staticRoutes := tree.countStaticRoutes()
-			if staticRoutes == 0 {
-				continue
-			}
-
-			// Calculate optimal bloom filter size
-			bloomSize := r.bloomFilterSize
-			if bloomSize == defaultBloomFilterSize {
-				bloomSize = optimalBloomFilterSize(staticRoutes)
-			}
-
-			// Create compiled table for this version+method combination
-			compiled := &CompiledRouteTable{
-				routes: make(map[uint64]*CompiledRoute),
-				bloom:  compiler.NewBloomFilter(bloomSize, r.bloomHashFunctions),
-			}
-
-			// Compile routes from this method's tree
-			tree.compileStaticRoutesRecursive(compiled, "")
-
-			// Store with version:method key
-			if len(compiled.routes) > 0 {
-				cacheKey := version + ":" + method
-				r.versionCache.Store(cacheKey, compiled)
-			}
-		}
-	}
-}
-
-// recordRouteRegistration is a hook for route registration tracking.
-// Currently a no-op; route registration is tracked via RouteInfo in the route tree.
-// Diagnostic events are reserved for runtime anomalies (security, performance),
-// not routine setup events which would be too noisy.
-func (r *Router) recordRouteRegistration(method, path string) {
-	// Intentionally empty - route registration is tracked via r.routeTree.routes
-	// Diagnostic events are for runtime anomalies, not routine setup
-	_ = method
-	_ = path
-}
-
-// serveCompiledRoute serves a request using a compiled route (static route).
-// This path handles routes without parameters.
-func (r *Router) serveCompiledRoute(w http.ResponseWriter, req *http.Request, route *compiler.CompiledRoute, obsState any) {
-	routeTemplate := route.Pattern() // Use route pattern, not raw path
-	ctx := req.Context()
-
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routeTemplate)
-	} else {
-		logger = noopLogger
-	}
-
-	// Execute handlers
-	c := getContextFromGlobalPool()
-	defer releaseGlobalContext(c)
-
-	// Use cached handlers
-	cachedPtr := route.CachedHandlers()
-	if cachedPtr != nil {
-		handlers := *(*[]HandlerFunc)(cachedPtr)
-		c.initForRequest(req, w, handlers, r)
-	} else {
-		// Fallback: Convert compiler.HandlerFunc to router.HandlerFunc
-		handlers := make([]HandlerFunc, len(route.Handlers()))
-		for i, h := range route.Handlers() {
-			handlers[i] = h.(HandlerFunc)
-		}
-		c.initForRequest(req, w, handlers, r)
-	}
-
-	c.routeTemplate = routeTemplate // Set template for access
-	c.logger = logger
-
-	c.Next()
-
-	// Finish observability
-	if obsState != nil {
-		r.observability.OnRequestEnd(ctx, obsState, w, routeTemplate)
-	}
-}
-
-// serveCompiledRouteWithParams serves a request using a compiled route with pre-extracted parameters.
-// The context already has parameters populated by the route matching.
-func (r *Router) serveCompiledRouteWithParams(w http.ResponseWriter, req *http.Request, route *compiler.CompiledRoute, c *Context, obsState any) {
-	// Store the route template for metrics/tracing
-	routeTemplate := route.Pattern() // Use route pattern, not raw path
-	c.routeTemplate = routeTemplate
-	ctx := req.Context()
-
-	// Reuse the context that already has parameters extracted
-	// Use special init that preserves parameters
-
-	// Use cached handlers
-	cachedPtr := route.CachedHandlers()
-	if cachedPtr != nil {
-		handlers := *(*[]HandlerFunc)(cachedPtr)
-		c.initForRequestWithParams(req, w, handlers, r)
-	} else {
-		// Fallback: Convert compiler.HandlerFunc to router.HandlerFunc
-		handlers := make([]HandlerFunc, len(route.Handlers()))
-		for i, h := range route.Handlers() {
-			handlers[i] = h.(HandlerFunc)
-		}
-		c.initForRequestWithParams(req, w, handlers, r)
-	}
-
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routeTemplate)
-	} else {
-		logger = noopLogger
-	}
-	c.logger = logger
-
-	defer releaseGlobalContext(c)
-
-	// Execute handler chain
-	c.Next()
-
-	// Finish observability
-	if obsState != nil {
-		r.observability.OnRequestEnd(ctx, obsState, w, routeTemplate)
-	}
-}
-
-// Serve starts the HTTP server on the specified address.
-// Automatically enables h2c if configured via WithH2C().
-//
-// The server is configured with production-safe timeouts to prevent
-// slowloris attacks and resource exhaustion. These timeouts are critical
-// for production deployments.
-//
-// Example:
-//
-//	r := router.MustNew()
-//	r.GET("/", func(c *router.Context) {
-//	    c.String(http.StatusOK, "Hello, World!")
-//	})
-//	if err := r.Serve(":8080"); err != nil {
-//	    log.Fatal(err)
-//	}
-//
-// With H2C enabled (dev/behind LB only):
-//
-//	r := router.MustNew(router.WithH2C(true))
-//	r.Serve(":8080")
-func (r *Router) Serve(addr string) error {
-	h := http.Handler(r)
-
-	if r.enableH2C {
-		h = h2c.NewHandler(h, &http2.Server{})
-		r.emit(DiagH2CEnabled, "H2C enabled; use only in dev or behind a trusted LB", nil)
-	}
-
-	timeouts := r.serverTimeouts
-	if timeouts == nil {
-		timeouts = defaultServerTimeouts()
-	}
-
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           h,
-		ReadHeaderTimeout: timeouts.readHeader,
-		ReadTimeout:       timeouts.read,
-		WriteTimeout:      timeouts.write,
-		IdleTimeout:       timeouts.idle,
-	}
-
-	return srv.ListenAndServe()
-}
-
-// ServeTLS starts the HTTPS server with TLS configuration.
-// For TLS servers, HTTP/2 is automatically enabled via ALPN.
-//
-// The server is configured with production-safe timeouts to prevent
-// slowloris attacks and resource exhaustion.
-//
-// Optional: Configure HTTP/2 settings for TLS:
-//
-//	import "golang.org/x/net/http2"
-//	srv := &http.Server{...}
-//	http2.ConfigureServer(srv, &http2.Server{
-//	    MaxConcurrentStreams: 256,
-//	})
-//
-// Example:
-//
-//	r := router.MustNew()
-//	r.GET("/", func(c *router.Context) {
-//	    c.String(http.StatusOK, "Hello, World!")
-//	})
-//	if err := r.ServeTLS(":8443", "cert.pem", "key.pem"); err != nil {
-//	    log.Fatal(err)
-//	}
-func (r *Router) ServeTLS(addr, certFile, keyFile string) error {
-	timeouts := r.serverTimeouts
-	if timeouts == nil {
-		timeouts = defaultServerTimeouts()
-	}
-
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           r,
-		ReadHeaderTimeout: timeouts.readHeader,
-		ReadTimeout:       timeouts.read,
-		WriteTimeout:      timeouts.write,
-		IdleTimeout:       timeouts.idle,
-	}
-
-	// HTTP/2 is automatically enabled over TLS via ALPN
-	// Optional: tune HTTP/2 settings
-	// http2.ConfigureServer(srv, &http2.Server{MaxConcurrentStreams: 256})
-
-	return srv.ListenAndServeTLS(certFile, keyFile)
 }
