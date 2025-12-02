@@ -138,7 +138,7 @@ const (
 // Tracer holds OpenTelemetry tracing configuration and runtime state.
 // All operations on Tracer are thread-safe.
 //
-// Tracer implements request tracing for integration with HTTP frameworks.
+// It implements request tracing for integration with HTTP frameworks.
 //
 // Important: Tracer is immutable after creation via New(). All configuration
 // must be done through functional options passed to New().
