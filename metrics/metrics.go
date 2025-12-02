@@ -391,22 +391,63 @@ func (r *Recorder) Shutdown(ctx context.Context) error {
 		errs = append(errs, err)
 	}
 
-	// Shutdown the meter provider if it supports it and is NOT a custom provider
+	// Flush and shutdown the meter provider if it supports it and is NOT a custom provider
 	// User-provided providers should be managed by the user
 	if !r.customMeterProvider {
 		if mp, ok := r.meterProvider.(*sdkmetric.MeterProvider); ok {
+			// Explicitly flush pending metrics before shutdown
+			// This is especially important for push-based providers (OTLP, stdout)
+			// to ensure all buffered data is exported before the provider is closed
+			r.emitDebug("Flushing pending metrics")
+			if err := mp.ForceFlush(ctx); err != nil {
+				// Log warning but continue with shutdown - flush failure shouldn't block shutdown
+				r.emitWarning("metrics flush warning", "error", err)
+			} else {
+				r.emitDebug("Metrics flushed successfully")
+			}
+
 			r.emitDebug("Shutting down meter provider")
 			if err := mp.Shutdown(ctx); err != nil {
 				errs = append(errs, fmt.Errorf("meter provider shutdown: %w", err))
+			} else {
+				r.emitDebug("Meter provider shut down successfully")
 			}
 		}
 	} else {
-		r.emitDebug("Skipping shutdown of custom meter provider (managed by user)")
+		r.emitDebug("Skipping flush and shutdown of custom meter provider (managed by user)")
 	}
 
 	// Return combined errors if any
 	if len(errs) > 0 {
 		return fmt.Errorf("shutdown errors: %v", errs)
+	}
+
+	return nil
+}
+
+// ForceFlush immediately exports any pending metric data.
+// This is useful for push-based providers (OTLP, stdout) when you want to ensure
+// metrics are exported without shutting down the recorder (e.g., before a deployment,
+// at checkpoints, or during long-running operations).
+// For pull-based providers (Prometheus), this is typically a no-op as metrics are
+// collected on-demand when scraped.
+// Returns an error if the flush fails or if the recorder is disabled.
+func (r *Recorder) ForceFlush(ctx context.Context) error {
+	if !r.enabled {
+		return nil
+	}
+
+	// Don't flush if already shutting down
+	if r.isShuttingDown.Load() {
+		return nil
+	}
+
+	if mp, ok := r.meterProvider.(*sdkmetric.MeterProvider); ok {
+		r.emitDebug("Force flushing metrics")
+		if err := mp.ForceFlush(ctx); err != nil {
+			return fmt.Errorf("metrics force flush: %w", err)
+		}
+		r.emitDebug("Metrics force flushed successfully")
 	}
 
 	return nil
