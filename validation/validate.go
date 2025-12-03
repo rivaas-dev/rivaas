@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -28,15 +29,18 @@ var (
 	defaultValidator     *Validator
 	defaultValidatorOnce sync.Once
 	defaultValidatorMu   sync.Mutex
-	defaultValidatorInit bool
+	defaultValidatorInit atomic.Bool
 )
 
 // getDefaultValidator returns the default [Validator], creating it if necessary.
+// This also marks the validator as "initialized", preventing further tag registrations.
 func getDefaultValidator() *Validator {
 	defaultValidatorOnce.Do(func() {
 		defaultValidator = MustNew()
-		defaultValidatorInit = true
 	})
+	// Mark as initialized - must be outside sync.Once to handle the case where
+	// RegisterTag() triggered the sync.Once first (which doesn't set this flag).
+	defaultValidatorInit.Store(true)
 	return defaultValidator
 }
 
@@ -66,7 +70,7 @@ func RegisterTag(name string, fn validator.Func) error {
 	defer defaultValidatorMu.Unlock()
 
 	// If validation has already run, we can't register more tags
-	if defaultValidatorInit {
+	if defaultValidatorInit.Load() {
 		return ErrCannotRegisterValidators
 	}
 
