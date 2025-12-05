@@ -16,9 +16,9 @@ package logging
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -104,7 +104,7 @@ func BenchmarkConcurrentLogging(b *testing.B) {
 // Benchmark context logger
 func BenchmarkContextLogger(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -116,7 +116,7 @@ func BenchmarkContextLogger(b *testing.B) {
 
 func BenchmarkContextLogger_Pooled(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -187,7 +187,7 @@ func BenchmarkErrorWithoutStack(b *testing.B) {
 // Benchmark convenience methods
 func BenchmarkLogRequest(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	req := httptest.NewRequest("GET", "/test?foo=bar", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test?foo=bar", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -263,7 +263,7 @@ func BenchmarkShutdownCheck_Atomic(b *testing.B) {
 // Benchmark pool operations
 func BenchmarkPool_ContextLogger(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -522,7 +522,7 @@ func BenchmarkLoggerAccess_HighContention(b *testing.B) {
 // Benchmark pooling effectiveness under load
 func BenchmarkPool_Effectiveness(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.Run("without_pooling", func(b *testing.B) {
 		b.ReportAllocs()
@@ -564,7 +564,7 @@ func BenchmarkContextAllocation(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 		for b.Loop() {
-			l.InfoContext(context.Background(), "message", "key", "value")
+			l.InfoContext(b.Context(), "message", "key", "value")
 		}
 	})
 }

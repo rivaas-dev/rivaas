@@ -117,7 +117,7 @@ func TestIntegration_ConcurrentLogging(t *testing.T) {
 
 	// Should have all messages
 	expectedMessages := goroutines * messagesPerGoroutine
-	assert.Equal(t, expectedMessages, len(entries), "expected %d log entries", expectedMessages)
+	assert.Len(t, entries, expectedMessages, "expected %d log entries", expectedMessages)
 }
 
 func TestIntegration_BatchLoggerWithFlush(t *testing.T) {
@@ -234,7 +234,7 @@ func TestIntegration_ContextLoggerPropagation(t *testing.T) {
 	t.Cleanup(func() { logger.Shutdown(context.Background()) })
 
 	// Simulate request context with tracing
-	ctx := context.Background()
+	ctx := t.Context()
 	cl := logging.NewContextLogger(ctx, logger)
 
 	// Add request-scoped fields using With()
@@ -305,7 +305,7 @@ func TestIntegration_GracefulShutdown(t *testing.T) {
 	logger.Info("before shutdown")
 
 	// Shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 
 	err := logger.Shutdown(ctx)

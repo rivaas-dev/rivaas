@@ -156,6 +156,8 @@ func ExampleLogger_LogRequest() {
 	// Output is non-deterministic (contains timestamps)
 }
 
+//nolint:testableexamples // Output is non-deterministic (contains timestamps and colors)
+
 // ExampleLogger_LogError demonstrates logging errors with context.
 // The error message is automatically added as the "error" attribute.
 func ExampleLogger_LogError() {
@@ -188,6 +190,8 @@ func ExampleLogger_LogDuration() {
 	// Output is non-deterministic (contains timestamps and duration)
 }
 
+//nolint:testableexamples // Output is non-deterministic (contains timestamps and stack traces)
+
 // ExampleLogger_ErrorWithStack demonstrates error logging with stack traces.
 // Stack traces should only be enabled for critical errors to avoid performance overhead.
 func ExampleLogger_ErrorWithStack() {
@@ -199,7 +203,6 @@ func ExampleLogger_ErrorWithStack() {
 		"component", "payment-processor",
 		"transaction_id", "tx-12345",
 	)
-	// Output is non-deterministic (contains timestamps, colors, and stack trace)
 }
 
 // ExampleWithSampling demonstrates log sampling for high-traffic scenarios.

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -268,7 +269,7 @@ func TestLogger_Sampling(t *testing.T) {
 	// Should have sampled some logs (written < 50)
 	assert.Less(t, written, 50, "expected sampling to reduce log count")
 	// Should have kept some logs
-	assert.Greater(t, written, 0, "expected some logs to be written")
+	assert.Positive(t, written, "expected some logs to be written")
 }
 
 // TestLogger_Sampling_ErrorsAlwaysLogged tests that errors bypass sampling.
@@ -364,9 +365,9 @@ func TestLogger_Shutdown(t *testing.T) {
 
 	th.Logger.Info("before shutdown")
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := th.Logger.Shutdown(ctx)
-	assert.NoError(t, err, "Shutdown failed")
+	require.NoError(t, err, "Shutdown failed")
 
 	th.Reset()
 	th.Logger.Info("after shutdown")
@@ -381,7 +382,7 @@ func TestLogger_LogRequest(t *testing.T) {
 
 	th := NewTestHelper(t)
 
-	req := httptest.NewRequest("GET", "/test?foo=bar", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test?foo=bar", nil)
 	th.Logger.LogRequest(req, "status", 200, "duration_ms", 45)
 
 	assert.True(t, th.ContainsAttr("method", "GET"), "missing method attribute")
@@ -535,7 +536,7 @@ func TestMockWriter(t *testing.T) {
 	logger.Info("test 2")
 
 	assert.Equal(t, 2, mw.WriteCount(), "expected 2 writes")
-	assert.Greater(t, mw.BytesWritten(), 0, "expected bytes to be written")
+	assert.Positive(t, mw.BytesWritten(), "expected bytes to be written")
 
 	lastWrite := mw.LastWrite()
 	assert.NotNil(t, lastWrite, "expected last write to be captured")
@@ -567,7 +568,7 @@ func TestCountingWriter(t *testing.T) {
 	logger.Info("message 1")
 	logger.Info("message 2")
 
-	assert.Greater(t, cw.Count(), int64(0), "expected bytes to be counted")
+	assert.Positive(t, cw.Count(), "expected bytes to be counted")
 
 	// Approximate check (each JSON log is roughly 50-100 bytes)
 	assert.GreaterOrEqual(t, cw.Count(), int64(50), "expected at least 50 bytes")
@@ -675,8 +676,8 @@ func TestParseJSONLogEntries_Empty(t *testing.T) {
 	buf := &bytes.Buffer{}
 	entries, err := ParseJSONLogEntries(buf)
 
-	assert.NoError(t, err, "ParseJSONLogEntries should not error on empty buffer")
-	assert.Len(t, entries, 0, "expected 0 entries")
+	require.NoError(t, err, "ParseJSONLogEntries should not error on empty buffer")
+	assert.Empty(t, entries, "expected 0 entries")
 }
 
 // TestParseJSONLogEntries_Invalid tests parsing invalid JSON.
@@ -774,13 +775,13 @@ func TestLogger_Validate_Errors(t *testing.T) {
 
 	// Test with nil output
 	_, err := New(WithOutput(nil))
-	assert.Error(t, err, "expected error with nil output")
+	require.Error(t, err, "expected error with nil output")
 
 	// Empty service name is now valid (sensible defaults)
 	cfg := defaultLogger()
 	cfg.serviceName = ""
 	err = cfg.Validate()
-	assert.NoError(t, err, "empty service name should be valid")
+	require.NoError(t, err, "empty service name should be valid")
 
 	// Test with nil custom logger
 	cfg2 := defaultLogger()
