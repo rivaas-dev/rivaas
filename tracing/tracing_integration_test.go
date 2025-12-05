@@ -42,7 +42,7 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		tracer.Shutdown(ctx)
 	})
@@ -66,6 +66,8 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 }
 
 // TestIntegration_PathExclusion tests that excluded paths bypass tracing.
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_PathExclusion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -214,6 +216,8 @@ func TestIntegration_TraceContextPropagation(t *testing.T) {
 }
 
 // TestIntegration_ErrorStatusCodes tests tracing with various HTTP error status codes.
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ErrorStatusCodes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -318,6 +322,8 @@ func TestIntegration_HeaderRecording(t *testing.T) {
 }
 
 // TestIntegration_ProviderTypes tests different provider configurations.
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ProviderTypes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -392,6 +398,8 @@ func TestIntegration_ProviderTypes(t *testing.T) {
 }
 
 // TestIntegration_ShutdownBehavior tests graceful shutdown behavior.
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ShutdownBehavior(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -419,7 +427,7 @@ func TestIntegration_ShutdownBehavior(t *testing.T) {
 		}
 
 		// Shutdown with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err = tracer.Shutdown(ctx)
@@ -435,7 +443,7 @@ func TestIntegration_ShutdownBehavior(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Multiple shutdowns should be safe
 		err = tracer.Shutdown(ctx)

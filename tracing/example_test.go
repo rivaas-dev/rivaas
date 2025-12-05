@@ -66,9 +66,10 @@ func ExampleTracer_StartSpan() {
 
 	tracer.SetSpanAttribute(span, "db.query", "SELECT * FROM users")
 	tracer.SetSpanAttribute(span, "db.rows", 10)
+	// Output:
 }
 
-// ExampleAddSpanEvent demonstrates adding events to spans.
+// ExampleTracer_AddSpanEvent demonstrates adding events to spans.
 func ExampleTracer_AddSpanEvent() {
 	tracer := tracing.MustNew(
 		tracing.WithServiceName("my-service"),
@@ -84,6 +85,9 @@ func ExampleTracer_AddSpanEvent() {
 		attribute.String("key", "user:123"),
 		attribute.Int("ttl", 3600),
 	)
+
+	_ = ctx // use ctx
+	// Output:
 }
 
 // ExampleExtractTraceContext demonstrates extracting trace context from headers.
@@ -101,6 +105,7 @@ func ExampleTracer_ExtractTraceContext() {
 	ctx = tracer.ExtractTraceContext(ctx, req.Header)
 	ctx, span := tracer.StartSpan(ctx, "process-request")
 	defer tracer.FinishSpan(span, http.StatusOK)
+	// Output:
 }
 
 // ExampleWithSampleRate demonstrates configuring sampling rate.
@@ -138,6 +143,7 @@ func ExampleMustMiddleware() {
 
 	// Use handler...
 	_ = handler
+	// Output:
 }
 
 // ExampleMiddleware demonstrates using middleware with error handling.
@@ -163,10 +169,10 @@ func ExampleMiddleware() {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
-	handler := middleware(mux)
 
-	// Use handler...
+	handler := middleware(mux)
 	_ = handler
+	// Output:
 }
 
 // ExampleWithOTLP demonstrates configuring OTLP provider.

@@ -32,8 +32,8 @@ import (
 //	    tracer := tracing.TestingTracer(t)
 //	    // Use tracer...
 //	}
-func TestingTracer(t testing.TB, opts ...Option) *Tracer {
-	t.Helper()
+func TestingTracer(tb testing.TB, opts ...Option) *Tracer {
+	tb.Helper()
 
 	// Default options for testing
 	defaultOpts := []Option{
@@ -48,14 +48,14 @@ func TestingTracer(t testing.TB, opts ...Option) *Tracer {
 
 	tracer, err := New(allOpts...)
 	if err != nil {
-		t.Fatalf("TestingTracer: failed to create tracer: %v", err)
+		tb.Fatalf("TestingTracer: failed to create tracer: %v", err)
 	}
 
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	tb.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(tb.Context(), 5*time.Second)
 		defer cancel()
 		if err := tracer.Shutdown(ctx); err != nil {
-			t.Logf("TestingTracer: shutdown warning: %v", err)
+			tb.Logf("TestingTracer: shutdown warning: %v", err)
 		}
 	})
 
@@ -73,8 +73,8 @@ func TestingTracer(t testing.TB, opts ...Option) *Tracer {
 //	    tracer := tracing.TestingTracerWithStdout(t)
 //	    // Use tracer...
 //	}
-func TestingTracerWithStdout(t testing.TB, opts ...Option) *Tracer {
-	t.Helper()
+func TestingTracerWithStdout(tb testing.TB, opts ...Option) *Tracer {
+	tb.Helper()
 
 	// Default options for testing with stdout
 	defaultOpts := []Option{
@@ -89,14 +89,14 @@ func TestingTracerWithStdout(t testing.TB, opts ...Option) *Tracer {
 
 	tracer, err := New(allOpts...)
 	if err != nil {
-		t.Fatalf("TestingTracerWithStdout: failed to create tracer: %v", err)
+		tb.Fatalf("TestingTracerWithStdout: failed to create tracer: %v", err)
 	}
 
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	tb.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(tb.Context(), 5*time.Second)
 		defer cancel()
 		if err := tracer.Shutdown(ctx); err != nil {
-			t.Logf("TestingTracerWithStdout: shutdown warning: %v", err)
+			tb.Logf("TestingTracerWithStdout: shutdown warning: %v", err)
 		}
 	})
 
@@ -114,13 +114,13 @@ func TestingTracerWithStdout(t testing.TB, opts ...Option) *Tracer {
 //	    handler := middleware(myHandler)
 //	    // Use handler...
 //	}
-func TestingMiddleware(t testing.TB, middlewareOpts ...MiddlewareOption) func(http.Handler) http.Handler {
-	t.Helper()
+func TestingMiddleware(tb testing.TB, middlewareOpts ...MiddlewareOption) func(http.Handler) http.Handler {
+	tb.Helper()
 
-	tracer := TestingTracer(t)
+	tracer := TestingTracer(tb)
 	middleware, err := Middleware(tracer, middlewareOpts...)
 	if err != nil {
-		t.Fatalf("TestingMiddleware: failed to create middleware: %v", err)
+		tb.Fatalf("TestingMiddleware: failed to create middleware: %v", err)
 	}
 
 	return middleware

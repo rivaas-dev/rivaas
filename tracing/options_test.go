@@ -74,7 +74,7 @@ func TestWithServiceName(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, tracer)
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) }) //nolint:errcheck // Test cleanup
+			t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 			assert.Equal(t, tt.serviceName, tracer.ServiceName())
 		})
@@ -130,7 +130,7 @@ func TestWithServiceVersion(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, tracer)
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) }) //nolint:errcheck // Test cleanup
+			t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 			assert.Equal(t, tt.serviceVersion, tracer.ServiceVersion())
 		})
@@ -198,7 +198,7 @@ func TestWithSampleRate(t *testing.T) {
 			)
 			t.Cleanup(func() { _ = tracer.Shutdown(context.Background()) })
 
-			assert.Equal(t, tt.expectedRate, tracer.sampleRate)
+			assert.Equal(t, tt.expectedRate, tracer.sampleRate) //nolint:testifylint // exact sample rate comparison
 		})
 	}
 }
@@ -218,7 +218,7 @@ func TestWithCustomTracer(t *testing.T) {
 		WithTracerProvider(noopProvider),
 		WithCustomTracer(customTracer),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) }) //nolint:errcheck // Test cleanup
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 	assert.Equal(t, customTracer, tracer.tracer)
 	assert.True(t, tracer.IsEnabled())
@@ -571,7 +571,7 @@ func TestOptionsCombination(t *testing.T) {
 
 		assert.Equal(t, "combined-test", tracer.ServiceName())
 		assert.Equal(t, "v2.0.0", tracer.ServiceVersion())
-		assert.Equal(t, 0.5, tracer.sampleRate)
+		assert.Equal(t, 0.5, tracer.sampleRate) //nolint:testifylint // exact sample rate comparison
 		assert.Equal(t, NoopProvider, tracer.GetProvider())
 		assert.NotNil(t, tracer.eventHandler)
 	})
@@ -588,6 +588,6 @@ func TestOptionsCombination(t *testing.T) {
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 		assert.Equal(t, "second-name", tracer.ServiceName())
-		assert.Equal(t, 0.9, tracer.sampleRate)
+		assert.Equal(t, 0.9, tracer.sampleRate) //nolint:testifylint // exact sample rate comparison
 	})
 }

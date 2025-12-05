@@ -160,7 +160,7 @@ func TestContextHelpers(t *testing.T) {
 	t.Parallel()
 
 	// Test context helper functions
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// These should not panic even without active spans
 	traceID := TraceID(ctx)
@@ -257,7 +257,7 @@ func TestSamplingRate(t *testing.T) {
 			assert.Equal(t, http.StatusOK, w.Code)
 		}
 
-		assert.True(t, true, "Sampling logic executed successfully")
+		// Sampling logic executed successfully - if we reach here without panic, the test passes
 	})
 }
 
@@ -312,7 +312,7 @@ func TestSpanAttributeTypes(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, span := tracer.StartSpan(ctx, "test-span")
 	defer span.End()
 
@@ -334,7 +334,7 @@ func TestSpanAttributeTypesFromContext(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx, span := tracer.StartSpan(ctx, "test-span")
 	defer span.End()
 
@@ -485,7 +485,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithSampleRate(0.0))
-		ctx := context.Background()
+		ctx := t.Context()
 
 		_, span := tracer.StartSpan(ctx, "test")
 		tracer.SetSpanAttribute(span, "key", "value")
@@ -498,21 +498,21 @@ func TestTracer_EdgeCases(t *testing.T) {
 	t.Run("NilContext", func(t *testing.T) {
 		t.Parallel()
 
-		traceID := TraceID(context.Background())
-		spanID := SpanID(context.Background())
+		traceID := TraceID(t.Context())
+		spanID := SpanID(t.Context())
 
 		assert.Equal(t, "", traceID)
 		assert.Equal(t, "", spanID)
 
-		SetSpanAttributeFromContext(context.Background(), "key", "value")
-		AddSpanEventFromContext(context.Background(), "event")
+		SetSpanAttributeFromContext(t.Context(), "key", "value")
+		AddSpanEventFromContext(t.Context(), "event")
 	})
 
 	t.Run("MultipleFinishSpan", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx := context.Background()
+		ctx := t.Context()
 		_, span := tracer.StartSpan(ctx, "test")
 
 		// Should be safe to call multiple times
@@ -561,7 +561,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		ctx = tracer.ExtractTraceContext(ctx, nil)
 		tracer.InjectTraceContext(ctx, nil)
@@ -573,7 +573,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx := context.Background()
+		ctx := t.Context()
 		headers := http.Header{}
 
 		ctx = tracer.ExtractTraceContext(ctx, headers)
@@ -586,7 +586,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx := context.Background()
+		ctx := t.Context()
 		headers := http.Header{}
 		headers.Set("traceparent", "invalid-trace-parent")
 
@@ -603,14 +603,14 @@ func TestTracer_EdgeCases(t *testing.T) {
 		tracer.AddSpanEvent(nil, "event")
 		tracer.FinishSpan(nil, http.StatusOK)
 
-		assert.True(t, true)
+		// If we reach here without panic, the test passes
 	})
 
 	t.Run("VeryLongAttributeValue", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx := context.Background()
+		ctx := t.Context()
 		_, span := tracer.StartSpan(ctx, "test")
 		defer tracer.FinishSpan(span, http.StatusOK)
 
@@ -624,7 +624,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx := context.Background()
+		ctx := t.Context()
 		_, span := tracer.StartSpan(ctx, "test")
 		defer tracer.FinishSpan(span, http.StatusOK)
 
@@ -640,13 +640,13 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
+		ctx := t.Context()
 
 		var wg sync.WaitGroup
 		for i := 0; i < 10; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				ctx := context.Background()
 				_, span := tracer.StartSpan(ctx, "test")
 				tracer.SetSpanAttribute(span, "key", "value")
 				tracer.FinishSpan(span, http.StatusOK)
@@ -669,7 +669,7 @@ func TestTraceContextPropagation(t *testing.T) {
 		headers := http.Header{}
 		headers.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = tracer.ExtractTraceContext(ctx, headers)
 
 		ctx, span := tracer.StartSpan(ctx, "test-span")
@@ -692,7 +692,7 @@ func TestContextCancellation(t *testing.T) {
 
 		tracer := MustNew()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		ctx, span := tracer.StartSpan(ctx, "test-span")
@@ -707,7 +707,7 @@ func TestContextCancellation(t *testing.T) {
 
 		tracer := MustNew()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		ctx, span := tracer.StartSpan(ctx, "test-span")
@@ -843,7 +843,7 @@ func TestContextTracing(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx, span := tracer.StartSpan(ctx, "test")
 		defer tracer.FinishSpan(span, http.StatusOK)
 
@@ -858,7 +858,7 @@ func TestContextTracing(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ct := NewContextTracing(context.TODO(), tracer, nil)
+		ct := NewContextTracing(t.Context(), tracer, nil)
 
 		ctx := ct.TraceContext()
 		assert.NotNil(t, ctx)
@@ -868,7 +868,7 @@ func TestContextTracing(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx, span := tracer.StartSpan(context.Background(), "test")
+		ctx, span := tracer.StartSpan(t.Context(), "test")
 		defer tracer.FinishSpan(span, http.StatusOK)
 
 		ct := NewContextTracing(ctx, tracer, span)
@@ -886,7 +886,7 @@ func TestContextTracing(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx := context.Background()
+		ctx := t.Context()
 		ct := NewContextTracing(ctx, tracer, nil)
 
 		ct.SetSpanAttribute("key", "value")
@@ -979,7 +979,7 @@ func TestProviderSetup(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 		defer cancel()
 
 		err = tracer.Shutdown(ctx)
@@ -1071,7 +1071,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			w.WriteHeader(http.StatusCreated)
 		}))
 
-		req := httptest.NewRequest("POST", "/test", nil)
+		req := httptest.NewRequest(http.MethodPost, "/test", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -1202,7 +1202,7 @@ func TestConcurrentShutdown(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	for i := 0; i < numGoroutines; i++ {
@@ -1238,7 +1238,6 @@ func TestProviderFailure(t *testing.T) {
 			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 		}
 	})
-
 }
 
 // TestContextCancellationInStartRequestSpan tests context cancellation handling
@@ -1254,7 +1253,7 @@ func TestContextCancellationInStartRequestSpan(t *testing.T) {
 	t.Run("CancelledContext", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		req := httptest.NewRequest("GET", "/test", nil)
@@ -1268,7 +1267,7 @@ func TestContextCancellationInStartRequestSpan(t *testing.T) {
 	t.Run("TimeoutContext", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Nanosecond)
 		defer cancel()
 
 		time.Sleep(10 * time.Millisecond)

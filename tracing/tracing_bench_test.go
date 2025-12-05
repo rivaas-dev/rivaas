@@ -15,7 +15,6 @@
 package tracing
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -81,7 +80,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 // BenchmarkSpanOperations measures the cost of individual span operations.
 func BenchmarkSpanOperations(b *testing.B) {
 	tracer := MustNew(WithServiceName("benchmark"))
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.Run("StartFinishSpan", func(b *testing.B) {
 		b.ResetTimer()
@@ -154,7 +153,7 @@ func BenchmarkSpanOperations(b *testing.B) {
 // BenchmarkContextPropagation measures trace context propagation overhead.
 func BenchmarkContextPropagation(b *testing.B) {
 	tracer := MustNew(WithServiceName("benchmark"))
-	ctx := context.Background()
+	ctx := b.Context()
 	headers := http.Header{}
 
 	b.Run("ExtractTraceContext", func(b *testing.B) {
@@ -307,7 +306,7 @@ func BenchmarkMiddlewareWithExclusions(b *testing.B) {
 func BenchmarkSamplingDecision(b *testing.B) {
 	tracer := MustNew(WithSampleRate(0.5))
 	req := httptest.NewRequest("GET", "/test", nil)
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()

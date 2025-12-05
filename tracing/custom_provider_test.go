@@ -15,7 +15,6 @@
 package tracing
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,17 +57,17 @@ func TestWithCustomTracerProvider(t *testing.T) {
 	assert.NotNil(t, config.tracerProvider)
 
 	// Verify tracing works
-	ctx, span := config.StartSpan(context.Background(), "test-span")
+	ctx, span := config.StartSpan(t.Context(), "test-span")
 	assert.NotNil(t, ctx)
 	assert.NotNil(t, span)
 	config.FinishSpan(span, 200)
 
 	// Shutdown should NOT shut down the custom provider (user manages it)
-	err = config.Shutdown(context.Background())
+	err = config.Shutdown(t.Context())
 	assert.NoError(t, err)
 
 	// User should shutdown their own provider
-	err = customProvider.Shutdown(context.Background())
+	err = customProvider.Shutdown(t.Context())
 	assert.NoError(t, err)
 }
 
@@ -100,7 +99,7 @@ func TestCustomProviderIgnoresBuiltInProvider(t *testing.T) {
 	// Verify custom provider is used
 	assert.True(t, config.customTracerProvider)
 
-	err = customProvider.Shutdown(context.Background())
+	err = customProvider.Shutdown(t.Context())
 	assert.NoError(t, err)
 }
 
@@ -146,21 +145,21 @@ func TestMultipleIndependentTracingConfigurations(t *testing.T) {
 	require.NoError(t, err)
 
 	// Both configurations should work independently
-	ctx1, span1 := config1.StartSpan(context.Background(), "operation-1")
+	ctx1, span1 := config1.StartSpan(t.Context(), "operation-1")
 	assert.NotNil(t, ctx1)
 	config1.FinishSpan(span1, 200)
 
-	ctx2, span2 := config2.StartSpan(context.Background(), "operation-2")
+	ctx2, span2 := config2.StartSpan(t.Context(), "operation-2")
 	assert.NotNil(t, ctx2)
 	config2.FinishSpan(span2, 200)
 
 	// Cleanup - shutdown configs first (they won't shutdown the custom providers)
-	assert.NoError(t, config1.Shutdown(context.Background()))
-	assert.NoError(t, config2.Shutdown(context.Background()))
+	assert.NoError(t, config1.Shutdown(t.Context()))
+	assert.NoError(t, config2.Shutdown(t.Context()))
 
 	// Then shutdown the custom providers
-	assert.NoError(t, provider1.Shutdown(context.Background()))
-	assert.NoError(t, provider2.Shutdown(context.Background()))
+	assert.NoError(t, provider1.Shutdown(t.Context()))
+	assert.NoError(t, provider2.Shutdown(t.Context()))
 }
 
 // TestWithTracerProviderAndCustomTracer tests using both custom provider and tracer
@@ -187,6 +186,6 @@ func TestWithTracerProviderAndCustomTracer(t *testing.T) {
 	assert.True(t, config.customTracerProvider)
 	assert.Equal(t, customTracer, config.tracer)
 
-	err = customProvider.Shutdown(context.Background())
+	err = customProvider.Shutdown(t.Context())
 	assert.NoError(t, err)
 }

@@ -420,7 +420,7 @@ func (t *Tracer) StartSpan(ctx context.Context, name string, opts ...trace.SpanS
 	default:
 	}
 
-	return t.tracer.Start(ctx, name, opts...)
+	return t.tracer.Start(ctx, name, opts...) //nolint:spancheck // span is returned to caller who manages its lifecycle
 }
 
 // FinishSpan completes the span with the given status code.
