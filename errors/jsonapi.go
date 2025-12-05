@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -99,7 +100,7 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 					for _, field := range fieldErrors {
 						apiErr := jsonAPIError{
 							ID:     generateErrorID(),
-							Status: fmt.Sprintf("%d", status),
+							Status: strconv.Itoa(status),
 							Title:  http.StatusText(status),
 						}
 
@@ -140,7 +141,7 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 		if len(apiErrors) == 0 {
 			apiErrors = []jsonAPIError{{
 				ID:     generateErrorID(),
-				Status: fmt.Sprintf("%d", status),
+				Status: strconv.Itoa(status),
 				Title:  http.StatusText(status),
 				Detail: err.Error(),
 				Meta:   map[string]any{"details": details},
@@ -150,7 +151,7 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 		// Simple error without details
 		apiErr := jsonAPIError{
 			ID:     generateErrorID(),
-			Status: fmt.Sprintf("%d", status),
+			Status: strconv.Itoa(status),
 			Title:  http.StatusText(status),
 			Detail: err.Error(),
 		}
