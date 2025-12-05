@@ -69,7 +69,7 @@ func TestValidate_NilSlice(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -120,7 +120,7 @@ func TestValidate_NilMap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -185,6 +185,7 @@ func TestValidate_DeeplyNestedStructures(t *testing.T) {
 			wantError: true,
 			wantPath:  "level2.level3.level4.level5.value",
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected ValidationErrors")
@@ -203,7 +204,7 @@ func TestValidate_DeeplyNestedStructures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.value, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.value, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -239,7 +240,7 @@ func TestValidate_Concurrent(t *testing.T) {
 					Name:  "John",
 					Email: "john@example.com",
 				}
-				err := Validate(context.Background(), &user, WithStrategy(StrategyTags))
+				err := Validate(t.Context(), &user, WithStrategy(StrategyTags))
 				if err != nil {
 					errChan <- err
 				}
@@ -280,6 +281,7 @@ func TestValidate_ConcurrentWithCache(t *testing.T) {
 	var wg sync.WaitGroup
 	errChan := make(chan error, numGoroutines*numValidationsPerGoroutine)
 
+	ctx := t.Context()
 	for i := range numGoroutines {
 		wg.Add(1)
 		go func(id int) {
@@ -288,7 +290,7 @@ func TestValidate_ConcurrentWithCache(t *testing.T) {
 			schemaID := fmt.Sprintf("test-schema-%d", id)
 			for range numValidationsPerGoroutine {
 				user := User{Name: "John"}
-				err := Validate(context.Background(), &user, WithStrategy(StrategyJSONSchema), WithCustomSchema(schemaID, schema))
+				err := Validate(ctx, &user, WithStrategy(StrategyJSONSchema), WithCustomSchema(schemaID, schema))
 				if err != nil {
 					errChan <- err
 				}
@@ -316,15 +318,16 @@ func TestValidateWithContext_Cancellation(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		setupCtx  func() context.Context
+		setupCtx  func(*testing.T) context.Context
 		user      *User
 		wantError bool
 		checkErr  func(t *testing.T, err error)
 	}{
 		{
 			name: "cancelled context should still allow validation",
-			setupCtx: func() context.Context {
-				ctx, cancel := context.WithCancel(context.Background())
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // Cancel immediately
 				return ctx
 			},
@@ -333,8 +336,9 @@ func TestValidateWithContext_Cancellation(t *testing.T) {
 		},
 		{
 			name: "cancelled context with invalid user",
-			setupCtx: func() context.Context {
-				ctx, cancel := context.WithCancel(context.Background())
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				ctx, cancel := context.WithCancel(t.Context())
 				cancel()
 				return ctx
 			},
@@ -346,7 +350,7 @@ func TestValidateWithContext_Cancellation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := tt.setupCtx()
+			ctx := tt.setupCtx(t)
 			err := Validate(ctx, tt.user, WithContext(ctx), WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
@@ -368,23 +372,25 @@ func TestValidateWithContext_Timeout(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		setupCtx  func() (context.Context, context.CancelFunc)
+		setupCtx  func(*testing.T) (context.Context, context.CancelFunc)
 		user      *User
 		wantError bool
 		checkErr  func(t *testing.T, err error)
 	}{
 		{
 			name: "validation should complete before timeout",
-			setupCtx: func() (context.Context, context.CancelFunc) {
-				return context.WithTimeout(context.Background(), 100*time.Millisecond)
+			setupCtx: func(t *testing.T) (context.Context, context.CancelFunc) {
+				t.Helper()
+				return context.WithTimeout(t.Context(), 100*time.Millisecond)
 			},
 			user:      &User{Name: "John"},
 			wantError: false,
 		},
 		{
 			name: "validation should work after timeout",
-			setupCtx: func() (context.Context, context.CancelFunc) {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+			setupCtx: func(t *testing.T) (context.Context, context.CancelFunc) {
+				t.Helper()
+				ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 				time.Sleep(20 * time.Millisecond) // Wait for timeout
 				return ctx, cancel
 			},
@@ -393,8 +399,9 @@ func TestValidateWithContext_Timeout(t *testing.T) {
 		},
 		{
 			name: "invalid user with timeout context",
-			setupCtx: func() (context.Context, context.CancelFunc) {
-				return context.WithTimeout(context.Background(), 100*time.Millisecond)
+			setupCtx: func(t *testing.T) (context.Context, context.CancelFunc) {
+				t.Helper()
+				return context.WithTimeout(t.Context(), 100*time.Millisecond)
 			},
 			user:      &User{},
 			wantError: true, // Missing required field
@@ -404,7 +411,7 @@ func TestValidateWithContext_Timeout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx, cancel := tt.setupCtx()
+			ctx, cancel := tt.setupCtx(t)
 			defer cancel()
 			err := Validate(ctx, tt.user, WithContext(ctx), WithStrategy(StrategyTags))
 			if tt.wantError {
@@ -437,9 +444,10 @@ func TestValidationErrors_ErrorsAs(t *testing.T) {
 			},
 			wantCount: 2,
 			checkErr: func(t *testing.T, verr Error) {
+				t.Helper()
 				var target *Error
 				require.ErrorAs(t, &verr, &target, "errors.As should work with validation.Error")
-				assert.Equal(t, 2, len(target.Fields))
+				assert.Len(t, target.Fields, 2)
 			},
 		},
 		{
@@ -451,6 +459,7 @@ func TestValidationErrors_ErrorsAs(t *testing.T) {
 			},
 			wantCount: 1,
 			checkErr: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.ErrorIs(t, &verr, ErrValidation, "errors.Is should work with validation.Error")
 			},
 		},
@@ -461,6 +470,7 @@ func TestValidationErrors_ErrorsAs(t *testing.T) {
 			},
 			wantCount: 0,
 			checkErr: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.ErrorIs(t, &verr, ErrValidation)
 			},
 		},
@@ -475,7 +485,7 @@ func TestValidationErrors_ErrorsAs(t *testing.T) {
 			} else {
 				var target *Error
 				require.ErrorAs(t, &verr, &target)
-				assert.Equal(t, tt.wantCount, len(target.Fields))
+				assert.Len(t, target.Fields, tt.wantCount)
 			}
 		})
 	}
@@ -500,6 +510,7 @@ func TestFieldError_ErrorsIs(t *testing.T) {
 			wantPath: "name",
 			wantCode: "required",
 			checkErr: func(t *testing.T, fe FieldError) {
+				t.Helper()
 				assert.ErrorIs(t, fe, ErrValidation, "errors.Is should work with FieldError")
 			},
 		},
@@ -513,6 +524,7 @@ func TestFieldError_ErrorsIs(t *testing.T) {
 			wantPath: "email",
 			wantCode: "email",
 			checkErr: func(t *testing.T, fe FieldError) {
+				t.Helper()
 				var target FieldError
 				require.ErrorAs(t, fe, &target, "errors.As should work with FieldError")
 				assert.Equal(t, "email", target.Path)
@@ -529,7 +541,8 @@ func TestFieldError_ErrorsIs(t *testing.T) {
 			wantPath: "",
 			wantCode: "validation_error",
 			checkErr: func(t *testing.T, fe FieldError) {
-				assert.ErrorIs(t, fe, ErrValidation)
+				t.Helper()
+				require.ErrorIs(t, fe, ErrValidation)
 				var target FieldError
 				require.ErrorAs(t, fe, &target)
 				assert.Empty(t, target.Path)
@@ -543,7 +556,7 @@ func TestFieldError_ErrorsIs(t *testing.T) {
 			if tt.checkErr != nil {
 				tt.checkErr(t, tt.fe)
 			} else {
-				assert.ErrorIs(t, tt.fe, ErrValidation)
+				require.ErrorIs(t, tt.fe, ErrValidation)
 				var target FieldError
 				require.ErrorAs(t, tt.fe, &target)
 				assert.Equal(t, tt.wantPath, target.Path)
@@ -568,6 +581,7 @@ func TestValidationErrors_UnwrapChain(t *testing.T) {
 				return verr
 			},
 			checkErr: func(t *testing.T, verr Error) {
+				t.Helper()
 				err := verr.Unwrap()
 				assert.ErrorIs(t, err, ErrValidation, "Unwrap should return ErrValidation")
 			},
@@ -580,6 +594,7 @@ func TestValidationErrors_UnwrapChain(t *testing.T) {
 				return verr
 			},
 			checkErr: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.ErrorIs(t, &verr, ErrValidation, "errors.Is should work through unwrap chain")
 			},
 		},
@@ -595,8 +610,8 @@ func TestValidationErrors_UnwrapChain(t *testing.T) {
 				wrapped := fmt.Errorf("%w: %w", outerErr, &verr)
 				// Note: FieldError and validation.Error already implement Unwrap
 				// This test verifies the chain works
-				assert.ErrorIs(t, &verr, ErrValidation)
-				assert.ErrorIs(t, wrapped, ErrValidation, "wrapped error should still be ErrValidation")
+				require.ErrorIs(t, &verr, ErrValidation)
+				require.ErrorIs(t, wrapped, ErrValidation, "wrapped error should still be ErrValidation")
 				_ = wrapped // Suppress unused variable warning
 			},
 		},
@@ -697,7 +712,7 @@ func TestValidate_ManyErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags), WithMaxErrors(tt.maxErrors))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags), WithMaxErrors(tt.maxErrors))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -784,7 +799,7 @@ func TestValidate_DeepRecursion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := tt.setup()
-			err := Validate(context.Background(), root, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), root, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err, "expected validation error for missing required field")
 				if tt.checkErr != nil {

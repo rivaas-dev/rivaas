@@ -17,13 +17,12 @@ package validation
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 )
 
 // errNotImplemented is returned internally when a type doesn't implement
 // [ValidatorInterface] or [ValidatorWithContext].
-var errNotImplemented = fmt.Errorf("validator not implemented")
+var errNotImplemented = errors.New("validator not implemented")
 
 // validateWithInterface validates using [ValidatorInterface] or [ValidatorWithContext] methods.
 // This implements [StrategyInterface] validation.

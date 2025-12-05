@@ -160,7 +160,7 @@ func TestValidateWithInterface_PointerReceiver(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithStrategy(StrategyInterface))
+			err := Validate(t.Context(), tt.user, WithStrategy(StrategyInterface))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -210,7 +210,7 @@ func TestValidateWithInterface_ValueReceiver(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithStrategy(StrategyInterface))
+			err := Validate(t.Context(), tt.user, WithStrategy(StrategyInterface))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -229,20 +229,20 @@ func TestValidateWithInterface_WithContext(t *testing.T) {
 		name string
 		user *userWithContextValidator
 		//nolint:containedctx // ctx is used for testing context-aware validation
-		ctx       context.Context
+		setupCtx  func(*testing.T) context.Context
 		wantError bool
 		checkErr  func(t *testing.T, err error)
 	}{
 		{
 			name:      "valid user with English locale",
 			user:      &userWithContextValidator{Name: "John"},
-			ctx:       context.WithValue(context.Background(), testLocaleKey, "en"),
+			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
 			wantError: false,
 		},
 		{
 			name:      "invalid user - missing name",
 			user:      &userWithContextValidator{},
-			ctx:       context.WithValue(context.Background(), testLocaleKey, "en"),
+			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
 				require.Error(t, err)
@@ -251,7 +251,7 @@ func TestValidateWithInterface_WithContext(t *testing.T) {
 		{
 			name:      "invalid user - short name for Farsi locale",
 			user:      &userWithContextValidator{Name: "Jo"},
-			ctx:       context.WithValue(context.Background(), testLocaleKey, "fa"),
+			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "fa") },
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
 				require.Error(t, err)
@@ -260,25 +260,25 @@ func TestValidateWithInterface_WithContext(t *testing.T) {
 		{
 			name:      "valid long name for Farsi locale",
 			user:      &userWithContextValidator{Name: "محمد"},
-			ctx:       context.WithValue(context.Background(), testLocaleKey, "fa"),
+			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "fa") },
 			wantError: false,
 		},
 		{
 			name:      "valid name with no locale in context",
 			user:      &userWithContextValidator{Name: "John"},
-			ctx:       context.Background(),
+			setupCtx:  func(t *testing.T) context.Context { return t.Context() },
 			wantError: false,
 		},
 		{
 			name:      "valid name with different locale",
 			user:      &userWithContextValidator{Name: "Jo"},
-			ctx:       context.WithValue(context.Background(), testLocaleKey, "en"),
+			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
 			wantError: false, // English locale doesn't have length restriction
 		},
 		{
 			name:      "invalid - empty name with context",
 			user:      &userWithContextValidator{Name: ""},
-			ctx:       context.WithValue(context.Background(), testLocaleKey, "en"),
+			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
 			wantError: true,
 		},
 	}
@@ -286,7 +286,8 @@ func TestValidateWithInterface_WithContext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(tt.ctx, tt.user, WithStrategy(StrategyInterface), WithContext(tt.ctx))
+			ctx := tt.setupCtx(t)
+			err := Validate(ctx, tt.user, WithStrategy(StrategyInterface), WithContext(ctx))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -327,10 +328,10 @@ func TestValidateWithInterface_ValueReceiverWithContext(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := t.Context()
 			err := Validate(ctx, tt.user, WithStrategy(StrategyInterface), WithContext(ctx))
 			if tt.wantError {
 				require.Error(t, err)
@@ -359,7 +360,7 @@ func TestValidateWithInterface_PrefersContextOverValidate(t *testing.T) {
 			checkErr: func(t *testing.T, err error) {
 				// If Validate() was called, it would return "should not use Validate()"
 				// Since wantError is false, err should be nil
-				assert.NoError(t, err, "valid user should not have errors")
+				require.NoError(t, err, "valid user should not have errors")
 				// Defensive check: if error exists, ensure it's not from Validate()
 				if err != nil {
 					assert.NotContains(t, err.Error(), "should not use Validate()",
@@ -380,15 +381,15 @@ func TestValidateWithInterface_PrefersContextOverValidate(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := t.Context()
 			err := Validate(ctx, tt.user, WithStrategy(StrategyInterface), WithContext(ctx))
 			if tt.wantError {
 				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			if tt.checkErr != nil {
 				tt.checkErr(t, err)
@@ -434,7 +435,7 @@ func TestValidateWithInterface_NoValidator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.value, WithStrategy(StrategyInterface))
+			err := Validate(t.Context(), tt.value, WithStrategy(StrategyInterface))
 			if tt.wantError {
 				require.Error(t, err)
 			} else {
@@ -485,7 +486,7 @@ func TestValidateWithInterface_ErrorCoercion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithStrategy(StrategyInterface))
+			err := Validate(t.Context(), tt.user, WithStrategy(StrategyInterface))
 			require.Error(t, err, "expected validation error")
 			if tt.checkErr != nil {
 				tt.checkErr(t, err)
@@ -521,7 +522,7 @@ func TestValidateWithInterface_NilPointer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.value, WithStrategy(StrategyInterface))
+			err := Validate(t.Context(), tt.value, WithStrategy(StrategyInterface))
 			if tt.wantError {
 				require.Error(t, err)
 			} else {
@@ -537,19 +538,19 @@ func TestValidateWithInterface_ContextWithoutWithContextOption(t *testing.T) {
 		name string
 		user *userWithContextValidator
 		//nolint:containedctx // ctx is used for testing context-aware validation
-		ctx       context.Context
+		setupCtx  func(*testing.T) context.Context
 		wantError bool
 	}{
 		{
 			name:      "context provided but WithContext not called - should still use ValidateContext",
 			user:      &userWithContextValidator{Name: "John"},
-			ctx:       context.WithValue(context.Background(), testLocaleKey, "en"),
+			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
 			wantError: false,
 		},
 		{
 			name:      "context provided but WithContext not called - invalid user",
 			user:      &userWithContextValidator{},
-			ctx:       context.WithValue(context.Background(), testLocaleKey, "en"),
+			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
 			wantError: true,
 		},
 	}
@@ -559,7 +560,8 @@ func TestValidateWithInterface_ContextWithoutWithContextOption(t *testing.T) {
 			t.Parallel()
 			// Note: When context is provided to Validate(), it should still use ValidateContext
 			// if WithContext is not explicitly called, the context from Validate() is used
-			err := Validate(tt.ctx, tt.user, WithStrategy(StrategyInterface))
+			ctx := tt.setupCtx(t)
+			err := Validate(ctx, tt.user, WithStrategy(StrategyInterface))
 			if tt.wantError {
 				require.Error(t, err)
 			} else {
@@ -592,7 +594,7 @@ func TestValidateWithInterface_AutoStrategyDetection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// Using StrategyAuto should still work with interface validators
-			err := Validate(context.Background(), tt.user, WithStrategy(StrategyAuto))
+			err := Validate(t.Context(), tt.user, WithStrategy(StrategyAuto))
 			if tt.wantError {
 				require.Error(t, err)
 			} else {
@@ -617,7 +619,7 @@ func TestValidateWithInterface_ErrorUnwrapping(t *testing.T) {
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				unwrapped := verr.Unwrap()
-				assert.True(t, errors.Is(unwrapped, ErrValidation))
+				assert.ErrorIs(t, unwrapped, ErrValidation)
 			},
 		},
 		{
@@ -633,7 +635,7 @@ func TestValidateWithInterface_ErrorUnwrapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithStrategy(StrategyInterface))
+			err := Validate(t.Context(), tt.user, WithStrategy(StrategyInterface))
 			require.Error(t, err)
 			if tt.checkErr != nil {
 				tt.checkErr(t, err)
@@ -646,14 +648,14 @@ func TestValidateWithInterface_ContextCancellation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name      string
-		setupCtx  func() context.Context
+		setupCtx  func(*testing.T) context.Context
 		user      *userWithContextValidator
 		wantError bool
 	}{
 		{
 			name: "cancelled context should still validate",
-			setupCtx: func() context.Context {
-				ctx, cancel := context.WithCancel(context.Background())
+			setupCtx: func(t *testing.T) context.Context {
+				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // Cancel immediately
 				return ctx
 			},
@@ -662,8 +664,8 @@ func TestValidateWithInterface_ContextCancellation(t *testing.T) {
 		},
 		{
 			name: "cancelled context with invalid user",
-			setupCtx: func() context.Context {
-				ctx, cancel := context.WithCancel(context.Background())
+			setupCtx: func(t *testing.T) context.Context {
+				ctx, cancel := context.WithCancel(t.Context())
 				cancel()
 				return ctx
 			},
@@ -675,7 +677,7 @@ func TestValidateWithInterface_ContextCancellation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := tt.setupCtx()
+			ctx := tt.setupCtx(t)
 			err := Validate(ctx, tt.user, WithStrategy(StrategyInterface), WithContext(ctx))
 			if tt.wantError {
 				require.Error(t, err)
@@ -709,7 +711,7 @@ func TestValidateWithInterface_NoContextProvided(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// Not providing context - should try ValidateContext first, then Validate
-			err := Validate(context.Background(), tt.user, WithStrategy(StrategyInterface))
+			err := Validate(t.Context(), tt.user, WithStrategy(StrategyInterface))
 			if tt.wantError {
 				require.Error(t, err)
 			} else {

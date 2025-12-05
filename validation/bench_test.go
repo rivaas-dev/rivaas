@@ -15,7 +15,6 @@
 package validation
 
 import (
-	"context"
 	"testing"
 )
 
@@ -46,7 +45,7 @@ func BenchmarkValidate_Tags(b *testing.B) {
 		Age:   25,
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
@@ -62,7 +61,7 @@ func BenchmarkValidate_Interface(b *testing.B) {
 		Email: "john@example.com",
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
@@ -92,7 +91,7 @@ func BenchmarkValidate_JSONSchema(b *testing.B) {
 		Email: "john@example.com",
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
@@ -135,7 +134,7 @@ func BenchmarkValidate_Complex(b *testing.B) {
 		Total: 30.0,
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
@@ -151,7 +150,7 @@ func BenchmarkValidate_Auto(b *testing.B) {
 		Email: "john@example.com",
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
@@ -177,7 +176,7 @@ func BenchmarkValidate_WithMaxErrors(b *testing.B) {
 
 	user := &User{} // All fields missing
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
@@ -198,7 +197,7 @@ func BenchmarkValidate_Concurrent(b *testing.B) {
 		Email: "john@example.com",
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
@@ -222,7 +221,7 @@ func BenchmarkValidate_Partial(b *testing.B) {
 		"name": true,
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {

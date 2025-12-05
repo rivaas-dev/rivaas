@@ -68,9 +68,9 @@ func TestWithRunAll(t *testing.T) {
 			t.Parallel()
 			var err error
 			if tt.runAll {
-				err = Validate(context.Background(), &tt.user, WithRunAll(true))
+				err = Validate(t.Context(), &tt.user, WithRunAll(true))
 			} else {
-				err = Validate(context.Background(), &tt.user)
+				err = Validate(t.Context(), &tt.user)
 			}
 			if tt.wantError {
 				require.Error(t, err)
@@ -129,9 +129,9 @@ func TestWithRequireAny(t *testing.T) {
 			t.Parallel()
 			var err error
 			if tt.requireAny {
-				err = Validate(context.Background(), &tt.user, WithRequireAny(true))
+				err = Validate(t.Context(), &tt.user, WithRequireAny(true))
 			} else {
-				err = Validate(context.Background(), &tt.user)
+				err = Validate(t.Context(), &tt.user)
 			}
 			if tt.wantError {
 				require.Error(t, err)
@@ -218,7 +218,7 @@ func TestWithMaxErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithMaxErrors(tt.maxErrors))
+			err := Validate(t.Context(), &tt.user, WithMaxErrors(tt.maxErrors))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -290,7 +290,7 @@ func TestWithCustomValidator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithCustomValidator(customValidator))
+			err := Validate(t.Context(), tt.user, WithCustomValidator(customValidator))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -306,8 +306,8 @@ func TestWithCustomValidator(t *testing.T) {
 func TestWithFieldNameMapper(t *testing.T) {
 	t.Parallel()
 	type User struct {
-		FirstName string `json:"first_name" validate:"required"`
-		LastName  string `json:"last_name" validate:"required"`
+		FirstName string `json:"first_name" validate:"required"` //nolint:tagliatelle // snake_case is intentional for API compatibility
+		LastName  string `json:"last_name" validate:"required"`  //nolint:tagliatelle // snake_case is intentional for API compatibility
 	}
 
 	tests := []struct {
@@ -338,7 +338,7 @@ func TestWithFieldNameMapper(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -351,7 +351,7 @@ func TestWithFieldNameMapper(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -427,7 +427,7 @@ func TestWithRedactor(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -459,7 +459,7 @@ func TestWithContext(t *testing.T) {
 		{
 			name: "context with value should be passed through",
 			setupCtx: func() context.Context {
-				return context.WithValue(context.Background(), key, "value")
+				return context.WithValue(t.Context(), key, "value")
 			},
 			user:      &User{},
 			wantError: true,
@@ -470,7 +470,7 @@ func TestWithContext(t *testing.T) {
 		{
 			name: "context with valid user should pass",
 			setupCtx: func() context.Context {
-				return context.WithValue(context.Background(), key, "value")
+				return context.WithValue(t.Context(), key, "value")
 			},
 			user:      &User{Name: "John"},
 			wantError: false,
@@ -478,7 +478,7 @@ func TestWithContext(t *testing.T) {
 		{
 			name: "background context should work",
 			setupCtx: func() context.Context {
-				return context.Background()
+				return t.Context()
 			},
 			user:      &User{},
 			wantError: true,
@@ -549,7 +549,7 @@ func TestWithPresence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePartial(context.Background(), tt.user, tt.pm)
+			err := ValidatePartial(t.Context(), tt.user, tt.pm)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -615,7 +615,7 @@ func TestWithCustomSchema(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, tt.schema))
+			err := Validate(t.Context(), tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, tt.schema))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -677,7 +677,7 @@ func TestNewValidationConfig_Defaults(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 	}
@@ -685,7 +685,7 @@ func TestNewValidationConfig_Defaults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, tt.opts...)
+			err := Validate(t.Context(), tt.user, tt.opts...)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -741,7 +741,7 @@ func TestWithStrategy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithStrategy(tt.strategy))
+			err := Validate(t.Context(), tt.user, WithStrategy(tt.strategy))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -798,7 +798,7 @@ func TestWithMultipleOptions(t *testing.T) {
 		{
 			name:      "multiple options - Context and Strategy",
 			user:      &User{},
-			opts:      []Option{WithContext(context.Background()), WithStrategy(StrategyTags)},
+			opts:      []Option{WithContext(t.Context()), WithStrategy(StrategyTags)},
 			wantError: true,
 		},
 		{
@@ -812,7 +812,7 @@ func TestWithMultipleOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, tt.opts...)
+			err := Validate(t.Context(), tt.user, tt.opts...)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -862,7 +862,7 @@ func TestWithPartial(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePartial(context.Background(), tt.user, tt.pm)
+			err := ValidatePartial(t.Context(), tt.user, tt.pm)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {

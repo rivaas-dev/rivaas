@@ -15,7 +15,6 @@
 package validation
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -80,7 +79,7 @@ func TestValidateWithTags_Required(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -147,7 +146,7 @@ func TestValidateWithTags_Email(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -217,7 +216,7 @@ func TestValidatePartialLeafsOnly(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePartial(context.Background(), &tt.user, tt.pm, WithStrategy(StrategyTags))
+			err := ValidatePartial(t.Context(), &tt.user, tt.pm, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -264,7 +263,7 @@ func TestValidateWithTags_CustomValidators(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -275,7 +274,7 @@ func TestValidateWithTags_CustomValidators(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -298,7 +297,7 @@ func TestValidateWithTags_CustomValidators(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -335,7 +334,7 @@ func TestRegisterTag_Freeze(t *testing.T) {
 		Field string `json:"field" validate:"required"`
 	}
 	//nolint:errcheck // Test setup - calling Validate to trigger freeze mechanism, result doesn't matter
-	_ = Validate(context.Background(), &TestStruct{Field: "test"}, WithStrategy(StrategyTags))
+	_ = Validate(t.Context(), &TestStruct{Field: "test"}, WithStrategy(StrategyTags))
 
 	// Second registration should fail after freeze
 	err = RegisterTag("test_tag_freeze2", func(_ validator.FieldLevel) bool {
@@ -390,7 +389,7 @@ func TestPathResolution(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 				// Check paths contain array indices
 				hasIndex := false
 				for _, e := range verr.Fields {
@@ -412,7 +411,7 @@ func TestPathResolution(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.order, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.order, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -488,7 +487,7 @@ func TestRedaction(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -586,7 +585,7 @@ func TestValidatePartial_NestedArrays(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePartial(context.Background(), &tt.order, tt.pm, WithStrategy(StrategyTags))
+			err := ValidatePartial(t.Context(), &tt.order, tt.pm, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err, "expected validation error for empty required field")
 				if tt.checkErr != nil {
@@ -650,7 +649,7 @@ func TestValidatePartial_Maps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePartial(context.Background(), &tt.user, tt.pm, WithStrategy(StrategyTags))
+			err := ValidatePartial(t.Context(), &tt.user, tt.pm, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -715,7 +714,7 @@ func TestValidatePartial_EmptyVsNilSlices(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePartial(context.Background(), &tt.user, tt.pm, WithStrategy(StrategyTags))
+			err := ValidatePartial(t.Context(), &tt.user, tt.pm, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -738,7 +737,7 @@ func TestFieldNameMapper_NestedFields(t *testing.T) {
 	}
 
 	type User struct {
-		FirstName string  `json:"first_name" validate:"required"`
+		FirstName string  `json:"first_name" validate:"required"` //nolint:tagliatelle // snake_case is intentional for API compatibility
 		Address   Address `json:"address"`
 	}
 
@@ -774,7 +773,7 @@ func TestFieldNameMapper_NestedFields(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -804,7 +803,7 @@ func TestFieldNameMapper_NestedFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -868,7 +867,7 @@ func TestFieldNameMapper_ArrayElements(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -886,7 +885,7 @@ func TestFieldNameMapper_ArrayElements(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.order, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.order, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err, "expected validation error for empty Name field")
 				if tt.checkErr != nil {
@@ -978,7 +977,7 @@ func TestRedaction_NestedSensitiveFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -1032,7 +1031,7 @@ func TestRedaction_AllErrorTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {

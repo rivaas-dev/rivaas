@@ -15,7 +15,6 @@
 package validation
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 )
@@ -80,7 +79,7 @@ func FuzzValidate(f *testing.F) {
 		}
 
 		user := &User{Name: name, Email: email}
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Validate should never panic
 		err := Validate(ctx, user, WithStrategy(StrategyTags))
@@ -125,7 +124,7 @@ func FuzzValidateJSONSchema(f *testing.F) {
 			return
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Validation should never panic
 		_ = Validate(ctx, &data,

@@ -15,7 +15,6 @@
 package validation
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,7 +51,7 @@ func TestValidateAll_MultipleStrategies(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected ValidationErrors")
-				assert.Greater(t, len(verr.Fields), 0, "should have validation errors")
+				assert.NotEmpty(t, verr.Fields, "should have validation errors")
 			},
 		},
 		{
@@ -60,10 +59,11 @@ func TestValidateAll_MultipleStrategies(t *testing.T) {
 			user:      User{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -76,7 +76,7 @@ func TestValidateAll_MultipleStrategies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithRunAll(true))
+			err := Validate(t.Context(), &tt.user, WithRunAll(true))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -127,7 +127,7 @@ func TestValidateAll_RequireAny(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithRunAll(true), WithRequireAny(true))
+			err := Validate(t.Context(), &tt.user, WithRunAll(true), WithRequireAny(true))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -173,14 +173,14 @@ func TestValidateAll_NoApplicableStrategies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.value, WithRunAll(true))
+			err := Validate(t.Context(), tt.value, WithRunAll(true))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
 					tt.checkErr(t, err)
 				}
 			} else {
-				assert.Nil(t, err, "should not error when no strategies apply")
+				assert.NoError(t, err, "should not error when no strategies apply")
 			}
 		})
 	}
@@ -215,10 +215,11 @@ func TestCoerceToValidationErrors_AlreadyValidationErrors(t *testing.T) {
 			user:      User{Email: "john@example.com"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				var resultVerr *Error
 				require.ErrorAs(t, err, &resultVerr)
-				assert.Greater(t, len(resultVerr.Fields), 0)
+				assert.NotEmpty(t, resultVerr.Fields)
 			},
 		},
 		{
@@ -231,7 +232,7 @@ func TestCoerceToValidationErrors_AlreadyValidationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyTags))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyTags))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -303,7 +304,7 @@ func TestCoerceToValidationErrors_WithMaxErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithMaxErrors(tt.maxErrors))
+			err := Validate(t.Context(), &tt.user, WithMaxErrors(tt.maxErrors))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -391,7 +392,7 @@ func TestCoerceToValidationErrors_GenericError(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected Error")
-				assert.Equal(t, 1, len(verr.Fields), "expected 1 error")
+				assert.Len(t, verr.Fields, 1, "expected 1 error")
 				assert.Equal(t, "validation_error", verr.Fields[0].Code)
 			},
 		},
@@ -406,7 +407,7 @@ func TestCoerceToValidationErrors_GenericError(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Equal(t, 1, len(verr.Fields))
+				assert.Len(t, verr.Fields, 1)
 				assert.Contains(t, verr.Fields[0].Message, "custom error message")
 			},
 		},
@@ -423,7 +424,7 @@ func TestCoerceToValidationErrors_GenericError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithCustomValidator(tt.validator))
+			err := Validate(t.Context(), tt.user, WithCustomValidator(tt.validator))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -463,14 +464,14 @@ func TestCoerceToValidationErrors_NilError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user)
+			err := Validate(t.Context(), tt.user)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
 					tt.checkErr(t, err)
 				}
 			} else {
-				assert.Nil(t, err, "expected nil for valid input")
+				assert.NoError(t, err, "expected nil for valid input")
 			}
 		})
 	}
@@ -502,7 +503,6 @@ func TestIsApplicable_InterfaceStrategy(t *testing.T) {
 			value: &userWithContextValidator{Name: "John"},
 			opts: []Option{
 				WithStrategy(StrategyInterface),
-				WithContext(context.Background()),
 			},
 			wantError: false,
 		},
@@ -511,7 +511,6 @@ func TestIsApplicable_InterfaceStrategy(t *testing.T) {
 			value: &userWithContextValidator{},
 			opts: []Option{
 				WithStrategy(StrategyInterface),
-				WithContext(context.Background()),
 			},
 			wantError: true,
 		},
@@ -532,8 +531,13 @@ func TestIsApplicable_InterfaceStrategy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
-			err := Validate(ctx, tt.value, tt.opts...)
+			ctx := t.Context()
+			// Add context to opts if needed for ValidatorWithContext tests
+			opts := tt.opts
+			if tt.name == "with context and ValidatorWithContext - valid user" || tt.name == "with context and ValidatorWithContext - invalid user" {
+				opts = append(opts, WithContext(ctx))
+			}
+			err := Validate(ctx, tt.value, opts...)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -600,7 +604,7 @@ func TestIsApplicable_TagsStrategy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.value, tt.opts...)
+			err := Validate(t.Context(), tt.value, tt.opts...)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -667,7 +671,7 @@ func TestIsApplicable_JSONSchemaStrategy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.value, tt.opts...)
+			err := Validate(t.Context(), tt.value, tt.opts...)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -743,7 +747,7 @@ func TestDetermineStrategy_Auto(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.value, tt.opts...)
+			err := Validate(t.Context(), tt.value, tt.opts...)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -804,7 +808,7 @@ func TestValidateByStrategy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithStrategy(tt.strategy))
+			err := Validate(t.Context(), tt.user, WithStrategy(tt.strategy))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -850,7 +854,7 @@ func TestValidateWithInterface_AutoStrategy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user) // Auto strategy
+			err := Validate(t.Context(), tt.user) // Auto strategy
 			if tt.wantError {
 				require.Error(t, err, "expected validation error")
 				if tt.checkErr != nil {
@@ -886,10 +890,11 @@ func TestValidateAll_AllStrategiesCombined(t *testing.T) {
 			user:      &CombinedUser{Name: "John"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected Error")
-				assert.Greater(t, len(verr.Fields), 0, "should have validation errors")
+				assert.NotEmpty(t, verr.Fields, "should have validation errors")
 			},
 		},
 		{
@@ -900,7 +905,7 @@ func TestValidateAll_AllStrategiesCombined(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -911,7 +916,7 @@ func TestValidateAll_AllStrategiesCombined(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 	}
@@ -919,7 +924,7 @@ func TestValidateAll_AllStrategiesCombined(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.user, WithRunAll(true))
+			err := Validate(t.Context(), tt.user, WithRunAll(true))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -1004,7 +1009,7 @@ func TestDetermineStrategy_PriorityMatrix(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), tt.value, tt.opts...)
+			err := Validate(t.Context(), tt.value, tt.opts...)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {

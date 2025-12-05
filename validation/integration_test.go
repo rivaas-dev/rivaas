@@ -15,7 +15,6 @@
 package validation_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -30,6 +29,7 @@ import (
 // Integration tests for the validation package.
 // These tests verify end-to-end workflows and component interactions.
 
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_FullValidationWorkflow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -155,7 +155,7 @@ func TestIntegration_FullValidationWorkflow(t *testing.T) {
 			require.NoError(t, err, "JSON parsing should succeed")
 
 			// Step 2: Validate the parsed struct
-			ctx := context.Background()
+			ctx := t.Context()
 			err = validation.Validate(ctx, &user)
 
 			// Step 3: Verify validation result
@@ -172,6 +172,7 @@ func TestIntegration_FullValidationWorkflow(t *testing.T) {
 	}
 }
 
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_PartialValidationWorkflow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -258,7 +259,7 @@ func TestIntegration_PartialValidationWorkflow(t *testing.T) {
 			}
 
 			// Step 3: Validate only present fields
-			ctx := context.Background()
+			ctx := t.Context()
 			err = validation.ValidatePartial(ctx, &user, presence)
 
 			// Step 4: Verify result
@@ -274,6 +275,7 @@ func TestIntegration_PartialValidationWorkflow(t *testing.T) {
 	}
 }
 
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ValidatorInstance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -283,7 +285,7 @@ func TestIntegration_ValidatorInstance(t *testing.T) {
 	type SensitiveUser struct {
 		Username string `json:"username" validate:"required"`
 		Password string `json:"password" validate:"required,min=8"`
-		APIKey   string `json:"api_key" validate:"required"`
+		APIKey   string `json:"api_key" validate:"required"` //nolint:tagliatelle // snake_case is intentional for API compatibility
 	}
 
 	// Create validator with custom configuration
@@ -348,7 +350,7 @@ func TestIntegration_ValidatorInstance(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			err := validator.Validate(ctx, &tt.user)
 
 			if tt.wantError {
@@ -385,7 +387,7 @@ func TestIntegration_ConcurrentValidation(t *testing.T) {
 	// Test concurrent validations don't interfere with each other
 	for i := range numGoroutines {
 		wg.Add(1)
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 
 			for j := range validationsPerGoroutine {
@@ -397,7 +399,7 @@ func TestIntegration_ConcurrentValidation(t *testing.T) {
 					user = User{Name: "", Email: "invalid"}
 				}
 
-				ctx := context.Background()
+				ctx := t.Context()
 				err := validation.Validate(ctx, &user)
 
 				// Valid users should pass, invalid should fail
@@ -423,6 +425,7 @@ func TestIntegration_ConcurrentValidation(t *testing.T) {
 	assert.Empty(t, unexpectedErrors, "no unexpected errors during concurrent validation")
 }
 
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_JSONSchemaWithCustomSchema(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -507,7 +510,7 @@ func TestIntegration_JSONSchemaWithCustomSchema(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			err := validation.Validate(ctx, &tt.product,
 				validation.WithStrategy(validation.StrategyJSONSchema),
 				validation.WithCustomSchema("product-schema-"+tt.name, schema),
@@ -535,7 +538,7 @@ func TestIntegration_ErrorChaining(t *testing.T) {
 		Name string `json:"name" validate:"required"`
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	user := &User{Name: ""}
 
 	err := validation.Validate(ctx, user)
@@ -547,13 +550,14 @@ func TestIntegration_ErrorChaining(t *testing.T) {
 	// Test errors.As works
 	var verr *validation.Error
 	require.ErrorAs(t, err, &verr)
-	assert.Greater(t, len(verr.Fields), 0)
+	assert.NotEmpty(t, verr.Fields)
 
 	// Test Unwrap returns ErrValidation
 	unwrapped := verr.Unwrap()
 	assert.ErrorIs(t, unwrapped, validation.ErrValidation)
 }
 
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_MaxErrorsTruncation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -603,7 +607,7 @@ func TestIntegration_MaxErrorsTruncation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			data := &ManyFields{} // All fields empty
 
 			err := validation.Validate(ctx, data, validation.WithMaxErrors(tt.maxErrors))

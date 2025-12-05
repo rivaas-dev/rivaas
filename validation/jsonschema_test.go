@@ -97,7 +97,7 @@ func TestValidateWithSchema_Basic(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
-				assert.Greater(t, len(verr.Fields), 0, "should have validation errors")
+				assert.NotEmpty(t, verr.Fields, "should have validation errors")
 			},
 		},
 		{
@@ -119,7 +119,7 @@ func TestValidateWithSchema_Basic(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, tt.schema))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, tt.schema))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -223,7 +223,7 @@ func TestValidateWithSchema_Partial(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePartial(context.Background(), &tt.user, tt.pm, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, tt.schema))
+			err := ValidatePartial(t.Context(), &tt.user, tt.pm, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, tt.schema))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -346,7 +346,7 @@ func TestPruneByPresence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePartial(context.Background(), &tt.data, tt.pm, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
+			err := ValidatePartial(t.Context(), &tt.data, tt.pm, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -367,28 +367,28 @@ func TestGetRawJSONFromContext(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name      string
-		setupCtx  func() context.Context
+		setupCtx  func(*testing.T) context.Context
 		wantFound bool
 		wantData  []byte
 		check     func(t *testing.T, retrieved []byte, ok bool)
 	}{
 		{
 			name: "should extract raw JSON from context",
-			setupCtx: func() context.Context {
+			setupCtx: func(t *testing.T) context.Context {
 				rawJSON := []byte(`{"name": "John"}`)
-				return InjectRawJSONCtx(context.Background(), rawJSON)
+				return InjectRawJSONCtx(t.Context(), rawJSON)
 			},
 			wantFound: true,
 			wantData:  []byte(`{"name": "John"}`),
 			check: func(t *testing.T, retrieved []byte, ok bool) {
 				assert.True(t, ok, "should be able to extract raw JSON")
-				assert.Equal(t, `{"name": "John"}`, string(retrieved))
+				assert.JSONEq(t, `{"name": "John"}`, string(retrieved))
 			},
 		},
 		{
 			name: "should return false for context without raw JSON",
-			setupCtx: func() context.Context {
-				return context.Background()
+			setupCtx: func(t *testing.T) context.Context {
+				return t.Context()
 			},
 			wantFound: false,
 			check: func(t *testing.T, retrieved []byte, ok bool) {
@@ -398,9 +398,9 @@ func TestGetRawJSONFromContext(t *testing.T) {
 		},
 		{
 			name: "should extract empty JSON array",
-			setupCtx: func() context.Context {
+			setupCtx: func(t *testing.T) context.Context {
 				rawJSON := []byte(`[]`)
-				return InjectRawJSONCtx(context.Background(), rawJSON)
+				return InjectRawJSONCtx(t.Context(), rawJSON)
 			},
 			wantFound: true,
 			wantData:  []byte(`[]`),
@@ -411,15 +411,15 @@ func TestGetRawJSONFromContext(t *testing.T) {
 		},
 		{
 			name: "should extract complex nested JSON",
-			setupCtx: func() context.Context {
+			setupCtx: func(t *testing.T) context.Context {
 				rawJSON := []byte(`{"user": {"name": "John", "age": 30}, "tags": ["admin", "user"]}`)
-				return InjectRawJSONCtx(context.Background(), rawJSON)
+				return InjectRawJSONCtx(t.Context(), rawJSON)
 			},
 			wantFound: true,
 			wantData:  []byte(`{"user": {"name": "John", "age": 30}, "tags": ["admin", "user"]}`),
 			check: func(t *testing.T, retrieved []byte, ok bool) {
 				assert.True(t, ok)
-				assert.Equal(t, `{"user": {"name": "John", "age": 30}, "tags": ["admin", "user"]}`, string(retrieved))
+				assert.JSONEq(t, `{"user": {"name": "John", "age": 30}, "tags": ["admin", "user"]}`, string(retrieved))
 			},
 		},
 	}
@@ -427,7 +427,7 @@ func TestGetRawJSONFromContext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := tt.setupCtx()
+			ctx := tt.setupCtx(t)
 			retrieved, ok := ExtractRawJSONCtx(ctx)
 			if tt.check != nil {
 				tt.check(t, retrieved, ok)
@@ -477,7 +477,7 @@ func TestJSONSchemaProvider(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -491,7 +491,7 @@ func TestJSONSchemaProvider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -547,8 +547,8 @@ func TestSchemaCache(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
-			assert.Nil(t, err, "validation should succeed")
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
+			assert.NoError(t, err, "validation should succeed")
 		})
 	}
 }
@@ -583,7 +583,7 @@ func TestValidateWithSchema_InvalidSchema(t *testing.T) {
 				// Should have schema compile error
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -596,7 +596,7 @@ func TestValidateWithSchema_InvalidSchema(t *testing.T) {
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
-				assert.Greater(t, len(verr.Fields), 0)
+				assert.NotEmpty(t, verr.Fields)
 			},
 		},
 		{
@@ -635,7 +635,7 @@ func TestValidateWithSchema_InvalidSchema(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, tt.schema))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, tt.schema))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -768,7 +768,7 @@ func TestValidateWithSchema_NestedObjectErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {
@@ -824,7 +824,7 @@ func TestValidateWithSchema_SchemaRefs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
+			err := Validate(t.Context(), &tt.user, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
 			if tt.wantError {
 				require.Error(t, err)
 			} else {
@@ -917,7 +917,7 @@ func TestValidateWithSchema_ArrayValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(context.Background(), &tt.order, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
+			err := Validate(t.Context(), &tt.order, WithStrategy(StrategyJSONSchema), WithCustomSchema(tt.schemaID, schema))
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.checkErr != nil {

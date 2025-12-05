@@ -15,7 +15,6 @@
 package validation
 
 import (
-	"context"
 	"slices"
 	"testing"
 
@@ -25,7 +24,7 @@ import (
 
 func TestValidate_NilValue(t *testing.T) {
 	t.Parallel()
-	err := Validate(context.Background(), nil)
+	err := Validate(t.Context(), nil)
 	require.Error(t, err, "expected error for nil value")
 }
 
@@ -34,7 +33,7 @@ func TestValidate_NilPointer(t *testing.T) {
 	var ptr *struct {
 		Name string `json:"name" validate:"required"`
 	}
-	err := Validate(context.Background(), ptr)
+	err := Validate(t.Context(), ptr)
 	require.Error(t, err, "expected error for nil pointer")
 	var verr *Error
 	require.ErrorAs(t, err, &verr, "expected validation.Error")
@@ -147,7 +146,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
-				assert.Len(t, verr.Fields, 0)
+				assert.Empty(t, verr.Fields)
 			},
 		},
 		{
@@ -189,9 +188,9 @@ func TestValidationErrors_Sort(t *testing.T) {
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
-				assert.Equal(t, "", verr.Fields[0].Path)
+				assert.Empty(t, verr.Fields[0].Path)
 				assert.Equal(t, "code1", verr.Fields[0].Code)
-				assert.Equal(t, "", verr.Fields[1].Path)
+				assert.Empty(t, verr.Fields[1].Path)
 				assert.Equal(t, "code2", verr.Fields[1].Code)
 				assert.Equal(t, "a", verr.Fields[2].Path)
 			},
@@ -344,7 +343,7 @@ func TestValidationErrors_Add(t *testing.T) {
 			meta:    nil,
 			validate: func(t *testing.T, verr Error) {
 				assert.Len(t, verr.Fields, 1)
-				assert.Equal(t, "", verr.Fields[0].Path)
+				assert.Empty(t, verr.Fields[0].Path)
 			},
 		},
 		{
@@ -969,7 +968,7 @@ func TestValidatorInterface_WithContext(t *testing.T) {
 
 	// Test struct without Validate method should pass
 	impl := &TestStruct{Name: "test"}
-	ctx := context.Background()
+	ctx := t.Context()
 	err := Validate(ctx, impl, WithStrategy(StrategyInterface), WithContext(ctx))
 	// Interface validation should pass (no Validate method)
 	assert.NoError(t, err)
