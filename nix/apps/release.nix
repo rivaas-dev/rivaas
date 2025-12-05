@@ -5,37 +5,22 @@
   # Check module release status (dry-run)
   release-check = {
     type = "app";
+    meta.description = "Check modules for unreleased changes";
     program = toString (pkgs.writeShellScript "rivaas-release-check" ''
       set -uo pipefail
 
       gum="${pkgs.gum}/bin/gum"
       git="${pkgs.git}/bin/git"
 
-      $gum style --foreground ${lib.colors.header} --bold "Module Release Status"
-      echo ""
-
       # Fetch latest tags from remote (warn on failure, don't fail completely)
+      # Keep this outside the pager so the spinner is interactive
+      fetch_warning=""
       if ! $gum spin --spinner dot --title "Fetching latest tags from origin..." -- $git fetch --tags origin 2>&1; then
-        $gum style --foreground ${lib.colors.error} "⚠ Warning: Could not fetch tags from origin (working offline or network issue)"
-        $gum style --faint "  Continuing with local tags only..."
-        echo ""
+        fetch_warning="failed"
       fi
 
       # Get GitHub repo URL for commit links (convert SSH to HTTPS, strip .git)
       repo_url=$($git remote get-url origin 2>/dev/null | sed 's|ssh://git@github.com/|https://github.com/|' | sed 's|git@github.com:|https://github.com/|' | sed 's|\.git$||')
-
-      # Helper: format commits with clickable OSC 8 hyperlinks (colored hash)
-      format_commits() {
-        while IFS= read -r line; do
-          [ -z "$line" ] && continue
-          hash=$(echo "$line" | cut -d' ' -f1)
-          msg=$(echo "$line" | cut -d' ' -f2-)
-          # Color the hash with gum, embed in OSC 8 hyperlink
-          colored_hash=$($gum style --foreground ${lib.colors.accent1} "$hash")
-          # OSC 8 hyperlink: \e]8;;URL\e\\TEXT\e]8;;\e\\
-          printf "    \033]8;;%s/commit/%s\033\\%s\033]8;;\033\\ %s\n" "$repo_url" "$hash" "$colored_hash" "$msg"
-        done
-      }
 
       # Root-level modules only
       modules=$(${pkgs.findutils}/bin/find . ${lib.findPatterns.rootModules} | sed 's|^\./||' | sort)
@@ -47,67 +32,94 @@
         exit 0
       fi
 
-      needs_release=0
-      up_to_date=0
-
-      for mod in $modules; do
-        [ -z "$mod" ] && continue
-
-        latest_tag=$($git tag -l "$mod/v*" --sort=-v:refname | head -1)
-
-        if [ -z "$latest_tag" ]; then
-          commit_count=$($git rev-list --count HEAD -- "$mod/" 2>/dev/null || echo "0")
-          if [ "$commit_count" -gt 0 ]; then
-            $gum style --foreground ${lib.colors.accent3} --bold "● $mod"
-            $gum style --faint "  Tag: (none - new module)"
-            $gum style --foreground ${lib.colors.accent4} "  $commit_count total commits"
-            echo ""
-            $git log --oneline HEAD -- "$mod/" 2>/dev/null | head -5 | format_commits
-            [ "$commit_count" -gt 5 ] && $gum style --faint "    ... and $((commit_count - 5)) more"
-            needs_release=$((needs_release + 1))
-          fi
-        else
-          commits=$($git log --oneline "$latest_tag"..HEAD -- "$mod/" 2>/dev/null)
-          commit_count=$(echo "$commits" | grep -c . 2>/dev/null || echo "0")
-
-          if [ "$commit_count" -gt 0 ] && [ -n "$commits" ]; then
-            $gum style --foreground ${lib.colors.accent3} --bold "● $mod"
-            $gum style --faint "  Tag: $latest_tag"
-            $gum style --foreground ${lib.colors.accent4} "  $commit_count commits since tag:"
-            echo ""
-            echo "$commits" | head -10 | format_commits
-            [ "$commit_count" -gt 10 ] && $gum style --faint "    ... and $((commit_count - 10)) more"
-            needs_release=$((needs_release + 1))
-          else
-            $gum style --foreground ${lib.colors.success} "✓ $mod"
-            $gum style --faint "  Tag: $latest_tag"
-            up_to_date=$((up_to_date + 1))
-          fi
-        fi
+      # Pipe all output through gum pager for scrollable view
+      {
+        $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Module Release Status"
         echo ""
-      done
 
-      # Summary
-      $gum style --foreground ${lib.colors.header} --bold "Summary"
-      if [ $needs_release -gt 0 ]; then
-        $gum style --foreground ${lib.colors.accent3} "  ● $needs_release module(s) have unreleased changes"
-      fi
-      if [ $up_to_date -gt 0 ]; then
-        $gum style --foreground ${lib.colors.success} "  ✓ $up_to_date module(s) up to date"
-      fi
+        # Show fetch warning if applicable
+        if [ -n "$fetch_warning" ]; then
+          $gum style --foreground ${lib.colors.error} "⚠ Warning: Could not fetch tags from origin (working offline or network issue)"
+          $gum style --faint "  Continuing with local tags only..."
+          echo ""
+        fi
+
+        # Helper: format commits with clickable OSC 8 hyperlinks (colored hash)
+        format_commits() {
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            hash=$(echo "$line" | cut -d' ' -f1)
+            msg=$(echo "$line" | cut -d' ' -f2-)
+            # Color the hash with gum, embed in OSC 8 hyperlink
+            colored_hash=$($gum style --foreground ${lib.colors.accent1} "$hash")
+            # OSC 8 hyperlink: \e]8;;URL\e\\TEXT\e]8;;\e\\
+            printf "    \033]8;;%s/commit/%s\033\\%s\033]8;;\033\\ %s\n" "$repo_url" "$hash" "$colored_hash" "$msg"
+          done
+        }
+
+        needs_release=0
+        up_to_date=0
+
+        for mod in $modules; do
+          [ -z "$mod" ] && continue
+
+          latest_tag=$($git tag -l "$mod/v*" --sort=-v:refname | head -1)
+
+          if [ -z "$latest_tag" ]; then
+            commit_count=$($git rev-list --count HEAD -- "$mod/" 2>/dev/null || echo "0")
+            if [ "$commit_count" -gt 0 ]; then
+              $gum style --foreground ${lib.colors.accent3} --bold "● $mod"
+              $gum style --faint "  Tag: (none - new module)"
+              $gum style --foreground ${lib.colors.accent4} "  $commit_count total commits"
+              echo ""
+              $git log --oneline HEAD -- "$mod/" 2>/dev/null | head -5 | format_commits
+              [ "$commit_count" -gt 5 ] && $gum style --faint "    ... and $((commit_count - 5)) more"
+              needs_release=$((needs_release + 1))
+            fi
+          else
+            commits=$($git log --oneline "$latest_tag"..HEAD -- "$mod/" 2>/dev/null)
+            commit_count=$(echo "$commits" | grep -c . 2>/dev/null || echo "0")
+
+            if [ "$commit_count" -gt 0 ] && [ -n "$commits" ]; then
+              $gum style --foreground ${lib.colors.accent3} --bold "● $mod"
+              $gum style --faint "  Tag: $latest_tag"
+              $gum style --foreground ${lib.colors.accent4} "  $commit_count commits since tag:"
+              echo ""
+              echo "$commits" | head -10 | format_commits
+              [ "$commit_count" -gt 10 ] && $gum style --faint "    ... and $((commit_count - 10)) more"
+              needs_release=$((needs_release + 1))
+            else
+              $gum style --foreground ${lib.colors.success} "✓ $mod"
+              $gum style --faint "  Tag: $latest_tag"
+              up_to_date=$((up_to_date + 1))
+            fi
+          fi
+          echo ""
+        done
+
+        # Summary
+        $gum style --foreground ${lib.colors.header} --bold "Summary"
+        if [ $needs_release -gt 0 ]; then
+          $gum style --foreground ${lib.colors.accent3} "  ● $needs_release module(s) have unreleased changes"
+        fi
+        if [ $up_to_date -gt 0 ]; then
+          $gum style --foreground ${lib.colors.success} "  ✓ $up_to_date module(s) up to date"
+        fi
+      } | $gum pager --show-line-numbers=false
     '');
   };
 
   # Interactive release tool
   release = {
     type = "app";
+    meta.description = "Interactive release tool (create tags)";
     program = toString (pkgs.writeShellScript "rivaas-release" ''
       set -uo pipefail
 
       gum="${pkgs.gum}/bin/gum"
       git="${pkgs.git}/bin/git"
 
-      $gum style --foreground ${lib.colors.header} --bold "Interactive Release"
+      $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Interactive Release"
       echo ""
 
       # Fetch latest tags from remote
@@ -169,52 +181,28 @@
         exit 0
       fi
 
-      # Let user select modules to release - display with hyperlinked versions
+      # Display modules with unreleased changes as a table
       $gum style --foreground ${lib.colors.info} "Modules with unreleased changes:"
       echo ""
 
-      # Find max lengths for alignment
-      max_mod_len=0
-      max_ver_len=0
-      for mod in $modules_needing_release; do
-        [ ''${#mod} -gt $max_mod_len ] && max_mod_len=''${#mod}
-        latest_tag=$($git tag -l "$mod/v*" --sort=-v:refname | head -1)
-        version="''${latest_tag#$mod/}"
-        version="''${version:-new}"
-        [ ''${#version} -gt $max_ver_len ] && max_ver_len=''${#version}
-      done
-
-      # Print header
-      printf "  $($gum style --bold '%-'"$max_mod_len"'s  %-'"$max_ver_len"'s  %s')\n" "Module" "Version" "Commits"
-
+      # Build table data (CSV format)
+      table_data="Module,Version,Commits"
       for mod in $modules_needing_release; do
         latest_tag=$($git tag -l "$mod/v*" --sort=-v:refname | head -1)
         commit_count=$($git log --oneline "''${latest_tag:-HEAD~100}"..HEAD -- "$mod/" 2>/dev/null | grep -c . || echo "?")
         version="''${latest_tag#$mod/}"
         version="''${version:-new}"
-
-        # OSC 8 hyperlink for version (clickable in supported terminals)
-        if [ -n "$latest_tag" ] && [ -n "$repo_url" ]; then
-          # Pad version for alignment, then wrap in hyperlink
-          padded_version=$(printf "%-''${max_ver_len}s" "$version")
-          version_display=$(printf "\033]8;;%s/releases/tag/%s\033\\%s\033]8;;\033\\" "$repo_url" "$latest_tag" "$padded_version")
-        else
-          version_display=$(printf "%-''${max_ver_len}s" "$version")
-        fi
-
-        printf "  %-''${max_mod_len}s  %s  %s\n" "$mod" "$version_display" "$($gum style --faint "$commit_count")"
+        table_data="$table_data
+$mod,$version,$commit_count"
       done
+
+      # Display table with gum
+      echo "$table_data" | $gum table --print --border.foreground ${lib.colors.accent1}
       echo ""
 
-      # Ask for selection mode
-      select_mode=$($gum choose --header "Selection mode:" "single (release one module)" "multi (release multiple modules)")
-
-      if [[ "$select_mode" == single* ]]; then
-        selected=$($gum choose --header "Select module to release:" $modules_needing_release)
-      else
-        $gum style --faint "Use Space to select, Enter to confirm"
-        selected=$($gum choose --no-limit --header "Select modules to release:" $modules_needing_release)
-      fi
+      # Multi-select: Space to toggle, Enter to confirm
+      $gum style --faint "Use Space to select, Enter to confirm"
+      selected=$($gum choose --no-limit --header "Select modules to release:" $modules_needing_release)
 
       if [ -z "$selected" ]; then
         $gum style --foreground ${lib.colors.info} "No modules selected"
@@ -227,7 +215,7 @@
       # Process each selected module
       for mod in $selected; do
         echo ""
-        $gum style --foreground ${lib.colors.header} --bold "━━━ $mod ━━━"
+        $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "$mod"
 
         latest_tag=$($git tag -l "$mod/v*" --sort=-v:refname | head -1)
         current_version="''${latest_tag#$mod/v}"
@@ -318,7 +306,7 @@ $commits"
       # Offer to push tags
       if [ -n "$created_tags" ]; then
         echo ""
-        $gum style --foreground ${lib.colors.header} --bold "━━━ Summary ━━━"
+        $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Summary"
         $gum style --foreground ${lib.colors.success} "Created tags:"
         for tag in $created_tags; do
           $gum style --faint "  $tag"

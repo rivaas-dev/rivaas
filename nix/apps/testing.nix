@@ -5,6 +5,7 @@
   # Run all tests (excludes examples)
   test = {
     type = "app";
+    meta.description = "Run unit tests for all modules";
     program = toString (lib.mkModuleScript {
       name = "test";
       title = "Running Tests";
@@ -19,6 +20,7 @@
   # Run tests with race detector (excludes examples)
   test-race = {
     type = "app";
+    meta.description = "Run tests with race detector";
     program = toString (lib.mkModuleScript {
       name = "test-race";
       title = "Running Tests with Race Detector";
@@ -33,6 +35,7 @@
   # Run integration tests (excludes examples)
   test-integration = {
     type = "app";
+    meta.description = "Run integration tests for all modules";
     program = toString (lib.mkModuleScript {
       name = "test-integration";
       title = "Running Integration Tests";

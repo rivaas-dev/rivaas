@@ -5,11 +5,12 @@
   # Run golangci-lint (single command with all modules for better performance)
   lint = {
     type = "app";
+    meta.description = "Run golangci-lint on all modules";
     program = toString (pkgs.writeShellScript "rivaas-lint" ''
       set -uo pipefail
 
       gum="${pkgs.gum}/bin/gum"
-      $gum style --foreground ${lib.colors.header} --bold "Running Linter"
+      $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Running Linter"
       echo ""
 
       # Collect all module paths (excluding examples) and append /...
@@ -20,12 +21,10 @@
         exit 0
       fi
 
-      if $gum spin --spinner dot --title "Linting codebase..." -- ${pkgs.golangci-lint}/bin/golangci-lint run --config .golangci.yaml $modules; then
+      if $gum spin --spinner dot --title "Linting codebase..." --show-error -- ${pkgs.golangci-lint}/bin/golangci-lint run --config .golangci.yaml $modules; then
         $gum style --foreground ${lib.colors.success} --bold "✓ No linting issues found!"
       else
         $gum style --foreground ${lib.colors.error} --bold "✗ Linting issues detected"
-        echo ""
-        ${pkgs.golangci-lint}/bin/golangci-lint run --config .golangci.yaml $modules
         exit 1
       fi
     '');
@@ -34,11 +33,12 @@
   # Run benchmarks (excludes examples) - custom output handling
   bench = {
     type = "app";
+    meta.description = "Run benchmarks for all modules";
     program = toString (pkgs.writeShellScript "rivaas-bench" ''
       set -uo pipefail
 
       gum="${pkgs.gum}/bin/gum"
-      $gum style --foreground ${lib.colors.header} --bold "Running Benchmarks"
+      $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Running Benchmarks"
       echo ""
 
       modules=$(${pkgs.findutils}/bin/find . ${lib.findPatterns.nonExamples} | sort)
@@ -74,11 +74,12 @@
   # Run go mod tidy for all modules
   tidy = {
     type = "app";
+    meta.description = "Run go mod tidy for all modules";
     program = toString (lib.mkModuleScript {
       name = "tidy";
       title = "Tidying Go Modules";
       findPattern = lib.findPatterns.allModules;
-      command = "sh -c \"cd '$dir' && ${lib.go}/bin/go mod tidy\"";
+      command = "${lib.go}/bin/go mod tidy -C ./$dir";
       spinnerTitle = "Tidying";
       successMsg = "All $total modules tidied!";
       failMsg = "$failed/$total modules failed to tidy";

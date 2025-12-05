@@ -5,6 +5,7 @@
   # Build examples (standalone, with GOWORK=off)
   test-examples = {
     type = "app";
+    meta.description = "Build all examples (standalone)";
     program = toString (lib.mkModuleScript {
       name = "test-examples";
       title = "Building Examples (standalone)";
@@ -20,11 +21,12 @@
   # Interactive example runner
   run-example = {
     type = "app";
+    meta.description = "Interactive example runner";
     program = toString (pkgs.writeShellScript "rivaas-run-example" ''
       set -uo pipefail
 
       gum="${pkgs.gum}/bin/gum"
-      $gum style --foreground ${lib.colors.header} --bold "Run Example"
+      $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Run Example"
       echo ""
 
       # Find all examples
@@ -36,8 +38,8 @@
         exit 0
       fi
 
-      # Let user select an example
-      selected=$($gum choose --header "Select an example to run:" $examples)
+      # Let user select an example (with fuzzy search)
+      selected=$(echo "$examples" | tr ' ' '\n' | $gum filter --header "Select an example (type to filter):" --fuzzy --select-if-one)
 
       if [ -z "$selected" ]; then
         $gum style --foreground ${lib.colors.info} "No example selected"

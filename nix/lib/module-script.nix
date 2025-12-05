@@ -16,7 +16,7 @@ pkgs.writeShellScript "rivaas-${name}" ''
   set -uo pipefail
 
   gum="${pkgs.gum}/bin/gum"
-  $gum style --foreground ${colors.header} --bold "${title}"
+  $gum style --foreground ${colors.header} --bold --border rounded --padding "0 1" "${title}"
   echo ""
 
   modules=$(${pkgs.findutils}/bin/find . ${findPattern} | sort)

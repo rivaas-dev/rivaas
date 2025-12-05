@@ -1,6 +1,33 @@
 # Development shell configuration with banner
 { pkgs, lib }:
 
+let
+  # Calculate max name length for padding
+  maxNameLen = builtins.foldl' (acc: app: 
+    let len = builtins.stringLength app.name; 
+    in if len > acc then len else acc
+  ) 0 lib.appsMeta;
+
+  # Pad a string to a given length (dynamically generates exact padding)
+  padRight = str: len:
+    let
+      strLen = builtins.stringLength str;
+      padLen = if strLen >= len then 0 else len - strLen;
+      padding = builtins.concatStringsSep "" (builtins.genList (_: " ") padLen);
+    in str + padding;
+
+  # Generate a single command line
+  mkCommandLine = app:
+    let
+      paddedName = padRight app.name maxNameLen;
+      colorCode = lib.colors.${app.color};
+    in
+    ''printf "  %s  %s\n" "$(gum style --foreground ${colorCode} 'nix run .#${paddedName}')" "$(gum style --faint '${app.description}')"'';
+
+  # Generate all command lines
+  commandLines = builtins.concatStringsSep "\n    " (builtins.map mkCommandLine lib.appsMeta);
+in
+
 pkgs.mkShell {
   name = "rivaas-dev";
 
@@ -33,7 +60,6 @@ pkgs.mkShell {
 
   shellHook = ''
     # Set Go environment variables first (before gum output)
-    export GOROOT="${lib.go}/share/go"
     export GOPATH="$HOME/go"
     export PATH="$GOPATH/bin:$PATH"
     export GO111MODULE=on
@@ -58,16 +84,7 @@ pkgs.mkShell {
     echo ""
 
     gum style --foreground ${lib.colors.header} --bold "Quick commands (flake apps):"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.success} 'nix run .#test            ')" "$(gum style --faint 'Run unit tests')"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.accent1} 'nix run .#test-race       ')" "$(gum style --faint 'Run tests with race detector')"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.accent2} 'nix run .#test-integration')" "$(gum style --faint 'Run integration tests')"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.accent3} 'nix run .#test-examples   ')" "$(gum style --faint 'Build examples (standalone)')"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.accent4} 'nix run .#lint            ')" "$(gum style --faint 'Run golangci-lint')"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.accent5} 'nix run .#bench           ')" "$(gum style --faint 'Run benchmarks')"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.accent6} 'nix run .#tidy            ')" "$(gum style --faint 'Run go mod tidy for all modules')"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.accent2} 'nix run .#release-check   ')" "$(gum style --faint 'Check modules for unreleased changes')"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.accent3} 'nix run .#release         ')" "$(gum style --faint 'Interactive release (create tags)')"
-    printf "  %s  %s\n" "$(gum style --foreground ${lib.colors.accent4} 'nix run .#run-example     ')" "$(gum style --faint 'Interactive example runner')"
+    ${commandLines}
     echo ""
 
     gum style --foreground ${lib.colors.success} "Environment configured ✓"

@@ -5,9 +5,10 @@ let
   colors = import ./colors.nix;
   findPatterns = import ./find-patterns.nix;
   mkModuleScript = import ./module-script.nix { inherit pkgs colors; };
+  appsMeta = import ./apps-meta.nix;
 in
 {
-  inherit colors findPatterns mkModuleScript;
+  inherit colors findPatterns mkModuleScript appsMeta;
 
   # Re-export commonly used packages for convenience
   go = pkgs.go;
