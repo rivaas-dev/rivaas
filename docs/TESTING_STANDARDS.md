@@ -646,6 +646,32 @@ func BenchmarkFunctionName_Parallel(b *testing.B) {
 - Test both sequential and parallel execution
 - Name benchmarks descriptively
 - Group related benchmarks together
+- **Use `b.Context()`** instead of `context.Background()` (Go 1.24+)
+
+### Benchmark Context (Go 1.24+)
+
+In Go 1.24 and later, benchmarks should use `b.Context()` instead of `context.Background()`:
+
+```go
+func BenchmarkWithContext(b *testing.B) {
+    b.ResetTimer()
+    b.ReportAllocs()
+
+    for b.Loop() {
+        // ✅ Preferred: Use b.Context()
+        service.Operation(b.Context())
+        
+        // ❌ Avoid: context.Background()
+        // service.Operation(context.Background())
+    }
+}
+```
+
+**Benefits of `b.Context()`:**
+
+- Automatically cancelled when the benchmark ends
+- Consistent with test context usage (`t.Context()`)
+- Caught by the `usetesting` linter
 
 ### Benchmark Error Handling
 
@@ -1392,6 +1418,39 @@ func TestHandler_WithContextValue(t *testing.T) {
     assert.Equal(t, http.StatusOK, w.Code)
 }
 ```
+
+### Using Test Context (Go 1.24+)
+
+In Go 1.24 and later, tests should use `t.Context()` instead of `context.Background()`. The test context is automatically cancelled when the test completes, ensuring proper cleanup:
+
+```go
+func TestWithContext(t *testing.T) {
+    t.Parallel()
+
+    // ✅ Preferred: Use t.Context() - automatically cancelled when test ends
+    ctx := t.Context()
+    
+    // ❌ Avoid: context.Background() doesn't benefit from test lifecycle
+    // ctx := context.Background()
+
+    result, err := service.Operation(ctx)
+    require.NoError(t, err)
+    assert.NotNil(t, result)
+}
+```
+
+**Benefits of `t.Context()`:**
+
+- Automatically cancelled when the test ends (including on failure)
+- Helps detect operations that don't respect context cancellation
+- Ensures goroutines started during tests are properly cleaned up
+- Caught by the `usetesting` linter
+
+**When to use `context.Background()` instead:**
+
+- When you need a context that outlives the test (rare)
+- When testing behavior that specifically requires a non-cancellable context
+- In `testing.AllocsPerRun` callbacks (which don't have access to `t`)
 
 ## Test Coverage Requirements
 
