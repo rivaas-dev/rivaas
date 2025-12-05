@@ -24,7 +24,7 @@
 
       # Root-level modules only
       modules=$(${pkgs.findutils}/bin/find . ${lib.findPatterns.rootModules} | sed 's|^\./||' | sort)
-      total=$(echo "$modules" | grep -c . || echo 0)
+      total=$(echo "$modules" | grep -c . || true)
 
       # Handle empty module list
       if [ "$total" -eq 0 ]; then
@@ -78,7 +78,7 @@
             fi
           else
             commits=$($git log --oneline "$latest_tag"..HEAD -- "$mod/" 2>/dev/null)
-            commit_count=$(echo "$commits" | grep -c . 2>/dev/null || echo "0")
+            commit_count=$(echo "$commits" | grep -c . 2>/dev/null || true)
 
             if [ "$commit_count" -gt 0 ] && [ -n "$commits" ]; then
               $gum style --foreground ${lib.colors.accent3} --bold "● $mod"
@@ -169,7 +169,7 @@
           commit_count=$($git rev-list --count HEAD -- "$mod/" 2>/dev/null || echo "0")
           [ "$commit_count" -gt 0 ] && modules_needing_release="$modules_needing_release $mod"
         else
-          commit_count=$($git log --oneline "$latest_tag"..HEAD -- "$mod/" 2>/dev/null | grep -c . || echo "0")
+          commit_count=$($git log --oneline "$latest_tag"..HEAD -- "$mod/" 2>/dev/null | grep -c . || true)
           [ "$commit_count" -gt 0 ] && modules_needing_release="$modules_needing_release $mod"
         fi
       done
@@ -189,7 +189,7 @@
       table_data="Module,Version,Commits"
       for mod in $modules_needing_release; do
         latest_tag=$($git tag -l "$mod/v*" --sort=-v:refname | head -1)
-        commit_count=$($git log --oneline "''${latest_tag:-HEAD~100}"..HEAD -- "$mod/" 2>/dev/null | grep -c . || echo "?")
+        commit_count=$($git log --oneline "''${latest_tag:-HEAD~100}"..HEAD -- "$mod/" 2>/dev/null | grep -c . || true)
         version="''${latest_tag#$mod/}"
         version="''${version:-new}"
         table_data="$table_data
