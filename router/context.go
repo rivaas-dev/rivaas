@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"unsafe"
 
@@ -964,7 +965,7 @@ func (c *Context) DataFromReader(code int, contentLength int64, contentType stri
 
 	// Set Content-Length if known
 	if contentLength >= 0 {
-		c.Response.Header().Set("Content-Length", fmt.Sprintf("%d", contentLength))
+		c.Response.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
 	}
 
 	// Set extra headers
@@ -1285,7 +1286,7 @@ func (c *Context) RequireContentType(allowed ...string) bool {
 }
 
 // unsupportedMediaTypeProblem sends a 415 Unsupported Media Type response.
-func (c *Context) unsupportedMediaTypeProblem(received string, allowed []string) bool {
+func (c *Context) unsupportedMediaTypeProblem(_ string, _ []string) bool {
 	c.WriteErrorResponse(http.StatusUnsupportedMediaType, "Unsupported Media Type")
 	return false
 }

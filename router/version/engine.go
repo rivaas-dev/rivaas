@@ -228,7 +228,7 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version, route strin
 	if cfg.sendWarning299 {
 		warningMsg := fmt.Sprintf("299 - \"API %s is deprecated", version)
 		if !lc.SunsetDate.IsZero() {
-			warningMsg += fmt.Sprintf(" and will be removed on %s", lc.SunsetDate.Format(time.RFC3339))
+			warningMsg += " and will be removed on " + lc.SunsetDate.Format(time.RFC3339)
 		}
 		warningMsg += ". Please upgrade to a supported version.\""
 		w.Header().Set("Warning", warningMsg)

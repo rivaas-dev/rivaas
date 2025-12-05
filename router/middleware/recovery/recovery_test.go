@@ -33,7 +33,7 @@ func TestRecovery_BasicPanic(t *testing.T) {
 		panic("test panic")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)

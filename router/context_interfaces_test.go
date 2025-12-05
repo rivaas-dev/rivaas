@@ -245,7 +245,7 @@ func TestParameterReaderInterface(t *testing.T) {
 		}
 
 		_, err := processUserRequest(mock)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "user ID is required")
 	})
 }
@@ -289,8 +289,8 @@ func TestContextImplementsInterfaces(t *testing.T) {
 		// Test ParameterReader interface
 		var reader ParameterReader = c
 		assert.NotNil(t, reader)
-		assert.Equal(t, "", reader.Param("nonexistent"))
-		assert.Equal(t, "", reader.Query("nonexistent"))
+		assert.Empty(t, reader.Param("nonexistent"))
+		assert.Empty(t, reader.Query("nonexistent"))
 
 		// Test ResponseWriter interface
 		var writer ResponseWriter = c

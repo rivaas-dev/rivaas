@@ -61,7 +61,7 @@ func TestTrailingSlash_RemovePolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.url, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
@@ -87,7 +87,7 @@ func TestTrailingSlashRootPath(t *testing.T) {
 	})
 
 	// Root path should never be redirected
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -154,7 +154,7 @@ func TestTrailingSlash_Policies(t *testing.T) {
 				handler = Wrap(r, WithPolicy(PolicyAdd))
 			}
 
-			req := httptest.NewRequest("GET", tt.requestURL, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.requestURL, nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
@@ -203,7 +203,7 @@ func TestTrailingSlashPreservesMethod(t *testing.T) {
 	handler := Wrap(r, WithPolicy(PolicyRemove))
 
 	// POST to /users/ should redirect with 308 (preserves method)
-	req := httptest.NewRequest("POST", "/users/", strings.NewReader("data"))
+	req := httptest.NewRequest(http.MethodPost, "/users/", strings.NewReader("data"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)

@@ -57,7 +57,7 @@ func BenchmarkRivaasRouter(b *testing.B) {
 	// Warm up all optimizations for performance
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -84,7 +84,7 @@ func BenchmarkRivaasRouterPlainString(b *testing.B) {
 	// Warm up all optimizations for performance
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -119,7 +119,7 @@ func BenchmarkRivaasRouterZeroAlloc(b *testing.B) {
 	// Warm up all optimizations for performance
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/hello", nil)
+	req := httptest.NewRequest(http.MethodGet, "/hello", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -147,7 +147,7 @@ func BenchmarkStandardMux(b *testing.B) {
 		w.Write([]byte("User: 123, Post: 456"))
 	})
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -184,7 +184,7 @@ func BenchmarkSimpleRouter(b *testing.B) {
 		}
 	}
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -210,7 +210,7 @@ func BenchmarkGinRouter(b *testing.B) {
 		c.String(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
 	})
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -235,7 +235,7 @@ func BenchmarkEchoRouter(b *testing.B) {
 		return c.String(http.StatusOK, "User: "+c.Param("id")+", Post: "+c.Param("post_id"))
 	})
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -341,7 +341,7 @@ func BenchmarkChiRouter(b *testing.B) {
 		w.Write([]byte("User: " + id + ", Post: " + postID))
 	})
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -371,7 +371,7 @@ func BenchmarkFiberRouter(b *testing.B) {
 	// Convert Fiber app to http.HandlerFunc for httptest compatibility
 	handler := fiberadaptor.FiberApp(app)
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()

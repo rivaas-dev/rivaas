@@ -47,6 +47,7 @@
 package router
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
@@ -82,7 +83,7 @@ func BenchmarkAcceptsOptimized(b *testing.B) {
 
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Accept", tt.acceptHeader)
 			w := httptest.NewRecorder()
 			ctx := NewContext(w, req)
@@ -103,7 +104,7 @@ func BenchmarkAcceptsCaching(b *testing.B) {
 	offers := []string{"html", "json", "xml"}
 
 	b.Run("with_cache", func(b *testing.B) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", acceptHeader)
 		w := httptest.NewRecorder()
 		ctx := NewContext(w, req)
@@ -120,7 +121,7 @@ func BenchmarkAcceptsCaching(b *testing.B) {
 	})
 
 	b.Run("without_cache_simulation", func(b *testing.B) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", acceptHeader)
 		w := httptest.NewRecorder()
 
@@ -176,7 +177,7 @@ func BenchmarkParseAccept(b *testing.B) {
 
 // BenchmarkAcceptsCharsets benchmarks charset negotiation
 func BenchmarkAcceptsCharsets(b *testing.B) {
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Accept-Charset", "utf-8, iso-8859-1;q=0.5, *;q=0.1")
 	w := httptest.NewRecorder()
 	ctx := NewContext(w, req)
@@ -193,7 +194,7 @@ func BenchmarkAcceptsCharsets(b *testing.B) {
 
 // BenchmarkAcceptsEncodingsOptimized benchmarks encoding negotiation.
 func BenchmarkAcceptsEncodingsOptimized(b *testing.B) {
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Accept-Encoding", "gzip, deflate, br;q=1.0, *;q=0.5")
 	w := httptest.NewRecorder()
 	ctx := NewContext(w, req)
@@ -210,7 +211,7 @@ func BenchmarkAcceptsEncodingsOptimized(b *testing.B) {
 
 // BenchmarkAcceptsLanguages benchmarks language negotiation
 func BenchmarkAcceptsLanguages(b *testing.B) {
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Accept-Language", "en-US, en;q=0.9, fr;q=0.8, de;q=0.7")
 	w := httptest.NewRecorder()
 	ctx := NewContext(w, req)
@@ -247,7 +248,7 @@ func BenchmarkAcceptsComparison(b *testing.B) {
 	chromeHeader := "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
 
 	b.Run("optimized/simple_header", func(b *testing.B) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 		ctx := NewContext(w, req)
@@ -262,7 +263,7 @@ func BenchmarkAcceptsComparison(b *testing.B) {
 	})
 
 	b.Run("optimized/chrome_browser", func(b *testing.B) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", chromeHeader)
 		w := httptest.NewRecorder()
 		ctx := NewContext(w, req)
@@ -277,7 +278,7 @@ func BenchmarkAcceptsComparison(b *testing.B) {
 	})
 
 	b.Run("optimized/with_caching", func(b *testing.B) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", chromeHeader)
 		w := httptest.NewRecorder()
 		ctx := NewContext(w, req)
@@ -402,6 +403,7 @@ func BenchmarkZeroAllocationProof(b *testing.B) {
 				parseAccept(header, arena)
 				arena.used = 0
 			}) > 0 {
+
 				b.Errorf("Unexpected allocations for header: %s", header)
 			}
 		})

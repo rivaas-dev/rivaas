@@ -266,6 +266,7 @@ func TestMatchDynamic_MethodMismatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := &testContextParamWriter{}
 			matched := rc.MatchDynamic(tt.method, "/users/123", ctx)
 
@@ -311,6 +312,7 @@ func TestMatchDynamic_NonASCIIPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := &testContextParamWriter{}
 			matched := rc.MatchDynamic("GET", tt.path, ctx)
 
@@ -390,6 +392,7 @@ func TestLookupStatic_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			matched := rc.LookupStatic(tt.method, tt.path)
 
 			if tt.wantMatch {

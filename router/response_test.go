@@ -206,11 +206,11 @@ func TestDownload(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary test file
-	tmpfile, err := os.CreateTemp("", "test-download-*.txt")
+	tmpfile, err := os.CreateTemp(t.TempDir(), "test-download-*.txt")
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		_ = os.Remove(tmpfile.Name())
-	}()
+	})
 
 	content := []byte("test file content")
 	_, err = tmpfile.Write(content)

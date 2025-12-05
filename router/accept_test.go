@@ -15,6 +15,7 @@
 package router
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
@@ -159,7 +160,7 @@ func TestAccepts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			if tt.acceptHeader != "" {
 				req.Header.Set("Accept", tt.acceptHeader)
 			}
@@ -181,7 +182,7 @@ func TestAccepts_CacheHit(t *testing.T) {
 		t.Parallel()
 		// Test that cached specs are reused when Accept header matches
 		acceptHeader := "application/json, text/html;q=0.9"
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", acceptHeader)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -212,7 +213,7 @@ func TestAccepts_CacheHit(t *testing.T) {
 		t.Parallel()
 
 		// Test that cache is invalidated when Accept header changes
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -598,7 +599,7 @@ func TestHeaderArena_Reset(t *testing.T) {
 	for i := range 5 {
 		assert.Empty(t, arena.specs[i].value, "spec value should be cleared")
 		assert.Nil(t, arena.specs[i].params, "spec params should be nil")
-		assert.Equal(t, 0.0, arena.specs[i].quality, "spec quality should be 0")
+		assert.InDelta(t, 0.0, arena.specs[i].quality, 0.001, "spec quality should be 0")
 	}
 
 	// Return to pool
@@ -638,7 +639,7 @@ func TestHeaderArena_GetSpecs(t *testing.T) {
 
 				require.NotNil(t, result, "getSpecs should not return nil")
 				assert.GreaterOrEqual(t, cap(result), tt.capacity, "getSpecs(%d) returned slice with capacity %d, want at least %d", tt.capacity, cap(result), tt.capacity)
-				assert.Equal(t, 0, len(result), "getSpecs(%d) returned slice with length %d, want 0", tt.capacity, len(result))
+				assert.Empty(t, result, "getSpecs(%d) returned slice with length %d, want 0", tt.capacity, len(result))
 				assert.LessOrEqual(t, cap(result), 16, "getSpecs(%d) returned slice with capacity %d > 16, should use arena buffer", tt.capacity, cap(result))
 			})
 		}
@@ -674,7 +675,7 @@ func TestHeaderArena_GetSpecs(t *testing.T) {
 
 				require.NotNil(t, result, "getSpecs should not return nil even for large capacity")
 				assert.GreaterOrEqual(t, cap(result), tt.capacity, "getSpecs(%d) returned slice with capacity %d, want at least %d", tt.capacity, cap(result), tt.capacity)
-				assert.Equal(t, 0, len(result), "getSpecs(%d) returned slice with length %d, want 0", tt.capacity, len(result))
+				assert.Empty(t, result, "getSpecs(%d) returned slice with length %d, want 0", tt.capacity, len(result))
 				assert.Greater(t, cap(result), 16, "getSpecs(%d) returned slice with capacity %d <= 16, should use heap allocation", tt.capacity, cap(result))
 				assert.Equal(t, 0, arena.used, "arena.used should be 0 after getSpecs")
 			})
@@ -726,7 +727,7 @@ func TestHeaderArena_GetSpecs(t *testing.T) {
 
 		specs := parseAccept(largeHeader, arena)
 
-		assert.Equal(t, 20, len(specs), "parseAccept with 20 parts returned %d specs, want 20", len(specs))
+		assert.Len(t, specs, 20, "parseAccept with 20 parts returned %d specs, want 20", len(specs))
 
 		// Verify all specs are parsed correctly
 		for i, spec := range specs {
@@ -951,7 +952,7 @@ func TestParseAcceptPart(t *testing.T) {
 				result := parseAcceptPart(tt.input)
 
 				assert.Equal(t, tt.expected.value, result.value, "parseAcceptPart(%q).value", tt.input)
-				assert.Equal(t, tt.expected.quality, result.quality, "parseAcceptPart(%q).quality", tt.input)
+				assert.InDelta(t, tt.expected.quality, result.quality, 0.001, "parseAcceptPart(%q).quality", tt.input)
 				if tt.expected.params == nil {
 					assert.Nil(t, result.params, "parseAcceptPart(%q).params should be nil", tt.input)
 				}
@@ -1048,7 +1049,7 @@ func TestParseAccept_EmptyHeader(t *testing.T) {
 		result := parseAccept("", arena)
 
 		assert.Nil(t, result, "parseAccept(\"\") should return nil")
-		assert.Equal(t, 0, len(result), "parseAccept(\"\") returned slice with length %d, want 0 or nil", len(result))
+		assert.Empty(t, result, "parseAccept(\"\") returned slice with length %d, want 0 or nil", len(result))
 	})
 
 	t.Run("empty_header_early_return_before_arena_usage", func(t *testing.T) {
@@ -1109,7 +1110,7 @@ func TestParseAcceptParam(t *testing.T) {
 
 				// Spec should be unchanged (early return for empty/whitespace)
 				assert.Equal(t, originalSpec.value, spec.value, "spec.value should be unchanged")
-				assert.Equal(t, originalSpec.quality, spec.quality, "spec.quality should be unchanged")
+				assert.InDelta(t, originalSpec.quality, spec.quality, 0.001, "spec.quality should be unchanged")
 				assert.Nil(t, spec.params, "spec.params should be nil")
 			})
 		}
@@ -1140,7 +1141,7 @@ func TestParseAcceptParam(t *testing.T) {
 
 				// Spec should be unchanged (early return when no equals sign)
 				assert.Equal(t, originalSpec.value, spec.value, "spec.value should be unchanged")
-				assert.Equal(t, originalSpec.quality, spec.quality, "spec.quality should be unchanged")
+				assert.InDelta(t, originalSpec.quality, spec.quality, 0.001, "spec.quality should be unchanged")
 				assert.Nil(t, spec.params, "spec.params should be nil")
 			})
 		}
@@ -1172,7 +1173,7 @@ func TestParseAcceptParam(t *testing.T) {
 
 				// Spec should be unchanged (early return when key is empty after trimming)
 				assert.Equal(t, originalSpec.value, spec.value, "spec.value should be unchanged")
-				assert.Equal(t, originalSpec.quality, spec.quality, "spec.quality should be unchanged")
+				assert.InDelta(t, originalSpec.quality, spec.quality, 0.001, "spec.quality should be unchanged")
 				assert.Nil(t, spec.params, "spec.params should be nil")
 			})
 		}
@@ -1204,7 +1205,7 @@ func TestParseAcceptParam(t *testing.T) {
 
 				// Spec should be unchanged (early return when value is empty after trimming)
 				assert.Equal(t, originalSpec.value, spec.value, "spec.value should be unchanged")
-				assert.Equal(t, originalSpec.quality, spec.quality, "spec.quality should be unchanged")
+				assert.InDelta(t, originalSpec.quality, spec.quality, 0.001, "spec.quality should be unchanged")
 				assert.Nil(t, spec.params, "spec.params should be nil")
 			})
 		}
@@ -1304,11 +1305,11 @@ func TestParseAcceptParam(t *testing.T) {
 
 				if tt.expectedResult == "set" {
 					// Quality should be set via fallback ParseFloat
-					assert.Equal(t, tt.expectedValue, spec.quality, "expected quality")
+					assert.InDelta(t, tt.expectedValue, spec.quality, 0.001, "expected quality")
 					assert.NotEmpty(t, spec.rawQuality, "rawQuality should be set")
 				} else {
 					// Quality should remain unchanged (fallback parsed but value out of range)
-					assert.Equal(t, tt.expectedValue, spec.quality, "expected quality to remain unchanged")
+					assert.InDelta(t, tt.expectedValue, spec.quality, 0.001, "expected quality to remain unchanged")
 				}
 			})
 		}
@@ -1375,7 +1376,7 @@ func TestParseAcceptParam(t *testing.T) {
 				parseAcceptParam(tt.param, &spec)
 
 				if tt.expectQParam {
-					assert.Equal(t, tt.expectedQValue, spec.quality, "q parameter: expected quality")
+					assert.Equal(t, tt.expectedQValue, spec.quality, "q parameter: expected quality") //nolint:testifylint // exact quality comparison
 					assert.NotEmpty(t, spec.rawQuality, "q parameter: rawQuality should be set")
 				} else {
 					require.NotNil(t, spec.params, "params map should be initialized")

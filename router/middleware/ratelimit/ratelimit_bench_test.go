@@ -34,7 +34,7 @@ func BenchmarkRateLimit(b *testing.B) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -61,7 +61,7 @@ func BenchmarkRateLimit_ParallelSameKey(b *testing.B) {
 	b.ReportAllocs()
 
 	b.RunParallel(func(pb *testing.PB) {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		for pb.Next() {
 			w := httptest.NewRecorder()
@@ -92,7 +92,7 @@ func BenchmarkRateLimit_ParallelDifferentKeys(b *testing.B) {
 		userID := 0
 
 		for pb.Next() {
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.Header.Set("X-User-ID", string(rune(userID)))
 			userID++
 

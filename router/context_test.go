@@ -39,7 +39,7 @@ func TestContextHelpers(t *testing.T) {
 			c.Stringf(http.StatusOK, "user=%s,pass=%s", username, password)
 		})
 
-		req := httptest.NewRequest("POST", "/form", nil)
+		req := httptest.NewRequest(http.MethodPost, "/form", nil)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.PostForm = map[string][]string{
 			"username": {"john"},
@@ -62,7 +62,7 @@ func TestContextHelpers(t *testing.T) {
 			c.Stringf(http.StatusOK, "role=%s", role)
 		})
 
-		req := httptest.NewRequest("POST", "/form-default", nil)
+		req := httptest.NewRequest(http.MethodPost, "/form-default", nil)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 
@@ -106,7 +106,7 @@ func TestContextHelpers(t *testing.T) {
 			c.NoContent()
 		})
 
-		req := httptest.NewRequest("DELETE", "/item", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/item", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -116,6 +116,7 @@ func TestContextHelpers(t *testing.T) {
 	})
 
 	t.Run("SetCookie and GetCookie", func(t *testing.T) {
+		t.Parallel()
 		r.GET("/set-cookie", func(c *Context) {
 			c.SetCookie("session", "abc123", 3600, "/", "", false, true)
 			c.String(http.StatusOK, "cookie set")
@@ -176,6 +177,7 @@ func TestStatusMethod(t *testing.T) {
 	r := MustNew()
 
 	t.Run("Status with wrapped responseWriter", func(t *testing.T) {
+		t.Parallel()
 		r.GET("/status-wrapped", func(c *Context) {
 			c.Status(http.StatusAccepted)
 			c.String(http.StatusOK, "ok") // Should use Accepted status
@@ -190,6 +192,7 @@ func TestStatusMethod(t *testing.T) {
 	})
 
 	t.Run("Status with plain responseWriter", func(t *testing.T) {
+		t.Parallel()
 		// Create context with plain http.ResponseWriter
 		req := httptest.NewRequest("GET", "/test", nil)
 		w := httptest.NewRecorder()
@@ -279,7 +282,7 @@ func TestContext_Status_AlreadyWritten(t *testing.T) {
 }
 
 // TestContext_Next_WithCancellation tests Next with cancelled context
-func TestContext_Next_WithCancellation(_ *testing.T) {
+func TestContext_Next_WithCancellation(t *testing.T) {
 	r := MustNew(WithCancellationCheck(true))
 
 	handlerCalled := false
@@ -294,7 +297,7 @@ func TestContext_Next_WithCancellation(_ *testing.T) {
 	})
 
 	// Create request with already-cancelled context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // Cancel immediately
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -332,7 +335,7 @@ func TestContext_Next_WithTimeout(t *testing.T) {
 	})
 
 	// Create request with timeout that hasn't expired yet
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -341,7 +344,7 @@ func TestContext_Next_WithTimeout(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// All handlers should be called
-	assert.Equal(t, 3, len(callOrder), "expected 3 handlers called, got %d: %v", len(callOrder), callOrder)
+	assert.Len(t, callOrder, 3, "expected 3 handlers called, got %d: %v", len(callOrder), callOrder)
 }
 
 // TestContext_Next_Abort tests that Abort stops the chain

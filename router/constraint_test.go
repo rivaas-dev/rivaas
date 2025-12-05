@@ -17,7 +17,6 @@ package router
 import (
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -79,10 +78,6 @@ func TestFastPathConstraintValidation(t *testing.T) {
 	r.ServeHTTP(w2, req2)
 	t.Logf("Invalid /users/abc123: status=%d", w2.Code)
 	assert.Equal(t, http.StatusNotFound, w2.Code, "Invalid request should NOT match (should return 404)")
-}
-
-func mustCompile(pattern string) *regexp.Regexp {
-	return regexp.MustCompile(pattern)
 }
 
 // TestRouteConstraints tests additional constraint validators

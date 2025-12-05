@@ -76,15 +76,3 @@ func (m *testContextParamWriter) Reset() {
 	m.params = nil
 	m.count = 0
 }
-
-// newTestContextParamWriter creates a new test context param writer.
-func newTestContextParamWriter() *testContextParamWriter {
-	return &testContextParamWriter{
-		params: make(map[string]string),
-	}
-}
-
-// newTestRouteCompiler creates a RouteCompiler with default test settings.
-func newTestRouteCompiler() *RouteCompiler {
-	return NewRouteCompiler(1000, 3)
-}

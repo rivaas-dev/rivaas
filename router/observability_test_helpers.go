@@ -40,9 +40,9 @@ type mockObservabilityRecorder struct {
 	lastRoutePattern string
 }
 
-func newMockObservabilityRecorder(enabled bool) *mockObservabilityRecorder {
+func newMockObservabilityRecorder(_ bool) *mockObservabilityRecorder {
 	return &mockObservabilityRecorder{
-		enabled: enabled,
+		enabled: true,
 		shouldExclude: func(path string) bool {
 			// Default: don't exclude anything
 			return false

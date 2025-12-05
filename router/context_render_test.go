@@ -16,10 +16,10 @@ package router
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -47,6 +47,7 @@ func TestIndentedJSON(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				// Should be indented
 				assert.Contains(t, body, "  ", "Expected indented JSON")
 				// Should contain newlines
@@ -70,6 +71,7 @@ func TestIndentedJSON(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				// Should have proper indentation for nested objects
 				assert.Contains(t, body, "    ", "Expected nested indentation")
 			},
@@ -79,6 +81,7 @@ func TestIndentedJSON(t *testing.T) {
 			data:           map[string]string{},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				assert.Contains(t, body, "{}", "Expected empty object {}")
 			},
 		},
@@ -298,6 +301,7 @@ func TestASCIIJSON(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				// Should contain \u escape sequences
 				assert.Contains(t, body, "\\u", "Expected Unicode escape sequences")
 				// Should be pure ASCII (no bytes >= 128)
@@ -313,6 +317,7 @@ func TestASCIIJSON(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				// Should escape emoji to \uXXXX
 				assert.Contains(t, body, "\\u", "Expected emoji to be escaped")
 				// Should be valid JSON that unmarshals correctly
@@ -331,6 +336,7 @@ func TestASCIIJSON(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				// ASCII part should be unchanged
 				assert.Contains(t, body, "Hello", "ASCII text should not be escaped")
 				// Non-ASCII should be escaped
@@ -344,6 +350,7 @@ func TestASCIIJSON(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				// Should not have escape sequences for pure ASCII
 				assert.Equal(t, 0, strings.Count(body, "\\u"), "Pure ASCII should not have escape sequences")
 			},
@@ -391,10 +398,11 @@ func TestYAML(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				// Should be valid YAML
 				var result map[string]any
 				err := yaml.Unmarshal([]byte(body), &result)
-				assert.NoError(t, err, "Invalid YAML")
+				require.NoError(t, err, "Invalid YAML")
 				// Should contain YAML formatting
 				assert.Contains(t, body, ":", "Expected YAML key:value format")
 			},
@@ -404,11 +412,12 @@ func TestYAML(t *testing.T) {
 			data:           []string{"item1", "item2", "item3"},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				// Should be valid YAML
 				var result []string
 				err := yaml.Unmarshal([]byte(body), &result)
 				assert.NoError(t, err, "Invalid YAML")
-				assert.Equal(t, 3, len(result), "Expected 3 items")
+				assert.Len(t, result, 3, "Expected 3 items")
 			},
 		},
 		{
@@ -421,6 +430,7 @@ func TestYAML(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				var result map[string]any
 				err := yaml.Unmarshal([]byte(body), &result)
 				assert.NoError(t, err, "Invalid YAML")
@@ -512,7 +522,7 @@ func TestDataFromReader(t *testing.T) {
 			}
 
 			if tt.contentLength >= 0 {
-				expectedLength := fmt.Sprintf("%d", tt.contentLength)
+				expectedLength := strconv.FormatInt(tt.contentLength, 10)
 				assert.Equal(t, expectedLength, w.Header().Get("Content-Length"))
 			}
 
@@ -602,6 +612,7 @@ func TestData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
@@ -675,6 +686,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)

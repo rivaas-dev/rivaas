@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -578,7 +579,7 @@ func TestFile(t *testing.T) {
 		_ = writer.Close()
 
 		// Create request
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -598,7 +599,7 @@ func TestFile(t *testing.T) {
 		writer := multipart.NewWriter(body)
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -611,7 +612,7 @@ func TestFile(t *testing.T) {
 		t.Parallel()
 		// Create request with multipart Content-Type but malformed body
 		// This tests error handling when ParseMultipartForm fails
-		req := httptest.NewRequest("POST", "/upload", bytes.NewBufferString("malformed multipart data"))
+		req := httptest.NewRequest(http.MethodPost, "/upload", bytes.NewBufferString("malformed multipart data"))
 		req.Header.Set("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -633,7 +634,7 @@ func TestFile(t *testing.T) {
 		_, _ = fileWriter.Write([]byte("content"))
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", bytes.NewReader(body.Bytes()))
+		req := httptest.NewRequest(http.MethodPost, "/upload", bytes.NewReader(body.Bytes()))
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -669,7 +670,7 @@ func TestFile(t *testing.T) {
 		_, _ = fileWriter.Write(fileContent)
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -694,7 +695,7 @@ func TestFile(t *testing.T) {
 		_, _ = fileWriter.Write(fileContent)
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -722,7 +723,7 @@ func TestFile(t *testing.T) {
 		_, _ = fileWriter.Write([]byte("fake image"))
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -744,7 +745,7 @@ func TestFile(t *testing.T) {
 		_, _ = fileWriter.Write([]byte("fake"))
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -776,7 +777,7 @@ func TestFiles(t *testing.T) {
 		}
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -796,7 +797,7 @@ func TestFiles(t *testing.T) {
 		writer := multipart.NewWriter(body)
 		writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -811,11 +812,10 @@ func TestFileSave(t *testing.T) {
 	t.Parallel()
 
 	// Create temp directory for uploads
-	tmpDir, err := os.MkdirTemp("", "router-test-*")
-	require.NoError(t, err)
-	defer func() {
+	tmpDir := t.TempDir()
+	t.Cleanup(func() {
 		_ = os.RemoveAll(tmpDir)
-	}()
+	})
 
 	t.Run("save uploaded file", func(t *testing.T) {
 		t.Parallel()
@@ -828,7 +828,7 @@ func TestFileSave(t *testing.T) {
 		_, _ = fw.Write(fileContent)
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/", body)
+		req := httptest.NewRequest(http.MethodPost, "/", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -859,7 +859,7 @@ func TestFileSave(t *testing.T) {
 		_, _ = fw.Write([]byte("content"))
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/", body)
+		req := httptest.NewRequest(http.MethodPost, "/", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -892,7 +892,7 @@ func TestFileType(t *testing.T) {
 		_, _ = fileWriter.Write([]byte("no extension"))
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -900,7 +900,7 @@ func TestFileType(t *testing.T) {
 		file, err := c.File("noext")
 		require.NoError(t, err)
 
-		assert.Equal(t, "", file.Ext(), "File without extension should return empty string")
+		assert.Empty(t, file.Ext(), "File without extension should return empty string")
 	})
 
 	t.Run("multiple extensions", func(t *testing.T) {
@@ -913,7 +913,7 @@ func TestFileType(t *testing.T) {
 		_, _ = fileWriter.Write([]byte("archive content"))
 		_ = writer.Close()
 
-		req := httptest.NewRequest("POST", "/upload", body)
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)

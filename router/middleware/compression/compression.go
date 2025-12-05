@@ -282,6 +282,7 @@ func shouldSkipContentType(ct string, excludes map[string]bool) bool {
 	if strings.Contains(ctLower, "text/event-stream") ||
 		strings.Contains(ctLower, "application/grpc") ||
 		strings.Contains(ctLower, "application/octet-stream") {
+
 		return true
 	}
 

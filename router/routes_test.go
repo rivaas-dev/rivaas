@@ -142,7 +142,7 @@ func TestArchitectureCheck(t *testing.T) {
 	if ptrSize != 8 {
 		// This is the exact panic message from init()
 		expectedPanic := "router: requires 64-bit architecture for atomic pointer operations (unsafe.Pointer must be 8 bytes)"
-		require.Fail(t, "Architecture check failed: %s", expectedPanic)
+		require.Failf(t, "Architecture check failed", "%s", expectedPanic)
 	}
 
 	// If we reach here, the architecture check in init() would pass

@@ -26,6 +26,12 @@ import (
 	"rivaas.dev/router"
 )
 
+// contextKey is a custom type for context keys to avoid collisions.
+type contextKey string
+
+// requestIDKey is the context key for request IDs.
+const requestIDKey contextKey = "request_id"
+
 // Example_simpleObservabilityRecorder demonstrates a minimal implementation of router.ObservabilityRecorder.
 // This example shows the basic structure and lifecycle of observability integration.
 //
@@ -60,7 +66,7 @@ func Example_simpleObservabilityRecorder() {
 
 		// Simulate handler writing response
 		if rw, ok := wrapped.(*observableResponseWriter); ok {
-			rw.WriteHeader(200)
+			rw.WriteHeader(http.StatusOK)
 			_, _ = rw.Write([]byte(`{"status":"ok"}`))
 		}
 
@@ -110,7 +116,7 @@ func (s *SimpleObservabilityRecorder) OnRequestStart(ctx context.Context, req *h
 	}
 
 	// Enrich context with request ID for distributed tracing
-	ctx = context.WithValue(ctx, "request_id", state.requestID)
+	ctx = context.WithValue(ctx, requestIDKey, state.requestID)
 
 	// Return both enriched context and state for tracking
 	return ctx, state

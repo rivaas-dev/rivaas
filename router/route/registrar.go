@@ -91,7 +91,7 @@ type Registrar interface {
 	CacheRouteHandlers(compiledRoute *compiler.CompiledRoute, handlers []Handler)
 }
 
-// compilerHandlers converts handlers to compiler-compatible format.
+// CompilerHandlers converts handlers to compiler-compatible format.
 func CompilerHandlers(handlers []Handler) []compiler.HandlerFunc {
 	compilerHandlers := make([]compiler.HandlerFunc, len(handlers))
 	for i, h := range handlers {

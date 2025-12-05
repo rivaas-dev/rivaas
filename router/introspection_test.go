@@ -48,7 +48,7 @@ func (suite *ExtendedTestSuite) TestRouteIntrospection() {
 
 	// Test Routes() method
 	routes := suite.router.Routes()
-	suite.Equal(3, len(routes), "Expected 3 routes")
+	suite.Len(routes, 3, "Expected 3 routes")
 
 	// Check if routes are sorted
 	suite.Equal("GET", routes[0].Method, "Expected first route method to be GET")
@@ -57,7 +57,7 @@ func (suite *ExtendedTestSuite) TestRouteIntrospection() {
 	// Test that we can find our routes
 	found := false
 	for _, route := range routes {
-		if route.Method == "POST" && route.Path == "/users" {
+		if route.Method == http.MethodPost && route.Path == "/users" {
 			found = true
 			break
 		}
@@ -413,7 +413,7 @@ func TestRoutes(t *testing.T) {
 	r.GET("/users/:id", func(_ *Context) {})
 
 	routes := r.Routes()
-	assert.Equal(t, 3, len(routes), "Expected 3 routes")
+	assert.Len(t, routes, 3, "Expected 3 routes")
 
 	// Verify routes are sorted correctly
 	expectedMethods := []string{"GET", "GET", "POST"}

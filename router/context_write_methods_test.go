@@ -15,7 +15,6 @@
 package router
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -85,7 +84,7 @@ func TestContext_Stringf_Success(t *testing.T) {
 
 	err := c.Stringf(http.StatusOK, "Hello %s", "World")
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "Hello World", w.Body.String())
 }
@@ -165,7 +164,7 @@ func TestContext_JSON_ReturnsErrors(t *testing.T) {
 	// JSON should return error explicitly
 	err := c.JSON(http.StatusOK, make(chan int))
 
-	assert.Error(t, err, "Expected JSON to return error")
+	require.Error(t, err, "Expected JSON to return error")
 	assert.False(t, c.HasErrors(), "Expected JSON not to automatically collect errors")
 }
 
@@ -290,7 +289,7 @@ func TestContext_ResponseMethods_AllVariants(t *testing.T) {
 			c := NewContext(w, req)
 
 			err := tt.callValid(c)
-			assert.NoError(t, err, "Expected no error for valid data")
+			require.NoError(t, err, "Expected no error for valid data")
 			assert.False(t, c.HasErrors(), "Expected no errors after successful write")
 		})
 
@@ -335,5 +334,5 @@ func TestContext_ResponseMethods_ResponseNil(t *testing.T) {
 
 	err := c.JSON(http.StatusOK, map[string]string{"test": "value"})
 	require.Error(t, err, "Expected error when Response is nil")
-	assert.True(t, errors.Is(err, ErrContextResponseNil), "Expected ErrContextResponseNil, got: %v", err)
+	assert.ErrorIs(t, err, ErrContextResponseNil, "Expected ErrContextResponseNil")
 }

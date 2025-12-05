@@ -71,8 +71,8 @@ func BuildMountConfig(opts ...MountOption) *MountConfig {
 	return cfg
 }
 
-// MountRoute prepares a single route from the subrouter for mounting with the prefix.
-// Returns the new route data needed for registration.
+// MountRouteData contains route data prepared for mounting with a prefix.
+// It holds all the information needed to register a route from a subrouter.
 type MountRouteData struct {
 	Method           string
 	FullPath         string

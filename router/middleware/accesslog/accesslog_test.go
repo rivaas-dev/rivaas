@@ -163,7 +163,7 @@ func TestAccessLog_ExcludePaths(t *testing.T) {
 				len(handler.getRecords(slog.LevelError))
 
 			if tt.shouldLog {
-				assert.Greater(t, totalLogs, 0, "Path should be logged")
+				assert.Positive(t, totalLogs, "Path should be logged")
 			} else {
 				assert.Equal(t, 0, totalLogs, "Path should not be logged")
 			}

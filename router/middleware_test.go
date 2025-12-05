@@ -65,7 +65,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChain() {
 
 	// Verify execution order
 	expected := []string{"global1", "global2", "handler"}
-	suite.Equal(len(expected), len(executionOrder))
+	suite.Len(executionOrder, len(expected))
 	suite.Equal(expected, executionOrder)
 	suite.Equal(200, w.Code)
 }

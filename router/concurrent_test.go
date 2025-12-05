@@ -59,7 +59,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentRouteRegistration() {
 
 	// Verify all routes were registered
 	routes := r.Routes()
-	suite.Equal(numGoroutines*routesPerGoroutine, len(routes), "All routes should be registered")
+	suite.Len(routes, numGoroutines*routesPerGoroutine, "All routes should be registered")
 }
 
 // TestConcurrentRequestHandling tests concurrent request handling
@@ -175,7 +175,6 @@ func (suite *ConcurrentTestSuite) TestConcurrentContextPooling() {
 
 	for range numRequests {
 		wg.Go(func() {
-
 			req := httptest.NewRequest("GET", "/test", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
@@ -209,7 +208,6 @@ func (suite *ConcurrentTestSuite) TestConcurrentMiddlewareExecution() {
 
 	for range numRequests {
 		wg.Go(func() {
-
 			req := httptest.NewRequest("GET", "/test", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
@@ -581,7 +579,7 @@ func TestAtomicTreeConsistency(t *testing.T) {
 
 	// Verify route introspection
 	registeredRoutes := r.Routes()
-	assert.Equal(t, len(routes), len(registeredRoutes))
+	assert.Len(t, registeredRoutes, len(routes))
 }
 
 // TestAtomicTreeVersioning tests that the version counter is incremented correctly.
@@ -637,5 +635,5 @@ func TestAtomicTreeMemorySafety(t *testing.T) {
 
 	// Verify route count
 	routes := r.Routes()
-	assert.Equal(t, 1000, len(routes))
+	assert.Len(t, routes, 1000)
 }

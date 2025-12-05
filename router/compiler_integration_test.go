@@ -24,6 +24,8 @@ import (
 )
 
 // TestCompilerIntegration_StaticRoutes tests compiler integration with static routes.
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestCompilerIntegration_StaticRoutes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -69,11 +71,12 @@ func TestCompilerIntegration_StaticRoutes(t *testing.T) {
 				path := route
 				r.GET(route, func(c *router.Context) {
 					// Extract response from path
-					if path == "/api/users" {
+					switch path {
+					case "/api/users":
 						c.String(http.StatusOK, "users")
-					} else if path == "/api/posts" {
+					case "/api/posts":
 						c.String(http.StatusOK, "posts")
-					} else if path == "/health" {
+					case "/health":
 						c.String(http.StatusOK, "ok")
 					}
 				})
@@ -82,7 +85,7 @@ func TestCompilerIntegration_StaticRoutes(t *testing.T) {
 			// Warmup to compile routes
 			r.Warmup()
 
-			req := httptest.NewRequest("GET", tt.testPath, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.testPath, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
@@ -95,6 +98,8 @@ func TestCompilerIntegration_StaticRoutes(t *testing.T) {
 }
 
 // TestCompilerIntegration_DynamicRoutes tests compiler integration with dynamic routes.
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestCompilerIntegration_DynamicRoutes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -155,7 +160,7 @@ func TestCompilerIntegration_DynamicRoutes(t *testing.T) {
 
 			r.Warmup()
 
-			req := httptest.NewRequest("GET", tt.testPath, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.testPath, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
@@ -170,6 +175,8 @@ func TestCompilerIntegration_DynamicRoutes(t *testing.T) {
 }
 
 // TestCompilerIntegration_Constraints tests compiler integration with parameter constraints.
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestCompilerIntegration_Constraints(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -208,7 +215,7 @@ func TestCompilerIntegration_Constraints(t *testing.T) {
 			}).WhereInt("id")
 			r.Warmup()
 
-			req := httptest.NewRequest("GET", tt.path, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
@@ -222,6 +229,8 @@ func TestCompilerIntegration_Constraints(t *testing.T) {
 }
 
 // TestCompilerIntegration_MatchingCorrectness tests route pattern matching correctness.
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestCompilerIntegration_MatchingCorrectness(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -292,7 +301,7 @@ func TestCompilerIntegration_MatchingCorrectness(t *testing.T) {
 			})
 			r.Warmup()
 
-			req := httptest.NewRequest("GET", tt.path, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
@@ -338,7 +347,7 @@ func TestCompilerIntegration_FirstSegmentIndex(t *testing.T) {
 	r.Warmup()
 
 	// Verify routes work (indirectly tests index is working)
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -372,7 +381,7 @@ func TestCompilerIntegration_Sorting(t *testing.T) {
 	r.Warmup()
 
 	// Most specific route should match
-	req := httptest.NewRequest("GET", "/api/users/123/posts", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/users/123/posts", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

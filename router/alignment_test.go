@@ -166,7 +166,7 @@ func TestStructSizes(t *testing.T) {
 			}
 
 			if tt.size > tt.maxSize {
-				assert.Fail(t, "%s size (%d bytes) exceeds maximum (%d bytes)",
+				assert.Failf(t, "size exceeds maximum", "%s size (%d bytes) exceeds maximum (%d bytes)",
 					tt.name, tt.size, tt.maxSize)
 			}
 		})

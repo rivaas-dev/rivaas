@@ -16,6 +16,7 @@ package methodoverride
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -149,7 +150,7 @@ func TestMethodOverride_AllowList(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := New(WithAllow("PUT", "DELETE"))
-			req := httptest.NewRequest("POST", "/test", nil)
+			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.Header.Set("X-HTTP-Method-Override", tt.override)
 			w := httptest.NewRecorder()
 
@@ -175,7 +176,7 @@ func TestMethodOverride_CaseInsensitive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := New()
-			req := httptest.NewRequest("POST", "/test", nil)
+			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.Header.Set("X-HTTP-Method-Override", tt.override)
 			w := httptest.NewRecorder()
 
@@ -208,7 +209,7 @@ func TestMethodOverride_RespectBody(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := New(WithRespectBody(true))
-			req := httptest.NewRequest("POST", "/test", nil)
+			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.ContentLength = tt.contentLength
 			req.Header.Set("X-HTTP-Method-Override", "PUT")
 			w := httptest.NewRecorder()
@@ -242,7 +243,7 @@ func TestMethodOverride_CSRFRequired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := New(WithRequireCSRFToken(true))
-			req := httptest.NewRequest("POST", "/test", nil)
+			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.Header.Set("X-HTTP-Method-Override", "DELETE")
 
 			if tt.csrfVerified {
@@ -260,7 +261,7 @@ func TestMethodOverride_CSRFRequired(t *testing.T) {
 
 func TestMethodOverride_CustomHeader(t *testing.T) {
 	handler := New(WithHeader("X-HTTP-Method"))
-	req := httptest.NewRequest("POST", "/test", nil)
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
 	req.Header.Set("X-HTTP-Method", "DELETE")
 	w := httptest.NewRecorder()
 
@@ -294,7 +295,7 @@ func TestMethodOverride_DisabledQueryParam(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := New(WithQueryParam(""))
-			req := httptest.NewRequest("POST", tt.url, nil)
+			req := httptest.NewRequest(http.MethodPost, tt.url, nil)
 			if tt.header != "" {
 				req.Header.Set("X-HTTP-Method-Override", tt.header)
 			}
@@ -329,7 +330,7 @@ func TestMethodOverride_EdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := New()
-			req := httptest.NewRequest("POST", "/test", nil)
+			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.Header.Set("X-HTTP-Method-Override", tt.override)
 			w := httptest.NewRecorder()
 
@@ -419,7 +420,7 @@ func TestMethodOverride_DefaultConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := New()
-			req := httptest.NewRequest("POST", tt.url, nil)
+			req := httptest.NewRequest(http.MethodPost, tt.url, nil)
 			if tt.header != "" {
 				req.Header.Set("X-HTTP-Method-Override", tt.header)
 			}

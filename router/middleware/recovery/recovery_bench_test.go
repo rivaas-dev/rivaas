@@ -30,7 +30,7 @@ func BenchmarkRecovery_NoPanic(b *testing.B) {
 		c.JSON(http.StatusOK, map[string]string{"message": "success"})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -49,7 +49,7 @@ func BenchmarkRecovery_WithPanic(b *testing.B) {
 		panic("benchmark panic")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()

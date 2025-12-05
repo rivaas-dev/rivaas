@@ -40,7 +40,7 @@ func TestRequestID_GeneratesID(t *testing.T) {
 	assert.NotEmpty(t, requestID, "Expected X-Request-ID header to be set")
 
 	// Default generator produces 32 character hex string (16 bytes * 2)
-	assert.Equal(t, 32, len(requestID))
+	assert.Len(t, requestID, 32)
 }
 
 func TestRequestID_ClientIDHandling(t *testing.T) {
@@ -177,7 +177,7 @@ func TestRequestID_Configuration(t *testing.T) {
 				}
 
 				if count > 1 {
-					assert.Equal(t, count, len(ids), "Expected %d unique IDs", count)
+					assert.Len(t, ids, count, "Expected %d unique IDs", count)
 				}
 			} else {
 				req := httptest.NewRequest(http.MethodGet, "/test", nil)

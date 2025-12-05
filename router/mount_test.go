@@ -356,9 +356,9 @@ func TestMount_ParamsExtracted(t *testing.T) {
 
 	sub := MustNew()
 	sub.GET("/users/:userId/posts/:postId", func(c *Context) {
-		userId := c.Param("userId")
-		postId := c.Param("postId")
-		c.String(http.StatusOK, "user:"+userId+" post:"+postId)
+		userID := c.Param("userId")
+		postID := c.Param("postId")
+		c.String(http.StatusOK, "user:"+userID+" post:"+postID)
 	})
 
 	r := MustNew()
@@ -428,6 +428,7 @@ func TestMount_AllHTTPMethods(t *testing.T) {
 	methods := []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 	for _, method := range methods {
 		t.Run(method, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(method, "/api/resource", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)

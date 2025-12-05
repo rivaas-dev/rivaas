@@ -287,8 +287,7 @@ func TestRouter_ConcurrentRouteRegistration(t *testing.T) {
 
 	// Verify all routes were registered
 	routes := r.Routes()
-	assert.Equal(t, numGoroutines, len(routes),
-		"All routes should be registered despite concurrent access")
+	assert.Len(t, routes, numGoroutines, "All routes should be registered despite concurrent access")
 
 	// Test a few routes to ensure they work
 	for i := range 5 {
@@ -324,7 +323,7 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 
 		r.ServeHTTP(w, req)
 
-		require.NotNil(t, capturedError, "Should return error for unencodable data")
+		require.Error(t, capturedError, "Should return error for unencodable data")
 		assert.Contains(t, capturedError.Error(), "json",
 			"Error should mention JSON encoding issue")
 	})

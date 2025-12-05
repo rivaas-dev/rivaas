@@ -169,8 +169,8 @@ func TestServeHTTPWithMetrics(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.endCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
 }
 
 // TestServeHTTPWithTracing tests ServeHTTP with tracing enabled
@@ -190,8 +190,8 @@ func TestServeHTTPWithTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.endCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
 }
 
 // TestServeHTTPWithBothMetricsAndTracing tests with both enabled
@@ -211,10 +211,10 @@ func TestServeHTTPWithBothMetricsAndTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.endCalls.Load() > 0)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.endCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
 }
 
 // TestServeHTTPWithCompiledRoutes tests compiled route path
@@ -260,7 +260,7 @@ func TestServeHTTPWithCompiledRoutesAndMetrics(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
 }
 
 // TestServeHTTPWithCompiledRoutesAndTracing tests compiled routes with tracing
@@ -281,7 +281,7 @@ func TestServeHTTPWithCompiledRoutesAndTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
 }
 
 // TestServeHTTPWithCompiledRoutesAndBoth tests compiled routes with both metrics and tracing
@@ -302,8 +302,8 @@ func TestServeHTTPWithCompiledRoutesAndBoth(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.startCalls.Load())
 }
 
 // TestCompiledRouteWithTracingAndMetrics tests the compiled route path with both tracing and metrics
@@ -327,10 +327,10 @@ func TestCompiledRouteWithTracingAndMetrics(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "compiled-route", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics should be started")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics should be finished")
-	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing span should be started")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing span should be finished")
+	assert.Positive(t, mockObs.startCalls.Load(), "Metrics should be started")
+	assert.Positive(t, mockObs.endCalls.Load(), "Metrics should be finished")
+	assert.Positive(t, mockObs.startCalls.Load(), "Tracing span should be started")
+	assert.Positive(t, mockObs.endCalls.Load(), "Tracing span should be finished")
 }
 
 // TestCompiledRouteWithTracingOnly tests the compiled route path with only tracing
@@ -353,8 +353,8 @@ func TestCompiledRouteWithTracingOnly(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "trace-only-route", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing span should be started")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing span should be finished")
+	assert.Positive(t, mockObs.startCalls.Load(), "Tracing span should be started")
+	assert.Positive(t, mockObs.endCalls.Load(), "Tracing span should be finished")
 }
 
 // TestCompiledRouteWithMetricsOnly tests the compiled route path with only metrics
@@ -377,8 +377,8 @@ func TestCompiledRouteWithMetricsOnly(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "metrics-only-route", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics should be started")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics should be finished")
+	assert.Positive(t, mockObs.startCalls.Load(), "Metrics should be started")
+	assert.Positive(t, mockObs.endCalls.Load(), "Metrics should be finished")
 }
 
 // TestCompiledRouteWithoutTracingOrMetrics tests the compiled route path without tracing or metrics
@@ -674,7 +674,7 @@ func TestPostFormDefault(t *testing.T) {
 		c.Stringf(http.StatusOK, "role=%s,name=%s", role, name)
 	})
 
-	req := httptest.NewRequest("POST", "/form", nil)
+	req := httptest.NewRequest(http.MethodPost, "/form", nil)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.PostForm = map[string][]string{
 		"name": {"john"},
@@ -1399,118 +1399,133 @@ func TestVersionedAndNonVersionedRoutesSeparation(t *testing.T) {
 // - r.Version("v1").GET("/path", h) → Version tree, subject to version detection
 func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 	t.Parallel()
-	r := MustNew(
-		WithVersioning(
-			version.WithHeaderDetection("X-API-Version"),
-			version.WithDefault("v1"),
-			version.WithValidVersions("v1", "v2"),
-		),
-	)
 
-	var (
-		healthHandlerCalled  bool
-		metricsHandlerCalled bool
-		v1UsersHandlerCalled bool
-		v2UsersHandlerCalled bool
-	)
+	// Helper to create a router with versioning and tracking handlers
+	setupRouter := func() (*Router, *bool, *bool, *bool, *bool) {
+		r := MustNew(
+			WithVersioning(
+				version.WithHeaderDetection("X-API-Version"),
+				version.WithDefault("v1"),
+				version.WithValidVersions("v1", "v2"),
+			),
+		)
 
-	// Register non-versioned routes (should bypass version detection)
-	r.GET("/health", func(c *Context) {
-		healthHandlerCalled = true
-		c.String(http.StatusOK, "healthy")
-	})
+		var (
+			healthHandlerCalled  bool
+			metricsHandlerCalled bool
+			v1UsersHandlerCalled bool
+			v2UsersHandlerCalled bool
+		)
 
-	r.GET("/metrics", func(c *Context) {
-		metricsHandlerCalled = true
-		c.String(http.StatusOK, "metrics")
-	})
+		// Register non-versioned routes (should bypass version detection)
+		r.GET("/health", func(c *Context) {
+			healthHandlerCalled = true
+			c.String(http.StatusOK, "healthy")
+		})
 
-	// Register versioned routes
-	r.Version("v1").GET("/users", func(c *Context) {
-		v1UsersHandlerCalled = true
-		c.String(http.StatusOK, "v1 users")
-	})
+		r.GET("/metrics", func(c *Context) {
+			metricsHandlerCalled = true
+			c.String(http.StatusOK, "metrics")
+		})
 
-	r.Version("v2").GET("/users", func(c *Context) {
-		v2UsersHandlerCalled = true
-		c.String(http.StatusOK, "v2 users")
-	})
+		// Register versioned routes
+		r.Version("v1").GET("/users", func(c *Context) {
+			v1UsersHandlerCalled = true
+			c.String(http.StatusOK, "v1 users")
+		})
+
+		r.Version("v2").GET("/users", func(c *Context) {
+			v2UsersHandlerCalled = true
+			c.String(http.StatusOK, "v2 users")
+		})
+
+		return r, &healthHandlerCalled, &metricsHandlerCalled, &v1UsersHandlerCalled, &v2UsersHandlerCalled
+	}
 
 	// Test 1: /health should work WITHOUT version header
 	t.Run("health without header", func(t *testing.T) {
-		healthHandlerCalled = false
+		t.Parallel()
+		r, healthCalled, _, _, _ := setupRouter()
+
 		req := httptest.NewRequest("GET", "/health", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.True(t, healthHandlerCalled, "Health handler should be called")
+		assert.True(t, *healthCalled, "Health handler should be called")
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "healthy", w.Body.String())
 	})
 
 	// Test 2: /health should STILL work WITH version header (ignored)
 	t.Run("health with v2 header", func(t *testing.T) {
-		healthHandlerCalled = false
+		t.Parallel()
+		r, healthCalled, _, _, _ := setupRouter()
+
 		req := httptest.NewRequest("GET", "/health", nil)
 		req.Header.Set("X-API-Version", "v2")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.True(t, healthHandlerCalled, "Health handler should be called even with version header")
+		assert.True(t, *healthCalled, "Health handler should be called even with version header")
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "healthy", w.Body.String())
 	})
 
 	// Test 3: /metrics should work with any version header
 	t.Run("metrics with v1 header", func(t *testing.T) {
-		metricsHandlerCalled = false
+		t.Parallel()
+		r, _, metricsCalled, _, _ := setupRouter()
+
 		req := httptest.NewRequest("GET", "/metrics", nil)
 		req.Header.Set("X-API-Version", "v1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.True(t, metricsHandlerCalled, "Metrics handler should be called")
+		assert.True(t, *metricsCalled, "Metrics handler should be called")
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
 	// Test 4: /users with v1 header should use v1 handler
 	t.Run("users with v1 header", func(t *testing.T) {
-		v1UsersHandlerCalled = false
-		v2UsersHandlerCalled = false
+		t.Parallel()
+		r, _, _, v1Called, v2Called := setupRouter()
+
 		req := httptest.NewRequest("GET", "/users", nil)
 		req.Header.Set("X-API-Version", "v1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.True(t, v1UsersHandlerCalled, "V1 users handler should be called")
-		assert.False(t, v2UsersHandlerCalled, "V2 users handler should NOT be called")
+		assert.True(t, *v1Called, "V1 users handler should be called")
+		assert.False(t, *v2Called, "V2 users handler should NOT be called")
 		assert.Equal(t, "v1 users", w.Body.String())
 	})
 
 	// Test 5: /users with v2 header should use v2 handler
 	t.Run("users with v2 header", func(t *testing.T) {
-		v1UsersHandlerCalled = false
-		v2UsersHandlerCalled = false
+		t.Parallel()
+		r, _, _, v1Called, v2Called := setupRouter()
+
 		req := httptest.NewRequest("GET", "/users", nil)
 		req.Header.Set("X-API-Version", "v2")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.False(t, v1UsersHandlerCalled, "V1 users handler should NOT be called")
-		assert.True(t, v2UsersHandlerCalled, "V2 users handler should be called")
+		assert.False(t, *v1Called, "V1 users handler should NOT be called")
+		assert.True(t, *v2Called, "V2 users handler should be called")
 		assert.Equal(t, "v2 users", w.Body.String())
 	})
 
 	// Test 6: /users without header should use default (v1)
 	t.Run("users without header uses default", func(t *testing.T) {
-		v1UsersHandlerCalled = false
-		v2UsersHandlerCalled = false
+		t.Parallel()
+		r, _, _, v1Called, v2Called := setupRouter()
+
 		req := httptest.NewRequest("GET", "/users", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.True(t, v1UsersHandlerCalled, "V1 users handler should be called (default)")
-		assert.False(t, v2UsersHandlerCalled, "V2 users handler should NOT be called")
+		assert.True(t, *v1Called, "V1 users handler should be called (default)")
+		assert.False(t, *v2Called, "V2 users handler should NOT be called")
 		assert.Equal(t, "v1 users", w.Body.String())
 	})
 }

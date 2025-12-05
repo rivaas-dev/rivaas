@@ -42,7 +42,7 @@ func TestRateLimit_Basic(t *testing.T) {
 
 	// First 5 requests should succeed (burst capacity)
 	for i := range 5 {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -50,7 +50,7 @@ func TestRateLimit_Basic(t *testing.T) {
 	}
 
 	// 6th request should be rate limited
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -73,7 +73,7 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 
 	// Use up the burst
 	for i := range 2 {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -81,7 +81,7 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 	}
 
 	// Next request should fail
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -91,7 +91,7 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Now request should succeed
-	req = httptest.NewRequest("GET", "/test", nil)
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -117,7 +117,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 
 	// User 1: use up burst
 	for i := range 2 {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("X-User-ID", "user1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -126,7 +126,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 	}
 
 	// User 1: should be rate limited
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-User-ID", "user1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -134,7 +134,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, w.Code, "User1 should be rate limited")
 
 	// User 2: should still have tokens
-	req = httptest.NewRequest("GET", "/test", nil)
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-User-ID", "user2")
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -162,14 +162,14 @@ func TestRateLimit_CustomLimitHandler(t *testing.T) {
 	})
 
 	// First request succeeds
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Second request should trigger custom handler
-	req = httptest.NewRequest("GET", "/test", nil)
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -199,7 +199,7 @@ func TestRateLimit_Concurrent(t *testing.T) {
 
 	for range 100 {
 		wg.Go(func() {
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
@@ -239,7 +239,7 @@ func TestRateLimit_EmptyKey(t *testing.T) {
 	})
 
 	// Request should be allowed (empty key = no rate limiting)
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -262,7 +262,7 @@ func TestRateLimit_BurstBehavior(t *testing.T) {
 
 	// Should allow burst of 3 requests immediately
 	for i := range 3 {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -270,7 +270,7 @@ func TestRateLimit_BurstBehavior(t *testing.T) {
 	}
 
 	// 4th request should fail
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

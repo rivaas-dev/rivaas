@@ -156,7 +156,7 @@ func TestContext_Error_WithErrorsJoin(t *testing.T) {
 
 	// Join all errors
 	joinedErr := errors.Join(c.Errors()...)
-	require.NotNil(t, joinedErr, "Expected joined error to be non-nil")
+	require.Error(t, joinedErr, "Expected joined error to be non-nil")
 
 	// Verify joined error contains all errors
 	errStr := joinedErr.Error()
@@ -177,7 +177,7 @@ func TestContext_Error_WithErrorsIs(t *testing.T) {
 	c.Error(errors.New("generic error"))
 
 	// Check if specific errors exist
-	assert.True(t, errors.Is(c.Errors()[0], ErrContextResponseNil), "Expected first error to be ErrContextResponseNil")
+	assert.ErrorIs(t, c.Errors()[0], ErrContextResponseNil, "Expected first error to be ErrContextResponseNil")
 	assert.True(t, errors.Is(c.Errors()[1], ErrContentTypeNotAllowed), "Expected second error to be ErrContentTypeNotAllowed")
 	assert.False(t, errors.Is(c.Errors()[2], ErrContextResponseNil), "Expected third error not to be ErrContextResponseNil")
 }
@@ -205,7 +205,7 @@ func TestContext_Error_WithErrorsAs(t *testing.T) {
 
 	// Try to extract custom error
 	var extracted *CustomError
-	require.True(t, errors.As(c.Errors()[0], &extracted), "Expected to extract CustomError using errors.As")
+	require.ErrorAs(t, c.Errors()[0], &extracted, "Expected to extract CustomError using errors.As")
 	require.NotNil(t, extracted, "Expected extracted to be non-nil")
 	assert.Equal(t, 400, extracted.Code)
 	assert.Equal(t, "bad request", extracted.Message)
@@ -359,7 +359,7 @@ func TestContext_AllResponseMethods_ReturnErrors(t *testing.T) {
 			err := tt.callFunc(c)
 
 			// All methods should return errors, not collect them
-			assert.Error(t, err, "Expected %s to return error on encoding failure", tt.name)
+			require.Error(t, err, "Expected %s to return error on encoding failure", tt.name)
 			assert.False(t, c.HasErrors(), "Expected %s not to automatically collect errors", tt.name)
 		})
 	}

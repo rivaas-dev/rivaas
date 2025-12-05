@@ -40,8 +40,8 @@ import (
 	"unsafe"
 )
 
-// Mock Context to verify memory layout
-// This mirrors the actual Context struct from router/context.go
+// Context is a mock struct to verify memory layout.
+// It mirrors the actual Context struct from router/context.go.
 type Context struct {
 	// CACHE LINE 1: Hottest fields (accessed on every request) - first 64 bytes
 	Request  uintptr // *http.Request (8B)
