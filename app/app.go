@@ -291,7 +291,7 @@ func shouldApplyDefaultMiddleware(cfg *config) bool {
 // applyDefaultMiddleware applies default router middleware (recovery).
 // These are router middleware, applied directly to the router,
 // not through [App.Use] to ensure they run at the correct position in the chain.
-func applyDefaultMiddleware(r *router.Router, environment string) {
+func applyDefaultMiddleware(r *router.Router, _ string) {
 	// Always include recovery middleware by default (router middleware)
 	r.Use(recovery.New())
 
@@ -598,7 +598,7 @@ func (a *App) Readiness() *ReadinessManager {
 }
 
 // wrapRouteWithOpenAPI creates a [RouteWrapper] combining route and OpenAPI metadata.
-func (a *App) wrapRouteWithOpenAPI(rt *route.Route, method, path string) *RouteWrapper {
+func (a *App) wrapRouteWithOpenAPI(rt *route.Route, _, _ string) *RouteWrapper {
 	var oapi *openapi.RouteWrapper
 	if a.openapi != nil {
 		// Register route with OpenAPI and get wrapper

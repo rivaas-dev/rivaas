@@ -169,6 +169,7 @@ func (o *observabilityRecorder) logAccessRequest(
 	duration time.Duration,
 	routePattern string,
 ) {
+
 	isError := statusCode >= 400
 	isSlow := o.slowThreshold > 0 && duration >= o.slowThreshold
 

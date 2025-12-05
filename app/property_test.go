@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestProperty_RouteMatchingCommutativity tests that route matching is commutative:
@@ -190,7 +191,7 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 			},
 			check: func(t *testing.T, err error) {
 				var ve *ValidationError
-				assert.ErrorAs(t, err, &ve)
+				require.ErrorAs(t, err, &ve)
 				for _, e := range ve.Errors {
 					assert.NotEmpty(t, e.Field, "error should have field name")
 					assert.NotEmpty(t, e.Message, "error should have message")

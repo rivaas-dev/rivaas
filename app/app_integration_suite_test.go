@@ -209,7 +209,7 @@ var _ = Describe("App Integration", func() {
 				}
 			})
 
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			rec := httptest.NewRecorder()
 			a.Router().ServeHTTP(rec, req)
 
@@ -231,7 +231,7 @@ var _ = Describe("App Integration", func() {
 					panic("test panic")
 				})
 
-				req := httptest.NewRequest("GET", "/panic", nil)
+				req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 				rec := httptest.NewRecorder()
 				a.Router().ServeHTTP(rec, req)
 
@@ -252,7 +252,7 @@ var _ = Describe("App Integration", func() {
 					panic("test panic")
 				})
 
-				req := httptest.NewRequest("GET", "/panic", nil)
+				req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 				rec := httptest.NewRecorder()
 				a.Router().ServeHTTP(rec, req)
 

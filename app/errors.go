@@ -136,10 +136,10 @@ func newInvalidEnumError(field string, value any, validValues []string) *ConfigE
 }
 
 // newTimeoutError creates a [ConfigError] for an invalid timeout value.
-func newTimeoutError(field string, value time.Duration, constraint string) *ConfigError {
+func newTimeoutError(field string, value time.Duration, _ string) *ConfigError {
 	return newFieldError(field, value,
 		fmt.Sprintf("timeout must be positive, got: %s", value),
-		constraint)
+		"must be positive")
 }
 
 // newComparisonError creates a [ConfigError] for a field comparison failure

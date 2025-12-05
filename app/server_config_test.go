@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestServerConfig_Validate tests the Validate() method on serverConfig.
@@ -57,7 +58,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				var ve *ValidationError
-				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
+				assert.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "read timeout should not exceed write timeout")
 			},
 		},
@@ -74,7 +75,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				var ve *ValidationError
-				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
+				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "must be at least 1 second")
 			},
 		},
@@ -91,7 +92,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				var ve *ValidationError
-				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
+				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "must be at least 1KB")
 			},
 		},
@@ -108,7 +109,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				var ve *ValidationError
-				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
+				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "server.readTimeout")
 			},
 		},
@@ -125,7 +126,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				var ve *ValidationError
-				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
+				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "server.writeTimeout")
 			},
 		},
@@ -142,7 +143,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				var ve *ValidationError
-				assert.True(t, errors.As(err, &ve), "should return ValidationErrors")
+				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				// Should have multiple errors
 				assert.Greater(t, len(ve.Errors), 1, "should have multiple validation errors")
 			},
@@ -259,6 +260,7 @@ func TestServerConfig_Validate_Integration(t *testing.T) {
 			for _, e := range ve.Errors {
 				if e.Field == "server.readTimeout" || e.Field == "server.maxHeaderBytes" ||
 					e.Field == "server.shutdownTimeout" {
+
 					serverErrorCount++
 				}
 			}

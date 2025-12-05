@@ -262,7 +262,7 @@ func TestChaos_MiddlewareChainStress(t *testing.T) {
 
 	// Verify execution order for last request
 	// (order verification is complex with concurrent requests, so we just check no panics)
-	assert.Greater(t, counter.Load(), int64(0), "middleware should have executed")
+	assert.Positive(t, counter.Load(), "middleware should have executed")
 }
 
 // TestChaos_ContextPoolExhaustion tests that context pooling works correctly

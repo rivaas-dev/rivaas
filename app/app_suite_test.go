@@ -111,14 +111,14 @@ func (s *AppLifecycleSuite) TestRouteRegistration() {
 	})
 
 	// Test GET route
-	req := httptest.NewRequest("GET", "/users", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users", nil)
 	resp, err := s.testApp.Test(req)
 	s.NoError(err)
 	s.Equal(http.StatusOK, resp.StatusCode)
 	_ = resp.Body.Close() //nolint:errcheck // Test cleanup
 
 	// Test POST route
-	req = httptest.NewRequest("POST", "/users", nil)
+	req = httptest.NewRequest(http.MethodPost, "/users", nil)
 	resp, err = s.testApp.Test(req)
 	s.NoError(err)
 	s.Equal(http.StatusCreated, resp.StatusCode)
@@ -152,7 +152,7 @@ func (s *AppLifecycleSuite) TestMiddlewareChain() {
 		}
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	resp, err := s.testApp.Test(req)
 	s.NoError(err)
 	s.Equal(http.StatusOK, resp.StatusCode)

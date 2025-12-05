@@ -232,14 +232,14 @@ func TestApp_Test_Context(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		setupCtx   func() context.Context
+		setupCtx   func(*testing.T) context.Context
 		wantErr    bool
 		checkValue func(*testing.T, *http.Response)
 	}{
 		{
 			name: "context with custom value",
-			setupCtx: func() context.Context {
-				return context.WithValue(context.Background(), contextKey("key"), "value")
+			setupCtx: func(t *testing.T) context.Context {
+				return context.WithValue(t.Context(), contextKey("key"), "value")
 			},
 			wantErr: false,
 			checkValue: func(t *testing.T, resp *http.Response) {
@@ -251,8 +251,8 @@ func TestApp_Test_Context(t *testing.T) {
 		},
 		{
 			name: "cancelled context",
-			setupCtx: func() context.Context {
-				ctx, cancel := context.WithCancel(context.Background())
+			setupCtx: func(t *testing.T) context.Context {
+				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // immediately cancel
 				return ctx
 			},
@@ -260,8 +260,8 @@ func TestApp_Test_Context(t *testing.T) {
 		},
 		{
 			name: "context with timeout",
-			setupCtx: func() context.Context {
-				ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			setupCtx: func(t *testing.T) context.Context {
+				ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 				_ = cancel // cancel will be called when context expires
 				return ctx
 			},
@@ -287,7 +287,7 @@ func TestApp_Test_Context(t *testing.T) {
 			})
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			resp, err := app.Test(req, WithContext(tt.setupCtx()))
+			resp, err := app.Test(req, WithContext(tt.setupCtx(t)))
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -482,7 +482,7 @@ func TestExpectJSON(t *testing.T) {
 			makeResponse: func() *http.Response {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "application/json")
-				rec.WriteHeader(200)
+				rec.WriteHeader(http.StatusOK)
 				json.NewEncoder(rec).Encode(User{Name: "Alice", Email: "alice@example.com"})
 				return rec.Result()
 			},
@@ -498,7 +498,7 @@ func TestExpectJSON(t *testing.T) {
 			makeResponse: func() *http.Response {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "application/json")
-				rec.WriteHeader(500)
+				rec.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(rec).Encode(map[string]string{"error": "server error"})
 				return rec.Result()
 			},
@@ -515,7 +515,7 @@ func TestExpectJSON(t *testing.T) {
 			makeResponse: func() *http.Response {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "text/plain")
-				rec.WriteHeader(200)
+				rec.WriteHeader(http.StatusOK)
 				rec.WriteString("plain text")
 				return rec.Result()
 			},
@@ -532,7 +532,7 @@ func TestExpectJSON(t *testing.T) {
 			makeResponse: func() *http.Response {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "application/json")
-				rec.WriteHeader(200)
+				rec.WriteHeader(http.StatusOK)
 				rec.WriteString("{invalid json}")
 				return rec.Result()
 			},
@@ -549,7 +549,7 @@ func TestExpectJSON(t *testing.T) {
 			makeResponse: func() *http.Response {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "application/json")
-				rec.WriteHeader(200)
+				rec.WriteHeader(http.StatusOK)
 				json.NewEncoder(rec).Encode(User{Name: "Bob", Email: "bob@example.com"})
 				return rec.Result()
 			},
@@ -598,31 +598,37 @@ func TestTestOptions(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		opts       []TestOption
+		setupOpts  func(*testing.T) []TestOption
 		wantStatus int
 		wantErr    bool
 	}{
 		{
 			name: "multiple options combined",
-			opts: []TestOption{
-				WithTimeout(5 * time.Second),
-				WithContext(context.WithValue(context.Background(), contextKey("test"), "value")),
+			setupOpts: func(t *testing.T) []TestOption {
+				return []TestOption{
+					WithTimeout(5 * time.Second),
+					WithContext(context.WithValue(t.Context(), contextKey("test"), "value")),
+				}
 			},
 			wantStatus: 200,
 			wantErr:    false,
 		},
 		{
 			name: "timeout and context",
-			opts: []TestOption{
-				WithTimeout(1 * time.Second),
-				WithContext(context.Background()),
+			setupOpts: func(t *testing.T) []TestOption {
+				return []TestOption{
+					WithTimeout(1 * time.Second),
+					WithContext(t.Context()),
+				}
 			},
 			wantStatus: 200,
 			wantErr:    false,
 		},
 		{
-			name:       "no options (defaults)",
-			opts:       nil,
+			name: "no options (defaults)",
+			setupOpts: func(*testing.T) []TestOption {
+				return nil
+			},
 			wantStatus: 200,
 			wantErr:    false,
 		},
@@ -633,10 +639,10 @@ func TestTestOptions(t *testing.T) {
 			t.Parallel()
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			resp, err := app.Test(req, tt.opts...)
+			resp, err := app.Test(req, tt.setupOpts(t)...)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if resp != nil {
 					resp.Body.Close()
 				}

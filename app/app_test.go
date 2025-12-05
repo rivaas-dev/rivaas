@@ -49,10 +49,11 @@ func TestNew_ValidationError(t *testing.T) {
 			wantErr:     "serviceName",
 			wantErrType: &ValidationError{},
 			checkError: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				if errors.As(err, &ve) {
 					assert.True(t, ve.HasErrors())
-					assert.Greater(t, len(ve.Errors), 0)
+					assert.NotEmpty(t, ve.Errors)
 					// Check that one of the errors is about serviceName
 					found := false
 					for _, e := range ve.Errors {
@@ -81,6 +82,7 @@ func TestNew_ValidationError(t *testing.T) {
 			wantErr:     "environment",
 			wantErrType: &ValidationError{},
 			checkError: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				if errors.As(err, &ve) {
 					found := false
@@ -168,6 +170,7 @@ func TestNew_ValidationError(t *testing.T) {
 			wantErr:     "read timeout should not exceed write timeout",
 			wantErrType: &ValidationError{},
 			checkError: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				if errors.As(err, &ve) {
 					found := false
@@ -211,6 +214,7 @@ func TestNew_ValidationError(t *testing.T) {
 			wantErr:     "validation errors",
 			wantErrType: &ValidationError{},
 			checkError: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				if errors.As(err, &ve) {
 					// Should have multiple errors
@@ -279,6 +283,7 @@ func TestNew_ValidConfigurations(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 			},
 			check: func(t *testing.T, a *App) {
+				t.Helper()
 				assert.Equal(t, "test-service", a.ServiceName())
 				assert.Equal(t, "1.0.0", a.ServiceVersion())
 				assert.Equal(t, DefaultEnvironment, a.Environment())
@@ -292,6 +297,7 @@ func TestNew_ValidConfigurations(t *testing.T) {
 				WithEnvironment(EnvironmentProduction),
 			},
 			check: func(t *testing.T, a *App) {
+				t.Helper()
 				assert.Equal(t, EnvironmentProduction, a.Environment())
 			},
 		},
@@ -593,7 +599,7 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		)
 		require.NoError(t, err)
 		// Should have the custom middleware
-		assert.Equal(t, 1, len(app.config.middleware.functions))
+		assert.Len(t, app.config.middleware.functions, 1)
 		// Defaults should still be enabled
 		assert.False(t, app.config.middleware.disableDefaults)
 		// Verify recovery middleware still works
@@ -639,7 +645,7 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		)
 		require.NoError(t, err)
 		// Should have no custom middleware
-		assert.Equal(t, 0, len(app.config.middleware.functions))
+		assert.Empty(t, app.config.middleware.functions)
 		// Defaults should be disabled
 		assert.True(t, app.config.middleware.disableDefaults)
 	})
@@ -656,7 +662,7 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		)
 		require.NoError(t, err)
 		// Should have exactly 2 middleware
-		assert.Equal(t, 2, len(app.config.middleware.functions))
+		assert.Len(t, app.config.middleware.functions, 2)
 		// Defaults should still be enabled (WithMiddleware doesn't disable them)
 		assert.False(t, app.config.middleware.disableDefaults)
 	})
