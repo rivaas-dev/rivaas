@@ -155,13 +155,13 @@ func TestProject(t *testing.T) {
 			wantErr:   false,
 			wantWarns: true,
 			validate: func(t *testing.T, jsonBytes []byte, warns []Warning) {
-				assert.Greater(t, len(warns), 0)
+				assert.NotEmpty(t, warns)
 				var foundSummary, foundWebhooks bool
 				for _, w := range warns {
-					if w.Code == DOWNLEVEL_INFO_SUMMARY {
+					if w.Code == DownlevelInfoSummary {
 						foundSummary = true
 					}
-					if w.Code == DOWNLEVEL_WEBHOOKS {
+					if w.Code == DownlevelWebhooks {
 						foundWebhooks = true
 					}
 				}
@@ -260,7 +260,7 @@ func TestProject(t *testing.T) {
 			require.NotNil(t, jsonBytes)
 
 			if tt.wantWarns {
-				assert.Greater(t, len(warns), 0)
+				assert.NotEmpty(t, warns)
 			}
 
 			if tt.validate != nil {
@@ -403,6 +403,6 @@ func TestProject_ValidatorError(t *testing.T) {
 func TestVersion_Constants(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, Version("3.0.4"), V30)
-	assert.Equal(t, Version("3.1.2"), V31)
+	assert.Equal(t, V30, Version("3.0.4"))
+	assert.Equal(t, V31, Version("3.1.2"))
 }

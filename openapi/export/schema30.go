@@ -164,13 +164,13 @@ func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
 		if len(out.Enum) == 0 {
 			out.Enum = []any{s.Const}
 			*warns = append(*warns, Warning{
-				Code:    DOWNLEVEL_CONST_TO_ENUM,
+				Code:    DownlevelConstToEnum,
 				Path:    path,
 				Message: "const keyword not supported in 3.0; converted to enum",
 			})
 		} else {
 			*warns = append(*warns, Warning{
-				Code:    DOWNLEVEL_CONST_TO_ENUM_CONFLICT,
+				Code:    DownlevelConstToEnumConflict,
 				Path:    path,
 				Message: "const with enum under 3.0: kept enum, ignored const",
 			})
@@ -180,7 +180,7 @@ func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
 	// Unevaluated properties: 3.1-only → warn & drop
 	if s.Unevaluated != nil {
 		*warns = append(*warns, Warning{
-			Code:    DOWNLEVEL_UNEVALUATED_PROPERTIES,
+			Code:    DownlevelUnevaluatedProperties,
 			Path:    path,
 			Message: "unevaluatedProperties not supported in OpenAPI 3.0; dropped",
 		})
@@ -194,7 +194,7 @@ func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
 		out.Example = s.Examples[0]
 		if len(s.Examples) > 1 {
 			*warns = append(*warns, Warning{
-				Code:    DOWNLEVEL_MULTIPLE_EXAMPLES,
+				Code:    DownlevelMultipleExamples,
 				Path:    path,
 				Message: "Multiple examples not supported in 3.0; using first only",
 			})

@@ -169,7 +169,7 @@ type Response struct {
 // Link represents a possible design-time link for a response.
 type Link struct {
 	OperationRef string
-	OperationId  string
+	OperationID  string
 	Parameters   map[string]any
 	RequestBody  any
 	Description  string
@@ -232,7 +232,7 @@ type SecurityScheme struct {
 	Scheme           string      // bearer, basic (for http)
 	BearerFormat     string      // JWT (for http bearer)
 	Flows            *OAuthFlows // for oauth2
-	OpenIdConnectUrl string      // for openIdConnect
+	OpenIDConnectURL string      // for openIdConnect
 	Extensions       map[string]any
 }
 
@@ -247,9 +247,9 @@ type OAuthFlows struct {
 
 // OAuthFlow contains configuration details for a supported OAuth Flow.
 type OAuthFlow struct {
-	AuthorizationUrl string            // REQUIRED for implicit, authorizationCode
-	TokenUrl         string            // REQUIRED for password, clientCredentials, authorizationCode
-	RefreshUrl       string            // Optional URL for obtaining refresh tokens
+	AuthorizationURL string            // REQUIRED for implicit, authorizationCode
+	TokenURL         string            // REQUIRED for password, clientCredentials, authorizationCode
+	RefreshURL       string            // Optional URL for obtaining refresh tokens
 	Scopes           map[string]string // REQUIRED. Map of scope name to description (can be empty)
 	Extensions       map[string]any
 }

@@ -49,7 +49,7 @@ func TestSpecV30_MarshalJSON_WithExtensions(t *testing.T) {
 
 	// Verify extensions are inlined
 	assert.Equal(t, "value", m["x-custom-field"])
-	assert.Equal(t, float64(2), m["x-version"])
+	assert.Equal(t, float64(2), m["x-version"]) //nolint:testifylint // exact integer comparison
 }
 
 func TestSpecV31_MarshalJSON_WithExtensions(t *testing.T) {

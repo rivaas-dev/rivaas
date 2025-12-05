@@ -200,7 +200,7 @@ type CallbackV31 struct {
 // LinkV31 represents a design-time link for a response.
 type LinkV31 struct {
 	OperationRef string         `json:"operationRef,omitempty"`
-	OperationId  string         `json:"operationId,omitempty"`
+	OperationID  string         `json:"operationId,omitempty"`
 	Parameters   map[string]any `json:"parameters,omitempty"`
 	RequestBody  any            `json:"requestBody,omitempty"`
 	Description  string         `json:"description,omitempty"`
@@ -224,7 +224,7 @@ type SecuritySchemeV31 struct {
 	Scheme           string         `json:"scheme,omitempty"`
 	BearerFormat     string         `json:"bearerFormat,omitempty"`
 	Flows            *OAuthFlowsV31 `json:"flows,omitempty"`
-	OpenIdConnectUrl string         `json:"openIdConnectUrl,omitempty"`
+	OpenIDConnectURL string         `json:"openIdConnectUrl,omitempty"`
 	Extensions       map[string]any `json:"-"`
 }
 
@@ -239,9 +239,9 @@ type OAuthFlowsV31 struct {
 
 // OAuthFlowV31 contains configuration details for a supported OAuth Flow.
 type OAuthFlowV31 struct {
-	AuthorizationUrl string            `json:"authorizationUrl,omitempty"`
-	TokenUrl         string            `json:"tokenUrl,omitempty"`
-	RefreshUrl       string            `json:"refreshUrl,omitempty"`
+	AuthorizationURL string            `json:"authorizationUrl,omitempty"`
+	TokenURL         string            `json:"tokenUrl,omitempty"`
+	RefreshURL       string            `json:"refreshUrl,omitempty"`
 	Scopes           map[string]string `json:"scopes"`
 	Extensions       map[string]any    `json:"-"`
 }
@@ -746,7 +746,7 @@ func link31(in *model.Link, warns *[]Warning) *LinkV31 {
 	}
 	link := &LinkV31{
 		OperationRef: in.OperationRef,
-		OperationId:  in.OperationId,
+		OperationID:  in.OperationID,
 		Parameters:   in.Parameters,
 		RequestBody:  in.RequestBody,
 		Description:  in.Description,
@@ -887,7 +887,7 @@ func securityScheme31(in *model.SecurityScheme) *SecuritySchemeV31 {
 		In:               in.In,
 		Scheme:           in.Scheme,
 		BearerFormat:     in.BearerFormat,
-		OpenIdConnectUrl: in.OpenIdConnectUrl,
+		OpenIDConnectURL: in.OpenIDConnectURL,
 	}
 	if in.Flows != nil {
 		out.Flows = oAuthFlows31(in.Flows)
@@ -920,9 +920,9 @@ func oAuthFlows31(in *model.OAuthFlows) *OAuthFlowsV31 {
 
 func oAuthFlow31(in *model.OAuthFlow) *OAuthFlowV31 {
 	out := &OAuthFlowV31{
-		AuthorizationUrl: in.AuthorizationUrl,
-		TokenUrl:         in.TokenUrl,
-		RefreshUrl:       in.RefreshUrl,
+		AuthorizationURL: in.AuthorizationURL,
+		TokenURL:         in.TokenURL,
+		RefreshURL:       in.RefreshURL,
 	}
 	if in.Scopes != nil {
 		out.Scopes = make(map[string]string, len(in.Scopes))

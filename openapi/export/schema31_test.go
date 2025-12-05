@@ -95,9 +95,9 @@ func TestSchema31(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, "integer", result.Type)
 				require.NotNil(t, result.ExclusiveMinimum)
-				assert.Equal(t, 10.0, *result.ExclusiveMinimum)
+				assert.InDelta(t, 10.0, *result.ExclusiveMinimum, 0.001)
 				require.NotNil(t, result.ExclusiveMaximum)
-				assert.Equal(t, 100.0, *result.ExclusiveMaximum)
+				assert.InDelta(t, 100.0, *result.ExclusiveMaximum, 0.001)
 			},
 		},
 		{
@@ -116,9 +116,9 @@ func TestSchema31(t *testing.T) {
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
 				require.NotNil(t, result)
 				require.NotNil(t, result.Minimum)
-				assert.Equal(t, 10.0, *result.Minimum)
+				assert.InDelta(t, 10.0, *result.Minimum, 0.001)
 				require.NotNil(t, result.Maximum)
-				assert.Equal(t, 100.0, *result.Maximum)
+				assert.InDelta(t, 100.0, *result.Maximum, 0.001)
 			},
 		},
 		{
@@ -130,7 +130,7 @@ func TestSchema31(t *testing.T) {
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
 				require.NotNil(t, result)
 				assert.Equal(t, "fixed-value", result.Const)
-				assert.Equal(t, 0, len(warns), "should not warn about const in 3.1")
+				assert.Empty(t, warns, "should not warn about const in 3.1")
 			},
 		},
 		{
@@ -145,7 +145,7 @@ func TestSchema31(t *testing.T) {
 				require.NotNil(t, result)
 				require.NotNil(t, result.UnevaluatedProps)
 				assert.Equal(t, "string", result.UnevaluatedProps.Type)
-				assert.Equal(t, 0, len(warns), "should not warn about unevaluated properties in 3.1")
+				assert.Empty(t, warns, "should not warn about unevaluated properties in 3.1")
 			},
 		},
 		{
@@ -178,7 +178,7 @@ func TestSchema31(t *testing.T) {
 				require.NotNil(t, result)
 				require.Len(t, result.Examples, 3)
 				assert.Equal(t, []any{"example1", "example2", "example3"}, result.Examples)
-				assert.Equal(t, 0, len(warns), "should not warn about multiple examples in 3.1")
+				assert.Empty(t, warns, "should not warn about multiple examples in 3.1")
 			},
 		},
 		{

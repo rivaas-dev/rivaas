@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package export provides OpenAPI specification export functionality.
+// It supports exporting to OpenAPI 3.0.x and 3.1.x formats with proper
+// down-leveling of 3.1-only features when targeting 3.0.
 package export
 
 import (

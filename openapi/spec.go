@@ -373,9 +373,9 @@ type Link struct {
 	// Example: "#/paths/~1users~1{userId}/get"
 	OperationRef string `json:"operationRef,omitempty"`
 
-	// OperationId references an operation by its operationId.
+	// OperationID references an operation by its operationId.
 	// This is an alternative to OperationRef when the operation is in the same document.
-	OperationId string `json:"operationId,omitempty"`
+	OperationID string `json:"operationId,omitempty"`
 
 	// Parameters to pass to the linked operation.
 	// Keys are parameter names, values are expressions or values to use.
@@ -547,8 +547,8 @@ type SecurityScheme struct {
 	// Flows contains OAuth2 flow configuration (for type "oauth2").
 	Flows *OAuthFlows `json:"flows,omitempty"`
 
-	// OpenIdConnectUrl is the well-known URL to discover OpenID Connect provider metadata (for type "openIdConnect").
-	OpenIdConnectUrl string `json:"openIdConnectUrl,omitempty"`
+	// OpenIDConnectURL is the well-known URL to discover OpenID Connect provider metadata (for type "openIdConnect").
+	OpenIDConnectURL string `json:"openIdConnectUrl,omitempty"`
 }
 
 // OAuthFlows allows configuration of the supported OAuth Flows.
@@ -570,14 +570,14 @@ type OAuthFlows struct {
 
 // OAuthFlow contains configuration details for a supported OAuth Flow.
 type OAuthFlow struct {
-	// AuthorizationUrl is the authorization URL (REQUIRED for implicit, authorizationCode).
-	AuthorizationUrl string `json:"authorizationUrl,omitempty"`
+	// AuthorizationURL is the authorization URL (REQUIRED for implicit, authorizationCode).
+	AuthorizationURL string `json:"authorizationUrl,omitempty"`
 
-	// TokenUrl is the token URL (REQUIRED for password, clientCredentials, authorizationCode).
-	TokenUrl string `json:"tokenUrl,omitempty"`
+	// TokenURL is the token URL (REQUIRED for password, clientCredentials, authorizationCode).
+	TokenURL string `json:"tokenUrl,omitempty"`
 
-	// RefreshUrl is the URL for obtaining refresh tokens (optional).
-	RefreshUrl string `json:"refreshUrl,omitempty"`
+	// RefreshURL is the URL for obtaining refresh tokens (optional).
+	RefreshURL string `json:"refreshUrl,omitempty"`
 
 	// Scopes maps scope names to their descriptions (REQUIRED, can be empty).
 	Scopes map[string]string `json:"scopes"`

@@ -224,7 +224,7 @@ func ExampleVersion() {
 // ExampleWarning demonstrates Warning structure and codes.
 func ExampleWarning() {
 	warning := export.Warning{
-		Code:    export.DOWNLEVEL_CONST_TO_ENUM,
+		Code:    export.DownlevelConstToEnum,
 		Path:    "#/components/schemas/User",
 		Message: "const keyword not supported in 3.0; converted to enum",
 	}

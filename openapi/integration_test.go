@@ -201,7 +201,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 
 			type Order struct {
 				ID     int `json:"id"`
-				UserID int `json:"user_id"`
+				UserID int `json:"user_id"` //nolint:tagliatelle // snake_case is intentional for API compatibility
 			}
 
 			// Register multiple routes across different tags

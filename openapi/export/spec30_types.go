@@ -182,7 +182,7 @@ type EncodingV30 struct {
 // LinkV30 represents a design-time link for a response.
 type LinkV30 struct {
 	OperationRef string         `json:"operationRef,omitempty"`
-	OperationId  string         `json:"operationId,omitempty"`
+	OperationID  string         `json:"operationId,omitempty"`
 	Parameters   map[string]any `json:"parameters,omitempty"`
 	RequestBody  any            `json:"requestBody,omitempty"`
 	Description  string         `json:"description,omitempty"`
@@ -206,7 +206,7 @@ type SecuritySchemeV30 struct {
 	Scheme           string         `json:"scheme,omitempty"`
 	BearerFormat     string         `json:"bearerFormat,omitempty"`
 	Flows            *OAuthFlowsV30 `json:"flows,omitempty"`
-	OpenIdConnectUrl string         `json:"openIdConnectUrl,omitempty"`
+	OpenIDConnectURL string         `json:"openIdConnectUrl,omitempty"`
 	Extensions       map[string]any `json:"-"`
 }
 
@@ -221,9 +221,9 @@ type OAuthFlowsV30 struct {
 
 // OAuthFlowV30 contains configuration details for a supported OAuth Flow.
 type OAuthFlowV30 struct {
-	AuthorizationUrl string            `json:"authorizationUrl,omitempty"`
-	TokenUrl         string            `json:"tokenUrl,omitempty"`
-	RefreshUrl       string            `json:"refreshUrl,omitempty"`
+	AuthorizationURL string            `json:"authorizationUrl,omitempty"`
+	TokenURL         string            `json:"tokenUrl,omitempty"`
+	RefreshURL       string            `json:"refreshUrl,omitempty"`
 	Scopes           map[string]string `json:"scopes"`
 	Extensions       map[string]any    `json:"-"`
 }

@@ -49,7 +49,7 @@ func projectTo30(in *model.Spec, cfg Config) (*SpecV30, []Warning, error) {
 		// Warn about mutualTLS schemes (3.1-only feature)
 		for _, name := range mutualTLSSchemes {
 			warns = append(warns, Warning{
-				Code:    DOWNLEVEL_MUTUAL_TLS,
+				Code:    DownlevelMutualTLS,
 				Path:    "#/components/securitySchemes/" + name,
 				Message: "mutualTLS security type is 3.1-only; dropped",
 			})
@@ -73,7 +73,7 @@ func projectTo30(in *model.Spec, cfg Config) (*SpecV30, []Warning, error) {
 	// Webhooks are not in 3.0: warn if present
 	if len(in.Webhooks) > 0 {
 		warns = append(warns, Warning{
-			Code:    DOWNLEVEL_WEBHOOKS,
+			Code:    DownlevelWebhooks,
 			Path:    "#/webhooks",
 			Message: "webhooks are 3.1-only; dropped",
 		})
@@ -95,7 +95,7 @@ func info30(in model.Info, warns *[]Warning) InfoV30 {
 	// Drop summary if present (3.1-only field)
 	if in.Summary != "" {
 		*warns = append(*warns, Warning{
-			Code:    DOWNLEVEL_INFO_SUMMARY,
+			Code:    DownlevelInfoSummary,
 			Path:    "#/info/summary",
 			Message: "info.summary is 3.1-only; dropped",
 		})
@@ -116,7 +116,7 @@ func info30(in model.Info, warns *[]Warning) InfoV30 {
 		// Warn if identifier is present (3.1-only feature)
 		if in.License.Identifier != "" {
 			*warns = append(*warns, Warning{
-				Code:    DOWNLEVEL_LICENSE_IDENTIFIER,
+				Code:    DownlevelLicenseIdentifier,
 				Path:    "#/info/license",
 				Message: "license identifier is 3.1-only; dropped (use url instead)",
 			})
@@ -416,7 +416,7 @@ func link30(in *model.Link) *LinkV30 {
 	}
 	link := &LinkV30{
 		OperationRef: in.OperationRef,
-		OperationId:  in.OperationId,
+		OperationID:  in.OperationID,
 		Parameters:   in.Parameters,
 		RequestBody:  in.RequestBody,
 		Description:  in.Description,
@@ -461,7 +461,7 @@ func securityScheme30(in *model.SecurityScheme) *SecuritySchemeV30 {
 		In:               in.In,
 		Scheme:           in.Scheme,
 		BearerFormat:     in.BearerFormat,
-		OpenIdConnectUrl: in.OpenIdConnectUrl,
+		OpenIDConnectURL: in.OpenIDConnectURL,
 	}
 	if in.Flows != nil {
 		out.Flows = oAuthFlows30(in.Flows)
@@ -494,9 +494,9 @@ func oAuthFlows30(in *model.OAuthFlows) *OAuthFlowsV30 {
 
 func oAuthFlow30(in *model.OAuthFlow) *OAuthFlowV30 {
 	out := &OAuthFlowV30{
-		AuthorizationUrl: in.AuthorizationUrl,
-		TokenUrl:         in.TokenUrl,
-		RefreshUrl:       in.RefreshUrl,
+		AuthorizationURL: in.AuthorizationURL,
+		TokenURL:         in.TokenURL,
+		RefreshURL:       in.RefreshURL,
 	}
 	if in.Scopes != nil {
 		out.Scopes = make(map[string]string, len(in.Scopes))

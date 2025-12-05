@@ -624,8 +624,8 @@ func TestConfig_WithOAuth2(t *testing.T) {
 		WithOAuth2("oauth2", "OAuth2 authentication",
 			OAuth2Flow{
 				Type:             FlowAuthorizationCode,
-				AuthorizationUrl: "https://example.com/oauth/authorize",
-				TokenUrl:         "https://example.com/oauth/token",
+				AuthorizationURL: "https://example.com/oauth/authorize",
+				TokenURL:         "https://example.com/oauth/token",
 				Scopes: map[string]string{
 					"read":  "Read access",
 					"write": "Write access",
@@ -640,8 +640,8 @@ func TestConfig_WithOAuth2(t *testing.T) {
 	assert.Equal(t, "OAuth2 authentication", scheme.Description)
 	require.NotNil(t, scheme.Flows)
 	require.NotNil(t, scheme.Flows.AuthorizationCode)
-	assert.Equal(t, "https://example.com/oauth/authorize", scheme.Flows.AuthorizationCode.AuthorizationUrl)
-	assert.Equal(t, "https://example.com/oauth/token", scheme.Flows.AuthorizationCode.TokenUrl)
+	assert.Equal(t, "https://example.com/oauth/authorize", scheme.Flows.AuthorizationCode.AuthorizationURL)
+	assert.Equal(t, "https://example.com/oauth/token", scheme.Flows.AuthorizationCode.TokenURL)
 	assert.Equal(t, map[string]string{"read": "Read access", "write": "Write access"}, scheme.Flows.AuthorizationCode.Scopes)
 }
 
@@ -658,5 +658,5 @@ func TestConfig_WithOpenIDConnect(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "openIdConnect", scheme.Type)
 	assert.Equal(t, "OpenID Connect", scheme.Description)
-	assert.Equal(t, "https://example.com/.well-known/openid-configuration", scheme.OpenIdConnectUrl)
+	assert.Equal(t, "https://example.com/.well-known/openid-configuration", scheme.OpenIDConnectURL)
 }

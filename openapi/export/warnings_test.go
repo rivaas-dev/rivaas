@@ -31,12 +31,12 @@ func TestWarning(t *testing.T) {
 		{
 			name: "warning with all fields",
 			warning: Warning{
-				Code:    DOWNLEVEL_CONST_TO_ENUM,
+				Code:    DownlevelConstToEnum,
 				Path:    "#/components/schemas/User",
 				Message: "const keyword not supported in 3.0; converted to enum",
 			},
 			validate: func(t *testing.T, w Warning) {
-				assert.Equal(t, DOWNLEVEL_CONST_TO_ENUM, w.Code)
+				assert.Equal(t, DownlevelConstToEnum, w.Code)
 				assert.Equal(t, "#/components/schemas/User", w.Path)
 				assert.Equal(t, "const keyword not supported in 3.0; converted to enum", w.Message)
 			},
@@ -44,12 +44,12 @@ func TestWarning(t *testing.T) {
 		{
 			name: "warning with empty path",
 			warning: Warning{
-				Code:    DOWNLEVEL_WEBHOOKS,
+				Code:    DownlevelWebhooks,
 				Path:    "",
 				Message: "webhooks are 3.1-only; dropped",
 			},
 			validate: func(t *testing.T, w Warning) {
-				assert.Equal(t, DOWNLEVEL_WEBHOOKS, w.Code)
+				assert.Equal(t, DownlevelWebhooks, w.Code)
 				assert.Empty(t, w.Path)
 				assert.Equal(t, "webhooks are 3.1-only; dropped", w.Message)
 			},
@@ -75,53 +75,54 @@ func TestWarningConstants(t *testing.T) {
 		code string
 	}{
 		{
-			name: "DOWNLEVEL_CONST_TO_ENUM",
-			code: DOWNLEVEL_CONST_TO_ENUM,
+			name: "DownlevelConstToEnum",
+			code: DownlevelConstToEnum,
 		},
 		{
-			name: "DOWNLEVEL_CONST_TO_ENUM_CONFLICT",
-			code: DOWNLEVEL_CONST_TO_ENUM_CONFLICT,
+			name: "DownlevelConstToEnumConflict",
+			code: DownlevelConstToEnumConflict,
 		},
 		{
-			name: "DOWNLEVEL_UNEVALUATED_PROPERTIES",
-			code: DOWNLEVEL_UNEVALUATED_PROPERTIES,
+			name: "DownlevelUnevaluatedProperties",
+			code: DownlevelUnevaluatedProperties,
 		},
 		{
-			name: "DOWNLEVEL_PATTERN_PROPERTIES",
-			code: DOWNLEVEL_PATTERN_PROPERTIES,
+			name: "DownlevelPatternProperties",
+			code: DownlevelPatternProperties,
 		},
 		{
-			name: "DOWNLEVEL_MULTIPLE_EXAMPLES",
-			code: DOWNLEVEL_MULTIPLE_EXAMPLES,
+			name: "DownlevelMultipleExamples",
+			code: DownlevelMultipleExamples,
 		},
 		{
-			name: "DOWNLEVEL_WEBHOOKS",
-			code: DOWNLEVEL_WEBHOOKS,
+			name: "DownlevelWebhooks",
+			code: DownlevelWebhooks,
 		},
 		{
-			name: "DOWNLEVEL_LICENSE_IDENTIFIER",
-			code: DOWNLEVEL_LICENSE_IDENTIFIER,
+			name: "DownlevelLicenseIdentifier",
+			code: DownlevelLicenseIdentifier,
 		},
 		{
-			name: "DOWNLEVEL_INFO_SUMMARY",
-			code: DOWNLEVEL_INFO_SUMMARY,
+			name: "DownlevelInfoSummary",
+			code: DownlevelInfoSummary,
 		},
 		{
-			name: "DOWNLEVEL_MUTUAL_TLS",
-			code: DOWNLEVEL_MUTUAL_TLS,
+			name: "DownlevelMutualTLS",
+			code: DownlevelMutualTLS,
 		},
 		{
-			name: "SERVER_VARIABLE_EMPTY_ENUM",
-			code: SERVER_VARIABLE_EMPTY_ENUM,
+			name: "ServerVariableEmptyEnum",
+			code: ServerVariableEmptyEnum,
 		},
 		{
-			name: "SERVER_VARIABLE_DEFAULT_NOT_IN_ENUM",
-			code: SERVER_VARIABLE_DEFAULT_NOT_IN_ENUM,
+			name: "ServerVariableDefaultNotInEnum",
+			code: ServerVariableDefaultNotInEnum,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.NotEmpty(t, tt.code, "warning code should not be empty")
 		})
 	}
@@ -131,13 +132,13 @@ func TestWarning_String(t *testing.T) {
 	t.Parallel()
 
 	w := Warning{
-		Code:    DOWNLEVEL_CONST_TO_ENUM,
+		Code:    DownlevelConstToEnum,
 		Path:    "#/components/schemas/User",
 		Message: "const keyword not supported in 3.0; converted to enum",
 	}
 
 	// Warning doesn't have a String() method, but we can verify the fields are accessible
-	assert.Equal(t, DOWNLEVEL_CONST_TO_ENUM, w.Code)
+	assert.Equal(t, DownlevelConstToEnum, w.Code)
 	assert.Equal(t, "#/components/schemas/User", w.Path)
 	assert.Equal(t, "const keyword not supported in 3.0; converted to enum", w.Message)
 }

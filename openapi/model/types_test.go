@@ -68,7 +68,7 @@ func TestBound(t *testing.T) {
 				Exclusive: tt.exclusive,
 			}
 
-			assert.Equal(t, tt.value, bound.Value)
+			assert.InDelta(t, tt.value, bound.Value, 0.001)
 			assert.Equal(t, tt.exclusive, bound.Exclusive)
 		})
 	}

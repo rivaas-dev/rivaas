@@ -110,10 +110,12 @@ func TestValidateExtensionKey(t *testing.T) {
 				require.Error(t, err)
 				switch tt.errType {
 				case "InvalidExtensionKeyError":
-					assert.IsType(t, &InvalidExtensionKeyError{}, err)
+					var extErr *InvalidExtensionKeyError
+					assert.ErrorAs(t, err, &extErr)
 					assert.Contains(t, err.Error(), "extension key must start with 'x-'")
 				case "ReservedExtensionKeyError":
-					assert.IsType(t, &ReservedExtensionKeyError{}, err)
+					var resErr *ReservedExtensionKeyError
+					assert.ErrorAs(t, err, &resErr)
 					assert.Contains(t, err.Error(), "reserved prefix")
 				}
 			} else {
@@ -326,7 +328,7 @@ func TestMarshalWithExtensions(t *testing.T) {
 				assert.NoError(t, json.Unmarshal(result, &m))
 				// Verify base struct fields are present
 				assert.Equal(t, "test", m["name"])
-				assert.Equal(t, float64(42), m["value"])
+				assert.Equal(t, float64(42), m["value"]) //nolint:testifylint // exact integer comparison
 				// Verify extensions are present
 				if len(tt.extensions) > 0 {
 					for k, v := range tt.extensions {

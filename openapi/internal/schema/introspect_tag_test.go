@@ -78,7 +78,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 				name: "header parameters",
 				structFn: func() (reflect.Type, string, string) {
 					type Request struct {
-						APIKey    string `header:"X-API-Key"`
+						APIKey    string `header:"X-API-Key"` //nolint:tagliatelle // Standard HTTP header format
 						UserAgent string `header:"User-Agent"`
 					}
 					return reflect.TypeOf(Request{}), tagHeader, "header"
@@ -811,7 +811,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				return reflect.TypeOf(Request{})
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
-				assert.Len(t, meta.Parameters, 0)
+				assert.Empty(t, meta.Parameters)
 			},
 		},
 		{
@@ -845,7 +845,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 			name: "json tag with empty value does not create body",
 			structFn: func() reflect.Type {
 				type Request struct {
-					Field string `json:""`
+					Field string `json:""` //nolint:tagliatelle // testing empty tag
 				}
 				return reflect.TypeOf(Request{})
 			},
@@ -859,7 +859,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				type Request struct {
 					ID      int    `path:"id"`
 					Page    int    `query:"page"`
-					APIKey  string `header:"X-API-Key"`
+					APIKey  string `header:"X-API-Key"` //nolint:tagliatelle // Standard HTTP header format
 					Session string `cookie:"session"`
 					Name    string `json:"name"`
 				}
@@ -900,7 +900,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				type Request struct {
 					ID      int    `path:"id" doc:"User ID" example:"123"`
 					Page    int    `query:"page" doc:"Page number" default:"1" example:"1"`
-					APIKey  string `header:"X-API-Key" validate:"required" doc:"API key"`
+					APIKey  string `header:"X-API-Key" validate:"required" doc:"API key"` //nolint:tagliatelle // Standard HTTP header format
 					Session string `cookie:"session" doc:"Session token" example:"abc123"`
 					Status  string `query:"status" enum:"pending,active" validate:"oneof=pending active completed" doc:"Status"`
 				}

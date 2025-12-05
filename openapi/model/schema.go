@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package model provides version-agnostic intermediate representation (IR) types
+// for OpenAPI specifications. These types serve as the internal data model
+// that can be projected to specific OpenAPI versions (3.0.x or 3.1.x).
 package model
 
 // Schema represents a version-agnostic JSON Schema in the intermediate representation.

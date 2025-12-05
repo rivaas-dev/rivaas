@@ -46,7 +46,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 
 		// Verify extensions are in the root spec
 		assert.Equal(t, "api-123", spec["x-api-id"])
-		assert.Equal(t, float64(2), spec["x-version"])
+		assert.Equal(t, float64(2), spec["x-version"]) //nolint:testifylint // exact integer comparison
 	})
 
 	t.Run("info extensions", func(t *testing.T) {

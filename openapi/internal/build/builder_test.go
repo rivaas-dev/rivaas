@@ -571,8 +571,8 @@ func TestBuilder_NilDoc(t *testing.T) {
 	// Should have default 200 response
 	assert.Contains(t, pathItem.Get.Responses, "200")
 	assert.Equal(t, "OK", pathItem.Get.Responses["200"].Description)
-	// Should have path parameters extracted from route
-	assert.GreaterOrEqual(t, len(pathItem.Get.Parameters), 0)
+	// Should have path parameters extracted from route (may be empty)
+	assert.NotNil(t, pathItem.Get.Parameters)
 }
 
 func TestBuilder_ComplexPath(t *testing.T) {

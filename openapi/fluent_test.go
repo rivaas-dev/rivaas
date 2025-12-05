@@ -59,8 +59,8 @@ func TestRouteWrapper_Doc(t *testing.T) {
 		rw.Doc("", "")
 
 		rw.mu.RLock()
-		assert.Equal(t, "", rw.doc.Summary)
-		assert.Equal(t, "", rw.doc.Description)
+		assert.Empty(t, rw.doc.Summary)
+		assert.Empty(t, rw.doc.Description)
 		rw.mu.RUnlock()
 	})
 
@@ -128,7 +128,7 @@ func TestRouteWrapper_Summary(t *testing.T) {
 		rw.Summary("Initial").Summary("")
 
 		rw.mu.RLock()
-		assert.Equal(t, "", rw.doc.Summary)
+		assert.Empty(t, rw.doc.Summary)
 		rw.mu.RUnlock()
 	})
 

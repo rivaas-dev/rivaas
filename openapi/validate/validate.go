@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package validate provides OpenAPI specification validation functionality.
+// It validates OpenAPI specs against the official JSON Schema definitions.
 package validate
 
 import (

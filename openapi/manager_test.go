@@ -51,7 +51,7 @@ func TestManager_ConcurrentRegister(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, specJSON)
 	// Spec should be valid JSON (basic check)
-	assert.Greater(t, len(specJSON), 0)
+	assert.NotEmpty(t, specJSON)
 }
 
 func TestManager_GenerateSpec_Golden(t *testing.T) {
@@ -94,8 +94,8 @@ func TestManager_GenerateSpec_Golden(t *testing.T) {
 		return
 	}
 
-	// Compare JSON (semantic comparison would be better, but this works for now)
-	assert.Equal(t, string(want), string(specJSON), "spec JSON does not match golden file")
+	// Compare JSON using semantic comparison
+	assert.JSONEq(t, string(want), string(specJSON), "spec JSON does not match golden file")
 }
 
 type User struct {

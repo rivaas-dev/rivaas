@@ -33,36 +33,36 @@ type Warning struct {
 
 // Warning codes for common down-leveling scenarios.
 const (
-	// DOWNLEVEL_CONST_TO_ENUM indicates const was converted to enum for 3.0 compatibility.
-	DOWNLEVEL_CONST_TO_ENUM = "DOWNLEVEL_CONST_TO_ENUM"
+	// DownlevelConstToEnum indicates const was converted to enum for 3.0 compatibility.
+	DownlevelConstToEnum = "DOWNLEVEL_CONST_TO_ENUM"
 
-	// DOWNLEVEL_CONST_TO_ENUM_CONFLICT indicates const conflicted with existing enum.
-	DOWNLEVEL_CONST_TO_ENUM_CONFLICT = "DOWNLEVEL_CONST_TO_ENUM_CONFLICT"
+	// DownlevelConstToEnumConflict indicates const conflicted with existing enum.
+	DownlevelConstToEnumConflict = "DOWNLEVEL_CONST_TO_ENUM_CONFLICT"
 
-	// DOWNLEVEL_UNEVALUATED_PROPERTIES indicates unevaluatedProperties was dropped.
-	DOWNLEVEL_UNEVALUATED_PROPERTIES = "DOWNLEVEL_UNEVALUATED_PROPERTIES"
+	// DownlevelUnevaluatedProperties indicates unevaluatedProperties was dropped.
+	DownlevelUnevaluatedProperties = "DOWNLEVEL_UNEVALUATED_PROPERTIES"
 
-	// DOWNLEVEL_PATTERN_PROPERTIES indicates patternProperties may not be fully supported.
-	DOWNLEVEL_PATTERN_PROPERTIES = "DOWNLEVEL_PATTERN_PROPERTIES"
+	// DownlevelPatternProperties indicates patternProperties may not be fully supported.
+	DownlevelPatternProperties = "DOWNLEVEL_PATTERN_PROPERTIES"
 
-	// DOWNLEVEL_MULTIPLE_EXAMPLES indicates multiple examples were reduced to one.
-	DOWNLEVEL_MULTIPLE_EXAMPLES = "DOWNLEVEL_MULTIPLE_EXAMPLES"
+	// DownlevelMultipleExamples indicates multiple examples were reduced to one.
+	DownlevelMultipleExamples = "DOWNLEVEL_MULTIPLE_EXAMPLES"
 
-	// DOWNLEVEL_WEBHOOKS indicates webhooks were dropped (3.1-only feature).
-	DOWNLEVEL_WEBHOOKS = "DOWNLEVEL_WEBHOOKS"
+	// DownlevelWebhooks indicates webhooks were dropped (3.1-only feature).
+	DownlevelWebhooks = "DOWNLEVEL_WEBHOOKS"
 
-	// DOWNLEVEL_LICENSE_IDENTIFIER indicates license identifier was dropped (3.1-only feature).
-	DOWNLEVEL_LICENSE_IDENTIFIER = "DOWNLEVEL_LICENSE_IDENTIFIER"
+	// DownlevelLicenseIdentifier indicates license identifier was dropped (3.1-only feature).
+	DownlevelLicenseIdentifier = "DOWNLEVEL_LICENSE_IDENTIFIER"
 
-	// DOWNLEVEL_INFO_SUMMARY indicates info.summary was dropped (3.1-only feature).
-	DOWNLEVEL_INFO_SUMMARY = "DOWNLEVEL_INFO_SUMMARY"
+	// DownlevelInfoSummary indicates info.summary was dropped (3.1-only feature).
+	DownlevelInfoSummary = "DOWNLEVEL_INFO_SUMMARY"
 
-	// DOWNLEVEL_MUTUAL_TLS indicates mutualTLS security type was dropped (3.1-only feature).
-	DOWNLEVEL_MUTUAL_TLS = "DOWNLEVEL_MUTUAL_TLS"
+	// DownlevelMutualTLS indicates mutualTLS security type was dropped (3.1-only feature).
+	DownlevelMutualTLS = "DOWNLEVEL_MUTUAL_TLS"
 
-	// SERVER_VARIABLE_EMPTY_ENUM indicates server variable enum array is empty (invalid in 3.1).
-	SERVER_VARIABLE_EMPTY_ENUM = "SERVER_VARIABLE_EMPTY_ENUM"
+	// ServerVariableEmptyEnum indicates server variable enum array is empty (invalid in 3.1).
+	ServerVariableEmptyEnum = "SERVER_VARIABLE_EMPTY_ENUM"
 
-	// SERVER_VARIABLE_DEFAULT_NOT_IN_ENUM indicates server variable default is not in enum (invalid in 3.1).
-	SERVER_VARIABLE_DEFAULT_NOT_IN_ENUM = "SERVER_VARIABLE_DEFAULT_NOT_IN_ENUM"
+	// ServerVariableDefaultNotInEnum indicates server variable default is not in enum (invalid in 3.1).
+	ServerVariableDefaultNotInEnum = "SERVER_VARIABLE_DEFAULT_NOT_IN_ENUM"
 )

@@ -47,6 +47,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "string type",
 			input: "",
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindString, s.Kind)
 			},
 		},
@@ -54,6 +55,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "int type",
 			input: 0,
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindInteger, s.Kind)
 				assert.Equal(t, "int32", s.Format)
 			},
@@ -62,6 +64,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "int64 type",
 			input: int64(0),
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindInteger, s.Kind)
 				assert.Equal(t, "int64", s.Format)
 			},
@@ -191,9 +194,9 @@ func TestSchemaGenerator_StructTags(t *testing.T) {
 
 	require.Contains(t, ts.Properties, "age")
 	assert.NotNil(t, ts.Properties["age"].Minimum)
-	assert.Equal(t, 0.0, ts.Properties["age"].Minimum.Value)
+	assert.InDelta(t, 0.0, ts.Properties["age"].Minimum.Value, 0.001)
 	assert.NotNil(t, ts.Properties["age"].Maximum)
-	assert.Equal(t, 150.0, ts.Properties["age"].Maximum.Value)
+	assert.InDelta(t, 150.0, ts.Properties["age"].Maximum.Value, 0.001)
 
 	require.Contains(t, ts.Properties, "email")
 	assert.Equal(t, "email", ts.Properties["email"].Format)
@@ -339,7 +342,7 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 			field: "Min",
 			validate: func(t *testing.T, s *model.Schema) {
 				require.NotNil(t, s.Minimum)
-				assert.Equal(t, 10.0, s.Minimum.Value)
+				assert.InDelta(t, 10.0, s.Minimum.Value, 0.001)
 				assert.False(t, s.Minimum.Exclusive)
 			},
 		},
@@ -347,7 +350,7 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 			field: "Max",
 			validate: func(t *testing.T, s *model.Schema) {
 				require.NotNil(t, s.Maximum)
-				assert.Equal(t, 100.0, s.Maximum.Value)
+				assert.InDelta(t, 100.0, s.Maximum.Value, 0.001)
 				assert.False(t, s.Maximum.Exclusive)
 			},
 		},
@@ -553,9 +556,9 @@ func TestSchemaGenerator_JSONTagVariations(t *testing.T) {
 		OmitEmpty  string `json:"omitempty,omitempty"`
 		NoTag      string
 		Ignored    string `json:"-"`
-		CustomName string `json:"custom_name"`
-		EmptyTag   string `json:""`
-		CommaOnly  string `json:","`
+		CustomName string `json:"custom_name"` //nolint:tagliatelle // testing snake_case tag
+		EmptyTag   string `json:""`            //nolint:tagliatelle // testing empty tag
+		CommaOnly  string `json:","`           //nolint:tagliatelle // testing comma-only tag
 	}
 
 	sg := newTestSchemaGenerator(t)

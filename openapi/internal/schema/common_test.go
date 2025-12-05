@@ -231,7 +231,7 @@ func TestSchemaName(t *testing.T) {
 
 		// Pointer types have no name, so should return empty string
 		// The function doesn't dereference pointers
-		assert.Equal(t, "", name)
+		assert.Empty(t, name)
 	})
 
 	t.Run("handles slice types", func(t *testing.T) {
@@ -239,7 +239,7 @@ func TestSchemaName(t *testing.T) {
 		name := schemaName(typ)
 
 		// Unnamed types (like slices) should return empty string
-		assert.Equal(t, "", name)
+		assert.Empty(t, name)
 	})
 
 	t.Run("handles map types", func(t *testing.T) {
@@ -247,7 +247,7 @@ func TestSchemaName(t *testing.T) {
 		name := schemaName(typ)
 
 		// Unnamed types (like maps) should return empty string
-		assert.Equal(t, "", name)
+		assert.Empty(t, name)
 	})
 
 	t.Run("handles unnamed types", func(t *testing.T) {
@@ -259,7 +259,7 @@ func TestSchemaName(t *testing.T) {
 		name := schemaName(typ)
 
 		// Unnamed types should return empty string
-		assert.Equal(t, "", name)
+		assert.Empty(t, name)
 	})
 
 	t.Run("handles types with package path", func(t *testing.T) {

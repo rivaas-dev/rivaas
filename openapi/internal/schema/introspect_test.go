@@ -11,7 +11,7 @@ import (
 type GetUserRequest struct {
 	ID     int    `path:"id" doc:"User ID" example:"123"`
 	Expand string `query:"expand" doc:"Fields to expand" enum:"profile,settings"`
-	APIKey string `header:"X-API-Key" validate:"required"`
+	APIKey string `header:"X-Api-Key" validate:"required"` //nolint:tagliatelle // Standard API key header
 	Token  string `cookie:"token" doc:"Auth token"`
 }
 
@@ -73,7 +73,7 @@ func TestIntrospectRequest(t *testing.T) {
 				// Check header parameter
 				var apiKeyParam *ParamSpec
 				for i := range meta.Parameters {
-					if meta.Parameters[i].Name == "X-API-Key" {
+					if meta.Parameters[i].Name == "X-Api-Key" {
 						apiKeyParam = &meta.Parameters[i]
 						break
 					}

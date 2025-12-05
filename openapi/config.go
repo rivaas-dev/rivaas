@@ -497,14 +497,14 @@ type OAuth2Flow struct {
 	// Type specifies the OAuth2 flow type (implicit, password, clientCredentials, authorizationCode).
 	Type OAuthFlowType
 
-	// AuthorizationUrl is required for implicit and authorizationCode flows.
-	AuthorizationUrl string
+	// AuthorizationURL is required for implicit and authorizationCode flows.
+	AuthorizationURL string
 
-	// TokenUrl is required for password, clientCredentials, and authorizationCode flows.
-	TokenUrl string
+	// TokenURL is required for password, clientCredentials, and authorizationCode flows.
+	TokenURL string
 
-	// RefreshUrl is optional for all flows.
-	RefreshUrl string
+	// RefreshURL is optional for all flows.
+	RefreshURL string
 
 	// Scopes maps scope names to descriptions (required, can be empty).
 	Scopes map[string]string
@@ -520,8 +520,8 @@ type OAuth2Flow struct {
 //	openapi.WithOAuth2("oauth2", "OAuth2 authentication",
 //		openapi.OAuth2Flow{
 //			Type:             openapi.FlowAuthorizationCode,
-//			AuthorizationUrl: "https://example.com/oauth/authorize",
-//			TokenUrl:         "https://example.com/oauth/token",
+//			AuthorizationURL: "https://example.com/oauth/authorize",
+//			TokenURL:         "https://example.com/oauth/token",
 //			Scopes: map[string]string{
 //				"read":  "Read access",
 //				"write": "Write access",
@@ -541,9 +541,9 @@ func WithOAuth2(name, desc string, flows ...OAuth2Flow) Option {
 		oauthFlows := &OAuthFlows{}
 		for _, flow := range flows {
 			flowConfig := &OAuthFlow{
-				AuthorizationUrl: flow.AuthorizationUrl,
-				TokenUrl:         flow.TokenUrl,
-				RefreshUrl:       flow.RefreshUrl,
+				AuthorizationURL: flow.AuthorizationURL,
+				TokenURL:         flow.TokenURL,
+				RefreshURL:       flow.RefreshURL,
 				Scopes:           flow.Scopes,
 			}
 			switch flow.Type {
@@ -583,7 +583,7 @@ func WithOpenIDConnect(name, url, desc string) Option {
 		c.SecuritySchemes[name] = &SecurityScheme{
 			Type:             "openIdConnect",
 			Description:      desc,
-			OpenIdConnectUrl: url,
+			OpenIDConnectURL: url,
 		}
 	}
 }

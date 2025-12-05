@@ -161,39 +161,39 @@ func NewManager(cfg *Config) *Manager {
 				In:               s.In,
 				Scheme:           s.Scheme,
 				BearerFormat:     s.BearerFormat,
-				OpenIdConnectUrl: s.OpenIdConnectUrl,
+				OpenIDConnectURL: s.OpenIDConnectURL,
 			}
 			if s.Flows != nil {
 				ss.Flows = &model.OAuthFlows{}
 				if s.Flows.Implicit != nil {
 					ss.Flows.Implicit = &model.OAuthFlow{
-						AuthorizationUrl: s.Flows.Implicit.AuthorizationUrl,
-						TokenUrl:         s.Flows.Implicit.TokenUrl,
-						RefreshUrl:       s.Flows.Implicit.RefreshUrl,
+						AuthorizationURL: s.Flows.Implicit.AuthorizationURL,
+						TokenURL:         s.Flows.Implicit.TokenURL,
+						RefreshURL:       s.Flows.Implicit.RefreshURL,
 						Scopes:           s.Flows.Implicit.Scopes,
 					}
 				}
 				if s.Flows.Password != nil {
 					ss.Flows.Password = &model.OAuthFlow{
-						AuthorizationUrl: s.Flows.Password.AuthorizationUrl,
-						TokenUrl:         s.Flows.Password.TokenUrl,
-						RefreshUrl:       s.Flows.Password.RefreshUrl,
+						AuthorizationURL: s.Flows.Password.AuthorizationURL,
+						TokenURL:         s.Flows.Password.TokenURL,
+						RefreshURL:       s.Flows.Password.RefreshURL,
 						Scopes:           s.Flows.Password.Scopes,
 					}
 				}
 				if s.Flows.ClientCredentials != nil {
 					ss.Flows.ClientCredentials = &model.OAuthFlow{
-						AuthorizationUrl: s.Flows.ClientCredentials.AuthorizationUrl,
-						TokenUrl:         s.Flows.ClientCredentials.TokenUrl,
-						RefreshUrl:       s.Flows.ClientCredentials.RefreshUrl,
+						AuthorizationURL: s.Flows.ClientCredentials.AuthorizationURL,
+						TokenURL:         s.Flows.ClientCredentials.TokenURL,
+						RefreshURL:       s.Flows.ClientCredentials.RefreshURL,
 						Scopes:           s.Flows.ClientCredentials.Scopes,
 					}
 				}
 				if s.Flows.AuthorizationCode != nil {
 					ss.Flows.AuthorizationCode = &model.OAuthFlow{
-						AuthorizationUrl: s.Flows.AuthorizationCode.AuthorizationUrl,
-						TokenUrl:         s.Flows.AuthorizationCode.TokenUrl,
-						RefreshUrl:       s.Flows.AuthorizationCode.RefreshUrl,
+						AuthorizationURL: s.Flows.AuthorizationCode.AuthorizationURL,
+						TokenURL:         s.Flows.AuthorizationCode.TokenURL,
+						RefreshURL:       s.Flows.AuthorizationCode.RefreshURL,
 						Scopes:           s.Flows.AuthorizationCode.Scopes,
 					}
 				}

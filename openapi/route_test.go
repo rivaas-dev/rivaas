@@ -276,7 +276,7 @@ func TestRouteWrapper_Freeze_Concurrent(t *testing.T) {
 		// Concurrent modification attempts (should all be no-ops)
 		for i := range numGoroutines {
 			wg.Add(1)
-			go func(idx int) {
+			go func(_ int) {
 				defer wg.Done()
 				rw.Summary("Modified").
 					Description("Modified").

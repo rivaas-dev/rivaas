@@ -94,9 +94,9 @@ func TestSchema30(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, "integer", result.Type)
 				require.NotNil(t, result.Minimum)
-				assert.Equal(t, 10.0, *result.Minimum)
+				assert.Equal(t, 10.0, *result.Minimum) //nolint:testifylint // exact integer comparison
 				require.NotNil(t, result.Maximum)
-				assert.Equal(t, 100.0, *result.Maximum)
+				assert.Equal(t, 100.0, *result.Maximum) //nolint:testifylint // exact integer comparison
 				require.NotNil(t, result.ExclusiveMaximum)
 				assert.True(t, *result.ExclusiveMaximum)
 			},
@@ -158,7 +158,7 @@ func TestSchema30(t *testing.T) {
 				assert.Equal(t, "fixed-value", result.Enum[0])
 				var found bool
 				for _, w := range warns {
-					if w.Code == DOWNLEVEL_CONST_TO_ENUM {
+					if w.Code == DownlevelConstToEnum {
 						found = true
 						break
 					}
@@ -180,7 +180,7 @@ func TestSchema30(t *testing.T) {
 				assert.Equal(t, []any{"value1", "value2"}, result.Enum)
 				var found bool
 				for _, w := range warns {
-					if w.Code == DOWNLEVEL_CONST_TO_ENUM_CONFLICT {
+					if w.Code == DownlevelConstToEnumConflict {
 						found = true
 						break
 					}
@@ -201,7 +201,7 @@ func TestSchema30(t *testing.T) {
 				require.NotNil(t, result)
 				var found bool
 				for _, w := range warns {
-					if w.Code == DOWNLEVEL_UNEVALUATED_PROPERTIES {
+					if w.Code == DownlevelUnevaluatedProperties {
 						found = true
 						break
 					}
@@ -221,7 +221,7 @@ func TestSchema30(t *testing.T) {
 				assert.Equal(t, "example1", result.Example)
 				var found bool
 				for _, w := range warns {
-					if w.Code == DOWNLEVEL_MULTIPLE_EXAMPLES {
+					if w.Code == DownlevelMultipleExamples {
 						found = true
 						break
 					}
@@ -336,7 +336,7 @@ func TestSchema30(t *testing.T) {
 			result := schema30(tt.input, &warns, "#/test")
 
 			if tt.wantWarn {
-				assert.Greater(t, len(warns), 0)
+				assert.NotEmpty(t, warns)
 			}
 
 			if tt.validate != nil {
