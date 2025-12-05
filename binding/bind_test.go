@@ -161,6 +161,7 @@ func TestBind_PointerHandling(t *testing.T) {
 					return v
 				}(),
 				validate: func(t *testing.T, params Params) {
+					t.Helper()
 					assert.Nil(t, params.Name, "Expected Name to be nil for empty value")
 				},
 			},
@@ -168,6 +169,7 @@ func TestBind_PointerHandling(t *testing.T) {
 				name:   "missing value leaves pointer nil",
 				values: url.Values{},
 				validate: func(t *testing.T, params Params) {
+					t.Helper()
 					assert.Nil(t, params.Name, "Expected Name to be nil for missing value")
 					assert.Nil(t, params.Age, "Expected Age to be nil for missing value")
 				},
@@ -210,7 +212,7 @@ func TestBind_InvalidURL(t *testing.T) {
 			}{},
 			wantErr:        true,
 			expectedErrMsg: "invalid URL",
-			validate:       func(t *testing.T, params any) {},
+			validate:       func(t *testing.T, params any) { t.Helper() },
 		},
 		{
 			name: "malformed URL with missing scheme",
@@ -224,7 +226,7 @@ func TestBind_InvalidURL(t *testing.T) {
 			}{},
 			wantErr:        true,
 			expectedErrMsg: "invalid URL",
-			validate:       func(t *testing.T, params any) {},
+			validate:       func(t *testing.T, params any) { t.Helper() },
 		},
 		{
 			name: "valid URL should succeed",
@@ -239,6 +241,7 @@ func TestBind_InvalidURL(t *testing.T) {
 			wantErr:        false,
 			expectedErrMsg: "",
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Endpoint url.URL `query:"endpoint"`
 				})
@@ -435,9 +438,10 @@ func TestBind_NestedStructError(t *testing.T) {
 			}{},
 			expectedField: "Address",
 			validate: func(t *testing.T, bindErr *BindError) {
+				t.Helper()
 				assert.Equal(t, SourceQuery, bindErr.Source, "Expected Source=SourceQuery")
 				assert.Empty(t, bindErr.Value, "Expected empty Value for nested struct error")
-				assert.NotNil(t, bindErr.Err, "Expected underlying error")
+				assert.Error(t, bindErr.Err, "Expected underlying error")
 			},
 		},
 		{
@@ -453,7 +457,7 @@ func TestBind_NestedStructError(t *testing.T) {
 				} `query:"meta"`
 			}{},
 			expectedField: "Metadata",
-			validate:      func(t *testing.T, bindErr *BindError) {},
+			validate:      func(t *testing.T, bindErr *BindError) { t.Helper() },
 		},
 		{
 			name: "nested struct with invalid enum",
@@ -709,7 +713,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 	}
 
 	type JSONDataEmptyName struct {
-		FieldName string `json:",omitempty"` // Empty name, should use "FieldName"
+		FieldName string `json:",omitempty"` //nolint:tagliatelle // Empty name, should use "FieldName"
 	}
 
 	type JSONDataSkipField struct {
@@ -980,7 +984,7 @@ func TestTypedDefaults(t *testing.T) {
 
 		err := Raw(NewQueryGetter(values), TagQuery, &params)
 		require.NoError(t, err)
-		assert.Equal(t, 99.99, params.Price)
+		assert.Equal(t, 99.99, params.Price) //nolint:testifylint // exact decimal comparison
 	})
 
 	t.Run("pointer default", func(t *testing.T) {
@@ -1042,7 +1046,7 @@ func TestBindTo(t *testing.T) {
 		type Request struct {
 			ID      int    `path:"id"`
 			Page    int    `query:"page"`
-			APIKey  string `header:"X-API-Key"`
+			APIKey  string `header:"X-Api-Key"` //nolint:tagliatelle // Standard API key header
 			Session string `cookie:"session"`
 		}
 

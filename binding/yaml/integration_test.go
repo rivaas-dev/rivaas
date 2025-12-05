@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"rivaas.dev/binding/yaml"
 )
@@ -247,6 +246,8 @@ settings:
 }
 
 // TestIntegration_YAMLErrorHandling tests error handling for invalid YAML
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_YAMLErrorHandling(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -409,7 +410,7 @@ func TestIntegration_YAMLWithValidator(t *testing.T) {
 			return
 		}
 
-		require.NotNil(t, config)
+		assert.NotNil(t, config)
 		w.WriteHeader(http.StatusOK)
 	})
 

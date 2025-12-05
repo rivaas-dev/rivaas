@@ -49,10 +49,10 @@ func TestIntegration_ProtoBodyBinding(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "John", user.Name)
-		assert.Equal(t, "john@example.com", user.Email)
-		assert.Equal(t, int32(30), user.Age)
-		assert.True(t, user.Active)
+		assert.Equal(t, "John", user.GetName())
+		assert.Equal(t, "john@example.com", user.GetEmail())
+		assert.Equal(t, int32(30), user.GetAge())
+		assert.True(t, user.GetActive())
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -94,12 +94,12 @@ func TestIntegration_ProtoNestedStructBinding(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "My Service", config.Title)
-		assert.Equal(t, "0.0.0.0", config.Server.Host)
-		assert.Equal(t, int32(8080), config.Server.Port)
-		assert.Equal(t, "localhost", config.Database.Host)
-		assert.Equal(t, int32(5432), config.Database.Port)
-		assert.Equal(t, "mydb", config.Database.Name)
+		assert.Equal(t, "My Service", config.GetTitle())
+		assert.Equal(t, "0.0.0.0", config.GetServer().GetHost())
+		assert.Equal(t, int32(8080), config.GetServer().GetPort())
+		assert.Equal(t, "localhost", config.GetDatabase().GetHost())
+		assert.Equal(t, int32(5432), config.GetDatabase().GetPort())
+		assert.Equal(t, "mydb", config.GetDatabase().GetName())
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -149,9 +149,9 @@ func TestIntegration_ProtoRepeatedFieldsBinding(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "Widget", product.Name)
-		assert.Equal(t, []string{"electronics", "gadget", "sale"}, product.Tags)
-		assert.Equal(t, []int32{100, 200, 300}, product.Prices)
+		assert.Equal(t, "Widget", product.GetName())
+		assert.Equal(t, []string{"electronics", "gadget", "sale"}, product.GetTags())
+		assert.Equal(t, []int32{100, 200, 300}, product.GetPrices())
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -192,9 +192,9 @@ func TestIntegration_ProtoMapFieldsBinding(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "MySettings", settings.Name)
-		assert.Equal(t, "value1", settings.Metadata["key1"])
-		assert.Equal(t, "value2", settings.Metadata["key2"])
+		assert.Equal(t, "MySettings", settings.GetName())
+		assert.Equal(t, "value1", settings.GetMetadata()["key1"])
+		assert.Equal(t, "value2", settings.GetMetadata()["key2"])
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -262,8 +262,8 @@ func TestIntegration_ProtoReaderBinding(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "Alice", user.Name)
-		assert.Equal(t, "alice@example.com", user.Email)
+		assert.Equal(t, "Alice", user.GetName())
+		assert.Equal(t, "alice@example.com", user.GetEmail())
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -304,7 +304,7 @@ func TestIntegration_ProtoWithDiscardUnknown(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "Bob", user.Name)
+		assert.Equal(t, "Bob", user.GetName())
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -389,8 +389,8 @@ func TestIntegration_ProtoLargePayload(t *testing.T) {
 			return
 		}
 
-		assert.Len(t, product.Tags, 100)
-		assert.Len(t, product.Prices, 100)
+		assert.Len(t, product.GetTags(), 100)
+		assert.Len(t, product.GetPrices(), 100)
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -439,9 +439,9 @@ func TestIntegration_ProtoEmptyBody(t *testing.T) {
 		}
 
 		// Empty proto results in zero values
-		assert.Equal(t, "", user.Name)
-		assert.Equal(t, "", user.Email)
-		assert.Equal(t, int32(0), user.Age)
+		assert.Empty(t, user.GetName())
+		assert.Empty(t, user.GetEmail())
+		assert.Equal(t, int32(0), user.GetAge())
 		w.WriteHeader(http.StatusOK)
 	})
 

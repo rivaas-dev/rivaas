@@ -52,5 +52,5 @@ func TestBindError_Unwrap(t *testing.T) {
 	unwrapped := outerErr.Unwrap()
 	require.ErrorIs(t, unwrapped, innerErr)
 
-	assert.Nil(t, originalErr.Unwrap())
+	assert.NoError(t, originalErr.Unwrap())
 }

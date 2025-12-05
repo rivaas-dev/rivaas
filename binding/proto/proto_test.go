@@ -41,10 +41,10 @@ func TestProto_BasicBinding(t *testing.T) {
 
 	result, err := Proto[*testdata.User](body)
 	require.NoError(t, err)
-	assert.Equal(t, "John", result.Name)
-	assert.Equal(t, "john@example.com", result.Email)
-	assert.Equal(t, int32(30), result.Age)
-	assert.True(t, result.Active)
+	assert.Equal(t, "John", result.GetName())
+	assert.Equal(t, "john@example.com", result.GetEmail())
+	assert.Equal(t, int32(30), result.GetAge())
+	assert.True(t, result.GetActive())
 }
 
 func TestProto_NestedStructs(t *testing.T) {
@@ -69,12 +69,12 @@ func TestProto_NestedStructs(t *testing.T) {
 
 	result, err := Proto[*testdata.Config](body)
 	require.NoError(t, err)
-	assert.Equal(t, "My App", result.Title)
-	assert.Equal(t, "0.0.0.0", result.Server.Host)
-	assert.Equal(t, int32(8080), result.Server.Port)
-	assert.Equal(t, "localhost", result.Database.Host)
-	assert.Equal(t, int32(5432), result.Database.Port)
-	assert.Equal(t, "mydb", result.Database.Name)
+	assert.Equal(t, "My App", result.GetTitle())
+	assert.Equal(t, "0.0.0.0", result.GetServer().GetHost())
+	assert.Equal(t, int32(8080), result.GetServer().GetPort())
+	assert.Equal(t, "localhost", result.GetDatabase().GetHost())
+	assert.Equal(t, int32(5432), result.GetDatabase().GetPort())
+	assert.Equal(t, "mydb", result.GetDatabase().GetName())
 }
 
 func TestProto_RepeatedFields(t *testing.T) {
@@ -90,9 +90,9 @@ func TestProto_RepeatedFields(t *testing.T) {
 
 	result, err := Proto[*testdata.Product](body)
 	require.NoError(t, err)
-	assert.Equal(t, "Widget", result.Name)
-	assert.Equal(t, []string{"electronics", "gadget", "sale"}, result.Tags)
-	assert.Equal(t, []int32{100, 200, 300}, result.Prices)
+	assert.Equal(t, "Widget", result.GetName())
+	assert.Equal(t, []string{"electronics", "gadget", "sale"}, result.GetTags())
+	assert.Equal(t, []int32{100, 200, 300}, result.GetPrices())
 }
 
 func TestProto_MapFields(t *testing.T) {
@@ -111,10 +111,10 @@ func TestProto_MapFields(t *testing.T) {
 
 	result, err := Proto[*testdata.Settings](body)
 	require.NoError(t, err)
-	assert.Equal(t, "MySettings", result.Name)
-	assert.Equal(t, "value1", result.Metadata["key1"])
-	assert.Equal(t, "value2", result.Metadata["key2"])
-	assert.Equal(t, "value3", result.Metadata["key3"])
+	assert.Equal(t, "MySettings", result.GetName())
+	assert.Equal(t, "value1", result.GetMetadata()["key1"])
+	assert.Equal(t, "value2", result.GetMetadata()["key2"])
+	assert.Equal(t, "value3", result.GetMetadata()["key3"])
 }
 
 func TestProto_InvalidData(t *testing.T) {
@@ -133,10 +133,10 @@ func TestProto_EmptyBody(t *testing.T) {
 
 	result, err := Proto[*testdata.User](body)
 	require.NoError(t, err) // Empty body is valid proto, results in zero values
-	assert.Equal(t, "", result.Name)
-	assert.Equal(t, "", result.Email)
-	assert.Equal(t, int32(0), result.Age)
-	assert.False(t, result.Active)
+	assert.Empty(t, result.GetName())
+	assert.Empty(t, result.GetEmail())
+	assert.Equal(t, int32(0), result.GetAge())
+	assert.False(t, result.GetActive())
 }
 
 func TestProtoTo_NonGeneric(t *testing.T) {
@@ -154,10 +154,10 @@ func TestProtoTo_NonGeneric(t *testing.T) {
 	var result testdata.User
 	err = ProtoTo(body, &result)
 	require.NoError(t, err)
-	assert.Equal(t, "Alice", result.Name)
-	assert.Equal(t, "alice@example.com", result.Email)
-	assert.Equal(t, int32(25), result.Age)
-	assert.False(t, result.Active)
+	assert.Equal(t, "Alice", result.GetName())
+	assert.Equal(t, "alice@example.com", result.GetEmail())
+	assert.Equal(t, int32(25), result.GetAge())
+	assert.False(t, result.GetActive())
 }
 
 func TestProtoTo_InvalidData(t *testing.T) {
@@ -206,9 +206,9 @@ func TestProtoReaderTo_NonGeneric(t *testing.T) {
 	var result testdata.Config
 	err = ProtoReaderTo(bytes.NewReader(body), &result)
 	require.NoError(t, err)
-	assert.Equal(t, "Test Config", result.Title)
-	assert.Equal(t, "192.168.1.1", result.Server.Host)
-	assert.Equal(t, int32(3000), result.Server.Port)
+	assert.Equal(t, "Test Config", result.GetTitle())
+	assert.Equal(t, "192.168.1.1", result.GetServer().GetHost())
+	assert.Equal(t, int32(3000), result.GetServer().GetPort())
 }
 
 func TestProto_WithDiscardUnknown(t *testing.T) {
@@ -328,7 +328,7 @@ func TestSourceGetter_Methods(t *testing.T) {
 	getter := &sourceGetter{body: body, cfg: cfg}
 
 	// These methods should return empty values as proto doesn't support key-value access
-	assert.Equal(t, "", getter.Get("name"))
+	assert.Empty(t, getter.Get("name"))
 	assert.Nil(t, getter.GetAll("name"))
 	assert.False(t, getter.Has("name"))
 }

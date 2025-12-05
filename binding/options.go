@@ -581,10 +581,9 @@ func defaultConfig() *config {
 		timeLayouts: []string{
 			time.RFC3339,
 			time.RFC3339Nano,
-			"2006-01-02",
-			"2006-01-02 15:04:05",
+			time.DateOnly,
+			time.DateTime,
 			"2006-01-02T15:04:05",
-			"2006-01-02T15:04:05Z07:00",
 		},
 		maxDepth:      DefaultMaxDepth,
 		unknownFields: UnknownIgnore,

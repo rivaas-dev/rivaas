@@ -49,7 +49,7 @@ func TestBind_FormBasicTypes(t *testing.T) {
 	assert.Equal(t, "John Doe", data.Name)
 	assert.Equal(t, 30, data.Age)
 	assert.True(t, data.Active)
-	assert.Equal(t, 95.5, data.Score)
+	assert.Equal(t, 95.5, data.Score) //nolint:testifylint // exact decimal comparison
 }
 
 // TestBind_FormNestedStructs tests binding nested form structures
@@ -300,7 +300,7 @@ func TestBind_FormMaps(t *testing.T) {
 				})
 				require.True(t, ok)
 				require.NotNil(t, p.Config)
-				assert.Equal(t, 4, len(p.Config))
+				assert.Len(t, p.Config, 4)
 				assert.Equal(t, "value1", p.Config["key.with.dots"])
 				assert.Equal(t, "value2", p.Config["key-with-dashes"])
 				assert.Equal(t, "value3", p.Config["key_with_underscores"])
@@ -713,7 +713,7 @@ func TestBind_FormAllTypes(t *testing.T) {
 	assert.Equal(t, uint16(16), data.Uint16)
 	assert.Equal(t, uint32(32), data.Uint32)
 	assert.Equal(t, uint64(64), data.Uint64)
-	assert.Equal(t, float32(3.14), data.Float32)
-	assert.Equal(t, 2.718, data.Float64)
+	assert.InDelta(t, float32(3.14), data.Float32, 0.001)
+	assert.InDelta(t, 2.718, data.Float64, 0.001)
 	assert.True(t, data.Bool)
 }

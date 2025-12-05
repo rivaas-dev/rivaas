@@ -77,7 +77,7 @@ func ExampleProtoTo() {
 	}
 
 	fmt.Printf("Title: %s, Server: %s:%d\n",
-		result.Title, result.Server.Host, result.Server.Port)
+		result.GetTitle(), result.GetServer().GetHost(), result.GetServer().GetPort())
 	// Output: Title: My App, Server: localhost:8080
 }
 

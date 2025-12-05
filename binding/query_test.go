@@ -344,7 +344,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params EventParams) {
-					expected, err := time.Parse("2006-01-02", "2024-01-15")
+					expected, err := time.Parse(time.DateOnly, "2024-01-15")
 					require.NoError(t, err)
 					assert.True(t, params.StartDate.Equal(expected), "StartDate should match expected date")
 				},
@@ -934,7 +934,7 @@ func TestBind_QueryEnumValidation(t *testing.T) {
 			err := Raw(getter, TagQuery, &params)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.ErrorContains(t, err, "not in allowed values")
 			} else {
 				require.NoError(t, err)
@@ -1154,8 +1154,8 @@ func TestBind_QueryRealWorld(t *testing.T) {
 				require.Len(t, f.Status, 2)
 				assert.Equal(t, "active", f.Status[0])
 				assert.Equal(t, "pending", f.Status[1])
-				assert.Equal(t, 10.50, f.MinPrice)
-				assert.Equal(t, 99.99, f.MaxPrice)
+				assert.InDelta(t, 10.50, f.MinPrice, 0.001)
+				assert.InDelta(t, 99.99, f.MaxPrice, 0.001)
 			},
 		},
 	}

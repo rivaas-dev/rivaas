@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"rivaas.dev/binding/toml"
 )
@@ -227,7 +226,7 @@ func TestIntegration_TOMLArrayOfTables(t *testing.T) {
 		}
 
 		assert.Equal(t, "Product Catalog", catalog.Title)
-		require.Len(t, catalog.Products, 3)
+		assert.Len(t, catalog.Products, 3)
 		assert.Equal(t, "Widget", catalog.Products[0].Name)
 		assert.Equal(t, 100, catalog.Products[0].Price)
 		assert.Equal(t, "Gadget", catalog.Products[1].Name)
@@ -307,6 +306,8 @@ origin = { x = 10, y = 20 }
 }
 
 // TestIntegration_TOMLErrorHandling tests error handling for invalid TOML
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_TOMLErrorHandling(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

@@ -739,7 +739,7 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 		}
 
 		// Handle json/form tags with options (e.g., "name,omitempty")
-		primaryName := ""
+		var primaryName string
 		var aliases []string
 		if tagName == TagJSON || tagName == TagForm {
 			if tag == "-" {

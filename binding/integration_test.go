@@ -78,7 +78,7 @@ func TestIntegration_JSONBodyBinding(t *testing.T) {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
 		Age      int    `json:"age"`
-		IsActive bool   `json:"is_active"`
+		IsActive bool   `json:"is_active"` //nolint:tagliatelle // snake_case is intentional for API compatibility
 	}
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +126,7 @@ func TestIntegration_FormDataBinding(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		login, err := binding.Form[LoginRequest](r.PostForm)
 		if err != nil {
@@ -168,7 +168,7 @@ func TestIntegration_MultiSourceBinding(t *testing.T) {
 		Format         string `query:"format" default:"json"`
 		// From headers
 		Authorization string `header:"Authorization"`
-		RequestID     string `header:"X-Request-ID"`
+		RequestID     string `header:"X-Request-ID"` //nolint:tagliatelle // Standard HTTP header format
 		// From cookies
 		SessionID string `cookie:"session_id"`
 	}
@@ -253,6 +253,8 @@ func TestIntegration_HeaderAndCookieBinding(t *testing.T) {
 }
 
 // TestIntegration_ErrorHandling tests error responses for invalid input
+//
+//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ErrorHandling(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -441,7 +443,7 @@ func TestIntegration_XMLBodyBinding(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := new(bytes.Buffer)
 		_, err := buf.ReadFrom(r.Body)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		product, err := binding.XML[Product](buf.Bytes())
 		if err != nil {
@@ -450,7 +452,7 @@ func TestIntegration_XMLBodyBinding(t *testing.T) {
 		}
 
 		assert.Equal(t, "Widget", product.Name)
-		assert.Equal(t, 29.99, product.Price)
+		assert.InDelta(t, 29.99, product.Price, 0.001)
 		assert.Equal(t, "WGT-001", product.SKU)
 		w.WriteHeader(http.StatusCreated)
 	})

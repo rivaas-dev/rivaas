@@ -49,15 +49,15 @@ func BenchmarkYAML_LargeStruct(b *testing.B) {
 		Name     string `yaml:"name"`
 		User     string `yaml:"user"`
 		Password string `yaml:"password"`
-		SSLMode  string `yaml:"ssl_mode"`
+		SSLMode  string `yaml:"ssl_mode"` //nolint:tagliatelle // snake_case is standard YAML convention
 	}
 
 	type Server struct {
 		Host         string `yaml:"host"`
 		Port         int    `yaml:"port"`
-		ReadTimeout  string `yaml:"read_timeout"`
-		WriteTimeout string `yaml:"write_timeout"`
-		IdleTimeout  string `yaml:"idle_timeout"`
+		ReadTimeout  string `yaml:"read_timeout"`  //nolint:tagliatelle // snake_case is standard YAML convention
+		WriteTimeout string `yaml:"write_timeout"` //nolint:tagliatelle // snake_case is standard YAML convention
+		IdleTimeout  string `yaml:"idle_timeout"`  //nolint:tagliatelle // snake_case is standard YAML convention
 	}
 
 	type Logging struct {

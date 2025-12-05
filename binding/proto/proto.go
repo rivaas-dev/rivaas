@@ -48,7 +48,6 @@ type Option func(*config)
 // config holds Proto-specific binding configuration.
 type config struct {
 	validator      binding.Validator
-	unmarshalOpts  proto.UnmarshalOptions
 	allowPartial   bool
 	discardUnknown bool
 	recursionLimit int
