@@ -35,7 +35,7 @@ func BenchmarkRecordHistogram_Cached(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 	// Pre-create the metric so it's cached
 	_ = recorder.RecordHistogram(ctx, "test.cached.metric", 1.0)
 
@@ -56,7 +56,7 @@ func BenchmarkRecordHistogram_CachedWithAttributes(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 	attrs := []attribute.KeyValue{
 		attribute.String("endpoint", "/api/users"),
 		attribute.String("method", "GET"),
@@ -85,7 +85,7 @@ func BenchmarkRecordHistogram_New(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -106,7 +106,7 @@ func BenchmarkIncrementCounter_Cached(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 	// Pre-create the counter
 	_ = recorder.IncrementCounter(ctx, "test.cached.counter")
 
@@ -127,7 +127,7 @@ func BenchmarkIncrementCounter_CachedWithAttributes(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 	attrs := []attribute.KeyValue{
 		attribute.String("status", "success"),
 		attribute.String("operation", "create"),
@@ -153,7 +153,7 @@ func BenchmarkSetGauge_Cached(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 	// Pre-create the gauge
 	_ = recorder.SetGauge(ctx, "test.cached.gauge", 1.0)
 
@@ -176,7 +176,7 @@ func BenchmarkStart(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -194,7 +194,7 @@ func BenchmarkStart_WithAttributes(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -220,7 +220,7 @@ func BenchmarkStartFinish(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -325,7 +325,7 @@ func BenchmarkCASContention(b *testing.B) {
 		)
 		defer recorder.Shutdown(context.Background())
 
-		ctx := context.Background()
+		ctx := b.Context()
 		b.ResetTimer()
 		b.ReportAllocs()
 
@@ -343,7 +343,7 @@ func BenchmarkCASContention(b *testing.B) {
 		)
 		defer recorder.Shutdown(context.Background())
 
-		ctx := context.Background()
+		ctx := b.Context()
 		b.ResetTimer()
 		b.ReportAllocs()
 
@@ -366,7 +366,7 @@ func BenchmarkCASContention(b *testing.B) {
 		)
 		defer recorder.Shutdown(context.Background())
 
-		ctx := context.Background()
+		ctx := b.Context()
 		b.ResetTimer()
 		b.ReportAllocs()
 
@@ -418,7 +418,7 @@ func BenchmarkMetricCreation_Parallel(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 	var counter int64
 
 	b.ResetTimer()
@@ -461,7 +461,7 @@ func BenchmarkNoopProvider(b *testing.B) {
 	recorder.responseSize, _ = recorder.meter.Int64Histogram("http_response_size_bytes")
 	recorder.errorCount, _ = recorder.meter.Int64Counter("http_errors_total")
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -549,7 +549,7 @@ func BenchmarkRWMutexOperations(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 	// Pre-create a counter to test the read path
 	_ = recorder.IncrementCounter(ctx, "rwmutex_test_counter")
 
@@ -580,7 +580,7 @@ func BenchmarkCASRetryBackoff(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.Run("SequentialCreation", func(b *testing.B) {
 		b.ResetTimer()
@@ -623,7 +623,7 @@ func BenchmarkCustomMetricsCreation(b *testing.B) {
 	)
 	defer recorder.Shutdown(context.Background())
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.Run("SequentialCreation", func(b *testing.B) {
 		b.ResetTimer()
@@ -663,7 +663,7 @@ func TestRecordHistogram_ZeroAlloc(t *testing.T) {
 	)
 	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// Pre-create the metric so it's cached
 	_ = recorder.RecordHistogram(ctx, "prewarmed_histogram", 1.0)
 
@@ -689,7 +689,7 @@ func TestIncrementCounter_ZeroAlloc(t *testing.T) {
 	)
 	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// Pre-create the counter
 	_ = recorder.IncrementCounter(ctx, "prewarmed_counter")
 
@@ -714,7 +714,7 @@ func TestSetGauge_ZeroAlloc(t *testing.T) {
 	)
 	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// Pre-create the gauge
 	_ = recorder.SetGauge(ctx, "prewarmed_gauge", 1.0)
 
@@ -786,7 +786,7 @@ func TestStart_Allocations(t *testing.T) {
 	)
 	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	allocs := testing.AllocsPerRun(100, func() {
 		m := recorder.Start(ctx)

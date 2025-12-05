@@ -75,7 +75,7 @@ func TestRecorderWithHTTP(t *testing.T) {
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -131,7 +131,7 @@ func TestCustomMetrics(t *testing.T) {
 		recorder.Shutdown(context.Background())
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test custom metrics recording - now returns errors
 	err := recorder.RecordHistogram(ctx, "test_histogram", 1.5)
@@ -168,7 +168,7 @@ func TestRecorderMiddleware(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Test the wrapped handler
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(w, req)
 
@@ -208,7 +208,7 @@ func TestRecorderOptions(t *testing.T) {
 			WithServerDisabled(),
 		)
 		assert.True(t, recorder.IsEnabled())
-		assert.Equal(t, "", recorder.ServerAddress())
+		assert.Empty(t, recorder.ServerAddress())
 	})
 }
 
@@ -219,7 +219,7 @@ func TestMiddlewareOptions(t *testing.T) {
 		t.Parallel()
 		cfg := newMiddlewareConfig()
 		WithHeaders("X-Request-ID", "X-Custom-Header")(cfg)
-		assert.Equal(t, 2, len(cfg.recordHeaders))
+		assert.Len(t, cfg.recordHeaders, 2)
 		assert.Contains(t, cfg.recordHeaders, "X-Request-ID")
 		assert.Contains(t, cfg.recordHeaders, "X-Custom-Header")
 	})
@@ -264,13 +264,13 @@ func TestRecorderIntegration(t *testing.T) {
 	handler := Middleware(recorder, WithExcludePaths("/health"))(mux)
 
 	// Test normal route
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// Test health route (should be excluded from metrics)
-	req = httptest.NewRequest("GET", "/health", nil)
+	req = httptest.NewRequest(http.MethodGet, "/health", nil)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -294,7 +294,7 @@ func TestRecorderHandler(t *testing.T) {
 	}))
 
 	// Make a request to generate metrics
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -305,7 +305,7 @@ func TestRecorderHandler(t *testing.T) {
 	require.NotNil(t, metricsHandler)
 
 	// Test that the handler responds
-	req = httptest.NewRequest("GET", "/metrics", nil)
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
 	w = httptest.NewRecorder()
 	metricsHandler.ServeHTTP(w, req)
 
@@ -328,7 +328,7 @@ func TestHandlerErrors(t *testing.T) {
 		})
 
 		handler, err := recorder.Handler()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, handler)
 		assert.Contains(t, err.Error(), "only available with Prometheus provider")
 		assert.Contains(t, err.Error(), "otlp")
@@ -346,7 +346,7 @@ func TestHandlerErrors(t *testing.T) {
 		})
 
 		handler, err := recorder.Handler()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, handler)
 		assert.Contains(t, err.Error(), "only available with Prometheus provider")
 		assert.Contains(t, err.Error(), "stdout")
@@ -368,7 +368,7 @@ func TestShutdown(t *testing.T) {
 		require.NoError(t, err, "Metrics server should start")
 
 		// Shutdown should not error
-		ctx := context.Background()
+		ctx := t.Context()
 		err = recorder.Shutdown(ctx)
 		assert.NoError(t, err)
 	})
@@ -382,7 +382,7 @@ func TestShutdown(t *testing.T) {
 		)
 
 		// Shutdown may error if OTLP collector is not running (expected in tests)
-		ctx := context.Background()
+		ctx := t.Context()
 		err := recorder.Shutdown(ctx)
 		// We don't assert no error here because OTLP requires a running collector
 		// The important thing is that Shutdown() doesn't panic
@@ -397,7 +397,7 @@ func TestShutdown(t *testing.T) {
 		)
 
 		// Shutdown should not error
-		ctx := context.Background()
+		ctx := t.Context()
 		err := recorder.Shutdown(ctx)
 		assert.NoError(t, err)
 	})
@@ -414,15 +414,15 @@ func TestShutdown(t *testing.T) {
 		err := waitForMetricsServer(t, "localhost:9106", 1*time.Second)
 		require.NoError(t, err, "Metrics server should start")
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// First shutdown
 		err = recorder.Shutdown(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Second shutdown should also succeed (idempotent)
 		err = recorder.Shutdown(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Third shutdown for good measure
 		err = recorder.Shutdown(ctx)
@@ -443,7 +443,7 @@ func TestCustomMetricsLimitRaceCondition(t *testing.T) {
 		WithMaxCustomMetrics(10), // Small limit for testing
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create metrics concurrently
 	const numGoroutines = 20
@@ -472,7 +472,7 @@ func TestCustomMetricsLimitRaceCondition(t *testing.T) {
 	assert.LessOrEqual(t, totalMetrics, 10, "Total metrics should not exceed limit")
 
 	// Should have created some metrics (not zero)
-	assert.Greater(t, totalMetrics, 0, "Should have created some metrics")
+	assert.Positive(t, totalMetrics, "Should have created some metrics")
 }
 
 func TestNewReturnsError(t *testing.T) {
@@ -488,7 +488,7 @@ func TestNewReturnsError(t *testing.T) {
 	assert.True(t, recorder.IsEnabled())
 
 	// Shutdown the recorder
-	ctx := context.Background()
+	ctx := t.Context()
 	err = recorder.Shutdown(ctx)
 	assert.NoError(t, err)
 }
@@ -507,7 +507,7 @@ func TestMustNewPanics(t *testing.T) {
 	assert.True(t, recorder.IsEnabled())
 
 	// Shutdown the recorder
-	ctx := context.Background()
+	ctx := t.Context()
 	err := recorder.Shutdown(ctx)
 	assert.NoError(t, err)
 }
@@ -522,7 +522,7 @@ func TestCustomMetricsLimitEnforcement(t *testing.T) {
 		WithMaxCustomMetrics(3),
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create 3 metrics (should succeed)
 	err := recorder.IncrementCounter(ctx, "counter1")
@@ -552,7 +552,7 @@ func TestSensitiveHeaderFiltering(t *testing.T) {
 	WithHeaders("Authorization", "X-Request-ID", "Cookie", "X-Custom")(cfg)
 
 	// Sensitive headers should be filtered out
-	assert.Equal(t, 2, len(cfg.recordHeaders))
+	assert.Len(t, cfg.recordHeaders, 2)
 	assert.Contains(t, cfg.recordHeaders, "X-Request-ID")
 	assert.Contains(t, cfg.recordHeaders, "X-Custom")
 	// Authorization and Cookie should be filtered

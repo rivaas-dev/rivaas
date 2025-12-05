@@ -53,11 +53,11 @@ func TestWithCustomMeterProvider(t *testing.T) {
 	_ = recorder.SetGauge(context.Background(), "test_gauge", 42)
 
 	// Shutdown should NOT shut down the custom provider (user manages it)
-	err = recorder.Shutdown(context.Background())
-	assert.NoError(t, err)
+	err = recorder.Shutdown(t.Context())
+	require.NoError(t, err)
 
 	// User should shutdown their own provider
-	err = customProvider.Shutdown(context.Background())
+	err = customProvider.Shutdown(t.Context())
 	assert.NoError(t, err)
 }
 
@@ -85,7 +85,7 @@ func TestCustomProviderIgnoresBuiltInProvider(t *testing.T) {
 	assert.Nil(t, recorder.prometheusHandler) // Prometheus handler shouldn't be initialized
 	assert.Nil(t, recorder.metricsServer)     // Prometheus server shouldn't be started
 
-	err = customProvider.Shutdown(context.Background())
+	err = customProvider.Shutdown(t.Context())
 	assert.NoError(t, err)
 }
 
@@ -135,6 +135,6 @@ func TestCustomProviderWithGlobalRegistration(t *testing.T) {
 	assert.True(t, recorder.customMeterProvider)
 	assert.True(t, recorder.registerGlobal)
 
-	err = customProvider.Shutdown(context.Background())
+	err = customProvider.Shutdown(t.Context())
 	assert.NoError(t, err)
 }

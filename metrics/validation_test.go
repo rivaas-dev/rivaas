@@ -71,7 +71,7 @@ func TestValidation(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.Equal(t, PrometheusProvider, recorder.Provider())
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 
 		// WithStdout alone should work
 		recorder, err = New(
@@ -80,7 +80,7 @@ func TestValidation(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.Equal(t, StdoutProvider, recorder.Provider())
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	t.Run("EmptyServiceName", func(t *testing.T) {
@@ -211,10 +211,10 @@ func TestCustomMetricsLimitRaceConditionFixed(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const numGoroutines = 50
 	const metricsPerGoroutine = 10
@@ -243,12 +243,12 @@ func TestCustomMetricsLimitRaceConditionFixed(t *testing.T) {
 	assert.LessOrEqual(t, totalMetrics, 100, "Total metrics should not exceed limit")
 
 	// Should have created some metrics (at least the limit)
-	assert.Greater(t, totalMetrics, 0, "Should have created some metrics")
+	assert.Positive(t, totalMetrics, "Should have created some metrics")
 
 	// Check that failures were recorded if limit was hit
 	if totalMetrics >= 100 {
 		failures := recorder.getAtomicCustomMetricFailures()
-		assert.Greater(t, failures, int64(0), "Should have recorded failures when limit hit")
+		assert.Positive(t, failures, "Should have recorded failures when limit hit")
 	}
 }
 
@@ -263,10 +263,10 @@ func TestCustomMetricsDoubleCheckRace(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const numGoroutines = 20
 	const metricName = "shared_counter"
@@ -303,7 +303,7 @@ func TestShutdownPreventsServerRestart(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Shutdown
-	ctx := context.Background()
+	ctx := t.Context()
 	err := recorder.Shutdown(ctx)
 	require.NoError(t, err)
 
@@ -333,11 +333,11 @@ func TestContextCancellationInStart(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	// Create cancelled context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	// Start should not panic with cancelled context
@@ -359,11 +359,11 @@ func TestContextCancellationInCustomMetrics(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	// Create cancelled context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	// These should not panic - they will still record (OTel handles cancellation)
@@ -382,10 +382,10 @@ func TestRWMutexOperationsSafety(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test concurrent reads and writes
 	t.Run("ConcurrentReadsWrites", func(t *testing.T) {
@@ -434,10 +434,10 @@ func TestMetricsCreationErrorHandling(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create metrics up to the limit
 	for i := range 5 {
@@ -459,10 +459,12 @@ func TestMetricsCreationErrorHandling(t *testing.T) {
 
 	// Verify failure was recorded
 	failures := recorder.getAtomicCustomMetricFailures()
-	assert.Greater(t, failures, int64(0), "Should have recorded failure")
+	assert.Positive(t, failures, "Should have recorded failure")
 }
 
 // TestMetricNameValidation tests metric name validation including reserved prefixes
+//
+//nolint:tparallel // Subtests share recorder state; parallel execution would cause race conditions
 func TestMetricNameValidation(t *testing.T) {
 	t.Parallel()
 
@@ -472,10 +474,10 @@ func TestMetricNameValidation(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name        string
@@ -645,9 +647,9 @@ func TestErrorMessages_MetricLimitReached(t *testing.T) {
 		WithMaxCustomMetrics(3),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Fill up the limit
 	for i := range 3 {
@@ -806,7 +808,7 @@ func TestErrorMessages_HandlerNotAvailable(t *testing.T) {
 			WithOTLP("http://localhost:4318"),
 			WithServiceName("handler-error-test"),
 		)
-		t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+		t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
 		_, err := recorder.Handler()
 		require.Error(t, err)

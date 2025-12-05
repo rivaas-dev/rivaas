@@ -47,7 +47,7 @@ func TestProviderInitialization(t *testing.T) {
 		require.NotNil(t, handler)
 
 		// Cleanup
-		err = recorder.Shutdown(context.Background())
+		err = recorder.Shutdown(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -63,7 +63,7 @@ func TestProviderInitialization(t *testing.T) {
 		assert.Equal(t, OTLPProvider, recorder.Provider())
 
 		// Cleanup (may error if collector not running)
-		_ = recorder.Shutdown(context.Background())
+		_ = recorder.Shutdown(t.Context())
 	})
 
 	t.Run("OTLPProviderWithHTTPS", func(t *testing.T) {
@@ -76,7 +76,7 @@ func TestProviderInitialization(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, recorder)
 
-		_ = recorder.Shutdown(context.Background())
+		_ = recorder.Shutdown(t.Context())
 	})
 
 	t.Run("OTLPProviderWithPath", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestProviderInitialization(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, recorder)
 
-		_ = recorder.Shutdown(context.Background())
+		_ = recorder.Shutdown(t.Context())
 	})
 
 	t.Run("StdoutProvider", func(t *testing.T) {
@@ -104,13 +104,13 @@ func TestProviderInitialization(t *testing.T) {
 		assert.Equal(t, StdoutProvider, recorder.Provider())
 
 		// Test that metrics can be recorded
-		ctx := context.Background()
+		ctx := t.Context()
 		_ = recorder.IncrementCounter(ctx, "test_counter")
 		_ = recorder.RecordHistogram(ctx, "test_histogram", 1.5)
 		_ = recorder.SetGauge(ctx, "test_gauge", 42.0)
 
 		// Cleanup
-		err = recorder.Shutdown(context.Background())
+		err = recorder.Shutdown(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -125,7 +125,7 @@ func TestProviderInitialization(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, recorder)
 
-		err = recorder.Shutdown(context.Background())
+		err = recorder.Shutdown(t.Context())
 		assert.NoError(t, err)
 	})
 }
@@ -146,7 +146,7 @@ func TestPortDiscovery(t *testing.T) {
 			WithStrictPort(),
 		)
 		require.NoError(t, err)
-		defer config1.Shutdown(context.Background())
+		defer config1.Shutdown(t.Context())
 
 		// Wait for server to start
 		err = waitForMetricsServer(t, "localhost:19307", 1*time.Second)
@@ -169,7 +169,7 @@ func TestPortDiscovery(t *testing.T) {
 		// The failure is logged but doesn't prevent New() from succeeding
 		assert.Equal(t, ":19307", config2.ServerAddress())
 
-		config2.Shutdown(context.Background())
+		config2.Shutdown(t.Context())
 	})
 
 	t.Run("FlexiblePortFindsAlternative", func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestPortDiscovery(t *testing.T) {
 			WithServiceName("test-service-1"),
 		)
 		require.NoError(t, err)
-		defer config1.Shutdown(context.Background())
+		defer config1.Shutdown(t.Context())
 
 		// Wait for server to start
 		time.Sleep(100 * time.Millisecond)
@@ -194,7 +194,7 @@ func TestPortDiscovery(t *testing.T) {
 			// No WithStrictPort() - should auto-discover
 		)
 		require.NoError(t, err)
-		defer config2.Shutdown(context.Background())
+		defer config2.Shutdown(t.Context())
 
 		// Should have found a different port
 		assert.NotEqual(t, ":19308", config2.ServerAddress())
@@ -218,7 +218,7 @@ func TestValidationEdgeCases(t *testing.T) {
 		require.NoError(t, err) // Should succeed despite warning
 		require.NotNil(t, recorder)
 
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	t.Run("CustomPrometheusPath", func(t *testing.T) {
@@ -232,7 +232,7 @@ func TestValidationEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "/custom-metrics", recorder.metricsPath)
 
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	t.Run("ExcludeMultiplePaths_Middleware", func(t *testing.T) {
@@ -270,7 +270,7 @@ func TestShutdownEdgeCases(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = recorder.Shutdown(context.Background())
+		err = recorder.Shutdown(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -287,7 +287,7 @@ func TestShutdownEdgeCases(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		// Create cancelled context
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		// Shutdown with cancelled context - should still work
@@ -309,7 +309,7 @@ func TestShutdownEdgeCases(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		// Create context with very short timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Millisecond)
 		defer cancel()
 
 		// Shutdown might timeout but shouldn't panic
@@ -318,6 +318,8 @@ func TestShutdownEdgeCases(t *testing.T) {
 }
 
 // TestMetricNameValidationEdgeCases tests additional validation scenarios
+//
+//nolint:tparallel // Subtests share recorder state; parallel execution would cause race conditions
 func TestMetricNameValidationEdgeCases(t *testing.T) {
 	t.Parallel()
 
@@ -345,10 +347,10 @@ func TestMetricNameValidationEdgeCases(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -411,11 +413,11 @@ func TestResponseWriterEdgeCases(t *testing.T) {
 		rw := &responseWriter{ResponseWriter: rec}
 
 		n1, err := rw.Write([]byte("Hello "))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 6, n1)
 
 		n2, err := rw.Write([]byte("World"))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 5, n2)
 
 		assert.Equal(t, 11, rw.Size())
@@ -461,7 +463,7 @@ func TestMetricsWithDisabledState(t *testing.T) {
 		enabled: false,
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// These should all be no-ops (return nil for disabled recorder)
 	_ = recorder.IncrementCounter(ctx, "test")
@@ -472,8 +474,8 @@ func TestMetricsWithDisabledState(t *testing.T) {
 	assert.Nil(t, result)
 
 	// Shutdown should succeed
-	err := recorder.Shutdown(context.Background())
-	assert.NoError(t, err)
+	err := recorder.Shutdown(t.Context())
+	require.NoError(t, err)
 
 	// IsEnabled should return false
 	assert.False(t, recorder.IsEnabled())
@@ -482,5 +484,5 @@ func TestMetricsWithDisabledState(t *testing.T) {
 	assert.Equal(t, Provider(""), recorder.Provider())
 
 	// ServerAddress should return empty string
-	assert.Equal(t, "", recorder.ServerAddress())
+	assert.Empty(t, recorder.ServerAddress())
 }

@@ -178,18 +178,18 @@ func TestIntegration_CustomMetrics(t *testing.T) {
 	err := metrics.WaitForMetricsServer(t, serverAddr, 2*time.Second)
 	require.NoError(t, err, "metrics server should start")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Record various custom metrics
 	for i := range 10 {
 		err := recorder.IncrementCounter(ctx, "business_events_total")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		err = recorder.RecordHistogram(ctx, "processing_duration_seconds", float64(i)*0.1)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		err = recorder.SetGauge(ctx, "queue_depth", float64(i*5))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	// Verify custom metrics count
@@ -312,16 +312,16 @@ func TestIntegration_GracefulShutdown(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Record some metrics before shutdown
-	ctx := context.Background()
+	ctx := t.Context()
 	err = recorder.IncrementCounter(ctx, "test_counter")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Graceful shutdown
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	err = recorder.Shutdown(shutdownCtx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify idempotent shutdown
 	err = recorder.Shutdown(shutdownCtx)

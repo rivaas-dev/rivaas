@@ -46,7 +46,7 @@ func TestStress_RapidCreateShutdownCycles(t *testing.T) {
 				WithServerDisabled(),
 			)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			// Rapidly record some metrics
 			for j := range 50 {
@@ -77,7 +77,7 @@ func TestStress_ConcurrentShutdownRace(t *testing.T) {
 	)
 
 	// Record some metrics first
-	ctx := context.Background()
+	ctx := t.Context()
 	for i := range 20 {
 		_ = recorder.IncrementCounter(ctx, fmt.Sprintf("counter_%d", i))
 	}
@@ -114,7 +114,7 @@ func TestStress_MetricRecordingDuringShutdown(t *testing.T) {
 		WithServerDisabled(),
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	var wg sync.WaitGroup
 
 	// Start recording goroutines
@@ -177,9 +177,9 @@ func TestStress_HighConcurrencyMetricCreation(t *testing.T) {
 		WithMaxCustomMetrics(1000),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	const numGoroutines = 200
 	const operationsPerGoroutine = 100
 
@@ -208,7 +208,7 @@ func TestStress_HighConcurrencyMetricCreation(t *testing.T) {
 
 	// Verify the recorder is still functional
 	count := recorder.CustomMetricCount()
-	assert.Greater(t, count, 0, "Should have created some metrics")
+	assert.Positive(t, count, "Should have created some metrics")
 	assert.LessOrEqual(t, count, 1000, "Should not exceed limit")
 }
 
@@ -313,9 +313,9 @@ func TestStress_MixedReadWriteOperations(t *testing.T) {
 		WithMaxCustomMetrics(500),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	const numReaders = 50
 	const numWriters = 50
 	const operationsPerGoroutine = 500
@@ -348,7 +348,7 @@ func TestStress_MixedReadWriteOperations(t *testing.T) {
 
 	// Verify recorder is still consistent
 	count := recorder.CustomMetricCount()
-	assert.Greater(t, count, 0, "Should have created some metrics")
+	assert.Positive(t, count, "Should have created some metrics")
 	assert.LessOrEqual(t, count, 500, "Should not exceed limit")
 }
 
@@ -367,7 +367,7 @@ func TestStress_RequestMetricsLifecycle(t *testing.T) {
 	)
 	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	const numGoroutines = 100
 	const requestsPerGoroutine = 100
 
@@ -375,7 +375,7 @@ func TestStress_RequestMetricsLifecycle(t *testing.T) {
 	wg.Add(numGoroutines)
 
 	for i := range numGoroutines {
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := range requestsPerGoroutine {
 				// Full request lifecycle
@@ -461,6 +461,6 @@ func TestStress_PrometheusServerStability(t *testing.T) {
 	wg.Wait()
 
 	// Clean shutdown
-	err = recorder.Shutdown(context.Background())
+	err = recorder.Shutdown(t.Context())
 	assert.NoError(t, err)
 }

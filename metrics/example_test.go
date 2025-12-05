@@ -76,6 +76,8 @@ func ExampleRecorder_RecordHistogram() {
 	_ = recorder.RecordHistogram(ctx, "processing_duration", 2.3)
 }
 
+//nolint:testableexamples // Output is non-deterministic (contains timestamps)
+
 // ExampleRecorder_IncrementCounter demonstrates incrementing a counter.
 func ExampleRecorder_IncrementCounter() {
 	recorder := metrics.MustNew(
@@ -98,6 +100,8 @@ func ExampleRecorder_IncrementCounter() {
 	_ = recorder.IncrementCounter(ctx, "events_total")
 }
 
+//nolint:testableexamples // Output is non-deterministic (contains timestamps)
+
 // ExampleRecorder_SetGauge demonstrates setting a gauge value.
 func ExampleRecorder_SetGauge() {
 	recorder := metrics.MustNew(
@@ -118,6 +122,8 @@ func ExampleRecorder_SetGauge() {
 	// Or fire-and-forget (ignore errors)
 	_ = recorder.SetGauge(ctx, "cache_size", 1024)
 }
+
+//nolint:testableexamples // Output is non-deterministic (contains timestamps)
 
 // ExampleWithOTLP demonstrates configuring OTLP exporter.
 func ExampleWithOTLP() {

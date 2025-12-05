@@ -42,7 +42,7 @@ func TestProperty_MetricCountNeverExceedsLimit(t *testing.T) {
 	)
 	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	var violations atomic.Int64
 
 	var wg sync.WaitGroup
@@ -87,7 +87,7 @@ func TestProperty_SameMetricNameReturnsSameInstance(t *testing.T) {
 	)
 	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	const metricName = "shared_counter"
 	const numGoroutines = 50
 
@@ -126,7 +126,7 @@ func TestProperty_FailuresAreTracked(t *testing.T) {
 	)
 	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create metrics until limit, then continue to trigger failures
 	var successCount int
@@ -172,7 +172,7 @@ func TestProperty_ShutdownIsIdempotent(t *testing.T) {
 		WithServerDisabled(),
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Call shutdown multiple times from multiple goroutines
 	const numGoroutines = 10
@@ -213,7 +213,7 @@ func TestProperty_DisabledRecorderNeverRecords(t *testing.T) {
 		enabled: false,
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// All metric operations should be no-ops
 	err := recorder.IncrementCounter(ctx, "test_counter")
@@ -307,7 +307,7 @@ func TestProperty_MetricLimitEnforcementIsAtomic(t *testing.T) {
 	)
 	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	var successCount atomic.Int64
 	var maxObserved atomic.Int64
 
