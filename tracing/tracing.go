@@ -248,7 +248,7 @@ func newDefaultTracer() *Tracer {
 
 	// Initialize string pool for reusable string builders
 	t.spanNamePool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &strings.Builder{}
 		},
 	}
@@ -460,7 +460,7 @@ func (t *Tracer) FinishSpan(span trace.Span, statusCode int) {
 //
 //	tracer.SetSpanAttribute(span, "user.id", 12345)
 //	tracer.SetSpanAttribute(span, "user.premium", true)
-func (t *Tracer) SetSpanAttribute(span trace.Span, key string, value interface{}) {
+func (t *Tracer) SetSpanAttribute(span trace.Span, key string, value any) {
 	if !t.enabled || span == nil || !span.IsRecording() {
 		return
 	}
@@ -606,7 +606,7 @@ func (t *Tracer) FinishRequestSpan(span trace.Span, statusCode int) {
 }
 
 // buildAttribute creates an OpenTelemetry attribute from a key-value pair.
-func buildAttribute(key string, value interface{}) attribute.KeyValue {
+func buildAttribute(key string, value any) attribute.KeyValue {
 	switch v := value.(type) {
 	case string:
 		return attribute.String(key, v)
@@ -673,7 +673,7 @@ func SpanID(ctx context.Context) string {
 
 // SetSpanAttributeFromContext adds an attribute to the current span from context.
 // This is a no-op if tracing is not active.
-func SetSpanAttributeFromContext(ctx context.Context, key string, value interface{}) {
+func SetSpanAttributeFromContext(ctx context.Context, key string, value any) {
 	span := trace.SpanFromContext(ctx)
 	if !span.IsRecording() {
 		return

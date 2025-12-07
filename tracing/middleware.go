@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -400,12 +401,7 @@ func shouldRecordParam(cfg *middlewareConfig, param string) bool {
 
 	// If whitelist is configured, param must be in the list
 	if cfg.recordParamsList != nil {
-		for _, p := range cfg.recordParamsList {
-			if p == param {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(cfg.recordParamsList, param)
 	}
 
 	// No whitelist - record all params
@@ -524,7 +520,7 @@ func (ct *ContextTracing) SpanID() string {
 }
 
 // SetSpanAttribute adds an attribute to the current span.
-func (ct *ContextTracing) SetSpanAttribute(key string, value interface{}) {
+func (ct *ContextTracing) SetSpanAttribute(key string, value any) {
 	if ct.span == nil || !ct.span.IsRecording() {
 		return
 	}

@@ -231,7 +231,7 @@ func BenchmarkExcludedPaths(b *testing.B) {
 		tracer := MustNew()
 		pf := newPathFilter()
 		paths := make([]string, 100)
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			paths[i] = fmt.Sprintf("/excluded%d", i)
 		}
 		pf.addPaths(paths...)

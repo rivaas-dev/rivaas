@@ -250,11 +250,11 @@ func TestSamplingRate(t *testing.T) {
 
 		// Make multiple requests to verify sampling doesn't cause issues
 		const numRequests = 100
-		for i := 0; i < numRequests; i++ {
+		for i := range numRequests {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
-			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, http.StatusOK, w.Code, "request %d: expected status %d, got %d", i, http.StatusOK, w.Code)
 		}
 
 		// Sampling logic executed successfully - if we reach here without panic, the test passes
@@ -430,18 +430,14 @@ func TestConcurrentResponseWriter(t *testing.T) {
 	// Test concurrent requests
 	const numRequests = 50
 	var wg sync.WaitGroup
-	wg.Add(numRequests)
-
-	for i := 0; i < numRequests; i++ {
-		go func() {
-			defer wg.Done()
+	for i := range numRequests {
+		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/concurrent", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
-			assert.Equal(t, http.StatusOK, w.Code)
-		}()
+			assert.Equal(t, http.StatusOK, w.Code, "request %d: expected status %d, got %d", i, http.StatusOK, w.Code)
+		})
 	}
-
 	wg.Wait()
 }
 
@@ -467,7 +463,7 @@ func TestContextTracingHelpers(t *testing.T) {
 		spanID := SpanID(ctx)
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf(`{"trace_id":"%s","span_id":"%s"}`, traceID, spanID)))
+		w.Write(fmt.Appendf(nil, `{"trace_id":"%s","span_id":"%s"}`, traceID, spanID))
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -643,14 +639,12 @@ func TestTracer_EdgeCases(t *testing.T) {
 		ctx := t.Context()
 
 		var wg sync.WaitGroup
-		for i := 0; i < 10; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range 10 {
+			wg.Go(func() {
 				_, span := tracer.StartSpan(ctx, "test")
 				tracer.SetSpanAttribute(span, "key", "value")
 				tracer.FinishSpan(span, http.StatusOK)
-			}()
+			})
 		}
 
 		wg.Wait()
@@ -1202,17 +1196,15 @@ func TestConcurrentShutdown(t *testing.T) {
 
 	const numGoroutines = 100
 	var wg sync.WaitGroup
-	wg.Add(numGoroutines)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
-	for i := 0; i < numGoroutines; i++ {
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			err := tracer.Shutdown(ctx)
 			assert.NoError(t, err)
-		}()
+		})
 	}
 
 	wg.Wait()

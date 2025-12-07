@@ -158,17 +158,15 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	var wg sync.WaitGroup
 	errors := make(chan error, numRequests)
 
-	for i := 0; i < numRequests; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numRequests {
+		wg.Go(func() {
 			req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			if w.Code != http.StatusOK {
 				errors <- assert.AnError
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -399,8 +397,6 @@ func TestIntegration_ProviderTypes(t *testing.T) {
 }
 
 // TestIntegration_ShutdownBehavior tests graceful shutdown behavior.
-//
-//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ShutdownBehavior(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -412,7 +408,7 @@ func TestIntegration_ShutdownBehavior(t *testing.T) {
 
 		tracer, err := tracing.New(
 			tracing.WithServiceName("test"),
-			tracing.WithStdout(),
+			tracing.WithNoop(),
 		)
 		require.NoError(t, err)
 
@@ -421,10 +417,11 @@ func TestIntegration_ShutdownBehavior(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
+			require.Equal(t, http.StatusOK, w.Code, "request %d failed", i)
 		}
 
 		// Shutdown with timeout
@@ -432,7 +429,7 @@ func TestIntegration_ShutdownBehavior(t *testing.T) {
 		defer cancel()
 
 		err = tracer.Shutdown(ctx)
-		assert.NoError(t, err)
+		assert.NoError(t, err, "graceful shutdown should succeed")
 	})
 
 	t.Run("idempotent shutdown", func(t *testing.T) {
@@ -440,7 +437,7 @@ func TestIntegration_ShutdownBehavior(t *testing.T) {
 
 		tracer, err := tracing.New(
 			tracing.WithServiceName("test"),
-			tracing.WithStdout(),
+			tracing.WithNoop(),
 		)
 		require.NoError(t, err)
 
@@ -448,12 +445,12 @@ func TestIntegration_ShutdownBehavior(t *testing.T) {
 
 		// Multiple shutdowns should be safe
 		err = tracer.Shutdown(ctx)
-		require.NoError(t, err)
+		require.NoError(t, err, "first shutdown should succeed")
 
 		err = tracer.Shutdown(ctx)
-		require.NoError(t, err)
+		require.NoError(t, err, "second shutdown should be idempotent")
 
 		err = tracer.Shutdown(ctx)
-		assert.NoError(t, err)
+		assert.NoError(t, err, "third shutdown should be idempotent")
 	})
 }
