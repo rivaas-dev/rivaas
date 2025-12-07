@@ -67,7 +67,7 @@ func (suite *StressTestSuite) TestRouterStress() {
 	for range concurrency {
 		wg.Go(func() {
 			for range requests / concurrency {
-				req := httptest.NewRequest("GET", "/api/v1/users/123/posts/456", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/users/123/posts/456", nil)
 				w := httptest.NewRecorder()
 				suite.router.ServeHTTP(w, req)
 
@@ -96,7 +96,7 @@ func BenchmarkRouterConcurrent(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
-		req := httptest.NewRequest("GET", "/users/123", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 		w := httptest.NewRecorder()
 
 		for pb.Next() {
@@ -112,7 +112,7 @@ func BenchmarkRouterMemoryAllocations(b *testing.B) {
 		c.Stringf(http.StatusOK, "User: %s", c.Param("id"))
 	})
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()

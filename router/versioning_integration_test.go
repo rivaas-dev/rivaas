@@ -67,7 +67,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			DescribeTable("non-versioned routes bypass version detection",
 				func(path, header, expected string) {
-					req := httptest.NewRequest("GET", path, nil)
+					req := httptest.NewRequest(http.MethodGet, path, nil)
 					if header != "" {
 						req.Header.Set("X-API-Version", header)
 					}
@@ -96,7 +96,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			DescribeTable("versioned routes respect version detection",
 				func(path, header, expected string) {
-					req := httptest.NewRequest("GET", path, nil)
+					req := httptest.NewRequest(http.MethodGet, path, nil)
 					if header != "" {
 						req.Header.Set("X-API-Version", header)
 					}
@@ -143,7 +143,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("non-versioned route is accessible without path version", func() {
-				req := httptest.NewRequest("GET", "/health", nil)
+				req := httptest.NewRequest(http.MethodGet, "/health", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -153,7 +153,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("versioned routes work with path versioning", func() {
-				req := httptest.NewRequest("GET", "/v2/data", nil)
+				req := httptest.NewRequest(http.MethodGet, "/v2/data", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -190,7 +190,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("non-versioned route has empty version", func() {
-				req := httptest.NewRequest("GET", "/health", nil)
+				req := httptest.NewRequest(http.MethodGet, "/health", nil)
 				req.Header.Set("X-API-Version", "v1") // Should be ignored
 				w := httptest.NewRecorder()
 
@@ -201,7 +201,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("versioned route has version set", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v1")
 				w := httptest.NewRecorder()
 
@@ -273,15 +273,15 @@ var _ = Describe("Versioning Integration", func() {
 						Expect(w.Body.String()).To(Equal(expected))
 					}
 				},
-				Entry("v1 GET", "GET", "/users", "v1", "v1 users", http.StatusOK),
-				Entry("v2 GET", "GET", "/users", "v2", "v2 users", http.StatusOK),
-				Entry("v1 POST", "POST", "/users", "v1", "v1 user created", http.StatusCreated),
-				Entry("v2 POST", "POST", "/users", "v2", "v2 user created", http.StatusCreated),
-				Entry("v1 PUT", "PUT", "/users/123", "v1", "v1 updated user 123", http.StatusOK),
-				Entry("v1 DELETE", "DELETE", "/users/456", "v1", "v1 deleted user 456", http.StatusOK),
-				Entry("v1 PATCH", "PATCH", "/users/789", "v1", "v1 patched user 789", http.StatusOK),
-				Entry("v1 OPTIONS", "OPTIONS", "/users", "v1", "v1 options", http.StatusOK),
-				Entry("v1 HEAD", "HEAD", "/users", "v1", "", http.StatusOK),
+				Entry("v1 GET", http.MethodGet, "/users", "v1", "v1 users", http.StatusOK),
+				Entry("v2 GET", http.MethodGet, "/users", "v2", "v2 users", http.StatusOK),
+				Entry("v1 POST", http.MethodPost, "/users", "v1", "v1 user created", http.StatusCreated),
+				Entry("v2 POST", http.MethodPost, "/users", "v2", "v2 user created", http.StatusCreated),
+				Entry("v1 PUT", http.MethodPut, "/users/123", "v1", "v1 updated user 123", http.StatusOK),
+				Entry("v1 DELETE", http.MethodDelete, "/users/456", "v1", "v1 deleted user 456", http.StatusOK),
+				Entry("v1 PATCH", http.MethodPatch, "/users/789", "v1", "v1 patched user 789", http.StatusOK),
+				Entry("v1 OPTIONS", http.MethodOptions, "/users", "v1", "v1 options", http.StatusOK),
+				Entry("v1 HEAD", http.MethodHead, "/users", "v1", "", http.StatusOK),
 			)
 		})
 
@@ -326,13 +326,13 @@ var _ = Describe("Versioning Integration", func() {
 						Expect(w.Body.String()).To(Equal(expected))
 					}
 				},
-				Entry("GET", "GET", "/api/users", "v1 api users", http.StatusOK),
-				Entry("POST", "POST", "/api/users", "v1 api user created", http.StatusCreated),
-				Entry("PUT", "PUT", "/api/users/123", "v1 api updated 123", http.StatusOK),
-				Entry("DELETE", "DELETE", "/api/users/456", "v1 api deleted 456", http.StatusOK),
-				Entry("PATCH", "PATCH", "/api/users/789", "v1 api patched 789", http.StatusOK),
-				Entry("OPTIONS", "OPTIONS", "/api/users", "v1 api options", http.StatusOK),
-				Entry("HEAD", "HEAD", "/api/users", "", http.StatusOK),
+				Entry("GET", http.MethodGet, "/api/users", "v1 api users", http.StatusOK),
+				Entry("POST", http.MethodPost, "/api/users", "v1 api user created", http.StatusCreated),
+				Entry("PUT", http.MethodPut, "/api/users/123", "v1 api updated 123", http.StatusOK),
+				Entry("DELETE", http.MethodDelete, "/api/users/456", "v1 api deleted 456", http.StatusOK),
+				Entry("PATCH", http.MethodPatch, "/api/users/789", "v1 api patched 789", http.StatusOK),
+				Entry("OPTIONS", http.MethodOptions, "/api/users", "v1 api options", http.StatusOK),
+				Entry("HEAD", http.MethodHead, "/api/users", "", http.StatusOK),
 			)
 		})
 
@@ -351,7 +351,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("routes to compiled versioned routes", func() {
-				req := httptest.NewRequest("GET", "/static1", nil)
+				req := httptest.NewRequest(http.MethodGet, "/static1", nil)
 				req.Header.Set("X-API-Version", "v1")
 				w := httptest.NewRecorder()
 
@@ -386,7 +386,7 @@ var _ = Describe("Versioning Integration", func() {
 
 		DescribeTable("version selection from query parameter",
 			func(url, expected string) {
-				req := httptest.NewRequest("GET", url, nil)
+				req := httptest.NewRequest(http.MethodGet, url, nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -429,7 +429,7 @@ var _ = Describe("Versioning Integration", func() {
 		})
 
 		It("routes to v1 with ClientV1 user agent", func() {
-			req := httptest.NewRequest("GET", "/data", nil)
+			req := httptest.NewRequest(http.MethodGet, "/data", nil)
 			req.Header.Set("User-Agent", "ClientV1")
 			w := httptest.NewRecorder()
 
@@ -439,7 +439,7 @@ var _ = Describe("Versioning Integration", func() {
 		})
 
 		It("routes to v2 with ClientV2 user agent", func() {
-			req := httptest.NewRequest("GET", "/data", nil)
+			req := httptest.NewRequest(http.MethodGet, "/data", nil)
 			req.Header.Set("User-Agent", "ClientV2")
 			w := httptest.NewRecorder()
 
@@ -479,7 +479,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			DescribeTable("path version selection",
 				func(path, expected string, status int) {
-					req := httptest.NewRequest("GET", path, nil)
+					req := httptest.NewRequest(http.MethodGet, path, nil)
 					w := httptest.NewRecorder()
 
 					r.ServeHTTP(w, req)
@@ -518,7 +518,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			DescribeTable("path versioning with API prefix",
 				func(path, expected string, status int) {
-					req := httptest.NewRequest("GET", path, nil)
+					req := httptest.NewRequest(http.MethodGet, path, nil)
 					w := httptest.NewRecorder()
 
 					r.ServeHTTP(w, req)
@@ -560,7 +560,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			DescribeTable("path priority over other methods",
 				func(path, header, expected string) {
-					req := httptest.NewRequest("GET", path, nil)
+					req := httptest.NewRequest(http.MethodGet, path, nil)
 					if header != "" {
 						req.Header.Set("X-API-Version", header)
 					}
@@ -600,7 +600,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			DescribeTable("path versioning with validation",
 				func(path, expected string, status int) {
-					req := httptest.NewRequest("GET", path, nil)
+					req := httptest.NewRequest(http.MethodGet, path, nil)
 					w := httptest.NewRecorder()
 
 					r.ServeHTTP(w, req)
@@ -640,7 +640,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			DescribeTable("path versioned groups",
 				func(path, expected string, status int) {
-					req := httptest.NewRequest("GET", path, nil)
+					req := httptest.NewRequest(http.MethodGet, path, nil)
 					w := httptest.NewRecorder()
 
 					r.ServeHTTP(w, req)
@@ -724,7 +724,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				// Path versioning not enabled, so path should remain unchanged
 				// Route registered as "/users" should match "/users" (not "/v1/users")
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v1")
 				w := httptest.NewRecorder()
 
@@ -748,7 +748,7 @@ var _ = Describe("Versioning Integration", func() {
 				})
 
 				// Request with no version in path
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -771,7 +771,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				// Request with path that exactly matches prefix (no version segment)
 				// This should trigger the condition where prefix length >= path length
-				req := httptest.NewRequest("GET", "/very/long/prefix/v", nil)
+				req := httptest.NewRequest(http.MethodGet, "/very/long/prefix/v", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -796,7 +796,7 @@ var _ = Describe("Versioning Integration", func() {
 				})
 
 				// Request with version at end: "/v1"
-				req := httptest.NewRequest("GET", "/v1", nil)
+				req := httptest.NewRequest(http.MethodGet, "/v1", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -822,7 +822,7 @@ var _ = Describe("Versioning Integration", func() {
 				// Request with path "/v2/users" but detected version is "v1"
 				// This happens when version detection fails but path has different version
 				// The stripPathVersion will check if version matches, and if not, return path unchanged
-				req := httptest.NewRequest("GET", "/v2/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/v2/users", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -849,7 +849,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				// Request: "/api/v1/" - after stripping prefix "/api/v" and version "1",
 				// we should get "/" (root)
-				req := httptest.NewRequest("GET", "/api/v1/", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -873,7 +873,7 @@ var _ = Describe("Versioning Integration", func() {
 				})
 
 				// Request "/v1/" - version at end (after trailing slash handling)
-				req := httptest.NewRequest("GET", "/v1/", nil)
+				req := httptest.NewRequest(http.MethodGet, "/v1/", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -902,7 +902,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("selects version from Accept header", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("Accept", "application/vnd.myapi.v2+json")
 				w := httptest.NewRecorder()
 
@@ -929,7 +929,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("selects version from multiple media types", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("Accept", "text/html, application/json, application/vnd.myapi.v3+json, */*")
 				w := httptest.NewRecorder()
 
@@ -964,7 +964,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("includes deprecation headers", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v1")
 				w := httptest.NewRecorder()
 
@@ -1004,7 +1004,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("does not include deprecation headers", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v2")
 				w := httptest.NewRecorder()
 
@@ -1037,7 +1037,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("includes Link header with migration docs", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v1")
 				w := httptest.NewRecorder()
 
@@ -1074,7 +1074,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("applies lifecycle configuration", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v1")
 				w := httptest.NewRecorder()
 
@@ -1115,7 +1115,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("calls callback on version detection", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v2")
 				w := httptest.NewRecorder()
 
@@ -1151,7 +1151,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("calls callback when version is missing", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				// No X-API-Version header set
 				w := httptest.NewRecorder()
 
@@ -1188,7 +1188,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("calls callback on invalid version", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v99") // Invalid version
 				w := httptest.NewRecorder()
 
@@ -1227,7 +1227,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("detects path version", func() {
-				req := httptest.NewRequest("GET", "/v2/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/v2/users", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -1238,7 +1238,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("detects header version", func() {
 				methods = []string{}
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v2")
 				w := httptest.NewRecorder()
 
@@ -1250,7 +1250,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("detects accept version", func() {
 				methods = []string{}
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("Accept", "application/vnd.api.v2+json")
 				w := httptest.NewRecorder()
 
@@ -1262,7 +1262,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("detects query version", func() {
 				methods = []string{}
-				req := httptest.NewRequest("GET", "/users?v=v2", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users?v=v2", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -1328,7 +1328,7 @@ var _ = Describe("Versioning Integration", func() {
 		Describe("Path-based versioning", func() {
 			Context("with deprecated version", func() {
 				It("routes to correct version handler", func() {
-					req := httptest.NewRequest("GET", "/v1/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1337,7 +1337,7 @@ var _ = Describe("Versioning Integration", func() {
 				})
 
 				It("includes deprecation headers", func() {
-					req := httptest.NewRequest("GET", "/v1/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1346,7 +1346,7 @@ var _ = Describe("Versioning Integration", func() {
 				})
 
 				It("records version detection", func() {
-					req := httptest.NewRequest("GET", "/v1/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1356,7 +1356,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			Context("with non-deprecated version", func() {
 				It("routes to v2 handler", func() {
-					req := httptest.NewRequest("GET", "/v2/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/v2/users", nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1365,7 +1365,7 @@ var _ = Describe("Versioning Integration", func() {
 				})
 
 				It("does not include deprecation headers", func() {
-					req := httptest.NewRequest("GET", "/v2/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/v2/users", nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1373,7 +1373,7 @@ var _ = Describe("Versioning Integration", func() {
 				})
 
 				It("routes to v3 handler", func() {
-					req := httptest.NewRequest("GET", "/v3/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/v3/users", nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1385,7 +1385,7 @@ var _ = Describe("Versioning Integration", func() {
 
 		Describe("Accept-header versioning", func() {
 			It("selects version from Accept header", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("Accept", "application/vnd.api.v2+json")
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
@@ -1395,7 +1395,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("does not include deprecation for non-deprecated version", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("Accept", "application/vnd.api.v2+json")
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
@@ -1404,7 +1404,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("selects deprecated version from Accept header", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("Accept", "application/vnd.api.v1+json")
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
@@ -1418,7 +1418,7 @@ var _ = Describe("Versioning Integration", func() {
 		Describe("Header-based versioning", func() {
 			Context("with invalid version", func() {
 				It("falls back to default version", func() {
-					req := httptest.NewRequest("GET", "/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/users", nil)
 					req.Header.Set("X-API-Version", "v99")
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
@@ -1429,7 +1429,7 @@ var _ = Describe("Versioning Integration", func() {
 				})
 
 				It("records invalid version attempt", func() {
-					req := httptest.NewRequest("GET", "/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/users", nil)
 					req.Header.Set("X-API-Version", "v99")
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
@@ -1440,7 +1440,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			Context("with valid version", func() {
 				It("routes to specified version", func() {
-					req := httptest.NewRequest("GET", "/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/users", nil)
 					req.Header.Set("X-API-Version", "v3")
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
@@ -1450,7 +1450,7 @@ var _ = Describe("Versioning Integration", func() {
 				})
 
 				It("routes to deprecated version with headers", func() {
-					req := httptest.NewRequest("GET", "/users", nil)
+					req := httptest.NewRequest(http.MethodGet, "/users", nil)
 					req.Header.Set("X-API-Version", "v1")
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
@@ -1464,7 +1464,7 @@ var _ = Describe("Versioning Integration", func() {
 
 		Describe("Query parameter versioning", func() {
 			It("selects version from query parameter", func() {
-				req := httptest.NewRequest("GET", "/users?v=v2", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users?v=v2", nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 
@@ -1473,7 +1473,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("handles invalid query version", func() {
-				req := httptest.NewRequest("GET", "/users?v=invalid", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users?v=invalid", nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 
@@ -1485,7 +1485,7 @@ var _ = Describe("Versioning Integration", func() {
 
 		Describe("Version detection priority", func() {
 			It("prioritizes path over header", func() {
-				req := httptest.NewRequest("GET", "/v2/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/v2/users", nil)
 				req.Header.Set("X-API-Version", "v1") // Should be ignored
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
@@ -1494,7 +1494,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("prioritizes header over query", func() {
-				req := httptest.NewRequest("GET", "/users?v=v1", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users?v=v1", nil)
 				req.Header.Set("X-API-Version", "v2") // Should take precedence
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
@@ -1503,7 +1503,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("prioritizes path over accept header", func() {
-				req := httptest.NewRequest("GET", "/v3/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/v3/users", nil)
 				req.Header.Set("Accept", "application/vnd.api.v1+json") // Should be ignored
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
@@ -1514,7 +1514,7 @@ var _ = Describe("Versioning Integration", func() {
 
 		Describe("Version observer callbacks", func() {
 			It("calls version detected callback for valid versions", func() {
-				req := httptest.NewRequest("GET", "/v2/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/v2/users", nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 
@@ -1522,7 +1522,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("calls invalid version callback for invalid versions", func() {
-				req := httptest.NewRequest("GET", "/users", nil)
+				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-API-Version", "v99")
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)

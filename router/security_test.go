@@ -87,7 +87,7 @@ func TestContext_Header_Injection(t *testing.T) {
 			t.Parallel()
 			r := MustNew()
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 			r.GET("/test", func(c *Context) {
 				// Header should never panic - it sanitizes instead
@@ -147,7 +147,7 @@ func TestContext_Header_InjectionRealWorldAttack(t *testing.T) {
 		c.String(http.StatusOK, "OK")
 	})
 
-	req := httptest.NewRequest("GET", "/redirect", nil)
+	req := httptest.NewRequest(http.MethodGet, "/redirect", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -251,14 +251,14 @@ func TestRouter_ConcurrentVersionRegistration(t *testing.T) {
 	// Verify routes were registered correctly by testing a few
 	for version := 1; version <= 5; version++ {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test/0/0", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test/0/0", nil)
 		req.Header.Set("X-API-Version", fmt.Sprintf("v%d", version))
 
 		r.ServeHTTP(w, req)
 
 		// Should get a response (either 200 if route exists or 404 if not)
 		// The important thing is that it doesn't panic or deadlock
-		assert.Contains(t, []int{200, 404}, w.Code,
+		assert.Contains(t, []int{http.StatusOK, http.StatusNotFound}, w.Code,
 			"Should handle concurrent version registration without errors")
 	}
 }
@@ -278,7 +278,7 @@ func TestRouter_ConcurrentRouteRegistration(t *testing.T) {
 		go func(n int) {
 			defer wg.Done()
 			r.GET(fmt.Sprintf("/path%d", n), func(c *Context) {
-				c.JSON(200, map[string]int{"id": n})
+				c.JSON(http.StatusOK, map[string]int{"id": n})
 			})
 		}(i)
 	}
@@ -292,10 +292,10 @@ func TestRouter_ConcurrentRouteRegistration(t *testing.T) {
 	// Test a few routes to ensure they work
 	for i := range 5 {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", fmt.Sprintf("/path%d", i), nil)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/path%d", i), nil)
 
 		r.ServeHTTP(w, req)
-		assert.Equal(t, 200, w.Code, "Route %d should work", i)
+		assert.Equal(t, http.StatusOK, w.Code, "Route %d should work", i)
 	}
 }
 
@@ -313,12 +313,12 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 		// Each subtest needs its own router to avoid race conditions
 		r := MustNew()
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		var capturedError error
 		r.GET("/test", func(c *Context) {
 			badData := BadType{Func: func() {}}
-			capturedError = c.JSON(200, badData)
+			capturedError = c.JSON(http.StatusOK, badData)
 		})
 
 		r.ServeHTTP(w, req)
@@ -333,11 +333,11 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 		// Each subtest needs its own router to avoid race conditions
 		r := MustNew()
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		r.GET("/test", func(c *Context) {
 			badData := BadType{Func: func() {}}
-			if err := c.JSON(200, badData); err != nil {
+			if err := c.JSON(http.StatusOK, badData); err != nil {
 				// Handle error explicitly by sending 500 response
 				c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 				c.Response.WriteHeader(http.StatusInternalServerError)
@@ -362,7 +362,7 @@ func TestContext_JSON_ValidData(t *testing.T) {
 	t.Parallel()
 	r := MustNew()
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	type ValidData struct {
 		Name   string `json:"name"`
@@ -394,7 +394,7 @@ func BenchmarkContext_Header_Validation(b *testing.B) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	b.ResetTimer()
 	for b.Loop() {

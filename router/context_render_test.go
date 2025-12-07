@@ -185,14 +185,14 @@ func TestPureJSON_vs_JSON_Escaping(t *testing.T) {
 
 	// Test standard JSON (should escape)
 	wJSON := httptest.NewRecorder()
-	reqJSON := httptest.NewRequest("GET", "/", nil)
+	reqJSON := httptest.NewRequest(http.MethodGet, "/", nil)
 	cJSON := NewContext(wJSON, reqJSON)
 	cJSON.JSON(http.StatusOK, data)
 	jsonBody := wJSON.Body.String()
 
 	// Test PureJSON (should NOT escape)
 	wPure := httptest.NewRecorder()
-	reqPure := httptest.NewRequest("GET", "/", nil)
+	reqPure := httptest.NewRequest(http.MethodGet, "/", nil)
 	cPure := NewContext(wPure, reqPure)
 	cPure.PureJSON(http.StatusOK, data)
 	pureBody := wPure.Body.String()
@@ -542,13 +542,13 @@ func TestDataFromReader_Error(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Create a reader that returns an error
 	errorReader := &errorReader{err: io.ErrUnexpectedEOF}
 
-	err := c.DataFromReader(200, -1, "text/plain", errorReader, nil)
+	err := c.DataFromReader(http.StatusOK, -1, "text/plain", errorReader, nil)
 	require.Error(t, err, "Expected error from failing reader")
 	assert.Contains(t, err.Error(), "streaming from reader failed", "Expected streaming error")
 }
@@ -772,7 +772,7 @@ func TestYAML_Error(t *testing.T) {
 	}()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Type that fails YAML marshaling
@@ -781,7 +781,7 @@ func TestYAML_Error(t *testing.T) {
 	}
 
 	// This will panic - which is expected behavior for yaml.v3
-	c.YAML(200, badType{Func: func() {}})
+	c.YAML(http.StatusOK, badType{Func: func() {}})
 }
 
 // TestDataFromReader_NilReader tests nil reader handling
@@ -797,11 +797,11 @@ func TestDataFromReader_NilReader(t *testing.T) {
 	}()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// This will panic - which is expected io.Copy behavior
-	_ = c.DataFromReader(200, 0, "text/plain", nil, nil)
+	_ = c.DataFromReader(http.StatusOK, 0, "text/plain", nil, nil)
 }
 
 // TestData_EmptyData tests empty data handling
@@ -809,12 +809,12 @@ func TestData_EmptyData(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
-	c.Data(204, "text/plain", []byte{})
+	c.Data(http.StatusNoContent, "text/plain", []byte{})
 
-	assert.Equal(t, 204, w.Code)
+	assert.Equal(t, http.StatusNoContent, w.Code)
 	assert.Equal(t, 0, w.Body.Len(), "Expected empty body")
 }
 
@@ -823,7 +823,7 @@ func TestData_LargeData(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Create 1MB of data
@@ -832,7 +832,7 @@ func TestData_LargeData(t *testing.T) {
 		largeData[i] = byte(i % 256)
 	}
 
-	c.Data(200, "application/octet-stream", largeData)
+	c.Data(http.StatusOK, "application/octet-stream", largeData)
 
 	assert.Equal(t, len(largeData), w.Body.Len(), "Expected %d bytes", len(largeData))
 	assert.Equal(t, largeData, w.Body.Bytes(), "Data mismatch")
@@ -843,7 +843,7 @@ func TestSecureJSON_StripPrefix(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	originalData := map[string]string{
@@ -851,7 +851,7 @@ func TestSecureJSON_StripPrefix(t *testing.T) {
 		"token":  "abc123",
 	}
 
-	c.SecureJSON(200, originalData)
+	c.SecureJSON(http.StatusOK, originalData)
 
 	body := w.Body.String()
 

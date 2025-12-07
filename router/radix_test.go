@@ -238,7 +238,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 		assert.Equal(t, "users with slash", w.Body.String(), "Expected 'users with slash'")
 
 		// Test exact match without trailing slash
-		req = httptest.NewRequest("GET", "/posts", nil)
+		req = httptest.NewRequest(http.MethodGet, "/posts", nil)
 		w = httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code, "Expected status 200")

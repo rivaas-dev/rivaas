@@ -29,7 +29,7 @@ func TestContext_JSON_Success(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	data := map[string]string{"message": "success"}
@@ -46,7 +46,7 @@ func TestContext_JSON_EncodingError_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Type that cannot be marshaled
@@ -65,7 +65,7 @@ func TestContext_JSON_EncodingError_ReturnsError(t *testing.T) {
 func TestContext_JSON_NilResponse(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(nil, req) // nil Response
 
 	err := c.JSON(http.StatusOK, map[string]string{"test": "value"})
@@ -79,7 +79,7 @@ func TestContext_Stringf_Success(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	err := c.Stringf(http.StatusOK, "Hello %s", "World")
@@ -94,7 +94,7 @@ func TestContext_String_PlainText(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	err := c.String(http.StatusOK, "Plain text")
@@ -108,7 +108,7 @@ func TestContext_HTML_Success(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	html := "<h1>Title</h1><p>Content</p>"
@@ -125,7 +125,7 @@ func TestContext_Data_Success(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	data := []byte("test data")
@@ -142,7 +142,7 @@ func TestContext_Data_EmptyContentType(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	data := []byte("test")
@@ -158,7 +158,7 @@ func TestContext_JSON_ReturnsErrors(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// JSON should return error explicitly
@@ -173,7 +173,7 @@ func TestContext_ManualErrorCollection(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Use JSON and manually collect error if needed
@@ -285,7 +285,7 @@ func TestContext_ResponseMethods_AllVariants(t *testing.T) {
 			t.Parallel()
 
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			err := tt.callValid(c)
@@ -298,7 +298,7 @@ func TestContext_ResponseMethods_AllVariants(t *testing.T) {
 				t.Parallel()
 
 				w := httptest.NewRecorder()
-				req := httptest.NewRequest("GET", "/", nil)
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
 				c := NewContext(w, req)
 
 				err := tt.callInvalid(c)
@@ -314,7 +314,7 @@ func TestContext_ResponseMethods_HeadersAlreadyWritten(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Write headers first
@@ -329,7 +329,7 @@ func TestContext_ResponseMethods_HeadersAlreadyWritten(t *testing.T) {
 func TestContext_ResponseMethods_ResponseNil(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(nil, req)
 
 	err := c.JSON(http.StatusOK, map[string]string{"test": "value"})

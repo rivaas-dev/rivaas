@@ -96,7 +96,7 @@ func TestContentType(t *testing.T) {
 func TestLocation(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	c := NewContext(w, req)
 
@@ -471,7 +471,7 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 	t.Run("API response with links", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest("GET", "/api/users?page=2", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/users?page=2", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -498,7 +498,7 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 	t.Run("conditional response based on accept", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest("GET", "/api/user", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/user", nil)
 		req.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -509,7 +509,7 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 		}
 
 		// Use Format for automatic content negotiation
-		_ = c.Format(200, user)
+		_ = c.Format(http.StatusOK, user)
 
 		assert.Contains(t, w.Body.String(), "123")
 	})
@@ -518,7 +518,7 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 // Benchmark response methods
 func BenchmarkSend(b *testing.B) {
 	data := []byte("response data")
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -530,7 +530,7 @@ func BenchmarkSend(b *testing.B) {
 
 func BenchmarkWrite(b *testing.B) {
 	data := []byte("response data")
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -541,7 +541,7 @@ func BenchmarkWrite(b *testing.B) {
 }
 
 func BenchmarkWriteString(b *testing.B) {
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -555,13 +555,13 @@ func BenchmarkWriteString(b *testing.B) {
 func TestFormat_XML(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Accept", "application/xml")
 	w := httptest.NewRecorder()
 	c := NewContext(w, req)
 
 	data := map[string]string{"status": "ok"}
-	err := c.Format(200, data)
+	err := c.Format(http.StatusOK, data)
 
 	require.NoError(t, err)
 
@@ -638,7 +638,7 @@ func TestFormat_DifferentStatusCodes(t *testing.T) {
 
 			err := c.Format(code, map[string]string{"status": "test"})
 
-			if code != 204 {
+			if code != http.StatusNoContent {
 				require.NoError(t, err)
 			}
 
@@ -690,7 +690,7 @@ func TestFormat_ComplexData(t *testing.T) {
 func TestFormat_HTMLEscaping(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Accept", "text/html")
 	w := httptest.NewRecorder()
 	c := NewContext(w, req)
@@ -698,7 +698,7 @@ func TestFormat_HTMLEscaping(t *testing.T) {
 	// Data with HTML special characters
 	data := "<script>alert('xss')</script>"
 
-	err := c.Format(200, data)
+	err := c.Format(http.StatusOK, data)
 
 	require.NoError(t, err)
 
@@ -743,12 +743,12 @@ func TestFormat_XMLDifferentData(t *testing.T) {
 func TestFormat_Fallback(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Accept", "application/pdf") // Unsupported format
 	w := httptest.NewRecorder()
 	c := NewContext(w, req)
 
-	err := c.Format(200, "test")
+	err := c.Format(http.StatusOK, "test")
 
 	require.NoError(t, err, "Format should fallback gracefully")
 

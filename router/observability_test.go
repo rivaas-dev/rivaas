@@ -108,7 +108,7 @@ func TestContextWithMetrics(t *testing.T) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/metrics-enabled", nil)
+	req := httptest.NewRequest(http.MethodGet, "/metrics-enabled", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -145,7 +145,7 @@ func TestContextWithTracing(t *testing.T) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/tracing-enabled", nil)
+	req := httptest.NewRequest(http.MethodGet, "/tracing-enabled", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -164,7 +164,7 @@ func TestServeHTTPWithMetrics(t *testing.T) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -185,7 +185,7 @@ func TestServeHTTPWithTracing(t *testing.T) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -206,7 +206,7 @@ func TestServeHTTPWithBothMetricsAndTracing(t *testing.T) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -235,7 +235,7 @@ func TestServeHTTPWithCompiledRoutes(t *testing.T) {
 	r.Warmup()
 
 	// Test compiled route path
-	req := httptest.NewRequest("GET", "/home", nil)
+	req := httptest.NewRequest(http.MethodGet, "/home", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -256,7 +256,7 @@ func TestServeHTTPWithCompiledRoutesAndMetrics(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -277,7 +277,7 @@ func TestServeHTTPWithCompiledRoutesAndTracing(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -298,7 +298,7 @@ func TestServeHTTPWithCompiledRoutesAndBoth(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -322,7 +322,7 @@ func TestCompiledRouteWithTracingAndMetrics(t *testing.T) {
 	// Compile routes to enable compiled route lookup
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/compiled", nil)
+	req := httptest.NewRequest(http.MethodGet, "/compiled", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -348,7 +348,7 @@ func TestCompiledRouteWithTracingOnly(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/trace-only", nil)
+	req := httptest.NewRequest(http.MethodGet, "/trace-only", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -372,7 +372,7 @@ func TestCompiledRouteWithMetricsOnly(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/metrics-only", nil)
+	req := httptest.NewRequest(http.MethodGet, "/metrics-only", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -395,7 +395,7 @@ func TestCompiledRouteWithoutTracingOrMetrics(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/direct", nil)
+	req := httptest.NewRequest(http.MethodGet, "/direct", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -424,7 +424,7 @@ func TestCompiledRouteWithVersioningWithoutTracingOrMetrics(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/versioned", nil)
+	req := httptest.NewRequest(http.MethodGet, "/versioned", nil)
 	req.Header.Set("X-API-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -454,7 +454,7 @@ func TestCompiledRouteWithVersioningAndBothObservability(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/versioned-observable", nil)
+	req := httptest.NewRequest(http.MethodGet, "/versioned-observable", nil)
 	req.Header.Set("X-API-Version", "v2")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -476,7 +476,7 @@ func TestServeDynamicWithMetrics(t *testing.T) {
 		c.Stringf(http.StatusOK, "user %s", c.Param("id"))
 	})
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -496,7 +496,7 @@ func TestServeDynamicWithTracing(t *testing.T) {
 		c.Stringf(http.StatusOK, "user %s", c.Param("id"))
 	})
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -516,7 +516,7 @@ func TestServeDynamicWithBoth(t *testing.T) {
 		c.Stringf(http.StatusOK, "user %s", c.Param("id"))
 	})
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -544,7 +544,7 @@ func TestVersionedRoutingWithMetrics(t *testing.T) {
 		c.String(http.StatusOK, "v1 data")
 	})
 
-	req := httptest.NewRequest("GET", "/data", nil)
+	req := httptest.NewRequest(http.MethodGet, "/data", nil)
 	req.Header.Set("X-API-Version", "v1")
 	w := httptest.NewRecorder()
 
@@ -572,7 +572,7 @@ func TestVersionedRoutingWithTracing(t *testing.T) {
 		c.String(http.StatusOK, "v1 data")
 	})
 
-	req := httptest.NewRequest("GET", "/data", nil)
+	req := httptest.NewRequest(http.MethodGet, "/data", nil)
 	req.Header.Set("X-API-Version", "v1")
 	w := httptest.NewRecorder()
 
@@ -600,7 +600,7 @@ func TestVersionedRoutingWithBoth(t *testing.T) {
 		c.String(http.StatusOK, "v1 data")
 	})
 
-	req := httptest.NewRequest("GET", "/data", nil)
+	req := httptest.NewRequest(http.MethodGet, "/data", nil)
 	req.Header.Set("X-API-Version", "v1")
 	w := httptest.NewRecorder()
 
@@ -635,7 +635,7 @@ func TestVersionedCompiledRoutesWithObservability(t *testing.T) {
 	// Compile routes
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static1", nil)
 	req.Header.Set("X-API-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -657,7 +657,7 @@ func TestTracingExcludedPaths(t *testing.T) {
 		c.String(http.StatusOK, "healthy")
 	})
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -718,7 +718,7 @@ func TestGetCookieError(t *testing.T) { //nolint:paralleltest // Tests error han
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/cookie", nil)
+	req := httptest.NewRequest(http.MethodGet, "/cookie", nil)
 	// Add a malformed cookie
 	req.Header.Set("Cookie", "invalid-cookie=bad%ZZvalue")
 	w := httptest.NewRecorder()
@@ -741,7 +741,7 @@ func TestContextMetricsMethodsNoOp(t *testing.T) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/metrics-test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/metrics-test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -770,7 +770,7 @@ func TestContextTracingMethodsNoOp(t *testing.T) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/tracing-test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/tracing-test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -796,7 +796,7 @@ func TestCompiledRouteBranchWithTracingAndMetrics(t *testing.T) {
 	// Compile routes to ensure compiled route path is used
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static-both", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static-both", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -823,7 +823,7 @@ func TestCompiledRouteBranchWithTracingOnly(t *testing.T) {
 	// Compile routes to ensure compiled route path is used
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static-trace", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static-trace", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -851,7 +851,7 @@ func TestCompiledRouteBranchWithMetricsOnly(t *testing.T) {
 	// Compile routes to ensure compiled route path is used
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static-metrics", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static-metrics", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -876,7 +876,7 @@ func TestCompiledRouteBranchWithoutTracingOrMetrics(t *testing.T) {
 	// Compile routes to ensure compiled route path is used
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static-direct", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static-direct", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -907,7 +907,7 @@ func TestCompiledRouteBranchWithoutTracingOrMetricsWithVersioning(t *testing.T) 
 	// Compile routes to ensure compiled route path is used
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static-versioned", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static-versioned", nil)
 	req.Header.Set("X-API-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -939,7 +939,7 @@ func TestCompiledRouteBranchWithTracingAndVersioning(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static-trace-version", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static-trace-version", nil)
 	req.Header.Set("X-API-Version", "v2")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -973,7 +973,7 @@ func TestCompiledRouteBranchWithMetricsAndVersioning(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static-metrics-version", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static-metrics-version", nil)
 	req.Header.Set("X-API-Version", "v3")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -1007,7 +1007,7 @@ func TestCompiledRouteBranchWithBothAndVersioning(t *testing.T) {
 
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/static-both-version", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static-both-version", nil)
 	req.Header.Set("X-API-Version", "v4")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -1065,7 +1065,7 @@ func TestContextCustomMetricsFromHandler(t *testing.T) {
 	})
 
 	// Make a request to the handler
-	req := httptest.NewRequest("GET", "/users/5", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/5", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -1097,7 +1097,7 @@ func TestContextCustomMetricsWithoutMetricsRecorder(t *testing.T) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	// Should not panic
@@ -1130,7 +1130,7 @@ func TestContextCustomMetricsWithCompiledRoutes(t *testing.T) {
 	r.CompileAllRoutes()
 
 	// Make request
-	req := httptest.NewRequest("GET", "/api/v1/products/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/products/123", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -1171,7 +1171,7 @@ func TestContextCustomMetricsWithVersionedRoutes(t *testing.T) {
 	})
 
 	// Make request to versioned route
-	req := httptest.NewRequest("GET", "/v1/products/456", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/products/456", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -1213,7 +1213,7 @@ func TestVersionedRouteParameterExtraction(t *testing.T) {
 	})
 
 	// Test with versioned route
-	req := httptest.NewRequest("GET", "/v1/users/123/posts/456", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/users/123/posts/456", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -1257,7 +1257,7 @@ func TestVersionedRouteParameterExtractionWithMetrics(t *testing.T) {
 		c.Stringf(http.StatusOK, "product: %s", c.Param("id"))
 	})
 
-	req := httptest.NewRequest("GET", "/v1/products/abc123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/products/abc123", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -1307,7 +1307,7 @@ func TestNonVersionedPathRoutingToMainTree(t *testing.T) {
 	})
 
 	// Test 1: Request WITHOUT version prefix should use main handler
-	req1 := httptest.NewRequest("GET", "/users/100", nil)
+	req1 := httptest.NewRequest(http.MethodGet, "/users/100", nil)
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 
@@ -1324,7 +1324,7 @@ func TestNonVersionedPathRoutingToMainTree(t *testing.T) {
 	versionedHandlerCalled = false
 
 	// Test 2: Request WITH version prefix should use versioned handler
-	req2 := httptest.NewRequest("GET", "/v1/users/200", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/users/200", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 
@@ -1390,7 +1390,7 @@ func TestVersionedAndNonVersionedRoutesSeparation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			t.Parallel()
-			req := httptest.NewRequest("GET", tt.path, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
@@ -1456,7 +1456,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		t.Parallel()
 		r, healthCalled, _, _, _ := setupRouter()
 
-		req := httptest.NewRequest("GET", "/health", nil)
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1470,7 +1470,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		t.Parallel()
 		r, healthCalled, _, _, _ := setupRouter()
 
-		req := httptest.NewRequest("GET", "/health", nil)
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 		req.Header.Set("X-API-Version", "v2")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -1485,7 +1485,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		t.Parallel()
 		r, _, metricsCalled, _, _ := setupRouter()
 
-		req := httptest.NewRequest("GET", "/metrics", nil)
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 		req.Header.Set("X-API-Version", "v1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -1499,7 +1499,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		t.Parallel()
 		r, _, _, v1Called, v2Called := setupRouter()
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		req.Header.Set("X-API-Version", "v1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -1514,7 +1514,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		t.Parallel()
 		r, _, _, v1Called, v2Called := setupRouter()
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		req.Header.Set("X-API-Version", "v2")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -1529,7 +1529,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		t.Parallel()
 		r, _, _, v1Called, v2Called := setupRouter()
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1579,7 +1579,7 @@ func TestRouteHandlerIsolationWithMiddleware(t *testing.T) {
 	})
 
 	// Test route 1
-	req1 := httptest.NewRequest("GET", "/route1", nil)
+	req1 := httptest.NewRequest(http.MethodGet, "/route1", nil)
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 
@@ -1593,7 +1593,7 @@ func TestRouteHandlerIsolationWithMiddleware(t *testing.T) {
 	handler1Called = false
 
 	// Test route 2
-	req2 := httptest.NewRequest("GET", "/route2", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/route2", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 
@@ -1607,7 +1607,7 @@ func TestRouteHandlerIsolationWithMiddleware(t *testing.T) {
 	handler2Called = false
 
 	// Test route 3
-	req3 := httptest.NewRequest("GET", "/route3", nil)
+	req3 := httptest.NewRequest(http.MethodGet, "/route3", nil)
 	w3 := httptest.NewRecorder()
 	r.ServeHTTP(w3, req3)
 
@@ -1666,7 +1666,7 @@ func TestRouteHandlerIsolationWithDistinctResponses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			t.Parallel()
-			req := httptest.NewRequest("GET", tt.path, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
@@ -1708,7 +1708,7 @@ func TestRouteHandlerIsolationWithConstraints(t *testing.T) {
 	}).WhereInt("id")
 
 	// Test users route
-	req1 := httptest.NewRequest("GET", "/users/123", nil)
+	req1 := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 
@@ -1720,7 +1720,7 @@ func TestRouteHandlerIsolationWithConstraints(t *testing.T) {
 	usersHandlerCalled = false
 
 	// Test posts route
-	req2 := httptest.NewRequest("GET", "/posts/456", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/posts/456", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 

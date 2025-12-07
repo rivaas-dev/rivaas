@@ -75,7 +75,7 @@ func TestMount_RoutePatternPreservedForObservability(t *testing.T) {
 	r.Mount("/api/v1", sub)
 
 	// Make request
-	req := httptest.NewRequest("GET", "/api/v1/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/123", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -126,7 +126,7 @@ func TestMount_MiddlewareInheritance(t *testing.T) {
 
 	// Make request
 	middlewareOrder = nil
-	req := httptest.NewRequest("GET", "/api/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -169,7 +169,7 @@ func TestMount_MiddlewareWithoutInheritance(t *testing.T) {
 
 	// Make request
 	middlewareOrder = nil
-	req := httptest.NewRequest("GET", "/api/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -223,7 +223,7 @@ func TestMount_WithNotFound(t *testing.T) {
 	r.Mount("/api", sub, WithNotFound(customNotFound))
 
 	// Request to existing route
-	req := httptest.NewRequest("GET", "/api/users", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -231,7 +231,7 @@ func TestMount_WithNotFound(t *testing.T) {
 
 	// Request to non-existing route within prefix
 	notFoundCalled = false
-	req = httptest.NewRequest("GET", "/api/nonexistent", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/nonexistent", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.True(t, notFoundCalled, "custom 404 should be called for paths within mount prefix")
@@ -251,14 +251,14 @@ func TestMount_ConstraintsPreserved(t *testing.T) {
 	r.Mount("/api", sub)
 
 	// Valid ID (numeric)
-	req := httptest.NewRequest("GET", "/api/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/users/123", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "user 123", w.Body.String())
 
 	// Invalid ID (non-numeric) - should not match
-	req = httptest.NewRequest("GET", "/api/users/abc", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/users/abc", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -276,13 +276,13 @@ func TestMount_TypedConstraintsPreserved(t *testing.T) {
 	r.Mount("/api", sub)
 
 	// Valid integer ID
-	req := httptest.NewRequest("GET", "/api/users/456", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/users/456", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Invalid non-integer ID
-	req = httptest.NewRequest("GET", "/api/users/abc", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/users/abc", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -303,14 +303,14 @@ func TestMount_RootPathHandling(t *testing.T) {
 	r.Mount("/api", sub)
 
 	// Request to mount root
-	req := httptest.NewRequest("GET", "/api", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "root", w.Body.String())
 
 	// Request to nested path
-	req = httptest.NewRequest("GET", "/api/nested", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/nested", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -337,14 +337,14 @@ func TestMount_MultipleMounts(t *testing.T) {
 	r.Mount("/api/v2", apiV2)
 
 	// Test v1
-	req := httptest.NewRequest("GET", "/api/v1/users", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "v1 users", w.Body.String())
 
 	// Test v2
-	req = httptest.NewRequest("GET", "/api/v2/users", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v2/users", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -364,7 +364,7 @@ func TestMount_ParamsExtracted(t *testing.T) {
 	r := MustNew()
 	r.Mount("/api", sub)
 
-	req := httptest.NewRequest("GET", "/api/users/42/posts/99", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/users/42/posts/99", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -384,7 +384,7 @@ func TestMount_WildcardRoutes(t *testing.T) {
 	r := MustNew()
 	r.Mount("/static", sub)
 
-	req := httptest.NewRequest("GET", "/static/files/css/app.css", nil)
+	req := httptest.NewRequest(http.MethodGet, "/static/files/css/app.css", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -404,7 +404,7 @@ func TestMount_NilSubrouter(t *testing.T) {
 		c.String(http.StatusOK, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -414,18 +414,18 @@ func TestMount_AllHTTPMethods(t *testing.T) {
 	t.Parallel()
 
 	sub := MustNew()
-	sub.GET("/resource", func(c *Context) { c.String(http.StatusOK, "GET") })
-	sub.POST("/resource", func(c *Context) { c.String(http.StatusOK, "POST") })
-	sub.PUT("/resource", func(c *Context) { c.String(http.StatusOK, "PUT") })
-	sub.PATCH("/resource", func(c *Context) { c.String(http.StatusOK, "PATCH") })
-	sub.DELETE("/resource", func(c *Context) { c.String(http.StatusOK, "DELETE") })
+	sub.GET("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodGet) })
+	sub.POST("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodPost) })
+	sub.PUT("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodPut) })
+	sub.PATCH("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodPatch) })
+	sub.DELETE("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodDelete) })
 	sub.HEAD("/resource", func(c *Context) { c.Status(http.StatusOK) })
-	sub.OPTIONS("/resource", func(c *Context) { c.String(http.StatusOK, "OPTIONS") })
+	sub.OPTIONS("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodOptions) })
 
 	r := MustNew()
 	r.Mount("/api", sub)
 
-	methods := []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+	methods := []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions}
 	for _, method := range methods {
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
@@ -463,7 +463,7 @@ func TestMount_ObservabilityIntegration(t *testing.T) {
 	}
 
 	for _, path := range requests {
-		req := httptest.NewRequest("GET", path, nil)
+		req := httptest.NewRequest(http.MethodGet, path, nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 		require.Equal(t, http.StatusOK, w.Code)

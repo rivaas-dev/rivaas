@@ -58,7 +58,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChain() {
 		c.String(http.StatusOK, "test")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	suite.router.ServeHTTP(w, req)
@@ -67,7 +67,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChain() {
 	expected := []string{"global1", "global2", "handler"}
 	suite.Len(executionOrder, len(expected))
 	suite.Equal(expected, executionOrder)
-	suite.Equal(200, w.Code)
+	suite.Equal(http.StatusOK, w.Code)
 }
 
 // TestMiddlewareChainCaching tests that middleware chains are cached properly
@@ -86,17 +86,17 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainCaching() {
 	})
 
 	// Test both routes
-	req1 := httptest.NewRequest("GET", "/route1", nil)
+	req1 := httptest.NewRequest(http.MethodGet, "/route1", nil)
 	w1 := httptest.NewRecorder()
 	suite.router.ServeHTTP(w1, req1)
 
-	req2 := httptest.NewRequest("GET", "/route2", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/route2", nil)
 	w2 := httptest.NewRecorder()
 	suite.router.ServeHTTP(w2, req2)
 
 	// Both should work
-	suite.Equal(200, w1.Code)
-	suite.Equal(200, w2.Code)
+	suite.Equal(http.StatusOK, w1.Code)
+	suite.Equal(http.StatusOK, w2.Code)
 }
 
 // TestMiddlewareChainConcurrency tests concurrent middleware chain execution
@@ -124,11 +124,11 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainConcurrency() {
 		go func() {
 			defer wg.Done()
 			for range requestsPerGoroutine {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequest(http.MethodGet, "/test", nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 
-				suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
+				suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 			}
 		}()
 	}
@@ -157,14 +157,14 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainPerformance() {
 	// Measure execution time
 	start := time.Now()
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
 
 	duration := time.Since(start)
 
-	suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 
 	// Should complete within reasonable time
 	if duration > 10*time.Millisecond {
@@ -190,11 +190,11 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainMemorySafety() {
 
 	// Test multiple requests to ensure memory safety
 	for range 100 {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
+		suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 	}
 
 	suite.T().Log("Memory safety test passed - no memory leaks or corruption detected")
@@ -224,17 +224,17 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainCacheEfficiency() {
 	})
 
 	// Test both routes
-	req1 := httptest.NewRequest("GET", "/route1", nil)
+	req1 := httptest.NewRequest(http.MethodGet, "/route1", nil)
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 
-	req2 := httptest.NewRequest("GET", "/api/users", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 
 	// Both should work
-	suite.Equal(200, w1.Code, "Expected route1 to return 200, got %d", w1.Code)
-	suite.Equal(200, w2.Code, "Expected /api/users to return 200, got %d", w2.Code)
+	suite.Equal(http.StatusOK, w1.Code, "Expected route1 to return 200, got %d", w1.Code)
+	suite.Equal(http.StatusOK, w2.Code, "Expected /api/users to return 200, got %d", w2.Code)
 
 	suite.T().Log("Middleware chain cache efficiency test passed")
 }

@@ -222,6 +222,6 @@ func BenchmarkAlignmentImpact(b *testing.B) {
 
 	for b.Loop() {
 		// This accesses atomic fields, testing if alignment impacts performance
-		_ = r.getTreeForMethodDirect("GET")
+		_ = r.getTreeForMethodDirect(http.MethodGet)
 	}
 }

@@ -50,7 +50,7 @@ func Example_simpleObservabilityRecorder() {
 	}
 
 	// Example request simulation
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	ctx := req.Context()
 
 	// 1. OnRequestStart - called before routing

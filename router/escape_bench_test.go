@@ -27,7 +27,7 @@ func BenchmarkContextPooling(b *testing.B) {
 		c.Status(200)
 	})
 
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -45,7 +45,7 @@ func BenchmarkContextPooling_StaticRoute(b *testing.B) {
 		c.Status(200)
 	})
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -63,7 +63,7 @@ func BenchmarkContextPooling_MultiParam(b *testing.B) {
 		c.Status(200)
 	})
 
-	req := httptest.NewRequest("GET", "/users/123/posts/456/comments/789", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123/posts/456/comments/789", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -139,7 +139,7 @@ func BenchmarkResponseWriter_Status(b *testing.B) {
 		c.Status(http.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -157,7 +157,7 @@ func BenchmarkResponseWriter_String(b *testing.B) {
 		c.String(http.StatusOK, "Hello, World!")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -175,7 +175,7 @@ func BenchmarkResponseWriter_JSON(b *testing.B) {
 		c.JSON(http.StatusOK, map[string]string{"message": "hello"})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -202,10 +202,10 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 	})
 
 	r.GET("/test", func(c *Context) {
-		c.Status(200)
+		c.Status(http.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -242,7 +242,7 @@ func BenchmarkHandlerExecution(b *testing.B) {
 	}
 
 	handler := func(c *Context) {
-		c.Status(200)
+		c.Status(http.StatusOK)
 	}
 
 	ctx.handlers = []HandlerFunc{handler}

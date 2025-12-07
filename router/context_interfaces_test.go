@@ -219,7 +219,7 @@ func TestParameterReaderInterface(t *testing.T) {
 			assert.Equal(t, "123:1", result)
 		})
 
-		req := httptest.NewRequest("GET", "/users/123?page=1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users/123?page=1", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -262,7 +262,7 @@ func TestResponseWriterInterface(t *testing.T) {
 			sendUserResponse(c, "789")
 		})
 
-		req := httptest.NewRequest("GET", "/users/789", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users/789", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -287,7 +287,7 @@ func TestResponseWriterInterface(t *testing.T) {
 //nolint:paralleltest // Tests interface implementation
 func TestContextImplementsInterfaces(t *testing.T) {
 	r := MustNew()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	// Use router to create properly initialized context
@@ -346,7 +346,7 @@ func processRequestBoth(reader ParameterReader, writer ResponseWriter) {
 //nolint:paralleltest // Tests interface composition
 func TestComposition(t *testing.T) {
 	// All functions can work with Context
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 	c := NewContext(w, req)
 

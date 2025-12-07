@@ -42,7 +42,7 @@ func TestStaticFileServing(t *testing.T) {
 		t.Parallel()
 		r.Static("/static", tmpDir)
 
-		req := httptest.NewRequest("GET", "/static/test.txt", nil)
+		req := httptest.NewRequest(http.MethodGet, "/static/test.txt", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -55,7 +55,7 @@ func TestStaticFileServing(t *testing.T) {
 		t.Parallel()
 		r.StaticFile("/file", testFile)
 
-		req := httptest.NewRequest("GET", "/file", nil)
+		req := httptest.NewRequest(http.MethodGet, "/file", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -70,7 +70,7 @@ func TestStaticFileServing(t *testing.T) {
 			c.ServeFile(testFile)
 		})
 
-		req := httptest.NewRequest("GET", "/download", nil)
+		req := httptest.NewRequest(http.MethodGet, "/download", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -94,7 +94,7 @@ func TestStaticFSWithCustomFileSystem(t *testing.T) {
 
 	r.StaticFS("/files", http.Dir(tmpDir))
 
-	req := httptest.NewRequest("GET", "/files/test.html", nil)
+	req := httptest.NewRequest(http.MethodGet, "/files/test.html", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)

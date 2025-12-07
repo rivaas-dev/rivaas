@@ -83,7 +83,7 @@ func BenchmarkRouter(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for _, path := range testPaths {
-				req := httptest.NewRequest("GET", path, nil)
+				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 			}
@@ -140,7 +140,7 @@ func BenchmarkRouterWithMiddleware(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for _, path := range testPaths {
-				req := httptest.NewRequest("GET", path, nil)
+				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 			}
@@ -189,7 +189,7 @@ func BenchmarkRouterGroup(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for _, path := range testPaths {
-				req := httptest.NewRequest("GET", path, nil)
+				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 			}
@@ -334,7 +334,7 @@ func BenchmarkStaticRoutes(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for _, path := range testPaths {
-				req := httptest.NewRequest("GET", path, nil)
+				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 			}
@@ -383,7 +383,7 @@ func BenchmarkContextPool(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for _, path := range testPaths {
-				req := httptest.NewRequest("GET", path, nil)
+				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 			}
@@ -489,7 +489,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for _, path := range testPaths {
-				req := httptest.NewRequest("GET", path, nil)
+				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 			}
@@ -593,7 +593,7 @@ func BenchmarkBloomFilter(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for _, path := range testPaths {
-				req := httptest.NewRequest("GET", path, nil)
+				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 			}
@@ -663,7 +663,7 @@ func BenchmarkAtomicRouteLookup(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for _, path := range testPaths {
-				req := httptest.NewRequest("GET", path, nil)
+				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 			}
@@ -689,7 +689,7 @@ func BenchmarkConcurrentRegistrationAndLookup(b *testing.B) {
 				})
 			} else {
 				// Lookup a route
-				req := httptest.NewRequest("GET", "/", nil)
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 			}

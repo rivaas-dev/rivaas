@@ -30,7 +30,7 @@ func TestContext_Error_Collection(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Initially no errors
@@ -59,7 +59,7 @@ func TestContext_Error_NilIgnored(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Collecting nil should not add to errors
@@ -119,7 +119,7 @@ func TestContext_Error_MultipleErrors(t *testing.T) {
 			t.Parallel()
 
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			for _, err := range tt.errors {
@@ -143,7 +143,7 @@ func TestContext_Error_WithErrorsJoin(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	err1 := errors.New("validation error")
@@ -168,7 +168,7 @@ func TestContext_Error_WithErrorsIs(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Collect sentinel errors
@@ -197,17 +197,17 @@ func TestContext_Error_WithErrorsAs(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
-	ce := &CustomError{Code: 400, Message: "bad request"}
+	ce := &CustomError{Code: http.StatusBadRequest, Message: "bad request"}
 	c.Error(fmt.Errorf("wrapped: %w", ce))
 
 	// Try to extract custom error
 	var extracted *CustomError
 	require.ErrorAs(t, c.Errors()[0], &extracted, "Expected to extract CustomError using errors.As")
 	require.NotNil(t, extracted, "Expected extracted to be non-nil")
-	assert.Equal(t, 400, extracted.Code)
+	assert.Equal(t, http.StatusBadRequest, extracted.Code)
 	assert.Equal(t, "bad request", extracted.Message)
 }
 
@@ -216,7 +216,7 @@ func TestContext_Error_ResetClearsErrors(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Collect errors
@@ -237,7 +237,7 @@ func TestContext_JSON_CollectsErrors(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Type that cannot be marshaled to JSON
@@ -273,7 +273,7 @@ func TestContext_JSON_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Type that cannot be marshaled to JSON
@@ -306,31 +306,31 @@ func TestContext_AllResponseMethods_ReturnErrors(t *testing.T) {
 		{
 			name: "JSON",
 			callFunc: func(c *Context) error {
-				return c.JSON(200, make(chan int)) // Unencodable
+				return c.JSON(http.StatusOK, make(chan int)) // Unencodable
 			},
 		},
 		{
 			name: "IndentedJSON",
 			callFunc: func(c *Context) error {
-				return c.IndentedJSON(200, make(chan int))
+				return c.IndentedJSON(http.StatusOK, make(chan int))
 			},
 		},
 		{
 			name: "PureJSON",
 			callFunc: func(c *Context) error {
-				return c.PureJSON(200, make(chan int))
+				return c.PureJSON(http.StatusOK, make(chan int))
 			},
 		},
 		{
 			name: "SecureJSON",
 			callFunc: func(c *Context) error {
-				return c.SecureJSON(200, make(chan int))
+				return c.SecureJSON(http.StatusOK, make(chan int))
 			},
 		},
 		{
 			name: "ASCIIJSON",
 			callFunc: func(c *Context) error {
-				return c.ASCIIJSON(200, make(chan int))
+				return c.ASCIIJSON(http.StatusOK, make(chan int))
 			},
 		},
 		{
@@ -342,7 +342,7 @@ func TestContext_AllResponseMethods_ReturnErrors(t *testing.T) {
 						err = fmt.Errorf("YAML encoding panicked: %v", r)
 					}
 				}()
-				return c.YAML(200, struct{ Func func() }{Func: func() {}})
+				return c.YAML(http.StatusOK, struct{ Func func() }{Func: func() {}})
 			},
 		},
 	}
@@ -352,7 +352,7 @@ func TestContext_AllResponseMethods_ReturnErrors(t *testing.T) {
 			t.Parallel()
 
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			// Call the method - should return error if encoding fails
@@ -370,7 +370,7 @@ func TestContext_ErrorCollection_WithSuccessfulWrites(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Successful JSON write
@@ -393,7 +393,7 @@ func TestContext_ErrorCollection_MixedSuccessAndFailure(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	// Successful write - should return no error
@@ -427,7 +427,7 @@ func TestContext_ErrorCollection_RealWorldScenario(t *testing.T) {
 
 	r := MustNew()
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	r.GET("/test", func(c *Context) {
 		// Simulate validation errors

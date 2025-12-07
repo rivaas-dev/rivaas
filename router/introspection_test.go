@@ -71,11 +71,11 @@ func (suite *ExtendedTestSuite) TestRequestHelpers() {
 	r.GET("/test", func(c *Context) {
 		// Test content type detection
 		if c.IsJSON() {
-			c.String(200, "json")
+			c.String(http.StatusOK, "json")
 		} else if c.IsXML() {
-			c.String(200, "xml")
+			c.String(http.StatusOK, "xml")
 		} else {
-			c.String(200, "other")
+			c.String(http.StatusOK, "other")
 		}
 	})
 
@@ -90,7 +90,7 @@ func (suite *ExtendedTestSuite) TestRequestHelpers() {
 	}
 
 	for _, test := range tests {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Content-Type", test.contentType)
 		w := httptest.NewRecorder()
 
@@ -105,11 +105,11 @@ func (suite *ExtendedTestSuite) TestAcceptsHelpers() {
 
 	r.GET("/test", func(c *Context) {
 		if c.AcceptsJSON() {
-			c.JSON(200, map[string]string{"type": "json"})
+			c.JSON(http.StatusOK, map[string]string{"type": "json"})
 		} else if c.AcceptsHTML() {
-			c.HTML(200, "<h1>html</h1>")
+			c.HTML(http.StatusOK, "<h1>html</h1>")
 		} else {
-			c.String(200, "other")
+			c.String(http.StatusOK, "other")
 		}
 	})
 
@@ -123,7 +123,7 @@ func (suite *ExtendedTestSuite) TestAcceptsHelpers() {
 	}
 
 	for _, test := range tests {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Accept", test.accept)
 		w := httptest.NewRecorder()
 
@@ -139,7 +139,7 @@ func (suite *ExtendedTestSuite) TestClientIP() {
 	))
 
 	r.GET("/ip", func(c *Context) {
-		c.Stringf(200, "%s", c.ClientIP())
+		c.Stringf(http.StatusOK, "%s", c.ClientIP())
 	})
 
 	tests := []struct {
@@ -176,7 +176,7 @@ func (suite *ExtendedTestSuite) TestClientIP() {
 
 	for _, test := range tests {
 		suite.Run(test.name, func() {
-			req := httptest.NewRequest("GET", "/ip", nil)
+			req := httptest.NewRequest(http.MethodGet, "/ip", nil)
 			req.RemoteAddr = test.remoteAddr
 			if test.xForwardedFor != "" {
 				req.Header.Set("X-Forwarded-For", test.xForwardedFor)
@@ -205,7 +205,7 @@ func (suite *ExtendedTestSuite) TestClientIP_CustomHeaders() {
 	))
 
 	r.GET("/ip", func(c *Context) {
-		c.Stringf(200, "%s", c.ClientIP())
+		c.Stringf(http.StatusOK, "%s", c.ClientIP())
 	})
 
 	tests := []struct {
@@ -240,7 +240,7 @@ func (suite *ExtendedTestSuite) TestClientIP_CustomHeaders() {
 
 	for _, test := range tests {
 		suite.Run(test.name, func() {
-			req := httptest.NewRequest("GET", "/ip", nil)
+			req := httptest.NewRequest(http.MethodGet, "/ip", nil)
 			req.RemoteAddr = test.remoteAddr
 			req.Header.Set(test.headerName, test.headerValue)
 			w := httptest.NewRecorder()
@@ -260,7 +260,7 @@ func (suite *ExtendedTestSuite) TestRedirect() {
 		c.Redirect(http.StatusFound, "/target")
 	})
 
-	req := httptest.NewRequest("GET", "/redirect", nil)
+	req := httptest.NewRequest(http.MethodGet, "/redirect", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -274,12 +274,12 @@ func (suite *ExtendedTestSuite) TestRouteConstraints() {
 
 	// Add route with integer constraint
 	r.GET("/users/:id", func(c *Context) {
-		c.Stringf(200, "user %s", c.Param("id"))
+		c.Stringf(http.StatusOK, "user %s", c.Param("id"))
 	}).WhereInt("id")
 
 	// Add route with custom constraint
 	r.GET("/files/:name", func(c *Context) {
-		c.Stringf(200, "file %s", c.Param("name"))
+		c.Stringf(http.StatusOK, "file %s", c.Param("name"))
 	}).Where("name", `[a-zA-Z0-9._-]+`)
 
 	tests := []struct {
@@ -287,14 +287,14 @@ func (suite *ExtendedTestSuite) TestRouteConstraints() {
 		statusCode int
 		contains   string
 	}{
-		{"/users/123", 200, "user 123"},      // Valid numeric
-		{"/users/abc", 404, ""},              // Invalid numeric
-		{"/files/document.pdf", 200, "file"}, // Valid filename
-		{"/files/bad@file.txt", 404, ""},     // Invalid filename (contains @)
+		{"/users/123", http.StatusOK, "user 123"},        // Valid numeric
+		{"/users/abc", http.StatusNotFound, ""},          // Invalid numeric
+		{"/files/document.pdf", http.StatusOK, "file"},   // Valid filename
+		{"/files/bad@file.txt", http.StatusNotFound, ""}, // Invalid filename (contains @)
 	}
 
 	for _, test := range tests {
-		req := httptest.NewRequest("GET", test.path, nil)
+		req := httptest.NewRequest(http.MethodGet, test.path, nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -311,20 +311,20 @@ func (suite *ExtendedTestSuite) TestMultipleConstraints() {
 	r := MustNew()
 
 	r.GET("/posts/:id/:slug", func(c *Context) {
-		c.Stringf(200, "post %s %s", c.Param("id"), c.Param("slug"))
+		c.Stringf(http.StatusOK, "post %s %s", c.Param("id"), c.Param("slug"))
 	}).WhereInt("id").WhereRegex("slug", `[a-zA-Z0-9]+`)
 
 	tests := []struct {
 		path       string
 		statusCode int
 	}{
-		{"/posts/123/mypost123", 200}, // Valid: numeric id, alphanumeric slug
-		{"/posts/abc/mypost123", 404}, // Invalid: non-numeric id
-		{"/posts/123/my@post", 404},   // Invalid: slug with special char
+		{"/posts/123/mypost123", http.StatusOK},       // Valid: numeric id, alphanumeric slug
+		{"/posts/abc/mypost123", http.StatusNotFound}, // Invalid: non-numeric id
+		{"/posts/123/my@post", http.StatusNotFound},   // Invalid: slug with special char
 	}
 
 	for _, test := range tests {
-		req := httptest.NewRequest("GET", test.path, nil)
+		req := httptest.NewRequest(http.MethodGet, test.path, nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -342,7 +342,7 @@ func (suite *ExtendedTestSuite) TestStaticFileRoute() {
 	routes := r.Routes()
 	found := false
 	for _, route := range routes {
-		if route.Path == "/favicon.ico" && route.Method == "GET" {
+		if route.Path == "/favicon.ico" && route.Method == http.MethodGet {
 			found = true
 			break
 		}
@@ -359,7 +359,7 @@ func (suite *ExtendedTestSuite) TestQueryDefaults() {
 		page := c.QueryDefault("page", "1")
 		query := c.QueryDefault("q", "")
 
-		c.JSON(200, map[string]string{
+		c.JSON(http.StatusOK, map[string]string{
 			"limit": limit,
 			"page":  page,
 			"query": query,
@@ -385,12 +385,12 @@ func (suite *ExtendedTestSuite) TestQueryDefaults() {
 	}
 
 	for _, test := range tests {
-		req := httptest.NewRequest("GET", test.path, nil)
+		req := httptest.NewRequest(http.MethodGet, test.path, nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
 
-		suite.Equal(200, w.Code, "Path %s: expected status 200, got %d", test.path, w.Code)
+		suite.Equal(http.StatusOK, w.Code, "Path %s: expected status 200, got %d", test.path, w.Code)
 
 		for key, expectedValue := range test.expected {
 			suite.Contains(w.Body.String(), expectedValue, "Path %s: expected %s=%s in response", test.path, key, expectedValue)

@@ -85,13 +85,13 @@ func TestContextHelpers(t *testing.T) {
 		})
 
 		// Test HTTP
-		req := httptest.NewRequest("GET", "/secure", nil)
+		req := httptest.NewRequest(http.MethodGet, "/secure", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 		assert.Equal(t, "insecure", w.Body.String())
 
 		// Test with X-Forwarded-Proto header
-		req = httptest.NewRequest("GET", "/secure", nil)
+		req = httptest.NewRequest(http.MethodGet, "/secure", nil)
 		req.Header.Set("X-Forwarded-Proto", "https")
 		w = httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -132,7 +132,7 @@ func TestContextHelpers(t *testing.T) {
 		})
 
 		// Test setting cookie
-		req := httptest.NewRequest("GET", "/set-cookie", nil)
+		req := httptest.NewRequest(http.MethodGet, "/set-cookie", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -140,7 +140,7 @@ func TestContextHelpers(t *testing.T) {
 		assert.NotEmpty(t, cookies)
 
 		// Test getting cookie
-		req = httptest.NewRequest("GET", "/get-cookie", nil)
+		req = httptest.NewRequest(http.MethodGet, "/get-cookie", nil)
 		req.AddCookie(cookies[0])
 		w = httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -148,7 +148,7 @@ func TestContextHelpers(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "session=abc123")
 
 		// Test missing cookie
-		req = httptest.NewRequest("GET", "/get-cookie", nil)
+		req = httptest.NewRequest(http.MethodGet, "/get-cookie", nil)
 		w = httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 		assert.Equal(t, "no cookie", w.Body.String())
@@ -159,7 +159,7 @@ func TestContextHelpers(t *testing.T) {
 func TestNewContext(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	ctx := NewContext(w, req)
@@ -183,7 +183,7 @@ func TestStatusMethod(t *testing.T) {
 			c.String(http.StatusOK, "ok") // Should use Accepted status
 		})
 
-		req := httptest.NewRequest("GET", "/status-wrapped", nil)
+		req := httptest.NewRequest(http.MethodGet, "/status-wrapped", nil)
 		w := httptest.NewRecorder()
 
 		r.ServeHTTP(w, req)
@@ -194,7 +194,7 @@ func TestStatusMethod(t *testing.T) {
 	t.Run("Status with plain responseWriter", func(t *testing.T) {
 		t.Parallel()
 		// Create context with plain http.ResponseWriter
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		ctx := NewContext(w, req)
 

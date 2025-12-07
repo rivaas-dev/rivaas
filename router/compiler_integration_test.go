@@ -492,7 +492,7 @@ func TestCompilerIntegration_MixedRoutes(t *testing.T) {
 	assert.Equal(t, "static1", w1.Body.String())
 
 	// Test dynamic route
-	req2 := httptest.NewRequest("GET", "/users/789", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/users/789", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 
@@ -508,7 +508,7 @@ func BenchmarkCompilerIntegration_StaticRoute(b *testing.B) {
 	})
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/api/users", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -529,7 +529,7 @@ func BenchmarkCompilerIntegration_DynamicRoute(b *testing.B) {
 	})
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/api/users/123/posts/456", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/users/123/posts/456", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -551,7 +551,7 @@ func BenchmarkCompilerIntegration_WithVsWithoutCompiler(b *testing.B) {
 		})
 		r.Warmup()
 
-		req := httptest.NewRequest("GET", "/api/users/123/posts/456/comments/789", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/users/123/posts/456/comments/789", nil)
 		w := httptest.NewRecorder()
 
 		b.ResetTimer()
@@ -571,7 +571,7 @@ func BenchmarkCompilerIntegration_WithVsWithoutCompiler(b *testing.B) {
 		})
 		r.Warmup()
 
-		req := httptest.NewRequest("GET", "/api/users/123/posts/456/comments/789", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/users/123/posts/456/comments/789", nil)
 		w := httptest.NewRecorder()
 
 		b.ResetTimer()
@@ -591,7 +591,7 @@ func BenchmarkCompilerIntegration_Matching(b *testing.B) {
 	r.GET("/api/users/:id/posts/:pid", func(_ *router.Context) {})
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/api/users/123/posts/456", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/users/123/posts/456", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()
@@ -616,7 +616,7 @@ func BenchmarkCompilerIntegration_ConstrainedRoute(b *testing.B) {
 	// Warmup to compile routes
 	r.Warmup()
 
-	req := httptest.NewRequest("GET", "/api/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/users/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer()

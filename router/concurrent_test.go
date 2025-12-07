@@ -101,12 +101,12 @@ func (suite *ConcurrentTestSuite) TestConcurrentRequestHandling() {
 				path = fmt.Sprintf("/params/%d", id)
 			}
 
-			req := httptest.NewRequest("GET", path, nil)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
 
-			if w.Code == 200 {
+			if w.Code == http.StatusOK {
 				atomic.AddInt64(&successCount, 1)
 			}
 		}(id)
@@ -149,10 +149,10 @@ func (suite *ConcurrentTestSuite) TestConcurrentRouteCompilation() {
 		go func(id int) {
 			defer requestWg.Done()
 			path := fmt.Sprintf("/route-%d", id)
-			req := httptest.NewRequest("GET", path, nil)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
-			suite.Equal(200, w.Code)
+			suite.Equal(http.StatusOK, w.Code)
 		}(id)
 	}
 
@@ -175,7 +175,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentContextPooling() {
 
 	for range numRequests {
 		wg.Go(func() {
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 		})
@@ -208,7 +208,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentMiddlewareExecution() {
 
 	for range numRequests {
 		wg.Go(func() {
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 		})
@@ -247,11 +247,11 @@ func (suite *ConcurrentTestSuite) TestConcurrentGroupRegistration() {
 	wg.Wait()
 
 	// Verify groups work
-	req := httptest.NewRequest("GET", "/api/v25/users", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v25/users", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	suite.Equal(200, w.Code)
+	suite.Equal(http.StatusOK, w.Code)
 	suite.Equal("users", w.Body.String())
 }
 
@@ -280,12 +280,12 @@ func (suite *ConcurrentTestSuite) TestConcurrentParameterExtraction() {
 			defer wg.Done()
 
 			path := fmt.Sprintf("/users/%d/posts/%d/comments/%d", id, id*2, id*3)
-			req := httptest.NewRequest("GET", path, nil)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
 
-			suite.Equal(200, w.Code)
+			suite.Equal(http.StatusOK, w.Code)
 		}(id)
 	}
 
@@ -309,11 +309,11 @@ func (suite *ConcurrentTestSuite) TestConcurrentWarmup() {
 	r.Warmup()
 
 	// Verify routes still work
-	req := httptest.NewRequest("GET", "/route-42", nil)
+	req := httptest.NewRequest(http.MethodGet, "/route-42", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	suite.Equal(200, w.Code)
+	suite.Equal(http.StatusOK, w.Code)
 }
 
 // TestConcurrentConstraintValidation tests constraint validation under concurrent load
@@ -341,12 +341,12 @@ func (suite *ConcurrentTestSuite) TestConcurrentConstraintValidation() {
 				path = fmt.Sprintf("/users/invalid%d", id)
 			}
 
-			req := httptest.NewRequest("GET", path, nil)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
 
-			if w.Code == 200 {
+			if w.Code == http.StatusOK {
 				atomic.AddInt64(&validCount, 1)
 			} else {
 				atomic.AddInt64(&invalidCount, 1)
@@ -385,12 +385,12 @@ func (suite *ConcurrentTestSuite) TestConcurrentStaticRoutes() {
 
 			routeNum := id % 50
 			path := fmt.Sprintf("/static/route/%d", routeNum)
-			req := httptest.NewRequest("GET", path, nil)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
 
-			suite.Equal(200, w.Code)
+			suite.Equal(http.StatusOK, w.Code)
 		}(id)
 	}
 
@@ -435,11 +435,11 @@ func TestAtomicRouteRegistration(t *testing.T) {
 	assert.GreaterOrEqual(t, len(routes), routeCount, "Expected at least %d routes", routeCount)
 
 	// Test that the router is still functional
-	req := httptest.NewRequest("GET", "/test0/0", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test0/0", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 // TestAtomicRouteLookup tests that route lookup is lock-free and concurrent.
@@ -492,12 +492,12 @@ func TestAtomicRouteLookup(t *testing.T) {
 				}
 
 				for _, path := range testPaths {
-					req := httptest.NewRequest("GET", path, nil)
+					req := httptest.NewRequest(http.MethodGet, path, nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
 					// Should get 200 for valid routes, 404 for invalid ones
-					assert.Contains(t, []int{200, 404}, w.Code, "Unexpected status code %d for path %s", w.Code, path)
+					assert.Contains(t, []int{http.StatusOK, http.StatusNotFound}, w.Code, "Unexpected status code %d for path %s", w.Code, path)
 				}
 			}
 		})
@@ -534,7 +534,7 @@ func TestConcurrentRegistrationAndLookup(t *testing.T) {
 			case <-done:
 				return
 			default:
-				req := httptest.NewRequest("GET", "/", nil)
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 				// Don't check status as routes are being added
@@ -572,11 +572,11 @@ func TestAtomicTreeConsistency(t *testing.T) {
 
 	// Verify all routes are accessible
 	for _, route := range routes {
-		req := httptest.NewRequest("GET", route, nil)
+		req := httptest.NewRequest(http.MethodGet, route, nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.Equal(t, 200, w.Code, "Route %s returned status %d, expected 200", route, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code, "Route %s returned status %d, expected 200", route, w.Code)
 	}
 
 	// Verify route introspection
@@ -629,11 +629,11 @@ func TestAtomicTreeMemorySafety(t *testing.T) {
 	}
 
 	// Verify routes are accessible
-	req := httptest.NewRequest("GET", "/memory0/0", nil)
+	req := httptest.NewRequest(http.MethodGet, "/memory0/0", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Verify route count
 	routes := r.Routes()

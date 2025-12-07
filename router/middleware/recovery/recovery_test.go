@@ -144,7 +144,7 @@ func TestRecovery_DisableStackTrace(t *testing.T) {
 		panic("no stack trace")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -168,7 +168,7 @@ func TestRecovery_CustomStackSize(t *testing.T) {
 		panic("stack size test")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -196,7 +196,7 @@ func TestRecovery_MultipleMiddleware(t *testing.T) {
 		panic("middleware test")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -218,7 +218,7 @@ func TestRecovery_PanicInMiddleware(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "success"})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -254,7 +254,7 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 				panic(tt.panicValue)
 			})
 
-			req := httptest.NewRequest("GET", "/panic", nil)
+			req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
@@ -288,7 +288,7 @@ func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
 		panic("custom logger test")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -312,7 +312,7 @@ func TestRecovery_StackTraceContent(t *testing.T) {
 		panic("stack content test")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -334,7 +334,7 @@ func TestRecovery_RouteGroups(t *testing.T) {
 		panic("group panic")
 	})
 
-	req := httptest.NewRequest("GET", "/api/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -365,7 +365,7 @@ func TestRecovery_MultipleOptions(t *testing.T) {
 		panic("multiple options test")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)

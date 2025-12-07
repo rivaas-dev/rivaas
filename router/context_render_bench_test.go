@@ -16,6 +16,7 @@ package router
 
 import (
 	"bytes"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -35,7 +36,7 @@ var benchData = map[string]any{
 // BenchmarkJSON_Baseline establishes baseline performance
 func BenchmarkJSON_Baseline(b *testing.B) {
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -43,14 +44,14 @@ func BenchmarkJSON_Baseline(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		c.JSON(200, benchData)
+		c.JSON(http.StatusOK, benchData)
 	}
 }
 
 // BenchmarkIndentedJSON tests formatted JSON rendering.
 func BenchmarkIndentedJSON(b *testing.B) {
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -58,14 +59,14 @@ func BenchmarkIndentedJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		c.IndentedJSON(200, benchData)
+		c.IndentedJSON(http.StatusOK, benchData)
 	}
 }
 
 // BenchmarkPureJSON tests unescaped HTML JSON rendering.
 func BenchmarkPureJSON(b *testing.B) {
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -73,14 +74,14 @@ func BenchmarkPureJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		c.PureJSON(200, benchData)
+		c.PureJSON(http.StatusOK, benchData)
 	}
 }
 
 // BenchmarkSecureJSON tests prefixed JSON rendering.
 func BenchmarkSecureJSON(b *testing.B) {
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -88,7 +89,7 @@ func BenchmarkSecureJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		c.SecureJSON(200, benchData)
+		c.SecureJSON(http.StatusOK, benchData)
 	}
 }
 
@@ -101,7 +102,7 @@ func BenchmarkASCIIJSON(b *testing.B) {
 	}
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -109,14 +110,14 @@ func BenchmarkASCIIJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		c.ASCIIJSON(200, unicodeData)
+		c.ASCIIJSON(http.StatusOK, unicodeData)
 	}
 }
 
 // BenchmarkYAML tests YAML rendering.
 func BenchmarkYAML(b *testing.B) {
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -124,7 +125,7 @@ func BenchmarkYAML(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		c.YAML(200, benchData)
+		c.YAML(http.StatusOK, benchData)
 	}
 }
 
@@ -134,7 +135,7 @@ func BenchmarkDataFromReader(b *testing.B) {
 	data := bytes.Repeat([]byte("A"), 10*1024)
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -143,7 +144,7 @@ func BenchmarkDataFromReader(b *testing.B) {
 	for b.Loop() {
 		w.Body.Reset()
 		reader := bytes.NewReader(data)
-		_ = c.DataFromReader(200, int64(len(data)), "application/octet-stream", reader, nil)
+		_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 	}
 }
 
@@ -153,7 +154,7 @@ func BenchmarkDataFromReader_Large(b *testing.B) {
 	data := bytes.Repeat([]byte("B"), 1024*1024)
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -162,7 +163,7 @@ func BenchmarkDataFromReader_Large(b *testing.B) {
 	for b.Loop() {
 		w.Body.Reset()
 		reader := bytes.NewReader(data)
-		_ = c.DataFromReader(200, int64(len(data)), "application/octet-stream", reader, nil)
+		_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 	}
 }
 
@@ -171,7 +172,7 @@ func BenchmarkData(b *testing.B) {
 	data := []byte("Hello, World! This is some test data.")
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -179,7 +180,7 @@ func BenchmarkData(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		c.Data(200, "text/plain", data)
+		c.Data(http.StatusOK, "text/plain", data)
 	}
 }
 
@@ -192,7 +193,7 @@ func BenchmarkData_Binary(b *testing.B) {
 	}
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -200,7 +201,7 @@ func BenchmarkData_Binary(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
-		c.Data(200, "application/octet-stream", data)
+		c.Data(http.StatusOK, "application/octet-stream", data)
 	}
 }
 
@@ -208,7 +209,7 @@ func BenchmarkData_Binary(b *testing.B) {
 func BenchmarkJSON_vs_IndentedJSON_Comparison(b *testing.B) {
 	b.Run("JSON", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
@@ -216,13 +217,13 @@ func BenchmarkJSON_vs_IndentedJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			c.JSON(200, benchData)
+			c.JSON(http.StatusOK, benchData)
 		}
 	})
 
 	b.Run("IndentedJSON", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
@@ -230,7 +231,7 @@ func BenchmarkJSON_vs_IndentedJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			c.IndentedJSON(200, benchData)
+			c.IndentedJSON(http.StatusOK, benchData)
 		}
 	})
 }
@@ -245,7 +246,7 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 
 	b.Run("JSON_with_HTML_escaping", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
@@ -253,13 +254,13 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			c.JSON(200, htmlData)
+			c.JSON(http.StatusOK, htmlData)
 		}
 	})
 
 	b.Run("PureJSON_no_escaping", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
@@ -267,7 +268,7 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			c.PureJSON(200, htmlData)
+			c.PureJSON(http.StatusOK, htmlData)
 		}
 	})
 }
@@ -276,7 +277,7 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 	b.Run("JSON", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
@@ -284,13 +285,13 @@ func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			c.JSON(200, benchData)
+			c.JSON(http.StatusOK, benchData)
 		}
 	})
 
 	b.Run("SecureJSON", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
@@ -298,7 +299,7 @@ func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			c.SecureJSON(200, benchData)
+			c.SecureJSON(http.StatusOK, benchData)
 		}
 	})
 }
@@ -307,7 +308,7 @@ func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 func BenchmarkJSON_vs_YAML_Comparison(b *testing.B) {
 	b.Run("JSON", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
@@ -315,13 +316,13 @@ func BenchmarkJSON_vs_YAML_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			c.JSON(200, benchData)
+			c.JSON(http.StatusOK, benchData)
 		}
 	})
 
 	b.Run("YAML", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
@@ -329,7 +330,7 @@ func BenchmarkJSON_vs_YAML_Comparison(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			w.Body.Reset()
-			c.YAML(200, benchData)
+			c.YAML(http.StatusOK, benchData)
 		}
 	})
 }
@@ -350,7 +351,7 @@ func BenchmarkDataFromReader_Sizes(b *testing.B) {
 		b.Run(sz.name, func(b *testing.B) {
 			data := bytes.Repeat([]byte("X"), sz.size)
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			b.ResetTimer()
@@ -373,26 +374,26 @@ func BenchmarkAllRenderingMethods(b *testing.B) {
 		fn   func(*Context) error
 	}{
 		{"JSON", func(c *Context) error { return c.JSON(200, benchData) }},
-		{"IndentedJSON", func(c *Context) error { return c.IndentedJSON(200, benchData) }},
-		{"PureJSON", func(c *Context) error { return c.PureJSON(200, benchData) }},
-		{"SecureJSON", func(c *Context) error { return c.SecureJSON(200, benchData) }},
+		{"IndentedJSON", func(c *Context) error { return c.IndentedJSON(http.StatusOK, benchData) }},
+		{"PureJSON", func(c *Context) error { return c.PureJSON(http.StatusOK, benchData) }},
+		{"SecureJSON", func(c *Context) error { return c.SecureJSON(http.StatusOK, benchData) }},
 		{"ASCIIJSON", func(c *Context) error {
-			return c.ASCIIJSON(200, map[string]string{"msg": "Hello 世界"})
+			return c.ASCIIJSON(http.StatusOK, map[string]string{"msg": "Hello 世界"})
 		}},
-		{"YAML", func(c *Context) error { return c.YAML(200, benchData) }},
-		{"Data", func(c *Context) error { return c.Data(200, "text/plain", []byte("test")) }},
+		{"YAML", func(c *Context) error { return c.YAML(http.StatusOK, benchData) }},
+		{"Data", func(c *Context) error { return c.Data(http.StatusOK, "text/plain", []byte("test")) }},
 	}
 
 	for _, method := range methods {
 		b.Run(method.name, func(b *testing.B) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				w.Body.Reset()
 				_ = method.fn(c)
 			}
@@ -406,32 +407,32 @@ func BenchmarkDataFromReader_vs_Data(b *testing.B) {
 
 	b.Run("DataFromReader_streaming", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
 		b.ReportAllocs()
 		b.SetBytes(int64(len(data)))
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewReader(data)
-			_ = c.DataFromReader(200, int64(len(data)), "application/octet-stream", reader, nil)
+			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 		}
 	})
 
 	b.Run("Data_buffered", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
 		b.ReportAllocs()
 		b.SetBytes(int64(len(data)))
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
-			c.Data(200, "application/octet-stream", data)
+			c.Data(http.StatusOK, "application/octet-stream", data)
 		}
 	})
 }
@@ -451,15 +452,15 @@ func BenchmarkSecureJSON_PrefixSizes(b *testing.B) {
 	for _, p := range prefixes {
 		b.Run(p.name, func(b *testing.B) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				w.Body.Reset()
-				c.SecureJSON(200, benchData, p.prefix)
+				c.SecureJSON(http.StatusOK, benchData, p.prefix)
 			}
 		})
 	}
@@ -477,31 +478,31 @@ func BenchmarkDataFromReader_WithExtraHeaders(b *testing.B) {
 
 	b.Run("no_extra_headers", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewReader(data)
-			_ = c.DataFromReader(200, int64(len(data)), "text/plain", reader, nil)
+			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "text/plain", reader, nil)
 		}
 	})
 
 	b.Run("with_extra_headers", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewReader(data)
-			_ = c.DataFromReader(200, int64(len(data)), "text/plain", reader, headers)
+			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "text/plain", reader, headers)
 		}
 	})
 }
@@ -512,9 +513,9 @@ func BenchmarkJSON_Variants_Parallel(b *testing.B) {
 		name string
 		fn   func(*Context) error
 	}{
-		{"JSON", func(c *Context) error { return c.JSON(200, benchData) }},
-		{"PureJSON", func(c *Context) error { return c.PureJSON(200, benchData) }},
-		{"SecureJSON", func(c *Context) error { return c.SecureJSON(200, benchData) }},
+		{"JSON", func(c *Context) error { return c.JSON(http.StatusOK, benchData) }},
+		{"PureJSON", func(c *Context) error { return c.PureJSON(http.StatusOK, benchData) }},
+		{"SecureJSON", func(c *Context) error { return c.SecureJSON(http.StatusOK, benchData) }},
 	}
 
 	for _, method := range methods {
@@ -523,7 +524,7 @@ func BenchmarkJSON_Variants_Parallel(b *testing.B) {
 
 			b.RunParallel(func(pb *testing.PB) {
 				w := httptest.NewRecorder()
-				req := httptest.NewRequest("GET", "/", nil)
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
 				c := NewContext(w, req)
 
 				for pb.Next() {
@@ -562,15 +563,15 @@ func BenchmarkASCIIJSON_UnicodeComplexity(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				w.Body.Reset()
-				c.ASCIIJSON(200, tt.data)
+				c.ASCIIJSON(http.StatusOK, tt.data)
 			}
 		})
 	}
@@ -582,50 +583,50 @@ func BenchmarkDataFromReader_ReaderTypes(b *testing.B) {
 
 	b.Run("bytes.Reader", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
 		b.ReportAllocs()
 		b.SetBytes(int64(len(data)))
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewReader(data)
-			_ = c.DataFromReader(200, int64(len(data)), "application/octet-stream", reader, nil)
+			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 		}
 	})
 
 	b.Run("bytes.Buffer", func(b *testing.B) {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
 		b.ReportAllocs()
 		b.SetBytes(int64(len(data)))
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewBuffer(data)
-			_ = c.DataFromReader(200, int64(len(data)), "application/octet-stream", reader, nil)
+			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 		}
 	})
 
 	b.Run("strings.Reader", func(b *testing.B) {
 		strData := string(data)
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		c := NewContext(w, req)
 
 		b.ResetTimer()
 		b.ReportAllocs()
 		b.SetBytes(int64(len(data)))
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			reader := strings.NewReader(strData)
-			_ = c.DataFromReader(200, int64(len(strData)), "text/plain", reader, nil)
+			_ = c.DataFromReader(http.StatusOK, int64(len(strData)), "text/plain", reader, nil)
 		}
 	})
 }
@@ -635,7 +636,7 @@ func BenchmarkDataFromReader_ChunkedTransfer(b *testing.B) {
 	data := bytes.Repeat([]byte("Chunk "), 1000) // ~6KB
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
 	b.ResetTimer()
@@ -646,6 +647,6 @@ func BenchmarkDataFromReader_ChunkedTransfer(b *testing.B) {
 		w.Body.Reset()
 		reader := bytes.NewReader(data)
 		// contentLength = -1 triggers chunked transfer
-		_ = c.DataFromReader(200, -1, "application/octet-stream", reader, nil)
+		_ = c.DataFromReader(http.StatusOK, -1, "application/octet-stream", reader, nil)
 	}
 }

@@ -35,7 +35,7 @@ func TestAllParams(t *testing.T) {
 
 	t.Run("single parameter", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/users/123", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -50,7 +50,7 @@ func TestAllParams(t *testing.T) {
 
 	t.Run("multiple parameters", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/users/123/posts/456", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users/123/posts/456", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -68,7 +68,7 @@ func TestAllParams(t *testing.T) {
 
 	t.Run("no parameters", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -78,7 +78,7 @@ func TestAllParams(t *testing.T) {
 
 	t.Run("more than 8 parameters (fallback to map)", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -101,7 +101,7 @@ func TestAllQueries(t *testing.T) {
 
 	t.Run("single query param", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/?q=golang", nil)
+		req := httptest.NewRequest(http.MethodGet, "/?q=golang", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -112,7 +112,7 @@ func TestAllQueries(t *testing.T) {
 
 	t.Run("multiple query params", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/?q=golang&page=2&limit=10", nil)
+		req := httptest.NewRequest(http.MethodGet, "/?q=golang&page=2&limit=10", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -125,7 +125,7 @@ func TestAllQueries(t *testing.T) {
 
 	t.Run("multiple values - returns last", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/?tag=first&tag=second&tag=third", nil)
+		req := httptest.NewRequest(http.MethodGet, "/?tag=first&tag=second&tag=third", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -135,7 +135,7 @@ func TestAllQueries(t *testing.T) {
 
 	t.Run("no query params", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -150,7 +150,7 @@ func TestHeaders(t *testing.T) {
 
 	t.Run("request headers", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("User-Agent", "Test/1.0")
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Authorization", "Bearer token123")
@@ -165,7 +165,7 @@ func TestHeaders(t *testing.T) {
 
 	t.Run("response headers", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -186,7 +186,7 @@ func TestHostnameAndPort(t *testing.T) {
 
 	t.Run("hostname without port", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com/path", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/path", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -196,7 +196,7 @@ func TestHostnameAndPort(t *testing.T) {
 
 	t.Run("hostname with port", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com:8080/path", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com:8080/path", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -206,7 +206,7 @@ func TestHostnameAndPort(t *testing.T) {
 
 	t.Run("IPv6 hostname", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://[2001:db8::1]:8080/path", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://[2001:db8::1]:8080/path", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -222,7 +222,7 @@ func TestScheme(t *testing.T) {
 
 	t.Run("http scheme", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com/", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -231,7 +231,7 @@ func TestScheme(t *testing.T) {
 
 	t.Run("https scheme with TLS", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "https://example.com/", nil)
+		req := httptest.NewRequest(http.MethodGet, "https://example.com/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -242,7 +242,7 @@ func TestScheme(t *testing.T) {
 
 	t.Run("X-Forwarded-Ssl header", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com/", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
 		req.Header.Set("X-Forwarded-Ssl", "on")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -257,7 +257,7 @@ func TestURLs(t *testing.T) {
 
 	t.Run("base URL", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com:8080/api/users?page=2", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com:8080/api/users?page=2", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -267,7 +267,7 @@ func TestURLs(t *testing.T) {
 
 	t.Run("full URL", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com/search?q=golang&page=2", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/search?q=golang&page=2", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -278,7 +278,7 @@ func TestURLs(t *testing.T) {
 
 	t.Run("full URL without query", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com/path", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/path", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -293,7 +293,7 @@ func TestClientIPs(t *testing.T) {
 
 	t.Run("single IP from RemoteAddr", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.RemoteAddr = "192.168.1.1:12345"
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -305,7 +305,7 @@ func TestClientIPs(t *testing.T) {
 
 	t.Run("IP chain from X-Forwarded-For", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("X-Forwarded-For", "203.0.113.1, 198.51.100.1, 192.0.2.1")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -318,7 +318,7 @@ func TestClientIPs(t *testing.T) {
 
 	t.Run("X-Forwarded-For with spaces", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("X-Forwarded-For", "  203.0.113.1  ,  198.51.100.1  ")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -331,7 +331,7 @@ func TestClientIPs(t *testing.T) {
 
 	t.Run("RemoteAddr without port format", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		// Set RemoteAddr to format that SplitHostPort cannot parse (no port)
 		// This tests the fallback behavior when RemoteAddr cannot be split
 		req.RemoteAddr = "192.168.1.1"
@@ -345,7 +345,7 @@ func TestClientIPs(t *testing.T) {
 
 	t.Run("RemoteAddr with invalid format", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		// Set RemoteAddr to invalid format that SplitHostPort cannot parse
 		req.RemoteAddr = "invalid-address-format"
 		w := httptest.NewRecorder()
@@ -380,7 +380,7 @@ func TestIsLocalhost(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.RemoteAddr = tt.remoteAddr
 			if tt.xff != "" {
 				req.Header.Set("X-Forwarded-For", tt.xff)
@@ -400,7 +400,7 @@ func TestIsHTTPS(t *testing.T) {
 
 	t.Run("http request", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com/", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -409,7 +409,7 @@ func TestIsHTTPS(t *testing.T) {
 
 	t.Run("https via X-Forwarded-Proto", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com/", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
 		req.Header.Set("X-Forwarded-Proto", "https")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -419,7 +419,7 @@ func TestIsHTTPS(t *testing.T) {
 
 	t.Run("https via X-Forwarded-Ssl", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com/", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
 		req.Header.Set("X-Forwarded-Ssl", "on")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -434,7 +434,7 @@ func TestIsXHR(t *testing.T) {
 
 	t.Run("XHR request", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("X-Requested-With", "XMLHttpRequest")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -444,7 +444,7 @@ func TestIsXHR(t *testing.T) {
 
 	t.Run("regular request", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -458,7 +458,7 @@ func TestSubdomains(t *testing.T) {
 
 	t.Run("simple subdomain", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://api.example.com/", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://api.example.com/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -469,7 +469,7 @@ func TestSubdomains(t *testing.T) {
 
 	t.Run("multiple subdomains", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://api.v1.example.com/", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://api.v1.example.com/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -481,7 +481,7 @@ func TestSubdomains(t *testing.T) {
 
 	t.Run("no subdomain", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://example.com/", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -491,7 +491,7 @@ func TestSubdomains(t *testing.T) {
 
 	t.Run("custom offset for .co.uk", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "http://api.example.co.uk/", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://api.example.co.uk/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
@@ -507,7 +507,7 @@ func TestCacheFreshness(t *testing.T) {
 
 	t.Run("fresh with matching ETag", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("If-None-Match", `"abc123"`)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -519,7 +519,7 @@ func TestCacheFreshness(t *testing.T) {
 
 	t.Run("stale with different ETag", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("If-None-Match", `"abc123"`)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -531,7 +531,7 @@ func TestCacheFreshness(t *testing.T) {
 
 	t.Run("fresh with If-Modified-Since", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("If-Modified-Since", "Wed, 21 Oct 2015 07:28:00 GMT")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -542,7 +542,7 @@ func TestCacheFreshness(t *testing.T) {
 
 	t.Run("stale with Cache-Control no-cache", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Cache-Control", "no-cache")
 		req.Header.Set("If-None-Match", `"abc123"`)
 		w := httptest.NewRecorder()
@@ -554,7 +554,7 @@ func TestCacheFreshness(t *testing.T) {
 
 	t.Run("no cache headers", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 

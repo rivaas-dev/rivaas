@@ -130,7 +130,7 @@ func normalizeETagValue(tag string) string {
 //	// Now compute expensive body...
 func (c *Context) HandleConditionals(o CondOpts) bool {
 	method := c.Request.Method
-	isSafe := method == "GET" || method == "HEAD"
+	isSafe := method == http.MethodGet || method == http.MethodHead
 
 	// Handle If-None-Match (takes precedence per RFC 7232)
 	if handled, done := c.handleIfNoneMatch(o, isSafe); done {
@@ -297,7 +297,7 @@ func (c *Context) IfNoneMatch(tag ETag) bool {
 		return false
 	}
 	method := c.Request.Method
-	if method != "GET" && method != "HEAD" {
+	if method != http.MethodGet && method != http.MethodHead {
 		return false
 	}
 	return c.HandleConditionals(CondOpts{ETag: &tag})
@@ -310,7 +310,7 @@ func (c *Context) IfModifiedSince(t time.Time) bool {
 		return false
 	}
 	method := c.Request.Method
-	if method != "GET" && method != "HEAD" {
+	if method != http.MethodGet && method != http.MethodHead {
 		return false
 	}
 	return c.HandleConditionals(CondOpts{LastModified: &t})
@@ -323,7 +323,7 @@ func (c *Context) IfMatch(tag ETag) bool {
 		return true // No precondition
 	}
 	method := c.Request.Method
-	if method != "PUT" && method != "PATCH" && method != "DELETE" {
+	if method != http.MethodPut && method != http.MethodPatch && method != http.MethodDelete {
 		return true // Not applicable
 	}
 	im := c.Request.Header.Get("If-Match")
@@ -354,7 +354,7 @@ func (c *Context) IfUnmodifiedSince(t time.Time) bool {
 		return true // No precondition
 	}
 	method := c.Request.Method
-	if method != "PUT" && method != "PATCH" && method != "DELETE" {
+	if method != http.MethodPut && method != http.MethodPatch && method != http.MethodDelete {
 		return true // Not applicable
 	}
 	ius := c.Request.Header.Get("If-Unmodified-Since")

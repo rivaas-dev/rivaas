@@ -67,11 +67,11 @@ func (suite *AdvancedRoutingTestSuite) TestWildcardRoutes() {
 	}
 
 	for _, tt := range tests {
-		req := httptest.NewRequest("GET", tt.path, nil)
+		req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
+		suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 
 		// Check response contains the expected parameter value
 		body := w.Body.String()
@@ -102,12 +102,12 @@ func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
 
 	// Test header-based versioning
 	suite.Run("HeaderVersioning", func() {
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		req.Header.Set("Api-Version", "v2")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
+		suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 
 		body := w.Body.String()
 		suite.Contains(body, "v2", "Expected v2 version, got %s", body)
@@ -115,7 +115,7 @@ func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
 
 	// Test query parameter versioning
 	suite.Run("QueryVersioning", func() {
-		req := httptest.NewRequest("GET", "/users?version=v1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users?version=v1", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -127,7 +127,7 @@ func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
 
 	// Test default version
 	suite.Run("DefaultVersion", func() {
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -164,12 +164,12 @@ func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
 	})
 
 	// Test v1 group
-	req := httptest.NewRequest("GET", "/api/profile", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
 	req.Header.Set("Api-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 
 	// Check version header was set
 	suite.Equal("v1", w.Header().Get("X-Api-Version"), "Expected X-Api-Version header to be v1, got %s", w.Header().Get("X-Api-Version"))
@@ -205,7 +205,7 @@ func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
 	})
 
 	// Test subdomain-based versioning
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Host = "v2.example.com"
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -240,12 +240,12 @@ func (suite *AdvancedRoutingTestSuite) TestContextVersionMethods() {
 	})
 
 	// Test with v1 header
-	req := httptest.NewRequest("GET", "/version-test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/version-test", nil)
 	req.Header.Set("Api-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 
 	body := w.Body.String()
 	suite.Contains(body, "v1", "Expected v1 version, got %s", body)
@@ -269,14 +269,14 @@ func (suite *AdvancedRoutingTestSuite) TestPerformance() {
 	}
 
 	// Test that routing is still fast
-	req := httptest.NewRequest("GET", "/test0", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test0", nil)
 	req.Header.Set("Api-Version", "v1")
 	w := httptest.NewRecorder()
 
 	// This should be fast even with many routes
 	r.ServeHTTP(w, req)
 
-	suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
+	suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 }
 
 func (suite *AdvancedRoutingTestSuite) TestWildcardParameterNames() {
@@ -314,11 +314,11 @@ func (suite *AdvancedRoutingTestSuite) TestWildcardParameterNames() {
 	}
 
 	for _, tt := range testPaths {
-		req := httptest.NewRequest("GET", tt.path, nil)
+		req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		suite.Equal(200, w.Code, "Expected status 200 for %s, got %d", tt.path, w.Code)
+		suite.Equal(http.StatusOK, w.Code, "Expected status 200 for %s, got %d", tt.path, w.Code)
 
 		body := w.Body.String()
 		suite.Contains(body, tt.expected, "Expected response to contain %s for %s, got %s", tt.expected, tt.path, body)
@@ -340,7 +340,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 				version.WithDefault("v1"),
 			},
 			request: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequest(http.MethodGet, "/test", nil)
 				req.Header.Set("X-Api-Version", "v2")
 				return req
 			},
@@ -353,7 +353,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 				version.WithDefault("v1"),
 			},
 			request: func() *http.Request {
-				return httptest.NewRequest("GET", "/test?v=v2", nil)
+				return httptest.NewRequest(http.MethodGet, "/test?v=v2", nil)
 			},
 			expected: "v2",
 		},
@@ -363,7 +363,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 				version.WithDefault("v3"),
 			},
 			request: func() *http.Request {
-				return httptest.NewRequest("GET", "/test", nil)
+				return httptest.NewRequest(http.MethodGet, "/test", nil)
 			},
 			expected: "v3",
 		},
@@ -383,7 +383,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			suite.Equal(200, w.Code, "Expected status 200, got %d", w.Code)
+			suite.Equal(http.StatusOK, w.Code, "Expected status 200, got %d", w.Code)
 
 			body := w.Body.String()
 			suite.Contains(body, cfg.expected, "Expected version %s, got %s", cfg.expected, body)
