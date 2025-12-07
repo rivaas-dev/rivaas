@@ -38,7 +38,7 @@
 //	)
 //	defer logger.Shutdown(context.Background())
 //	logger.Info("request processed",
-//	    "method", "GET",
+//	    "method", http.MethodGet,
 //	    "path", "/api/users",
 //	    "status", 200,
 //	)

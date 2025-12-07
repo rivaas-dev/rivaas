@@ -82,14 +82,14 @@ func demonstrateRequestLogging(logger *logging.Logger) {
 	fmt.Println("\n--- Request Logging ---")
 
 	// Create a sample HTTP request
-	req, _ := http.NewRequest("POST", "https://api.example.com/v1/payments", nil)
+	req, _ := http.NewRequest(http.MethodPost, "https://api.example.com/v1/payments", nil)
 	req.Header.Set("User-Agent", "PaymentClient/2.0")
 	req.Header.Set("X-Request-ID", "req-abc123")
 	req.Header.Set("Content-Type", "application/json")
 
 	// Log request with response details
 	logger.LogRequest(req,
-		"status", 201,
+		"status", http.StatusCreated,
 		"duration_ms", 45,
 		"response_size", 256,
 	)
