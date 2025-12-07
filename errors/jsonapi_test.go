@@ -193,7 +193,7 @@ func TestJSONAPI_MarshalJSON(t *testing.T) {
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(data, &result), "Unmarshal failed")
 
-	errors, ok := result["errors"].([]interface{})
+	errors, ok := result["errors"].([]any)
 	require.True(t, ok, "errors is not []interface{}, got %T", result["errors"])
 
 	assert.Len(t, errors, 1, "errors length")

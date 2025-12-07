@@ -92,9 +92,9 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 		// Use JSON marshaling to convert structs to maps for generic handling
 		detailsJSON, marshalErr := json.Marshal(details)
 		if marshalErr == nil {
-			var detailsData interface{}
+			var detailsData any
 			if unmarshalErr := json.Unmarshal(detailsJSON, &detailsData); unmarshalErr == nil {
-				if fieldErrors, ok := detailsData.([]interface{}); ok {
+				if fieldErrors, ok := detailsData.([]any); ok {
 					// It's a slice - convert each field error
 					for _, field := range fieldErrors {
 						apiErr := jsonAPIError{
@@ -104,7 +104,7 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 						}
 
 						// Extract field information from map
-						if fieldMap, ok := field.(map[string]interface{}); ok {
+						if fieldMap, ok := field.(map[string]any); ok {
 							if path, ok := fieldMap["path"].(string); ok && path != "" {
 								// Convert path to JSON Pointer format
 								// "email" -> "/data/attributes/email"
@@ -120,7 +120,7 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 							if message, ok := fieldMap["message"].(string); ok && message != "" {
 								apiErr.Detail = message
 							}
-							if meta, ok := fieldMap["meta"].(map[string]interface{}); ok && len(meta) > 0 {
+							if meta, ok := fieldMap["meta"].(map[string]any); ok && len(meta) > 0 {
 								apiErr.Meta = meta
 							}
 						}
