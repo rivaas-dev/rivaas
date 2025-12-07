@@ -22,13 +22,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
 	"rivaas.dev/tracing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestNew_ValidationError tests that New returns appropriate structured errors

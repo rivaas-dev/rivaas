@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"rivaas.dev/tracing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"rivaas.dev/tracing"
 )
 
 // contextKey is a custom type for context keys to avoid collisions.

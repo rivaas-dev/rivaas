@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
+
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
 	"rivaas.dev/tracing"
@@ -126,7 +127,7 @@ func (o *observabilityRecorder) OnRequestEnd(ctx context.Context, state any, wri
 	duration := time.Since(s.startTime)
 
 	// Extract response metadata from wrapped writer
-	var statusCode = http.StatusOK
+	statusCode := http.StatusOK
 	var responseSize int64 = 0
 	if ri, ok := writer.(router.ResponseInfo); ok {
 		statusCode = ri.StatusCode()
@@ -169,7 +170,6 @@ func (o *observabilityRecorder) logAccessRequest(
 	duration time.Duration,
 	routePattern string,
 ) {
-
 	isError := statusCode >= 400
 	isSlow := o.slowThreshold > 0 && duration >= o.slowThreshold
 

@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/otel/trace"
+
 	"rivaas.dev/router"
 )
 

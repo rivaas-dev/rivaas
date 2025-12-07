@@ -22,7 +22,9 @@ import (
 	"os"
 	"time"
 
+	"example.com/full-featured/handlers"
 	"go.opentelemetry.io/otel/attribute"
+
 	"rivaas.dev/app"
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
@@ -33,8 +35,6 @@ import (
 	"rivaas.dev/router/middleware/timeout"
 	"rivaas.dev/router/version"
 	"rivaas.dev/tracing"
-
-	"example.com/full-featured/handlers"
 )
 
 func main() {

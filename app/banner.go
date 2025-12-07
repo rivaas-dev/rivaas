@@ -17,10 +17,9 @@ package app
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
-
-	"net/http"
 
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/lipgloss"

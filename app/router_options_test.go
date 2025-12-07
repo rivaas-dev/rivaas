@@ -17,10 +17,10 @@ package app
 import (
 	"testing"
 
-	"rivaas.dev/router"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"rivaas.dev/router"
 )
 
 func TestWithRouterOptions(t *testing.T) {

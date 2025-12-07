@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+
 	"rivaas.dev/app"
 )
 

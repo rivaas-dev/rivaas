@@ -34,7 +34,6 @@ func FuzzConfigValidation(f *testing.F) {
 			WithServiceVersion(version),
 			WithEnvironment(env),
 		)
-
 		// Either succeeds or returns structured error
 		if err != nil {
 			var ve *ValidationError
@@ -63,7 +62,6 @@ func FuzzServerTimeouts(f *testing.F) {
 				WithWriteTimeout(duration*2),
 			),
 		)
-
 		// Should handle any duration gracefully
 		if err != nil {
 			var ve *ValidationError
@@ -86,7 +84,6 @@ func FuzzServiceName(f *testing.F) {
 			WithServiceName(name),
 			WithServiceVersion("1.0.0"),
 		)
-
 		// Should either succeed or return ValidationError
 		if err != nil {
 			var ve *ValidationError

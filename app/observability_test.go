@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
 	"rivaas.dev/tracing"
