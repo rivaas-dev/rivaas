@@ -24,9 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:paralleltest // Cannot use t.Parallel() - this test modifies global os.Stdout
 func TestPrintRoutes_Output(t *testing.T) {
-	// NOTE: Cannot use t.Parallel() - this test modifies global os.Stdout
-
 	app, err := New(
 		WithServiceName("test-service"),
 		WithServiceVersion("1.0.0"),
@@ -50,14 +49,14 @@ func TestPrintRoutes_Output(t *testing.T) {
 	originalStdout := os.Stdout
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
-	os.Stdout = w
+	os.Stdout = w //nolint:reassign // Intentional stdout capture for test
 
 	// Print routes
 	app.PrintRoutes()
 
 	// Restore stdout
-	_ = w.Close() //nolint:errcheck // Test cleanup
-	os.Stdout = originalStdout
+	_ = w.Close()              //nolint:errcheck // Test cleanup
+	os.Stdout = originalStdout //nolint:reassign // Restore original stdout
 
 	// Read captured output
 	buf.ReadFrom(r)

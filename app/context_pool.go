@@ -107,8 +107,8 @@ func buildRequestLogger(base *slog.Logger, rc *router.Context) *slog.Logger {
 	if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
 		sc := span.SpanContext()
 		logger = logger.With(
-			slog.String(fieldTraceID, sc.TraceID().String()),
-			slog.String(fieldSpanID, sc.SpanID().String()),
+			fieldTraceID, sc.TraceID().String(),
+			fieldSpanID, sc.SpanID().String(),
 		)
 	}
 

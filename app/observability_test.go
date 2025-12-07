@@ -260,13 +260,13 @@ func TestObservabilityRecorder_ExcludesHealthPaths(t *testing.T) {
 	})
 
 	// Request to /health (should be excluded from observability)
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	// Request to /api/users (should not be excluded)
-	req = httptest.NewRequest("GET", "/api/users", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	rec = httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -289,7 +289,7 @@ func TestWithMetricsOnMainRouter(t *testing.T) {
 		require.NotNil(t, app.metrics)
 
 		// Metrics endpoint should be available on main router
-		req := httptest.NewRequest("GET", "/metrics", nil)
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 		rec := httptest.NewRecorder()
 		app.Router().ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -328,7 +328,7 @@ func TestWithMetricsOnMainRouter(t *testing.T) {
 		require.NoError(t, err)
 
 		// Metrics should be at custom path
-		req := httptest.NewRequest("GET", "/custom-metrics", nil)
+		req := httptest.NewRequest(http.MethodGet, "/custom-metrics", nil)
 		rec := httptest.NewRecorder()
 		app.Router().ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -346,7 +346,7 @@ func TestWithMetricsOnMainRouter(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/metrics", nil)
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 		rec := httptest.NewRecorder()
 		app.Router().ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusOK, rec.Code)

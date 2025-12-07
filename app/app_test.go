@@ -241,7 +241,7 @@ func TestNew_ValidationError(t *testing.T) {
 
 			app, err := New(tt.opts...)
 			if tt.wantErr != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, app)
 				assert.Contains(t, err.Error(), tt.wantErr)
 
@@ -259,7 +259,7 @@ func TestNew_ValidationError(t *testing.T) {
 					tt.checkError(t, err)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, app)
 			}
 		})
@@ -312,6 +312,7 @@ func TestNew_ValidConfigurations(t *testing.T) {
 				),
 			},
 			check: func(t *testing.T, a *App) {
+				t.Helper()
 				assert.NotNil(t, a.config.server)
 				assert.Equal(t, 5*time.Second, a.config.server.readTimeout)
 				// Verify defaults were used for unset values
@@ -326,6 +327,7 @@ func TestNew_ValidConfigurations(t *testing.T) {
 				WithEnvironment(EnvironmentDevelopment),
 			},
 			check: func(t *testing.T, a *App) {
+				t.Helper()
 				assert.Equal(t, EnvironmentDevelopment, a.Environment())
 			},
 		},
@@ -555,7 +557,7 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		app.GET("/panic", func(c *Context) {
 			panic("test panic")
 		})
-		req := httptest.NewRequest("GET", "/panic", nil)
+		req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 		rec := httptest.NewRecorder()
 		app.Router().ServeHTTP(rec, req)
 		// Recovery middleware should catch the panic and return 500
@@ -578,7 +580,7 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		app.GET("/panic", func(c *Context) {
 			panic("test panic")
 		})
-		req := httptest.NewRequest("GET", "/panic", nil)
+		req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 		rec := httptest.NewRecorder()
 		app.Router().ServeHTTP(rec, req)
 		// Recovery middleware should catch the panic and return 500
@@ -606,7 +608,7 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		app.GET("/panic", func(c *Context) {
 			panic("test panic")
 		})
-		req := httptest.NewRequest("GET", "/panic", nil)
+		req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 		rec := httptest.NewRecorder()
 		app.Router().ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
@@ -627,7 +629,7 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 		app.GET("/panic", func(c *Context) {
 			panic("test panic")
 		})
-		req := httptest.NewRequest("GET", "/panic", nil)
+		req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 		rec := httptest.NewRecorder()
 		app.Router().ServeHTTP(rec, req)
 		// Recovery middleware should catch the panic and return 500
@@ -969,6 +971,7 @@ func TestApp_GetMetricsHandler(t *testing.T) {
 			wantError:   true,
 			wantHandler: false,
 			errorCheck: func(t *testing.T, err error) {
+				t.Helper()
 				assert.Contains(t, err.Error(), "metrics not enabled")
 			},
 		},

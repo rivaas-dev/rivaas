@@ -48,7 +48,7 @@ func (s *AppLifecycleSuite) TearDownTest() {
 				c.Logger().Error("failed to write response", "err", err)
 			}
 		})
-		req := httptest.NewRequest("GET", "/cleanup-check", nil)
+		req := httptest.NewRequest(http.MethodGet, "/cleanup-check", nil)
 		resp, err := s.testApp.Test(req)
 		s.NoError(err)
 		s.Equal(http.StatusOK, resp.StatusCode)
@@ -113,7 +113,7 @@ func (s *AppLifecycleSuite) TestRouteRegistration() {
 	// Test GET route
 	req := httptest.NewRequest(http.MethodGet, "/users", nil)
 	resp, err := s.testApp.Test(req)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.Equal(http.StatusOK, resp.StatusCode)
 	_ = resp.Body.Close() //nolint:errcheck // Test cleanup
 
@@ -162,6 +162,7 @@ func (s *AppLifecycleSuite) TestMiddlewareChain() {
 	s.Equal([]int{1, 2, 3}, callOrder)
 }
 
+//nolint:paralleltest // Test suites manage their own parallelization
 func TestAppLifecycleSuite(t *testing.T) {
 	suite.Run(t, new(AppLifecycleSuite))
 }

@@ -341,7 +341,7 @@ func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOptio
 	tlsConfig := cfg.buildTLSConfig()
 
 	// Create listener
-	listener, err := net.Listen("tcp", addr)
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
@@ -365,24 +365,10 @@ func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOptio
 	// Authorization happens at connection time; principal extraction happens per-request
 	originalConnState := server.ConnState
 	server.ConnState = func(conn net.Conn, state http.ConnState) {
-		if state == http.StateActive {
-			if tlsConn, ok := conn.(*tls.Conn); ok {
-				// Extract peer certificate
-				connState := tlsConn.ConnectionState()
-				if len(connState.PeerCertificates) > 0 {
-					peerCert := connState.PeerCertificates[0]
+		if state == http.StateActive && !authorizeMTLSConnection(conn, cfg) {
+			conn.Close()
 
-					// Authorize if callback provided
-					if cfg.authorize != nil {
-						_, allowed := cfg.authorize(peerCert)
-						if !allowed {
-							// Close connection if not authorized
-							conn.Close()
-							return
-						}
-					}
-				}
-			}
+			return
 		}
 
 		// Call original ConnState if set
@@ -395,4 +381,27 @@ func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOptio
 	return a.runServer(server, func() error {
 		return server.Serve(tlsListener)
 	}, "mTLS")
+}
+
+// authorizeMTLSConnection checks if the TLS connection is authorized.
+// Returns true if authorized (or no authorization required), false if denied.
+func authorizeMTLSConnection(conn net.Conn, cfg *mtlsConfig) bool {
+	// No authorize callback means all connections are allowed
+	if cfg.authorize == nil {
+		return true
+	}
+
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return true // Not a TLS connection, skip authorization
+	}
+
+	connState := tlsConn.ConnectionState()
+	if len(connState.PeerCertificates) == 0 {
+		return true // No peer certificate, skip authorization
+	}
+
+	_, allowed := cfg.authorize(connState.PeerCertificates[0])
+
+	return allowed
 }

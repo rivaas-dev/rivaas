@@ -277,6 +277,7 @@ func WithExcludePatterns(patterns ...string) ObservabilityOption {
 				}
 				s.validationErrors = append(s.validationErrors,
 					fmt.Errorf("invalid regex pattern for path exclusion %q: %w", pattern, err))
+
 				continue
 			}
 			s.pathFilter.addPatterns(compiled)

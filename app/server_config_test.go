@@ -232,7 +232,7 @@ func TestServerConfig_Validate_Integration(t *testing.T) {
 			),
 		)
 
-		assert.Error(t, err, "should return validation error")
+		require.Error(t, err, "should return validation error")
 		assert.Nil(t, app, "app should be nil on validation error")
 		assert.Contains(t, err.Error(), "read timeout should not exceed write timeout")
 	})

@@ -657,6 +657,7 @@ var _ = Describe("App Integration", func() {
 	})
 })
 
+//nolint:paralleltest // Ginkgo test suite manages its own parallelization
 func TestAppIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
