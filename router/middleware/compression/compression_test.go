@@ -28,6 +28,7 @@ import (
 	"rivaas.dev/router"
 )
 
+//nolint:paralleltest // Tests compression behavior
 func TestCompression_BasicGzip(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
@@ -53,6 +54,7 @@ func TestCompression_BasicGzip(t *testing.T) {
 	assert.Contains(t, string(decompressed), "Hello, World!")
 }
 
+//nolint:paralleltest // Tests compression behavior
 func TestCompression_NoGzipSupport(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
@@ -70,14 +72,7 @@ func TestCompression_NoGzipSupport(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "Hello", "Response should be uncompressed")
 }
 
-func TestCompression_MinSize(t *testing.T) {
-	t.Skip("MinSize feature requires response buffering - not yet implemented for performance reasons")
-
-	// TODO: Implement minSize by buffering responses up to a certain size
-	// This adds latency and memory overhead, so needs careful consideration
-	// For now, compression always occurs if client supports it and content is not excluded
-}
-
+//nolint:paralleltest // Subtests share router state
 func TestCompression_ExcludePaths(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithExcludePaths("/metrics", "/health")))
@@ -115,6 +110,7 @@ func TestCompression_ExcludePaths(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Subtests share router state
 func TestCompression_ExcludeExtensions(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithExcludeExtensions(".jpg", ".png", ".zip")))
@@ -152,6 +148,7 @@ func TestCompression_ExcludeExtensions(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Subtests share router state
 func TestCompression_ExcludeContentTypes(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithExcludeContentTypes("image/jpeg", "application/zip")))
@@ -193,6 +190,7 @@ func TestCompression_ExcludeContentTypes(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Subtests share test state
 func TestCompression_CompressionLevels(t *testing.T) {
 	levels := []int{
 		gzip.NoCompression,
@@ -224,6 +222,7 @@ func TestCompression_CompressionLevels(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Tests compression behavior
 func TestCompression_LargeResponse(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
@@ -258,6 +257,7 @@ func TestCompression_LargeResponse(t *testing.T) {
 	assert.Contains(t, string(decompressed), "This is a large response")
 }
 
+//nolint:paralleltest // Tests compression behavior
 func TestCompression_MultipleRequests(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
@@ -278,6 +278,7 @@ func TestCompression_MultipleRequests(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Tests compression behavior
 func TestCompression_ContentLengthRemoved(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())

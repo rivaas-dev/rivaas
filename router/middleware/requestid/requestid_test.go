@@ -25,6 +25,7 @@ import (
 )
 
 func TestRequestID_GeneratesID(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
@@ -44,6 +45,7 @@ func TestRequestID_GeneratesID(t *testing.T) {
 }
 
 func TestRequestID_ClientIDHandling(t *testing.T) {
+	t.Parallel()
 	clientID := "client-provided-id-123"
 
 	tests := []struct {
@@ -68,6 +70,7 @@ func TestRequestID_ClientIDHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			r := router.MustNew()
 			r.Use(New(WithAllowClientID(tt.allowClient)))
 			r.GET("/test", func(c *router.Context) {
@@ -140,6 +143,7 @@ func TestRequestID_Configuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			opts := make([]Option, len(tt.options))
 			for i, optFunc := range tt.options {
 				opts[i] = optFunc()
@@ -198,6 +202,7 @@ func TestRequestID_Configuration(t *testing.T) {
 }
 
 func TestRequestID_CombinedOptions(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(
 		WithHeader("X-Trace-ID"),

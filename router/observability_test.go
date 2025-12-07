@@ -24,6 +24,7 @@ import (
 	"rivaas.dev/router/version"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -460,8 +461,8 @@ func TestCompiledRouteWithVersioningAndBothObservability(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "versioned-route-v2", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
 }
 
 // TestServeDynamicWithMetrics tests dynamic routes with metrics
@@ -480,8 +481,8 @@ func TestServeDynamicWithMetrics(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.endCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
 }
 
 // TestServeDynamicWithTracing tests dynamic routes with tracing
@@ -500,8 +501,8 @@ func TestServeDynamicWithTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.endCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
 }
 
 // TestServeDynamicWithBoth tests dynamic routes with both metrics and tracing
@@ -520,13 +521,13 @@ func TestServeDynamicWithBoth(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.endCalls.Load() > 0)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.endCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
 }
 
 // TestVersionedRoutingWithMetrics tests versioned routes with metrics
+//
+//nolint:paralleltest // Tests observability recorder state
 func TestVersionedRoutingWithMetrics(t *testing.T) {
 	r := MustNew(
 		WithVersioning(
@@ -550,7 +551,7 @@ func TestVersionedRoutingWithMetrics(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
 }
 
 // TestVersionedRoutingWithTracing tests versioned routes with tracing
@@ -578,7 +579,7 @@ func TestVersionedRoutingWithTracing(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
 }
 
 // TestVersionedRoutingWithBoth tests versioned routes with both observability systems
@@ -606,8 +607,8 @@ func TestVersionedRoutingWithBoth(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
 }
 
 // TestVersionedCompiledRoutesWithObservability tests compiled versioned routes
@@ -640,11 +641,13 @@ func TestVersionedCompiledRoutesWithObservability(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mockObs.startCalls.Load() > 0)
-	assert.True(t, mockObs.startCalls.Load() > 0)
+	assert.Positive(t, mockObs.startCalls.Load())
+	assert.Positive(t, mockObs.endCalls.Load())
 }
 
 // TestTracingExcludedPaths tests that excluded paths don't create spans
+//
+//nolint:paralleltest // Tests observability recorder state
 func TestTracingExcludedPaths(t *testing.T) {
 	r := MustNew()
 	mockObs := newMockObservabilityWithExclusion("/health")
@@ -688,6 +691,8 @@ func TestPostFormDefault(t *testing.T) {
 }
 
 // TestIsSecureWithTLS tests IsSecure with TLS connection
+//
+//nolint:paralleltest // Tests TLS state
 func TestIsSecureWithTLS(_ *testing.T) {
 	r := MustNew()
 
@@ -704,12 +709,12 @@ func TestIsSecureWithTLS(_ *testing.T) {
 }
 
 // TestGetCookieError tests GetCookie error path
-func TestGetCookieError(t *testing.T) {
+func TestGetCookieError(t *testing.T) { //nolint:paralleltest // Tests error handling behavior
 	r := MustNew()
 
 	r.GET("/cookie", func(c *Context) {
 		_, err := c.GetCookie("invalid-cookie=")
-		assert.Error(t, err)
+		require.Error(t, err)
 		c.String(http.StatusOK, "ok")
 	})
 
@@ -776,6 +781,8 @@ func TestContextTracingMethodsNoOp(t *testing.T) {
 
 // TestCompiledRouteBranchWithTracingAndMetrics tests the branch where both tracing and metrics are enabled
 // Specifically tests: shouldTrace && shouldMeasure -> serveStaticWithTracingAndMetrics
+//
+//nolint:paralleltest // Tests observability recorder state
 func TestCompiledRouteBranchWithTracingAndMetrics(t *testing.T) {
 	r := MustNew()
 	mockObs := newMockObservabilityRecorder(true)
@@ -795,10 +802,8 @@ func TestCompiledRouteBranchWithTracingAndMetrics(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-with-both", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics StartRequest should be called")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics FinishRequest should be called")
-	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing StartSpan should be called")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing FinishSpan should be called")
+	assert.Positive(t, mockObs.startCalls.Load(), "StartRequest should be called")
+	assert.Positive(t, mockObs.endCalls.Load(), "FinishRequest should be called")
 }
 
 // TestCompiledRouteBranchWithTracingOnly tests the branch where only tracing is enabled
@@ -824,12 +829,14 @@ func TestCompiledRouteBranchWithTracingOnly(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-with-trace", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing StartSpan should be called")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing FinishSpan should be called")
+	assert.Positive(t, mockObs.startCalls.Load(), "Tracing StartSpan should be called")
+	assert.Positive(t, mockObs.endCalls.Load(), "Tracing FinishSpan should be called")
 }
 
 // TestCompiledRouteBranchWithMetricsOnly tests the branch where only metrics is enabled
 // Specifically tests: shouldMeasure -> serveStaticWithMetrics
+//
+//nolint:paralleltest // Tests observability recorder state
 func TestCompiledRouteBranchWithMetricsOnly(t *testing.T) {
 	r := MustNew()
 	mockObs := newMockObservabilityRecorder(true)
@@ -850,8 +857,8 @@ func TestCompiledRouteBranchWithMetricsOnly(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-with-metrics", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics StartRequest should be called")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics FinishRequest should be called")
+	assert.Positive(t, mockObs.startCalls.Load(), "Metrics StartRequest should be called")
+	assert.Positive(t, mockObs.endCalls.Load(), "Metrics FinishRequest should be called")
 }
 
 // TestCompiledRouteBranchWithoutTracingOrMetrics tests the branch where neither tracing nor metrics are enabled
@@ -939,8 +946,8 @@ func TestCompiledRouteBranchWithTracingAndVersioning(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-trace-version", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing StartSpan should be called")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing FinishSpan should be called")
+	assert.Positive(t, mockObs.startCalls.Load(), "Tracing StartSpan should be called")
+	assert.Positive(t, mockObs.endCalls.Load(), "Tracing FinishSpan should be called")
 }
 
 // TestCompiledRouteBranchWithMetricsAndVersioning tests metrics with versioning enabled
@@ -973,8 +980,8 @@ func TestCompiledRouteBranchWithMetricsAndVersioning(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-metrics-version", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics StartRequest should be called")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics FinishRequest should be called")
+	assert.Positive(t, mockObs.startCalls.Load(), "Metrics StartRequest should be called")
+	assert.Positive(t, mockObs.endCalls.Load(), "Metrics FinishRequest should be called")
 }
 
 // TestCompiledRouteBranchWithBothAndVersioning tests both tracing and metrics with versioning enabled
@@ -1007,10 +1014,10 @@ func TestCompiledRouteBranchWithBothAndVersioning(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "static-both-version", w.Body.String())
-	assert.True(t, mockObs.startCalls.Load() > 0, "Metrics StartRequest should be called")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Metrics FinishRequest should be called")
-	assert.True(t, mockObs.startCalls.Load() > 0, "Tracing StartSpan should be called")
-	assert.True(t, mockObs.endCalls.Load() > 0, "Tracing FinishSpan should be called")
+	assert.Positive(t, mockObs.startCalls.Load(), "Metrics StartRequest should be called")
+	assert.Positive(t, mockObs.endCalls.Load(), "Metrics FinishRequest should be called")
+	assert.Positive(t, mockObs.startCalls.Load(), "Tracing StartSpan should be called")
+	assert.Positive(t, mockObs.endCalls.Load(), "Tracing FinishSpan should be called")
 }
 
 // TestContextCustomMetricsFromHandler tests that custom metrics called from handlers
@@ -1222,7 +1229,7 @@ func TestVersionedRouteParameterExtraction(t *testing.T) {
 	// Verify JSON response contains correct parameters
 	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "123", response["user_id"])
 	assert.Equal(t, "456", response["post_id"])
 }
@@ -1264,6 +1271,8 @@ func TestVersionedRouteParameterExtractionWithMetrics(t *testing.T) {
 // prefixes are routed to the main tree, not versioned trees.
 // This verifies the fix where all requests were incorrectly matched
 // against versioned trees.
+//
+//nolint:paralleltest // Tests version routing state
 func TestNonVersionedPathRoutingToMainTree(t *testing.T) {
 	r := MustNew(
 		WithVersioning(
@@ -1665,7 +1674,7 @@ func TestRouteHandlerIsolationWithDistinctResponses(t *testing.T) {
 
 			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedType, response["type"], "Route should return its own type")
 			assert.Equal(t, tt.expectedID, response["id"], "Route should return correct ID")
 		})

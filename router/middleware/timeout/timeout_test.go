@@ -27,6 +27,7 @@ import (
 )
 
 func TestTimeout_Behavior(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		timeout        time.Duration
@@ -49,6 +50,7 @@ func TestTimeout_Behavior(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			r := router.MustNew()
 			r.Use(New(tt.timeout))
 			r.GET("/test", func(c *router.Context) {
@@ -77,6 +79,7 @@ func TestTimeout_Behavior(t *testing.T) {
 }
 
 func TestTimeout_RespectsContextCancellation(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(50 * time.Millisecond))
 
@@ -122,6 +125,7 @@ func TestTimeout_RespectsContextCancellation(t *testing.T) {
 }
 
 func TestTimeout_SkipPaths(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(50*time.Millisecond, WithSkipPaths("/long-running")))
 
@@ -151,6 +155,7 @@ func TestTimeout_SkipPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
@@ -161,6 +166,7 @@ func TestTimeout_SkipPaths(t *testing.T) {
 }
 
 func TestTimeout_CustomHandler(t *testing.T) {
+	t.Parallel()
 	customHandlerCalled := false
 
 	r := router.MustNew()
@@ -197,6 +203,7 @@ func TestTimeout_CustomHandler(t *testing.T) {
 }
 
 func TestTimeout_ContextPropagation(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(100 * time.Millisecond))
 
@@ -219,6 +226,7 @@ func TestTimeout_ContextPropagation(t *testing.T) {
 }
 
 func TestTimeout_MultipleRequests(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(100 * time.Millisecond))
 
@@ -250,6 +258,7 @@ func TestTimeout_MultipleRequests(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)

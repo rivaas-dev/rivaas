@@ -24,6 +24,7 @@ import (
 	"rivaas.dev/router"
 )
 
+//nolint:paralleltest // Subtests share handler state
 func TestTrailingSlash_RemovePolicy(t *testing.T) {
 	r := router.MustNew()
 	r.GET("/users", func(c *router.Context) {
@@ -78,6 +79,7 @@ func TestTrailingSlash_RemovePolicy(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Tests trailing slash behavior
 func TestTrailingSlashRootPath(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
@@ -95,6 +97,7 @@ func TestTrailingSlashRootPath(t *testing.T) {
 	assert.Equal(t, "root", w.Body.String())
 }
 
+//nolint:paralleltest // Subtests create separate routers
 func TestTrailingSlash_Policies(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -172,6 +175,7 @@ func TestTrailingSlash_Policies(t *testing.T) {
 }
 
 func TestTrailingSlashTrimSuffixNotTrimRight(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.GET("/users", func(c *router.Context) {
 		c.String(http.StatusOK, "users")
@@ -182,7 +186,7 @@ func TestTrailingSlashTrimSuffixNotTrimRight(t *testing.T) {
 	// Test that multiple slashes don't collapse incorrectly
 	// /users// should redirect to /users/ (then to /users on second request)
 	// But we only remove one slash, so /users// → /users/ → 404 (since route is /users)
-	req := httptest.NewRequest("GET", "/users//", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users//", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -195,6 +199,7 @@ func TestTrailingSlashTrimSuffixNotTrimRight(t *testing.T) {
 }
 
 func TestTrailingSlashPreservesMethod(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.POST("/users", func(c *router.Context) {
 		c.String(http.StatusOK, "created")

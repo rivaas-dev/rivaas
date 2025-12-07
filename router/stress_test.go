@@ -124,6 +124,8 @@ func BenchmarkRouterMemoryAllocations(b *testing.B) {
 }
 
 // TestStressSuite runs the stress test suite
+//
+//nolint:paralleltest // Test suites manage their own parallelization
 func TestStressSuite(t *testing.T) {
 	suite.Run(t, new(StressTestSuite))
 }

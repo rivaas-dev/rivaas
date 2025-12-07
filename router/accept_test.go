@@ -251,7 +251,7 @@ func TestAccepts_CacheHit(t *testing.T) {
 
 		// Test multiple cache hits within the same request
 		acceptHeader := "application/json, text/html;q=0.8, application/xml;q=0.6"
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", acceptHeader)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -271,7 +271,7 @@ func TestAccepts_CacheHit(t *testing.T) {
 		t.Parallel()
 
 		// Test that nil cached specs don't cause issues
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -336,7 +336,7 @@ func TestAcceptsCharsets(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			if tt.header != "" {
 				req.Header.Set("Accept-Charset", tt.header)
 			}
@@ -408,7 +408,7 @@ func TestAcceptsEncodings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			if tt.header != "" {
 				req.Header.Set("Accept-Encoding", tt.header)
 			}
@@ -473,7 +473,7 @@ func TestAcceptsLanguages(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			if tt.header != "" {
 				req.Header.Set("Accept-Language", tt.header)
 			}
@@ -494,7 +494,7 @@ func TestAcceptsRealWorldScenarios(t *testing.T) {
 		t.Parallel()
 		// Typical browser Accept header
 		header := "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8"
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", header)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -508,7 +508,7 @@ func TestAcceptsRealWorldScenarios(t *testing.T) {
 		t.Parallel()
 
 		header := "application/json, */*; q=0.01"
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", header)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -522,7 +522,7 @@ func TestAcceptsRealWorldScenarios(t *testing.T) {
 		t.Parallel()
 
 		header := "gzip, deflate, br"
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept-Encoding", header)
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -535,7 +535,7 @@ func TestAcceptsRealWorldScenarios(t *testing.T) {
 
 func BenchmarkAccepts(b *testing.B) {
 	b.Run("complex", func(b *testing.B) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "text/html,application/json;q=0.9,*/*;q=0.8")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -548,7 +548,7 @@ func BenchmarkAccepts(b *testing.B) {
 	})
 
 	b.Run("simple", func(b *testing.B) {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
@@ -562,7 +562,7 @@ func BenchmarkAccepts(b *testing.B) {
 }
 
 func BenchmarkAcceptsEncodings(b *testing.B) {
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
 	w := httptest.NewRecorder()
 	c := NewContext(w, req)
@@ -870,6 +870,8 @@ func TestParseQuality(t *testing.T) {
 }
 
 // TestParseAcceptPart tests parseAcceptPart with various inputs.
+//
+//nolint:paralleltest // Some subtests share arena pool state
 func TestParseAcceptPart(t *testing.T) {
 	t.Parallel()
 
@@ -1033,6 +1035,8 @@ func TestParseAcceptPart(t *testing.T) {
 
 // TestParseAccept_EmptyHeader tests parseAccept with empty header.
 // This covers the early return path when header is empty.
+//
+//nolint:paralleltest // Some subtests share arena pool state
 func TestParseAccept_EmptyHeader(t *testing.T) {
 	t.Parallel()
 
@@ -1081,6 +1085,8 @@ func TestParseAccept_EmptyHeader(t *testing.T) {
 }
 
 // TestParseAcceptParam tests parseAcceptParam function, specifically covering early return cases.
+//
+//nolint:paralleltest // Some subtests share arena pool state
 func TestParseAcceptParam(t *testing.T) {
 	t.Parallel()
 
@@ -1390,6 +1396,8 @@ func TestParseAcceptParam(t *testing.T) {
 }
 
 // TestSplitMediaType tests splitMediaType function, covering semicolon handling and fallback cases.
+//
+//nolint:paralleltest // Some subtests share state
 func TestSplitMediaType(t *testing.T) {
 	t.Parallel()
 
@@ -1635,6 +1643,8 @@ func TestSplitMediaType(t *testing.T) {
 }
 
 // TestNormalizeMediaType tests normalizeMediaType function, covering fallback cases.
+//
+//nolint:paralleltest // Some subtests share state
 func TestNormalizeMediaType(t *testing.T) {
 	t.Parallel()
 
@@ -1841,6 +1851,8 @@ func TestNormalizeMediaType(t *testing.T) {
 }
 
 // TestAcceptHeaderMatch tests acceptHeaderMatch function, covering empty offers and specs cases.
+//
+//nolint:paralleltest // Some subtests share state
 func TestAcceptHeaderMatch(t *testing.T) {
 	t.Parallel()
 

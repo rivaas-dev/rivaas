@@ -34,7 +34,7 @@ func TestWithBloomFilterSize(t *testing.T) {
 
 	// Test with zero size (should fail validation)
 	_, err := New(WithBloomFilterSize(0))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bloom filter size must be non-zero")
 }
 

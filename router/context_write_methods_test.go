@@ -35,7 +35,7 @@ func TestContext_JSON_Success(t *testing.T) {
 	data := map[string]string{"message": "success"}
 	err := c.JSON(http.StatusOK, data)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.False(t, c.HasErrors(), "Expected no errors after successful JSON")
@@ -56,7 +56,7 @@ func TestContext_JSON_EncodingError_ReturnsError(t *testing.T) {
 
 	err := c.JSON(http.StatusOK, BadType{Channel: make(chan int)})
 
-	assert.Error(t, err, "Expected error for unencodable data")
+	require.Error(t, err, "Expected error for unencodable data")
 	assert.False(t, c.HasErrors(), "Expected JSON not to automatically collect errors")
 	assert.NotEmpty(t, err.Error(), "Expected non-empty error message")
 }
@@ -148,7 +148,7 @@ func TestContext_Data_EmptyContentType(t *testing.T) {
 	data := []byte("test")
 	err := c.Data(http.StatusOK, "", data)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// Should default to application/octet-stream
 	assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
 }

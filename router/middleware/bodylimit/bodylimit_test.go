@@ -30,6 +30,7 @@ import (
 	"rivaas.dev/router"
 )
 
+//nolint:paralleltest // Subtests share router state
 func TestBodyLimit_ContentLength(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -111,6 +112,7 @@ func TestBodyLimit_ContentLength(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Tests router behavior
 func TestBodyLimit_ActualBodyRead_ExceedsLimit(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithLimit(100))) // 100 byte limit
@@ -143,6 +145,7 @@ func TestBodyLimit_ActualBodyRead_ExceedsLimit(t *testing.T) {
 	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
 }
 
+//nolint:paralleltest // Tests router behavior
 func TestBodyLimit_NoContentLength_WithinLimit(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithLimit(1024))) // 1KB limit
@@ -171,6 +174,7 @@ func TestBodyLimit_NoContentLength_WithinLimit(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+//nolint:paralleltest // Tests router behavior
 func TestBodyLimit_SkipPaths(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(
@@ -216,6 +220,7 @@ func TestBodyLimit_SkipPaths(t *testing.T) {
 	assert.NotEqual(t, http.StatusOK, w2.Code, "Normal path with large body should fail")
 }
 
+//nolint:paralleltest // Tests router behavior
 func TestBodyLimit_CustomErrorHandler(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(
@@ -239,6 +244,7 @@ func TestBodyLimit_CustomErrorHandler(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "Custom: Body too large")
 }
 
+//nolint:paralleltest // Tests router behavior
 func TestBodyLimit_EmptyBody(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithLimit(1024)))
@@ -256,6 +262,7 @@ func TestBodyLimit_EmptyBody(t *testing.T) {
 }
 
 func TestBodyLimit_FormData(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(WithLimit(1024))) // 1KB limit
 	r.POST("/form", func(c *router.Context) {
@@ -307,6 +314,7 @@ func TestBodyLimit_FormData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			body := bytes.NewBufferString(tt.formData)
 			req := httptest.NewRequest(http.MethodPost, "/form", body)
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -321,6 +329,7 @@ func TestBodyLimit_FormData(t *testing.T) {
 }
 
 func TestBodyLimit_DefaultLimit(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New()) // Default 2MB limit
 	r.POST("/test", func(c *router.Context) {
@@ -345,6 +354,7 @@ func TestBodyLimit_DefaultLimit(t *testing.T) {
 }
 
 func TestBodyLimit_InvalidContentLength(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(WithLimit(100)))
 	r.POST("/test", func(c *router.Context) {
@@ -374,6 +384,7 @@ func TestBodyLimit_InvalidContentLength(t *testing.T) {
 }
 
 func TestBodyLimit_ErrorTypeChecking(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(WithLimit(100)))
 	r.POST("/test", func(c *router.Context) {
@@ -403,6 +414,7 @@ func TestBodyLimit_ErrorTypeChecking(t *testing.T) {
 }
 
 func TestBodyLimit_ConcurrentRequests(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(WithLimit(1024)))
 	r.POST("/test", func(c *router.Context) {
@@ -452,18 +464,21 @@ func TestBodyLimit_ConcurrentRequests(t *testing.T) {
 }
 
 func TestBodyLimit_InvalidLimit_Panics(t *testing.T) {
+	t.Parallel()
 	assert.Panics(t, func() {
 		_ = New(WithLimit(-1))
 	}, "Expected panic for invalid limit")
 }
 
 func TestBodyLimit_ZeroLimit_Panics(t *testing.T) {
+	t.Parallel()
 	assert.Panics(t, func() {
 		_ = New(WithLimit(0))
 	}, "Expected panic for zero limit")
 }
 
 func TestBodyLimit_WithErrorHandlerFirst(t *testing.T) {
+	t.Parallel()
 	// This test ensures that WithErrorHandler can be called before WithLimit
 	// and the custom handler won't be overwritten
 	r := router.MustNew()
@@ -495,6 +510,7 @@ func TestBodyLimit_WithErrorHandlerFirst(t *testing.T) {
 }
 
 func TestBodyLimit_SkipMultiplePaths(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(
 		WithLimit(100),
@@ -534,6 +550,7 @@ func TestBodyLimit_SkipMultiplePaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			largeBody := bytes.NewBufferString(strings.Repeat("x", 500))
 			req := httptest.NewRequest(http.MethodPost, tt.path, largeBody)
 			req.Header.Set("Content-Type", "application/json")

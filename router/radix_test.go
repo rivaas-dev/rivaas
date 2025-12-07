@@ -193,6 +193,8 @@ func (suite *RadixTestSuite) TestRadixTree_MoreThan8Params() {
 }
 
 // TestRadixSuite runs the radix test suite
+//
+//nolint:paralleltest // Test suites manage their own parallelization
 func TestRadixSuite(t *testing.T) {
 	suite.Run(t, new(RadixTestSuite))
 }

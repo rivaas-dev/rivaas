@@ -105,7 +105,7 @@ func TestEngineDetectVersion(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		req.Header.Set("X-API-Version", "v2")
 
 		ver := engine.DetectVersion(req)
@@ -121,7 +121,7 @@ func TestEngineDetectVersion(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		req.Header.Set("X-API-Version", "v99")
 
 		ver := engine.DetectVersion(req)
@@ -136,7 +136,7 @@ func TestEngineDetectVersion(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/users?v=v2", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users?v=v2", nil)
 		ver := engine.DetectVersion(req)
 		assert.Equal(t, "v2", ver)
 	})
@@ -149,7 +149,7 @@ func TestEngineDetectVersion(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/v2/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v2/users", nil)
 		ver := engine.DetectVersion(req)
 		assert.Equal(t, "v2", ver)
 	})
@@ -162,7 +162,7 @@ func TestEngineDetectVersion(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		req.Header.Set("Accept", "application/vnd.myapi.v2+json")
 
 		ver := engine.DetectVersion(req)
@@ -182,7 +182,7 @@ func TestEngineDetectVersion(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		req.Host = "v2.example.com"
 
 		ver := engine.DetectVersion(req)
@@ -200,7 +200,7 @@ func TestEngineDetectVersion(t *testing.T) {
 		require.NoError(t, err)
 
 		// Path takes priority over header
-		req := httptest.NewRequest("GET", "/v3/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v3/users", nil)
 		req.Header.Set("X-API-Version", "v2")
 
 		ver := engine.DetectVersion(req)
@@ -215,7 +215,7 @@ func TestEngineDetectVersion(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		// No version header set
 
 		ver := engine.DetectVersion(req)
@@ -242,7 +242,7 @@ func TestEngineObserver(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		req.Header.Set("X-API-Version", "v2")
 		engine.DetectVersion(req)
 
@@ -265,7 +265,7 @@ func TestEngineObserver(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		engine.DetectVersion(req)
 
 		assert.True(t, missingCalled)
@@ -287,7 +287,7 @@ func TestEngineObserver(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest("GET", "/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 		req.Header.Set("X-API-Version", "v99")
 		engine.DetectVersion(req)
 

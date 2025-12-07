@@ -25,6 +25,7 @@ import (
 	"rivaas.dev/router"
 )
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_BasicPanic(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
@@ -46,6 +47,7 @@ func TestRecovery_BasicPanic(t *testing.T) {
 	assert.Equal(t, "INTERNAL_ERROR", response["code"])
 }
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_NoPanic(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
@@ -54,7 +56,7 @@ func TestRecovery_NoPanic(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "success"})
 	})
 
-	req := httptest.NewRequest("GET", "/safe", nil)
+	req := httptest.NewRequest(http.MethodGet, "/safe", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -62,6 +64,7 @@ func TestRecovery_NoPanic(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_CustomHandler(t *testing.T) {
 	r := router.MustNew()
 
@@ -80,7 +83,7 @@ func TestRecovery_CustomHandler(t *testing.T) {
 		panic("custom panic")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -94,6 +97,7 @@ func TestRecovery_CustomHandler(t *testing.T) {
 	assert.Equal(t, "custom panic", response["panic_value"])
 }
 
+//nolint:paralleltest // Tests panic recovery behavior with shared state
 func TestRecovery_CustomLogger(t *testing.T) {
 	r := router.MustNew()
 
@@ -113,7 +117,7 @@ func TestRecovery_CustomLogger(t *testing.T) {
 		panic("logger test panic")
 	})
 
-	req := httptest.NewRequest("GET", "/panic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -123,6 +127,7 @@ func TestRecovery_CustomLogger(t *testing.T) {
 	assert.NotEmpty(t, loggedStack, "Expected stack trace to be captured")
 }
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_DisableStackTrace(t *testing.T) {
 	r := router.MustNew()
 
@@ -146,6 +151,7 @@ func TestRecovery_DisableStackTrace(t *testing.T) {
 	assert.Empty(t, loggedStack, "Stack trace should not be captured when disabled")
 }
 
+//nolint:paralleltest // Tests panic recovery behavior with shared state
 func TestRecovery_CustomStackSize(t *testing.T) {
 	r := router.MustNew()
 
@@ -173,6 +179,7 @@ func TestRecovery_CustomStackSize(t *testing.T) {
 	assert.LessOrEqual(t, len(loggedStack), 8192)
 }
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_MultipleMiddleware(t *testing.T) {
 	r := router.MustNew()
 
@@ -197,6 +204,7 @@ func TestRecovery_MultipleMiddleware(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_PanicInMiddleware(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
@@ -217,6 +225,7 @@ func TestRecovery_PanicInMiddleware(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+//nolint:paralleltest // Subtests share router state
 func TestRecovery_DifferentPanicTypes(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -262,6 +271,7 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
 	r := router.MustNew()
 
@@ -286,6 +296,7 @@ func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_StackTraceContent(t *testing.T) {
 	r := router.MustNew()
 
@@ -312,6 +323,7 @@ func TestRecovery_StackTraceContent(t *testing.T) {
 	assert.Contains(t, stackStr, "recovery_test.go")
 }
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_RouteGroups(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
@@ -329,6 +341,7 @@ func TestRecovery_RouteGroups(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+//nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_MultipleOptions(t *testing.T) {
 	r := router.MustNew()
 

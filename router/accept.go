@@ -568,6 +568,7 @@ func acceptHeaderMatch(specs []acceptSpec, offers []string) string {
 					bestMatch = offer
 					bestQuality = spec.quality
 				}
+
 				break
 			}
 

@@ -95,6 +95,7 @@ func (h *testLogHandler) Handle(_ context.Context, r slog.Record) error {
 		msg:   r.Message,
 		attrs: attrs,
 	})
+
 	return nil
 }
 
@@ -122,6 +123,7 @@ func (h *testLogHandler) getRecords(level slog.Level) []testLogRecord {
 			result = append(result, r)
 		}
 	}
+
 	return result
 }
 
@@ -130,6 +132,7 @@ func (h *testLogHandler) getFields(level slog.Level) map[string]any {
 	if len(records) == 0 {
 		return nil
 	}
+
 	return records[0].attrs
 }
 

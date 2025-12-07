@@ -21,6 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+//nolint:paralleltest // Ginkgo test suite manages its own parallelization
 func TestRouter(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

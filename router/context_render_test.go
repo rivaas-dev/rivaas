@@ -549,7 +549,7 @@ func TestDataFromReader_Error(t *testing.T) {
 	errorReader := &errorReader{err: io.ErrUnexpectedEOF}
 
 	err := c.DataFromReader(200, -1, "text/plain", errorReader, nil)
-	assert.Error(t, err, "Expected error from failing reader")
+	require.Error(t, err, "Expected error from failing reader")
 	assert.Contains(t, err.Error(), "streaming from reader failed", "Expected streaming error")
 }
 
@@ -753,7 +753,7 @@ func TestJSON_Variants_ErrorHandling(t *testing.T) {
 			c := NewContext(w, req)
 
 			err := tt.renderFunc(c)
-			assert.Error(t, err, "Expected encoding error but got none")
+			require.Error(t, err, "Expected encoding error but got none")
 			assert.Contains(t, err.Error(), "encoding failed", "Expected encoding error message")
 		})
 	}

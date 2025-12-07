@@ -26,13 +26,14 @@ import (
 )
 
 func TestSecurity_DefaultHeaders(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -46,13 +47,14 @@ func TestSecurity_DefaultHeaders(t *testing.T) {
 }
 
 func TestSecurity_CustomFrameOptions(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(WithFrameOptions("SAMEORIGIN")))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -61,6 +63,7 @@ func TestSecurity_CustomFrameOptions(t *testing.T) {
 }
 
 func TestSecurity_HSTS(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		maxAge            int
@@ -95,13 +98,14 @@ func TestSecurity_HSTS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			r := router.MustNew()
 			r.Use(New(WithHSTS(tt.maxAge, tt.includeSubDomains, tt.preload)))
 			r.GET("/test", func(c *router.Context) {
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 			if tt.useTLS {
 				req.TLS = &tls.ConnectionState{}
 			}
@@ -123,6 +127,7 @@ func TestSecurity_HSTS(t *testing.T) {
 }
 
 func TestSecurity_CustomCSP(t *testing.T) {
+	t.Parallel()
 	customCSP := "default-src 'self'; script-src 'self' https://cdn.example.com; style-src 'self' 'unsafe-inline'"
 
 	r := router.MustNew()
@@ -131,7 +136,7 @@ func TestSecurity_CustomCSP(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -140,6 +145,7 @@ func TestSecurity_CustomCSP(t *testing.T) {
 }
 
 func TestSecurity_ReferrerPolicy(t *testing.T) {
+	t.Parallel()
 	policies := []string{
 		"no-referrer",
 		"same-origin",
@@ -149,13 +155,14 @@ func TestSecurity_ReferrerPolicy(t *testing.T) {
 
 	for _, policy := range policies {
 		t.Run(policy, func(t *testing.T) {
+			t.Parallel()
 			r := router.MustNew()
 			r.Use(New(WithReferrerPolicy(policy)))
 			r.GET("/test", func(c *router.Context) {
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
@@ -166,6 +173,7 @@ func TestSecurity_ReferrerPolicy(t *testing.T) {
 }
 
 func TestSecurity_PermissionsPolicy(t *testing.T) {
+	t.Parallel()
 	policy := "geolocation=(), microphone=(), camera=()"
 
 	r := router.MustNew()
@@ -174,7 +182,7 @@ func TestSecurity_PermissionsPolicy(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -183,6 +191,7 @@ func TestSecurity_PermissionsPolicy(t *testing.T) {
 }
 
 func TestSecurity_CustomHeaders(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(
 		WithCustomHeader("X-Custom-Security", "custom-value"),
@@ -192,7 +201,7 @@ func TestSecurity_CustomHeaders(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -202,13 +211,14 @@ func TestSecurity_CustomHeaders(t *testing.T) {
 }
 
 func TestSecurity_DisableContentTypeNosniff(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(WithContentTypeNosniff(false)))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -217,6 +227,7 @@ func TestSecurity_DisableContentTypeNosniff(t *testing.T) {
 }
 
 func TestSecurity_MultipleOptions(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(
 		WithFrameOptions("SAMEORIGIN"),
@@ -231,7 +242,7 @@ func TestSecurity_MultipleOptions(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -246,6 +257,7 @@ func TestSecurity_MultipleOptions(t *testing.T) {
 }
 
 func TestSecureHeaders_Convenience(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
@@ -263,13 +275,14 @@ func TestSecureHeaders_Convenience(t *testing.T) {
 }
 
 func TestDevelopmentSecurity(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(DevelopmentPreset()))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -287,6 +300,7 @@ func TestDevelopmentSecurity(t *testing.T) {
 }
 
 func TestNoSecurityHeaders(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(NoSecurityHeaders()))
 	r.GET("/test", func(c *router.Context) {
@@ -295,7 +309,7 @@ func TestNoSecurityHeaders(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -308,6 +322,7 @@ func TestNoSecurityHeaders(t *testing.T) {
 }
 
 func TestSecurity_CombinedWithOtherMiddleware(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(requestid.New())
 	r.Use(New())
@@ -315,7 +330,7 @@ func TestSecurity_CombinedWithOtherMiddleware(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -326,6 +341,7 @@ func TestSecurity_CombinedWithOtherMiddleware(t *testing.T) {
 }
 
 func TestSecurity_EmptyOptions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		option     func() Option
@@ -345,13 +361,14 @@ func TestSecurity_EmptyOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			r := router.MustNew()
 			r.Use(New(tt.option()))
 			r.GET("/test", func(c *router.Context) {
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)

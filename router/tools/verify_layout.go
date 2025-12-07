@@ -101,8 +101,8 @@ func main() {
 
 	// String internal layout
 	type stringStruct struct {
-		ptr uintptr
-		len int
+		ptr    uintptr
+		length int
 	}
 	var s string
 	fmt.Printf("\nString size: %d bytes (ptr + len)\n", unsafe.Sizeof(s))

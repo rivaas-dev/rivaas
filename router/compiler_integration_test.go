@@ -391,6 +391,7 @@ func TestCompilerIntegration_Sorting(t *testing.T) {
 
 // TestCompilerIntegration_Concurrent tests concurrent route compilation operations.
 func TestCompilerIntegration_Concurrent(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -419,7 +420,7 @@ func TestCompilerIntegration_Concurrent(t *testing.T) {
 	r.Warmup()
 
 	// Verify a route works
-	req := httptest.NewRequest("GET", "/route0/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/route0/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -447,7 +448,7 @@ func TestCompilerIntegration_NoStaticRoutes(t *testing.T) {
 	r.CompileAllRoutes()
 
 	// Should not panic even with no static routes
-	req := httptest.NewRequest("GET", "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -482,7 +483,7 @@ func TestCompilerIntegration_MixedRoutes(t *testing.T) {
 	r.CompileAllRoutes()
 
 	// Test static route
-	req1 := httptest.NewRequest("GET", "/static/path", nil)
+	req1 := httptest.NewRequest(http.MethodGet, "/static/path", nil)
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, req1)
 

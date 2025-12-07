@@ -123,57 +123,58 @@ func (cw *compressWriter) Write(data []byte) (int, error) {
 		data = data[toCopy:]
 	}
 
-	// Decision time
+	// Decision time: compress if threshold reached, otherwise write uncompressed
 	if cw.bufferUsed >= cw.threshold || len(data) > 0 {
 		cw.decided = true
 
 		if cw.bufferUsed >= cw.threshold {
-			// Compress
-			cw.compress = true
-			cw.initCompression()
-
-			// Write buffered data
-			totalWritten := 0
-			if cw.bufferUsed > 0 {
-				n, err := cw.writer.Write(cw.buffer)
-				totalWritten += n
-				if err != nil {
-					return totalWritten, err
-				}
-			}
-
-			// Write remaining data
-			if len(data) > 0 {
-				n, err := cw.writer.Write(data)
-				totalWritten += n
-				return totalWritten, err
-			}
-			return totalWritten, nil
-		}
-		// Don't compress - too small
-		cw.compress = false
-		if !cw.headersSent {
-			cw.ResponseWriter.WriteHeader(cw.statusCode)
+			return cw.writeCompressed(data)
 		}
 
-		written := 0
-		if cw.bufferUsed > 0 {
-			n, err := cw.ResponseWriter.Write(cw.buffer)
-			written += n
-			if err != nil {
-				return written, err
-			}
-		}
-
-		if len(data) > 0 {
-			n, err := cw.ResponseWriter.Write(data)
-			written += n
-			return written, err
-		}
-		return written, nil
+		return cw.writeUncompressed(data)
 	}
 
 	return len(data), nil
+}
+
+// writeCompressed initializes compression and writes all data through the compressor.
+func (cw *compressWriter) writeCompressed(data []byte) (int, error) {
+	cw.compress = true
+	cw.initCompression()
+
+	return cw.flushBufferAndWrite(cw.writer, data)
+}
+
+// writeUncompressed writes all data directly without compression.
+func (cw *compressWriter) writeUncompressed(data []byte) (int, error) {
+	cw.compress = false
+	if !cw.headersSent {
+		cw.ResponseWriter.WriteHeader(cw.statusCode)
+	}
+
+	return cw.flushBufferAndWrite(cw.ResponseWriter, data)
+}
+
+// flushBufferAndWrite writes buffered data then remaining data to the given writer.
+func (cw *compressWriter) flushBufferAndWrite(w io.Writer, data []byte) (int, error) {
+	written := 0
+
+	if cw.bufferUsed > 0 {
+		n, err := w.Write(cw.buffer)
+		written += n
+		if err != nil {
+			return written, err
+		}
+	}
+
+	if len(data) > 0 {
+		n, err := w.Write(data)
+		written += n
+
+		return written, err
+	}
+
+	return written, nil
 }
 
 // WriteHeader captures the status code and checks if compression should be skipped.

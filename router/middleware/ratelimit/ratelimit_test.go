@@ -26,6 +26,7 @@ import (
 	"rivaas.dev/router"
 )
 
+//nolint:paralleltest // Tests rate limiting behavior
 func TestRateLimit_Basic(t *testing.T) {
 	r, err := router.New()
 	require.NoError(t, err)
@@ -57,6 +58,7 @@ func TestRateLimit_Basic(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, w.Code)
 }
 
+//nolint:paralleltest // Time-sensitive test
 func TestRateLimit_TokenRefill(t *testing.T) {
 	r, err := router.New()
 	require.NoError(t, err)
@@ -98,6 +100,7 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code, "Request should succeed after token refill")
 }
 
+//nolint:paralleltest // Tests rate limiting behavior
 func TestRateLimit_CustomKeyFunc(t *testing.T) {
 	r, err := router.New()
 	require.NoError(t, err)
@@ -142,6 +145,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code, "User2 should succeed")
 }
 
+//nolint:paralleltest // Tests rate limiting behavior
 func TestRateLimit_CustomLimitHandler(t *testing.T) {
 	r, err := router.New()
 	require.NoError(t, err)
@@ -178,6 +182,7 @@ func TestRateLimit_CustomLimitHandler(t *testing.T) {
 	assert.Equal(t, "custom rate limit message", w.Body.String())
 }
 
+//nolint:paralleltest // Tests concurrent behavior
 func TestRateLimit_Concurrent(t *testing.T) {
 	r, err := router.New()
 	require.NoError(t, err)
@@ -223,6 +228,7 @@ func TestRateLimit_Concurrent(t *testing.T) {
 	t.Logf("Concurrent test: %d succeeded, %d rate limited", successCount, rateLimitedCount)
 }
 
+//nolint:paralleltest // Tests rate limiting behavior
 func TestRateLimit_EmptyKey(t *testing.T) {
 	r, err := router.New()
 	require.NoError(t, err)
@@ -246,6 +252,7 @@ func TestRateLimit_EmptyKey(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code, "Empty key should allow request")
 }
 
+//nolint:paralleltest // Tests rate limiting behavior
 func TestRateLimit_BurstBehavior(t *testing.T) {
 	r, err := router.New()
 	require.NoError(t, err)

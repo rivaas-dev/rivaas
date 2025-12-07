@@ -398,6 +398,8 @@ func (suite *ConcurrentTestSuite) TestConcurrentStaticRoutes() {
 }
 
 // Run the concurrent test suite
+//
+//nolint:paralleltest // Test suites manage their own parallelization
 func TestConcurrentTestSuite(t *testing.T) {
 	suite.Run(t, new(ConcurrentTestSuite))
 }

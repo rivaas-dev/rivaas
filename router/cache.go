@@ -133,91 +133,147 @@ func (c *Context) HandleConditionals(o CondOpts) bool {
 	isSafe := method == "GET" || method == "HEAD"
 
 	// Handle If-None-Match (takes precedence per RFC 7232)
-	if o.ETag != nil && o.ETag.Value != "" {
-		inm := c.Request.Header.Get("If-None-Match")
-		if inm != "" {
-			normalizedETag := o.ETag.Value
-			for tag := range strings.SplitSeq(inm, ",") {
-				tag = strings.TrimSpace(tag)
-				if tag == "*" {
-					// Match any ETag
-					c.SetETag(*o.ETag)
-					if len(o.Vary) > 0 {
-						c.AddVary(o.Vary...)
-					}
-					if isSafe {
-						c.Status(http.StatusNotModified)
-						return true
-					}
-					// For unsafe methods, If-None-Match: * always fails
-					return c.sendPreconditionFailed("resource exists")
-				}
-				normalizedTag := normalizeETagValue(tag)
-				if normalizedTag == normalizedETag {
-					// Match found
-					c.SetETag(*o.ETag)
-					if len(o.Vary) > 0 {
-						c.AddVary(o.Vary...)
-					}
-					if isSafe {
-						c.Status(http.StatusNotModified)
-						return true
-					}
-					// For unsafe methods, matching If-None-Match means precondition failed
-					return c.sendPreconditionFailed("resource unchanged")
-				}
-			}
-		}
+	if handled, done := c.handleIfNoneMatch(o, isSafe); done {
+		return handled
 	}
 
 	// Handle If-Modified-Since (only for safe methods)
-	if isSafe && o.LastModified != nil && !o.LastModified.IsZero() {
-		ims := c.Request.Header.Get("If-Modified-Since")
-		if ims != "" {
-			t, err := http.ParseTime(ims)
-			if err == nil && !o.LastModified.After(t) {
-				c.SetLastModified(*o.LastModified)
-				if len(o.Vary) > 0 {
-					c.AddVary(o.Vary...)
-				}
-				c.Status(http.StatusNotModified)
-				return true
-			}
+	if isSafe {
+		if handled, done := c.handleIfModifiedSince(o); done {
+			return handled
 		}
 	}
 
 	// Handle If-Match (for unsafe methods)
-	if !isSafe && o.ETag != nil && o.ETag.Value != "" {
-		im := c.Request.Header.Get("If-Match")
-		if im != "" {
-			normalizedETag := o.ETag.Value
-			matched := false
-			for tag := range strings.SplitSeq(im, ",") {
-				tag = strings.TrimSpace(tag)
-				if tag == "*" {
-					matched = true
-					break
-				}
-				normalizedTag := normalizeETagValue(tag)
-				if normalizedTag == normalizedETag {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				return c.sendPreconditionFailed("resource modified")
-			}
+	if !isSafe {
+		if handled, done := c.handleIfMatch(o); done {
+			return handled
 		}
 	}
 
 	// Handle If-Unmodified-Since (for unsafe methods)
-	if !isSafe && o.LastModified != nil && !o.LastModified.IsZero() {
-		ius := c.Request.Header.Get("If-Unmodified-Since")
-		if ius != "" {
-			t, err := http.ParseTime(ius)
-			if err == nil && o.LastModified.After(t) {
-				return c.sendPreconditionFailed("resource modified since")
-			}
+	if !isSafe {
+		if handled, done := c.handleIfUnmodifiedSince(o); done {
+			return handled
+		}
+	}
+
+	return false
+}
+
+// handleIfNoneMatch handles the If-None-Match conditional header per RFC 7232.
+// Returns (handled, done) where done=true means processing should stop.
+func (c *Context) handleIfNoneMatch(o CondOpts, isSafe bool) (bool, bool) {
+	if o.ETag == nil || o.ETag.Value == "" {
+		return false, false
+	}
+
+	inm := c.Request.Header.Get("If-None-Match")
+	if inm == "" {
+		return false, false
+	}
+
+	normalizedETag := o.ETag.Value
+	for tag := range strings.SplitSeq(inm, ",") {
+		tag = strings.TrimSpace(tag)
+
+		// Check for wildcard or exact match
+		isMatch := tag == "*" || normalizeETagValue(tag) == normalizedETag
+		if !isMatch {
+			continue
+		}
+
+		// Match found - set response headers
+		c.SetETag(*o.ETag)
+		if len(o.Vary) > 0 {
+			c.AddVary(o.Vary...)
+		}
+
+		if isSafe {
+			c.Status(http.StatusNotModified)
+			return true, true
+		}
+
+		// For unsafe methods, matching If-None-Match means precondition failed
+		reason := "resource exists"
+		if tag != "*" {
+			reason = "resource unchanged"
+		}
+
+		return c.sendPreconditionFailed(reason), true
+	}
+
+	return false, false
+}
+
+// handleIfModifiedSince handles the If-Modified-Since conditional header per RFC 7232.
+func (c *Context) handleIfModifiedSince(o CondOpts) (bool, bool) {
+	if o.LastModified == nil || o.LastModified.IsZero() {
+		return false, false
+	}
+
+	ims := c.Request.Header.Get("If-Modified-Since")
+	if ims == "" {
+		return false, false
+	}
+
+	t, err := http.ParseTime(ims)
+	if err != nil || o.LastModified.After(t) {
+		return false, false
+	}
+
+	c.SetLastModified(*o.LastModified)
+	if len(o.Vary) > 0 {
+		c.AddVary(o.Vary...)
+	}
+	c.Status(http.StatusNotModified)
+
+	return true, true
+}
+
+// handleIfMatch handles the If-Match conditional header per RFC 7232.
+func (c *Context) handleIfMatch(o CondOpts) (bool, bool) {
+	if o.ETag == nil || o.ETag.Value == "" {
+		return false, false
+	}
+
+	im := c.Request.Header.Get("If-Match")
+	if im == "" {
+		return false, false
+	}
+
+	if !etagMatches(im, o.ETag.Value) {
+		return c.sendPreconditionFailed("resource modified"), true
+	}
+
+	return false, false
+}
+
+// handleIfUnmodifiedSince handles the If-Unmodified-Since conditional header per RFC 7232.
+func (c *Context) handleIfUnmodifiedSince(o CondOpts) (bool, bool) {
+	if o.LastModified == nil || o.LastModified.IsZero() {
+		return false, false
+	}
+
+	ius := c.Request.Header.Get("If-Unmodified-Since")
+	if ius == "" {
+		return false, false
+	}
+
+	t, err := http.ParseTime(ius)
+	if err == nil && o.LastModified.After(t) {
+		return c.sendPreconditionFailed("resource modified since"), true
+	}
+
+	return false, false
+}
+
+// etagMatches checks if the If-Match header matches the given ETag.
+func etagMatches(headerValue, etag string) bool {
+	for tag := range strings.SplitSeq(headerValue, ",") {
+		tag = strings.TrimSpace(tag)
+		if tag == "*" || normalizeETagValue(tag) == etag {
+			return true
 		}
 	}
 

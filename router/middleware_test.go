@@ -240,6 +240,8 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainCacheEfficiency() {
 }
 
 // TestMiddlewareSuite runs the middleware test suite
+//
+//nolint:paralleltest // Test suites manage their own parallelization
 func TestMiddlewareSuite(t *testing.T) {
 	suite.Run(t, new(MiddlewareTestSuite))
 }

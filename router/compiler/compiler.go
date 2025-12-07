@@ -164,6 +164,7 @@ func CompileRoute(method, pattern string, handlers []HandlerFunc, constraints []
 				if c.Param == paramName {
 					constraint = c.Pattern
 					route.hasConstraints = true
+
 					break
 				}
 			}
@@ -259,6 +260,7 @@ func (rc *RouteCompiler) RemoveRoute(method, pattern string) {
 			rc.dynamicRoutes[i] = rc.dynamicRoutes[len(rc.dynamicRoutes)-1]
 			rc.dynamicRoutes = rc.dynamicRoutes[:len(rc.dynamicRoutes)-1]
 			rc.hasFirstSegmentIndex = false
+
 			break
 		}
 	}

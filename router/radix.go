@@ -373,6 +373,7 @@ func validateConstraints(constraints []route.Constraint, ctx *Context) bool {
 				if ctx.paramKeys[i] == constraint.Param {
 					value = ctx.paramValues[i]
 					found = true
+
 					break
 				}
 			}

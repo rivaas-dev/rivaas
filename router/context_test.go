@@ -282,6 +282,8 @@ func TestContext_Status_AlreadyWritten(t *testing.T) {
 }
 
 // TestContext_Next_WithCancellation tests Next with cancelled context
+//
+//nolint:paralleltest // Tests cancellation behavior
 func TestContext_Next_WithCancellation(t *testing.T) {
 	r := MustNew(WithCancellationCheck(true))
 

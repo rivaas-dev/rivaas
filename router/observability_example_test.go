@@ -157,7 +157,7 @@ func (s *SimpleObservabilityRecorder) OnRequestEnd(ctx context.Context, state an
 	}
 
 	// Log access entry (structured logging)
-	s.logger.Info("request completed",
+	s.logger.InfoContext(ctx, "request completed",
 		"request_id", rs.requestID,
 		"route", routePattern,
 		"path", rs.path,

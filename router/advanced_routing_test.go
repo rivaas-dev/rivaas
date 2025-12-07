@@ -392,6 +392,8 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 }
 
 // TestAdvancedRoutingSuite runs the advanced routing test suite
+//
+//nolint:paralleltest // Test suites manage their own parallelization
 func TestAdvancedRoutingSuite(t *testing.T) {
 	suite.Run(t, new(AdvancedRoutingTestSuite))
 }

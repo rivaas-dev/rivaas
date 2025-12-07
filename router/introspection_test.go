@@ -398,6 +398,7 @@ func (suite *ExtendedTestSuite) TestQueryDefaults() {
 	}
 }
 
+//nolint:paralleltest // Test suites manage their own parallelization
 func TestExtendedSuite(t *testing.T) {
 	suite.Run(t, new(ExtendedTestSuite))
 }

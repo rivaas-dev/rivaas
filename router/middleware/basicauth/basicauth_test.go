@@ -25,6 +25,7 @@ import (
 )
 
 func TestBasicAuth(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		setupAuth      func() router.HandlerFunc
@@ -154,6 +155,7 @@ func TestBasicAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			r := router.MustNew()
 			r.Use(tt.setupAuth())
 			r.GET("/test", func(c *router.Context) {
@@ -182,6 +184,7 @@ func TestBasicAuth(t *testing.T) {
 }
 
 func TestBasicAuthWithValidator(t *testing.T) {
+	t.Parallel()
 	validUsers := map[string]string{
 		"admin": "password123",
 		"user":  "pass456",
@@ -209,6 +212,7 @@ func TestBasicAuthWithValidator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(tt.credentials)))
 			w := httptest.NewRecorder()
@@ -220,6 +224,7 @@ func TestBasicAuthWithValidator(t *testing.T) {
 }
 
 func TestBasicAuthSkipPaths(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(
 		WithUsers(map[string]string{"admin": "secret"}),
@@ -248,6 +253,7 @@ func TestBasicAuthSkipPaths(t *testing.T) {
 }
 
 func TestBasicAuthCustomUnauthorizedHandler(t *testing.T) {
+	t.Parallel()
 	customCalled := false
 	r := router.MustNew()
 	r.Use(New(
@@ -270,6 +276,7 @@ func TestBasicAuthCustomUnauthorizedHandler(t *testing.T) {
 }
 
 func TestGetAuthUsername(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(
 		WithUsers(map[string]string{"testuser": "testpass"}),
@@ -289,6 +296,7 @@ func TestGetAuthUsername(t *testing.T) {
 }
 
 func TestBasicAuth_EdgeCases(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		users          map[string]string
@@ -311,6 +319,7 @@ func TestBasicAuth_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			r := router.MustNew()
 			r.Use(New(WithUsers(tt.users)))
 			r.GET("/test", func(c *router.Context) {

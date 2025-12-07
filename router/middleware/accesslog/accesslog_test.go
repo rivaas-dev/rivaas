@@ -106,6 +106,7 @@ func (h *testHandler) getFields(level slog.Level) map[string]any {
 }
 
 func TestAccessLog_BasicLogging(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler()
 	logger := slog.New(handler)
 
@@ -130,6 +131,7 @@ func TestAccessLog_BasicLogging(t *testing.T) {
 }
 
 func TestAccessLog_ExcludePaths(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		path      string
@@ -142,6 +144,7 @@ func TestAccessLog_ExcludePaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := newTestHandler()
 			logger := slog.New(handler)
 
@@ -171,7 +174,7 @@ func TestAccessLog_ExcludePaths(t *testing.T) {
 	}
 }
 
-func TestAccessLog_ExcludePrefixes(t *testing.T) {
+func TestAccessLog_ExcludePrefixes(t *testing.T) { //nolint:paralleltest // Subtests share handler state
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -201,7 +204,7 @@ func TestAccessLog_ExcludePrefixes(t *testing.T) {
 		{"/api/users", true, "non-excluded path"},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range testCases { //nolint:paralleltest // Subtests share handler state
 		t.Run(tc.desc, func(t *testing.T) {
 			handler.reset()
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
@@ -218,7 +221,7 @@ func TestAccessLog_ExcludePrefixes(t *testing.T) {
 	}
 }
 
-func TestAccessLog_StatusCodes(t *testing.T) {
+func TestAccessLog_StatusCodes(t *testing.T) { //nolint:paralleltest // Shares handler state between subtests
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -237,7 +240,7 @@ func TestAccessLog_StatusCodes(t *testing.T) {
 		{"503 Service Unavailable", http.StatusServiceUnavailable, "error"},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range testCases { //nolint:paralleltest // Subtests share handler state
 		t.Run(tc.name, func(t *testing.T) {
 			handler.reset()
 			r.GET("/test", func(c *router.Context) {
@@ -268,7 +271,7 @@ func TestAccessLog_StatusCodes(t *testing.T) {
 	}
 }
 
-func TestAccessLog_SlowRequest(t *testing.T) {
+func TestAccessLog_SlowRequest(t *testing.T) { //nolint:paralleltest // Uses time.Sleep for timing tests
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -306,7 +309,7 @@ func TestAccessLog_SlowRequest(t *testing.T) {
 	assert.Equal(t, true, fields["slow"])
 }
 
-func TestAccessLog_ErrorsOnly(t *testing.T) {
+func TestAccessLog_ErrorsOnly(t *testing.T) { //nolint:paralleltest // Tests specific logging behavior
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -340,7 +343,7 @@ func TestAccessLog_ErrorsOnly(t *testing.T) {
 	assert.NotEmpty(t, handler.getRecords(slog.LevelWarn), "Error request should be logged when errorsOnly is enabled")
 }
 
-func TestAccessLog_Sampling(t *testing.T) {
+func TestAccessLog_Sampling(t *testing.T) { //nolint:paralleltest // Tests sampling behavior with deterministic checks
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -376,7 +379,7 @@ func TestAccessLog_Sampling(t *testing.T) {
 	}
 }
 
-func TestAccessLog_SlowRequestBypassesSampling(t *testing.T) {
+func TestAccessLog_SlowRequestBypassesSampling(t *testing.T) { //nolint:paralleltest // Uses time.Sleep
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -399,7 +402,7 @@ func TestAccessLog_SlowRequestBypassesSampling(t *testing.T) {
 	assert.NotEmpty(t, handler.getRecords(slog.LevelWarn), "Slow request should bypass sampling and be logged")
 }
 
-func TestAccessLog_ErrorBypassesSampling(t *testing.T) {
+func TestAccessLog_ErrorBypassesSampling(t *testing.T) { //nolint:paralleltest // Tests specific sampling behavior
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -420,7 +423,7 @@ func TestAccessLog_ErrorBypassesSampling(t *testing.T) {
 	assert.NotEmpty(t, handler.getRecords(slog.LevelWarn), "Error request should bypass sampling and be logged")
 }
 
-func TestAccessLog_RoutePattern(t *testing.T) {
+func TestAccessLog_RoutePattern(t *testing.T) { //nolint:paralleltest // Tests specific logging output
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -440,6 +443,7 @@ func TestAccessLog_RoutePattern(t *testing.T) {
 	assert.Equal(t, "/users/:id", fields["route"])
 }
 
+//nolint:paralleltest // Subtests share handler state
 func TestAccessLog_ClientIP(t *testing.T) {
 	handler := newTestHandler()
 	logger := slog.New(handler)
@@ -470,7 +474,7 @@ func TestAccessLog_ClientIP(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) { //nolint:paralleltest // Shares handler state
 			handler.reset()
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			if tc.remoteAddr != "" {
@@ -489,7 +493,7 @@ func TestAccessLog_ClientIP(t *testing.T) {
 	}
 }
 
-func TestAccessLog_AllFields(t *testing.T) {
+func TestAccessLog_AllFields(t *testing.T) { //nolint:paralleltest // Tests specific field output
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -522,7 +526,7 @@ func TestAccessLog_AllFields(t *testing.T) {
 	assert.Equal(t, "test-agent/1.0", fields["user_agent"], "Expected user_agent 'test-agent/1.0'")
 }
 
-func TestAccessLog_NoLogger(t *testing.T) {
+func TestAccessLog_NoLogger(t *testing.T) { //nolint:paralleltest // Tests specific middleware behavior
 	// Test that middleware works even when no logger is configured
 	r := router.MustNew() // No logger set
 	r.Use(New())          // No logger option provided
@@ -540,7 +544,7 @@ func TestAccessLog_NoLogger(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestAccessLog_ResponseWriterInterfaces(t *testing.T) {
+func TestAccessLog_ResponseWriterInterfaces(t *testing.T) { //nolint:paralleltest // Tests interface implementation
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -563,6 +567,7 @@ func TestAccessLog_ResponseWriterInterfaces(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+//nolint:paralleltest // Tests logging behavior
 func TestAccessLog_BytesSent(t *testing.T) {
 	handler := newTestHandler()
 	logger := slog.New(handler)
@@ -583,7 +588,7 @@ func TestAccessLog_BytesSent(t *testing.T) {
 	assert.Equal(t, int64(len(responseBody)), fields["bytes_sent"])
 }
 
-func TestSampleByHash(t *testing.T) {
+func TestSampleByHash(t *testing.T) { //nolint:paralleltest // Tests deterministic behavior
 	tests := []struct {
 		name     string
 		id       string
@@ -597,7 +602,7 @@ func TestSampleByHash(t *testing.T) {
 		{"50% rate deterministic", "test-id", 0.5, true}, // Should be deterministic
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // Tests deterministic behavior with no shared state
 		t.Run(tt.name, func(t *testing.T) {
 			result := sampleByHash(tt.id, tt.rate)
 			// For "50% rate deterministic", we only verify it's deterministic, not the exact value
@@ -619,7 +624,7 @@ func TestSampleByHash(t *testing.T) {
 // has proper proxy trust checking. See router/proxies_test.go for comprehensive
 // tests of the trusted proxy functionality.
 
-func TestAccessLog_CombinedOptions(t *testing.T) {
+func TestAccessLog_CombinedOptions(t *testing.T) { //nolint:paralleltest // Shares handler state between subtests
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -660,7 +665,7 @@ func TestAccessLog_CombinedOptions(t *testing.T) {
 		{"/slow", true, "slow request should bypass errorsOnly"},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range testCases { //nolint:paralleltest // Subtests share handler state
 		t.Run(tc.desc, func(t *testing.T) {
 			handler.reset()
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
@@ -677,7 +682,7 @@ func TestAccessLog_CombinedOptions(t *testing.T) {
 	}
 }
 
-func TestAccessLog_Duration(t *testing.T) {
+func TestAccessLog_Duration(t *testing.T) { //nolint:paralleltest // Uses time.Sleep
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -701,7 +706,7 @@ func TestAccessLog_Duration(t *testing.T) {
 	assert.LessOrEqual(t, durationMs, int64(100), "Expected duration_ms around 50, got %d", durationMs)
 }
 
-func TestAccessLog_ResponseWriterPreservation(t *testing.T) {
+func TestAccessLog_ResponseWriterPreservation(t *testing.T) { //nolint:paralleltest // Tests interface implementation
 	// Test that responseWriter properly implements all optional interfaces
 	var (
 		_ http.ResponseWriter           = (*responseWriter)(nil)
@@ -732,7 +737,7 @@ func TestAccessLog_ResponseWriterPreservation(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code, "Expected status 200")
 }
 
-func TestAccessLog_StatusCodeTracking(t *testing.T) {
+func TestAccessLog_StatusCodeTracking(t *testing.T) { //nolint:paralleltest // Shares handler state between subtests
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -750,7 +755,7 @@ func TestAccessLog_StatusCodeTracking(t *testing.T) {
 		{http.StatusInternalServerError, "500 Internal Server Error"},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range testCases { //nolint:paralleltest // Subtests share handler state
 		t.Run(tc.desc, func(t *testing.T) {
 			handler.reset()
 			r.GET("/test", func(c *router.Context) {
@@ -782,7 +787,7 @@ func TestAccessLog_StatusCodeTracking(t *testing.T) {
 	}
 }
 
-func TestAccessLog_RequestIDSampling(t *testing.T) {
+func TestAccessLog_RequestIDSampling(t *testing.T) { //nolint:paralleltest // Tests deterministic sampling behavior
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -817,7 +822,7 @@ func TestAccessLog_RequestIDSampling(t *testing.T) {
 	assert.Equal(t, decision1, decision2, "Same request ID should produce same sampling decision")
 }
 
-func TestAccessLog_NoRequestIDSampling(t *testing.T) {
+func TestAccessLog_NoRequestIDSampling(t *testing.T) { //nolint:paralleltest // Tests specific sampling behavior
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
@@ -839,7 +844,7 @@ func TestAccessLog_NoRequestIDSampling(t *testing.T) {
 	assert.NotEmpty(t, handler.getRecords(slog.LevelInfo), "Request without request ID should always log (no sampling)")
 }
 
-func TestAccessLog_HostAndProto(t *testing.T) {
+func TestAccessLog_HostAndProto(t *testing.T) { //nolint:paralleltest // Tests specific logging output
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()

@@ -501,6 +501,7 @@ func (c *Context) ASCIIJSON(code int, obj any) error {
 					result.WriteString(fmt.Sprintf("\\u%04x\\u%04x", 0xD800+(r>>10), 0xDC00+(r&0x3FF)))
 				}
 				i += size
+
 				continue
 			}
 			// Fallback: escape single byte
@@ -629,32 +630,9 @@ func (c *Context) Stringf(code int, format string, values ...any) error {
 		c.Response.WriteHeader(code)
 	}
 
-	// Handle single %s pattern with single string value
-	// Only applies when: 1 value, value is string, exactly 1 %s in format
-	if len(values) == 1 {
-		if v, ok := values[0].(string); ok && strings.Count(format, "%s") == 1 {
-			idx := strings.Index(format, "%s")
-			if idx != -1 {
-				// Write directly to response in chunks
-				// Use unsafe zero-copy string->bytes conversion (read-only, safe in this context)
-				if idx > 0 {
-					if _, err := c.Response.Write(unsafeStringToBytes(format[:idx])); err != nil {
-						return fmt.Errorf("writing formatted string response: %w", err)
-					}
-				}
-				if len(v) > 0 {
-					if _, err := c.Response.Write(unsafeStringToBytes(v)); err != nil {
-						return fmt.Errorf("writing formatted string response: %w", err)
-					}
-				}
-				if idx+2 < len(format) {
-					if _, err := c.Response.Write(unsafeStringToBytes(format[idx+2:])); err != nil {
-						return fmt.Errorf("writing formatted string response: %w", err)
-					}
-				}
-				return nil
-			}
-		}
+	// Handle single %s pattern with single string value (fast path)
+	if err := c.tryFastStringFormat(format, values); err == nil {
+		return nil
 	}
 
 	// Fallback for complex formatting (multiple values, non-string types, etc.)
@@ -663,6 +641,48 @@ func (c *Context) Stringf(code int, format string, values ...any) error {
 	if err != nil {
 		return fmt.Errorf("writing formatted string response: %w", err)
 	}
+	return nil
+}
+
+// errFastPathNotApplicable is a sentinel error for fast path optimization.
+var errFastPathNotApplicable = errors.New("fast path not applicable")
+
+// tryFastStringFormat attempts to write a single %s format without fmt.Sprintf allocation.
+// Returns nil on success, errFastPathNotApplicable if fast path doesn't apply.
+func (c *Context) tryFastStringFormat(format string, values []any) error {
+	// Only applies when: 1 value, value is string, exactly 1 %s in format
+	if len(values) != 1 {
+		return errFastPathNotApplicable
+	}
+
+	v, ok := values[0].(string)
+	if !ok || strings.Count(format, "%s") != 1 {
+		return errFastPathNotApplicable
+	}
+
+	idx := strings.Index(format, "%s")
+	if idx == -1 {
+		return errFastPathNotApplicable
+	}
+
+	// Write directly to response in chunks
+	// Use unsafe zero-copy string->bytes conversion (read-only, safe in this context)
+	if idx > 0 {
+		if _, err := c.Response.Write(unsafeStringToBytes(format[:idx])); err != nil {
+			return fmt.Errorf("writing formatted string response: %w", err)
+		}
+	}
+	if len(v) > 0 {
+		if _, err := c.Response.Write(unsafeStringToBytes(v)); err != nil {
+			return fmt.Errorf("writing formatted string response: %w", err)
+		}
+	}
+	if idx+2 < len(format) {
+		if _, err := c.Response.Write(unsafeStringToBytes(format[idx+2:])); err != nil {
+			return fmt.Errorf("writing formatted string response: %w", err)
+		}
+	}
+
 	return nil
 }
 

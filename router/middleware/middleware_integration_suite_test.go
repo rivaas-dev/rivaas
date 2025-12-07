@@ -75,6 +75,8 @@ import (
 //
 // Integration tests are skipped when running with -short flag to allow fast TDD cycles
 // with unit tests only.
+//
+//nolint:paralleltest // Integration test suite
 func TestMiddlewareIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

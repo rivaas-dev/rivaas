@@ -29,6 +29,8 @@ import (
 
 // TestGetHandlerName_NilHandler tests getHandlerName when handler is nil.
 // Verifies that nil handlers return "nil" as the handler name.
+//
+//nolint:paralleltest // Tests internal function behavior
 func TestGetHandlerName_NilHandler(t *testing.T) {
 	name := getHandlerName(nil)
 	assert.Equal(t, "nil", name, "Expected 'nil' for nil handler")
@@ -39,6 +41,8 @@ func TestGetHandlerName_NilHandler(t *testing.T) {
 // Note: Creating a scenario where runtime.FuncForPC returns nil is difficult in standard Go
 // because it requires an invalid function pointer, which Go's runtime protects against.
 // This test documents the defensive code path and verifies the behavior when possible.
+//
+//nolint:paralleltest // Tests runtime function behavior
 func TestGetHandlerName_InvalidPointer(t *testing.T) {
 	// Create a valid function to verify normal behavior
 	var validHandler HandlerFunc = func(c *Context) {
@@ -80,6 +84,8 @@ func TestGetHandlerName_InvalidPointer(t *testing.T) {
 
 // TestGetHandlerName_InvalidPointer_Alternative tests using empty handlers slice
 // to verify getHandlerName behavior through route registration
+//
+//nolint:paralleltest // Tests router state
 func TestGetHandlerName_InvalidPointer_Alternative(t *testing.T) {
 	r := MustNew()
 
@@ -105,6 +111,8 @@ func TestGetHandlerName_InvalidPointer_Alternative(t *testing.T) {
 }
 
 // TestGetHandlerName_NilHandlerThroughRoute tests nil handler through route registration
+//
+//nolint:paralleltest // Tests router state
 func TestGetHandlerName_NilHandlerThroughRoute(t *testing.T) {
 	r := MustNew()
 
@@ -134,6 +142,8 @@ func TestGetHandlerName_NilHandlerThroughRoute(t *testing.T) {
 // This verifies that the runtime safety check works correctly.
 // Note: The check runs in init() when the package is loaded, so on 32-bit systems
 // the package would panic during import and tests wouldn't run.
+//
+//nolint:paralleltest // Tests architecture check
 func TestArchitectureCheck(t *testing.T) {
 	// Replicate the exact check from init() to verify the logic
 	ptrSize := unsafe.Sizeof(unsafe.Pointer(nil))
@@ -152,6 +162,8 @@ func TestArchitectureCheck(t *testing.T) {
 
 // TestArchitectureCheckPanicMessage verifies the exact panic message format.
 // This test ensures the panic message matches the one in init().
+//
+//nolint:paralleltest // Tests panic behavior
 func TestArchitectureCheckPanicMessage(t *testing.T) {
 	ptrSize := unsafe.Sizeof(unsafe.Pointer(nil))
 

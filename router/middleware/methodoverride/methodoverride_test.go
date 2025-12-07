@@ -25,6 +25,7 @@ import (
 )
 
 func TestMethodOverride_Basic(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		originalMethod   string
@@ -59,6 +60,7 @@ func TestMethodOverride_Basic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New()
 
 			url := "/test"
@@ -82,6 +84,7 @@ func TestMethodOverride_Basic(t *testing.T) {
 }
 
 func TestMethodOverride_OnlyOnFiltering(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		originalMethod string
@@ -107,6 +110,7 @@ func TestMethodOverride_OnlyOnFiltering(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New(WithOnlyOn("POST"))
 			req := httptest.NewRequest(tt.originalMethod, "/test", nil)
 			req.Header.Set("X-HTTP-Method-Override", tt.override)
@@ -121,6 +125,7 @@ func TestMethodOverride_OnlyOnFiltering(t *testing.T) {
 }
 
 func TestMethodOverride_AllowList(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		override       string
@@ -149,6 +154,7 @@ func TestMethodOverride_AllowList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New(WithAllow("PUT", "DELETE"))
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.Header.Set("X-HTTP-Method-Override", tt.override)
@@ -163,6 +169,7 @@ func TestMethodOverride_AllowList(t *testing.T) {
 }
 
 func TestMethodOverride_CaseInsensitive(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		override       string
@@ -175,6 +182,7 @@ func TestMethodOverride_CaseInsensitive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New()
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.Header.Set("X-HTTP-Method-Override", tt.override)
@@ -189,6 +197,7 @@ func TestMethodOverride_CaseInsensitive(t *testing.T) {
 }
 
 func TestMethodOverride_RespectBody(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		contentLength  int64
@@ -208,6 +217,7 @@ func TestMethodOverride_RespectBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New(WithRespectBody(true))
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.ContentLength = tt.contentLength
@@ -223,6 +233,7 @@ func TestMethodOverride_RespectBody(t *testing.T) {
 }
 
 func TestMethodOverride_CSRFRequired(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		csrfVerified   bool
@@ -242,6 +253,7 @@ func TestMethodOverride_CSRFRequired(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New(WithRequireCSRFToken(true))
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.Header.Set("X-HTTP-Method-Override", "DELETE")
@@ -260,6 +272,7 @@ func TestMethodOverride_CSRFRequired(t *testing.T) {
 }
 
 func TestMethodOverride_CustomHeader(t *testing.T) {
+	t.Parallel()
 	handler := New(WithHeader("X-HTTP-Method"))
 	req := httptest.NewRequest(http.MethodPost, "/test", nil)
 	req.Header.Set("X-HTTP-Method", "DELETE")
@@ -272,6 +285,7 @@ func TestMethodOverride_CustomHeader(t *testing.T) {
 }
 
 func TestMethodOverride_DisabledQueryParam(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		url            string
@@ -294,6 +308,7 @@ func TestMethodOverride_DisabledQueryParam(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New(WithQueryParam(""))
 			req := httptest.NewRequest(http.MethodPost, tt.url, nil)
 			if tt.header != "" {
@@ -310,6 +325,7 @@ func TestMethodOverride_DisabledQueryParam(t *testing.T) {
 }
 
 func TestMethodOverride_EdgeCases(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		override       string
@@ -329,6 +345,7 @@ func TestMethodOverride_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New()
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.Header.Set("X-HTTP-Method-Override", tt.override)
@@ -343,6 +360,7 @@ func TestMethodOverride_EdgeCases(t *testing.T) {
 }
 
 func TestGetOriginalMethod(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		originalMethod string
@@ -368,6 +386,7 @@ func TestGetOriginalMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New()
 			req := httptest.NewRequest(tt.originalMethod, "/test", nil)
 			if tt.override != "" {
@@ -385,6 +404,7 @@ func TestGetOriginalMethod(t *testing.T) {
 }
 
 func TestMethodOverride_DefaultConfig(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		url            string
@@ -419,6 +439,7 @@ func TestMethodOverride_DefaultConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			handler := New()
 			req := httptest.NewRequest(http.MethodPost, tt.url, nil)
 			if tt.header != "" {

@@ -208,8 +208,10 @@ func sendUserResponse(writer ResponseWriter, userID string) {
 }
 
 // TestParameterReaderInterface demonstrates testing with ParameterReader interface.
+//
+//nolint:paralleltest // Subtests share router state
 func TestParameterReaderInterface(t *testing.T) {
-	t.Run("with real Context", func(t *testing.T) {
+	t.Run("with real Context", func(t *testing.T) { //nolint:paralleltest // Shares router state
 		r := MustNew()
 		r.GET("/users/:id", func(c *Context) {
 			result, err := processUserRequest(c)
@@ -224,7 +226,7 @@ func TestParameterReaderInterface(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
-	t.Run("with mock ParameterReader", func(t *testing.T) {
+	t.Run("with mock ParameterReader", func(t *testing.T) { //nolint:paralleltest // Test sequential logic
 		mock := &mockParameterReader{
 			params: map[string]string{
 				"id": "456",
@@ -239,7 +241,7 @@ func TestParameterReaderInterface(t *testing.T) {
 		assert.Equal(t, "456:2", result)
 	})
 
-	t.Run("missing user ID", func(t *testing.T) {
+	t.Run("missing user ID", func(t *testing.T) { //nolint:paralleltest // Test sequential logic
 		mock := &mockParameterReader{
 			params: map[string]string{},
 		}
@@ -251,8 +253,10 @@ func TestParameterReaderInterface(t *testing.T) {
 }
 
 // TestResponseWriterInterface demonstrates testing with ResponseWriter interface.
+//
+//nolint:paralleltest // Subtests share router state
 func TestResponseWriterInterface(t *testing.T) {
-	t.Run("with real Context", func(t *testing.T) {
+	t.Run("with real Context", func(t *testing.T) { //nolint:paralleltest // Shares router state
 		r := MustNew()
 		r.GET("/users/:id", func(c *Context) {
 			sendUserResponse(c, "789")
@@ -267,7 +271,7 @@ func TestResponseWriterInterface(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "789")
 	})
 
-	t.Run("with mock ResponseWriter", func(t *testing.T) {
+	t.Run("with mock ResponseWriter", func(t *testing.T) { //nolint:paralleltest // Test sequential logic
 		mock := &mockResponseWriter{
 			headers: make(map[string]string),
 		}
@@ -279,6 +283,8 @@ func TestResponseWriterInterface(t *testing.T) {
 }
 
 // TestContextImplementsInterfaces verifies that Context implements all interfaces.
+//
+//nolint:paralleltest // Tests interface implementation
 func TestContextImplementsInterfaces(t *testing.T) {
 	r := MustNew()
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -336,6 +342,8 @@ func processRequestBoth(reader ParameterReader, writer ResponseWriter) {
 }
 
 // TestComposition demonstrates how interfaces enable composition.
+//
+//nolint:paralleltest // Tests interface composition
 func TestComposition(t *testing.T) {
 	// All functions can work with Context
 	req := httptest.NewRequest("GET", "/users/123", nil)

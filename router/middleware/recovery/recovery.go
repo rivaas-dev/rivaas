@@ -109,52 +109,65 @@ func New(opts ...Option) router.HandlerFunc {
 	return func(c *router.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				// Mark span with exception.escaped for panics (only place this is set)
-				if span := c.Span(); span != nil && span.SpanContext().IsValid() {
-					span.SetStatus(codes.Error, "panic recovered")
-					span.SetAttributes(
-						attribute.Bool("exception.escaped", true), // KEY: only set for panics
-						attribute.String("exception.type", fmt.Sprintf("%T", err)),
-						attribute.String("exception.message", fmt.Sprintf("%v", err)),
-					)
-
-					// Optionally record as error (creates exception event)
-					if actualErr, ok := err.(error); ok {
-						span.RecordError(actualErr)
-					}
-				}
-
-				// Capture stack trace if enabled
-				var stack []byte
-				if cfg.stackTrace {
-					// debug.Stack() always returns full stack
-					fullStack := debug.Stack()
-
-					if cfg.disableStackAll {
-						// Limit stack size if requested
-						if len(fullStack) > cfg.stackSize {
-							stack = fullStack[:cfg.stackSize]
-						} else {
-							stack = fullStack
-						}
-					} else {
-						// Use full stack from all goroutines
-						stack = fullStack
-					}
-				}
-
-				// Call logger (default or custom)
-				if cfg.logger != nil {
-					cfg.logger(c, err, stack)
-				}
-
-				// Call custom handler or default
-				if cfg.handler != nil {
-					cfg.handler(c, err)
-				}
+				handlePanic(c, cfg, err)
 			}
 		}()
 
 		c.Next()
 	}
+}
+
+// handlePanic processes a recovered panic with tracing, logging, and custom handling.
+func handlePanic(c *router.Context, cfg *config, err any) {
+	recordPanicToSpan(c, err)
+
+	stack := captureStack(cfg)
+
+	if cfg.logger != nil {
+		cfg.logger(c, err, stack)
+	}
+
+	if cfg.handler != nil {
+		cfg.handler(c, err)
+	}
+}
+
+// recordPanicToSpan records panic information to the active span if available.
+func recordPanicToSpan(c *router.Context, err any) {
+	span := c.Span()
+	if span == nil || !span.SpanContext().IsValid() {
+		return
+	}
+
+	span.SetStatus(codes.Error, "panic recovered")
+	span.SetAttributes(
+		attribute.Bool("exception.escaped", true), // KEY: only set for panics
+		attribute.String("exception.type", fmt.Sprintf("%T", err)),
+		attribute.String("exception.message", fmt.Sprintf("%v", err)),
+	)
+
+	// Record as error event if it's an actual error type
+	if actualErr, ok := err.(error); ok {
+		span.RecordError(actualErr)
+	}
+}
+
+// captureStack captures the stack trace based on configuration.
+func captureStack(cfg *config) []byte {
+	if !cfg.stackTrace {
+		return nil
+	}
+
+	fullStack := debug.Stack()
+
+	if !cfg.disableStackAll {
+		return fullStack
+	}
+
+	// Limit stack size if requested
+	if len(fullStack) > cfg.stackSize {
+		return fullStack[:cfg.stackSize]
+	}
+
+	return fullStack
 }

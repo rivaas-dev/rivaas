@@ -26,6 +26,7 @@ import (
 )
 
 func TestCORS_NoCORSRequest(t *testing.T) {
+	t.Parallel()
 	r, err := router.New()
 	require.NoError(t, err)
 	r.Use(New(WithAllowAllOrigins(true)))
@@ -43,6 +44,7 @@ func TestCORS_NoCORSRequest(t *testing.T) {
 }
 
 func TestCORS_AllowAllOrigins(t *testing.T) {
+	t.Parallel()
 	r, err := router.New()
 	require.NoError(t, err)
 	r.Use(New(WithAllowAllOrigins(true)))
@@ -60,6 +62,7 @@ func TestCORS_AllowAllOrigins(t *testing.T) {
 }
 
 func TestCORS_AllowedOrigins(t *testing.T) {
+	t.Parallel()
 	r, err := router.New()
 	require.NoError(t, err)
 	r.Use(New(WithAllowedOrigins("https://example.com", "https://app.example.com")))
@@ -91,6 +94,7 @@ func TestCORS_AllowedOrigins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.Header.Set("Origin", tt.origin)
 			w := httptest.NewRecorder()
@@ -104,6 +108,7 @@ func TestCORS_AllowedOrigins(t *testing.T) {
 }
 
 func TestCORS_AllowOriginFunc(t *testing.T) {
+	t.Parallel()
 	r, err := router.New()
 	require.NoError(t, err)
 	r.Use(New(WithAllowOriginFunc(func(origin string) bool {
@@ -137,6 +142,7 @@ func TestCORS_AllowOriginFunc(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.Header.Set("Origin", tt.origin)
 			w := httptest.NewRecorder()
@@ -150,6 +156,7 @@ func TestCORS_AllowOriginFunc(t *testing.T) {
 }
 
 func TestCORS_Preflight(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(
 		WithAllowedOrigins("https://example.com"),
@@ -181,6 +188,7 @@ func TestCORS_Preflight(t *testing.T) {
 }
 
 func TestCORS_PreflightDisallowedOrigin(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(WithAllowedOrigins("https://example.com")))
 	r.POST("/test", func(c *router.Context) {
@@ -202,6 +210,7 @@ func TestCORS_PreflightDisallowedOrigin(t *testing.T) {
 }
 
 func TestCORS_Credentials(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(
 		WithAllowedOrigins("https://example.com"),
@@ -222,6 +231,7 @@ func TestCORS_Credentials(t *testing.T) {
 }
 
 func TestCORS_CredentialsWithAllOrigins(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New(
 		WithAllowAllOrigins(true),
@@ -243,6 +253,7 @@ func TestCORS_CredentialsWithAllOrigins(t *testing.T) {
 }
 
 func TestCORS_ExposedHeaders(t *testing.T) {
+	t.Parallel()
 	r, err := router.New()
 	require.NoError(t, err)
 	r.Use(New(
@@ -263,6 +274,7 @@ func TestCORS_ExposedHeaders(t *testing.T) {
 }
 
 func TestCORS_DefaultConfig(t *testing.T) {
+	t.Parallel()
 	r := router.MustNew()
 	r.Use(New()) // Use default config
 	r.GET("/test", func(c *router.Context) {
@@ -280,6 +292,7 @@ func TestCORS_DefaultConfig(t *testing.T) {
 }
 
 func TestCORS_ActualRequest(t *testing.T) {
+	t.Parallel()
 	r, err := router.New()
 	require.NoError(t, err)
 	r.Use(New(WithAllowedOrigins("https://example.com")))
