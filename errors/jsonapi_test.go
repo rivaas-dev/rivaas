@@ -16,9 +16,9 @@ package errors
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,7 +80,7 @@ func TestJSONAPI_Format(t *testing.T) {
 
 			firstErr := body.Errors[0]
 			assert.Equal(t, tt.err.Error(), firstErr.Detail, "Detail")
-			assert.Equal(t, fmt.Sprintf("%d", tt.wantStatus), firstErr.Status, "Status")
+			assert.Equal(t, strconv.Itoa(tt.wantStatus), firstErr.Status, "Status")
 		})
 	}
 }

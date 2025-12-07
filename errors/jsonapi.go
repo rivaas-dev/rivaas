@@ -17,7 +17,6 @@ package errors
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -168,7 +167,7 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 	if len(apiErrors) == 0 {
 		apiErrors = []jsonAPIError{{
 			ID:     generateErrorID(),
-			Status: fmt.Sprintf("%d", status),
+			Status: strconv.Itoa(status),
 			Title:  http.StatusText(status),
 			Detail: err.Error(),
 		}}
