@@ -16,6 +16,7 @@ package openapi_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -58,7 +59,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				Error string `json:"error"`
 			}
 
-			manager.Register("GET", "/users/:id").
+			manager.Register(http.MethodGet, "/users/:id").
 				Doc("Get user", "Retrieves a user by ID").
 				Request(GetUserRequest{}).
 				Response(200, User{}).
@@ -66,7 +67,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				Tags("users").
 				Security("bearerAuth")
 
-			manager.Register("POST", "/users").
+			manager.Register(http.MethodPost, "/users").
 				Doc("Create user", "Creates a new user").
 				Request(CreateUserRequest{}).
 				Response(201, User{}).
@@ -74,7 +75,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				Tags("users").
 				Security("bearerAuth")
 
-			manager.Register("GET", "/users").
+			manager.Register(http.MethodGet, "/users").
 				Doc("List users", "Retrieves a list of users").
 				Response(200, []User{}).
 				Tags("users").
@@ -138,7 +139,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			)
 
 			manager := openapi.NewManager(cfg)
-			manager.Register("GET", "/test").
+			manager.Register(http.MethodGet, "/test").
 				Doc("Test endpoint", "A test endpoint").
 				Response(200, map[string]string{"message": "test"})
 
@@ -155,7 +156,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			Expect(string(specJSON2)).To(Equal(string(specJSON1)), "specs should be identical when cached")
 
 			// Register new route - should invalidate cache
-			manager.Register("POST", "/test").
+			manager.Register(http.MethodPost, "/test").
 				Doc("Create test", "Creates a test").
 				Response(201, map[string]string{"id": "string"})
 
@@ -206,22 +207,22 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			}
 
 			// Register multiple routes across different tags
-			manager.Register("GET", "/users/:id").
+			manager.Register(http.MethodGet, "/users/:id").
 				Doc("Get user", "Retrieves a user").
 				Response(200, User{}).
 				Tags("users")
 
-			manager.Register("GET", "/users").
+			manager.Register(http.MethodGet, "/users").
 				Doc("List users", "Lists all users").
 				Response(200, []User{}).
 				Tags("users")
 
-			manager.Register("GET", "/orders/:id").
+			manager.Register(http.MethodGet, "/orders/:id").
 				Doc("Get order", "Retrieves an order").
 				Response(200, Order{}).
 				Tags("orders")
 
-			manager.Register("POST", "/orders").
+			manager.Register(http.MethodPost, "/orders").
 				Doc("Create order", "Creates a new order").
 				Request(Order{}).
 				Response(201, Order{}).
@@ -270,7 +271,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			)
 
 			manager := openapi.NewManager(cfg)
-			manager.Register("GET", "/test").
+			manager.Register(http.MethodGet, "/test").
 				Doc("Test endpoint", "A test endpoint").
 				Response(200, map[string]string{"message": "test"})
 
@@ -305,7 +306,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			)
 
 			manager := openapi.NewManager(cfg)
-			manager.Register("GET", "/test").
+			manager.Register(http.MethodGet, "/test").
 				Doc("Test endpoint", "A test endpoint").
 				Response(200, map[string]string{"message": "test"})
 
@@ -336,7 +337,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 
 			// Register routes
 			for i := 0; i < 10; i++ {
-				manager.Register("GET", "/test"+string(rune('0'+i))).
+				manager.Register(http.MethodGet, "/test"+string(rune('0'+i))).
 					Doc("Test endpoint", "A test endpoint").
 					Response(200, map[string]string{"id": "string"})
 			}
@@ -400,7 +401,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 						Name string `json:"name"`
 					}
 
-					route := manager.Register("GET", "/users/:id")
+					route := manager.Register(http.MethodGet, "/users/:id")
 					route.Response(200, User{},
 						example.New("success", User{ID: 123, Name: "John"},
 							example.WithSummary("Successful lookup")),
@@ -435,7 +436,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 						Name string `json:"name"`
 					}
 
-					route := manager.Register("GET", "/users/:id")
+					route := manager.Register(http.MethodGet, "/users/:id")
 					route.Response(200, User{ID: 123, Name: "John"})
 
 					specJSON, _, err := manager.GenerateSpec()

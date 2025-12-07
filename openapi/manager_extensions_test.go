@@ -16,6 +16,7 @@ package openapi
 
 import (
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 		)
 
 		mgr := NewManager(cfg)
-		mgr.Register("GET", "/users/:id").
+		mgr.Register(http.MethodGet, "/users/:id").
 			Doc("Get user", "Retrieves a user by ID").
 			Response(200, map[string]string{"id": "string"})
 
@@ -57,7 +58,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 		)
 
 		mgr := NewManager(cfg)
-		mgr.Register("GET", "/test").Response(200, map[string]string{"id": "string"})
+		mgr.Register(http.MethodGet, "/test").Response(200, map[string]string{"id": "string"})
 		specJSON, _, err := mgr.GenerateSpec()
 		require.NoError(t, err)
 
@@ -80,7 +81,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 		}
 
 		mgr := NewManager(cfg)
-		mgr.Register("GET", "/test").Response(200, map[string]string{"id": "string"})
+		mgr.Register(http.MethodGet, "/test").Response(200, map[string]string{"id": "string"})
 		specJSON, _, err := mgr.GenerateSpec()
 		require.NoError(t, err)
 
@@ -107,7 +108,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 		}
 
 		mgr := NewManager(cfg)
-		mgr.Register("GET", "/test").Response(200, map[string]string{"id": "string"})
+		mgr.Register(http.MethodGet, "/test").Response(200, map[string]string{"id": "string"})
 		specJSON, _, err := mgr.GenerateSpec()
 		require.NoError(t, err)
 
@@ -134,7 +135,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 		}
 
 		mgr := NewManager(cfg)
-		mgr.Register("GET", "/test").Response(200, map[string]string{"id": "string"})
+		mgr.Register(http.MethodGet, "/test").Response(200, map[string]string{"id": "string"})
 		specJSON, _, err := mgr.GenerateSpec()
 		require.NoError(t, err)
 
@@ -160,7 +161,7 @@ func TestManager_Extensions_Integration(t *testing.T) {
 		}
 
 		mgr := NewManager(cfg)
-		mgr.Register("GET", "/test").Response(200, map[string]string{"id": "string"})
+		mgr.Register(http.MethodGet, "/test").Response(200, map[string]string{"id": "string"})
 		specJSON, _, err := mgr.GenerateSpec()
 		require.NoError(t, err)
 

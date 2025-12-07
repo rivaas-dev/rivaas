@@ -182,7 +182,7 @@ func NewManager(cfg *Config) *Manager {
 //
 // Example:
 //
-//	manager.Register("GET", "/users/:id").
+//	manager.Register(http.MethodGet, "/users/:id").
 //	    Doc("Get user", "Retrieves a user by ID").
 //	    Request(GetUserRequest{}).
 //	    Response(200, UserResponse{})

@@ -2,6 +2,7 @@ package example_test
 
 import (
 	"fmt"
+	"net/http"
 
 	"rivaas.dev/openapi"
 	"rivaas.dev/openapi/example"
@@ -52,7 +53,7 @@ func ExampleResponse_namedExamples() {
 	)
 
 	manager := openapi.NewManager(cfg)
-	route := manager.Register("GET", "/users/:id")
+	route := manager.Register(http.MethodGet, "/users/:id")
 	route.Doc("Get user", "Retrieves a user by ID").
 		Response(200, UserResponse{},
 			example.New("regular", UserResponse{ID: 123, Name: "John"},

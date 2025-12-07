@@ -170,19 +170,19 @@ func (b *Builder) Build(routes []EnrichedRoute) (*model.Spec, error) {
 			}
 
 			switch strings.ToUpper(r.RouteInfo.Method) {
-			case "GET":
+			case http.MethodGet:
 				item.Get = op
-			case "POST":
+			case http.MethodPost:
 				item.Post = op
-			case "PUT":
+			case http.MethodPut:
 				item.Put = op
-			case "DELETE":
+			case http.MethodDelete:
 				item.Delete = op
-			case "PATCH":
+			case http.MethodPatch:
 				item.Patch = op
-			case "OPTIONS":
+			case http.MethodOptions:
 				item.Options = op
-			case "HEAD":
+			case http.MethodHead:
 				item.Head = op
 			}
 		}
@@ -471,7 +471,7 @@ func generateFromMethodAndPath(method, path string) string {
 			} else {
 				// No parameter after, it's a collection or action endpoint
 				// Use plural for GET/DELETE (collections), singular for others (actions)
-				if method == "GET" || method == "DELETE" {
+				if method == http.MethodGet || method == http.MethodDelete {
 					resourceParts = append(resourceParts, capitalize(seg))
 				} else {
 					resourceParts = append(resourceParts, capitalize(singularize(seg)))
@@ -496,19 +496,19 @@ func generateFromMethodAndPath(method, path string) string {
 // methodToVerb converts HTTP method to semantic verb.
 func methodToVerb(method string) string {
 	switch strings.ToUpper(method) {
-	case "GET":
+	case http.MethodGet:
 		return "get"
-	case "POST":
+	case http.MethodPost:
 		return "create"
-	case "PUT":
+	case http.MethodPut:
 		return "replace"
-	case "PATCH":
+	case http.MethodPatch:
 		return "update"
-	case "DELETE":
+	case http.MethodDelete:
 		return "delete"
-	case "HEAD":
+	case http.MethodHead:
 		return "head"
-	case "OPTIONS":
+	case http.MethodOptions:
 		return "options"
 	default:
 		return strings.ToLower(method)

@@ -2,6 +2,7 @@ package build
 
 import (
 	"fmt"
+	"net/http"
 	"reflect"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestBuilder_Build(t *testing.T) {
 	routes := []EnrichedRoute{
 		{
 			RouteInfo: RouteInfo{
-				Method: "GET",
+				Method: string(http.MethodGet),
 				Path:   "/users/:id",
 			},
 			Doc: &RouteDoc{
@@ -69,17 +70,17 @@ func TestBuilder_OperationIDGeneration(t *testing.T) {
 		path     string
 		expected string
 	}{
-		{"GET", "/users", "getUsers"},
-		{"GET", "/users/:id", "getUserById"},
-		{"POST", "/users", "createUser"},
-		{"PUT", "/users/:id", "replaceUserById"},
-		{"PATCH", "/users/:id", "updateUserById"},
-		{"DELETE", "/users/:id", "deleteUserById"},
-		{"GET", "/users/:id/orders", "getUserOrdersById"},
-		{"GET", "/users/:id/orders/:orderId", "getUserOrderByOrderId"},
-		{"POST", "/users/:userId/posts", "createUserPostByUserId"},
-		{"GET", "/", "getRoot"},
-		{"GET", "/health", "getHealth"},
+		{string(http.MethodGet), "/users", "getUsers"},
+		{string(http.MethodGet), "/users/:id", "getUserById"},
+		{string(http.MethodPost), "/users", "createUser"},
+		{string(http.MethodPut), "/users/:id", "replaceUserById"},
+		{string(http.MethodPatch), "/users/:id", "updateUserById"},
+		{string(http.MethodDelete), "/users/:id", "deleteUserById"},
+		{string(http.MethodGet), "/users/:id/orders", "getUserOrdersById"},
+		{string(http.MethodGet), "/users/:id/orders/:orderId", "getUserOrderByOrderId"},
+		{string(http.MethodPost), "/users/:userId/posts", "createUserPostByUserId"},
+		{string(http.MethodGet), "/", "getRoot"},
+		{string(http.MethodGet), "/health", "getHealth"},
 	}
 
 	builder := newTestBuilder(t)
@@ -103,15 +104,15 @@ func TestBuilder_OperationIDGeneration(t *testing.T) {
 			var op *model.Operation
 			for _, pathItem := range spec.Paths {
 				switch tt.method {
-				case "GET":
+				case http.MethodGet:
 					op = pathItem.Get
-				case "POST":
+				case http.MethodPost:
 					op = pathItem.Post
-				case "PUT":
+				case http.MethodPut:
 					op = pathItem.Put
-				case "PATCH":
+				case http.MethodPatch:
 					op = pathItem.Patch
-				case "DELETE":
+				case http.MethodDelete:
 					op = pathItem.Delete
 				}
 				if op != nil {
@@ -132,7 +133,7 @@ func TestBuilder_CustomOperationID(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users"},
+			RouteInfo: RouteInfo{Method: string(http.MethodGet), Path: "/users"},
 			Doc: &RouteDoc{
 				OperationID:   "customGetUsers",
 				ResponseTypes: map[int]reflect.Type{200: nil},
@@ -155,17 +156,17 @@ func TestBuilder_DuplicateOperationID(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users"},
 			Doc: &RouteDoc{
 				OperationID:   "getUsers",
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 		{
-			RouteInfo: RouteInfo{Method: "POST", Path: "/users"},
+			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
 				OperationID:   "getUsers", // Duplicate!
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 	}
@@ -183,24 +184,24 @@ func TestBuilder_MultipleMethodsOnPath(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				Summary:       "Get user",
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 		{
-			RouteInfo: RouteInfo{Method: "PUT", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodPut, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				Summary:       "Update user",
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 		{
-			RouteInfo: RouteInfo{Method: "DELETE", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodDelete, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				Summary:       "Delete user",
-				ResponseTypes: map[int]reflect.Type{204: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusNoContent: nil},
 			},
 		},
 	}
@@ -230,11 +231,11 @@ func TestBuilder_RequestBody(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "POST", Path: "/users"},
+			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
 				RequestType:     reflect.TypeOf(CreateUserRequest{}),
 				RequestMetadata: schema.IntrospectRequest(reflect.TypeOf(CreateUserRequest{})),
-				ResponseTypes:   map[int]reflect.Type{201: nil},
+				ResponseTypes:   map[int]reflect.Type{http.StatusCreated: nil},
 			},
 		},
 	}
@@ -261,10 +262,10 @@ func TestBuilder_Parameters(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				RequestType:   reflect.TypeOf(GetUserRequest{}),
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 	}
@@ -297,10 +298,10 @@ func TestBuilder_ComponentSchemas(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					200: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeOf(User{}),
 				},
 			},
 		},
@@ -347,10 +348,10 @@ func TestBuilder_Tags(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users"},
 			Doc: &RouteDoc{
 				Tags:          []string{"users"},
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 	}
@@ -373,7 +374,7 @@ func TestBuilder_NoDoc(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc:       nil, // No documentation
 		},
 	}
@@ -394,13 +395,13 @@ func TestBuilder_AllHTTPMethods(t *testing.T) {
 	builder := newTestBuilder(t)
 
 	routes := []EnrichedRoute{
-		{RouteInfo: RouteInfo{Method: "GET", Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{200: nil}}},
-		{RouteInfo: RouteInfo{Method: "POST", Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{201: nil}}},
-		{RouteInfo: RouteInfo{Method: "PUT", Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{200: nil}}},
-		{RouteInfo: RouteInfo{Method: "PATCH", Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{200: nil}}},
-		{RouteInfo: RouteInfo{Method: "DELETE", Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{204: nil}}},
-		{RouteInfo: RouteInfo{Method: "HEAD", Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{200: nil}}},
-		{RouteInfo: RouteInfo{Method: "OPTIONS", Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{200: nil}}},
+		{RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{http.StatusOK: nil}}},
+		{RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{http.StatusCreated: nil}}},
+		{RouteInfo: RouteInfo{Method: http.MethodPut, Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{http.StatusOK: nil}}},
+		{RouteInfo: RouteInfo{Method: http.MethodPatch, Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{http.StatusOK: nil}}},
+		{RouteInfo: RouteInfo{Method: http.MethodDelete, Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{http.StatusNoContent: nil}}},
+		{RouteInfo: RouteInfo{Method: http.MethodHead, Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{http.StatusOK: nil}}},
+		{RouteInfo: RouteInfo{Method: http.MethodOptions, Path: "/test"}, Doc: &RouteDoc{ResponseTypes: map[int]reflect.Type{http.StatusOK: nil}}},
 	}
 
 	spec, err := builder.Build(routes)
@@ -424,13 +425,13 @@ func TestBuilder_MultipleResponseCodes(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "POST", Path: "/users"},
+			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					201: reflect.TypeOf(User{}),
-					400: nil,
-					401: nil,
-					500: nil,
+					http.StatusCreated:             reflect.TypeOf(User{}),
+					http.StatusBadRequest:          nil,
+					http.StatusUnauthorized:        nil,
+					http.StatusInternalServerError: nil,
 				},
 			},
 		},
@@ -463,10 +464,10 @@ func TestBuilder_DeprecatedOperation(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/old"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/old"},
 			Doc: &RouteDoc{
 				Deprecated:    true,
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 	}
@@ -491,12 +492,12 @@ func TestBuilder_SecurityRequirements(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/secure"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/secure"},
 			Doc: &RouteDoc{
 				Security: []SecurityReq{
 					{Scheme: "bearerAuth", Scopes: []string{"read", "write"}},
 				},
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 	}
@@ -525,9 +526,9 @@ func TestBuilder_GlobalSecurity(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users"},
 			Doc: &RouteDoc{
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 	}
@@ -557,7 +558,7 @@ func TestBuilder_NilDoc(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/test"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/test"},
 			Doc:       nil, // Test nil doc handling
 		},
 	}
@@ -583,9 +584,9 @@ func TestBuilder_ComplexPath(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users/:userId/posts/:postId/comments/:commentId"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:userId/posts/:postId/comments/:commentId"},
 			Doc: &RouteDoc{
-				ResponseTypes: map[int]reflect.Type{200: nil},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
 	}
@@ -616,13 +617,13 @@ func TestBuilder_ResponseExamples(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					200: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeOf(User{}),
 				},
 				ResponseExample: map[int]any{
-					200: User{ID: 1, Name: "John"},
+					http.StatusOK: User{ID: 1, Name: "John"},
 				},
 			},
 		},
@@ -651,13 +652,13 @@ func TestBuilder_MultipleContentTypes(t *testing.T) {
 
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "POST", Path: "/users"},
+			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
 				RequestType:     reflect.TypeOf(CreateUserRequest{}),
 				RequestMetadata: schema.IntrospectRequest(reflect.TypeOf(CreateUserRequest{})),
 				Consumes:        []string{"application/json", "application/xml"},
 				Produces:        []string{"application/json", "text/xml"},
-				ResponseTypes:   map[int]reflect.Type{201: reflect.TypeOf(User{})},
+				ResponseTypes:   map[int]reflect.Type{http.StatusCreated: reflect.TypeOf(User{})},
 			},
 		},
 	}
@@ -683,28 +684,28 @@ func BenchmarkBuilder_Build(b *testing.B) {
 	builder := newTestBuilder(b)
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				Summary: "Get user",
 				ResponseTypes: map[int]reflect.Type{
-					200: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeOf(User{}),
 				},
 			},
 		},
 		{
-			RouteInfo: RouteInfo{Method: "POST", Path: "/users"},
+			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
 				Summary:       "Create user",
 				RequestType:   reflect.TypeOf(User{}),
-				ResponseTypes: map[int]reflect.Type{201: reflect.TypeOf(User{})},
+				ResponseTypes: map[int]reflect.Type{http.StatusCreated: reflect.TypeOf(User{})},
 			},
 		},
 		{
-			RouteInfo: RouteInfo{Method: "PUT", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodPut, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				Summary:       "Update user",
 				RequestType:   reflect.TypeOf(User{}),
-				ResponseTypes: map[int]reflect.Type{200: reflect.TypeOf(User{})},
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: reflect.TypeOf(User{})},
 			},
 		},
 	}
@@ -721,13 +722,13 @@ func BenchmarkBuilder_ComplexSpec(b *testing.B) {
 	for i := range 50 {
 		routes = append(routes, EnrichedRoute{
 			RouteInfo: RouteInfo{
-				Method: "GET",
+				Method: http.MethodGet,
 				Path:   fmt.Sprintf("/resource%d/:id", i),
 			},
 			Doc: &RouteDoc{
 				Summary: fmt.Sprintf("Get resource %d", i),
 				ResponseTypes: map[int]reflect.Type{
-					200: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeOf(User{}),
 				},
 			},
 		})
@@ -745,13 +746,13 @@ func TestBuilder_ResponseNamedExamples(t *testing.T) {
 	builder := newTestBuilder(t)
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/users/:id"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					200: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeOf(User{}),
 				},
 				ResponseNamedExamples: map[int][]ExampleData{
-					200: {
+					http.StatusOK: {
 						{
 							Name:    "regular",
 							Summary: "Regular user",
@@ -801,7 +802,7 @@ func TestBuilder_RequestNamedExamples(t *testing.T) {
 	builder := newTestBuilder(t)
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "POST", Path: "/users"},
+			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
 				RequestType:     reflect.TypeOf(CreateUser{}),
 				RequestMetadata: schema.IntrospectRequest(reflect.TypeOf(CreateUser{})),
@@ -817,7 +818,7 @@ func TestBuilder_RequestNamedExamples(t *testing.T) {
 						Value:   CreateUser{Name: "John", Email: "john@example.com"},
 					},
 				},
-				ResponseTypes: map[int]reflect.Type{201: reflect.TypeOf(User{})},
+				ResponseTypes: map[int]reflect.Type{http.StatusCreated: reflect.TypeOf(User{})},
 			},
 		},
 	}
@@ -844,13 +845,13 @@ func TestBuilder_ExternalExample(t *testing.T) {
 	builder := newTestBuilder(t)
 	routes := []EnrichedRoute{
 		{
-			RouteInfo: RouteInfo{Method: "GET", Path: "/data"},
+			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/data"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					200: reflect.TypeOf(map[string]any{}),
+					http.StatusOK: reflect.TypeOf(map[string]any{}),
 				},
 				ResponseNamedExamples: map[int][]ExampleData{
-					200: {
+					http.StatusOK: {
 						{
 							Name:          "large",
 							Summary:       "Large dataset",

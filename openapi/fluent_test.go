@@ -15,6 +15,7 @@
 package openapi
 
 import (
+	"net/http"
 	"reflect"
 	"testing"
 
@@ -38,7 +39,7 @@ func TestRouteWrapper_Doc(t *testing.T) {
 
 	t.Run("sets both summary and description", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		result := rw.Doc("Test Summary", "Test Description")
 
@@ -54,7 +55,7 @@ func TestRouteWrapper_Doc(t *testing.T) {
 
 	t.Run("handles empty strings", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Doc("", "")
 
@@ -66,7 +67,7 @@ func TestRouteWrapper_Doc(t *testing.T) {
 
 	t.Run("replaces previous values", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Summary("Old Summary").Description("Old Description")
 		rw.Doc("New Summary", "New Description")
@@ -79,7 +80,7 @@ func TestRouteWrapper_Doc(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Doc("Original Summary", "Original Description")
 		rw.Freeze()
 
@@ -96,7 +97,7 @@ func TestRouteWrapper_Summary(t *testing.T) {
 
 	t.Run("sets summary correctly", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		result := rw.Summary("Test Summary")
 
@@ -111,7 +112,7 @@ func TestRouteWrapper_Summary(t *testing.T) {
 
 	t.Run("replaces previous summary", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Summary("First")
 		rw.Summary("Second")
@@ -123,7 +124,7 @@ func TestRouteWrapper_Summary(t *testing.T) {
 
 	t.Run("handles empty string", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Summary("Initial").Summary("")
 
@@ -134,7 +135,7 @@ func TestRouteWrapper_Summary(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Summary("Original")
 		rw.Freeze()
 
@@ -150,7 +151,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 
 	t.Run("sets description correctly", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		result := rw.Description("Test Description")
 
@@ -165,7 +166,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 
 	t.Run("replaces previous description", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Description("First")
 		rw.Description("Second")
@@ -177,7 +178,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 
 	t.Run("handles empty string", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Description("Initial").Description("")
 
@@ -188,7 +189,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 
 	t.Run("supports markdown formatting", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		markdown := "This is a **bold** description with `code` and [links](http://example.com)"
 		rw.Description(markdown)
@@ -200,7 +201,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Description("Original")
 		rw.Freeze()
 
@@ -216,7 +217,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 
 	t.Run("adds single tag", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Tags("users")
 
@@ -227,7 +228,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 
 	t.Run("adds multiple tags at once", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Tags("users", "management", "admin")
 
@@ -238,7 +239,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 
 	t.Run("accumulates tags from multiple calls", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Tags("users")
 		rw.Tags("management")
@@ -251,7 +252,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 
 	t.Run("handles empty call", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Tags("initial")
 		rw.Tags() // Should be no-op
@@ -263,7 +264,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 
 	t.Run("handles duplicate tags", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Tags("users")
 		rw.Tags("users", "admin")
@@ -278,7 +279,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 
 	t.Run("returns self for chaining", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		result := rw.Tags("tag1")
 
@@ -287,7 +288,7 @@ func TestRouteWrapper_Tags(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Tags("original")
 		rw.Freeze()
 
@@ -303,7 +304,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 
 	t.Run("sets operation ID correctly", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		result := rw.OperationID("getTest")
 
@@ -318,7 +319,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 
 	t.Run("replaces previous operation ID", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.OperationID("first")
 		rw.OperationID("second")
@@ -330,7 +331,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 
 	t.Run("handles empty string", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.OperationID("initial").OperationID("")
 
@@ -341,7 +342,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 
 	t.Run("handles camelCase IDs", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/users/:id")
+		rw := NewRoute(http.MethodGet, "/users/:id")
 
 		rw.OperationID("getUserById")
 
@@ -352,7 +353,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.OperationID("original")
 		rw.Freeze()
 
@@ -368,7 +369,7 @@ func TestRouteWrapper_Deprecated(t *testing.T) {
 
 	t.Run("sets deprecated flag to true", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		result := rw.Deprecated()
 
@@ -383,7 +384,7 @@ func TestRouteWrapper_Deprecated(t *testing.T) {
 
 	t.Run("starts as false", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.mu.RLock()
 		assert.False(t, rw.doc.Deprecated)
@@ -392,7 +393,7 @@ func TestRouteWrapper_Deprecated(t *testing.T) {
 
 	t.Run("multiple calls still set to true", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Deprecated().Deprecated().Deprecated()
 
@@ -403,7 +404,7 @@ func TestRouteWrapper_Deprecated(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Deprecated()
 		rw.Freeze()
 
@@ -422,7 +423,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 
 	t.Run("sets content types", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		result := rw.Consumes("application/json", "application/xml")
 
@@ -437,7 +438,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 
 	t.Run("replaces previous content types", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		rw.Consumes("application/json")
 		rw.Consumes("multipart/form-data", "text/plain")
@@ -449,7 +450,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 
 	t.Run("handles single content type", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		rw.Consumes("application/json")
 
@@ -460,7 +461,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 
 	t.Run("handles empty call", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		rw.Consumes("application/json")
 		rw.Consumes() // Should replace with empty slice
@@ -472,7 +473,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 
 	t.Run("defaults to application/json", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		rw.mu.RLock()
 		assert.Equal(t, []string{"application/json"}, rw.doc.Consumes)
@@ -481,7 +482,7 @@ func TestRouteWrapper_Consumes(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 		rw.Consumes("application/json")
 		rw.Freeze()
 
@@ -497,7 +498,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 
 	t.Run("sets content types", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		result := rw.Produces("application/json", "text/csv")
 
@@ -512,7 +513,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 
 	t.Run("replaces previous content types", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Produces("application/json")
 		rw.Produces("text/html", "text/plain")
@@ -524,7 +525,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 
 	t.Run("handles single content type", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Produces("application/json")
 
@@ -535,7 +536,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 
 	t.Run("handles empty call", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Produces("application/json")
 		rw.Produces() // Should replace with empty slice
@@ -547,7 +548,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 
 	t.Run("defaults to application/json", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.mu.RLock()
 		assert.Equal(t, []string{"application/json"}, rw.doc.Produces)
@@ -556,7 +557,7 @@ func TestRouteWrapper_Produces(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Produces("application/json")
 		rw.Freeze()
 
@@ -572,7 +573,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 
 	t.Run("adds security requirement", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		result := rw.Security("bearerAuth")
 
@@ -589,7 +590,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 
 	t.Run("adds security requirement with scopes", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		rw.Security("oauth2", "read", "write", "admin")
 
@@ -602,7 +603,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 
 	t.Run("accumulates multiple security requirements", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		rw.Security("bearerAuth")
 		rw.Security("oauth2", "read", "write")
@@ -619,7 +620,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 
 	t.Run("handles empty scopes", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		rw.Security("bearerAuth")
 
@@ -632,7 +633,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 
 	t.Run("starts with empty security", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.mu.RLock()
 		assert.Empty(t, rw.doc.Security)
@@ -641,7 +642,7 @@ func TestRouteWrapper_Security(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 		rw.Security("bearerAuth")
 		rw.Freeze()
 
@@ -658,7 +659,7 @@ func TestRouteWrapper_Bearer(t *testing.T) {
 
 	t.Run("delegates to Security with bearerAuth", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		result := rw.Bearer()
 
@@ -675,7 +676,7 @@ func TestRouteWrapper_Bearer(t *testing.T) {
 
 	t.Run("can be called multiple times", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		rw.Bearer().Bearer().Bearer()
 
@@ -689,7 +690,7 @@ func TestRouteWrapper_Bearer(t *testing.T) {
 
 	t.Run("works with other security methods", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		rw.Bearer()
 		rw.Security("oauth2", "read")
@@ -703,7 +704,7 @@ func TestRouteWrapper_Bearer(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 		rw.Bearer()
 		rw.Freeze()
 
@@ -720,7 +721,7 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 
 	t.Run("delegates to Security with scheme and scopes", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		result := rw.OAuth("oauth2", "read", "write", "admin")
 
@@ -737,7 +738,7 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 
 	t.Run("handles no scopes", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		rw.OAuth("oauth2")
 
@@ -750,7 +751,7 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 
 	t.Run("handles custom scheme names", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		rw.OAuth("customOAuth", "scope1", "scope2")
 
@@ -763,7 +764,7 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 
 	t.Run("can be called multiple times", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		rw.OAuth("oauth2", "read")
 		rw.OAuth("oauth2", "write")
@@ -781,7 +782,7 @@ func TestRouteWrapper_OAuth(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 		rw.OAuth("oauth2", "read")
 		rw.Freeze()
 
@@ -799,7 +800,7 @@ func TestRouteWrapper_Request(t *testing.T) {
 
 	t.Run("sets request type", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		result := rw.Request(TestRequest{})
 
@@ -815,7 +816,7 @@ func TestRouteWrapper_Request(t *testing.T) {
 
 	t.Run("replaces previous request type", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		rw.Request(TestRequest{})
 		rw.Request(DifferentResponse{})
@@ -827,7 +828,7 @@ func TestRouteWrapper_Request(t *testing.T) {
 
 	t.Run("handles pointer types", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		rw.Request(&TestRequest{})
 
@@ -839,7 +840,7 @@ func TestRouteWrapper_Request(t *testing.T) {
 
 	t.Run("handles primitive types", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		rw.Request("")
 
@@ -850,7 +851,7 @@ func TestRouteWrapper_Request(t *testing.T) {
 
 	t.Run("handles slice types", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		rw.Request([]TestRequest{})
 
@@ -861,7 +862,7 @@ func TestRouteWrapper_Request(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 		rw.Request(TestRequest{})
 		rw.Freeze()
 
@@ -877,7 +878,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 
 	t.Run("sets response type", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Response(200, TestResponse{})
 
@@ -889,7 +890,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 
 	t.Run("sets nil response for no-content", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("DELETE", "/test")
+		rw := NewRoute(http.MethodDelete, "/test")
 
 		rw.Response(204, nil)
 
@@ -901,7 +902,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 
 	t.Run("allows multiple status codes", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Response(200, TestResponse{})
 		rw.Response(404, ErrorResponse{})
@@ -920,7 +921,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 
 	t.Run("replaces response for same status code", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Response(200, TestResponse{})
 		rw.Response(200, DifferentResponse{})
@@ -932,7 +933,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 
 	t.Run("handles pointer types", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Response(200, &TestResponse{})
 
@@ -943,7 +944,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 
 	t.Run("handles primitive types", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Response(200, "")
 
@@ -954,7 +955,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 
 	t.Run("returns self for chaining", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		result := rw.Response(200, TestResponse{})
 
@@ -963,7 +964,7 @@ func TestRouteWrapper_Response(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Response(200, TestResponse{})
 		rw.Freeze()
 
@@ -979,7 +980,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 
 	t.Run("sets response example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		example := TestResponse{ID: 123, Name: "Test"}
 		result := rw.ResponseExample(200, example)
@@ -996,7 +997,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 
 	t.Run("allows multiple status codes", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.ResponseExample(200, TestResponse{ID: 1, Name: "Success"})
 		rw.ResponseExample(404, ErrorResponse{Error: "Not Found"})
@@ -1012,7 +1013,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 
 	t.Run("replaces example for same status code", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.ResponseExample(200, TestResponse{ID: 1, Name: "First"})
 		rw.ResponseExample(200, TestResponse{ID: 2, Name: "Second"})
@@ -1024,7 +1025,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 
 	t.Run("handles nil example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.ResponseExample(204, nil)
 
@@ -1036,7 +1037,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 
 	t.Run("handles primitive examples", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.ResponseExample(200, "string example")
 		rw.ResponseExample(201, 42)
@@ -1049,7 +1050,7 @@ func TestRouteWrapper_ResponseExample(t *testing.T) {
 
 	t.Run("no-op after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.ResponseExample(200, TestResponse{ID: 1, Name: "Original"})
 		rw.Freeze()
 
@@ -1065,7 +1066,7 @@ func TestRouteWrapper_MethodChaining(t *testing.T) {
 
 	t.Run("all methods can be chained", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/users")
+		rw := NewRoute(http.MethodPost, "/users")
 
 		result := rw.
 			Doc("Create User", "Creates a new user account").
@@ -1103,7 +1104,7 @@ func TestRouteWrapper_MethodChaining(t *testing.T) {
 
 	t.Run("complex chaining scenario", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/users/:id")
+		rw := NewRoute(http.MethodGet, "/users/:id")
 
 		rw.
 			Summary("Get User").
@@ -1134,7 +1135,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 
 	t.Run("tags accumulate", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Tags("tag1")
 		rw.Tags("tag2", "tag3")
@@ -1147,7 +1148,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 
 	t.Run("security accumulates", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Security("scheme1")
 		rw.Security("scheme2", "scope1")
@@ -1165,7 +1166,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 
 	t.Run("responses accumulate", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Response(200, TestResponse{})
 		rw.Response(404, ErrorResponse{})
@@ -1178,7 +1179,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 
 	t.Run("response examples accumulate", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.ResponseExample(200, TestResponse{ID: 1})
 		rw.ResponseExample(404, ErrorResponse{Error: "Not Found"})
@@ -1191,7 +1192,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 
 	t.Run("summary replaces", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Summary("First")
 		rw.Summary("Second")
@@ -1203,7 +1204,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 
 	t.Run("description replaces", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Description("First")
 		rw.Description("Second")
@@ -1215,7 +1216,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 
 	t.Run("operation ID replaces", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.OperationID("first")
 		rw.OperationID("second")
@@ -1227,7 +1228,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 
 	t.Run("consumes replaces", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		rw.Consumes("application/json")
 		rw.Consumes("text/xml")
@@ -1239,7 +1240,7 @@ func TestRouteWrapper_AccumulationBehavior(t *testing.T) {
 
 	t.Run("produces replaces", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Produces("application/json")
 		rw.Produces("text/csv")
@@ -1255,7 +1256,7 @@ func TestRouteWrapper_CompleteWorkflow(t *testing.T) {
 
 	t.Run("realistic API endpoint configuration", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("PUT", "/users/:id")
+		rw := NewRoute(http.MethodPut, "/users/:id")
 
 		// Configure the route
 		rw.
@@ -1367,7 +1368,7 @@ func TestRouteWrapper_Response_WithNamedExamples(t *testing.T) {
 
 	t.Run("single named example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Response(200, UserResponse{},
 			example.New("success", UserResponse{ID: 123, Name: "John"}),
 		)
@@ -1383,7 +1384,7 @@ func TestRouteWrapper_Response_WithNamedExamples(t *testing.T) {
 
 	t.Run("multiple named examples", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Response(200, UserResponse{},
 			example.New("regular", UserResponse{ID: 1, Name: "User"}),
 			example.New("admin", UserResponse{ID: 2, Name: "Admin"},
@@ -1401,7 +1402,7 @@ func TestRouteWrapper_Response_WithNamedExamples(t *testing.T) {
 
 	t.Run("named examples clear single example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		// First set a single example
 		rw.Response(200, UserResponse{ID: 1, Name: "Single"})
 
@@ -1421,7 +1422,7 @@ func TestRouteWrapper_Response_WithNamedExamples(t *testing.T) {
 
 	t.Run("single example clears named examples", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		// First set named examples
 		rw.Response(200, UserResponse{},
 			example.New("named", UserResponse{ID: 1}),
@@ -1441,7 +1442,7 @@ func TestRouteWrapper_Response_WithNamedExamples(t *testing.T) {
 
 	t.Run("zero value without examples has no example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Response(200, UserResponse{}) // Zero value
 
 		rw.mu.RLock()
@@ -1453,7 +1454,7 @@ func TestRouteWrapper_Response_WithNamedExamples(t *testing.T) {
 
 	t.Run("non-zero value becomes example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Response(200, UserResponse{ID: 123, Name: "John"})
 
 		rw.mu.RLock()
@@ -1464,7 +1465,7 @@ func TestRouteWrapper_Response_WithNamedExamples(t *testing.T) {
 
 	t.Run("external example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Response(200, UserResponse{},
 			example.NewExternal("large", "https://example.com/large.json",
 				example.WithSummary("Large dataset")),
@@ -1490,7 +1491,7 @@ func TestRouteWrapper_Request_WithNamedExamples(t *testing.T) {
 
 	t.Run("single named example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/users")
+		rw := NewRoute(http.MethodPost, "/users")
 		rw.Request(CreateUserRequest{},
 			example.New("basic", CreateUserRequest{Name: "John"}),
 		)
@@ -1505,7 +1506,7 @@ func TestRouteWrapper_Request_WithNamedExamples(t *testing.T) {
 
 	t.Run("multiple named examples", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/users")
+		rw := NewRoute(http.MethodPost, "/users")
 		rw.Request(CreateUserRequest{},
 			example.New("minimal", CreateUserRequest{Name: "John"},
 				example.WithSummary("Required fields only")),
@@ -1523,7 +1524,7 @@ func TestRouteWrapper_Request_WithNamedExamples(t *testing.T) {
 
 	t.Run("zero value without examples has no example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/users")
+		rw := NewRoute(http.MethodPost, "/users")
 		rw.Request(CreateUserRequest{})
 
 		rw.mu.RLock()
@@ -1535,7 +1536,7 @@ func TestRouteWrapper_Request_WithNamedExamples(t *testing.T) {
 
 	t.Run("non-zero value becomes example", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/users")
+		rw := NewRoute(http.MethodPost, "/users")
 		rw.Request(CreateUserRequest{Name: "John", Email: "john@example.com"})
 
 		rw.mu.RLock()

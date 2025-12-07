@@ -15,6 +15,7 @@
 package openapi
 
 import (
+	"net/http"
 	"reflect"
 	"sync"
 	"testing"
@@ -40,7 +41,7 @@ func TestRouteWrapper_Freeze_Immutable(t *testing.T) {
 
 	t.Run("frozen route cannot be modified", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		// Configure before freezing
 		rw.Summary("Original summary").
@@ -90,7 +91,7 @@ func TestRouteWrapper_Freeze_Immutable(t *testing.T) {
 
 	t.Run("frozen route security cannot be modified", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/protected")
+		rw := NewRoute(http.MethodGet, "/protected")
 
 		// Add security before freezing
 		rw.Security("bearerAuth")
@@ -116,7 +117,7 @@ func TestRouteWrapper_Freeze_Immutable(t *testing.T) {
 
 	t.Run("frozen route methods return self for chaining", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Freeze()
 
 		// All methods should return self even when frozen
@@ -139,7 +140,7 @@ func TestRouteWrapper_Freeze_Immutable(t *testing.T) {
 
 	t.Run("freeze is idempotent", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Summary("Test summary")
 
 		doc1 := rw.Freeze()
@@ -160,7 +161,7 @@ func TestRouteWrapper_Freeze_DeepCopy(t *testing.T) {
 
 	t.Run("frozen doc is a deep copy", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		// Configure with slices and maps
 		rw.Tags("tag1", "tag2")
@@ -187,7 +188,7 @@ func TestRouteWrapper_Freeze_DeepCopy(t *testing.T) {
 
 	t.Run("frozen doc security is a deep copy", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		rw.Security("bearerAuth")
 		rw.Security("oauth2", "read", "write")
@@ -236,7 +237,7 @@ func TestRouteWrapper_Freeze_Concurrent(t *testing.T) {
 
 	t.Run("concurrent read after freeze is safe", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Summary("Test summary")
 		rw.Freeze()
 
@@ -265,7 +266,7 @@ func TestRouteWrapper_Freeze_Concurrent(t *testing.T) {
 
 	t.Run("concurrent modification attempts after freeze are safe", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Summary("Original")
 		frozenDoc := rw.Freeze()
 		require.NotNil(t, frozenDoc)
@@ -307,13 +308,13 @@ func TestRouteWrapper_GetFrozenDoc(t *testing.T) {
 
 	t.Run("returns nil when not frozen", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		assert.Nil(t, rw.GetFrozenDoc())
 	})
 
 	t.Run("returns frozen doc after freeze", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Summary("Test summary")
 
 		frozenDoc := rw.Freeze()
@@ -331,7 +332,7 @@ func TestRouteWrapper_Freeze_RequestMetadata(t *testing.T) {
 
 	t.Run("freeze introspects request type", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 
 		// Set request type before freezing
 		rw.Request(TestRequest{})
@@ -350,7 +351,7 @@ func TestRouteWrapper_Freeze_RequestMetadata(t *testing.T) {
 
 	t.Run("freeze without request type has nil metadata", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 
 		frozenDoc := rw.Freeze()
 		require.NotNil(t, frozenDoc)
@@ -369,7 +370,7 @@ func TestRouteWrapper_Freeze_WithExamples(t *testing.T) {
 
 	t.Run("freezes response named examples", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		rw.Response(200, User{},
 			example.New("success", User{ID: 1, Name: "test"}),
 		)
@@ -391,7 +392,7 @@ func TestRouteWrapper_Freeze_WithExamples(t *testing.T) {
 
 	t.Run("freezes request named examples", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("POST", "/test")
+		rw := NewRoute(http.MethodPost, "/test")
 		rw.Request(User{},
 			example.New("test", User{ID: 1, Name: "test"}),
 		)
@@ -403,7 +404,7 @@ func TestRouteWrapper_Freeze_WithExamples(t *testing.T) {
 
 	t.Run("deep copies named examples", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/test")
+		rw := NewRoute(http.MethodGet, "/test")
 		examples := []example.Example{
 			example.New("ex1", User{ID: 1, Name: "test"}),
 		}
@@ -423,16 +424,16 @@ func TestRouteWrapper_Info(t *testing.T) {
 
 	t.Run("info is always accessible", func(t *testing.T) {
 		t.Parallel()
-		rw := NewRoute("GET", "/users/:id")
+		rw := NewRoute(http.MethodGet, "/users/:id")
 
 		info := rw.Info()
-		assert.Equal(t, "GET", info.Method)
+		assert.Equal(t, http.MethodGet, info.Method)
 		assert.Equal(t, "/users/:id", info.Path)
 
 		// Info should be accessible even after freeze
 		rw.Freeze()
 		info2 := rw.Info()
-		assert.Equal(t, "GET", info2.Method)
+		assert.Equal(t, http.MethodGet, info2.Method)
 		assert.Equal(t, "/users/:id", info2.Path)
 	})
 }
