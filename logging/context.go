@@ -21,6 +21,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// Semantic convention field names for trace correlation.
+const (
+	fieldTraceID = "trace_id"
+	fieldSpanID  = "span_id"
+)
+
 // ContextLogger provides context-aware logging with automatic trace correlation.
 //
 // Why this exists:
@@ -61,8 +67,8 @@ func NewContextLogger(ctx context.Context, logger *Logger) *ContextLogger {
 
 		// Add trace IDs to logger
 		sl = sl.With(
-			slog.String("trace_id", traceID),
-			slog.String("span_id", spanID),
+			fieldTraceID, traceID,
+			fieldSpanID, spanID,
 		)
 
 		return &ContextLogger{

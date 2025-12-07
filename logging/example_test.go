@@ -28,6 +28,8 @@ import (
 
 // ExampleNew demonstrates creating a new logger with basic configuration.
 // The logger outputs JSON-formatted logs to stdout.
+//
+//nolint:testableexamples // Output is non-deterministic (contains timestamps)
 func ExampleNew() {
 	logger, err := logging.New(
 		logging.WithJSONHandler(),
@@ -55,6 +57,8 @@ func ExampleNew_validation() {
 
 // ExampleMustNew demonstrates creating a logger that panics on error.
 // This is useful for application initialization where errors are fatal.
+//
+//nolint:testableexamples // Output is non-deterministic (contains timestamps)
 func ExampleMustNew() {
 	logger := logging.MustNew(
 		logging.WithConsoleHandler(),
@@ -143,6 +147,8 @@ func ExampleLogger_IsEnabled() {
 
 // ExampleLogger_LogRequest demonstrates logging HTTP requests.
 // This helper method automatically extracts common request fields.
+//
+//nolint:testableexamples // Output is non-deterministic (contains timestamps)
 func ExampleLogger_LogRequest() {
 	logger := logging.MustNew(logging.WithJSONHandler())
 	defer logger.Shutdown(context.Background())
@@ -156,10 +162,10 @@ func ExampleLogger_LogRequest() {
 	// Output is non-deterministic (contains timestamps)
 }
 
-//nolint:testableexamples // Output is non-deterministic (contains timestamps and colors)
-
 // ExampleLogger_LogError demonstrates logging errors with context.
 // The error message is automatically added as the "error" attribute.
+//
+//nolint:testableexamples // Output is non-deterministic (contains timestamps and colors)
 func ExampleLogger_LogError() {
 	logger := logging.MustNew(logging.WithConsoleHandler())
 	defer logger.Shutdown(context.Background())
@@ -175,6 +181,8 @@ func ExampleLogger_LogError() {
 
 // ExampleLogger_LogDuration demonstrates logging operation duration.
 // Both human-readable duration and milliseconds are automatically included.
+//
+//nolint:testableexamples // Output is non-deterministic (contains timestamps and duration)
 func ExampleLogger_LogDuration() {
 	logger := logging.MustNew(logging.WithJSONHandler())
 	defer logger.Shutdown(context.Background())
@@ -190,10 +198,10 @@ func ExampleLogger_LogDuration() {
 	// Output is non-deterministic (contains timestamps and duration)
 }
 
-//nolint:testableexamples // Output is non-deterministic (contains timestamps and stack traces)
-
 // ExampleLogger_ErrorWithStack demonstrates error logging with stack traces.
 // Stack traces should only be enabled for critical errors to avoid performance overhead.
+//
+//nolint:testableexamples // Output is non-deterministic (contains timestamps and stack traces)
 func ExampleLogger_ErrorWithStack() {
 	logger := logging.MustNew(logging.WithConsoleHandler())
 	defer logger.Shutdown(context.Background())
@@ -207,6 +215,8 @@ func ExampleLogger_ErrorWithStack() {
 
 // ExampleWithSampling demonstrates log sampling for high-traffic scenarios.
 // Sampling reduces log volume while maintaining visibility.
+//
+//nolint:testableexamples // Output is non-deterministic (sampling behavior varies)
 func ExampleWithSampling() {
 	logger := logging.MustNew(
 		logging.WithJSONHandler(),
@@ -227,6 +237,8 @@ func ExampleWithSampling() {
 
 // ExampleWithReplaceAttr demonstrates custom attribute replacement.
 // This is useful for custom redaction rules beyond the built-in sensitive fields.
+//
+//nolint:testableexamples // Output is non-deterministic (contains timestamps)
 func ExampleWithReplaceAttr() {
 	logger := logging.MustNew(
 		logging.WithJSONHandler(),

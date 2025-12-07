@@ -21,6 +21,7 @@ import (
 )
 
 func TestLogger_Buffering(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 
 	logger, err := New(
@@ -68,6 +69,7 @@ func TestLogger_Buffering(t *testing.T) {
 }
 
 func TestLogger_Buffering_Multiple(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 
 	logger, err := New(
@@ -103,6 +105,7 @@ func TestLogger_Buffering_Multiple(t *testing.T) {
 }
 
 func TestLogger_Buffering_NoBuffer(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 
 	logger, err := New(
@@ -129,6 +132,7 @@ func TestLogger_Buffering_NoBuffer(t *testing.T) {
 }
 
 func TestLogger_IsBuffering_NotBuffering(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 
 	logger, err := New(
