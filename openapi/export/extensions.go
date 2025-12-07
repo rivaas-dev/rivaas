@@ -24,7 +24,7 @@ import (
 
 // validateExtensionKey validates that an extension key starts with "x-".
 // In 3.1.x, keys starting with "x-oai-" or "x-oas-" are reserved.
-func validateExtensionKey(key string, version string) error {
+func validateExtensionKey(key, version string) error {
 	if !strings.HasPrefix(key, "x-") {
 		return &InvalidExtensionKeyError{Key: key}
 	}

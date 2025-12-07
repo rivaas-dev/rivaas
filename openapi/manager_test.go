@@ -78,8 +78,8 @@ func TestManager_GenerateSpec_Golden(t *testing.T) {
 	golden := filepath.Join("testdata", "spec.golden.json")
 
 	if *update {
-		require.NoError(t, os.MkdirAll(filepath.Dir(golden), 0755), "failed to create testdata directory")
-		require.NoError(t, os.WriteFile(golden, specJSON, 0644), "failed to write golden file")
+		require.NoError(t, os.MkdirAll(filepath.Dir(golden), 0o755), "failed to create testdata directory")
+		require.NoError(t, os.WriteFile(golden, specJSON, 0o644), "failed to write golden file")
 		t.Log("Updated golden file")
 		return
 	}

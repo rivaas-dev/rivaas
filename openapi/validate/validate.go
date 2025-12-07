@@ -24,10 +24,8 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-var (
-	// ErrNoValidator indicates no validator is configured.
-	ErrNoValidator = errors.New("no JSON Schema validator configured")
-)
+// ErrNoValidator indicates no validator is configured.
+var ErrNoValidator = errors.New("no JSON Schema validator configured")
 
 // Engine provides OpenAPI specification validation.
 type Engine struct {
