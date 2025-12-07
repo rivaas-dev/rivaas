@@ -150,12 +150,10 @@ func TestStress_MetricRecordingDuringShutdown(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Start shutdown while recording is ongoing
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		err := recorder.Shutdown(ctx)
 		_ = err // Error is acceptable, panic is not
-	}()
+	})
 
 	// Let shutdown and recording race for a bit
 	time.Sleep(20 * time.Millisecond)

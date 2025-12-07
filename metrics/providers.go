@@ -114,11 +114,11 @@ func (r *Recorder) initOTLPProvider() error {
 		isHTTP := false
 
 		// Remove protocol prefix if present
-		if strings.HasPrefix(endpoint, "http://") {
-			endpoint = strings.TrimPrefix(endpoint, "http://")
+		if trimmed, ok := strings.CutPrefix(endpoint, "http://"); ok {
+			endpoint = trimmed
 			isHTTP = true
-		} else if strings.HasPrefix(endpoint, "https://") {
-			endpoint = strings.TrimPrefix(endpoint, "https://")
+		} else if trimmed, ok := strings.CutPrefix(endpoint, "https://"); ok {
+			endpoint = trimmed
 		}
 
 		// Remove trailing path if present
