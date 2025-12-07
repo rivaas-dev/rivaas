@@ -366,7 +366,7 @@ func TestAccessLog_Sampling(t *testing.T) { //nolint:paralleltest // Tests sampl
 
 	// Run multiple times - all should make the same decision
 	decisions := make([]bool, 10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		handler.reset()
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -613,7 +613,7 @@ func TestSampleByHash(t *testing.T) { //nolint:paralleltest // Tests determinist
 
 			// Test deterministic behavior (same ID should give same result)
 			if tt.id != "" && tt.rate > 0 && tt.rate < 1 {
-				for i := 0; i < 10; i++ {
+				for i := range 10 {
 					assert.Equal(t, result, sampleByHash(tt.id, tt.rate), "sampleByHash should be deterministic for same ID, iteration %d differed", i)
 				}
 			}

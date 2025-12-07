@@ -32,7 +32,7 @@ func BenchmarkBodyLimit_ContentLengthCheck(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		// Create fresh request for each iteration
 		body := bytes.NewBufferString(`{"key": "value"}`)
 		req := httptest.NewRequest(http.MethodPost, "/test", body)
@@ -53,7 +53,7 @@ func BenchmarkBodyLimit_NoContentLength(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		// Create fresh request for each iteration
 		body := bytes.NewBufferString(`{"key": "value"}`)
 		req := httptest.NewRequest(http.MethodPost, "/test", body)

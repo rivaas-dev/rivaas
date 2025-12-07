@@ -113,12 +113,10 @@ func (cw *compressWriter) Write(data []byte) (int, error) {
 	}
 
 	// Buffer until we hit threshold
+	originalLen := len(data)
 	space := cap(cw.buffer) - len(cw.buffer)
 	if space > 0 {
-		toCopy := space
-		if toCopy > len(data) {
-			toCopy = len(data)
-		}
+		toCopy := min(space, len(data))
 		cw.buffer = append(cw.buffer, data[:toCopy]...)
 		cw.bufferUsed += toCopy
 		data = data[toCopy:]
@@ -135,7 +133,7 @@ func (cw *compressWriter) Write(data []byte) (int, error) {
 		return cw.writeUncompressed(data)
 	}
 
-	return len(data), nil
+	return originalLen, nil
 }
 
 // writeCompressed initializes compression and writes all data through the compressor.

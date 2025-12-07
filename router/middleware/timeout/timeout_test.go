@@ -90,7 +90,7 @@ func TestTimeout_RespectsContextCancellation(t *testing.T) {
 		ctx := c.Request.Context()
 
 		// Check context multiple times during a long operation
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			select {
 			case <-ctx.Done():
 				contextCancelled <- true

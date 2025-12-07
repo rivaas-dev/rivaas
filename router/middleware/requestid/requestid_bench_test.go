@@ -34,7 +34,7 @@ func BenchmarkRequestID_Generate(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -53,7 +53,7 @@ func BenchmarkRequestID_UseClientID(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}

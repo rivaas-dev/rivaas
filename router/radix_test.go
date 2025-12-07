@@ -15,6 +15,7 @@
 package router
 
 import (
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -295,9 +296,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 			if c.Params != nil {
 				paramsMapWasCreated = true
 				capturedParams = make(map[string]string, len(c.Params))
-				for k, v := range c.Params {
-					capturedParams[k] = v
-				}
+				maps.Copy(capturedParams, c.Params)
 			}
 
 			// Use Param() method which should work for both arrays and map

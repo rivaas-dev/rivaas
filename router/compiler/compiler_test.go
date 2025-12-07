@@ -15,6 +15,7 @@
 package compiler
 
 import (
+	"net/http"
 	"regexp"
 	"sync"
 	"testing"
@@ -210,10 +211,10 @@ func TestRouteCompiler_RemoveRoute(t *testing.T) {
 		{
 			name: "remove static route",
 			addRoutes: []struct{ method, pattern string }{
-				{"GET", "/users"},
-				{"GET", "/posts"},
+				{http.MethodGet, "/users"},
+				{http.MethodGet, "/posts"},
 			},
-			removeMethod:  "GET",
+			removeMethod:  http.MethodGet,
 			removePattern: "/users",
 			wantStatic:    1,
 			wantDynamic:   0,
@@ -221,10 +222,10 @@ func TestRouteCompiler_RemoveRoute(t *testing.T) {
 		{
 			name: "remove dynamic route",
 			addRoutes: []struct{ method, pattern string }{
-				{"GET", "/users/:id"},
-				{"GET", "/posts/:pid"},
+				{http.MethodGet, "/users/:id"},
+				{http.MethodGet, "/posts/:pid"},
 			},
-			removeMethod:  "GET",
+			removeMethod:  http.MethodGet,
 			removePattern: "/users/:id",
 			wantStatic:    0,
 			wantDynamic:   1,
@@ -232,9 +233,9 @@ func TestRouteCompiler_RemoveRoute(t *testing.T) {
 		{
 			name: "remove non-existent route",
 			addRoutes: []struct{ method, pattern string }{
-				{"GET", "/users"},
+				{http.MethodGet, "/users"},
 			},
-			removeMethod:  "GET",
+			removeMethod:  http.MethodGet,
 			removePattern: "/posts",
 			wantStatic:    1,
 			wantDynamic:   0,
@@ -277,7 +278,7 @@ func TestRouteCompiler_LookupStatic(t *testing.T) {
 		{
 			name: "find existing route",
 			addRoutes: []struct{ method, pattern string }{
-				{"GET", "/users"},
+				{http.MethodGet, "/users"},
 				{"GET", "/posts"},
 			},
 			lookupPath: "/users",
@@ -287,7 +288,7 @@ func TestRouteCompiler_LookupStatic(t *testing.T) {
 		{
 			name: "route not found",
 			addRoutes: []struct{ method, pattern string }{
-				{"GET", "/users"},
+				{http.MethodGet, "/users"},
 			},
 			lookupPath: "/posts",
 			wantFound:  false,
@@ -295,7 +296,7 @@ func TestRouteCompiler_LookupStatic(t *testing.T) {
 		{
 			name: "method mismatch",
 			addRoutes: []struct{ method, pattern string }{
-				{"POST", "/users"},
+				{http.MethodPost, "/users"},
 			},
 			lookupPath: "/users", // Will be looked up with GET
 			wantFound:  false,
@@ -382,12 +383,12 @@ func TestRouteCompiler_MatchDynamic(t *testing.T) {
 			rc := NewRouteCompiler(1000, 3)
 
 			for _, pattern := range tt.routes {
-				route := CompileRoute("GET", pattern, nil, nil)
+				route := CompileRoute(http.MethodGet, pattern, nil, nil)
 				rc.AddRoute(route)
 			}
 
 			ctx := &testContextParamWriter{}
-			matched := rc.MatchDynamic("GET", tt.testPath, ctx)
+			matched := rc.MatchDynamic(http.MethodGet, tt.testPath, ctx)
 
 			if tt.wantMatch {
 				require.NotNil(t, matched, "route should match")
@@ -425,14 +426,14 @@ func TestRouteCompiler_MatchDynamic_FirstSegmentIndex(t *testing.T) {
 	}
 
 	for _, pattern := range patterns {
-		route := CompileRoute("GET", pattern, nil, nil)
+		route := CompileRoute(http.MethodGet, pattern, nil, nil)
 		rc.AddRoute(route)
 	}
 
 	ctx := &testContextParamWriter{}
 
 	// This should trigger index building
-	matched := rc.MatchDynamic("GET", "/users/123", ctx)
+	matched := rc.MatchDynamic(http.MethodGet, "/users/123", ctx)
 	require.NotNil(t, matched)
 	assert.Equal(t, "123", ctx.params["id"])
 
@@ -444,7 +445,7 @@ func TestRouteCompiler_MatchDynamic_FirstSegmentIndex(t *testing.T) {
 
 	// Test matching with index
 	ctx = &testContextParamWriter{}
-	matched = rc.MatchDynamic("GET", "/products/456", ctx)
+	matched = rc.MatchDynamic(http.MethodGet, "/products/456", ctx)
 	require.NotNil(t, matched)
 	assert.Equal(t, "456", ctx.params["id"])
 }
@@ -505,11 +506,11 @@ func TestRouteCompiler_MatchDynamic_Constraints(t *testing.T) {
 			t.Parallel()
 
 			rc := NewRouteCompiler(1000, 3)
-			route := CompileRoute("GET", tt.pattern, nil, tt.constraints)
+			route := CompileRoute(http.MethodGet, tt.pattern, nil, tt.constraints)
 			rc.AddRoute(route)
 
 			ctx := &testContextParamWriter{}
-			matched := rc.MatchDynamic("GET", tt.testPath, ctx)
+			matched := rc.MatchDynamic(http.MethodGet, tt.testPath, ctx)
 
 			if tt.wantMatch {
 				assert.NotNil(t, matched, "route should match")
@@ -529,7 +530,7 @@ func TestRouteCompiler_Concurrent(t *testing.T) {
 	// Add some initial routes
 	for i := range 5 {
 		pattern := "/route" + string(rune('0'+i)) + "/:param"
-		route := CompileRoute("GET", pattern, nil, nil)
+		route := CompileRoute(http.MethodGet, pattern, nil, nil)
 		rc.AddRoute(route)
 	}
 
@@ -538,20 +539,16 @@ func TestRouteCompiler_Concurrent(t *testing.T) {
 
 	// Concurrent reads
 	for range 10 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_ = rc.MatchDynamic("GET", "/route0/test", ctx)
-		}()
+		wg.Go(func() {
+			_ = rc.MatchDynamic(http.MethodGet, "/route0/test", ctx)
+		})
 	}
 
 	// Concurrent static lookups
 	for range 10 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_ = rc.LookupStatic("GET", "/nonexistent")
-		}()
+		wg.Go(func() {
+			_ = rc.LookupStatic(http.MethodGet, "/nonexistent")
+		})
 	}
 
 	wg.Wait()

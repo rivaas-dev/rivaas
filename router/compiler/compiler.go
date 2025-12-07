@@ -24,7 +24,7 @@ import (
 
 // HandlerFunc defines the handler function signature.
 // This is a copy of router.HandlerFunc to avoid import cycles.
-type HandlerFunc interface{}
+type HandlerFunc any
 
 // RouteConstraint represents a compiled constraint for route parameters.
 // This is a copy of router.RouteConstraint to avoid import cycles.

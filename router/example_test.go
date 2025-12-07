@@ -173,7 +173,7 @@ func ExampleContext_Error() {
 
 		// Check if any errors were collected
 		if c.HasErrors() {
-			c.JSON(http.StatusBadRequest, map[string]interface{}{
+			c.JSON(http.StatusBadRequest, map[string]any{
 				"errors": c.Errors(),
 			})
 			return
@@ -221,7 +221,7 @@ func ExampleContext_HasErrors() {
 
 		// Check if any errors exist
 		if c.HasErrors() {
-			c.JSON(http.StatusBadRequest, map[string]interface{}{
+			c.JSON(http.StatusBadRequest, map[string]any{
 				"error": "validation failed",
 			})
 			return
@@ -267,7 +267,7 @@ func ExampleContext_Error_withErrorsJoin() {
 		// Combine all errors using standard library
 		if c.HasErrors() {
 			joinedErr := errors.Join(c.Errors()...)
-			c.JSON(http.StatusBadRequest, map[string]interface{}{
+			c.JSON(http.StatusBadRequest, map[string]any{
 				"error": joinedErr.Error(),
 			})
 			return

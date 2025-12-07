@@ -16,6 +16,7 @@ package cors
 
 import (
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -138,11 +139,8 @@ func New(opts ...Option) router.HandlerFunc {
 			}
 		} else {
 			// Check if origin is in allowed list
-			for _, allowed := range cfg.allowedOrigins {
-				if origin == allowed {
-					allowedOrigin = origin
-					break
-				}
+			if slices.Contains(cfg.allowedOrigins, origin) {
+				allowedOrigin = origin
 			}
 		}
 

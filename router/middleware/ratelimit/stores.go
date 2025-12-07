@@ -133,10 +133,7 @@ func (s *InMemoryTokenBucketStore) Allow(key string, now time.Time) (allowed boo
 	remaining = 0
 	// Calculate time until next token is available
 	tokensNeeded := 1.0 - entry.tokens
-	resetSeconds = int(tokensNeeded / float64(s.rate) * float64(time.Second))
-	if resetSeconds < 1 {
-		resetSeconds = 1
-	}
+	resetSeconds = max(int(tokensNeeded/float64(s.rate)*float64(time.Second)), 1)
 	return false, remaining, resetSeconds
 }
 

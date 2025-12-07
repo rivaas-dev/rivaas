@@ -14,6 +14,8 @@
 
 package route
 
+import "maps"
+
 // MountConfig holds configuration for a mounted subrouter.
 type MountConfig struct {
 	InheritMiddleware bool
@@ -114,9 +116,7 @@ func PrepareMountRoute(prefix string, route *Route, middlewareChain []Handler, n
 	// Copy typed constraints
 	if len(route.typedConstraints) > 0 {
 		data.TypedConstraints = make(map[string]ParamConstraint, len(route.typedConstraints))
-		for k, v := range route.typedConstraints {
-			data.TypedConstraints[k] = v
-		}
+		maps.Copy(data.TypedConstraints, route.typedConstraints)
 	}
 
 	// Set name with prefix

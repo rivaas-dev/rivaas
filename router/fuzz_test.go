@@ -294,7 +294,7 @@ func FuzzContextPooling(f *testing.F) {
 		}
 
 		// Make multiple requests to test pooling
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			req := httptest.NewRequest(http.MethodGet, requestPath, nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
@@ -321,7 +321,7 @@ func FuzzRouteRegistration(f *testing.F) {
 
 		// Register multiple routes concurrently - should not panic
 		done := make(chan bool, 3)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			go func(id int) {
 				defer func() {
 					if r := recover(); r != nil {
@@ -338,7 +338,7 @@ func FuzzRouteRegistration(f *testing.F) {
 		}
 
 		// Wait for all registrations
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			<-done
 		}
 

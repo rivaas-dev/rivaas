@@ -16,6 +16,7 @@ package router
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -424,9 +425,7 @@ func (r *Router) extractAndMountFromNode(prefix, method, currentPath string, n *
 	nodePath := n.path
 	constraints := n.constraints
 	children := make(map[string]*node, len(n.children))
-	for k, v := range n.children {
-		children[k] = v
-	}
+	maps.Copy(children, n.children)
 	paramNode := n.param
 	wildcardNode := n.wildcard
 	n.mu.RUnlock()
