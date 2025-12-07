@@ -1,7 +1,62 @@
-# Code quality apps: lint, bench, tidy
+# Code quality apps: lint, fmt, bench, tidy
 { pkgs, lib }:
 
 {
+  # Format code with golangci-lint (gofumpt + gci)
+  fmt = {
+    type = "app";
+    meta.description = "Format all Go code with gofumpt and gci";
+    program = toString (pkgs.writeShellScript "rivaas-fmt" ''
+      set -uo pipefail
+
+      gum="${pkgs.gum}/bin/gum"
+      $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Formatting Code"
+      echo ""
+
+      # Collect all module paths (excluding examples) and append /...
+      modules=$(${pkgs.findutils}/bin/find . ${lib.findPatterns.nonExamples} | sed 's|^\./||' | sed 's|$|/...|' | tr '\n' ' ')
+
+      if [ -z "$modules" ]; then
+        $gum style --foreground ${lib.colors.info} "No modules found"
+        exit 0
+      fi
+
+      if $gum spin --spinner dot --title "Formatting codebase..." --show-error -- ${pkgs.golangci-lint}/bin/golangci-lint fmt --config .golangci.yaml $modules; then
+        $gum style --foreground ${lib.colors.success} --bold "✓ Code formatted!"
+      else
+        $gum style --foreground ${lib.colors.error} --bold "✗ Formatting failed"
+        exit 1
+      fi
+    '');
+  };
+
+  # Check formatting without modifying (for CI)
+  fmt-check = {
+    type = "app";
+    meta.description = "Check if code is formatted (no changes)";
+    program = toString (pkgs.writeShellScript "rivaas-fmt-check" ''
+      set -uo pipefail
+
+      gum="${pkgs.gum}/bin/gum"
+      $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Checking Formatting"
+      echo ""
+
+      modules=$(${pkgs.findutils}/bin/find . ${lib.findPatterns.nonExamples} | sed 's|^\./||' | sed 's|$|/...|' | tr '\n' ' ')
+
+      if [ -z "$modules" ]; then
+        $gum style --foreground ${lib.colors.info} "No modules found"
+        exit 0
+      fi
+
+      if $gum spin --spinner dot --title "Checking format..." --show-error -- ${pkgs.golangci-lint}/bin/golangci-lint fmt --diff --config .golangci.yaml $modules; then
+        $gum style --foreground ${lib.colors.success} --bold "✓ Code is properly formatted!"
+      else
+        $gum style --foreground ${lib.colors.error} --bold "✗ Code needs formatting - run: nix run .#fmt"
+        exit 1
+      fi
+    '');
+  };
+
   # Run golangci-lint (single command with all modules for better performance)
   lint = {
     type = "app";
