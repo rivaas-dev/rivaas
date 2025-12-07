@@ -889,3 +889,38 @@ linters:
       multi-if: true
       # Enforce newline after multi-line function signature
       multi-func: true
+
+formatters:
+  enable:
+    # gofumpt: Stricter gofmt with additional consistency rules
+    # Superset of gofmt - enforces more opinionated formatting
+    # Widely adopted by major Go projects (Kubernetes, CockroachDB)
+    - gofumpt
+
+    # gci: Import statement organization with granular control
+    # Groups imports: stdlib → 3rd party → local modules
+    # More configurable than goimports for import ordering
+    - gci
+
+  settings:
+    gofumpt:
+      # Module path for determining local imports
+      module-path: rivaas.dev
+      # Enable additional formatting rules beyond gofmt
+      extra-rules: true
+
+    gci:
+      # Import section order (custom-order: true makes this explicit)
+      # stdlib first, then external deps, then local rivaas.dev modules
+      sections:
+        - standard                    # Standard library packages
+        - default                     # Third-party packages
+        - prefix(rivaas.dev)          # All rivaas.dev/* local modules
+        - blank                       # Blank imports (side effects)
+        - alias                       # Aliased imports
+      # Use the order defined in sections above
+      custom-order: true
+      # Disallow inline comments on import lines
+      no-inline-comments: true
+      # Disallow comment lines above imports
+      no-prefix-comments: true
