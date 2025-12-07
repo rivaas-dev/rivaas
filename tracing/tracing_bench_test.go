@@ -32,7 +32,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -49,7 +49,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -66,7 +66,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -187,7 +187,7 @@ func BenchmarkResponseWriterConcurrency(b *testing.B) {
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -253,7 +253,7 @@ func BenchmarkMiddlewareWithExclusions(b *testing.B) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		req := httptest.NewRequest("GET", "/api/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -272,7 +272,7 @@ func BenchmarkMiddlewareWithExclusions(b *testing.B) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		req := httptest.NewRequest("GET", "/api/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 
 		b.ResetTimer()
 		b.ReportAllocs()

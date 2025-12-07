@@ -447,10 +447,10 @@ func TestIntegration_ShutdownBehavior(t *testing.T) {
 
 		// Multiple shutdowns should be safe
 		err = tracer.Shutdown(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		err = tracer.Shutdown(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		err = tracer.Shutdown(ctx)
 		assert.NoError(t, err)

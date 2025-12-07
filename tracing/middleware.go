@@ -128,6 +128,7 @@ func WithExcludePatterns(patterns ...string) MiddlewareOption {
 			if err != nil {
 				c.validationErrors = append(c.validationErrors,
 					fmt.Errorf("excludePatterns: invalid regex %q: %w", pattern, err))
+
 				continue
 			}
 			c.pathFilter.addPatterns(compiled)

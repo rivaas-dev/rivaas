@@ -542,7 +542,7 @@ func TestResponseWriter_Hijack(t *testing.T) {
 		rw := newResponseWriter(hijacker)
 
 		conn, buf, err := rw.Hijack()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, conn)
 		assert.Nil(t, buf)
 	})
@@ -554,7 +554,7 @@ func TestResponseWriter_Hijack(t *testing.T) {
 		rw := newResponseWriter(w)
 
 		_, _, err := rw.Hijack()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "doesn't support Hijack")
 	})
 }
@@ -587,8 +587,8 @@ func TestContextTracing_Helper(t *testing.T) {
 		tracer := TestingTracer(t)
 		ct := NewContextTracing(t.Context(), tracer, nil)
 
-		assert.Equal(t, "", ct.TraceID())
-		assert.Equal(t, "", ct.SpanID())
+		assert.Empty(t, ct.TraceID())
+		assert.Empty(t, ct.SpanID())
 
 		// Should not panic
 		ct.SetSpanAttribute("key", "value")
@@ -599,7 +599,7 @@ func TestContextTracing_Helper(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		//nolint:staticcheck // Testing nil context handling - NewContextTracing handles nil by using background context
+		//nolint:staticcheck // Intentionally testing nil context handling
 		ct := NewContextTracing(nil, tracer, nil)
 
 		assert.NotNil(t, ct.TraceContext()) // Should default to background context

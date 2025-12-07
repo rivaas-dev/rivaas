@@ -88,7 +88,7 @@ func TestTracerOptions(t *testing.T) {
 
 		tracer := MustNew(WithSampleRate(0.5))
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
-		assert.Equal(t, 0.5, tracer.sampleRate)
+		assert.InEpsilon(t, 0.5, tracer.sampleRate, 0.001)
 	})
 }
 
@@ -166,8 +166,8 @@ func TestContextHelpers(t *testing.T) {
 	traceID := TraceID(ctx)
 	spanID := SpanID(ctx)
 
-	assert.Equal(t, "", traceID)
-	assert.Equal(t, "", spanID)
+	assert.Empty(t, traceID)
+	assert.Empty(t, spanID)
 }
 
 func TestSamplingRate(t *testing.T) {
@@ -178,15 +178,15 @@ func TestSamplingRate(t *testing.T) {
 
 		// Test clamping of sample rate
 		tracer := MustNew(WithServiceName("test"), WithSampleRate(1.5))
-		assert.Equal(t, 1.0, tracer.sampleRate)
+		assert.InEpsilon(t, 1.0, tracer.sampleRate, 0.001)
 		tracer.Shutdown(context.Background())
 
 		tracer = MustNew(WithServiceName("test"), WithSampleRate(-0.5))
-		assert.Equal(t, 0.0, tracer.sampleRate)
+		assert.InDelta(t, 0.0, tracer.sampleRate, 0.001)
 		tracer.Shutdown(context.Background())
 
 		tracer = MustNew(WithServiceName("test"), WithSampleRate(0.5))
-		assert.Equal(t, 0.5, tracer.sampleRate)
+		assert.InEpsilon(t, 0.5, tracer.sampleRate, 0.001)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 	})
 
@@ -501,8 +501,8 @@ func TestTracer_EdgeCases(t *testing.T) {
 		traceID := TraceID(t.Context())
 		spanID := SpanID(t.Context())
 
-		assert.Equal(t, "", traceID)
-		assert.Equal(t, "", spanID)
+		assert.Empty(t, traceID)
+		assert.Empty(t, spanID)
 
 		SetSpanAttributeFromContext(t.Context(), "key", "value")
 		AddSpanEventFromContext(t.Context(), "event")
@@ -527,7 +527,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer, err := New(WithServiceName(""))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, tracer)
 		assert.Contains(t, err.Error(), "serviceName: cannot be empty")
 	})
@@ -536,7 +536,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer, err := New(WithServiceVersion(""))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, tracer)
 		assert.Contains(t, err.Error(), "serviceVersion: cannot be empty")
 	})
@@ -546,7 +546,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 
 		tracer := MustNew(WithServiceName("test"), WithSampleRate(999.9))
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
-		assert.Equal(t, 1.0, tracer.sampleRate)
+		assert.InEpsilon(t, 1.0, tracer.sampleRate, 0.001)
 	})
 
 	t.Run("NegativeSampleRate", func(t *testing.T) {
@@ -554,7 +554,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 
 		tracer := MustNew(WithServiceName("test"), WithSampleRate(-999.9))
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
-		assert.Equal(t, 0.0, tracer.sampleRate)
+		assert.InDelta(t, 0.0, tracer.sampleRate, 0.001)
 	})
 
 	t.Run("NilHeaders", func(t *testing.T) {
@@ -698,7 +698,7 @@ func TestContextCancellation(t *testing.T) {
 		ctx, span := tracer.StartSpan(ctx, "test-span")
 		defer tracer.FinishSpan(span, http.StatusOK)
 
-		assert.Error(t, ctx.Err())
+		require.Error(t, ctx.Err())
 		assert.Equal(t, context.Canceled, ctx.Err())
 	})
 
@@ -894,12 +894,14 @@ func TestContextTracing(t *testing.T) {
 		traceID := ct.TraceID()
 		spanID := ct.SpanID()
 
-		assert.Equal(t, "", traceID)
-		assert.Equal(t, "", spanID)
+		assert.Empty(t, traceID)
+		assert.Empty(t, spanID)
 	})
 }
 
 // TestProviderSetup tests the provider setup functions.
+//
+//nolint:paralleltest // Some subtests share state
 func TestProviderSetup(t *testing.T) {
 	t.Parallel()
 
@@ -1259,7 +1261,7 @@ func TestContextCancellationInStartRequestSpan(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)
 		ctx, span := tracer.StartRequestSpan(ctx, req, "/test", false)
 
-		assert.Error(t, ctx.Err())
+		require.Error(t, ctx.Err())
 		assert.Equal(t, context.Canceled, ctx.Err())
 		assert.NotNil(t, span)
 	})
@@ -1275,7 +1277,7 @@ func TestContextCancellationInStartRequestSpan(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)
 		ctx, span := tracer.StartRequestSpan(ctx, req, "/test", false)
 
-		assert.Error(t, ctx.Err())
+		require.Error(t, ctx.Err())
 		assert.NotNil(t, span)
 	})
 }
