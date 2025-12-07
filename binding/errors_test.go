@@ -29,7 +29,7 @@ func TestBindError_Unwrap(t *testing.T) {
 	originalErr := &BindError{
 		Field:  "age",
 		Value:  "invalid",
-		Type:   reflect.TypeOf(0),
+		Type:   reflect.TypeFor[int](),
 		Source: SourceForm,
 		Err:    nil,
 	}
@@ -37,14 +37,14 @@ func TestBindError_Unwrap(t *testing.T) {
 	innerErr := &BindError{
 		Field:  "nested",
 		Value:  "bad",
-		Type:   reflect.TypeOf(""),
+		Type:   reflect.TypeFor[string](),
 		Source: SourceJSON,
 	}
 
 	outerErr := &BindError{
 		Field:  "age",
 		Value:  "invalid",
-		Type:   reflect.TypeOf(0),
+		Type:   reflect.TypeFor[int](),
 		Source: SourceForm,
 		Err:    innerErr,
 	}

@@ -52,7 +52,7 @@ func BenchmarkBind(b *testing.B) {
 	smallValues.Set("email", "alice@example.com")
 
 	largeValues := url.Values{}
-	for i := 0; i < 15; i++ {
+	for range 15 {
 		largeValues.Set("field", "value")
 	}
 
@@ -160,7 +160,7 @@ func BenchmarkHasStructTag(b *testing.B) {
 		Auth string `header:"Authorization"`
 	}
 
-	typ := reflect.TypeOf((*Request)(nil)).Elem()
+	typ := reflect.TypeFor[Request]()
 	b.ResetTimer()
 	b.ReportAllocs()
 

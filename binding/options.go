@@ -17,6 +17,7 @@ package binding
 import (
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -618,9 +619,7 @@ func (c *config) clone() *config {
 	// Deep copy type converters map
 	if c.typeConverters != nil {
 		clone.typeConverters = make(map[reflect.Type]TypeConverter, len(c.typeConverters))
-		for k, v := range c.typeConverters {
-			clone.typeConverters[k] = v
-		}
+		maps.Copy(clone.typeConverters, c.typeConverters)
 	}
 	return &clone
 }

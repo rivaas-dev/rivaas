@@ -507,8 +507,8 @@ func bindMapFromValues(
 // or empty string and true if bracket notation is invalid (signals an error).
 func extractMapKey(fullKey, prefixDot, prefixBracket, prefix string) (string, bool) {
 	// Pattern 1: Dot notation (?map.key=value)
-	if strings.HasPrefix(fullKey, prefixDot) {
-		return strings.TrimPrefix(fullKey, prefixDot), true
+	if key, ok := strings.CutPrefix(fullKey, prefixDot); ok {
+		return key, true
 	}
 
 	// Pattern 2: Bracket notation (?map[key]=value)
