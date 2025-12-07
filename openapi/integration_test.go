@@ -62,22 +62,22 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			manager.Register(http.MethodGet, "/users/:id").
 				Doc("Get user", "Retrieves a user by ID").
 				Request(GetUserRequest{}).
-				Response(200, User{}).
-				Response(404, ErrorResponse{}).
+				Response(http.StatusOK, User{}).
+				Response(http.StatusNotFound, ErrorResponse{}).
 				Tags("users").
 				Security("bearerAuth")
 
 			manager.Register(http.MethodPost, "/users").
 				Doc("Create user", "Creates a new user").
 				Request(CreateUserRequest{}).
-				Response(201, User{}).
-				Response(400, ErrorResponse{}).
+				Response(http.StatusCreated, User{}).
+				Response(http.StatusBadRequest, ErrorResponse{}).
 				Tags("users").
 				Security("bearerAuth")
 
 			manager.Register(http.MethodGet, "/users").
 				Doc("List users", "Retrieves a list of users").
-				Response(200, []User{}).
+				Response(http.StatusOK, []User{}).
 				Tags("users").
 				Security("bearerAuth")
 
@@ -141,7 +141,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			manager := openapi.NewManager(cfg)
 			manager.Register(http.MethodGet, "/test").
 				Doc("Test endpoint", "A test endpoint").
-				Response(200, map[string]string{"message": "test"})
+				Response(http.StatusOK, map[string]string{"message": "test"})
 
 			// Generate spec first time
 			specJSON1, etag1, err := manager.GenerateSpec()
@@ -158,7 +158,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			// Register new route - should invalidate cache
 			manager.Register(http.MethodPost, "/test").
 				Doc("Create test", "Creates a test").
-				Response(201, map[string]string{"id": "string"})
+				Response(http.StatusCreated, map[string]string{"id": "string"})
 
 			// Generate spec third time - should regenerate
 			specJSON3, etag3, err := manager.GenerateSpec()
@@ -308,7 +308,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			manager := openapi.NewManager(cfg)
 			manager.Register(http.MethodGet, "/test").
 				Doc("Test endpoint", "A test endpoint").
-				Response(200, map[string]string{"message": "test"})
+				Response(http.StatusOK, map[string]string{"message": "test"})
 
 			// Generate spec
 			specJSON, _, err := manager.GenerateSpec()
@@ -336,10 +336,10 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			manager := openapi.NewManager(cfg)
 
 			// Register routes
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				manager.Register(http.MethodGet, "/test"+string(rune('0'+i))).
 					Doc("Test endpoint", "A test endpoint").
-					Response(200, map[string]string{"id": "string"})
+					Response(http.StatusOK, map[string]string{"id": "string"})
 			}
 
 			// Concurrently generate specs
@@ -351,7 +351,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			}, numGoroutines)
 
 			var wg sync.WaitGroup
-			for i := 0; i < numGoroutines; i++ {
+			for i := range numGoroutines {
 				wg.Add(1)
 				go func(idx int) {
 					defer wg.Done()

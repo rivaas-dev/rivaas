@@ -172,7 +172,7 @@ func TestIntrospectRequest_RequiredFields(t *testing.T) {
 		Optional2 string `query:"opt2"` // no validate required
 	}
 
-	meta := IntrospectRequest(reflect.TypeOf(RequiredTest{}))
+	meta := IntrospectRequest(reflect.TypeFor[RequiredTest]())
 	require.NotNil(t, meta)
 
 	tests := []struct {
@@ -215,7 +215,7 @@ func TestIntrospectRequest_EmbeddedStructs(t *testing.T) {
 		Body  string `json:"body"`
 	}
 
-	meta := IntrospectRequest(reflect.TypeOf(ExtendedRequest{}))
+	meta := IntrospectRequest(reflect.TypeFor[ExtendedRequest]())
 	require.NotNil(t, meta)
 
 	// Should include fields from embedded struct
@@ -238,7 +238,7 @@ func TestIntrospectRequest_DefaultValues(t *testing.T) {
 		Sort  string `query:"sort" default:"asc"`
 	}
 
-	meta := IntrospectRequest(reflect.TypeOf(RequestWithDefaults{}))
+	meta := IntrospectRequest(reflect.TypeFor[RequestWithDefaults]())
 	require.NotNil(t, meta)
 
 	for _, p := range meta.Parameters {
@@ -261,7 +261,7 @@ func TestIntrospectRequest_EnumValues(t *testing.T) {
 		Type   string `query:"type" enum:"public,private"`
 	}
 
-	meta := IntrospectRequest(reflect.TypeOf(RequestWithEnum{}))
+	meta := IntrospectRequest(reflect.TypeFor[RequestWithEnum]())
 	require.NotNil(t, meta)
 
 	for _, p := range meta.Parameters {
@@ -281,7 +281,7 @@ func TestIntrospectRequest_EnumFromValidate(t *testing.T) {
 		Color string `query:"color" validate:"oneof=red green blue"`
 	}
 
-	meta := IntrospectRequest(reflect.TypeOf(RequestWithValidateEnum{}))
+	meta := IntrospectRequest(reflect.TypeFor[RequestWithValidateEnum]())
 	require.NotNil(t, meta)
 
 	var colorParam *ParamSpec
@@ -300,7 +300,7 @@ func TestIntrospectRequest_EnumFromValidate(t *testing.T) {
 func TestIntrospectRequest_EmptyStruct(t *testing.T) {
 	t.Parallel()
 
-	meta := IntrospectRequest(reflect.TypeOf(struct{}{}))
+	meta := IntrospectRequest(reflect.TypeFor[struct{}]())
 	require.NotNil(t, meta)
 	assert.False(t, meta.HasBody)
 	assert.Empty(t, meta.Parameters)
@@ -314,7 +314,7 @@ func TestIntrospectRequest_OnlyBody(t *testing.T) {
 		Email string `json:"email"`
 	}
 
-	meta := IntrospectRequest(reflect.TypeOf(BodyOnly{}))
+	meta := IntrospectRequest(reflect.TypeFor[BodyOnly]())
 	require.NotNil(t, meta)
 	assert.True(t, meta.HasBody)
 	assert.Empty(t, meta.Parameters)
@@ -329,7 +329,7 @@ func TestIntrospectRequest_OnlyParams(t *testing.T) {
 		Key  string `header:"X-Key"`
 	}
 
-	meta := IntrospectRequest(reflect.TypeOf(ParamsOnly{}))
+	meta := IntrospectRequest(reflect.TypeFor[ParamsOnly]())
 	require.NotNil(t, meta)
 	assert.False(t, meta.HasBody)
 	assert.Len(t, meta.Parameters, 3)
@@ -339,10 +339,10 @@ func TestIntrospectRequest_InvalidTypes(t *testing.T) {
 	t.Parallel()
 
 	// Non-struct types should return nil
-	assert.Nil(t, IntrospectRequest(reflect.TypeOf("string")))
-	assert.Nil(t, IntrospectRequest(reflect.TypeOf(123)))
-	assert.Nil(t, IntrospectRequest(reflect.TypeOf([]string{})))
-	assert.Nil(t, IntrospectRequest(nil))
+	assert.Nil(t, IntrospectRequest(reflect.TypeFor[string]()))
+	assert.Nil(t, IntrospectRequest(reflect.TypeFor[int]()))
+	assert.Nil(t, IntrospectRequest(reflect.TypeFor[[]string]()))
+	assert.Nil(t, IntrospectRequest(reflect.TypeFor[any]()))
 }
 
 func TestIntrospectRequest_ComplexNested(t *testing.T) {
@@ -359,7 +359,7 @@ func TestIntrospectRequest_ComplexNested(t *testing.T) {
 		Nested *Nested `json:"nested"`
 	}
 
-	meta := IntrospectRequest(reflect.TypeOf(ComplexRequest{}))
+	meta := IntrospectRequest(reflect.TypeFor[ComplexRequest]())
 	require.NotNil(t, meta)
 	assert.True(t, meta.HasBody)
 	assert.Len(t, meta.Parameters, 3)

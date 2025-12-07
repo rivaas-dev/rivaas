@@ -19,6 +19,7 @@ package export
 
 import (
 	"encoding/json"
+	"maps"
 	"strings"
 )
 
@@ -124,9 +125,7 @@ func marshalWithExtensions(v any, extensions map[string]any) ([]byte, error) {
 	}
 
 	// Merge extensions into the map
-	for k, v := range extensions {
-		m[k] = v
-	}
+	maps.Copy(m, extensions)
 
 	// Marshal back to JSON
 	return json.Marshal(m)

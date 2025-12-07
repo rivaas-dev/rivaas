@@ -16,6 +16,7 @@ package export
 
 import (
 	"errors"
+	"maps"
 
 	"rivaas.dev/openapi/model"
 )
@@ -500,9 +501,7 @@ func oAuthFlow30(in *model.OAuthFlow) *OAuthFlowV30 {
 	}
 	if in.Scopes != nil {
 		out.Scopes = make(map[string]string, len(in.Scopes))
-		for k, v := range in.Scopes {
-			out.Scopes[k] = v
-		}
+		maps.Copy(out.Scopes, in.Scopes)
 	} else {
 		out.Scopes = make(map[string]string)
 	}

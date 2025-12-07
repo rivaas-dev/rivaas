@@ -151,7 +151,7 @@ func BenchmarkProject_30(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _, err := Project(spec, cfg, nil, nil)
 		if err != nil {
 			b.Fatal(err)
@@ -166,7 +166,7 @@ func BenchmarkProject_31(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _, err := Project(spec, cfg, nil, nil)
 		if err != nil {
 			b.Fatal(err)
@@ -229,7 +229,7 @@ func BenchmarkSchema30(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		var warns []Warning
 		_ = schema30(schema, &warns, "#/test")
 	}
@@ -256,7 +256,7 @@ func BenchmarkSchema31(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		var warns []Warning
 		_ = schema31(schema, &warns, "#/test")
 	}
@@ -277,7 +277,7 @@ func BenchmarkProject_30_WithExtensions(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _, err := Project(spec, cfg, nil, nil)
 		if err != nil {
 			b.Fatal(err)
@@ -296,7 +296,7 @@ func BenchmarkProject_30_WithWarnings(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _, err := Project(spec, cfg, nil, nil)
 		if err != nil {
 			b.Fatal(err)
@@ -312,7 +312,7 @@ func BenchmarkProject_Allocations(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _, err := Project(spec, cfg, nil, nil)
 		if err != nil {
 			b.Fatal(err)

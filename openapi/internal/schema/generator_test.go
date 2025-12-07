@@ -182,7 +182,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 //nolint:paralleltest // Tests schema generation
 func TestSchemaGenerator_StructTags(t *testing.T) {
 	sg := newTestSchemaGenerator(t)
-	schema := sg.Generate(reflect.TypeOf(TestStruct{}))
+	schema := sg.Generate(reflect.TypeFor[TestStruct]())
 
 	// Should create component schema
 	assert.NotEmpty(t, schema.Ref)
@@ -240,7 +240,7 @@ func TestSchemaGenerator_GenerateProjected(t *testing.T) {
 	}
 
 	sg := newTestSchemaGenerator(t)
-	schema := sg.GenerateProjected(reflect.TypeOf(MixedStruct{}), func(f reflect.StructField) bool {
+	schema := sg.GenerateProjected(reflect.TypeFor[MixedStruct](), func(f reflect.StructField) bool {
 		jsonTag := f.Tag.Get("json")
 		return jsonTag != "" && jsonTag != "-"
 	})
@@ -271,7 +271,7 @@ func TestSchemaGenerator_CircularReference(t *testing.T) {
 	}
 
 	sg := newTestSchemaGenerator(t)
-	schema := sg.Generate(reflect.TypeOf(Node{}))
+	schema := sg.Generate(reflect.TypeFor[Node]())
 
 	// Should create component schema
 	assert.NotEmpty(t, schema.Ref)
@@ -306,7 +306,7 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 	}
 
 	sg := newTestSchemaGenerator(t)
-	_ = sg.Generate(reflect.TypeOf(ValidatedStruct{}))
+	_ = sg.Generate(reflect.TypeFor[ValidatedStruct]())
 
 	schemas := sg.GetComponentSchemas()
 	vs := schemas["schema.ValidatedStruct"]
@@ -504,7 +504,7 @@ func TestSchemaGenerator_EmbeddedStructs(t *testing.T) {
 	}
 
 	sg := newTestSchemaGenerator(t)
-	schema := sg.Generate(reflect.TypeOf(Extended{}))
+	schema := sg.Generate(reflect.TypeFor[Extended]())
 
 	require.NotEmpty(t, schema.Ref)
 	schemas := sg.GetComponentSchemas()
@@ -528,7 +528,7 @@ func TestSchemaGenerator_InvalidValidationTags(t *testing.T) {
 	}
 
 	sg := newTestSchemaGenerator(t)
-	schema := sg.Generate(reflect.TypeOf(InvalidStruct{}))
+	schema := sg.Generate(reflect.TypeFor[InvalidStruct]())
 
 	require.NotEmpty(t, schema.Ref)
 	schemas := sg.GetComponentSchemas()
@@ -553,7 +553,7 @@ func TestSchemaGenerator_DefaultValues(t *testing.T) {
 	}
 
 	sg := newTestSchemaGenerator(t)
-	schema := sg.Generate(reflect.TypeOf(StructWithDefaults{}))
+	schema := sg.Generate(reflect.TypeFor[StructWithDefaults]())
 
 	require.NotEmpty(t, schema.Ref)
 	schemas := sg.GetComponentSchemas()
@@ -576,7 +576,7 @@ func TestSchemaGenerator_JSONTagVariations(t *testing.T) {
 	}
 
 	sg := newTestSchemaGenerator(t)
-	schema := sg.Generate(reflect.TypeOf(TagVariations{}))
+	schema := sg.Generate(reflect.TypeFor[TagVariations]())
 
 	require.NotEmpty(t, schema.Ref)
 	schemas := sg.GetComponentSchemas()
@@ -593,7 +593,7 @@ func TestSchemaGenerator_JSONTagVariations(t *testing.T) {
 
 func BenchmarkSchemaGenerator_Generate(b *testing.B) {
 	gen := newTestSchemaGenerator(b)
-	typ := reflect.TypeOf(TestStruct{})
+	typ := reflect.TypeFor[TestStruct]()
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -613,7 +613,7 @@ func BenchmarkSchemaGenerator_ComplexStruct(b *testing.B) {
 	}
 
 	gen := newTestSchemaGenerator(b)
-	typ := reflect.TypeOf(ComplexStruct{})
+	typ := reflect.TypeFor[ComplexStruct]()
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -630,7 +630,7 @@ func BenchmarkSchemaGenerator_GenerateProjected(b *testing.B) {
 	}
 
 	gen := newTestSchemaGenerator(b)
-	typ := reflect.TypeOf(MixedStruct{})
+	typ := reflect.TypeFor[MixedStruct]()
 
 	b.ResetTimer()
 	for b.Loop() {

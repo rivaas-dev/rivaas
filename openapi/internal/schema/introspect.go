@@ -245,11 +245,11 @@ func inferFormat(field reflect.StructField) string {
 	}
 
 	switch t {
-	case reflect.TypeOf(time.Time{}):
+	case reflect.TypeFor[time.Time]():
 		return "date-time"
-	case reflect.TypeOf(url.URL{}):
+	case reflect.TypeFor[url.URL]():
 		return "uri"
-	case reflect.TypeOf(net.IP{}):
+	case reflect.TypeFor[net.IP]():
 		return "ip"
 	}
 

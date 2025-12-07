@@ -17,6 +17,8 @@ package export
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 
 	"rivaas.dev/openapi/model"
@@ -363,9 +365,8 @@ func (c *CallbackV31) MarshalJSON() ([]byte, error) {
 		m[k] = v
 	}
 	// Merge extensions
-	for k, v := range c.Extensions {
-		m[k] = v
-	}
+	maps.Copy(m, c.Extensions)
+
 	return json.Marshal(m)
 }
 
@@ -538,10 +539,8 @@ func validateServerVariableEnum(v *model.ServerVariable, serverIdx int, name str
 	}
 
 	// 3.1 validation: default MUST exist in enum if enum is defined
-	for _, val := range v.Enum {
-		if val == v.Default {
-			return // Found, valid
-		}
+	if slices.Contains(v.Enum, v.Default) {
+		return // Found, valid
 	}
 
 	*warns = append(*warns, Warning{
@@ -935,9 +934,7 @@ func oAuthFlow31(in *model.OAuthFlow) *OAuthFlowV31 {
 	}
 	if in.Scopes != nil {
 		out.Scopes = make(map[string]string, len(in.Scopes))
-		for k, v := range in.Scopes {
-			out.Scopes[k] = v
-		}
+		maps.Copy(out.Scopes, in.Scopes)
 	} else {
 		out.Scopes = make(map[string]string)
 	}

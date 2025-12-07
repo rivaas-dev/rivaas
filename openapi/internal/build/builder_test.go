@@ -41,7 +41,7 @@ func TestBuilder_Build(t *testing.T) {
 			Doc: &RouteDoc{
 				Summary: "Get user",
 				ResponseTypes: map[int]reflect.Type{
-					200: reflect.TypeOf(User{}),
+					200: reflect.TypeFor[User](),
 				},
 			},
 		},
@@ -233,8 +233,8 @@ func TestBuilder_RequestBody(t *testing.T) {
 		{
 			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
-				RequestType:     reflect.TypeOf(CreateUserRequest{}),
-				RequestMetadata: schema.IntrospectRequest(reflect.TypeOf(CreateUserRequest{})),
+				RequestType:     reflect.TypeFor[CreateUserRequest](),
+				RequestMetadata: schema.IntrospectRequest(reflect.TypeFor[CreateUserRequest]()),
 				ResponseTypes:   map[int]reflect.Type{http.StatusCreated: nil},
 			},
 		},
@@ -264,7 +264,7 @@ func TestBuilder_Parameters(t *testing.T) {
 		{
 			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
-				RequestType:   reflect.TypeOf(GetUserRequest{}),
+				RequestType:   reflect.TypeFor[GetUserRequest](),
 				ResponseTypes: map[int]reflect.Type{http.StatusOK: nil},
 			},
 		},
@@ -301,7 +301,7 @@ func TestBuilder_ComponentSchemas(t *testing.T) {
 			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					http.StatusOK: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeFor[User](),
 				},
 			},
 		},
@@ -428,7 +428,7 @@ func TestBuilder_MultipleResponseCodes(t *testing.T) {
 			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					http.StatusCreated:             reflect.TypeOf(User{}),
+					http.StatusCreated:             reflect.TypeFor[User](),
 					http.StatusBadRequest:          nil,
 					http.StatusUnauthorized:        nil,
 					http.StatusInternalServerError: nil,
@@ -620,7 +620,7 @@ func TestBuilder_ResponseExamples(t *testing.T) {
 			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					http.StatusOK: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeFor[User](),
 				},
 				ResponseExample: map[int]any{
 					http.StatusOK: User{ID: 1, Name: "John"},
@@ -654,11 +654,11 @@ func TestBuilder_MultipleContentTypes(t *testing.T) {
 		{
 			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
-				RequestType:     reflect.TypeOf(CreateUserRequest{}),
-				RequestMetadata: schema.IntrospectRequest(reflect.TypeOf(CreateUserRequest{})),
+				RequestType:     reflect.TypeFor[CreateUserRequest](),
+				RequestMetadata: schema.IntrospectRequest(reflect.TypeFor[CreateUserRequest]()),
 				Consumes:        []string{"application/json", "application/xml"},
 				Produces:        []string{"application/json", "text/xml"},
-				ResponseTypes:   map[int]reflect.Type{http.StatusCreated: reflect.TypeOf(User{})},
+				ResponseTypes:   map[int]reflect.Type{http.StatusCreated: reflect.TypeFor[User]()},
 			},
 		},
 	}
@@ -688,7 +688,7 @@ func BenchmarkBuilder_Build(b *testing.B) {
 			Doc: &RouteDoc{
 				Summary: "Get user",
 				ResponseTypes: map[int]reflect.Type{
-					http.StatusOK: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeFor[User](),
 				},
 			},
 		},
@@ -696,16 +696,16 @@ func BenchmarkBuilder_Build(b *testing.B) {
 			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
 				Summary:       "Create user",
-				RequestType:   reflect.TypeOf(User{}),
-				ResponseTypes: map[int]reflect.Type{http.StatusCreated: reflect.TypeOf(User{})},
+				RequestType:   reflect.TypeFor[User](),
+				ResponseTypes: map[int]reflect.Type{http.StatusCreated: reflect.TypeFor[User]()},
 			},
 		},
 		{
 			RouteInfo: RouteInfo{Method: http.MethodPut, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				Summary:       "Update user",
-				RequestType:   reflect.TypeOf(User{}),
-				ResponseTypes: map[int]reflect.Type{http.StatusOK: reflect.TypeOf(User{})},
+				RequestType:   reflect.TypeFor[User](),
+				ResponseTypes: map[int]reflect.Type{http.StatusOK: reflect.TypeFor[User]()},
 			},
 		},
 	}
@@ -728,7 +728,7 @@ func BenchmarkBuilder_ComplexSpec(b *testing.B) {
 			Doc: &RouteDoc{
 				Summary: fmt.Sprintf("Get resource %d", i),
 				ResponseTypes: map[int]reflect.Type{
-					http.StatusOK: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeFor[User](),
 				},
 			},
 		})
@@ -749,7 +749,7 @@ func TestBuilder_ResponseNamedExamples(t *testing.T) {
 			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/users/:id"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					http.StatusOK: reflect.TypeOf(User{}),
+					http.StatusOK: reflect.TypeFor[User](),
 				},
 				ResponseNamedExamples: map[int][]ExampleData{
 					http.StatusOK: {
@@ -804,8 +804,8 @@ func TestBuilder_RequestNamedExamples(t *testing.T) {
 		{
 			RouteInfo: RouteInfo{Method: http.MethodPost, Path: "/users"},
 			Doc: &RouteDoc{
-				RequestType:     reflect.TypeOf(CreateUser{}),
-				RequestMetadata: schema.IntrospectRequest(reflect.TypeOf(CreateUser{})),
+				RequestType:     reflect.TypeFor[CreateUser](),
+				RequestMetadata: schema.IntrospectRequest(reflect.TypeFor[CreateUser]()),
 				RequestNamedExamples: []ExampleData{
 					{
 						Name:    "minimal",
@@ -818,7 +818,7 @@ func TestBuilder_RequestNamedExamples(t *testing.T) {
 						Value:   CreateUser{Name: "John", Email: "john@example.com"},
 					},
 				},
-				ResponseTypes: map[int]reflect.Type{http.StatusCreated: reflect.TypeOf(User{})},
+				ResponseTypes: map[int]reflect.Type{http.StatusCreated: reflect.TypeFor[User]()},
 			},
 		},
 	}
@@ -848,7 +848,7 @@ func TestBuilder_ExternalExample(t *testing.T) {
 			RouteInfo: RouteInfo{Method: http.MethodGet, Path: "/data"},
 			Doc: &RouteDoc{
 				ResponseTypes: map[int]reflect.Type{
-					http.StatusOK: reflect.TypeOf(map[string]any{}),
+					http.StatusOK: reflect.TypeFor[map[string]any](),
 				},
 				ResponseNamedExamples: map[int][]ExampleData{
 					http.StatusOK: {

@@ -41,7 +41,7 @@ func TestWalkFields(t *testing.T) {
 	t.Run("walks regular struct fields", func(t *testing.T) {
 		t.Parallel()
 
-		typ := reflect.TypeOf(RegularStruct{})
+		typ := reflect.TypeFor[RegularStruct]()
 		var fields []string
 
 		walkFields(typ, func(f reflect.StructField) {
@@ -54,7 +54,7 @@ func TestWalkFields(t *testing.T) {
 	t.Run("walks embedded struct fields", func(t *testing.T) {
 		t.Parallel()
 
-		typ := reflect.TypeOf(EmbeddedStruct{})
+		typ := reflect.TypeFor[EmbeddedStruct]()
 		var fields []string
 
 		walkFields(typ, func(f reflect.StructField) {
@@ -71,7 +71,7 @@ func TestWalkFields(t *testing.T) {
 	t.Run("walks nested embedded struct fields", func(t *testing.T) {
 		t.Parallel()
 
-		typ := reflect.TypeOf(NestedEmbedded{})
+		typ := reflect.TypeFor[NestedEmbedded]()
 		var fields []string
 
 		walkFields(typ, func(f reflect.StructField) {
@@ -90,7 +90,7 @@ func TestWalkFields(t *testing.T) {
 	})
 
 	t.Run("handles pointer embedded structs", func(t *testing.T) {
-		typ := reflect.TypeOf(PointerEmbedded{})
+		typ := reflect.TypeFor[PointerEmbedded]()
 		var fields []string
 
 		walkFields(typ, func(f reflect.StructField) {
@@ -105,7 +105,7 @@ func TestWalkFields(t *testing.T) {
 	})
 
 	t.Run("handles pointer types", func(t *testing.T) {
-		typ := reflect.TypeOf(&RegularStruct{})
+		typ := reflect.TypeFor[*RegularStruct]()
 		var fields []string
 
 		walkFields(typ, func(f reflect.StructField) {
@@ -116,7 +116,7 @@ func TestWalkFields(t *testing.T) {
 	})
 
 	t.Run("visits fields in order", func(t *testing.T) {
-		typ := reflect.TypeOf(RegularStruct{})
+		typ := reflect.TypeFor[RegularStruct]()
 		var fields []string
 
 		walkFields(typ, func(f reflect.StructField) {
@@ -128,7 +128,7 @@ func TestWalkFields(t *testing.T) {
 	})
 
 	t.Run("skips anonymous fields themselves", func(t *testing.T) {
-		typ := reflect.TypeOf(EmbeddedStruct{})
+		typ := reflect.TypeFor[EmbeddedStruct]()
 		var anonymousFields []string
 		var regularFields []string
 
@@ -150,7 +150,7 @@ func TestWalkFields(t *testing.T) {
 
 	t.Run("handles empty struct", func(t *testing.T) {
 		type Empty struct{}
-		typ := reflect.TypeOf(Empty{})
+		typ := reflect.TypeFor[Empty]()
 		var fields []string
 
 		walkFields(typ, func(f reflect.StructField) {
@@ -173,7 +173,7 @@ func TestWalkFields(t *testing.T) {
 			Field3 string `json:"field3"`
 		}
 
-		typ := reflect.TypeOf(Level3{})
+		typ := reflect.TypeFor[Level3]()
 		var fields []string
 
 		walkFields(typ, func(f reflect.StructField) {
@@ -190,7 +190,7 @@ func TestWalkFields(t *testing.T) {
 //nolint:paralleltest // Some subtests share state
 func TestSchemaName(t *testing.T) {
 	t.Run("returns type name for types in current package", func(t *testing.T) {
-		typ := reflect.TypeOf(RegularStruct{})
+		typ := reflect.TypeFor[RegularStruct]()
 		name := schemaName(typ)
 
 		// Should include package name if package name differs from type name
@@ -200,7 +200,7 @@ func TestSchemaName(t *testing.T) {
 
 	t.Run("includes package name for external types", func(t *testing.T) {
 		// Test with a standard library type
-		typ := reflect.TypeOf("")
+		typ := reflect.TypeFor[string]()
 		name := schemaName(typ)
 
 		// Built-in types should return just the type name
@@ -213,10 +213,10 @@ func TestSchemaName(t *testing.T) {
 			typ      reflect.Type
 			expected string
 		}{
-			{"int", reflect.TypeOf(0), "int"},
-			{"string", reflect.TypeOf(""), "string"},
-			{"bool", reflect.TypeOf(false), "bool"},
-			{"float64", reflect.TypeOf(0.0), "float64"},
+			{"int", reflect.TypeFor[int](), "int"},
+			{"string", reflect.TypeFor[string](), "string"},
+			{"bool", reflect.TypeFor[bool](), "bool"},
+			{"float64", reflect.TypeFor[float64](), "float64"},
 		}
 
 		for _, tc := range testCases {
@@ -228,7 +228,7 @@ func TestSchemaName(t *testing.T) {
 	})
 
 	t.Run("handles pointer types", func(t *testing.T) {
-		typ := reflect.TypeOf(&RegularStruct{})
+		typ := reflect.TypeFor[*RegularStruct]()
 		name := schemaName(typ)
 
 		// Pointer types have no name, so should return empty string
@@ -237,7 +237,7 @@ func TestSchemaName(t *testing.T) {
 	})
 
 	t.Run("handles slice types", func(t *testing.T) {
-		typ := reflect.TypeOf([]RegularStruct{})
+		typ := reflect.TypeFor[[]RegularStruct]()
 		name := schemaName(typ)
 
 		// Unnamed types (like slices) should return empty string
@@ -245,7 +245,7 @@ func TestSchemaName(t *testing.T) {
 	})
 
 	t.Run("handles map types", func(t *testing.T) {
-		typ := reflect.TypeOf(map[string]int{})
+		typ := reflect.TypeFor[map[string]int]()
 		name := schemaName(typ)
 
 		// Unnamed types (like maps) should return empty string
@@ -253,11 +253,7 @@ func TestSchemaName(t *testing.T) {
 	})
 
 	t.Run("handles unnamed types", func(t *testing.T) {
-		// Anonymous struct
-		anon := struct {
-			Field string
-		}{}
-		typ := reflect.TypeOf(anon)
+		typ := reflect.TypeFor[struct{ Field string }]()
 		name := schemaName(typ)
 
 		// Unnamed types should return empty string
@@ -267,7 +263,7 @@ func TestSchemaName(t *testing.T) {
 	t.Run("handles types with package path", func(t *testing.T) {
 		// Use a type from another package to test package name extraction
 		// We'll use a type from the reflect package
-		typ := reflect.TypeOf(reflect.Value{})
+		typ := reflect.TypeFor[reflect.Value]()
 		name := schemaName(typ)
 
 		// Should include package name
@@ -280,7 +276,7 @@ func TestSchemaName(t *testing.T) {
 
 	t.Run("handles empty package path", func(t *testing.T) {
 		// Built-in types have empty package path
-		typ := reflect.TypeOf(42)
+		typ := reflect.TypeFor[int]()
 		name := schemaName(typ)
 
 		assert.Equal(t, "int", name)
@@ -289,7 +285,7 @@ func TestSchemaName(t *testing.T) {
 	t.Run("handles package name same as type name", func(t *testing.T) {
 		// This is a bit tricky to test without creating a new package
 		// But we can test the logic with current types
-		typ := reflect.TypeOf(RegularStruct{})
+		typ := reflect.TypeFor[RegularStruct]()
 		name := schemaName(typ)
 
 		// If package name equals type name, should return just type name
@@ -402,7 +398,7 @@ func TestIsFieldRequired(t *testing.T) {
 		type TestStruct struct {
 			Field *string `validate:"required"`
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		f, _ := typ.FieldByName("Field")
 
 		result := isFieldRequired(f)
@@ -413,7 +409,7 @@ func TestIsFieldRequired(t *testing.T) {
 		type TestStruct struct {
 			Field string `validate:"required"`
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		f, _ := typ.FieldByName("Field")
 
 		result := isFieldRequired(f)
@@ -424,7 +420,7 @@ func TestIsFieldRequired(t *testing.T) {
 		type TestStruct struct {
 			Field string
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		f, _ := typ.FieldByName("Field")
 
 		result := isFieldRequired(f)
@@ -435,7 +431,7 @@ func TestIsFieldRequired(t *testing.T) {
 		type TestStruct struct {
 			Field string `validate:"email,min=5"`
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		f, _ := typ.FieldByName("Field")
 
 		result := isFieldRequired(f)
@@ -446,7 +442,7 @@ func TestIsFieldRequired(t *testing.T) {
 		type TestStruct struct {
 			Field string `validate:"email,required,min=5"`
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		f, _ := typ.FieldByName("Field")
 
 		result := isFieldRequired(f)
@@ -459,7 +455,7 @@ func TestIsFieldRequired(t *testing.T) {
 			Optional int
 			Ptr      *int `validate:"required"`
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		required, _ := typ.FieldByName("Required")
 		optional, _ := typ.FieldByName("Optional")
 		ptr, _ := typ.FieldByName("Ptr")
@@ -474,7 +470,7 @@ func TestIsFieldRequired(t *testing.T) {
 			Required bool `validate:"required"`
 			Optional bool
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		required, _ := typ.FieldByName("Required")
 		optional, _ := typ.FieldByName("Optional")
 
@@ -488,7 +484,7 @@ func TestIsFieldRequired(t *testing.T) {
 			Optional []string
 			Ptr      *[]string `validate:"required"`
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		required, _ := typ.FieldByName("Required")
 		optional, _ := typ.FieldByName("Optional")
 		ptr, _ := typ.FieldByName("Ptr")
@@ -503,7 +499,7 @@ func TestIsFieldRequired(t *testing.T) {
 			Required map[string]int `validate:"required"`
 			Optional map[string]int
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		required, _ := typ.FieldByName("Required")
 		optional, _ := typ.FieldByName("Optional")
 
@@ -517,7 +513,7 @@ func TestIsFieldRequired(t *testing.T) {
 			Field2 string `validate:"REQUIRED"` // all uppercase
 			Field3 string `validate:"required"` // lowercase (correct)
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		f1, _ := typ.FieldByName("Field1")
 		f2, _ := typ.FieldByName("Field2")
 		f3, _ := typ.FieldByName("Field3")
@@ -532,7 +528,7 @@ func TestIsFieldRequired(t *testing.T) {
 		type TestStruct struct {
 			Field string `validate:""`
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		f, _ := typ.FieldByName("Field")
 
 		result := isFieldRequired(f)
@@ -543,7 +539,7 @@ func TestIsFieldRequired(t *testing.T) {
 		type TestStruct struct {
 			Field string
 		}
-		typ := reflect.TypeOf(TestStruct{})
+		typ := reflect.TypeFor[TestStruct]()
 		f, _ := typ.FieldByName("Field")
 
 		result := isFieldRequired(f)

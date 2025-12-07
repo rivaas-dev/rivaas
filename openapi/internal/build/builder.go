@@ -7,6 +7,7 @@ package build
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"sort"
@@ -52,9 +53,7 @@ func (b *Builder) AddServerWithExtensions(url, desc string, extensions map[strin
 	server := model.Server{URL: url, Description: desc}
 	if len(extensions) > 0 {
 		server.Extensions = make(map[string]any, len(extensions))
-		for k, v := range extensions {
-			server.Extensions[k] = v
-		}
+		maps.Copy(server.Extensions, extensions)
 	}
 	b.servers = append(b.servers, server)
 	return b
@@ -88,9 +87,7 @@ func (b *Builder) AddTagWithExtensions(name, desc string, extensions map[string]
 	tag := model.Tag{Name: name, Description: desc}
 	if len(extensions) > 0 {
 		tag.Extensions = make(map[string]any, len(extensions))
-		for k, v := range extensions {
-			tag.Extensions[k] = v
-		}
+		maps.Copy(tag.Extensions, extensions)
 	}
 	b.tags = append(b.tags, tag)
 	return b
@@ -101,9 +98,7 @@ func (b *Builder) AddTagWithExternalDocs(name, desc string, extDocs *model.Exter
 	tag := model.Tag{Name: name, Description: desc, ExternalDocs: extDocs}
 	if len(extensions) > 0 {
 		tag.Extensions = make(map[string]any, len(extensions))
-		for k, v := range extensions {
-			tag.Extensions[k] = v
-		}
+		maps.Copy(tag.Extensions, extensions)
 	}
 	b.tags = append(b.tags, tag)
 	return b
@@ -376,9 +371,8 @@ func paramSpecToParameter(ps schema.ParamSpec, sg *schema.SchemaGenerator) model
 func extractPathParams(path string, constraints map[string]PathConstraint) []model.Parameter {
 	var out []model.Parameter
 
-	for _, seg := range strings.Split(path, "/") {
-		if strings.HasPrefix(seg, ":") {
-			name := strings.TrimPrefix(seg, ":")
+	for seg := range strings.SplitSeq(path, "/") {
+		if name, found := strings.CutPrefix(seg, ":"); found {
 			param := model.Parameter{
 				Name:     name,
 				In:       "path",
@@ -422,8 +416,8 @@ func constraintToSchema(c PathConstraint) *model.Schema {
 func convertPath(p string) string {
 	parts := strings.Split(p, "/")
 	for i, part := range parts {
-		if strings.HasPrefix(part, ":") {
-			parts[i] = "{" + strings.TrimPrefix(part, ":") + "}"
+		if after, found := strings.CutPrefix(part, ":"); found {
+			parts[i] = "{" + after + "}"
 		}
 	}
 	return strings.Join(parts, "/")

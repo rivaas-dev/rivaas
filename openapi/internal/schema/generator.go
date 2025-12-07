@@ -43,7 +43,7 @@ func (sg *SchemaGenerator) Generate(t reflect.Type) *model.Schema {
 		return &model.Schema{Kind: model.KindObject}
 	}
 
-	if t == reflect.TypeOf(time.Time{}) {
+	if t == reflect.TypeFor[time.Time]() {
 		return &model.Schema{
 			Kind:    model.KindString,
 			Format:  "date-time",
@@ -276,7 +276,7 @@ func applyValidationConstraints(s *model.Schema, f reflect.StructField) {
 	}
 
 	// Parse all validation parts
-	for _, part := range strings.Split(v, ",") {
+	for part := range strings.SplitSeq(v, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
