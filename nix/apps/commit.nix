@@ -179,31 +179,95 @@ $mod,$staged,$unstaged,$untracked"
         # Get the diff for AI context (limit to avoid huge prompts)
         diff_content=$($git diff --cached -- "$mod/" 2>/dev/null | head -500)
 
+        # Count changed files to determine if this is a complex change
+        file_count=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l)
+
         # Generate commit message using cursor-agent
         $gum style --foreground ${lib.colors.info} "Generating commit message with AI..."
 
-        ai_message=$($gum spin --spinner dot --title "Cursor is thinking..." -- \
-          cursor-agent -p --output-format text \
-          "Generate a concise git commit message (one line, max 72 chars) for these changes.
-Only output the commit message text, nothing else. No quotes, no prefixes.
+        if [ "$file_count" -gt 5 ]; then
+          # Complex change: generate title + body
+          raw_output=$(cursor-agent -p --output-format text \
+            "Write a git commit message for this diff.
 
-Module: $mod
+Format:
+<50 char title starting with lowercase verb>
+
+<body: 2-3 bullet points about what changed>
+
+Good title examples:
+- fix nil pointer in validation logic
+- add retry logic for http client
+- refactor error handling across handlers
+- format imports and organize code
+
+Rules:
+- Title: max 50 chars, lowercase verb, no module name
+- Body: brief bullet points, what changed (not why)
+- No markdown code blocks, no quotes around output
 
 Diff:
-$diff_content" 2>/dev/null || echo "")
+$diff_content" 2>&1)
 
-        # Fallback if cursor-agent failed
-        if [ -z "$ai_message" ]; then
-          ai_message="update $mod"
-          $gum style --foreground ${lib.colors.accent4} "  (AI generation failed, using default)"
+          # Extract title (first non-empty line) and body (rest)
+          ai_title=$(echo "$raw_output" | sed '/^[[:space:]]*$/d' | head -1)
+          ai_body=$(echo "$raw_output" | sed '1,/^[[:space:]]*$/d' | sed '/^[[:space:]]*$/d')
+
+          # Fallback if cursor-agent failed
+          if [ -z "$ai_title" ]; then
+            ai_title="update $mod"
+            ai_body=""
+            $gum style --foreground ${lib.colors.accent4} "  (AI generation failed, using default)"
+          fi
+
+          # Clean up the title
+          ai_title=$(echo "$ai_title" | sed 's/^"//;s/"$//' | sed "s/^'//;s/'$//" | xargs)
+
+          # Add module prefix
+          ai_message_with_prefix="$mod: $ai_title"
+          [ -n "$ai_body" ] && ai_message_with_prefix="$ai_message_with_prefix
+
+$ai_body"
+
+          # Let user edit with multi-line editor
+          $gum style --foreground ${lib.colors.info} "Edit commit message (Ctrl+D to save, Esc to cancel):"
+          message=$($gum write --width 80 --height 10 --value "$ai_message_with_prefix")
+        else
+          # Simple change: title only
+          raw_output=$(cursor-agent -p --output-format text \
+            "Write a git commit message title (max 50 chars).
+
+Good examples:
+- fix nil pointer in validation
+- add retry logic for http client
+- update error messages for clarity
+- format imports and remove unused
+
+Start with lowercase verb. No module name. No quotes.
+Just output the message, nothing else.
+
+Diff:
+$diff_content" 2>&1)
+
+          # Skip empty lines and get first non-empty line
+          ai_message=$(echo "$raw_output" | sed '/^[[:space:]]*$/d' | head -1)
+
+          # Fallback if cursor-agent failed
+          if [ -z "$ai_message" ]; then
+            ai_message="update $mod"
+            $gum style --foreground ${lib.colors.accent4} "  (AI generation failed, using default)"
+          fi
+
+          # Clean up the message (remove quotes, trim whitespace)
+          ai_message=$(echo "$ai_message" | sed 's/^"//;s/"$//' | sed "s/^'//;s/'$//" | xargs)
+
+          # Add module prefix for editing
+          ai_message_with_prefix="$mod: $ai_message"
+
+          # Let user edit the message (with prefix visible)
+          $gum style --foreground ${lib.colors.info} "Edit commit message:"
+          message=$($gum input --width 72 --value "$ai_message_with_prefix")
         fi
-
-        # Clean up the message (remove quotes, trim whitespace)
-        ai_message=$(echo "$ai_message" | sed 's/^"//;s/"$//' | sed "s/^'//;s/'$//" | xargs)
-
-        # Let user edit the message
-        $gum style --foreground ${lib.colors.info} "Edit commit message:"
-        message=$($gum input --width 72 --value "$ai_message")
 
         if [ -z "$message" ]; then
           $git reset HEAD -- "$mod/" >/dev/null 2>&1 || true
@@ -211,12 +275,8 @@ $diff_content" 2>/dev/null || echo "")
           continue
         fi
 
-        # Prepend module prefix if not present
-        if [[ "$message" != "$mod:"* ]]; then
-          final_message="$mod: $message"
-        else
-          final_message="$message"
-        fi
+        # Use the message as-is (prefix already included or user modified it)
+        final_message="$message"
 
         # Show preview
         echo ""

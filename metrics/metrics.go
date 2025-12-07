@@ -23,9 +23,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	promclient "github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	promclient "github.com/prometheus/client_golang/prometheus"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 

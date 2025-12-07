@@ -23,12 +23,13 @@ import (
 	"strings"
 	"time"
 
-	promclient "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
+
+	promclient "github.com/prometheus/client_golang/prometheus"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 

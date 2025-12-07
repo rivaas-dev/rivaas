@@ -20,6 +20,7 @@ import (
 	"net/http"
 
 	"go.opentelemetry.io/otel/attribute"
+
 	"rivaas.dev/metrics"
 )
 
