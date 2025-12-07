@@ -24,9 +24,10 @@ import (
 	"os"
 	"time"
 
-	charmlog "github.com/charmbracelet/log"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/recovery"
+
+	charmlog "github.com/charmbracelet/log"
 )
 
 func main() {

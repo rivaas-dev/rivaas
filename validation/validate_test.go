@@ -26,7 +26,7 @@ type schemaUserImpl struct {
 	Name string
 }
 
-func (s *schemaUserImpl) JSONSchema() (id string, schema string) {
+func (s *schemaUserImpl) JSONSchema() (id, schema string) {
 	return "user", `{"type": "object"}`
 }
 

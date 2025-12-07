@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+
 	"rivaas.dev/logging"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/accesslog"

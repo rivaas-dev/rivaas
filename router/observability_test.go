@@ -21,11 +21,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"rivaas.dev/router/version"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
+
+	"rivaas.dev/router/version"
 )
 
 // Use mockObservabilityRecorder (see observability_test_helpers.go) instead.

@@ -61,7 +61,7 @@ func NewBloomFilter(size uint64, numHashFuncs int) *BloomFilter {
 // hashWithSeed applies a seed to a pre-computed base hash.
 // The seed is XORed with the base hash to create different hash functions.
 // This avoids repeatedly creating hash.Hash instances.
-func (bf *BloomFilter) hashWithSeed(baseHash uint64, seed uint64) uint64 {
+func (bf *BloomFilter) hashWithSeed(baseHash, seed uint64) uint64 {
 	// XOR with seed to create different hash functions for bloom filter
 	return (baseHash ^ seed) % bf.size
 }

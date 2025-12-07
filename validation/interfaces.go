@@ -76,5 +76,5 @@ type ValidatorWithContext interface {
 //	    }`
 //	}
 type JSONSchemaProvider interface {
-	JSONSchema() (id string, schema string)
+	JSONSchema() (id, schema string)
 }

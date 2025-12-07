@@ -90,7 +90,7 @@ func (s *InMemoryTokenBucketStore) cleanupLoop() {
 
 // Allow checks if a request is allowed and returns remaining tokens and reset time.
 // This implements the TokenBucketStore interface.
-func (s *InMemoryTokenBucketStore) Allow(key string, now time.Time) (allowed bool, remaining int, resetSeconds int) {
+func (s *InMemoryTokenBucketStore) Allow(key string, now time.Time) (allowed bool, remaining, resetSeconds int) {
 	s.mu.RLock()
 	entry, exists := s.entries[key]
 	s.mu.RUnlock()

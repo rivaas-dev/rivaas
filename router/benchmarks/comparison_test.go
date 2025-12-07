@@ -22,10 +22,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-chi/chi/v5"
 	"github.com/gofiber/fiber/v2"
-	fiberadaptor "github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/labstack/echo/v4"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
+
+	fiberadaptor "github.com/gofiber/fiber/v2/middleware/adaptor"
 	router "rivaas.dev/router"
 )
 

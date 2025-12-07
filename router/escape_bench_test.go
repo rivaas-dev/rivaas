@@ -22,7 +22,7 @@ import (
 
 // BenchmarkContextPooling tests context pooling with allocation tracking
 func BenchmarkContextPooling(b *testing.B) {
-r := MustNew()
+	r := MustNew()
 	r.GET("/users/:id", func(c *Context) {
 		c.Status(200)
 	})
@@ -40,7 +40,7 @@ r := MustNew()
 
 // BenchmarkContextPooling_StaticRoute tests static route with allocation tracking
 func BenchmarkContextPooling_StaticRoute(b *testing.B) {
-r := MustNew()
+	r := MustNew()
 	r.GET("/health", func(c *Context) {
 		c.Status(200)
 	})
@@ -58,7 +58,7 @@ r := MustNew()
 
 // BenchmarkContextPooling_MultiParam tests multiple parameters with allocation tracking
 func BenchmarkContextPooling_MultiParam(b *testing.B) {
-r := MustNew()
+	r := MustNew()
 	r.GET("/users/:uid/posts/:pid/comments/:cid", func(c *Context) {
 		c.Status(200)
 	})
@@ -134,7 +134,7 @@ func BenchmarkParamLookup_Fallback(b *testing.B) {
 
 // BenchmarkResponseWriter_Status tests status writing
 func BenchmarkResponseWriter_Status(b *testing.B) {
-r := MustNew()
+	r := MustNew()
 	r.GET("/test", func(c *Context) {
 		c.Status(http.StatusOK)
 	})
@@ -152,7 +152,7 @@ r := MustNew()
 
 // BenchmarkResponseWriter_String tests string response
 func BenchmarkResponseWriter_String(b *testing.B) {
-r := MustNew()
+	r := MustNew()
 	r.GET("/test", func(c *Context) {
 		c.String(http.StatusOK, "Hello, World!")
 	})
@@ -170,7 +170,7 @@ r := MustNew()
 
 // BenchmarkResponseWriter_JSON tests JSON response allocations
 func BenchmarkResponseWriter_JSON(b *testing.B) {
-r := MustNew()
+	r := MustNew()
 	r.GET("/test", func(c *Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "hello"})
 	})
@@ -188,7 +188,7 @@ r := MustNew()
 
 // BenchmarkMiddlewareChain tests middleware chain with allocations
 func BenchmarkMiddlewareChain(b *testing.B) {
-r := MustNew()
+	r := MustNew()
 
 	// Add 3 middleware
 	r.Use(func(c *Context) {

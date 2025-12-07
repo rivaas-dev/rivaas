@@ -21,11 +21,11 @@ import (
 	"sync"
 	"testing"
 
-	"rivaas.dev/router/version"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"rivaas.dev/router/compiler"
+	"rivaas.dev/router/version"
 )
 
 // TestContext_Header_Injection tests that header injection attacks are sanitized

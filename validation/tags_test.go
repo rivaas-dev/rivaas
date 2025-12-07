@@ -320,7 +320,6 @@ func TestRegisterTag_Freeze(t *testing.T) {
 	err := RegisterTag("test_tag_freeze", func(_ validator.FieldLevel) bool {
 		return true
 	})
-
 	if err != nil {
 		// Validators already frozen from previous tests - this is expected
 		// Just verify that registration fails when frozen

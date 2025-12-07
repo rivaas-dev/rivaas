@@ -19,11 +19,11 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"rivaas.dev/router/version"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"rivaas.dev/router"
+	"rivaas.dev/router/version"
 )
 
 var _ = Describe("Versioning Integration", func() {
@@ -1101,7 +1101,7 @@ var _ = Describe("Versioning Integration", func() {
 					version.WithHeaderDetection("X-API-Version"),
 					version.WithDefault("v1"),
 					version.WithObserver(
-						version.OnDetected(func(ver string, method string) {
+						version.OnDetected(func(ver, method string) {
 							detectedVersions = append(detectedVersions, ver)
 							detectedMethods = append(detectedMethods, method)
 						}),
@@ -1214,7 +1214,7 @@ var _ = Describe("Versioning Integration", func() {
 					version.WithQueryDetection("v"),
 					version.WithDefault("v1"),
 					version.WithObserver(
-						version.OnDetected(func(_ string, method string) {
+						version.OnDetected(func(_, method string) {
 							methods = append(methods, method)
 						}),
 					),
@@ -1296,7 +1296,7 @@ var _ = Describe("Versioning Integration", func() {
 				version.WithValidVersions("v1", "v2", "v3"),
 				version.WithDefault("v1"),
 				version.WithObserver(
-					version.OnDetected(func(ver string, _ string) {
+					version.OnDetected(func(ver, _ string) {
 						detectedVersions = append(detectedVersions, ver)
 					}),
 					version.OnInvalid(func(attempted string) {

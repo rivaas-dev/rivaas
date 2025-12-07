@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+
 	"rivaas.dev/binding"
 	"rivaas.dev/logging"
 	"rivaas.dev/router"

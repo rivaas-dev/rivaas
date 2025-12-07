@@ -23,11 +23,11 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	"rivaas.dev/router/version"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"rivaas.dev/router"
+	"rivaas.dev/router/version"
 )
 
 // registerMethod is a helper function to register routes for different HTTP methods
@@ -464,7 +464,7 @@ var _ = Describe("Router Integration", func() {
 		})
 
 		DescribeTable("should negotiate content type",
-			func(acceptHeader string, expectType string) {
+			func(acceptHeader, expectType string) {
 				req := httptest.NewRequest(http.MethodGet, "/data", nil)
 				req.Header.Set("Accept", acceptHeader)
 				w := httptest.NewRecorder()

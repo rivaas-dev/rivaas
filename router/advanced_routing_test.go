@@ -20,9 +20,9 @@ import (
 	"strings"
 	"testing"
 
-	"rivaas.dev/router/version"
-
 	"github.com/stretchr/testify/suite"
+
+	"rivaas.dev/router/version"
 )
 
 // AdvancedRoutingTestSuite tests advanced routing functionality

@@ -31,7 +31,6 @@ func ExampleValidate() {
 
 	user := User{Email: "invalid", Age: 15}
 	err := validation.Validate(context.Background(), &user)
-
 	if err != nil {
 		var verr *validation.Error
 		if errors.As(err, &verr) {
@@ -125,7 +124,6 @@ func ExampleValidator_Validate() {
 
 	user := User{Email: "invalid-email"}
 	err := validator.Validate(context.Background(), &user)
-
 	if err != nil {
 		var verr *validation.Error
 		if errors.As(err, &verr) {
@@ -159,7 +157,6 @@ func ExampleValidate_withOptions() {
 		validation.WithRedactor(redactor),
 		validation.WithMaxErrors(5),
 	)
-
 	if err != nil {
 		var verr *validation.Error
 		if errors.As(err, &verr) {

@@ -19,12 +19,13 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
-	mathrand "math/rand/v2"
 	"os"
 	"time"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware"
+
+	mathrand "math/rand/v2"
 )
 
 // Option defines functional options for requestid middleware configuration.

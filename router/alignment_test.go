@@ -19,9 +19,9 @@ import (
 	"testing"
 	"unsafe"
 
-	"rivaas.dev/router/version"
-
 	"github.com/stretchr/testify/assert"
+
+	"rivaas.dev/router/version"
 )
 
 // TestAtomicFieldAlignment verifies that atomic fields are properly aligned

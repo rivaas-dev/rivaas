@@ -62,7 +62,7 @@ type TokenBucket struct {
 type TokenBucketStore interface {
 	// Allow checks if a request is allowed for the given key.
 	// Returns (allowed, remaining tokens, reset time in seconds).
-	Allow(key string, now time.Time) (allowed bool, remaining int, resetSeconds int)
+	Allow(key string, now time.Time) (allowed bool, remaining, resetSeconds int)
 }
 
 // SlidingWindow implements sliding window rate limiting.

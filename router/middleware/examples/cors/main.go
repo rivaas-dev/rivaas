@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
+
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/cors"
 )

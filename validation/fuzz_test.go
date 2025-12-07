@@ -83,7 +83,6 @@ func FuzzValidate(f *testing.F) {
 
 		// Validate should never panic
 		err := Validate(ctx, user, WithStrategy(StrategyTags))
-
 		// If there's an error, it should be a validation error
 		if err != nil {
 			var verr *Error

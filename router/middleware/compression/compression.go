@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/andybalholm/brotli"
+
 	"rivaas.dev/router"
 )
 
@@ -298,9 +299,11 @@ func shouldSkipContentType(ct string, excludes map[string]bool) bool {
 }
 
 // gzipWriterPool is a sync.Pool for reusing gzip writers.
-var gzipWriterPools = make(map[int]*sync.Pool)
-var brotliWriterPools = make(map[int]*sync.Pool)
-var poolsMutex sync.RWMutex
+var (
+	gzipWriterPools   = make(map[int]*sync.Pool)
+	brotliWriterPools = make(map[int]*sync.Pool)
+	poolsMutex        sync.RWMutex
+)
 
 // getGzipWriterPool returns a pool for the specified compression level.
 func getGzipWriterPool(level int) *sync.Pool {

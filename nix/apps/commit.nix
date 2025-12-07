@@ -185,39 +185,67 @@ $mod,$staged,$unstaged,$untracked"
         # Generate commit message using cursor-agent
         $gum style --foreground ${lib.colors.info} "Generating commit message with AI..."
 
+        # #region agent log
+        debug_log="/home/mohammad/Workspace/github.com/rivaas-dev/rivaas/.cursor/debug.log"
+        # #endregion agent log
+
         if [ "$file_count" -gt 5 ]; then
           # Complex change: generate title + body
           raw_output=$(cursor-agent -p --output-format text \
             "Write a git commit message for this diff.
 
-Format:
-<50 char title starting with lowercase verb>
+OUTPUT FORMAT (plain text, NO markdown):
+<title line: max 50 chars, lowercase verb>
 
-<body: 2-3 bullet points about what changed>
+- bullet point 1
+- bullet point 2
 
-Good title examples:
-- fix nil pointer in validation logic
-- add retry logic for http client
-- refactor error handling across handlers
-- format imports and organize code
+EXAMPLE OUTPUT:
+refactor error handling across handlers
 
-Rules:
-- Title: max 50 chars, lowercase verb, no module name
-- Body: brief bullet points, what changed (not why)
-- No markdown code blocks, no quotes around output
+- update middleware error types
+- fix inconsistent error messages
+
+RULES:
+- First line is the title (max 50 chars, start with lowercase verb)
+- No module name in title
+- 2-3 bullet points describing changes
+- PLAIN TEXT ONLY - no markdown, no code fences, no quotes
 
 Diff:
 $diff_content" 2>&1)
 
+          # #region agent log
+          printf '{"hypothesisId":"B","location":"complex:raw_output","message":"cursor-agent raw output","data":{"length":%d,"preview":"%s"},"timestamp":%s}\n' \
+            "''${#raw_output}" "$(echo "$raw_output" | head -c 300 | tr '\n"' '  ')" "$(date +%s)000" >> "$debug_log"
+          # #endregion agent log
+
+          # Strip any markdown code fences the AI might have added
+          raw_output=$(echo "$raw_output" | sed '/^```/d')
+
+          # #region agent log
+          printf '{"hypothesisId":"A","location":"complex:after_strip","message":"after code fence strip","data":{"length":%d,"preview":"%s"},"timestamp":%s}\n' \
+            "''${#raw_output}" "$(echo "$raw_output" | head -c 300 | tr '\n"' '  ')" "$(date +%s)000" >> "$debug_log"
+          # #endregion agent log
+
           # Extract title (first non-empty line) and body (rest)
           ai_title=$(echo "$raw_output" | sed '/^[[:space:]]*$/d' | head -1)
           ai_body=$(echo "$raw_output" | sed '1,/^[[:space:]]*$/d' | sed '/^[[:space:]]*$/d')
+
+          # #region agent log
+          printf '{"hypothesisId":"C","location":"complex:extracted","message":"extracted title and body","data":{"title":"%s","bodyLen":%d},"timestamp":%s}\n' \
+            "$(echo "$ai_title" | tr '\n"' '  ')" "''${#ai_body}" "$(date +%s)000" >> "$debug_log"
+          # #endregion agent log
 
           # Fallback if cursor-agent failed
           if [ -z "$ai_title" ]; then
             ai_title="update $mod"
             ai_body=""
             $gum style --foreground ${lib.colors.accent4} "  (AI generation failed, using default)"
+            # #region agent log
+            printf '{"hypothesisId":"C","location":"complex:fallback","message":"fallback triggered","data":{"reason":"empty_title"},"timestamp":%s}\n' \
+              "$(date +%s)000" >> "$debug_log"
+            # #endregion agent log
           fi
 
           # Clean up the title
@@ -237,20 +265,20 @@ $ai_body"
           raw_output=$(cursor-agent -p --output-format text \
             "Write a git commit message title (max 50 chars).
 
-Good examples:
-- fix nil pointer in validation
-- add retry logic for http client
-- update error messages for clarity
-- format imports and remove unused
+EXAMPLE OUTPUT:
+format imports and remove unused
 
-Start with lowercase verb. No module name. No quotes.
-Just output the message, nothing else.
+RULES:
+- Start with lowercase verb
+- No module name
+- PLAIN TEXT ONLY - no markdown, no code fences, no quotes
+- Just output the message, nothing else
 
 Diff:
 $diff_content" 2>&1)
 
-          # Skip empty lines and get first non-empty line
-          ai_message=$(echo "$raw_output" | sed '/^[[:space:]]*$/d' | head -1)
+          # Strip any markdown code fences and get first non-empty line
+          ai_message=$(echo "$raw_output" | sed '/^\`\`\`/d' | sed '/^[[:space:]]*$/d' | head -1)
 
           # Fallback if cursor-agent failed
           if [ -z "$ai_message" ]; then

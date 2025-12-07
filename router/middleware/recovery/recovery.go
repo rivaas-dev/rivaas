@@ -22,6 +22,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+
 	"rivaas.dev/router"
 )
 

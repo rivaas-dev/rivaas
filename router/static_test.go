@@ -35,7 +35,7 @@ func TestStaticFileServing(t *testing.T) {
 	// Create a temporary directory with test files
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.txt")
-	err := os.WriteFile(testFile, []byte("Hello, World!"), 0644)
+	err := os.WriteFile(testFile, []byte("Hello, World!"), 0o644)
 	require.NoError(t, err)
 
 	t.Run("Static directory serving", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestStaticFSWithCustomFileSystem(t *testing.T) {
 	// Create a temporary directory with test files
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.html")
-	err := os.WriteFile(testFile, []byte("<h1>Hello</h1>"), 0644)
+	err := os.WriteFile(testFile, []byte("<h1>Hello</h1>"), 0o644)
 	require.NoError(t, err)
 
 	r.StaticFS("/files", http.Dir(tmpDir))

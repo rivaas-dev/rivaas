@@ -71,7 +71,7 @@ type Detector interface {
 // Observer holds callbacks for version detection events.
 type Observer struct {
 	// OnDetected is called when a version is successfully detected.
-	OnDetected func(version string, method string)
+	OnDetected func(version, method string)
 
 	// OnMissing is called when no version is detected (using default).
 	OnMissing func()
