@@ -80,6 +80,7 @@ func TestIntegration_FullValidationWorkflow(t *testing.T) {
 			wantError:  true,
 			errorCount: 3, // name required, email invalid, age below min
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				var verr *validation.Error
 				require.ErrorAs(t, err, &verr)
 				assert.GreaterOrEqual(t, len(verr.Fields), 3)
@@ -100,6 +101,7 @@ func TestIntegration_FullValidationWorkflow(t *testing.T) {
 			wantError:  true,
 			errorCount: 3, // all address fields missing
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				var verr *validation.Error
 				require.ErrorAs(t, err, &verr)
 				// Should have errors for nested address fields
@@ -161,7 +163,7 @@ func TestIntegration_FullValidationWorkflow(t *testing.T) {
 			// Step 3: Verify validation result
 			if tt.wantError {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, validation.ErrValidation)
+				require.ErrorIs(t, err, validation.ErrValidation)
 				if tt.checkErr != nil {
 					tt.checkErr(t, err)
 				}
@@ -210,6 +212,7 @@ func TestIntegration_PartialValidationWorkflow(t *testing.T) {
 			existingVal: User{Name: "Name", Email: "old@example.com", Address: "123 St"},
 			wantError:   true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				var verr *validation.Error
 				require.ErrorAs(t, err, &verr)
 				assert.True(t, verr.Has("email"))
@@ -545,7 +548,7 @@ func TestIntegration_ErrorChaining(t *testing.T) {
 	require.Error(t, err)
 
 	// Test errors.Is works through the chain
-	assert.ErrorIs(t, err, validation.ErrValidation)
+	require.ErrorIs(t, err, validation.ErrValidation)
 
 	// Test errors.As works
 	var verr *validation.Error

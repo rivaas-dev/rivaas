@@ -226,9 +226,8 @@ func TestValidateWithInterface_ValueReceiver(t *testing.T) {
 func TestValidateWithInterface_WithContext(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
-		user *userWithContextValidator
-		//nolint:containedctx // ctx is used for testing context-aware validation
+		name      string
+		user      *userWithContextValidator
 		setupCtx  func(*testing.T) context.Context
 		wantError bool
 		checkErr  func(t *testing.T, err error)
@@ -535,9 +534,8 @@ func TestValidateWithInterface_NilPointer(t *testing.T) {
 func TestValidateWithInterface_ContextWithoutWithContextOption(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
-		user *userWithContextValidator
-		//nolint:containedctx // ctx is used for testing context-aware validation
+		name      string
+		user      *userWithContextValidator
 		setupCtx  func(*testing.T) context.Context
 		wantError bool
 	}{

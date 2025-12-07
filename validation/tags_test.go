@@ -847,6 +847,7 @@ func TestFieldNameMapper_ArrayElements(t *testing.T) {
 					if strings.Contains(e.Path, "items") && (strings.Contains(e.Path, "0") || strings.Contains(e.Path, "name")) {
 						found = true
 						t.Logf("Found validation error with path: %s", e.Path)
+
 						break
 					}
 				}

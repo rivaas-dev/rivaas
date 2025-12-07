@@ -606,6 +606,7 @@ func TestValidationErrors_UnwrapChain(t *testing.T) {
 				return verr
 			},
 			checkErr: func(t *testing.T, verr Error) {
+				t.Helper()
 				outerErr := errOuterError
 				wrapped := fmt.Errorf("%w: %w", outerErr, &verr)
 				// Note: FieldError and validation.Error already implement Unwrap
@@ -672,6 +673,7 @@ func TestValidate_ManyErrors(t *testing.T) {
 			wantMaxLen:    5,
 			wantTruncated: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected ValidationErrors")
@@ -687,6 +689,7 @@ func TestValidate_ManyErrors(t *testing.T) {
 			wantMinLen:    15,
 			wantTruncated: false,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
@@ -701,6 +704,7 @@ func TestValidate_ManyErrors(t *testing.T) {
 			wantMaxLen:    1,
 			wantTruncated: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)

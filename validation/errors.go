@@ -95,6 +95,8 @@ func (e FieldError) HTTPStatus() int {
 //	        fmt.Printf("%s: %s\n", fieldErr.Path, fieldErr.Message)
 //	    }
 //	}
+//
+//nolint:recvcheck // Error must use value receiver for error interface compatibility, mutating methods use pointer
 type Error struct {
 	Fields    []FieldError `json:"errors"`              // List of field errors
 	Truncated bool         `json:"truncated,omitempty"` // True if errors were truncated due to maxErrors limit

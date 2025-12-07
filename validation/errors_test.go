@@ -130,6 +130,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.Equal(t, "a", verr.Fields[0].Path)
 				assert.Equal(t, "code1", verr.Fields[0].Code)
 				assert.Equal(t, "a", verr.Fields[1].Path)
@@ -146,6 +147,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.Empty(t, verr.Fields)
 			},
 		},

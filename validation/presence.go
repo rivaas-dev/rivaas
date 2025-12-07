@@ -99,7 +99,7 @@ func (pm PresenceMap) LeafPaths() []string {
 // ComputePresence analyzes raw JSON and returns a [PresenceMap] of present field paths.
 // It enables partial validation where only provided fields are validated.
 //
-// It returns (nil, nil) if rawJSON is empty.
+// It returns an empty map (not nil) if rawJSON is empty.
 // It has a maximum recursion depth of 100 to prevent stack overflow
 // from deeply nested JSON structures.
 //
@@ -113,7 +113,7 @@ func (pm PresenceMap) LeafPaths() []string {
 //   - Returns error if rawJSON is not valid JSON
 func ComputePresence(rawJSON []byte) (PresenceMap, error) {
 	if len(rawJSON) == 0 {
-		return nil, nil
+		return make(PresenceMap), nil
 	}
 
 	var data map[string]any
