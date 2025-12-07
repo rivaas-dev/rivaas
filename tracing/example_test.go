@@ -100,7 +100,7 @@ func ExampleTracer_ExtractTraceContext() {
 	defer tracer.Shutdown(context.Background())
 
 	ctx := context.Background()
-	req, _ := http.NewRequest("GET", "/api/users", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/api/users", nil)
 	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
 	ctx = tracer.ExtractTraceContext(ctx, req.Header)

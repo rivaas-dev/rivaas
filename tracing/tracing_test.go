@@ -62,7 +62,7 @@ func TestTracingWithHTTP(t *testing.T) {
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -110,7 +110,7 @@ func TestTracingMiddleware(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Test the wrapped handler
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(w, req)
 
@@ -144,13 +144,13 @@ func TestTracingIntegration(t *testing.T) {
 	handler := MustMiddleware(tracer, WithExcludePaths("/health"))(mux)
 
 	// Test normal route
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// Test health route (should be excluded from tracing)
-	req = httptest.NewRequest("GET", "/health", nil)
+	req = httptest.NewRequest(http.MethodGet, "/health", nil)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -205,7 +205,7 @@ func TestSamplingRate(t *testing.T) {
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -227,7 +227,7 @@ func TestSamplingRate(t *testing.T) {
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -251,7 +251,7 @@ func TestSamplingRate(t *testing.T) {
 		// Make multiple requests to verify sampling doesn't cause issues
 		const numRequests = 100
 		for i := 0; i < numRequests; i++ {
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code)
@@ -277,7 +277,7 @@ func TestParameterRecording(t *testing.T) {
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
-		req := httptest.NewRequest("GET", "/test?foo=bar&baz=qux", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test?foo=bar&baz=qux", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -297,7 +297,7 @@ func TestParameterRecording(t *testing.T) {
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
-		req := httptest.NewRequest("GET", "/test?foo=bar", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test?foo=bar", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -404,7 +404,7 @@ func TestErrorStatusCodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest("GET", tt.path, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
@@ -435,7 +435,7 @@ func TestConcurrentResponseWriter(t *testing.T) {
 	for i := 0; i < numRequests; i++ {
 		go func() {
 			defer wg.Done()
-			req := httptest.NewRequest("GET", "/concurrent", nil)
+			req := httptest.NewRequest(http.MethodGet, "/concurrent", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code)
@@ -470,7 +470,7 @@ func TestContextTracingHelpers(t *testing.T) {
 		w.Write([]byte(fmt.Sprintf(`{"trace_id":"%s","span_id":"%s"}`, traceID, spanID)))
 	}))
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -736,7 +736,7 @@ func TestDisabledRecording(t *testing.T) {
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
-		req := httptest.NewRequest("GET", "/test?secret=password&token=abc123", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test?secret=password&token=abc123", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -756,7 +756,7 @@ func TestDisabledRecording(t *testing.T) {
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("X-Request-ID", "test-123")
 		req.Header.Set("User-Agent", "test-agent")
 		w := httptest.NewRecorder()
@@ -786,7 +786,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 		middleware := MustMiddleware(tracer)
 		wrappedHandler := middleware(handler)
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(w, req)
 
@@ -808,7 +808,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 		middleware := MustMiddleware(tracer, WithExcludePaths("/health"))
 		wrappedHandler := middleware(handler)
 
-		req := httptest.NewRequest("GET", "/health", nil)
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 		w := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(w, req)
 
@@ -827,7 +827,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 		middleware := MustMiddleware(tracer)
 		wrappedHandler := middleware(handler)
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(w, req)
 
@@ -1043,7 +1043,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -1106,7 +1106,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -1140,7 +1140,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -1163,7 +1163,7 @@ func TestGranularParameterRecording(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		req := httptest.NewRequest("GET", "/test?user_id=123&page=5&token=secret", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test?user_id=123&page=5&token=secret", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -1180,7 +1180,7 @@ func TestGranularParameterRecording(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		req := httptest.NewRequest("GET", "/test?user_id=123&password=secret&token=abc", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test?user_id=123&password=secret&token=abc", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -1258,7 +1258,7 @@ func TestContextCancellationInStartRequestSpan(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		ctx, span := tracer.StartRequestSpan(ctx, req, "/test", false)
 
 		require.Error(t, ctx.Err())
@@ -1274,7 +1274,7 @@ func TestContextCancellationInStartRequestSpan(t *testing.T) {
 
 		time.Sleep(10 * time.Millisecond)
 
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		ctx, span := tracer.StartRequestSpan(ctx, req, "/test", false)
 
 		require.Error(t, ctx.Err())
@@ -1300,7 +1300,7 @@ func TestExcludePathPattern(t *testing.T) {
 
 		// Test pattern matching - make requests and verify they work
 		for _, path := range []string{"/internal/api", "/health", "/ready", "/api/users"} {
-			req := httptest.NewRequest("GET", path, nil)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code)
@@ -1367,7 +1367,7 @@ func TestExcludePrefixes(t *testing.T) {
 		}))
 
 		for _, path := range []string{"/debug/pprof", "/debug/vars", "/api/users"} {
-			req := httptest.NewRequest("GET", path, nil)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code)
@@ -1387,7 +1387,7 @@ func TestExcludePrefixes(t *testing.T) {
 		}))
 
 		for _, path := range []string{"/debug/pprof", "/internal/status", "/admin/users", "/api/users"} {
-			req := httptest.NewRequest("GET", path, nil)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code)

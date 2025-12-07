@@ -291,7 +291,7 @@ func BenchmarkMiddlewareWithExclusions(b *testing.B) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		req := httptest.NewRequest("GET", "/health", nil)
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -305,7 +305,7 @@ func BenchmarkMiddlewareWithExclusions(b *testing.B) {
 // BenchmarkSamplingDecision measures sampling decision overhead.
 func BenchmarkSamplingDecision(b *testing.B) {
 	tracer := MustNew(WithSampleRate(0.5))
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	ctx := b.Context()
 
 	b.ResetTimer()
