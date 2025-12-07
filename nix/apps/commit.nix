@@ -185,10 +185,6 @@ $mod,$staged,$unstaged,$untracked"
         # Generate commit message using cursor-agent
         $gum style --foreground ${lib.colors.info} "Generating commit message with AI..."
 
-        # #region agent log
-        debug_log="/home/mohammad/Workspace/github.com/rivaas-dev/rivaas/.cursor/debug.log"
-        # #endregion agent log
-
         if [ "$file_count" -gt 5 ]; then
           # Complex change: generate title + body
           raw_output=$(cursor-agent -p --output-format text \
@@ -215,37 +211,18 @@ RULES:
 Diff:
 $diff_content" 2>&1)
 
-          # #region agent log
-          printf '{"hypothesisId":"B","location":"complex:raw_output","message":"cursor-agent raw output","data":{"length":%d,"preview":"%s"},"timestamp":%s}\n' \
-            "''${#raw_output}" "$(echo "$raw_output" | head -c 300 | tr '\n"' '  ')" "$(date +%s)000" >> "$debug_log"
-          # #endregion agent log
-
           # Strip any markdown code fences the AI might have added
           raw_output=$(echo "$raw_output" | sed '/^```/d')
-
-          # #region agent log
-          printf '{"hypothesisId":"A","location":"complex:after_strip","message":"after code fence strip","data":{"length":%d,"preview":"%s"},"timestamp":%s}\n' \
-            "''${#raw_output}" "$(echo "$raw_output" | head -c 300 | tr '\n"' '  ')" "$(date +%s)000" >> "$debug_log"
-          # #endregion agent log
 
           # Extract title (first non-empty line) and body (rest)
           ai_title=$(echo "$raw_output" | sed '/^[[:space:]]*$/d' | head -1)
           ai_body=$(echo "$raw_output" | sed '1,/^[[:space:]]*$/d' | sed '/^[[:space:]]*$/d')
-
-          # #region agent log
-          printf '{"hypothesisId":"C","location":"complex:extracted","message":"extracted title and body","data":{"title":"%s","bodyLen":%d},"timestamp":%s}\n' \
-            "$(echo "$ai_title" | tr '\n"' '  ')" "''${#ai_body}" "$(date +%s)000" >> "$debug_log"
-          # #endregion agent log
 
           # Fallback if cursor-agent failed
           if [ -z "$ai_title" ]; then
             ai_title="update $mod"
             ai_body=""
             $gum style --foreground ${lib.colors.accent4} "  (AI generation failed, using default)"
-            # #region agent log
-            printf '{"hypothesisId":"C","location":"complex:fallback","message":"fallback triggered","data":{"reason":"empty_title"},"timestamp":%s}\n' \
-              "$(date +%s)000" >> "$debug_log"
-            # #endregion agent log
           fi
 
           # Clean up the title
@@ -261,6 +238,10 @@ $ai_body"
           $gum style --foreground ${lib.colors.info} "Edit commit message (Ctrl+D to save, Esc to cancel):"
           message=$($gum write --width 80 --height 10 --value "$ai_message_with_prefix")
         else
+          # #region agent log
+          debug_log="/home/mohammad/Workspace/github.com/rivaas-dev/rivaas/.cursor/debug.log"
+          # #endregion agent log
+
           # Simple change: title only
           raw_output=$(cursor-agent -p --output-format text \
             "Write a git commit message title (max 50 chars).
@@ -277,13 +258,27 @@ RULES:
 Diff:
 $diff_content" 2>&1)
 
+          # #region agent log
+          printf '{"hypothesisId":"F","location":"simple:raw_output","message":"cursor-agent raw output","data":{"length":%d,"preview":"%s"},"timestamp":%s}\n' \
+            "''${#raw_output}" "$(echo "$raw_output" | head -c 300 | tr '\n"' '  ')" "$(date +%s)000" >> "$debug_log"
+          # #endregion agent log
+
           # Strip any markdown code fences and get first non-empty line
-          ai_message=$(echo "$raw_output" | sed '/^\`\`\`/d' | sed '/^[[:space:]]*$/d' | head -1)
+          ai_message=$(echo "$raw_output" | sed '/^```/d' | sed '/^[[:space:]]*$/d' | head -1)
+
+          # #region agent log
+          printf '{"hypothesisId":"G","location":"simple:ai_message","message":"extracted message","data":{"value":"%s","isEmpty":%s},"timestamp":%s}\n' \
+            "$(echo "$ai_message" | tr '\n"' '  ')" "$([ -z "$ai_message" ] && echo 'true' || echo 'false')" "$(date +%s)000" >> "$debug_log"
+          # #endregion agent log
 
           # Fallback if cursor-agent failed
           if [ -z "$ai_message" ]; then
             ai_message="update $mod"
             $gum style --foreground ${lib.colors.accent4} "  (AI generation failed, using default)"
+            # #region agent log
+            printf '{"hypothesisId":"G","location":"simple:fallback","message":"fallback triggered","data":{"reason":"empty"},"timestamp":%s}\n' \
+              "$(date +%s)000" >> "$debug_log"
+            # #endregion agent log
           fi
 
           # Clean up the message (remove quotes, trim whitespace)

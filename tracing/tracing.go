@@ -27,8 +27,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Note: Option type and functional options are defined in options.go
