@@ -442,7 +442,7 @@ func TestMetricsCreationErrorHandling(t *testing.T) {
 	// Create metrics up to the limit
 	for i := range 5 {
 		err := recorder.IncrementCounter(ctx, fmt.Sprintf("counter_%d", i))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	// Verify we're at the limit
@@ -451,7 +451,7 @@ func TestMetricsCreationErrorHandling(t *testing.T) {
 
 	// Try to create one more (should fail with error)
 	err := recorder.IncrementCounter(ctx, "counter_overflow")
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Should still be at limit
 	totalMetrics = recorder.CustomMetricCount()
@@ -464,7 +464,7 @@ func TestMetricsCreationErrorHandling(t *testing.T) {
 
 // TestMetricNameValidation tests metric name validation including reserved prefixes
 //
-//nolint:tparallel // Subtests share recorder state; parallel execution would cause race conditions
+//nolint:paralleltest,tparallel // Subtests share recorder state; parallel execution would cause race conditions
 func TestMetricNameValidation(t *testing.T) {
 	t.Parallel()
 

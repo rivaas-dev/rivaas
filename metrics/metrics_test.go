@@ -135,13 +135,13 @@ func TestCustomMetrics(t *testing.T) {
 
 	// Test custom metrics recording - now returns errors
 	err := recorder.RecordHistogram(ctx, "test_histogram", 1.5)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = recorder.IncrementCounter(ctx, "test_counter")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = recorder.SetGauge(ctx, "test_gauge", 42.0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.True(t, recorder.IsEnabled())
 }
@@ -426,7 +426,7 @@ func TestShutdown(t *testing.T) {
 
 		// Third shutdown for good measure
 		err = recorder.Shutdown(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Verify shutdown flag is still true
 		assert.True(t, recorder.isShuttingDown.Load())

@@ -114,14 +114,19 @@ func WaitForMetricsServer(tb testing.TB, address string, timeout time.Duration) 
 	tb.Helper()
 
 	deadline := time.Now().Add(timeout)
+	dialer := &net.Dialer{Timeout: 100 * time.Millisecond}
 	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", address, 100*time.Millisecond)
+		ctx, cancel := context.WithTimeout(tb.Context(), 100*time.Millisecond)
+		conn, err := dialer.DialContext(ctx, "tcp", address)
+		cancel()
 		if err == nil {
 			conn.Close() //nolint:errcheck // Best-effort close, error not critical for test helper
+
 			return nil
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+
 	return fmt.Errorf("%w after %v", ErrServerNotReady, timeout)
 }
 

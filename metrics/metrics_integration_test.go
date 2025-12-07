@@ -357,7 +357,9 @@ func TestIntegration_PrometheusEndpoint(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Make HTTP request to actual metrics server
-	resp, err := http.Get("http://" + serverAddr + "/metrics")
+	metricsReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+serverAddr+"/metrics", nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(metricsReq)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		resp.Body.Close() //nolint:errcheck // Best-effort close in test cleanup

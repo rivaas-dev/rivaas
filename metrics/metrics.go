@@ -393,34 +393,45 @@ func (r *Recorder) Shutdown(ctx context.Context) error {
 
 	// Flush and shutdown the meter provider if it supports it and is NOT a custom provider
 	// User-provided providers should be managed by the user
-	if !r.customMeterProvider {
-		if mp, ok := r.meterProvider.(*sdkmetric.MeterProvider); ok {
-			// Explicitly flush pending metrics before shutdown
-			// This is especially important for push-based providers (OTLP, stdout)
-			// to ensure all buffered data is exported before the provider is closed
-			r.emitDebug("Flushing pending metrics")
-			if err := mp.ForceFlush(ctx); err != nil {
-				// Log warning but continue with shutdown - flush failure shouldn't block shutdown
-				r.emitWarning("metrics flush warning", "error", err)
-			} else {
-				r.emitDebug("Metrics flushed successfully")
-			}
-
-			r.emitDebug("Shutting down meter provider")
-			if err := mp.Shutdown(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("meter provider shutdown: %w", err))
-			} else {
-				r.emitDebug("Meter provider shut down successfully")
-			}
-		}
-	} else {
+	if r.customMeterProvider {
 		r.emitDebug("Skipping flush and shutdown of custom meter provider (managed by user)")
+	} else if err := r.shutdownSDKMeterProvider(ctx); err != nil {
+		errs = append(errs, err)
 	}
 
 	// Return combined errors if any
 	if len(errs) > 0 {
 		return fmt.Errorf("shutdown errors: %v", errs)
 	}
+
+	return nil
+}
+
+// shutdownSDKMeterProvider flushes and shuts down the SDK meter provider.
+// Returns an error only if shutdown fails; flush failures are logged as warnings.
+func (r *Recorder) shutdownSDKMeterProvider(ctx context.Context) error {
+	mp, ok := r.meterProvider.(*sdkmetric.MeterProvider)
+	if !ok {
+		return nil
+	}
+
+	// Explicitly flush pending metrics before shutdown
+	// This is especially important for push-based providers (OTLP, stdout)
+	// to ensure all buffered data is exported before the provider is closed
+	r.emitDebug("Flushing pending metrics")
+	if err := mp.ForceFlush(ctx); err != nil {
+		// Log warning but continue with shutdown - flush failure shouldn't block shutdown
+		r.emitWarning("metrics flush warning", "error", err)
+	} else {
+		r.emitDebug("Metrics flushed successfully")
+	}
+
+	r.emitDebug("Shutting down meter provider")
+	if err := mp.Shutdown(ctx); err != nil {
+		return fmt.Errorf("meter provider shutdown: %w", err)
+	}
+
+	r.emitDebug("Meter provider shut down successfully")
 
 	return nil
 }

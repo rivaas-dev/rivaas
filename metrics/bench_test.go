@@ -654,8 +654,9 @@ func BenchmarkCustomMetricsCreation(b *testing.B) {
 
 // TestRecordHistogram_ZeroAlloc verifies that recording to a cached histogram
 // has minimal allocations.
+//
+//nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestRecordHistogram_ZeroAlloc(t *testing.T) {
-	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 	recorder := MustNew(
 		WithStdout(),
 		WithServiceName("alloc-test"),
@@ -680,8 +681,9 @@ func TestRecordHistogram_ZeroAlloc(t *testing.T) {
 
 // TestIncrementCounter_ZeroAlloc verifies that incrementing a cached counter
 // has minimal allocations.
+//
+//nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestIncrementCounter_ZeroAlloc(t *testing.T) {
-	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 	recorder := MustNew(
 		WithStdout(),
 		WithServiceName("alloc-test"),
@@ -705,8 +707,9 @@ func TestIncrementCounter_ZeroAlloc(t *testing.T) {
 
 // TestSetGauge_ZeroAlloc verifies that setting a cached gauge
 // has minimal allocations.
+//
+//nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestSetGauge_ZeroAlloc(t *testing.T) {
-	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 	recorder := MustNew(
 		WithStdout(),
 		WithServiceName("alloc-test"),
@@ -729,8 +732,9 @@ func TestSetGauge_ZeroAlloc(t *testing.T) {
 }
 
 // TestPathFilter_ZeroAlloc verifies that path filtering has zero allocations.
+//
+//nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestPathFilter_ZeroAlloc(t *testing.T) {
-	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 	pf := newPathFilter()
 	pf.addPaths("/health", "/metrics", "/ready")
 	pf.addPrefixes("/debug/", "/internal/")
@@ -762,8 +766,9 @@ func TestPathFilter_ZeroAlloc(t *testing.T) {
 
 // TestValidateMetricName_ZeroAlloc verifies that metric name validation
 // has minimal allocations for valid names.
+//
+//nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestValidateMetricName_ZeroAlloc(t *testing.T) {
-	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 	validName := "my_valid_metric_name"
 
 	allocs := testing.AllocsPerRun(100, func() {
@@ -777,8 +782,9 @@ func TestValidateMetricName_ZeroAlloc(t *testing.T) {
 }
 
 // TestStart_Allocations verifies the allocation count for Start operation.
+//
+//nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestStart_Allocations(t *testing.T) {
-	// Note: Cannot use t.Parallel() with testing.AllocsPerRun
 	recorder := MustNew(
 		WithStdout(),
 		WithServiceName("alloc-test"),

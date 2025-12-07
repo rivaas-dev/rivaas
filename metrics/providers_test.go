@@ -131,14 +131,10 @@ func TestProviderInitialization(t *testing.T) {
 }
 
 // TestPortDiscovery tests port auto-discovery behavior
+//
+//nolint:paralleltest // Cannot use t.Parallel() - test binds to specific ports
 func TestPortDiscovery(t *testing.T) {
-	// Note: Cannot use t.Parallel() here because this test binds to specific ports
-	// and would conflict with other tests running in parallel that might use the same ports.
-
 	t.Run("StrictPortFailsOnUnavailable", func(t *testing.T) {
-		// Note: Cannot use t.Parallel() here because this test binds to a specific port
-		// and would conflict with other tests running in parallel that might use the same port.
-
 		// First, occupy a port
 		config1, err := New(
 			WithPrometheus(":19307", "/metrics"),
@@ -173,9 +169,6 @@ func TestPortDiscovery(t *testing.T) {
 	})
 
 	t.Run("FlexiblePortFindsAlternative", func(t *testing.T) {
-		// Note: Cannot use t.Parallel() here because this test binds to a specific port
-		// and would conflict with other tests running in parallel that might use the same port.
-
 		// First, occupy a port
 		config1, err := New(
 			WithPrometheus(":19308", "/metrics"),
@@ -319,7 +312,7 @@ func TestShutdownEdgeCases(t *testing.T) {
 
 // TestMetricNameValidationEdgeCases tests additional validation scenarios
 //
-//nolint:tparallel // Subtests share recorder state; parallel execution would cause race conditions
+//nolint:paralleltest,tparallel // Subtests share recorder state; parallel execution would cause race conditions
 func TestMetricNameValidationEdgeCases(t *testing.T) {
 	t.Parallel()
 

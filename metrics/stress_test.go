@@ -30,6 +30,8 @@ import (
 
 // TestStress_RapidCreateShutdownCycles tests rapid creation and shutdown cycles
 // to ensure no resource leaks or race conditions.
+//
+//nolint:paralleltest // Subtests run sequentially to test rapid create/shutdown cycles
 func TestStress_RapidCreateShutdownCycles(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping stress test in short mode")
@@ -405,11 +407,12 @@ func TestStress_RequestMetricsLifecycle(t *testing.T) {
 
 // TestStress_PrometheusServerStability tests Prometheus server stability
 // under connection stress.
+//
+//nolint:paralleltest // Cannot use t.Parallel() - test binds to a specific port
 func TestStress_PrometheusServerStability(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping stress test in short mode")
 	}
-	// Cannot use t.Parallel() because this test binds to a specific port
 
 	recorder := MustNew(
 		WithPrometheus(":0", "/metrics"), // Use port 0 to get random available port
