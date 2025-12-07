@@ -66,8 +66,8 @@ func TestPrintRoutes_Output(t *testing.T) {
 	assert.Contains(t, output, "Method")
 	assert.Contains(t, output, "Path")
 	assert.Contains(t, output, "Handler")
-	assert.Contains(t, output, "GET")
-	assert.Contains(t, output, "POST")
+	assert.Contains(t, output, http.MethodGet)
+	assert.Contains(t, output, http.MethodPost)
 	assert.Contains(t, output, "/")
 	assert.Contains(t, output, "/users")
 }
@@ -103,7 +103,7 @@ func TestRenderRoutesTable_WithRoutes(t *testing.T) {
 	app.renderRoutesTable(&buf, 120)
 
 	output := buf.String()
-	assert.Contains(t, output, "GET")
+	assert.Contains(t, output, http.MethodGet)
 	assert.Contains(t, output, "/test")
 	assert.Contains(t, output, "Method")
 	assert.Contains(t, output, "Path")

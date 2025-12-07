@@ -76,7 +76,7 @@ func Example_testing() {
 		}
 	})
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	resp, err := a.Test(req)
 	if err != nil {
 		log.Fatal(err)

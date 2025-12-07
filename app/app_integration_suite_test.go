@@ -178,9 +178,9 @@ var _ = Describe("App Integration", func() {
 					Expect(rec.Body.String()).To(ContainSubstring(expectedBody))
 				}
 			},
-			Entry("GET /", "GET", "/", 200, "home"),
-			Entry("GET /users/:id", "GET", "/users/123", 200, "user-123"),
-			Entry("POST /users", "POST", "/users", 201, "created"),
+			Entry("GET /", http.MethodGet, "/", http.StatusOK, "home"),
+			Entry("GET /users/:id", http.MethodGet, "/users/123", http.StatusOK, "user-123"),
+			Entry("POST /users", http.MethodPost, "/users", http.StatusCreated, "created"),
 		)
 	})
 
@@ -285,13 +285,13 @@ var _ = Describe("App Integration", func() {
 				}
 			})
 
-			req := httptest.NewRequest("GET", "/api/v1/users", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 			rec := httptest.NewRecorder()
 			a.Router().ServeHTTP(rec, req)
 			Expect(rec.Code).To(Equal(http.StatusOK))
 			Expect(rec.Body.String()).To(ContainSubstring("v1-users"))
 
-			req = httptest.NewRequest("GET", "/api/v2/users", nil)
+			req = httptest.NewRequest(http.MethodGet, "/api/v2/users", nil)
 			rec = httptest.NewRecorder()
 			a.Router().ServeHTTP(rec, req)
 			Expect(rec.Code).To(Equal(http.StatusOK))
