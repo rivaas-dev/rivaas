@@ -41,10 +41,6 @@ var (
 
 	// ErrInvalidType is returned when a value has an unexpected type.
 	ErrInvalidType = errors.New("invalid type")
-
-	// ErrCannotRegisterValidators is returned when attempting to register validators
-	// after the default validator has been initialized.
-	ErrCannotRegisterValidators = errors.New("cannot register validators after initialization")
 )
 
 // FieldError represents a single validation error for a specific field.

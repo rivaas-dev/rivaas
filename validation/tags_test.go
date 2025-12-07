@@ -18,7 +18,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -308,40 +307,6 @@ func TestValidateWithTags_CustomValidators(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestRegisterTag_Freeze(t *testing.T) {
-	t.Parallel()
-	// Note: This test may run after other tests that have already frozen validators.
-	// We test both scenarios: if not frozen yet, test the freeze behavior.
-	// If already frozen, just verify that registration fails.
-
-	// Try first registration - may succeed if validators not frozen yet
-	err := RegisterTag("test_tag_freeze", func(_ validator.FieldLevel) bool {
-		return true
-	})
-	if err != nil {
-		// Validators already frozen from previous tests - this is expected
-		// Just verify that registration fails when frozen
-		require.ErrorIs(t, err, ErrCannotRegisterValidators,
-			"expected ErrCannotRegisterValidators when validators are frozen")
-		return // Test passed - registration correctly fails when frozen
-	}
-
-	// First registration succeeded - now trigger freeze
-	type TestStruct struct {
-		Field string `json:"field" validate:"required"`
-	}
-	//nolint:errcheck // Test setup - calling Validate to trigger freeze mechanism, result doesn't matter
-	_ = Validate(t.Context(), &TestStruct{Field: "test"}, WithStrategy(StrategyTags))
-
-	// Second registration should fail after freeze
-	err = RegisterTag("test_tag_freeze2", func(_ validator.FieldLevel) bool {
-		return true
-	})
-	require.Error(t, err, "second registration should fail after freeze")
-	assert.Equal(t, ErrCannotRegisterValidators.Error(), err.Error(),
-		"expected ErrCannotRegisterValidators")
 }
 
 func TestPathResolution(t *testing.T) {

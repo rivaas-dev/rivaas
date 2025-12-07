@@ -187,27 +187,6 @@ func (v *Validator) registerBuiltinValidators() error {
 	return nil
 }
 
-// RegisterTag registers a custom validation tag on this [Validator] instance.
-//
-// Note: For thread safety, prefer registering tags via [WithCustomTag] option
-// during construction. This method should only be called during initialization
-// before concurrent use.
-//
-// Example:
-//
-//	validator := validation.MustNew()
-//	validator.RegisterTag("phone", func(fl validator.FieldLevel) bool {
-//	    return phoneRegex.MatchString(fl.Field().String())
-//	})
-//
-//	type User struct {
-//	    Phone string `validate:"phone"`
-//	}
-func (v *Validator) RegisterTag(name string, fn validator.Func) error {
-	v.initTagValidator()
-	return v.tagValidator.RegisterValidation(name, fn)
-}
-
 // typeImplementsValidator checks if a type implements [ValidatorInterface].
 func (v *Validator) typeImplementsValidator(t reflect.Type) bool {
 	if cached, ok := v.validatorTypeCache.Load(t); ok {

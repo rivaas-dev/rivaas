@@ -19,68 +19,20 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
-	"sync/atomic"
-
-	"github.com/go-playground/validator/v10"
 )
 
 // Package-level validator state for convenience functions [Validate] and [ValidatePartial].
 var (
 	defaultValidator     *Validator
 	defaultValidatorOnce sync.Once
-	defaultValidatorMu   sync.Mutex
-	defaultValidatorInit atomic.Bool
 )
 
 // getDefaultValidator returns the default [Validator], creating it if necessary.
-// This also marks the validator as "initialized", preventing further tag registrations.
 func getDefaultValidator() *Validator {
 	defaultValidatorOnce.Do(func() {
 		defaultValidator = MustNew()
 	})
-	// Mark as initialized - must be outside sync.Once to handle the case where
-	// RegisterTag() triggered the sync.Once first (which doesn't set this flag).
-	defaultValidatorInit.Store(true)
 	return defaultValidator
-}
-
-// RegisterTag registers a custom validation tag with the default [Validator].
-//
-// IMPORTANT: RegisterTag must be called before any validation is performed
-// (i.e., before the first call to [Validate] or [ValidatePartial]).
-//
-// For new code, prefer using [WithCustomTag] when creating a [Validator]:
-//
-//	validator := validation.MustNew(
-//	    validation.WithCustomTag("phone", phoneValidator),
-//	)
-//
-// Example of package-level registration (must be in init() or before main()):
-//
-//	func init() {
-//	    validation.RegisterTag("phone", func(fl validator.FieldLevel) bool {
-//	        return phoneRegex.MatchString(fl.Field().String())
-//	    })
-//	}
-//
-// Errors:
-//   - [ErrCannotRegisterValidators]: returned if called after validation has been performed
-func RegisterTag(name string, fn validator.Func) error {
-	defaultValidatorMu.Lock()
-	defer defaultValidatorMu.Unlock()
-
-	// If validation has already run, we can't register more tags
-	if defaultValidatorInit.Load() {
-		return ErrCannotRegisterValidators
-	}
-
-	// Initialize the default validator if not yet done (without setting init flag)
-	defaultValidatorOnce.Do(func() {
-		defaultValidator = MustNew()
-	})
-
-	// Register the tag
-	return defaultValidator.RegisterTag(name, fn)
 }
 
 // Validate validates a value using the default [Validator].
