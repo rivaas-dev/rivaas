@@ -487,7 +487,7 @@ func BenchmarkNewTestLogger(b *testing.B) {
 
 func BenchmarkParseLogEntries(b *testing.B) {
 	logger, buf := NewTestLogger()
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		logger.Info("test message", "iteration", i, "timestamp", time.Now())
 	}
 

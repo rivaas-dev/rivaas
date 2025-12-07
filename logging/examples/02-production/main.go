@@ -90,7 +90,7 @@ func demonstrateBatchLogging() {
 	defer batch.Close() // Ensures final flush on shutdown
 
 	// Simulate high-volume event processing
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		batch.Info("event processed",
 			"event_id", fmt.Sprintf("evt-%05d", i),
 			"partition", i%4,

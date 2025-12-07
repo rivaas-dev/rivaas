@@ -229,7 +229,7 @@ func ExampleWithSampling() {
 	defer logger.Shutdown(context.Background())
 
 	// In high-traffic scenarios, this will sample logs
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		logger.Info("request processed", "request_id", i)
 	}
 	// Output is non-deterministic (sampling behavior varies)

@@ -97,10 +97,10 @@ func TestIntegration_ConcurrentLogging(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
 
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < messagesPerGoroutine; j++ {
+			for j := range messagesPerGoroutine {
 				logger.Info("concurrent message",
 					"goroutine_id", id,
 					"message_id", j,
@@ -137,7 +137,7 @@ func TestIntegration_BatchLoggerWithFlush(t *testing.T) {
 	bl := logging.NewBatchLogger(logger, 10, 100*time.Millisecond)
 
 	// Add fewer messages than batch size
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		bl.Info("batch message", "i", i)
 	}
 
@@ -170,7 +170,7 @@ func TestIntegration_SamplingUnderLoad(t *testing.T) {
 	t.Cleanup(func() { logger.Shutdown(context.Background()) })
 
 	// Log 100 INFO messages
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		logger.Info("sampled message", "i", i)
 	}
 
@@ -202,7 +202,7 @@ func TestIntegration_ErrorsNeverSampled(t *testing.T) {
 
 	// Log many errors - they should all appear
 	const errorCount = 50
-	for i := 0; i < errorCount; i++ {
+	for i := range errorCount {
 		logger.Error("error message", "i", i)
 	}
 

@@ -256,7 +256,7 @@ func TestLogger_Sampling(t *testing.T) {
 	)
 
 	// Log 50 messages
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		logger.Info("sampled message", "iteration", i)
 	}
 
@@ -287,7 +287,7 @@ func TestLogger_Sampling_ErrorsAlwaysLogged(t *testing.T) {
 	)
 
 	// Log many info messages and errors
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		logger.Info("info", "i", i)
 		logger.Error("error", "i", i)
 	}
@@ -435,7 +435,7 @@ func TestBatchLogger(t *testing.T) {
 	t.Cleanup(func() { bl.Close() })
 
 	// Add entries
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		bl.Info("message", "i", i)
 	}
 
@@ -752,16 +752,16 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 	workers := 10
 	iterations := 100
 
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		go func(id int) {
-			for j := 0; j < iterations; j++ {
+			for j := range iterations {
 				logger.Info("concurrent message", "worker", id, "iteration", j)
 			}
 			done <- struct{}{}
 		}(i)
 	}
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		<-done
 	}
 
@@ -893,7 +893,7 @@ func TestLogger_Sampling_EdgeCases(t *testing.T) {
 		WithSampling(SamplingConfig{Initial: 0, Thereafter: 0}),
 	)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		logger.Info("message", "i", i)
 	}
 
