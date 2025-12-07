@@ -17,6 +17,7 @@ package validation_test
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 
@@ -705,14 +706,7 @@ func TestIntegration_ComputePresenceNestedJSON(t *testing.T) {
 			if tt.expectedLeaves != nil {
 				leaves := pm.LeafPaths()
 				for _, expected := range tt.expectedLeaves {
-					found := false
-					for _, leaf := range leaves {
-						if leaf == expected {
-							found = true
-							break
-						}
-					}
-					assert.True(t, found, "expected leaf %q not found", expected)
+					assert.True(t, slices.Contains(leaves, expected), "expected leaf %q not found", expected)
 				}
 			}
 
