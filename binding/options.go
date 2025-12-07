@@ -87,7 +87,7 @@ type Validator interface {
 type Events struct {
 	// FieldBound is called after successfully binding a field.
 	// name: struct field name, fromTag: source tag (query, json, etc.)
-	FieldBound func(name string, fromTag string)
+	FieldBound func(name, fromTag string)
 
 	// UnknownField is called when an unknown field is encountered.
 	// Only triggered when UnknownFieldPolicy is UnknownWarn or UnknownError.

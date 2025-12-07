@@ -40,7 +40,7 @@ func newJSONFieldTrie(t reflect.Type, tag string) *jsonFieldTrie {
 // buildTrie recursively populates the trie with allowed field paths.
 // It processes struct fields and marks nested structs for recursive processing,
 // while marking terminal fields as leaves.
-func buildTrie(node *jsonFieldTrie, t reflect.Type, tag string, path string) {
+func buildTrie(node *jsonFieldTrie, t reflect.Type, tag, path string) {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}

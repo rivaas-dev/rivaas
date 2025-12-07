@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"log"
 
-	mp "github.com/vmihailenco/msgpack/v5"
-
 	"rivaas.dev/binding/msgpack"
+
+	mp "github.com/vmihailenco/msgpack/v5"
 )
 
 // ExampleMsgPack demonstrates basic MessagePack binding.

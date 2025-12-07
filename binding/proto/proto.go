@@ -36,6 +36,7 @@ import (
 	"io"
 
 	"google.golang.org/protobuf/proto"
+
 	"rivaas.dev/binding"
 )
 

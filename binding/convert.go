@@ -343,7 +343,7 @@ func convertToType(value string, targetType reflect.Type, opts *config) (reflect
 
 // validateEnum validates that a value is in the allowed enum list.
 // Empty values skip validation. The enumValues string is comma-separated.
-func validateEnum(value string, enumValues string) error {
+func validateEnum(value, enumValues string) error {
 	if value == "" {
 		return nil // Empty values skip enum validation
 	}
@@ -601,8 +601,8 @@ func extractBracketKey(fullKey, prefix string) string {
 // It creates a prefix getter that filters values by the prefix (e.g., "address.")
 // and recursively binds the nested struct. Query syntax: ?address.street=Main&address.city=NYC
 func setNestedStructWithDepth(field reflect.Value, getter ValueGetter, prefix string,
-	tagName string, opts *config, depth int) error {
-
+	tagName string, opts *config, depth int,
+) error {
 	// Create nested value getter that filters by prefix
 	nestedGetter := &prefixGetter{
 		inner:  getter,

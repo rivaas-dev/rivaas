@@ -23,9 +23,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	mp "github.com/vmihailenco/msgpack/v5"
 
 	"rivaas.dev/binding/msgpack"
+
+	mp "github.com/vmihailenco/msgpack/v5"
 )
 
 // TestIntegration_MsgPackBodyBinding tests MessagePack body binding from HTTP requests

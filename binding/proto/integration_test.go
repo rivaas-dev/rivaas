@@ -23,10 +23,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	goproto "google.golang.org/protobuf/proto"
 
 	"rivaas.dev/binding/proto"
 	"rivaas.dev/binding/proto/testdata"
+
+	goproto "google.golang.org/protobuf/proto"
 )
 
 // TestIntegration_ProtoBodyBinding tests Protocol Buffers body binding from HTTP requests

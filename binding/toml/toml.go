@@ -37,6 +37,7 @@ import (
 	"io"
 
 	"github.com/BurntSushi/toml"
+
 	"rivaas.dev/binding"
 )
 

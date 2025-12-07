@@ -130,7 +130,6 @@ func ExampleBind() {
 		binding.FromPath(pathParams),
 		binding.FromQuery(query),
 	)
-
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -156,7 +155,6 @@ func ExampleBindTo() {
 		binding.FromPath(pathParams),
 		binding.FromQuery(query),
 	)
-
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -202,7 +200,6 @@ func ExampleQuery_withOptions() {
 	params, err := binding.Query[Params](values,
 		binding.WithSliceMode(binding.SliceCSV),
 	)
-
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return

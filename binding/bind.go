@@ -449,8 +449,8 @@ func bindMultiSource(out any, cfg *config) error {
 // It handles maps, nested structs, slices, and single-value fields, applying
 // defaults, validating required fields, and checking enum constraints.
 func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
-	info *structInfo, cfg *config, depth int) error {
-
+	info *structInfo, cfg *config, depth int,
+) error {
 	// Enforce maximum nesting depth
 	if depth > cfg.maxDepth {
 		cfg.trackError()

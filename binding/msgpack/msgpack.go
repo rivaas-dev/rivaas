@@ -36,6 +36,7 @@ import (
 	"io"
 
 	"github.com/vmihailenco/msgpack/v5"
+
 	"rivaas.dev/binding"
 )
 

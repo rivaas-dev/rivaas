@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"log"
 
-	goproto "google.golang.org/protobuf/proto"
-
 	"rivaas.dev/binding/proto"
 	"rivaas.dev/binding/proto/testdata"
+
+	goproto "google.golang.org/protobuf/proto"
 )
 
 // ExampleProto demonstrates basic Protocol Buffers binding.

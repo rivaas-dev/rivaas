@@ -37,6 +37,7 @@ import (
 	"io"
 
 	"gopkg.in/yaml.v3"
+
 	"rivaas.dev/binding"
 )
 
