@@ -371,9 +371,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 
 	// Add middleware concurrently (also before serving)
 	for range operations {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
@@ -384,7 +382,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 					c.Next()
 				})
 			}()
-		}()
+		})
 	}
 
 	// Wait for all registration to complete
@@ -392,9 +390,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 
 	// Phase 2: Handle requests concurrently (after all routes registered)
 	for range operations * 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			defer func() {
 				if r := recover(); r != nil {
 					requestErrors.Add(1)
@@ -403,7 +399,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/existing", nil)
 			w := httptest.NewRecorder()
 			app.Router().ServeHTTP(w, req)
-		}()
+		})
 	}
 
 	wg.Wait()
