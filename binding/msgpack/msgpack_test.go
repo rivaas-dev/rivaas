@@ -71,6 +71,7 @@ func TestMsgPack_GenericFunction(t *testing.T) {
 	assert.True(t, result.Enabled)
 }
 
+//nolint:paralleltest // Simple decoding test
 func TestMsgPackTo_NonGeneric(t *testing.T) {
 	user := MsgPackUser{
 		Name:  "Alice",
@@ -134,6 +135,7 @@ func TestMsgPack_InvalidData(t *testing.T) {
 	require.Error(t, err)
 }
 
+//nolint:paralleltest // Simple JSON tag test
 func TestMsgPack_WithJSONTag(t *testing.T) {
 	type JSONTaggedUser struct {
 		Name  string `json:"name"`

@@ -348,7 +348,7 @@ func TestIntegration_ProtoWithValidator(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "Adult", user.Name)
+		assert.Equal(t, "Adult", user.GetName())
 		w.WriteHeader(http.StatusOK)
 	})
 

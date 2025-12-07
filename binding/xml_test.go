@@ -35,6 +35,7 @@ type XMLConfig struct {
 }
 
 func TestXML_BasicBinding(t *testing.T) {
+	t.Parallel()
 	body := []byte(`<XMLUser><name>John</name><email>john@example.com</email><age>30</age></XMLUser>`)
 
 	user, err := XML[XMLUser](body)
@@ -45,6 +46,7 @@ func TestXML_BasicBinding(t *testing.T) {
 }
 
 func TestXML_GenericFunction(t *testing.T) {
+	t.Parallel()
 	body := []byte(`<XMLConfig><server>localhost</server><port>8080</port><enabled>true</enabled></XMLConfig>`)
 
 	config, err := XML[XMLConfig](body)
@@ -55,6 +57,7 @@ func TestXML_GenericFunction(t *testing.T) {
 }
 
 func TestXMLTo_NonGeneric(t *testing.T) {
+	t.Parallel()
 	body := []byte(`<XMLUser><name>Alice</name><email>alice@example.com</email><age>25</age></XMLUser>`)
 
 	var user XMLUser
@@ -66,6 +69,7 @@ func TestXMLTo_NonGeneric(t *testing.T) {
 }
 
 func TestXMLReader_FromReader(t *testing.T) {
+	t.Parallel()
 	body := bytes.NewReader([]byte(`<XMLUser><name>Bob</name><email>bob@example.com</email><age>35</age></XMLUser>`))
 
 	user, err := XMLReader[XMLUser](body)
@@ -76,6 +80,7 @@ func TestXMLReader_FromReader(t *testing.T) {
 }
 
 func TestXMLReaderTo_NonGeneric(t *testing.T) {
+	t.Parallel()
 	body := bytes.NewReader([]byte(`<XMLConfig><server>192.168.1.1</server><port>3000</port><enabled>false</enabled></XMLConfig>`))
 
 	var config XMLConfig
@@ -87,6 +92,7 @@ func TestXMLReaderTo_NonGeneric(t *testing.T) {
 }
 
 func TestXML_InvalidXML(t *testing.T) {
+	t.Parallel()
 	body := []byte(`<XMLUser><name>John</name>`)
 
 	_, err := XML[XMLUser](body)
@@ -106,6 +112,7 @@ func (m *mockValidator) Validate(v any) error {
 }
 
 func TestXML_WithValidator(t *testing.T) {
+	t.Parallel()
 	body := []byte(`<XMLUser><name>John</name><email>john@example.com</email><age>30</age></XMLUser>`)
 
 	validator := &mockValidator{
@@ -120,6 +127,7 @@ func TestXML_WithValidator(t *testing.T) {
 }
 
 func TestXML_WithStrict(t *testing.T) {
+	t.Parallel()
 	// Test with strict mode enabled
 	body := []byte(`<XMLUser><name>John</name><email>john@example.com</email><age>30</age></XMLUser>`)
 
@@ -129,6 +137,7 @@ func TestXML_WithStrict(t *testing.T) {
 }
 
 func TestXML_NestedStructs(t *testing.T) {
+	t.Parallel()
 	type Address struct {
 		Street string `xml:"street"`
 		City   string `xml:"city"`
@@ -148,6 +157,7 @@ func TestXML_NestedStructs(t *testing.T) {
 }
 
 func TestFromXML_MultiSourceBinding(t *testing.T) {
+	t.Parallel()
 	type Request struct {
 		QueryParam string `query:"q"`
 		Name       string `xml:"name"`
@@ -167,6 +177,7 @@ func TestFromXML_MultiSourceBinding(t *testing.T) {
 }
 
 func TestXMLWith_Binder(t *testing.T) {
+	t.Parallel()
 	binder := MustNew()
 
 	body := []byte(`<XMLUser><name>Test</name><email>test@example.com</email><age>20</age></XMLUser>`)
@@ -179,6 +190,7 @@ func TestXMLWith_Binder(t *testing.T) {
 }
 
 func TestBinder_XMLTo(t *testing.T) {
+	t.Parallel()
 	binder := MustNew()
 
 	body := []byte(`<XMLUser><name>Test</name><email>test@example.com</email><age>20</age></XMLUser>`)
@@ -190,6 +202,7 @@ func TestBinder_XMLTo(t *testing.T) {
 }
 
 func TestBinder_XMLReaderTo(t *testing.T) {
+	t.Parallel()
 	binder := MustNew()
 
 	body := bytes.NewReader([]byte(`<XMLUser><name>Test</name><email>test@example.com</email><age>20</age></XMLUser>`))

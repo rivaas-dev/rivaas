@@ -48,7 +48,7 @@ func ExampleProto() {
 	}
 
 	fmt.Printf("Name: %s, Email: %s, Age: %d, Active: %v\n",
-		result.Name, result.Email, result.Age, result.Active)
+		result.GetName(), result.GetEmail(), result.GetAge(), result.GetActive())
 	// Output: Name: John, Email: john@example.com, Age: 30, Active: true
 }
 

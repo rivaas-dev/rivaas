@@ -424,103 +424,123 @@ func setMapField(field reflect.Value, getter ValueGetter, prefix string, fieldTy
 
 	// For query/form getters, check all keys for both syntaxes
 	if qg, ok := getter.(*QueryGetter); ok {
-		for key := range qg.values {
-			var mapKey string
-
-			// Pattern 1: Dot notation (?map.key=value)
-			if strings.HasPrefix(key, prefixDot) {
-				found = true
-				mapKey = strings.TrimPrefix(key, prefixDot)
-
-				// Pattern 2: Bracket notation (?map[key]=value)
-			} else if strings.HasPrefix(key, prefixBracket) {
-				extractedKey := extractBracketKey(key, prefix)
-				if extractedKey == "" {
-					return fmt.Errorf("%w: %s", ErrInvalidBracketNotation, key)
-				}
-				found = true
-				mapKey = extractedKey
-			} else {
-				continue
-			}
-
-			// Enforce limit during iteration
-			if opts.maxMapSize > 0 {
-				entryCount++
-				if entryCount > opts.maxMapSize {
-					return fmt.Errorf("%w: %d > %d (use WithMaxMapSize to increase)",
-						ErrMapExceedsMaxSize, entryCount, opts.maxMapSize)
-				}
-			}
-
-			value := qg.Get(key)
-
-			// Convert value to map value type
-			convertedValue, err := convertToType(value, valueType, opts)
-			if err != nil {
-				return fmt.Errorf("key %q: %w", mapKey, err)
-			}
-
-			mapField.SetMapIndex(reflect.ValueOf(mapKey), convertedValue)
+		var err error
+		found, entryCount, err = bindMapFromValues(
+			qg.values, qg.Get, prefixDot, prefixBracket, prefix,
+			mapField, valueType, opts, entryCount,
+		)
+		if err != nil {
+			return err
 		}
 	}
 
 	// Also check formGetter for form data
 	if fg, ok := getter.(*FormGetter); ok {
-		for key := range fg.values {
-			var mapKey string
-
-			if strings.HasPrefix(key, prefixDot) {
-				found = true
-				mapKey = strings.TrimPrefix(key, prefixDot)
-			} else if strings.HasPrefix(key, prefixBracket) {
-				extractedKey := extractBracketKey(key, prefix)
-				if extractedKey == "" {
-					return fmt.Errorf("%w: %s", ErrInvalidBracketNotation, key)
-				}
-				found = true
-				mapKey = extractedKey
-			} else {
-				continue
-			}
-
-			// Enforce limit during iteration
-			if opts.maxMapSize > 0 {
-				entryCount++
-				if entryCount > opts.maxMapSize {
-					return fmt.Errorf("%w: %d > %d (use WithMaxMapSize to increase)",
-						ErrMapExceedsMaxSize, entryCount, opts.maxMapSize)
-				}
-			}
-
-			value := fg.Get(key)
-			convertedValue, err := convertToType(value, valueType, opts)
-			if err != nil {
-				return fmt.Errorf("key %q: %w", mapKey, err)
-			}
-
-			mapField.SetMapIndex(reflect.ValueOf(mapKey), convertedValue)
+		var err error
+		found, entryCount, err = bindMapFromValues(
+			fg.values, fg.Get, prefixDot, prefixBracket, prefix,
+			mapField, valueType, opts, entryCount,
+		)
+		if err != nil {
+			return err
 		}
 	}
 
 	// If no dot/bracket keys found, try JSON string parsing as fallback
 	if !found && getter.Has(prefix) {
-		jsonValue := getter.Get(prefix)
-		if jsonValue != "" {
-			// Try to parse as JSON object
-			tempMap := make(map[string]any)
-			if err := json.Unmarshal([]byte(jsonValue), &tempMap); err == nil {
-				for k, v := range tempMap {
-					// Convert interface{} to string for setting
-					strValue := fmt.Sprint(v)
-					convertedValue, err := convertToType(strValue, valueType, opts)
-					if err != nil {
-						return fmt.Errorf("key %q: %w", k, err)
-					}
-					mapField.SetMapIndex(reflect.ValueOf(k), convertedValue)
-				}
+		if err := parseJSONToMap(getter.Get(prefix), mapField, valueType, opts); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// bindMapFromValues iterates over values and binds matching keys to the map field.
+// It supports both dot notation (?map.key=value) and bracket notation (?map[key]=value).
+// Returns whether any keys were found, the updated entry count, and any error.
+func bindMapFromValues(
+	values map[string][]string,
+	getValue func(string) string,
+	prefixDot, prefixBracket, prefix string,
+	mapField reflect.Value,
+	valueType reflect.Type,
+	opts *config,
+	entryCount int,
+) (bool, int, error) {
+	found := false
+
+	for key := range values {
+		mapKey, ok := extractMapKey(key, prefixDot, prefixBracket, prefix)
+		if !ok {
+			continue
+		}
+		if mapKey == "" {
+			return false, entryCount, fmt.Errorf("%w: %s", ErrInvalidBracketNotation, key)
+		}
+
+		found = true
+
+		// Enforce limit during iteration
+		if opts.maxMapSize > 0 {
+			entryCount++
+			if entryCount > opts.maxMapSize {
+				return false, entryCount, fmt.Errorf("%w: %d > %d (use WithMaxMapSize to increase)",
+					ErrMapExceedsMaxSize, entryCount, opts.maxMapSize)
 			}
 		}
+
+		value := getValue(key)
+		convertedValue, err := convertToType(value, valueType, opts)
+		if err != nil {
+			return false, entryCount, fmt.Errorf("key %q: %w", mapKey, err)
+		}
+
+		mapField.SetMapIndex(reflect.ValueOf(mapKey), convertedValue)
+	}
+
+	return found, entryCount, nil
+}
+
+// extractMapKey extracts the map key from a full key using dot or bracket notation.
+// Returns the key and true if matched, empty string and false if no match,
+// or empty string and true if bracket notation is invalid (signals an error).
+func extractMapKey(fullKey, prefixDot, prefixBracket, prefix string) (string, bool) {
+	// Pattern 1: Dot notation (?map.key=value)
+	if strings.HasPrefix(fullKey, prefixDot) {
+		return strings.TrimPrefix(fullKey, prefixDot), true
+	}
+
+	// Pattern 2: Bracket notation (?map[key]=value)
+	if strings.HasPrefix(fullKey, prefixBracket) {
+		extractedKey := extractBracketKey(fullKey, prefix)
+		// Empty key from bracket notation is invalid (return true to signal error)
+		return extractedKey, true
+	}
+
+	return "", false
+}
+
+// parseJSONToMap attempts to parse a JSON string and populate the map field.
+func parseJSONToMap(jsonValue string, mapField reflect.Value, valueType reflect.Type, opts *config) error {
+	if jsonValue == "" {
+		return nil
+	}
+
+	tempMap := make(map[string]any)
+	if err := json.Unmarshal([]byte(jsonValue), &tempMap); err != nil {
+		// Not valid JSON, skip silently (fallback behavior)
+		return nil
+	}
+
+	for k, v := range tempMap {
+		strValue := fmt.Sprint(v)
+		convertedValue, err := convertToType(strValue, valueType, opts)
+		if err != nil {
+			return fmt.Errorf("key %q: %w", k, err)
+		}
+
+		mapField.SetMapIndex(reflect.ValueOf(k), convertedValue)
 	}
 
 	return nil

@@ -367,6 +367,7 @@ func bindMultiSource(out any, cfg *config) error {
 					return err
 				}
 			}
+
 			continue
 		}
 
@@ -378,6 +379,7 @@ func bindMultiSource(out any, cfg *config) error {
 					return err
 				}
 			}
+
 			continue
 		}
 
@@ -390,6 +392,7 @@ func bindMultiSource(out any, cfg *config) error {
 					return err
 				}
 			}
+
 			continue
 		}
 
@@ -401,6 +404,7 @@ func bindMultiSource(out any, cfg *config) error {
 					return err
 				}
 			}
+
 			continue
 		}
 
@@ -481,12 +485,14 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 				}
 				if cfg.allErrors {
 					multiErr.Add(bindErr)
+
 					continue
 				}
 				cfg.trackError()
 				return bindErr
 			}
 			cfg.trackField(field.name, tagName, evtFlags)
+
 			continue
 		}
 
@@ -503,12 +509,14 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 				}
 				if cfg.allErrors {
 					multiErr.Add(bindErr)
+
 					continue
 				}
 				cfg.trackError()
 				return bindErr
 			}
 			cfg.trackField(field.name, tagName, evtFlags)
+
 			continue
 		}
 
@@ -522,6 +530,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 				if getter.Has(alias) {
 					value = getter.Get(alias)
 					hasValue = true
+
 					break
 				}
 			}
@@ -529,24 +538,9 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 
 		// Apply default value if no value provided and default is specified
 		if !hasValue && field.defaultValue != "" {
-			// Use pre-converted typed default if available
-			if field.hasTypedDefault {
-				fv := elem.FieldByIndex(field.index)
-				if !fv.CanSet() {
-					continue
-				}
-				if field.isPtr {
-					if fv.IsNil() {
-						ptr := reflect.New(field.fieldType.Elem())
-						ptr.Elem().Set(reflect.ValueOf(field.typedDefault))
-						fv.Set(ptr)
-					} else {
-						fv.Elem().Set(reflect.ValueOf(field.typedDefault))
-					}
-				} else {
-					fv.Set(reflect.ValueOf(field.typedDefault))
-				}
+			if applied := applyTypedDefault(elem, field); applied {
 				cfg.trackField(field.name, tagName, evtFlags)
+
 				continue
 			}
 			// Fallback: convert at runtime
@@ -656,27 +650,7 @@ func parseStructInfo(t reflect.Type, tagName string) *structInfo {
 
 		// Validate enum tag: split once, check for duplicates
 		if field.enumValues != "" {
-			enums := strings.Split(field.enumValues, ",")
-			seen := make(map[string]bool)
-			for j, e := range enums {
-				enums[j] = strings.TrimSpace(e)
-				if enums[j] == "" {
-					// Use invalidTagf which panics in debug builds, returns error in prod
-					if err := invalidTagf("field %s: empty enum value in tag %q",
-						field.name, field.enumValues); err != nil {
-						// In non-debug builds, log and continue
-						// (could integrate with logger here)
-						continue
-					}
-				}
-				if seen[enums[j]] {
-					if err := invalidTagf("field %s: duplicate enum value %q",
-						field.name, enums[j]); err != nil {
-						continue
-					}
-				}
-				seen[enums[j]] = true
-			}
+			validateEnumTag(field.name, field.enumValues)
 		}
 
 		// Validate default tag: ensure it's compatible with field type
@@ -739,37 +713,12 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 		}
 
 		// Handle json/form tags with options (e.g., "name,omitempty")
-		var primaryName string
-		var aliases []string
-		if tagName == TagJSON || tagName == TagForm {
-			if tag == "-" {
-				continue // Skip fields marked with "-"
-			}
-			// Split on comma for aliases (e.g., "user_id,id" -> primary="user_id", aliases=["id"])
-			parts := strings.Split(tag, ",")
-			primaryName = strings.TrimSpace(parts[0])
-			// Collect aliases (skip json-style modifiers like "omitempty")
-			for i := 1; i < len(parts); i++ {
-				part := strings.TrimSpace(parts[i])
-				if part != "" && part != "omitempty" && part != "required" {
-					aliases = append(aliases, part)
-				}
-			}
-			// Use field name if tag is empty
-			if primaryName == "" {
-				primaryName = field.Name
-			}
-		} else {
-			// For other tags, split on comma for aliases
-			parts := strings.Split(tag, ",")
-			primaryName = strings.TrimSpace(parts[0])
-			for i := 1; i < len(parts); i++ {
-				part := strings.TrimSpace(parts[i])
-				if part != "" {
-					aliases = append(aliases, part)
-				}
-			}
+		if (tagName == TagJSON || tagName == TagForm) && tag == "-" {
+			continue // Skip fields marked with "-"
 		}
+
+		isJSONOrForm := tagName == TagJSON || tagName == TagForm
+		primaryName, aliases := parseTagWithAliases(tag, field.Name, isJSONOrForm)
 
 		// Reset to original field type for further processing
 		fieldType = field.Type
@@ -917,4 +866,89 @@ func hasStructTagRecursive(t reflect.Type, tag string, visited map[reflect.Type]
 	}
 
 	return false
+}
+
+// parseTagWithAliases parses a struct tag value and extracts the primary name and aliases.
+// For JSON/Form tags, it filters out modifiers like "omitempty" and "required".
+// Returns the primary name (or fieldName if empty) and slice of aliases.
+func parseTagWithAliases(tag, fieldName string, isJSONOrForm bool) (string, []string) {
+	parts := strings.Split(tag, ",")
+	primaryName := strings.TrimSpace(parts[0])
+
+	var aliases []string
+	for i := 1; i < len(parts); i++ {
+		part := strings.TrimSpace(parts[i])
+		if part == "" {
+			continue
+		}
+		// Skip JSON-style modifiers for JSON/Form tags
+		if isJSONOrForm && (part == "omitempty" || part == "required") {
+			continue
+		}
+		aliases = append(aliases, part)
+	}
+
+	// Use field name if tag is empty (for JSON/Form tags)
+	if primaryName == "" && isJSONOrForm {
+		primaryName = fieldName
+	}
+
+	return primaryName, aliases
+}
+
+// validateEnumTag validates enum tag values for a field.
+// It checks for empty values and duplicates, reporting errors via invalidTagf.
+func validateEnumTag(fieldName, enumValues string) {
+	enums := strings.Split(enumValues, ",")
+	seen := make(map[string]bool)
+
+	for i, e := range enums {
+		enums[i] = strings.TrimSpace(e)
+		if enums[i] == "" {
+			// Use invalidTagf which panics in debug builds, returns error in prod
+			if err := invalidTagf("field %s: empty enum value in tag %q",
+				fieldName, enumValues); err != nil {
+				continue
+			}
+		}
+		if seen[enums[i]] {
+			if err := invalidTagf("field %s: duplicate enum value %q",
+				fieldName, enums[i]); err != nil {
+				continue
+			}
+		}
+		seen[enums[i]] = true
+	}
+}
+
+// applyTypedDefault applies a pre-converted typed default value to the field.
+// Returns true if the default was applied, false if fallback to runtime conversion is needed.
+func applyTypedDefault(elem reflect.Value, field fieldInfo) bool {
+	if !field.hasTypedDefault {
+		return false
+	}
+
+	fv := elem.FieldByIndex(field.index)
+	if !fv.CanSet() {
+		return false
+	}
+
+	if field.isPtr {
+		setPointerDefault(fv, field)
+	} else {
+		fv.Set(reflect.ValueOf(field.typedDefault))
+	}
+
+	return true
+}
+
+// setPointerDefault sets the default value for a pointer field.
+func setPointerDefault(fv reflect.Value, field fieldInfo) {
+	if fv.IsNil() {
+		ptr := reflect.New(field.fieldType.Elem())
+		ptr.Elem().Set(reflect.ValueOf(field.typedDefault))
+		fv.Set(ptr)
+	} else {
+		fv.Elem().Set(reflect.ValueOf(field.typedDefault))
+	}
 }

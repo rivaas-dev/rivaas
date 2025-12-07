@@ -16,10 +16,10 @@ package binding_test
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -329,7 +329,7 @@ func TestIntegration_BinderReuse(t *testing.T) {
 	for i := range 10 {
 		values := url.Values{}
 		values.Set("name", "test")
-		values.Set("value", fmt.Sprintf("%d", i*10))
+		values.Set("value", strconv.Itoa(i*10))
 
 		var cfg Config
 		err := binder.QueryTo(values, &cfg)

@@ -135,43 +135,23 @@ func MsgPackReaderTo(r io.Reader, out any, opts ...Option) error {
 }
 
 func bindMsgPackBytes(out any, body []byte, cfg *config) error {
-	// If we need custom options, use decoder
+	// If we need custom options, use decoder; otherwise use simple unmarshal
+	var err error
 	if cfg.useJSONTag || cfg.disallowUnknow {
-		dec := msgpack.NewDecoder(bytes.NewReader(body))
-		if cfg.useJSONTag {
-			dec.SetCustomStructTag("json")
-		}
-		if cfg.disallowUnknow {
-			dec.DisallowUnknownFields(true)
-		}
-		if err := dec.Decode(out); err != nil {
-			return err
-		}
+		err = decodeWithOptions(bytes.NewReader(body), out, cfg)
 	} else {
-		// Use simple unmarshal for default case
-		if err := msgpack.Unmarshal(body, out); err != nil {
-			return err
-		}
+		err = msgpack.Unmarshal(body, out)
+	}
+	if err != nil {
+		return err
 	}
 
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			return &binding.BindError{
-				Field:  "",
-				Source: binding.SourceMsgPack,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-		}
-	}
-
-	return nil
+	return runValidator(out, cfg)
 }
 
-func bindMsgPackReader(out any, r io.Reader, cfg *config) error {
+// decodeWithOptions creates a decoder with custom options and decodes.
+func decodeWithOptions(r io.Reader, out any, cfg *config) error {
 	dec := msgpack.NewDecoder(r)
-
 	if cfg.useJSONTag {
 		dec.SetCustomStructTag("json")
 	}
@@ -179,23 +159,33 @@ func bindMsgPackReader(out any, r io.Reader, cfg *config) error {
 		dec.DisallowUnknownFields(true)
 	}
 
-	if err := dec.Decode(out); err != nil {
-		return err
+	return dec.Decode(out)
+}
+
+// runValidator runs the configured validator if present.
+func runValidator(out any, cfg *config) error {
+	if cfg.validator == nil {
+		return nil
 	}
 
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			return &binding.BindError{
-				Field:  "",
-				Source: binding.SourceMsgPack,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
+	if err := cfg.validator.Validate(out); err != nil {
+		return &binding.BindError{
+			Field:  "",
+			Source: binding.SourceMsgPack,
+			Reason: fmt.Sprintf("validation failed: %v", err),
+			Err:    err,
 		}
 	}
 
 	return nil
+}
+
+func bindMsgPackReader(out any, r io.Reader, cfg *config) error {
+	if err := decodeWithOptions(r, out, cfg); err != nil {
+		return err
+	}
+
+	return runValidator(out, cfg)
 }
 
 // sourceGetter is a marker type for MessagePack body source.

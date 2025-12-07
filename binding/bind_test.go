@@ -472,7 +472,7 @@ func TestBind_NestedStructError(t *testing.T) {
 				} `query:"config"`
 			}{},
 			expectedField: "Config",
-			validate:      func(t *testing.T, bindErr *BindError) {},
+			validate:      func(_ *testing.T, _ *BindError) {},
 		},
 		{
 			name: "deeply nested struct error",
@@ -489,7 +489,7 @@ func TestBind_NestedStructError(t *testing.T) {
 				} `query:"middle"`
 			}{},
 			expectedField: "Middle",
-			validate:      func(t *testing.T, bindErr *BindError) {},
+			validate:      func(_ *testing.T, _ *BindError) {},
 		},
 	}
 
@@ -547,6 +547,7 @@ func TestBind_ParseStructTypeRemainingPaths(t *testing.T) {
 			}(),
 			params: &ParamsUnexported{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*ParamsUnexported)
 				require.True(t, ok)
 				assert.Equal(t, "test", p.Exported, "Expected Exported=test")
@@ -561,6 +562,7 @@ func TestBind_ParseStructTypeRemainingPaths(t *testing.T) {
 			}(),
 			params: &ParamsNoQueryTag{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*ParamsNoQueryTag)
 				require.True(t, ok)
 				assert.Equal(t, "value", p.HasTag, "Expected HasTag=value")
@@ -583,6 +585,7 @@ func TestBind_ParseStructTypeRemainingPaths(t *testing.T) {
 				return &params
 			}(),
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*ParamsEmbedded)
 				require.True(t, ok)
 				assert.Equal(t, "test", p.Name, "Expected Name=test")
@@ -625,6 +628,7 @@ func TestBind_Errors(t *testing.T) {
 			},
 			wantErr: true,
 			validate: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err, "Expected error for non-pointer")
 			},
 		},
@@ -640,6 +644,7 @@ func TestBind_Errors(t *testing.T) {
 			},
 			wantErr: true,
 			validate: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err, "Expected error for nil pointer")
 			},
 		},
@@ -653,6 +658,7 @@ func TestBind_Errors(t *testing.T) {
 			},
 			wantErr: true,
 			validate: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err, "Expected error for non-struct")
 			},
 		},
@@ -732,6 +738,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 				return nil, TagJSON, &JSONDataOmitempty{}
 			},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*JSONDataOmitempty)
 				require.True(t, ok)
 				jsonData := `{"name":"John","email":"john@example.com","age":30}`
@@ -751,6 +758,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 				return NewFormGetter(values), TagForm, &FormDataOmitempty{}
 			},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*FormDataOmitempty)
 				require.True(t, ok)
 				assert.Equal(t, "testuser", p.Username)
@@ -763,6 +771,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 				return nil, TagJSON, &JSONDataEmptyName{}
 			},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*JSONDataEmptyName)
 				require.True(t, ok)
 				jsonData := `{"FieldName":"test"}`
@@ -1046,7 +1055,7 @@ func TestBindTo(t *testing.T) {
 		type Request struct {
 			ID      int    `path:"id"`
 			Page    int    `query:"page"`
-			APIKey  string `header:"X-Api-Key"` //nolint:tagliatelle // Standard API key header
+			APIKey  string `header:"X-Api-Key"`
 			Session string `cookie:"session"`
 		}
 

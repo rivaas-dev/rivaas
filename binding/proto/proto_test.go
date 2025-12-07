@@ -184,10 +184,10 @@ func TestProtoReader_FromReader(t *testing.T) {
 
 	result, err := ProtoReader[*testdata.User](bytes.NewReader(body))
 	require.NoError(t, err)
-	assert.Equal(t, "Bob", result.Name)
-	assert.Equal(t, "bob@example.com", result.Email)
-	assert.Equal(t, int32(35), result.Age)
-	assert.True(t, result.Active)
+	assert.Equal(t, "Bob", result.GetName())
+	assert.Equal(t, "bob@example.com", result.GetEmail())
+	assert.Equal(t, int32(35), result.GetAge())
+	assert.True(t, result.GetActive())
 }
 
 func TestProtoReaderTo_NonGeneric(t *testing.T) {
@@ -226,7 +226,7 @@ func TestProto_WithDiscardUnknown(t *testing.T) {
 	// With DiscardUnknown option
 	result, err := Proto[*testdata.User](body, WithDiscardUnknown())
 	require.NoError(t, err)
-	assert.Equal(t, "John", result.Name)
+	assert.Equal(t, "John", result.GetName())
 }
 
 func TestProto_WithAllowPartial(t *testing.T) {
@@ -242,7 +242,7 @@ func TestProto_WithAllowPartial(t *testing.T) {
 	// With AllowPartial option
 	result, err := Proto[*testdata.User](body, WithAllowPartial())
 	require.NoError(t, err)
-	assert.Equal(t, "John", result.Name)
+	assert.Equal(t, "John", result.GetName())
 }
 
 func TestProto_WithRecursionLimit(t *testing.T) {
@@ -260,7 +260,7 @@ func TestProto_WithRecursionLimit(t *testing.T) {
 	// With RecursionLimit option
 	result, err := Proto[*testdata.User](body, WithRecursionLimit(1000))
 	require.NoError(t, err)
-	assert.Equal(t, "John", result.Name)
+	assert.Equal(t, "John", result.GetName())
 }
 
 func TestProto_WithValidator(t *testing.T) {
@@ -279,7 +279,7 @@ func TestProto_WithValidator(t *testing.T) {
 	passingValidator := &testValidator{shouldFail: false}
 	result, err := Proto[*testdata.User](body, WithValidator(passingValidator))
 	require.NoError(t, err)
-	assert.Equal(t, "John", result.Name)
+	assert.Equal(t, "John", result.GetName())
 
 	// With failing validator
 	failingValidator := &testValidator{shouldFail: true, errMsg: "validation failed"}
@@ -311,7 +311,7 @@ func TestProto_MultipleOptions(t *testing.T) {
 		WithRecursionLimit(5000),
 	)
 	require.NoError(t, err)
-	assert.Equal(t, "John", result.Name)
+	assert.Equal(t, "John", result.GetName())
 }
 
 func TestSourceGetter_Methods(t *testing.T) {
