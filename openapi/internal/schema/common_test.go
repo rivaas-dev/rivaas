@@ -34,6 +34,7 @@ type RegularStruct struct {
 	Field2 int    `json:"field2"`
 }
 
+//nolint:paralleltest // Some subtests share state
 func TestWalkFields(t *testing.T) {
 	t.Parallel()
 
@@ -186,6 +187,7 @@ func TestWalkFields(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // Some subtests share state
 func TestSchemaName(t *testing.T) {
 	t.Run("returns type name for types in current package", func(t *testing.T) {
 		typ := reflect.TypeOf(RegularStruct{})
@@ -394,6 +396,7 @@ func TestParseJSONName(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Some subtests share state
 func TestIsFieldRequired(t *testing.T) {
 	t.Run("returns false for pointer types", func(t *testing.T) {
 		type TestStruct struct {

@@ -53,6 +53,7 @@ func NewExample(name string, value any, opts ...ExampleOption) Example {
 	for _, opt := range opts {
 		opt(&e)
 	}
+
 	return e
 }
 
@@ -83,6 +84,7 @@ func ExternalExample(name, url string, opts ...ExampleOption) Example {
 	for _, opt := range opts {
 		opt(&e)
 	}
+
 	return e
 }
 

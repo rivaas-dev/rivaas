@@ -182,7 +182,7 @@ func TestRouteWrapper_Description(t *testing.T) {
 		rw.Description("Initial").Description("")
 
 		rw.mu.RLock()
-		assert.Equal(t, "", rw.doc.Description)
+		assert.Empty(t, rw.doc.Description)
 		rw.mu.RUnlock()
 	})
 
@@ -335,7 +335,7 @@ func TestRouteWrapper_OperationID(t *testing.T) {
 		rw.OperationID("initial").OperationID("")
 
 		rw.mu.RLock()
-		assert.Equal(t, "", rw.doc.OperationID)
+		assert.Empty(t, rw.doc.OperationID)
 		rw.mu.RUnlock()
 	})
 

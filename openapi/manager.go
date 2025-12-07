@@ -152,54 +152,8 @@ func NewManager(cfg *Config) *Manager {
 	}
 
 	// Convert security schemes
-	if len(cfg.SecuritySchemes) > 0 {
-		for name, s := range cfg.SecuritySchemes {
-			ss := &model.SecurityScheme{
-				Type:             s.Type,
-				Description:      s.Description,
-				Name:             s.Name,
-				In:               s.In,
-				Scheme:           s.Scheme,
-				BearerFormat:     s.BearerFormat,
-				OpenIDConnectURL: s.OpenIDConnectURL,
-			}
-			if s.Flows != nil {
-				ss.Flows = &model.OAuthFlows{}
-				if s.Flows.Implicit != nil {
-					ss.Flows.Implicit = &model.OAuthFlow{
-						AuthorizationURL: s.Flows.Implicit.AuthorizationURL,
-						TokenURL:         s.Flows.Implicit.TokenURL,
-						RefreshURL:       s.Flows.Implicit.RefreshURL,
-						Scopes:           s.Flows.Implicit.Scopes,
-					}
-				}
-				if s.Flows.Password != nil {
-					ss.Flows.Password = &model.OAuthFlow{
-						AuthorizationURL: s.Flows.Password.AuthorizationURL,
-						TokenURL:         s.Flows.Password.TokenURL,
-						RefreshURL:       s.Flows.Password.RefreshURL,
-						Scopes:           s.Flows.Password.Scopes,
-					}
-				}
-				if s.Flows.ClientCredentials != nil {
-					ss.Flows.ClientCredentials = &model.OAuthFlow{
-						AuthorizationURL: s.Flows.ClientCredentials.AuthorizationURL,
-						TokenURL:         s.Flows.ClientCredentials.TokenURL,
-						RefreshURL:       s.Flows.ClientCredentials.RefreshURL,
-						Scopes:           s.Flows.ClientCredentials.Scopes,
-					}
-				}
-				if s.Flows.AuthorizationCode != nil {
-					ss.Flows.AuthorizationCode = &model.OAuthFlow{
-						AuthorizationURL: s.Flows.AuthorizationCode.AuthorizationURL,
-						TokenURL:         s.Flows.AuthorizationCode.TokenURL,
-						RefreshURL:       s.Flows.AuthorizationCode.RefreshURL,
-						Scopes:           s.Flows.AuthorizationCode.Scopes,
-					}
-				}
-			}
-			b.AddSecurityScheme(name, ss)
-		}
+	for name, s := range cfg.SecuritySchemes {
+		b.AddSecurityScheme(name, convertSecurityScheme(s))
 	}
 
 	if len(cfg.DefaultSecurity) > 0 {
@@ -576,4 +530,53 @@ func convertSecurityReqs(reqs []SecurityReq) []build.SecurityReq {
 		}
 	}
 	return result
+}
+
+// convertSecurityScheme converts a SecurityScheme config to a model.SecurityScheme.
+func convertSecurityScheme(s *SecurityScheme) *model.SecurityScheme {
+	ss := &model.SecurityScheme{
+		Type:             s.Type,
+		Description:      s.Description,
+		Name:             s.Name,
+		In:               s.In,
+		Scheme:           s.Scheme,
+		BearerFormat:     s.BearerFormat,
+		OpenIDConnectURL: s.OpenIDConnectURL,
+	}
+
+	if s.Flows != nil {
+		ss.Flows = convertOAuthFlows(s.Flows)
+	}
+
+	return ss
+}
+
+// convertOAuthFlows converts OAuthFlows config to model.OAuthFlows.
+func convertOAuthFlows(flows *OAuthFlows) *model.OAuthFlows {
+	result := &model.OAuthFlows{}
+
+	if flows.Implicit != nil {
+		result.Implicit = convertOAuthFlow(flows.Implicit)
+	}
+	if flows.Password != nil {
+		result.Password = convertOAuthFlow(flows.Password)
+	}
+	if flows.ClientCredentials != nil {
+		result.ClientCredentials = convertOAuthFlow(flows.ClientCredentials)
+	}
+	if flows.AuthorizationCode != nil {
+		result.AuthorizationCode = convertOAuthFlow(flows.AuthorizationCode)
+	}
+
+	return result
+}
+
+// convertOAuthFlow converts a single OAuthFlow config to model.OAuthFlow.
+func convertOAuthFlow(flow *OAuthFlow) *model.OAuthFlow {
+	return &model.OAuthFlow{
+		AuthorizationURL: flow.AuthorizationURL,
+		TokenURL:         flow.TokenURL,
+		RefreshURL:       flow.RefreshURL,
+		Scopes:           flow.Scopes,
+	}
 }

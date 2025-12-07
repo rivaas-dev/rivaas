@@ -174,6 +174,7 @@ func MustNew(opts ...Option) *Config {
 	if err != nil {
 		panic(err)
 	}
+
 	return cfg
 }
 

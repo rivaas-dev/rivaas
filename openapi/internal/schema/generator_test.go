@@ -73,6 +73,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "bool type",
 			input: false,
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindBoolean, s.Kind)
 			},
 		},
@@ -80,6 +81,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "float32 type",
 			input: float32(0),
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindNumber, s.Kind)
 				assert.Equal(t, "float", s.Format)
 			},
@@ -88,6 +90,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "float64 type",
 			input: float64(0),
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindNumber, s.Kind)
 				assert.Equal(t, "double", s.Format)
 			},
@@ -96,6 +99,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "slice type",
 			input: []string{},
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindArray, s.Kind)
 				require.NotNil(t, s.Items)
 				assert.Equal(t, model.KindString, s.Items.Kind)
@@ -105,6 +109,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "array type",
 			input: [5]int{},
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindArray, s.Kind)
 				require.NotNil(t, s.Items)
 				assert.Equal(t, model.KindInteger, s.Items.Kind)
@@ -114,6 +119,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "map type",
 			input: map[string]int{},
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindObject, s.Kind)
 				require.NotNil(t, s.Additional)
 				require.NotNil(t, s.Additional.Schema)
@@ -172,6 +178,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Tests schema generation
 func TestSchemaGenerator_StructTags(t *testing.T) {
 	sg := newTestSchemaGenerator(t)
 	schema := sg.Generate(reflect.TypeOf(TestStruct{}))
@@ -222,6 +229,7 @@ func TestSchemaGenerator_StructTags(t *testing.T) {
 	assert.NotContains(t, ts.Required, "optional") // pointer
 }
 
+//nolint:paralleltest // Tests schema generation
 func TestSchemaGenerator_GenerateProjected(t *testing.T) {
 	type MixedStruct struct {
 		QueryParam string `query:"q"`
@@ -254,6 +262,7 @@ func TestSchemaGenerator_GenerateProjected(t *testing.T) {
 	assert.NotContains(t, body.Properties, "ignored")
 }
 
+//nolint:paralleltest // Tests schema generation
 func TestSchemaGenerator_CircularReference(t *testing.T) {
 	type Node struct {
 		Value string
@@ -481,6 +490,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Tests schema generation
 func TestSchemaGenerator_EmbeddedStructs(t *testing.T) {
 	type Base struct {
 		ID   int    `json:"id"`
@@ -506,6 +516,7 @@ func TestSchemaGenerator_EmbeddedStructs(t *testing.T) {
 	assert.Contains(t, extended.Properties, "email")
 }
 
+//nolint:paralleltest // Tests schema generation
 func TestSchemaGenerator_InvalidValidationTags(t *testing.T) {
 	type InvalidStruct struct {
 		InvalidMin    int    `validate:"min=invalid"`
@@ -532,6 +543,7 @@ func TestSchemaGenerator_InvalidValidationTags(t *testing.T) {
 	assert.Contains(t, invalid.Properties, "EmptyEnum")
 }
 
+//nolint:paralleltest // Tests schema generation
 func TestSchemaGenerator_DefaultValues(t *testing.T) {
 	type StructWithDefaults struct {
 		StringField string `json:"string" example:"default"`
@@ -551,6 +563,7 @@ func TestSchemaGenerator_DefaultValues(t *testing.T) {
 	// Note: example parsing might need adjustment based on actual implementation
 }
 
+//nolint:paralleltest // Tests schema generation
 func TestSchemaGenerator_JSONTagVariations(t *testing.T) {
 	type TagVariations struct {
 		OmitEmpty  string `json:"omitempty,omitempty"`

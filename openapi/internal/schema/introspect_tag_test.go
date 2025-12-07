@@ -12,6 +12,8 @@ import (
 )
 
 // Test extractParamsFromTag function directly
+//
+//nolint:paralleltest // Some subtests share state
 func TestExtractParamsFromTag(t *testing.T) {
 	t.Parallel()
 

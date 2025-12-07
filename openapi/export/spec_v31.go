@@ -496,50 +496,59 @@ func servers31(in []model.Server, warns *[]Warning) []ServerV31 {
 			Description: s.Description,
 		}
 		if len(s.Variables) > 0 {
-			server.Variables = make(map[string]*ServerVariableV31, len(s.Variables))
-			for name, v := range s.Variables {
-				// 3.1 validation: enum MUST NOT be empty if present
-				// With omitempty, empty slices won't be serialized, but we still validate
-				// that if enum is provided, it must not be empty per 3.1 spec
-				// Note: In Go, len(nil slice) == 0, so we check length > 0 for enum validation
-				if len(v.Enum) == 0 {
-					// Warn if enum is explicitly set to empty (would violate spec if serialized)
-					// With omitempty, empty enum won't be in JSON, but conceptually it's wrong
-					*warns = append(*warns, Warning{
-						Code:    "SERVER_VARIABLE_EMPTY_ENUM",
-						Path:    "#/servers/" + strconv.Itoa(i) + "/variables/" + name,
-						Message: "server variable enum array MUST NOT be empty in OpenAPI 3.1 (if enum is provided, it must contain at least one value)",
-					})
-				}
-				// 3.1 validation: default MUST exist in enum if enum is defined
-				if len(v.Enum) > 0 {
-					found := false
-					for _, val := range v.Enum {
-						if val == v.Default {
-							found = true
-							break
-						}
-					}
-					if !found {
-						*warns = append(*warns, Warning{
-							Code:    "SERVER_VARIABLE_DEFAULT_NOT_IN_ENUM",
-							Path:    "#/servers/" + strconv.Itoa(i) + "/variables/" + name,
-							Message: "server variable default value MUST exist in enum values in OpenAPI 3.1",
-						})
-					}
-				}
-				server.Variables[name] = &ServerVariableV31{
-					Enum:        v.Enum,
-					Default:     v.Default,
-					Description: v.Description,
-				}
-				server.Variables[name].Extensions = copyExtensions(v.Extensions, "3.1.2")
-			}
+			server.Variables = convertServerVariables(s.Variables, i, warns)
 		}
 		server.Extensions = copyExtensions(s.Extensions, "3.1.2")
 		out[i] = server
 	}
 	return out
+}
+
+// convertServerVariables converts and validates server variables for OpenAPI 3.1.
+func convertServerVariables(vars map[string]*model.ServerVariable, serverIdx int, warns *[]Warning) map[string]*ServerVariableV31 {
+	out := make(map[string]*ServerVariableV31, len(vars))
+
+	for name, v := range vars {
+		validateServerVariableEnum(v, serverIdx, name, warns)
+
+		out[name] = &ServerVariableV31{
+			Enum:        v.Enum,
+			Default:     v.Default,
+			Description: v.Description,
+		}
+		out[name].Extensions = copyExtensions(v.Extensions, "3.1.2")
+	}
+
+	return out
+}
+
+// validateServerVariableEnum validates enum constraints per OpenAPI 3.1 spec.
+func validateServerVariableEnum(v *model.ServerVariable, serverIdx int, name string, warns *[]Warning) {
+	path := "#/servers/" + strconv.Itoa(serverIdx) + "/variables/" + name
+
+	// 3.1 validation: enum MUST NOT be empty if present
+	if len(v.Enum) == 0 {
+		*warns = append(*warns, Warning{
+			Code:    "SERVER_VARIABLE_EMPTY_ENUM",
+			Path:    path,
+			Message: "server variable enum array MUST NOT be empty in OpenAPI 3.1 (if enum is provided, it must contain at least one value)",
+		})
+
+		return
+	}
+
+	// 3.1 validation: default MUST exist in enum if enum is defined
+	for _, val := range v.Enum {
+		if val == v.Default {
+			return // Found, valid
+		}
+	}
+
+	*warns = append(*warns, Warning{
+		Code:    "SERVER_VARIABLE_DEFAULT_NOT_IN_ENUM",
+		Path:    path,
+		Message: "server variable default value MUST exist in enum values in OpenAPI 3.1",
+	})
 }
 
 func tags31(in []model.Tag) []TagV31 {

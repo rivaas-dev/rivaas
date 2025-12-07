@@ -35,7 +35,8 @@ func TestSchema30(t *testing.T) {
 		{
 			name:  "nil schema",
 			input: nil,
-			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV30, _ []Warning) {
+				t.Helper()
 				assert.Nil(t, result)
 			},
 		},
@@ -44,7 +45,8 @@ func TestSchema30(t *testing.T) {
 			input: &model.Schema{
 				Ref: "#/components/schemas/User",
 			},
-			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV30, _ []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "#/components/schemas/User", result.Ref)
 			},
@@ -57,7 +59,8 @@ func TestSchema30(t *testing.T) {
 				Description: "User name",
 				Format:      "string",
 			},
-			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV30, _ []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "string", result.Type)
 				assert.Equal(t, "Name", result.Title)
@@ -72,6 +75,7 @@ func TestSchema30(t *testing.T) {
 				Nullable: true,
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "string", result.Type)
 				assert.True(t, result.Nullable)
@@ -91,6 +95,7 @@ func TestSchema30(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "integer", result.Type)
 				require.NotNil(t, result.Minimum)
@@ -112,6 +117,7 @@ func TestSchema30(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "array", result.Type)
 				require.NotNil(t, result.MinItems)

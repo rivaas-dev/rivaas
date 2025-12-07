@@ -11,7 +11,7 @@ import (
 type GetUserRequest struct {
 	ID     int    `path:"id" doc:"User ID" example:"123"`
 	Expand string `query:"expand" doc:"Fields to expand" enum:"profile,settings"`
-	APIKey string `header:"X-Api-Key" validate:"required"` //nolint:tagliatelle // Standard API key header
+	APIKey string `header:"X-Api-Key" validate:"required"`
 	Token  string `cookie:"token" doc:"Auth token"`
 }
 

@@ -111,11 +111,11 @@ func TestValidateExtensionKey(t *testing.T) {
 				switch tt.errType {
 				case "InvalidExtensionKeyError":
 					var extErr *InvalidExtensionKeyError
-					assert.ErrorAs(t, err, &extErr)
+					require.ErrorAs(t, err, &extErr)
 					assert.Contains(t, err.Error(), "extension key must start with 'x-'")
 				case "ReservedExtensionKeyError":
 					var resErr *ReservedExtensionKeyError
-					assert.ErrorAs(t, err, &resErr)
+					require.ErrorAs(t, err, &resErr)
 					assert.Contains(t, err.Error(), "reserved prefix")
 				}
 			} else {
@@ -317,40 +317,9 @@ func TestMarshalWithExtensions(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.wantJSON != "" {
-				// Parse both JSONs and compare semantically
-				var got, want map[string]any
-				require.NoError(t, json.Unmarshal(result, &got))
-				require.NoError(t, json.Unmarshal([]byte(tt.wantJSON), &want))
-				assert.Equal(t, want, got)
+				assertJSONEqual(t, tt.wantJSON, result)
 			} else {
-				// Just verify it's valid JSON
-				var m map[string]any
-				assert.NoError(t, json.Unmarshal(result, &m))
-				// Verify base struct fields are present
-				assert.Equal(t, "test", m["name"])
-				assert.Equal(t, float64(42), m["value"]) //nolint:testifylint // exact integer comparison
-				// Verify extensions are present
-				if len(tt.extensions) > 0 {
-					for k, v := range tt.extensions {
-						assert.Contains(t, m, k)
-						// Compare values accounting for JSON unmarshaling type differences
-						got := m[k]
-						if gotSlice, ok := got.([]any); ok {
-							if wantSlice, ok := v.([]string); ok {
-								// Convert []string to []any for comparison
-								wantAny := make([]any, len(wantSlice))
-								for i, s := range wantSlice {
-									wantAny[i] = s
-								}
-								assert.Equal(t, wantAny, gotSlice)
-							} else {
-								assert.Equal(t, v, got)
-							}
-						} else {
-							assert.Equal(t, v, got)
-						}
-					}
-				}
+				assertValidJSONWithExtensions(t, result, tt.extensions)
 			}
 		})
 	}
@@ -379,4 +348,51 @@ func TestMarshalWithExtensions_ErrorHandling(t *testing.T) {
 		// by using a struct that marshals but creates invalid JSON when unmarshaled
 		// Actually, this is difficult to trigger in practice, so we'll skip it
 	})
+}
+
+// assertJSONEqual compares two JSON values semantically.
+func assertJSONEqual(t *testing.T, wantJSON string, gotBytes []byte) {
+	t.Helper()
+
+	var got, want map[string]any
+	require.NoError(t, json.Unmarshal(gotBytes, &got))
+	require.NoError(t, json.Unmarshal([]byte(wantJSON), &want))
+	assert.Equal(t, want, got)
+}
+
+// assertValidJSONWithExtensions verifies JSON contains expected base fields and extensions.
+func assertValidJSONWithExtensions(t *testing.T, result []byte, extensions map[string]any) {
+	t.Helper()
+
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(result, &m))
+
+	// Verify base struct fields are present
+	assert.Equal(t, "test", m["name"])
+	assert.Equal(t, float64(42), m["value"]) //nolint:testifylint // exact integer comparison
+
+	// Verify extensions are present
+	for k, v := range extensions {
+		assert.Contains(t, m, k)
+		assertExtensionValue(t, m[k], v)
+	}
+}
+
+// assertExtensionValue compares extension values accounting for JSON type differences.
+func assertExtensionValue(t *testing.T, got, want any) {
+	t.Helper()
+
+	gotSlice, gotIsSlice := got.([]any)
+	wantSlice, wantIsStringSlice := want.([]string)
+
+	if gotIsSlice && wantIsStringSlice {
+		// Convert []string to []any for comparison
+		wantAny := make([]any, len(wantSlice))
+		for i, s := range wantSlice {
+			wantAny[i] = s
+		}
+		assert.Equal(t, wantAny, gotSlice)
+	} else {
+		assert.Equal(t, want, got)
+	}
 }
