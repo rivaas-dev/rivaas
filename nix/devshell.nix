@@ -56,6 +56,8 @@ pkgs.mkShell {
     jq           # JSON processing (useful for API testing)
     curl         # HTTP client
     gum          # Glamorous shell scripts (charmbracelet/gum)
+
+    cursor-cli
   ];
 
   shellHook = ''
