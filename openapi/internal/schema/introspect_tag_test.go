@@ -32,6 +32,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						Limit int    `query:"limit" default:"10" example:"10"`
 						Sort  string `query:"sort" default:"asc" example:"asc"`
 					}
+
 					return reflect.TypeFor[Request](), tagQuery, "query"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -62,6 +63,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						ID   int    `path:"id"`
 						Name string `path:"name"`
 					}
+
 					return reflect.TypeFor[Request](), tagPath, "path"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -83,6 +85,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						APIKey    string `header:"X-API-Key"` //nolint:tagliatelle // Standard HTTP header format
 						UserAgent string `header:"User-Agent"`
 					}
+
 					return reflect.TypeFor[Request](), tagHeader, "header"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -102,6 +105,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						Session string `cookie:"session"`
 						Token   string `cookie:"token"`
 					}
+
 					return reflect.TypeFor[Request](), tagCookie, "cookie"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -140,6 +144,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						Field2 string `query:"-"`
 						Field3 string `query:"valid"`
 					}
+
 					return reflect.TypeFor[Request]()
 				},
 				expected: 1,
@@ -153,6 +158,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					type Request struct {
 						FieldName string `query:",omitempty"`
 					}
+
 					return reflect.TypeFor[Request]()
 				},
 				expected: 1,
@@ -167,6 +173,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					type Request struct {
 						Field string `query:" field_name "`
 					}
+
 					return reflect.TypeFor[Request]()
 				},
 				expected: 1,
@@ -200,6 +207,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					type Request struct {
 						ID int `query:"id" doc:"User identifier"`
 					}
+
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -214,6 +222,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						ID   int    `query:"id" example:"123"`
 						Name string `query:"name" example:"John"`
 					}
+
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -233,6 +242,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 						Page int    `query:"page" default:"1"`
 						Sort string `query:"sort" default:"asc"`
 					}
+
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -268,6 +278,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					type Request struct {
 						Status string `query:"status" enum:"pending,active,completed"`
 					}
+
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -281,6 +292,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					type Request struct {
 						Color string `query:"color" validate:"oneof=red green blue"`
 					}
+
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -296,6 +308,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					type Request struct {
 						Status string `query:"status" enum:"pending,active" validate:"oneof=pending active completed"`
 					}
+
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
@@ -544,6 +557,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Field")
+
 				return field
 			},
 			expected: "custom-format",
@@ -556,6 +570,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Email")
+
 				return field
 			},
 			expected: "email",
@@ -568,6 +583,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("URL")
+
 				return field
 			},
 			expected: "uri",
@@ -580,6 +596,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("ID")
+
 				return field
 			},
 			expected: "uuid",
@@ -592,6 +609,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("IP")
+
 				return field
 			},
 			expected: "ipv4",
@@ -604,6 +622,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("IP")
+
 				return field
 			},
 			expected: "ipv6",
@@ -616,6 +635,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Created")
+
 				return field
 			},
 			expected: "date-time",
@@ -628,6 +648,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("URL")
+
 				return field
 			},
 			expected: "uri",
@@ -640,6 +661,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("IP")
+
 				return field
 			},
 			expected: "ip",
@@ -652,6 +674,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Created")
+
 				return field
 			},
 			expected: "date-time",
@@ -664,6 +687,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Field")
+
 				return field
 			},
 			expected: "",
@@ -676,6 +700,7 @@ func TestInferFormat(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Field")
+
 				return field
 			},
 			expected: "custom",
@@ -708,6 +733,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("ID1")
+
 				return field, tagPath
 			},
 			expected: true,
@@ -720,6 +746,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("ID2")
+
 				return field, tagPath
 			},
 			expected: true,
@@ -732,6 +759,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("ID")
+
 				return field, tagQuery
 			},
 			expected: false,
@@ -744,6 +772,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Required")
+
 				return field, tagQuery
 			},
 			expected: true,
@@ -756,6 +785,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Optional")
+
 				return field, tagQuery
 			},
 			expected: false,
@@ -768,6 +798,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Field")
+
 				return field, tagQuery
 			},
 			expected: true,
@@ -780,6 +811,7 @@ func TestIsParamRequired(t *testing.T) {
 				}
 				typ := reflect.TypeFor[Request]()
 				field, _ := typ.FieldByName("Field")
+
 				return field, tagQuery
 			},
 			expected: false,
@@ -810,6 +842,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				type Request struct {
 					Page int `query:""`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
@@ -823,6 +856,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 					Ignored string `query:"-"`
 					Valid   string `query:"valid"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
@@ -837,6 +871,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 					Ignored string `json:"-"`
 					Valid   string `json:"valid"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
@@ -849,6 +884,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				type Request struct {
 					Field string `json:""` //nolint:tagliatelle // testing empty tag
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
@@ -865,6 +901,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 					Session string `cookie:"session"`
 					Name    string `json:"name"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
@@ -888,6 +925,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				type Request struct {
 					Field string `query:"field,omitempty"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
@@ -906,6 +944,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 					Session string `cookie:"session" doc:"Session token" example:"abc123"`
 					Status  string `query:"status" enum:"pending,active" validate:"oneof=pending active completed" doc:"Status"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
@@ -979,6 +1018,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 				type Request struct {
 					Name string `json:"name"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			expected: true,
@@ -994,6 +1034,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 				type Request struct {
 					Name string `json:"name,omitempty"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			expected: true,
@@ -1005,6 +1046,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 				type Request struct {
 					ID int `path:"id"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			expected: false,
@@ -1016,6 +1058,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 				type Request struct {
 					Field string `json:"-"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			expected: false,
@@ -1031,6 +1074,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 					Body
 					ID int `path:"id"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			expected: true,
@@ -1042,6 +1086,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 				type Request struct {
 					Name *string `json:"name"`
 				}
+
 				return reflect.TypeFor[Request]()
 			},
 			expected: true,

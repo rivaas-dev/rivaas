@@ -325,6 +325,7 @@ func convertPathConstraints(constraints map[string]PathConstraint) map[string]bu
 			Enum:    c.Enum,
 		}
 	}
+
 	return result
 }
 
@@ -514,6 +515,7 @@ func (m *Manager) Warnings() []export.Warning {
 	// Return a copy to prevent external modification
 	result := make([]export.Warning, len(m.lastWarnings))
 	copy(result, m.lastWarnings)
+
 	return result
 }
 
@@ -529,6 +531,7 @@ func convertSecurityReqs(reqs []SecurityReq) []build.SecurityReq {
 			Scopes: r.Scopes,
 		}
 	}
+
 	return result
 }
 

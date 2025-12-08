@@ -89,5 +89,6 @@ func isFieldRequired(f reflect.StructField) bool {
 	if f.Type.Kind() == reflect.Ptr {
 		return false
 	}
+
 	return strings.Contains(f.Tag.Get("validate"), "required")
 }

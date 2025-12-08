@@ -45,6 +45,7 @@ func NewBuilder(info model.Info) *Builder {
 func (b *Builder) AddServer(url, desc string) *Builder {
 	server := model.Server{URL: url, Description: desc}
 	b.servers = append(b.servers, server)
+
 	return b
 }
 
@@ -56,6 +57,7 @@ func (b *Builder) AddServerWithExtensions(url, desc string, extensions map[strin
 		maps.Copy(server.Extensions, extensions)
 	}
 	b.servers = append(b.servers, server)
+
 	return b
 }
 
@@ -73,6 +75,7 @@ func (b *Builder) AddServerVariable(name string, variable *model.ServerVariable)
 		server.Variables = make(map[string]*model.ServerVariable)
 	}
 	server.Variables[name] = variable
+
 	return b
 }
 
@@ -90,6 +93,7 @@ func (b *Builder) AddTagWithExtensions(name, desc string, extensions map[string]
 		maps.Copy(tag.Extensions, extensions)
 	}
 	b.tags = append(b.tags, tag)
+
 	return b
 }
 
@@ -101,6 +105,7 @@ func (b *Builder) AddTagWithExternalDocs(name, desc string, extDocs *model.Exter
 		maps.Copy(tag.Extensions, extensions)
 	}
 	b.tags = append(b.tags, tag)
+
 	return b
 }
 
@@ -220,6 +225,7 @@ func (b *Builder) buildOperation(er EnrichedRoute, sg *schema.SchemaGenerator, s
 		op.Responses["200"] = &model.Response{Description: "OK"}
 		// Extract path params from route as fallback
 		op.Parameters = append(op.Parameters, extractPathParams(ri.Path, ri.PathConstraints)...)
+
 		return op, nil
 	}
 
@@ -406,6 +412,7 @@ func constraintToSchema(c PathConstraint) *model.Schema {
 		for i, v := range c.Enum {
 			enum[i] = v
 		}
+
 		return &model.Schema{Kind: model.KindString, Enum: enum}
 	default:
 		return &model.Schema{Kind: model.KindString}
@@ -420,6 +427,7 @@ func convertPath(p string) string {
 			parts[i] = "{" + after + "}"
 		}
 	}
+
 	return strings.Join(parts, "/")
 }
 
@@ -542,6 +550,7 @@ func capitalize(s string) string {
 	}
 	runes := []rune(s)
 	runes[0] = unicode.ToUpper(runes[0])
+
 	return string(runes)
 }
 
@@ -550,6 +559,7 @@ func httpStatusText(code int) string {
 	if text := http.StatusText(code); text != "" {
 		return text
 	}
+
 	return "Response"
 }
 
@@ -558,6 +568,7 @@ func first[S ~[]E, E any](s S, def E) E {
 	if len(s) > 0 {
 		return s[0]
 	}
+
 	return def
 }
 

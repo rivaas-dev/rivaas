@@ -194,6 +194,7 @@ func schema31(s *model.Schema, warns *[]Warning, path string) *SchemaV31 {
 	}
 
 	out.Extensions = copyExtensions(s.Extensions, "3.1.2")
+
 	return out
 }
 

@@ -125,6 +125,7 @@ func info30(in model.Info, warns *[]Warning) InfoV30 {
 		info.License.Extensions = copyExtensions(in.License.Extensions, "3.0.4")
 	}
 	info.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return info
 }
 
@@ -149,6 +150,7 @@ func servers30(in []model.Server) []ServerV30 {
 		server.Extensions = copyExtensions(s.Extensions, "3.0.4")
 		out[i] = server
 	}
+
 	return out
 }
 
@@ -165,6 +167,7 @@ func tags30(in []model.Tag) []TagV30 {
 		tag.Extensions = copyExtensions(t.Extensions, "3.0.4")
 		out[i] = tag
 	}
+
 	return out
 }
 
@@ -173,6 +176,7 @@ func security30(in []model.SecurityRequirement) []SecurityRequirementV30 {
 	for i, s := range in {
 		out[i] = SecurityRequirementV30(s)
 	}
+
 	return out
 }
 
@@ -181,6 +185,7 @@ func paths30(in map[string]*model.PathItem, warns *[]Warning) map[string]*PathIt
 	for path, item := range in {
 		out[path] = pathItem30(item, warns)
 	}
+
 	return out
 }
 
@@ -212,6 +217,7 @@ func pathItem30(in *model.PathItem, warns *[]Warning) *PathItemV30 {
 		item.Patch = operation30(in.Patch, warns)
 	}
 	item.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return item
 }
 
@@ -232,6 +238,7 @@ func operation30(in *model.Operation, warns *[]Warning) *OperationV30 {
 		op.Security = security30(in.Security)
 	}
 	op.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return op
 }
 
@@ -240,6 +247,7 @@ func parameters30(in []model.Parameter, warns *[]Warning) []ParameterV30 {
 	for i, p := range in {
 		out[i] = parameter30(p, warns)
 	}
+
 	return out
 }
 
@@ -272,6 +280,7 @@ func parameter30(in model.Parameter, warns *[]Warning) ParameterV30 {
 		}
 	}
 	p.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return p
 }
 
@@ -286,6 +295,7 @@ func example30(in *model.Example) *ExampleV30 {
 		ExternalValue: in.ExternalValue,
 	}
 	ex.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return ex
 }
 
@@ -299,6 +309,7 @@ func requestBody30(in *model.RequestBody, warns *[]Warning) *RequestBodyV30 {
 		rb.Content[ct] = mediaType30(mt, warns, "#/requestBody/content/"+ct)
 	}
 	rb.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return rb
 }
 
@@ -307,6 +318,7 @@ func responses30(in map[string]*model.Response, warns *[]Warning) map[string]*Re
 	for code, r := range in {
 		out[code] = response30(r, warns, "#/responses/"+code)
 	}
+
 	return out
 }
 
@@ -331,6 +343,7 @@ func response30(in *model.Response, warns *[]Warning, path string) *ResponseV30 
 		}
 	}
 	r.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return r
 }
 
@@ -357,6 +370,7 @@ func mediaType30(in *model.MediaType, warns *[]Warning, path string) *MediaTypeV
 		}
 	}
 	mt.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return mt
 }
 
@@ -377,6 +391,7 @@ func encoding30(in *model.Encoding, warns *[]Warning) *EncodingV30 {
 		}
 	}
 	enc.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return enc
 }
 
@@ -408,6 +423,7 @@ func header30(in *model.Header, warns *[]Warning, path string) *HeaderV30 {
 		}
 	}
 	h.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return h
 }
 
@@ -429,6 +445,7 @@ func link30(in *model.Link) *LinkV30 {
 		}
 	}
 	link.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return link
 }
 
@@ -451,6 +468,7 @@ func components30(in *model.Components, warns *[]Warning) (*ComponentsV30, []str
 		comp.SecuritySchemes[name] = securityScheme30(ss)
 	}
 	comp.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return comp, mutualTLSSchemes
 }
 
@@ -468,6 +486,7 @@ func securityScheme30(in *model.SecurityScheme) *SecuritySchemeV30 {
 		out.Flows = oAuthFlows30(in.Flows)
 	}
 	out.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return out
 }
 
@@ -490,6 +509,7 @@ func oAuthFlows30(in *model.OAuthFlows) *OAuthFlowsV30 {
 		return nil
 	}
 	out.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return out
 }
 
@@ -506,6 +526,7 @@ func oAuthFlow30(in *model.OAuthFlow) *OAuthFlowV30 {
 		out.Scopes = make(map[string]string)
 	}
 	out.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return out
 }
 
@@ -518,5 +539,6 @@ func externalDocs30(in *model.ExternalDocs) *ExternalDocsV30 {
 		URL:         in.URL,
 	}
 	ed.Extensions = copyExtensions(in.Extensions, "3.0.4")
+
 	return ed
 }

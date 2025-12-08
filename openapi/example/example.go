@@ -78,6 +78,7 @@ func New(name string, value any, opts ...Option) Example {
 	for _, opt := range opts {
 		opt(&e)
 	}
+
 	return e
 }
 
@@ -108,6 +109,7 @@ func NewExternal(name, url string, opts ...Option) Example {
 	for _, opt := range opts {
 		opt(&e)
 	}
+
 	return e
 }
 

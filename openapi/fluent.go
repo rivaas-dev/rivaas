@@ -44,6 +44,7 @@ func isZeroValue(v any) bool {
 				return false
 			}
 		}
+
 		return true
 	default:
 		return reflect.DeepEqual(rv.Interface(), reflect.Zero(rv.Type()).Interface())
@@ -70,6 +71,7 @@ func (rw *RouteWrapper) Doc(summary, description string) *RouteWrapper {
 
 	rw.doc.Summary = summary
 	rw.doc.Description = description
+
 	return rw
 }
 
@@ -90,6 +92,7 @@ func (rw *RouteWrapper) Summary(s string) *RouteWrapper {
 	}
 
 	rw.doc.Summary = s
+
 	return rw
 }
 
@@ -111,6 +114,7 @@ func (rw *RouteWrapper) Description(d string) *RouteWrapper {
 	}
 
 	rw.doc.Description = d
+
 	return rw
 }
 
@@ -133,6 +137,7 @@ func (rw *RouteWrapper) Tags(tags ...string) *RouteWrapper {
 	}
 
 	rw.doc.Tags = append(rw.doc.Tags, tags...)
+
 	return rw
 }
 
@@ -157,6 +162,7 @@ func (rw *RouteWrapper) OperationID(id string) *RouteWrapper {
 	}
 
 	rw.doc.OperationID = id
+
 	return rw
 }
 
@@ -179,6 +185,7 @@ func (rw *RouteWrapper) Deprecated() *RouteWrapper {
 	}
 
 	rw.doc.Deprecated = true
+
 	return rw
 }
 
@@ -199,6 +206,7 @@ func (rw *RouteWrapper) Consumes(ct ...string) *RouteWrapper {
 	}
 
 	rw.doc.Consumes = ct
+
 	return rw
 }
 
@@ -219,6 +227,7 @@ func (rw *RouteWrapper) Produces(ct ...string) *RouteWrapper {
 	}
 
 	rw.doc.Produces = ct
+
 	return rw
 }
 
@@ -268,6 +277,7 @@ func (rw *RouteWrapper) Security(scheme string, scopes ...string) *RouteWrapper 
 		Scheme: scheme,
 		Scopes: scopes,
 	})
+
 	return rw
 }
 
@@ -394,5 +404,6 @@ func (rw *RouteWrapper) ResponseExample(status int, ex any) *RouteWrapper {
 	// Set single example and clear any named examples for this status
 	rw.doc.ResponseExample[status] = ex
 	delete(rw.doc.ResponseNamedExamples, status)
+
 	return rw
 }

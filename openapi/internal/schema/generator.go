@@ -62,6 +62,7 @@ func (sg *SchemaGenerator) Generate(t reflect.Type) *model.Schema {
 	if t.Kind() == reflect.Ptr {
 		s := sg.Generate(t.Elem())
 		s.Nullable = true
+
 		return s
 	}
 
@@ -69,6 +70,7 @@ func (sg *SchemaGenerator) Generate(t reflect.Type) *model.Schema {
 		if name := schemaName(t); name != "" {
 			return &model.Schema{Ref: "#/components/schemas/" + name}
 		}
+
 		return &model.Schema{Kind: model.KindObject}
 	}
 
@@ -95,6 +97,7 @@ func (sg *SchemaGenerator) Generate(t reflect.Type) *model.Schema {
 		if t.Key().Kind() != reflect.String {
 			return &model.Schema{Kind: model.KindObject}
 		}
+
 		return &model.Schema{
 			Kind:       model.KindObject,
 			Additional: model.AdditionalPropsSchema(sg.Generate(t.Elem())),

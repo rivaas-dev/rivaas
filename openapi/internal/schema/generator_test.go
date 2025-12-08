@@ -33,6 +33,7 @@ func generateTestSchema(tb testing.TB, input any) *model.Schema {
 	if input == nil {
 		return gen.Generate(nil)
 	}
+
 	return gen.Generate(reflect.TypeOf(input))
 }
 

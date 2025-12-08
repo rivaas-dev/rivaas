@@ -482,6 +482,7 @@ func info31(in model.Info) (InfoV31, error) {
 		info.License.Extensions = copyExtensions(in.License.Extensions, "3.1.2")
 	}
 	info.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return info, nil
 }
 
@@ -502,6 +503,7 @@ func servers31(in []model.Server, warns *[]Warning) []ServerV31 {
 		server.Extensions = copyExtensions(s.Extensions, "3.1.2")
 		out[i] = server
 	}
+
 	return out
 }
 
@@ -563,6 +565,7 @@ func tags31(in []model.Tag) []TagV31 {
 		tag.Extensions = copyExtensions(t.Extensions, "3.1.2")
 		out[i] = tag
 	}
+
 	return out
 }
 
@@ -571,6 +574,7 @@ func security31(in []model.SecurityRequirement) []SecurityRequirementV31 {
 	for i, s := range in {
 		out[i] = SecurityRequirementV31(s)
 	}
+
 	return out
 }
 
@@ -583,6 +587,7 @@ func externalDocs31(in *model.ExternalDocs) *ExternalDocsV31 {
 		URL:         in.URL,
 	}
 	ed.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return ed
 }
 
@@ -591,6 +596,7 @@ func paths31(in map[string]*model.PathItem, warns *[]Warning) map[string]*PathIt
 	for path, item := range in {
 		out[path] = pathItem31(item, warns)
 	}
+
 	return out
 }
 
@@ -622,6 +628,7 @@ func pathItem31(in *model.PathItem, warns *[]Warning) *PathItemV31 {
 		item.Patch = operation31(in.Patch, warns)
 	}
 	item.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return item
 }
 
@@ -630,6 +637,7 @@ func webhooks31(in map[string]*model.PathItem, warns *[]Warning) map[string]*Pat
 	for path, item := range in {
 		out[path] = pathItem31(item, warns)
 	}
+
 	return out
 }
 
@@ -653,6 +661,7 @@ func operation31(in *model.Operation, warns *[]Warning) *OperationV31 {
 		op.Security = security31(in.Security)
 	}
 	op.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return op
 }
 
@@ -661,6 +670,7 @@ func parameters31(in []model.Parameter, warns *[]Warning) []ParameterV31 {
 	for i, p := range in {
 		out[i] = parameter31(p, warns)
 	}
+
 	return out
 }
 
@@ -700,6 +710,7 @@ func parameter31(in model.Parameter, warns *[]Warning) ParameterV31 {
 		}
 	}
 	p.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return p
 }
 
@@ -713,6 +724,7 @@ func requestBody31(in *model.RequestBody, warns *[]Warning) *RequestBodyV31 {
 		rb.Content[ct] = mediaType31(mt, warns, "#/requestBody/content/"+ct)
 	}
 	rb.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return rb
 }
 
@@ -721,6 +733,7 @@ func responses31(in map[string]*model.Response, warns *[]Warning) map[string]*Re
 	for code, r := range in {
 		out[code] = response31(r, warns, "#/responses/"+code)
 	}
+
 	return out
 }
 
@@ -745,6 +758,7 @@ func response31(in *model.Response, warns *[]Warning, path string) *ResponseV31 
 		}
 	}
 	r.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return r
 }
 
@@ -766,6 +780,7 @@ func link31(in *model.Link, warns *[]Warning) *LinkV31 {
 		}
 	}
 	link.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return link
 }
 
@@ -802,6 +817,7 @@ func header31(in *model.Header, warns *[]Warning, path string) *HeaderV31 {
 		}
 	}
 	h.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return h
 }
 
@@ -835,6 +851,7 @@ func mediaType31(in *model.MediaType, warns *[]Warning, path string) *MediaTypeV
 		}
 	}
 	mt.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return mt
 }
 
@@ -855,6 +872,7 @@ func encoding31(in *model.Encoding, warns *[]Warning) *EncodingV31 {
 		}
 	}
 	enc.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return enc
 }
 
@@ -869,6 +887,7 @@ func callbacks31(in map[string]*model.Callback, warns *[]Warning) map[string]*Ca
 		}
 		out[name].Extensions = copyExtensions(cb.Extensions, "3.1.2")
 	}
+
 	return out
 }
 
@@ -884,6 +903,7 @@ func components31(in *model.Components, warns *[]Warning) *ComponentsV31 {
 		comp.SecuritySchemes[name] = securityScheme31(ss)
 	}
 	comp.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return comp
 }
 
@@ -901,6 +921,7 @@ func securityScheme31(in *model.SecurityScheme) *SecuritySchemeV31 {
 		out.Flows = oAuthFlows31(in.Flows)
 	}
 	out.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return out
 }
 
@@ -923,6 +944,7 @@ func oAuthFlows31(in *model.OAuthFlows) *OAuthFlowsV31 {
 		return nil
 	}
 	out.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return out
 }
 
@@ -939,5 +961,6 @@ func oAuthFlow31(in *model.OAuthFlow) *OAuthFlowV31 {
 		out.Scopes = make(map[string]string)
 	}
 	out.Extensions = copyExtensions(in.Extensions, "3.1.2")
+
 	return out
 }

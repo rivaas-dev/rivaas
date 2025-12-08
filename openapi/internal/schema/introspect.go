@@ -181,6 +181,7 @@ func parseEnumValues(s string) []string {
 			out = append(out, v)
 		}
 	}
+
 	return out
 }
 

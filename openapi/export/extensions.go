@@ -33,6 +33,7 @@ func validateExtensionKey(key, version string) error {
 	if strings.HasPrefix(version, "3.1") && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
 		return &ReservedExtensionKeyError{Key: key}
 	}
+
 	return nil
 }
 
@@ -89,6 +90,7 @@ func copyExtensions(in map[string]any, version string) map[string]any {
 	if len(out) == 0 {
 		return nil
 	}
+
 	return out
 }
 
