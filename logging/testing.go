@@ -46,6 +46,7 @@ func NewTestLogger() (*Logger, *bytes.Buffer) {
 		WithOutput(buf),
 		WithLevel(LevelDebug),
 	)
+
 	return logger, buf
 }
 
@@ -78,6 +79,7 @@ func ParseJSONLogEntries(buf *bytes.Buffer) ([]LogEntry, error) {
 
 		entries = append(entries, le)
 	}
+
 	return entries, scanner.Err()
 }
 
@@ -122,6 +124,7 @@ func (th *TestHelper) LastLog() (*LogEntry, error) {
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("no log entries found")
 	}
+
 	return &entries[len(entries)-1], nil
 }
 
@@ -137,6 +140,7 @@ func (th *TestHelper) ContainsLog(msg string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -171,6 +175,7 @@ func (th *TestHelper) ContainsAttr(key string, value any) bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -187,6 +192,7 @@ func (th *TestHelper) CountLevel(level string) int {
 			count++
 		}
 	}
+
 	return count
 }
 
@@ -293,6 +299,7 @@ func (mw *MockWriter) Write(p []byte) (n int, err error) {
 
 	mw.writes = append(mw.writes, append([]byte(nil), p...))
 	mw.bytesTotal += len(p)
+
 	return len(p), nil
 }
 
@@ -311,6 +318,7 @@ func (mw *MockWriter) LastWrite() []byte {
 	if len(mw.writes) == 0 {
 		return nil
 	}
+
 	return mw.writes[len(mw.writes)-1]
 }
 
@@ -345,6 +353,7 @@ type CountingWriter struct {
 func (cw *CountingWriter) Write(p []byte) (n int, err error) {
 	n = len(p)
 	cw.count += int64(n)
+
 	return n, nil
 }
 
@@ -390,6 +399,7 @@ func (sw *SlowWriter) Write(p []byte) (n int, err error) {
 	if sw.inner != nil {
 		return sw.inner.Write(p)
 	}
+
 	return len(p), nil
 }
 
@@ -431,6 +441,7 @@ func (hs *HandlerSpy) Handle(_ context.Context, r slog.Record) error {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
 	hs.records = append(hs.records, r)
+
 	return nil
 }
 
@@ -448,6 +459,7 @@ func (hs *HandlerSpy) WithGroup(_ string) slog.Handler {
 func (hs *HandlerSpy) Records() []slog.Record {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
+
 	return append([]slog.Record(nil), hs.records...)
 }
 
@@ -455,6 +467,7 @@ func (hs *HandlerSpy) Records() []slog.Record {
 func (hs *HandlerSpy) RecordCount() int {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
+
 	return len(hs.records)
 }
 

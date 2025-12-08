@@ -93,6 +93,7 @@ func NewBatchLogger(logger *Logger, batchSize int, flushInterval time.Duration) 
 	}
 
 	go bl.flusher()
+
 	return bl
 }
 
@@ -190,5 +191,6 @@ func (bl *BatchLogger) Close() {
 func (bl *BatchLogger) Size() int {
 	bl.mu.Lock()
 	defer bl.mu.Unlock()
+
 	return len(bl.entries)
 }

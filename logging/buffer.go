@@ -67,6 +67,7 @@ func (h *bufferingHandler) Handle(ctx context.Context, r slog.Record) error {
 			record: r.Clone(),
 		})
 		h.state.mu.Unlock()
+
 		return nil
 	}
 	h.state.mu.Unlock()
@@ -113,6 +114,7 @@ func (h *bufferingHandler) flush() error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -120,6 +122,7 @@ func (h *bufferingHandler) flush() error {
 func (h *bufferingHandler) isBuffering() bool {
 	h.state.mu.Lock()
 	defer h.state.mu.Unlock()
+
 	return h.state.buffering
 }
 

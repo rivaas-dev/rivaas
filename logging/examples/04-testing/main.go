@@ -138,6 +138,7 @@ func processPayment(logger *logging.Logger, cardStatus string) {
 			"error_code", "CARD_EXPIRED",
 			"card_status", cardStatus,
 		)
+
 		return
 	}
 

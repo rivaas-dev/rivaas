@@ -247,6 +247,7 @@ func ExampleWithReplaceAttr() {
 			if a.Key == "password" || a.Key == "token" {
 				return slog.String(a.Key, "***REDACTED***")
 			}
+
 			return a
 		}),
 	)

@@ -799,6 +799,7 @@ func TestLogger_WithReplaceAttr(t *testing.T) {
 		if a.Key == "custom_field" {
 			return slog.String(a.Key, "***CUSTOM***")
 		}
+
 		return a
 	}))
 

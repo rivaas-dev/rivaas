@@ -156,6 +156,7 @@ func New(opts ...Option) (*Logger, error) {
 	if err := l.initialize(); err != nil {
 		return nil, err
 	}
+
 	return l, nil
 }
 
@@ -165,6 +166,7 @@ func MustNew(opts ...Option) *Logger {
 	if err != nil {
 		panic("logging initialization failed: " + err.Error())
 	}
+
 	return l
 }
 
@@ -264,6 +266,7 @@ func (l *Logger) initializeHandler() error {
 		if l.registerGlobal {
 			slog.SetDefault(l.customLogger)
 		}
+
 		return nil
 	}
 
@@ -306,6 +309,7 @@ func (l *Logger) initializeHandler() error {
 	if l.registerGlobal {
 		slog.SetDefault(newLogger)
 	}
+
 	return nil
 }
 
@@ -321,6 +325,7 @@ func (l *Logger) buildReplaceAttr() func(groups []string, a slog.Attr) slog.Attr
 		if l.replaceAttr != nil {
 			return l.replaceAttr(groups, a)
 		}
+
 		return a
 	}
 }
@@ -410,6 +415,7 @@ func (l *Logger) Shutdown(_ context.Context) error {
 			return flusher.Flush()
 		}
 	}
+
 	return nil
 }
 
@@ -450,6 +456,7 @@ func (l *Logger) SetLevel(level Level) error {
 func (l *Logger) Level() Level {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	return l.level
 }
 

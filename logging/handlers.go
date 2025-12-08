@@ -68,6 +68,7 @@ func newConsoleHandler(w io.Writer, opts *slog.HandlerOptions) *consoleHandler {
 	if opts == nil {
 		opts = &slog.HandlerOptions{}
 	}
+
 	return &consoleHandler{
 		opts:   opts,
 		output: w,
@@ -80,6 +81,7 @@ func (h *consoleHandler) Enabled(_ context.Context, level slog.Level) bool {
 	if h.opts.Level != nil {
 		minLevel = h.opts.Level.Level()
 	}
+
 	return level >= minLevel
 }
 
@@ -135,6 +137,7 @@ func (h *consoleHandler) Handle(_ context.Context, r slog.Record) error {
 	b.WriteString("\n")
 
 	_, err := h.output.Write([]byte(b.String()))
+
 	return err
 }
 
@@ -144,6 +147,7 @@ func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
 	copy(newAttrs, h.attrs)
 	copy(newAttrs[len(h.attrs):], attrs)
+
 	return &consoleHandler{
 		opts:   h.opts,
 		output: h.output,
@@ -158,6 +162,7 @@ func (h *consoleHandler) WithGroup(name string) slog.Handler {
 	newGroups := make([]string, len(h.groups)+1)
 	copy(newGroups, h.groups)
 	newGroups[len(h.groups)] = name
+
 	return &consoleHandler{
 		opts:   h.opts,
 		output: h.output,
@@ -254,5 +259,6 @@ func handlerRecordSource(pc uintptr) string {
 	if len(parts) > 0 {
 		file = parts[len(parts)-1]
 	}
+
 	return fmt.Sprintf("%s:%d", file, f.Line)
 }

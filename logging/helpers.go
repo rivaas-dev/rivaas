@@ -199,5 +199,6 @@ func captureStack(skip int) string {
 			break
 		}
 	}
+
 	return buf.String()
 }

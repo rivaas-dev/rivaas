@@ -145,5 +145,6 @@ func processOrder(orderID string) error {
 	if orderID == "order-invalid" {
 		return errors.New("order not found")
 	}
+
 	return nil
 }
