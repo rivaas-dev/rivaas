@@ -46,6 +46,7 @@ func newPathFilterWithDefaults() *pathFilter {
 	)
 	// Default prefixes to exclude
 	pf.addPrefixes("/debug/")
+
 	return pf
 }
 

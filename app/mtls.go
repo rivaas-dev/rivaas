@@ -173,5 +173,6 @@ func GetMTLSCertificate(req *http.Request) *x509.Certificate {
 	if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
 		return nil
 	}
+
 	return req.TLS.PeerCertificates[0]
 }

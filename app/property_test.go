@@ -29,10 +29,11 @@ import (
 // TestProperty_RouteMatchingCommutativity tests that route matching is commutative:
 // registering routes in different orders should produce the same results.
 func TestProperty_RouteMatchingCommutativity(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping property test in short mode")
 	}
-	t.Parallel()
 
 	// Generate test routes
 	routes := []struct {

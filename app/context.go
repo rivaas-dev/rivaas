@@ -141,6 +141,7 @@ func (c *Context) Bind(out any) error {
 			if isMap {
 				return c.bindJSON(out)
 			}
+
 			return fmt.Errorf("%w: %s", binding.ErrUnsupportedContentType, contentType)
 		}
 	}
@@ -264,6 +265,7 @@ func (c *Context) Presence() validation.PresenceMap {
 	if c.bindingMeta == nil {
 		return nil
 	}
+
 	return c.bindingMeta.presence
 }
 
@@ -342,6 +344,7 @@ func (c *Context) BindAndValidate(out any, opts ...validation.Option) error {
 	if verr := validation.Validate(ctx, out, allOpts...); verr != nil {
 		return verr
 	}
+
 	return nil
 }
 
@@ -382,6 +385,7 @@ func (c *Context) BindAndValidateStrict(out any, opts ...validation.Option) erro
 	if verr := validation.Validate(ctx, out, allOpts...); verr != nil {
 		return verr
 	}
+
 	return nil
 }
 
@@ -599,6 +603,7 @@ func (c *Context) MustBindAndValidate(out any, opts ...validation.Option) bool {
 		c.Error(err)
 		return false
 	}
+
 	return true
 }
 
@@ -623,6 +628,7 @@ func BindAndValidateInto[T any](c *Context, opts ...validation.Option) (T, error
 		var zero T
 		return zero, err
 	}
+
 	return out, nil
 }
 
@@ -646,6 +652,7 @@ func MustBindAndValidateInto[T any](c *Context, opts ...validation.Option) (T, b
 		var zero T
 		return zero, false
 	}
+
 	return out, true
 }
 

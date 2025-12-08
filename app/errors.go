@@ -51,6 +51,7 @@ func (e *ConfigError) Error() string {
 		return fmt.Sprintf("configuration error in %s: %s (value: %v)",
 			e.Field, e.Message, e.Value)
 	}
+
 	return fmt.Sprintf("configuration error in %s: %s", e.Field, e.Message)
 }
 
@@ -81,6 +82,7 @@ func (ve *ValidationError) Error() string {
 	for i, err := range ve.Errors {
 		msg.WriteString(fmt.Sprintf("\n  %d. %s", i+1, err.Error()))
 	}
+
 	return msg.String()
 }
 
@@ -103,6 +105,7 @@ func (ve *ValidationError) ToError() error {
 	if !ve.HasErrors() {
 		return nil
 	}
+
 	return ve
 }
 

@@ -120,6 +120,7 @@ func (rw *RouteWrapper) Doc(summary, description string) *RouteWrapper {
 	if rw.openapi != nil {
 		rw.openapi.Doc(summary, description)
 	}
+
 	return rw
 }
 
@@ -132,6 +133,7 @@ func (rw *RouteWrapper) Summary(summary string) *RouteWrapper {
 	if rw.openapi != nil {
 		rw.openapi.Summary(summary)
 	}
+
 	return rw
 }
 
@@ -144,6 +146,7 @@ func (rw *RouteWrapper) Description(description string) *RouteWrapper {
 	if rw.openapi != nil {
 		rw.openapi.Description(description)
 	}
+
 	return rw
 }
 
@@ -156,6 +159,7 @@ func (rw *RouteWrapper) Tags(tags ...string) *RouteWrapper {
 	if rw.openapi != nil {
 		rw.openapi.Tags(tags...)
 	}
+
 	return rw
 }
 
@@ -190,6 +194,7 @@ func (rw *RouteWrapper) Response(status int, resp any, examples ...example.Examp
 	if rw.openapi != nil {
 		rw.openapi.Response(status, resp, examples...)
 	}
+
 	return rw
 }
 
@@ -215,6 +220,7 @@ func (rw *RouteWrapper) Request(req any, examples ...example.Example) *RouteWrap
 	if rw.openapi != nil {
 		rw.openapi.Request(req, examples...)
 	}
+
 	return rw
 }
 
@@ -229,6 +235,7 @@ func (rw *RouteWrapper) Security(scheme string, scopes ...string) *RouteWrapper 
 	if rw.openapi != nil {
 		rw.openapi.Security(scheme, scopes...)
 	}
+
 	return rw
 }
 
@@ -241,6 +248,7 @@ func (rw *RouteWrapper) Deprecated() *RouteWrapper {
 	if rw.openapi != nil {
 		rw.openapi.Deprecated()
 	}
+
 	return rw
 }
 

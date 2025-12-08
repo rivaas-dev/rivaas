@@ -52,6 +52,7 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 			if err := c.String(http.StatusOK, "ok"); err != nil {
 				c.Logger().Error("failed to write healthz response", "err", err)
 			}
+
 			return
 		}
 

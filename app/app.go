@@ -523,6 +523,7 @@ func MustNew(opts ...Option) *App {
 	if err != nil {
 		panic(fmt.Sprintf("app initialization failed: %v", err))
 	}
+
 	return app
 }
 
@@ -559,6 +560,7 @@ func (a *App) wrapRouteWithOpenAPI(rt *route.Route, _, _ string) *RouteWrapper {
 		// Register route with OpenAPI and get wrapper
 		oapi = a.openapi.OnRouteAdded(rt)
 	}
+
 	return &RouteWrapper{
 		route:   rt,
 		openapi: oapi,
@@ -636,6 +638,7 @@ func (a *App) GET(path string, handlers ...HandlerFunc) *RouteWrapper {
 	}
 	route := a.router.GET(path, routerHandlers...)
 	a.fireRouteHook(route)
+
 	return a.wrapRouteWithOpenAPI(route, http.MethodGet, path)
 }
 
@@ -657,6 +660,7 @@ func (a *App) POST(path string, handlers ...HandlerFunc) *RouteWrapper {
 	}
 	route := a.router.POST(path, routerHandlers...)
 	a.fireRouteHook(route)
+
 	return a.wrapRouteWithOpenAPI(route, http.MethodPost, path)
 }
 
@@ -674,6 +678,7 @@ func (a *App) PUT(path string, handlers ...HandlerFunc) *RouteWrapper {
 	}
 	route := a.router.PUT(path, routerHandlers...)
 	a.fireRouteHook(route)
+
 	return a.wrapRouteWithOpenAPI(route, http.MethodPut, path)
 }
 
@@ -691,6 +696,7 @@ func (a *App) DELETE(path string, handlers ...HandlerFunc) *RouteWrapper {
 	}
 	route := a.router.DELETE(path, routerHandlers...)
 	a.fireRouteHook(route)
+
 	return a.wrapRouteWithOpenAPI(route, http.MethodDelete, path)
 }
 
@@ -708,6 +714,7 @@ func (a *App) PATCH(path string, handlers ...HandlerFunc) *RouteWrapper {
 	}
 	route := a.router.PATCH(path, routerHandlers...)
 	a.fireRouteHook(route)
+
 	return a.wrapRouteWithOpenAPI(route, http.MethodPatch, path)
 }
 
@@ -724,6 +731,7 @@ func (a *App) HEAD(path string, handlers ...HandlerFunc) *RouteWrapper {
 	}
 	route := a.router.HEAD(path, routerHandlers...)
 	a.fireRouteHook(route)
+
 	return a.wrapRouteWithOpenAPI(route, http.MethodHead, path)
 }
 
@@ -739,6 +747,7 @@ func (a *App) OPTIONS(path string, handlers ...HandlerFunc) *RouteWrapper {
 	}
 	route := a.router.OPTIONS(path, routerHandlers...)
 	a.fireRouteHook(route)
+
 	return a.wrapRouteWithOpenAPI(route, http.MethodOptions, path)
 }
 
@@ -830,6 +839,7 @@ func (a *App) Any(path string, handlers ...HandlerFunc) *RouteWrapper {
 	a.PATCH(path, handlers...)
 	a.HEAD(path, handlers...)
 	a.OPTIONS(path, handlers...)
+
 	return rw
 }
 
@@ -890,6 +900,7 @@ func (a *App) GetMetricsHandler() (http.Handler, error) {
 	if a.metrics == nil {
 		return nil, fmt.Errorf("metrics not enabled, use WithObservability(WithMetrics(...)) to enable metrics")
 	}
+
 	return a.metrics.Handler()
 }
 
@@ -906,6 +917,7 @@ func (a *App) GetMetricsServerAddress() string {
 	if a.metrics == nil {
 		return ""
 	}
+
 	return a.metrics.ServerAddress()
 }
 
@@ -1003,6 +1015,7 @@ func (a *App) URLFor(routeName string, params map[string]string, query map[strin
 	if vals == nil {
 		vals = make(url.Values)
 	}
+
 	return a.router.URLFor(routeName, params, vals)
 }
 
@@ -1018,6 +1031,7 @@ func (a *App) MustURLFor(routeName string, params map[string]string, query map[s
 	if vals == nil {
 		vals = make(url.Values)
 	}
+
 	return a.router.MustURLFor(routeName, params, vals)
 }
 
@@ -1043,6 +1057,7 @@ func (a *App) BaseLogger() *slog.Logger {
 	if a.logging != nil {
 		return a.logging.Logger()
 	}
+
 	return noopLogger
 }
 

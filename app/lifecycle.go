@@ -156,6 +156,7 @@ func (a *App) executeStartHooks(ctx context.Context) error {
 			return fmt.Errorf("OnStart hook %d failed: %w", i, err)
 		}
 	}
+
 	return nil
 }
 

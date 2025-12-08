@@ -254,6 +254,7 @@ func TestApp_Test_Context(t *testing.T) {
 			setupCtx: func(t *testing.T) context.Context {
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // immediately cancel
+
 				return ctx
 			},
 			wantErr: true,
@@ -263,6 +264,7 @@ func TestApp_Test_Context(t *testing.T) {
 			setupCtx: func(t *testing.T) context.Context {
 				ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 				_ = cancel // cancel will be called when context expires
+
 				return ctx
 			},
 			wantErr: false,
@@ -333,6 +335,7 @@ func TestApp_TestJSON(t *testing.T) {
 						if writeErr := c.String(http.StatusBadRequest, err.Error()); writeErr != nil {
 							c.Logger().Error("failed to write error response", "err", writeErr)
 						}
+
 						return
 					}
 					if err := c.JSON(http.StatusCreated, user); err != nil {
@@ -380,6 +383,7 @@ func TestApp_TestJSON(t *testing.T) {
 						if writeErr := c.String(http.StatusBadRequest, err.Error()); writeErr != nil {
 							c.Logger().Error("failed to write error response", "err", writeErr)
 						}
+
 						return
 					}
 					if err := c.JSON(http.StatusOK, map[string]any{
@@ -404,6 +408,7 @@ func TestApp_TestJSON(t *testing.T) {
 						if writeErr := c.String(http.StatusBadRequest, err.Error()); writeErr != nil {
 							c.Logger().Error("failed to write error response", "err", writeErr)
 						}
+
 						return
 					}
 					if err := c.JSON(http.StatusOK, data); err != nil {
@@ -434,6 +439,7 @@ func TestApp_TestJSON(t *testing.T) {
 				if resp != nil {
 					resp.Body.Close()
 				}
+
 				return
 			}
 
@@ -484,6 +490,7 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusOK)
 				json.NewEncoder(rec).Encode(User{Name: "Alice", Email: "alice@example.com"})
+
 				return rec.Result()
 			},
 			wantStatus:  200,
@@ -500,6 +507,7 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(rec).Encode(map[string]string{"error": "server error"})
+
 				return rec.Result()
 			},
 			wantStatus:  200,
@@ -517,6 +525,7 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "text/plain")
 				rec.WriteHeader(http.StatusOK)
 				rec.WriteString("plain text")
+
 				return rec.Result()
 			},
 			wantStatus:  200,
@@ -534,6 +543,7 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusOK)
 				rec.WriteString("{invalid json}")
+
 				return rec.Result()
 			},
 			wantStatus:  200,
@@ -551,6 +561,7 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusOK)
 				json.NewEncoder(rec).Encode(User{Name: "Bob", Email: "bob@example.com"})
+
 				return rec.Result()
 			},
 			wantStatus:  200,

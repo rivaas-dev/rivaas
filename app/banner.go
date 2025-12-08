@@ -37,6 +37,7 @@ func (a *App) getColorWriter(w io.Writer) *colorprofile.Writer {
 	if a.config.environment == EnvironmentProduction {
 		cpw.Profile = colorprofile.NoTTY
 	}
+
 	return cpw
 }
 
@@ -289,6 +290,7 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 			if useColors {
 				return lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Gray border
 			}
+
 			return lipgloss.NewStyle() // No color for border
 		}()).
 		StyleFunc(func(row, _ int) lipgloss.Style {
@@ -336,6 +338,7 @@ func getTerminalSize(file *os.File) (int, int, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("unable to get terminal size: %w", err)
 	}
+
 	return width, height, nil
 }
 

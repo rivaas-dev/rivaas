@@ -302,6 +302,7 @@ func WithOpenAPI(opts ...openapi.Option) Option {
 				enabled: true,
 				initErr: fmt.Errorf("failed to initialize OpenAPI: %w", err),
 			}
+
 			return
 		}
 

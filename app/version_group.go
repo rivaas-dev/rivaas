@@ -76,6 +76,7 @@ func (vg *VersionGroup) addRoute(method, path string, handlers []HandlerFunc) *R
 	}
 
 	vg.app.fireRouteHook(rt)
+
 	return vg.app.wrapRouteWithOpenAPI(rt, method, fullPath)
 }
 
@@ -186,6 +187,7 @@ func (vg *VersionGroup) Any(path string, handlers ...HandlerFunc) *RouteWrapper 
 	vg.PATCH(path, handlers...)
 	vg.HEAD(path, handlers...)
 	vg.OPTIONS(path, handlers...)
+
 	return rw
 }
 

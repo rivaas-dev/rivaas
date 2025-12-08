@@ -141,6 +141,7 @@ func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol
 	a.executeStopHooks()
 
 	a.logLifecycleEvent(ctx, slog.LevelInfo, "server exited", "protocol", protocol)
+
 	return nil
 }
 
@@ -158,6 +159,7 @@ func (a *App) registerOpenAPIEndpoints() {
 			if writeErr := c.Stringf(http.StatusInternalServerError, "Failed to generate OpenAPI specification: %v", err); writeErr != nil {
 				c.Logger().Error("failed to write error response", "err", writeErr)
 			}
+
 			return
 		}
 

@@ -115,6 +115,7 @@ func (o *observabilityRecorder) WrapResponseWriter(w http.ResponseWriter, state 
 	if state == nil {
 		return w // Excluded: don't wrap
 	}
+
 	return &observabilityResponseWriter{ResponseWriter: w}
 }
 
@@ -294,6 +295,7 @@ func (rw *observabilityResponseWriter) Write(b []byte) (int, error) {
 	}
 	n, err := rw.ResponseWriter.Write(b)
 	rw.size += int64(n)
+
 	return n, err
 }
 
@@ -301,6 +303,7 @@ func (rw *observabilityResponseWriter) StatusCode() int {
 	if rw.statusCode == 0 {
 		return http.StatusOK
 	}
+
 	return rw.statusCode
 }
 
@@ -313,6 +316,7 @@ func (rw *observabilityResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, er
 	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}
+
 	return nil, nil, fmt.Errorf("response writer does not support hijacking")
 }
 
@@ -328,6 +332,7 @@ func (rw *observabilityResponseWriter) Push(target string, opts *http.PushOption
 	if pusher, ok := rw.ResponseWriter.(http.Pusher); ok {
 		return pusher.Push(target, opts)
 	}
+
 	return fmt.Errorf("response writer does not support push")
 }
 
@@ -343,6 +348,7 @@ func (rw *observabilityResponseWriter) ReadFrom(r io.Reader) (int64, error) {
 				rw.statusCode = http.StatusOK
 			}
 		}
+
 		return n, err
 	}
 
@@ -356,5 +362,6 @@ func (rw *observabilityResponseWriter) ReadFrom(r io.Reader) (int64, error) {
 			rw.statusCode = http.StatusOK
 		}
 	}
+
 	return n, err
 }

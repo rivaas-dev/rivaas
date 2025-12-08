@@ -115,6 +115,7 @@ func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *RouteWrap
 
 	g.app.fireRouteHook(rt)
 	fullPath := g.buildFullPath(path)
+
 	return g.app.wrapRouteWithOpenAPI(rt, method, fullPath)
 }
 
@@ -218,6 +219,7 @@ func (g *Group) Any(path string, handlers ...HandlerFunc) *RouteWrapper {
 	g.PATCH(path, handlers...)
 	g.HEAD(path, handlers...)
 	g.OPTIONS(path, handlers...)
+
 	return rw
 }
 
@@ -234,5 +236,6 @@ func (g *Group) buildFullPath(path string) string {
 	sb.Grow(len(g.prefix) + len(path))
 	sb.WriteString(g.prefix)
 	sb.WriteString(path)
+
 	return sb.String()
 }

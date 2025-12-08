@@ -64,6 +64,7 @@ func (s *AppLifecycleSuite) TestHooksExecutionOrder() {
 		executionMutex <- struct{}{}
 		executionOrder = append(executionOrder, "OnStart")
 		<-executionMutex
+
 		return nil
 	})
 
