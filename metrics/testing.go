@@ -140,5 +140,6 @@ func findAvailableTestPort(tb testing.TB) int {
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close() //nolint:errcheck // Best-effort close, error not critical for port discovery
+
 	return port
 }

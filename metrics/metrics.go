@@ -89,6 +89,7 @@ func DefaultEventHandler(logger *slog.Logger) EventHandler {
 	if logger == nil {
 		return func(Event) {} // no-op
 	}
+
 	return func(e Event) {
 		switch e.Type {
 		case EventError:
@@ -244,6 +245,7 @@ func newDefaultRecorder() *Recorder {
 	}
 
 	recorder.initCommonAttributes()
+
 	return recorder
 }
 
@@ -318,6 +320,7 @@ func MustNew(opts ...Option) *Recorder {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialize metrics: %v", err))
 	}
+
 	return recorder
 }
 
@@ -349,6 +352,7 @@ func (r *Recorder) Provider() Provider {
 	if !r.enabled {
 		return ""
 	}
+
 	return r.provider
 }
 
@@ -358,6 +362,7 @@ func (r *Recorder) ServerAddress() string {
 	if !r.enabled || r.provider != PrometheusProvider || !r.autoStartServer {
 		return ""
 	}
+
 	return r.metricsPort
 }
 
@@ -367,6 +372,7 @@ func (r *Recorder) Path() string {
 	if !r.enabled || r.provider != PrometheusProvider {
 		return ""
 	}
+
 	return r.metricsPath
 }
 

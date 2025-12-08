@@ -516,6 +516,7 @@ func toLower(s string) string {
 		}
 		result[i] = c
 	}
+
 	return string(result)
 }
 

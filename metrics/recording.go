@@ -213,10 +213,12 @@ func (r *Recorder) RecordHistogram(ctx context.Context, name string, value float
 	if err != nil {
 		atomic.AddInt64(&r.atomicCustomMetricFailures, 1)
 		r.customMetricFailures.Add(ctx, 1)
+
 		return fmt.Errorf("record histogram %q: %w", name, err)
 	}
 
 	histogram.Record(ctx, value, metric.WithAttributes(attributes...))
+
 	return nil
 }
 
@@ -250,10 +252,12 @@ func (r *Recorder) AddCounter(ctx context.Context, name string, value int64, att
 	if err != nil {
 		atomic.AddInt64(&r.atomicCustomMetricFailures, 1)
 		r.customMetricFailures.Add(ctx, 1)
+
 		return fmt.Errorf("add counter %q: %w", name, err)
 	}
 
 	counter.Add(ctx, value, metric.WithAttributes(attributes...))
+
 	return nil
 }
 
@@ -273,10 +277,12 @@ func (r *Recorder) SetGauge(ctx context.Context, name string, value float64, att
 	if err != nil {
 		atomic.AddInt64(&r.atomicCustomMetricFailures, 1)
 		r.customMetricFailures.Add(ctx, 1)
+
 		return fmt.Errorf("set gauge %q: %w", name, err)
 	}
 
 	gauge.Record(ctx, value, metric.WithAttributes(attributes...))
+
 	return nil
 }
 
@@ -401,6 +407,7 @@ func (r *Recorder) getOrCreateCounter(name string) (metric.Int64Counter, error) 
 
 	r.customCounters[name] = counter
 	r.customMetricCount++
+
 	return counter, nil
 }
 
@@ -449,6 +456,7 @@ func (r *Recorder) getOrCreateHistogram(name string) (metric.Float64Histogram, e
 
 	r.customHistograms[name] = histogram
 	r.customMetricCount++
+
 	return histogram, nil
 }
 
@@ -497,6 +505,7 @@ func (r *Recorder) getOrCreateGauge(name string) (metric.Float64Gauge, error) {
 
 	r.customGauges[name] = gauge
 	r.customMetricCount++
+
 	return gauge, nil
 }
 
@@ -509,5 +518,6 @@ func (r *Recorder) getAtomicCustomMetricFailures() int64 {
 func (r *Recorder) CustomMetricCount() int {
 	r.customMu.RLock()
 	defer r.customMu.RUnlock()
+
 	return r.customMetricCount
 }

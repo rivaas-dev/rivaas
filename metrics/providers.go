@@ -42,6 +42,7 @@ func (r *Recorder) initializeProvider() error {
 		}
 		r.emitDebug("Using custom user-provided meter provider")
 		r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
+
 		return r.initializeMetrics()
 	}
 
@@ -155,6 +156,7 @@ func (r *Recorder) initOTLPProvider() error {
 	}
 
 	r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
+
 	return r.initializeMetrics()
 }
 
@@ -183,6 +185,7 @@ func (r *Recorder) initStdoutProvider() error {
 	}
 
 	r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
+
 	return r.initializeMetrics()
 }
 
@@ -208,6 +211,7 @@ func (r *Recorder) startMetricsServer() {
 		if err != nil {
 			r.emitError("Failed to start metrics server on required port (strict mode)",
 				"error", err, "port", r.metricsPort)
+
 			return
 		}
 		listener.Close() // Close immediately, we'll reopen in ListenAndServe
@@ -283,6 +287,7 @@ func (r *Recorder) stopMetricsServer(ctx context.Context) error {
 		}
 		r.emitDebug("Metrics server shut down successfully")
 	}
+
 	return nil
 }
 

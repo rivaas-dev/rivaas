@@ -247,6 +247,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	}
 	n, err := rw.ResponseWriter.Write(b)
 	rw.size += n
+
 	return n, err
 }
 
@@ -255,6 +256,7 @@ func (rw *responseWriter) StatusCode() int {
 	if rw.statusCode == 0 {
 		return http.StatusOK
 	}
+
 	return rw.statusCode
 }
 
@@ -276,6 +278,7 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if h, ok := rw.ResponseWriter.(http.Hijacker); ok {
 		return h.Hijack()
 	}
+
 	return nil, nil, fmt.Errorf("underlying ResponseWriter doesn't support Hijack")
 }
 
@@ -285,6 +288,7 @@ func (rw *responseWriter) Push(target string, opts *http.PushOptions) error {
 	if p, ok := rw.ResponseWriter.(http.Pusher); ok {
 		return p.Push(target, opts)
 	}
+
 	return http.ErrNotSupported
 }
 
