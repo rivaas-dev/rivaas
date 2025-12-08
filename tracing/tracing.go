@@ -79,6 +79,7 @@ func DefaultEventHandler(logger *slog.Logger) EventHandler {
 	if logger == nil {
 		return func(Event) {} // no-op
 	}
+
 	return func(e Event) {
 		switch e.Type {
 		case EventError:
@@ -272,6 +273,7 @@ func MustNew(opts ...Option) *Tracer {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialize tracing: %v", err))
 	}
+
 	return t
 }
 
@@ -283,6 +285,7 @@ func (t *Tracer) validate() error {
 		for _, err := range t.validationErrors {
 			errMsgs = append(errMsgs, err.Error())
 		}
+
 		return fmt.Errorf("validation errors: %s", strings.Join(errMsgs, "; "))
 	}
 
@@ -358,6 +361,7 @@ func (t *Tracer) GetProvider() Provider {
 	if !t.enabled {
 		return ""
 	}
+
 	return t.provider
 }
 
@@ -388,6 +392,7 @@ func (t *Tracer) Shutdown(ctx context.Context) error {
 			if err := t.sdkProvider.Shutdown(ctx); err != nil {
 				t.emitError("Error shutting down tracer provider", "error", err)
 				t.shutdownErr = fmt.Errorf("tracer provider shutdown: %w", err)
+
 				return
 			}
 			t.emitDebug("Tracer provider shut down successfully")
@@ -495,6 +500,7 @@ func (t *Tracer) ExtractTraceContext(ctx context.Context, headers http.Header) c
 	if !t.enabled {
 		return ctx
 	}
+
 	return t.propagator.Extract(ctx, propagation.HeaderCarrier(headers))
 }
 
@@ -658,6 +664,7 @@ func TraceID(ctx context.Context) string {
 	if span.SpanContext().IsValid() {
 		return span.SpanContext().TraceID().String()
 	}
+
 	return ""
 }
 
@@ -668,6 +675,7 @@ func SpanID(ctx context.Context) string {
 	if span.SpanContext().IsValid() {
 		return span.SpanContext().SpanID().String()
 	}
+
 	return ""
 }
 

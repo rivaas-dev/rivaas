@@ -62,6 +62,7 @@ func (c *middlewareConfig) validate() error {
 	for _, err := range c.validationErrors {
 		errMsgs = append(errMsgs, err.Error())
 	}
+
 	return fmt.Errorf("middleware validation errors: %s", strings.Join(errMsgs, "; "))
 }
 
@@ -313,6 +314,7 @@ func MustMiddleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create tracing middleware: %v", err))
 	}
+
 	return middleware
 }
 
@@ -440,6 +442,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	}
 	n, err := rw.ResponseWriter.Write(b)
 	rw.size += n
+
 	return n, err
 }
 
@@ -448,6 +451,7 @@ func (rw *responseWriter) StatusCode() int {
 	if rw.statusCode == 0 {
 		return http.StatusOK
 	}
+
 	return rw.statusCode
 }
 
@@ -468,6 +472,7 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if h, ok := rw.ResponseWriter.(http.Hijacker); ok {
 		return h.Hijack()
 	}
+
 	return nil, nil, fmt.Errorf("underlying ResponseWriter doesn't support Hijack")
 }
 
@@ -476,6 +481,7 @@ func (rw *responseWriter) Push(target string, opts *http.PushOptions) error {
 	if p, ok := rw.ResponseWriter.(http.Pusher); ok {
 		return p.Push(target, opts)
 	}
+
 	return http.ErrNotSupported
 }
 
@@ -496,6 +502,7 @@ func NewContextTracing(ctx context.Context, tracer *Tracer, span trace.Span) *Co
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	return &ContextTracing{
 		tracer: tracer,
 		span:   span,
@@ -508,6 +515,7 @@ func (ct *ContextTracing) TraceID() string {
 	if ct.span != nil && ct.span.SpanContext().IsValid() {
 		return ct.span.SpanContext().TraceID().String()
 	}
+
 	return ""
 }
 
@@ -516,6 +524,7 @@ func (ct *ContextTracing) SpanID() string {
 	if ct.span != nil && ct.span.SpanContext().IsValid() {
 		return ct.span.SpanContext().SpanID().String()
 	}
+
 	return ""
 }
 

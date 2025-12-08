@@ -398,10 +398,11 @@ func TestIntegration_ProviderTypes(t *testing.T) {
 
 // TestIntegration_ShutdownBehavior tests graceful shutdown behavior.
 func TestIntegration_ShutdownBehavior(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	t.Parallel()
 
 	t.Run("graceful shutdown", func(t *testing.T) {
 		t.Parallel()

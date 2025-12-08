@@ -69,6 +69,7 @@ func TestWithServiceName(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
+
 				return
 			}
 
@@ -125,6 +126,7 @@ func TestWithServiceVersion(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
+
 				return
 			}
 

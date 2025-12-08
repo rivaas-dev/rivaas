@@ -57,6 +57,7 @@ func (t *Tracer) initNoopProvider() error {
 			t.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "noop")
 			otel.SetTracerProvider(t.tracerProvider)
 		}
+
 		return nil
 	}
 
@@ -90,6 +91,7 @@ func (t *Tracer) initStdoutProvider() error {
 			t.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "stdout")
 			otel.SetTracerProvider(t.tracerProvider)
 		}
+
 		return nil
 	}
 
@@ -122,6 +124,7 @@ func (t *Tracer) initStdoutProvider() error {
 	}
 
 	t.emitInfo("Tracing initialized", "provider", "stdout", "service", t.serviceName)
+
 	return nil
 }
 
@@ -137,6 +140,7 @@ func (t *Tracer) initOTLPProvider() error {
 			t.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "otlp")
 			otel.SetTracerProvider(t.tracerProvider)
 		}
+
 		return nil
 	}
 
@@ -178,6 +182,7 @@ func (t *Tracer) initOTLPProvider() error {
 	}
 
 	t.emitInfo("Tracing initialized", "provider", "otlp", "endpoint", t.otlpEndpoint, "service", t.serviceName)
+
 	return nil
 }
 
@@ -193,6 +198,7 @@ func (t *Tracer) initOTLPHTTPProvider() error {
 			t.emitDebug("Setting global OpenTelemetry tracer provider", "provider", "otlp-http")
 			otel.SetTracerProvider(t.tracerProvider)
 		}
+
 		return nil
 	}
 
@@ -250,6 +256,7 @@ func (t *Tracer) initOTLPHTTPProvider() error {
 	}
 
 	t.emitInfo("Tracing initialized", "provider", "otlp-http", "endpoint", t.otlpEndpoint, "service", t.serviceName)
+
 	return nil
 }
 

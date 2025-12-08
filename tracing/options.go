@@ -251,6 +251,7 @@ func WithOTLP(endpoint string, opts ...OTLPOption) Option {
 		if t.providerSet {
 			t.validationErrors = append(t.validationErrors,
 				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", t.provider, OTLPProvider))
+
 			return
 		}
 		t.provider = OTLPProvider
@@ -278,6 +279,7 @@ func WithOTLPHTTP(endpoint string) Option {
 		if t.providerSet {
 			t.validationErrors = append(t.validationErrors,
 				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", t.provider, OTLPHTTPProvider))
+
 			return
 		}
 		t.provider = OTLPHTTPProvider
@@ -299,6 +301,7 @@ func WithStdout() Option {
 		if t.providerSet {
 			t.validationErrors = append(t.validationErrors,
 				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", t.provider, StdoutProvider))
+
 			return
 		}
 		t.provider = StdoutProvider
@@ -319,6 +322,7 @@ func WithNoop() Option {
 		if t.providerSet {
 			t.validationErrors = append(t.validationErrors,
 				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", t.provider, NoopProvider))
+
 			return
 		}
 		t.provider = NoopProvider
