@@ -50,6 +50,7 @@ func TestBind_QueryBasic(t *testing.T) {
 				v.Set("page", "2")
 				v.Set("page_size", "20")
 				v.Set("active", "true")
+
 				return v
 			}(),
 			wantErr: false,
@@ -65,6 +66,7 @@ func TestBind_QueryBasic(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("q", "test")
+
 				return v
 			}(),
 			wantErr: false,
@@ -78,6 +80,7 @@ func TestBind_QueryBasic(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("page", "invalid")
+
 				return v
 			}(),
 			wantErr: true,
@@ -129,6 +132,7 @@ func TestBind_QuerySlices(t *testing.T) {
 				v.Add("tags", "go")
 				v.Add("tags", "rust")
 				v.Add("tags", "python")
+
 				return v
 			}(),
 			wantErr: false,
@@ -146,6 +150,7 @@ func TestBind_QuerySlices(t *testing.T) {
 				v.Add("ids", "1")
 				v.Add("ids", "2")
 				v.Add("ids", "3")
+
 				return v
 			}(),
 			wantErr: false,
@@ -163,6 +168,7 @@ func TestBind_QuerySlices(t *testing.T) {
 				v.Add("ids", "1")
 				v.Add("ids", "invalid")
 				v.Add("ids", "3")
+
 				return v
 			}(),
 			wantErr:  true,
@@ -210,6 +216,7 @@ func TestBind_QueryPointers(t *testing.T) {
 				v.Set("name", "John")
 				v.Set("age", "30")
 				v.Set("active", "true")
+
 				return v
 			}(),
 			validate: func(t *testing.T, params OptionalParams) {
@@ -226,6 +233,7 @@ func TestBind_QueryPointers(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("name", "John")
+
 				return v
 			}(),
 			validate: func(t *testing.T, params OptionalParams) {
@@ -240,6 +248,7 @@ func TestBind_QueryPointers(t *testing.T) {
 				v := url.Values{}
 				v.Set("name", "")
 				v.Set("age", "")
+
 				return v
 			}(),
 			validate: func(t *testing.T, params OptionalParams) {
@@ -326,6 +335,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					v := url.Values{}
 					v.Set("start", "2024-01-15T10:30:00Z")
 					v.Set("end", "2024-01-20T15:45:00Z")
+
 					return v
 				}(),
 				wantErr: false,
@@ -340,6 +350,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("start", "2024-01-15")
+
 					return v
 				}(),
 				wantErr: false,
@@ -354,6 +365,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("created", "2024-01-15T10:00:00Z")
+
 					return v
 				}(),
 				wantErr: false,
@@ -369,6 +381,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("start", "invalid-date")
+
 					return v
 				}(),
 				wantErr:  true,
@@ -416,6 +429,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					v.Set("timeout", "5s")
 					v.Set("interval", "10m")
 					v.Set("ttl", "1h")
+
 					return v
 				}(),
 				wantErr: false,
@@ -431,6 +445,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("timeout", "1h30m45s")
+
 					return v
 				}(),
 				wantErr: false,
@@ -444,6 +459,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("timeout", "invalid")
+
 					return v
 				}(),
 				wantErr:  true,
@@ -489,6 +505,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("allowed_ip", "192.168.1.1")
+
 					return v
 				}(),
 				wantErr: false,
@@ -502,6 +519,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("allowed_ip", "2001:0db8:85a3:0000:0000:8a2e:0370:7334")
+
 					return v
 				}(),
 				wantErr: false,
@@ -516,6 +534,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					v.Add("ips", "192.168.1.1")
 					v.Add("ips", "10.0.0.1")
 					v.Add("ips", "172.16.0.1")
+
 					return v
 				}(),
 				wantErr: false,
@@ -528,6 +547,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("allowed_ip", "invalid-ip")
+
 					return v
 				}(),
 				wantErr:  true,
@@ -573,6 +593,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("subnet", "192.168.1.0/24")
+
 					return v
 				}(),
 				wantErr: false,
@@ -587,6 +608,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("subnet", "2001:db8::/32")
+
 					return v
 				}(),
 				wantErr: false,
@@ -601,6 +623,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					v.Add("ranges", "10.0.0.0/8")
 					v.Add("ranges", "172.16.0.0/12")
 					v.Add("ranges", "192.168.0.0/16")
+
 					return v
 				}(),
 				wantErr: false,
@@ -613,6 +636,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("subnet", "invalid-cidr")
+
 					return v
 				}(),
 				wantErr:  true,
@@ -658,6 +682,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("callback", "https://example.com/webhook")
+
 					return v
 				}(),
 				validate: func(t *testing.T, params WebhookParams) {
@@ -670,6 +695,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("callback", "https://example.com/hook?token=abc&id=123")
+
 					return v
 				}(),
 				validate: func(t *testing.T, params WebhookParams) {
@@ -709,6 +735,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("pattern", `^user-[0-9]+$`)
+
 					return v
 				}(),
 				wantErr: false,
@@ -724,6 +751,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("pattern", "[invalid")
+
 					return v
 				}(),
 				wantErr:  true,
@@ -771,6 +799,7 @@ func TestBind_QueryMaps(t *testing.T) {
 				v := url.Values{}
 				v.Set("metadata[name]", "John")
 				v.Set("metadata[age]", "30")
+
 				return v
 			}(),
 			wantErr: false,
@@ -787,6 +816,7 @@ func TestBind_QueryMaps(t *testing.T) {
 				v.Set("metadata.name", "John")
 				v.Set("metadata.age", "30")
 				v.Set("metadata.city", "NYC")
+
 				return v
 			}(),
 			wantErr: false,
@@ -803,6 +833,7 @@ func TestBind_QueryMaps(t *testing.T) {
 				v := url.Values{}
 				v.Set("scores.math", "95")
 				v.Set("scores.science", "88")
+
 				return v
 			}(),
 			wantErr: false,
@@ -891,6 +922,7 @@ func TestBind_QueryEnumValidation(t *testing.T) {
 				v.Set("status", "active")
 				v.Set("role", "admin")
 				v.Set("priority", "high")
+
 				return v
 			}(),
 			wantErr: false,
@@ -905,6 +937,7 @@ func TestBind_QueryEnumValidation(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("status", "invalid-status")
+
 				return v
 			}(),
 			wantErr:  true,
@@ -915,6 +948,7 @@ func TestBind_QueryEnumValidation(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("role", "admin")
+
 				return v
 			}(),
 			wantErr: false,
@@ -981,6 +1015,7 @@ func TestBind_QueryDefaultValues(t *testing.T) {
 				v.Set("page", "5")
 				v.Set("page_size", "50")
 				v.Set("active", "false")
+
 				return v
 			}(),
 			validate: func(t *testing.T, params ParamsWithDefaults) {
@@ -995,6 +1030,7 @@ func TestBind_QueryDefaultValues(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("page", "3")
+
 				return v
 			}(),
 			validate: func(t *testing.T, params ParamsWithDefaults) {
@@ -1036,6 +1072,7 @@ func TestBind_QueryErrorCases(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("age", "not-a-number")
+
 				return v
 			}(),
 			expectedErrMsg: "Age",
@@ -1050,6 +1087,7 @@ func TestBind_QueryErrorCases(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("date", "invalid-date")
+
 				return v
 			}(),
 			expectedErrMsg: "", // Any error is acceptable
@@ -1064,6 +1102,7 @@ func TestBind_QueryErrorCases(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("ip", "invalid-ip")
+
 				return v
 			}(),
 			expectedErrMsg: "invalid IP",
@@ -1104,6 +1143,7 @@ func TestBind_QueryRealWorld(t *testing.T) {
 				v.Set("page_size", "50")
 				v.Set("sort", "created_at")
 				v.Set("order", "desc")
+
 				return v
 			}(),
 			params: &struct {
@@ -1135,6 +1175,7 @@ func TestBind_QueryRealWorld(t *testing.T) {
 				v.Add("category", "electronics")
 				v.Set("min_price", "10.50")
 				v.Set("max_price", "99.99")
+
 				return v
 			}(),
 			params: &struct {
@@ -1184,6 +1225,7 @@ func (u *customUUID) UnmarshalText(text []byte) error {
 		return ErrInvalidUUIDFormat
 	}
 	*u = customUUID(s)
+
 	return nil
 }
 
@@ -1209,6 +1251,7 @@ func TestBind_QueryTextUnmarshaler(t *testing.T) {
 				v := url.Values{}
 				v.Set("id", "550e8400-e29b-41d4-a716-446655440000")
 				v.Set("trace_id", "660e8400-e29b-41d4-a716-446655440001")
+
 				return v
 			}(),
 			wantErr: false,
@@ -1224,6 +1267,7 @@ func TestBind_QueryTextUnmarshaler(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("id", "invalid-uuid")
+
 				return v
 			}(),
 			wantErr:  true,
@@ -1235,6 +1279,7 @@ func TestBind_QueryTextUnmarshaler(t *testing.T) {
 				v := url.Values{}
 				v.Set("id", "550e8400-e29b-41d4-a716-446655440000")
 				v.Set("optional", "770e8400-e29b-41d4-a716-446655440002")
+
 				return v
 			}(),
 			wantErr: false,
@@ -1342,6 +1387,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("metadata", `{"name":"John","age":"30","city":"NYC"}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -1365,6 +1411,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("scores", `{"math":95,"science":88,"history":92}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -1387,6 +1434,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("rates", `{"usd":1.0,"eur":0.85,"gbp":0.77}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -1408,6 +1456,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("flags", `{"debug":true,"verbose":false,"trace":true}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -1430,6 +1479,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("settings", `{"debug":true,"port":8080,"name":"server"}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -1452,6 +1502,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("metadata", `{}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -1472,6 +1523,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("metadata", "")
+
 				return v
 			}(),
 			params: &struct {
@@ -1487,6 +1539,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("metadata", `{invalid json}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -1507,6 +1560,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("scores", `{"math":"not-a-number"}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -1523,6 +1577,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("data", `{"123":"value1","456":"value2"}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -1574,6 +1629,7 @@ func TestBind_QueryPointerMap(t *testing.T) {
 				v := url.Values{}
 				v.Set("metadata.name", "John")
 				v.Set("metadata.age", "30")
+
 				return v
 			}(),
 			params: &struct {
@@ -1595,6 +1651,7 @@ func TestBind_QueryPointerMap(t *testing.T) {
 				v := url.Values{}
 				v.Set("scores.math", "95")
 				v.Set("scores.science", "88")
+
 				return v
 			}(),
 			params: &struct {
@@ -1642,6 +1699,7 @@ func TestBind_QueryMapTypeConversionError(t *testing.T) {
 				v := url.Values{}
 				v.Set("scores.math", "not-a-number")
 				v.Set("scores.science", "88")
+
 				return v
 			}(),
 			params: &struct {
@@ -1657,6 +1715,7 @@ func TestBind_QueryMapTypeConversionError(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("rates[usd]", "invalid-float")
+
 				return v
 			}(),
 			params: &struct {
@@ -1761,6 +1820,7 @@ func TestBind_QueryAllComplexTypes(t *testing.T) {
 				v.Add("dates", "2024-01-16")
 				v.Add("ips", "192.168.1.1")
 				v.Add("ips", "10.0.0.1")
+
 				return v
 			}(),
 			params: &ComplexParams{},

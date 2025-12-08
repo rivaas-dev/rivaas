@@ -45,6 +45,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("status", "active")
+
 					return v
 				}(),
 				wantErr:        false,
@@ -58,6 +59,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("status", "inactive")
+
 					return v
 				}(),
 				wantErr:        false,
@@ -71,6 +73,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("status", "pending")
+
 					return v
 				}(),
 				wantErr:        false,
@@ -84,6 +87,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("status", "invalid")
+
 					return v
 				}(),
 				wantErr:        true,
@@ -95,6 +99,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("status", "")
+
 					return v
 				}(),
 				wantErr:        false,
@@ -148,6 +153,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("data", "1,2,3")
+
 					return v
 				}(),
 				params: &struct {
@@ -164,6 +170,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("channel", "test")
+
 					return v
 				}(),
 				params: &struct {
@@ -180,6 +187,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("handler", "test")
+
 					return v
 				}(),
 				params: &struct {
@@ -196,6 +204,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("complex", "1+2i")
+
 					return v
 				}(),
 				params: &struct {
@@ -210,6 +219,7 @@ func TestValidation(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("complex", "1+2i")
+
 					return v
 				}(),
 				params: &struct {

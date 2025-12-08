@@ -48,6 +48,7 @@ func Query[T any](values url.Values, opts ...Option) (T, error) {
 	if err := bindFromSource(&result, NewQueryGetter(values), TagQuery, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -63,6 +64,7 @@ func Path[T any](params map[string]string, opts ...Option) (T, error) {
 	if err := bindFromSource(&result, NewPathGetter(params), TagPath, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -86,6 +88,7 @@ func Form[T any](values url.Values, opts ...Option) (T, error) {
 	if err := bindFromSource(&result, NewFormGetter(values), TagForm, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -101,6 +104,7 @@ func Header[T any](h http.Header, opts ...Option) (T, error) {
 	if err := bindFromSource(&result, NewHeaderGetter(h), TagHeader, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -122,6 +126,7 @@ func Cookie[T any](cookies []*http.Cookie, opts ...Option) (T, error) {
 	if err := bindFromSource(&result, NewCookieGetter(cookies), TagCookie, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -151,6 +156,7 @@ func Bind[T any](opts ...Option) (T, error) {
 	if err := bindMultiSource(&result, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -163,6 +169,7 @@ func Bind[T any](opts ...Option) (T, error) {
 func QueryTo(values url.Values, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindFromSource(out, NewQueryGetter(values), TagQuery, cfg)
 }
 
@@ -175,6 +182,7 @@ func QueryTo(values url.Values, out any, opts ...Option) error {
 func PathTo(params map[string]string, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindFromSource(out, NewPathGetter(params), TagPath, cfg)
 }
 
@@ -187,6 +195,7 @@ func PathTo(params map[string]string, out any, opts ...Option) error {
 func FormTo(values url.Values, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindFromSource(out, NewFormGetter(values), TagForm, cfg)
 }
 
@@ -199,6 +208,7 @@ func FormTo(values url.Values, out any, opts ...Option) error {
 func HeaderTo(h http.Header, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindFromSource(out, NewHeaderGetter(h), TagHeader, cfg)
 }
 
@@ -211,6 +221,7 @@ func HeaderTo(h http.Header, out any, opts ...Option) error {
 func CookieTo(cookies []*http.Cookie, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindFromSource(out, NewCookieGetter(cookies), TagCookie, cfg)
 }
 
@@ -227,6 +238,7 @@ func CookieTo(cookies []*http.Cookie, out any, opts ...Option) error {
 func BindTo(out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindMultiSource(out, cfg)
 }
 
@@ -248,6 +260,7 @@ func BindTo(out any, opts ...Option) error {
 func Raw(getter ValueGetter, tag string, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindFromSource(out, getter, tag, cfg)
 }
 
@@ -270,6 +283,7 @@ func RawInto[T any](getter ValueGetter, tag string, opts ...Option) (T, error) {
 	if err := bindFromSource(&result, getter, tag, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -280,6 +294,7 @@ func applyOptions(opts []Option) *config {
 	for _, opt := range opts {
 		opt(cfg)
 	}
+
 	return cfg
 }
 
@@ -442,6 +457,7 @@ func bindMultiSource(out any, cfg *config) error {
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
+
 	return nil
 }
 
@@ -489,6 +505,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 					continue
 				}
 				cfg.trackError()
+
 				return bindErr
 			}
 			cfg.trackField(field.name, tagName, evtFlags)
@@ -513,6 +530,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 					continue
 				}
 				cfg.trackError()
+
 				return bindErr
 			}
 			cfg.trackField(field.name, tagName, evtFlags)
@@ -561,6 +579,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 				continue
 			}
 			cfg.trackError()
+
 			return bindErr
 		}
 
@@ -585,9 +604,11 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 					continue
 				}
 				cfg.trackError()
+
 				return bindErr
 			}
 			cfg.trackField(field.name, tagName, evtFlags)
+
 			continue
 		}
 
@@ -608,6 +629,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 					continue
 				}
 				cfg.trackError()
+
 				return bindErr
 			}
 		}
@@ -625,6 +647,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 				continue
 			}
 			cfg.trackError()
+
 			return bindErr
 		}
 
@@ -702,6 +725,7 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 			// Recursively parse embedded struct
 			embeddedInfo := parseStructType(fieldType, tagName, index)
 			info.fields = append(info.fields, embeddedInfo.fields...)
+
 			continue
 		}
 

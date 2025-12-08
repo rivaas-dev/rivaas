@@ -92,6 +92,7 @@ func applyOptions(opts []Option) *config {
 	for _, opt := range opts {
 		opt(cfg)
 	}
+
 	return cfg
 }
 
@@ -124,6 +125,7 @@ func Proto[T Message](body []byte, opts ...Option) (T, error) {
 		var zero T
 		return zero, err
 	}
+
 	return result, nil
 }
 
@@ -144,6 +146,7 @@ func ProtoReader[T Message](r io.Reader, opts ...Option) (T, error) {
 		var zero T
 		return zero, err
 	}
+
 	return result, nil
 }
 

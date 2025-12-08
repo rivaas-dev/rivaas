@@ -173,6 +173,7 @@ func (e *BindError) Error() string {
 	if e.Type != nil {
 		typeName = e.Type.String()
 	}
+
 	return fmt.Sprintf("binding field %q (%s): failed to convert %q to %s: %v",
 		e.Field, e.Source, e.Value, typeName, e.Err)
 }
@@ -225,6 +226,7 @@ func (e *UnknownFieldError) Error() string {
 	if len(e.Fields) == 1 {
 		return "unknown field: " + e.Fields[0]
 	}
+
 	return "unknown fields: " + strings.Join(e.Fields, ", ")
 }
 
@@ -261,6 +263,7 @@ func (m *MultiError) Error() string {
 	if len(m.Errors) == 1 {
 		return m.Errors[0].Error()
 	}
+
 	return fmt.Sprintf("%d binding errors occurred", len(m.Errors))
 }
 
@@ -270,6 +273,7 @@ func (m *MultiError) Unwrap() []error {
 	for i, e := range m.Errors {
 		errs[i] = e
 	}
+
 	return errs
 }
 
@@ -303,5 +307,6 @@ func (m *MultiError) ErrorOrNil() error {
 	if !m.HasErrors() {
 		return nil
 	}
+
 	return m
 }

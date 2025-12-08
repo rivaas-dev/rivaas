@@ -108,6 +108,7 @@ func (m *mockValidator) Validate(v any) error {
 	if m.validateFunc != nil {
 		return m.validateFunc(v)
 	}
+
 	return nil
 }
 

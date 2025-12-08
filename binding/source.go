@@ -89,6 +89,7 @@ func (f GetterFunc) Get(key string) string {
 	if has && len(values) > 0 {
 		return values[0]
 	}
+
 	return ""
 }
 
@@ -153,6 +154,7 @@ func (q *QueryGetter) ApproxLen(prefix string) int {
 			count++
 		}
 	}
+
 	return count
 }
 
@@ -182,6 +184,7 @@ func (p *PathGetter) GetAll(key string) []string {
 	if val, ok := p.params[key]; ok {
 		return []string{val}
 	}
+
 	return nil
 }
 
@@ -240,6 +243,7 @@ func (f *FormGetter) ApproxLen(prefix string) int {
 			count++
 		}
 	}
+
 	return count
 }
 
@@ -268,9 +272,11 @@ func (cg *CookieGetter) Get(key string) string {
 			if val, err := url.QueryUnescape(cookie.Value); err == nil {
 				return val
 			}
+
 			return cookie.Value
 		}
 	}
+
 	return ""
 }
 
@@ -286,6 +292,7 @@ func (cg *CookieGetter) GetAll(key string) []string {
 			}
 		}
 	}
+
 	return values
 }
 
@@ -296,6 +303,7 @@ func (cg *CookieGetter) Has(key string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -323,6 +331,7 @@ func NewHeaderGetter(h http.Header) ValueGetter {
 			normalized[http.CanonicalHeaderKey(key)] = values[0]
 		}
 	}
+
 	return &HeaderGetter{headers: h, normalized: normalized}
 }
 

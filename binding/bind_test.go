@@ -40,6 +40,7 @@ func TestBind_ErrorPaths(t *testing.T) {
 					Name string `query:"name"`
 				}
 				var params Params
+
 				return params, NewQueryGetter(url.Values{})
 			},
 			expectedErrMsg: "pointer to struct",
@@ -50,6 +51,7 @@ func TestBind_ErrorPaths(t *testing.T) {
 				var params *struct {
 					Name string `query:"name"`
 				}
+
 				return params, NewQueryGetter(url.Values{})
 			},
 			expectedErrMsg: "nil",
@@ -95,6 +97,7 @@ func TestBind_PointerHandling(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("age", "not-a-number")
+
 					return v
 				}(),
 				params: &struct {
@@ -107,6 +110,7 @@ func TestBind_PointerHandling(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("start", "invalid-time")
+
 					return v
 				}(),
 				params: &struct {
@@ -119,6 +123,7 @@ func TestBind_PointerHandling(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("price", "not-a-float")
+
 					return v
 				}(),
 				params: &struct {
@@ -158,6 +163,7 @@ func TestBind_PointerHandling(t *testing.T) {
 				values: func() url.Values {
 					v := url.Values{}
 					v.Set("name", "")
+
 					return v
 				}(),
 				validate: func(t *testing.T, params Params) {
@@ -205,6 +211,7 @@ func TestBind_InvalidURL(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("callback", "://invalid-url")
+
 				return v
 			}(),
 			params: &struct {
@@ -219,6 +226,7 @@ func TestBind_InvalidURL(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("endpoint", "://malformed")
+
 				return v
 			}(),
 			params: &struct {
@@ -233,6 +241,7 @@ func TestBind_InvalidURL(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("endpoint", "https://example.com/path")
+
 				return v
 			}(),
 			params: &struct {
@@ -285,6 +294,7 @@ func TestBind_SliceFieldErrorPath(t *testing.T) {
 				v.Add("ids", "123")
 				v.Add("ids", "invalid")
 				v.Add("ids", "456")
+
 				return v
 			}(),
 			params: &struct {
@@ -299,6 +309,7 @@ func TestBind_SliceFieldErrorPath(t *testing.T) {
 				v.Add("times", "2024-01-01")
 				v.Add("times", "invalid-time")
 				v.Add("times", "2024-01-02")
+
 				return v
 			}(),
 			params: &struct {
@@ -338,6 +349,7 @@ func TestBind_ConvertValueEdgeCases(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("value", "999999")
+
 				return v
 			}(),
 			params: &struct {
@@ -351,6 +363,7 @@ func TestBind_ConvertValueEdgeCases(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("value", "-1")
+
 				return v
 			}(),
 			params: &struct {
@@ -364,6 +377,7 @@ func TestBind_ConvertValueEdgeCases(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("value", "not-a-number")
+
 				return v
 			}(),
 			params: &struct {
@@ -429,6 +443,7 @@ func TestBind_NestedStructError(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("address.zip_code", "invalid")
+
 				return v
 			}(),
 			params: &struct {
@@ -449,6 +464,7 @@ func TestBind_NestedStructError(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("meta.created_at", "invalid-time")
+
 				return v
 			}(),
 			params: &struct {
@@ -464,6 +480,7 @@ func TestBind_NestedStructError(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("config.status", "invalid")
+
 				return v
 			}(),
 			params: &struct {
@@ -479,6 +496,7 @@ func TestBind_NestedStructError(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("middle.inner.value", "not-a-number")
+
 				return v
 			}(),
 			params: &struct {
@@ -543,6 +561,7 @@ func TestBind_ParseStructTypeRemainingPaths(t *testing.T) {
 				v := url.Values{}
 				v.Set("exported", "test")
 				v.Set("unexported", "ignored")
+
 				return v
 			}(),
 			params: &ParamsUnexported{},
@@ -558,6 +577,7 @@ func TestBind_ParseStructTypeRemainingPaths(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("has_tag", "value")
+
 				return v
 			}(),
 			params: &ParamsNoQueryTag{},
@@ -575,6 +595,7 @@ func TestBind_ParseStructTypeRemainingPaths(t *testing.T) {
 				v := url.Values{}
 				v.Set("value", "embedded")
 				v.Set("name", "test")
+
 				return v
 			}(),
 			params: func() any {
@@ -582,6 +603,7 @@ func TestBind_ParseStructTypeRemainingPaths(t *testing.T) {
 					Embedded: &Embedded{},
 					Name:     "",
 				}
+
 				return &params
 			}(),
 			validate: func(t *testing.T, params any) {
@@ -624,6 +646,7 @@ func TestBind_Errors(t *testing.T) {
 				}
 				values := url.Values{}
 				values.Set("name", "test")
+
 				return Raw(NewQueryGetter(values), TagQuery, params) // Not a pointer!
 			},
 			wantErr: true,
@@ -640,6 +663,7 @@ func TestBind_Errors(t *testing.T) {
 				}
 				values := url.Values{}
 				values.Set("name", "test")
+
 				return Raw(NewQueryGetter(values), TagQuery, params)
 			},
 			wantErr: true,
@@ -654,6 +678,7 @@ func TestBind_Errors(t *testing.T) {
 				var str string
 				values := url.Values{}
 				values.Set("name", "test")
+
 				return Raw(NewQueryGetter(values), TagQuery, &str)
 			},
 			wantErr: true,
@@ -755,6 +780,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 				values := url.Values{}
 				values.Set("username", "testuser")
 				values.Set("password", "secret123")
+
 				return NewFormGetter(values), TagForm, &FormDataOmitempty{}
 			},
 			validate: func(t *testing.T, params any) {

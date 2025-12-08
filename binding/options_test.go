@@ -180,6 +180,7 @@ func TestMaxMapSize_Enforcement(t *testing.T) {
 					values.Set("metadata.key"+url.QueryEscape(string(rune(i))), "value")
 					_ = i // used in string conversion
 				}
+
 				return values
 			},
 			opts:          nil,
@@ -195,6 +196,7 @@ func TestMaxMapSize_Enforcement(t *testing.T) {
 				for i := range 11 {
 					values.Set("metadata.key"+url.QueryEscape(string(rune(i))), "value")
 				}
+
 				return values
 			},
 			opts:          []Option{WithMaxMapSize(10)},
@@ -208,6 +210,7 @@ func TestMaxMapSize_Enforcement(t *testing.T) {
 				values := url.Values{}
 				values.Set("metadata.key1", "value1")
 				values.Set("metadata.key2", "value2")
+
 				return values
 			},
 			opts:          nil,
@@ -226,6 +229,7 @@ func TestMaxMapSize_Enforcement(t *testing.T) {
 				for i := range 100 {
 					values.Set("metadata.key"+url.QueryEscape(string(rune(i))), "value")
 				}
+
 				return values
 			},
 			opts:          []Option{WithMaxMapSize(0)},
@@ -284,6 +288,7 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 				for range 10001 {
 					values.Add("tags", "tag")
 				}
+
 				return values
 			},
 			opts:          nil,
@@ -299,6 +304,7 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 				for range 11 {
 					values.Add("tags", "tag")
 				}
+
 				return values
 			},
 			opts:          []Option{WithMaxSliceLen(10)},
@@ -312,6 +318,7 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 				values := url.Values{}
 				values.Add("tags", "tag1")
 				values.Add("tags", "tag2")
+
 				return values
 			},
 			opts:          nil,
@@ -327,6 +334,7 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 				values := url.Values{}
 				// Create CSV with 11 entries (should exceed custom limit of 10)
 				values.Set("tags", "tag,tag,tag,tag,tag,tag,tag,tag,tag,tag,tag")
+
 				return values
 			},
 			opts:          []Option{WithSliceMode(SliceCSV), WithMaxSliceLen(10)},
@@ -342,6 +350,7 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 				for range 100 {
 					values.Add("tags", "tag")
 				}
+
 				return values
 			},
 			opts:          []Option{WithMaxSliceLen(0)},

@@ -45,6 +45,7 @@ func setField(field reflect.Value, value string, isPtr bool, opts *config) error
 			return err
 		}
 		field.Set(ptr)
+
 		return nil
 	}
 
@@ -72,6 +73,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 		} else {
 			field.Set(reflect.ValueOf(converted))
 		}
+
 		return nil
 	}
 
@@ -84,6 +86,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 			return err
 		}
 		field.Set(reflect.ValueOf(t))
+
 		return nil
 
 	case durationType:
@@ -92,6 +95,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 			return fmt.Errorf("invalid duration: %w", err)
 		}
 		field.Set(reflect.ValueOf(d))
+
 		return nil
 
 	case urlType:
@@ -100,6 +104,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 			return fmt.Errorf("invalid URL: %w", err)
 		}
 		field.Set(reflect.ValueOf(*u))
+
 		return nil
 
 	case ipType:
@@ -108,6 +113,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 			return fmt.Errorf("%w: %s", ErrInvalidIPAddress, value)
 		}
 		field.Set(reflect.ValueOf(ip))
+
 		return nil
 
 	case ipNetType:
@@ -116,6 +122,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 			return fmt.Errorf("invalid CIDR notation: %w", err)
 		}
 		field.Set(reflect.ValueOf(*ipnet))
+
 		return nil
 
 	case regexpType:
@@ -124,6 +131,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 			return fmt.Errorf("invalid regular expression: %w", err)
 		}
 		field.Set(reflect.ValueOf(*re))
+
 		return nil
 	}
 
@@ -134,6 +142,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 		if !ok {
 			return fmt.Errorf("%w: failed to assert TextUnmarshaler", ErrUnsupportedType)
 		}
+
 		return unmarshaler.UnmarshalText([]byte(value))
 	}
 
@@ -219,6 +228,7 @@ func setSliceField(field reflect.Value, values []string, opts *config) error {
 	}
 
 	field.Set(slice)
+
 	return nil
 }
 
@@ -238,6 +248,7 @@ func convertValue(value string, kind reflect.Kind, opts *config) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid integer: %w", err)
 		}
+
 		return i, nil
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -249,6 +260,7 @@ func convertValue(value string, kind reflect.Kind, opts *config) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid unsigned integer: %w", err)
 		}
+
 		return u, nil
 
 	case reflect.Float32, reflect.Float64:
@@ -256,6 +268,7 @@ func convertValue(value string, kind reflect.Kind, opts *config) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid float: %w", err)
 		}
+
 		return f, nil
 
 	case reflect.Bool:
@@ -263,6 +276,7 @@ func convertValue(value string, kind reflect.Kind, opts *config) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return b, nil
 
 	default:

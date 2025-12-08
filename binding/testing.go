@@ -45,6 +45,7 @@ func TestBinder(t *testing.T, opts ...Option) *Binder {
 	if err != nil {
 		t.Fatalf("TestBinder: failed to create binder: %v", err)
 	}
+
 	return binder
 }
 
@@ -65,6 +66,7 @@ func TestQueryGetter(t *testing.T, pairs ...string) ValueGetter {
 	for i := 0; i < len(pairs); i += 2 {
 		values.Set(pairs[i], pairs[i+1])
 	}
+
 	return NewQueryGetter(values)
 }
 
@@ -79,6 +81,7 @@ func TestQueryGetter(t *testing.T, pairs ...string) ValueGetter {
 //	})
 func TestQueryGetterMulti(t *testing.T, values map[string][]string) ValueGetter {
 	t.Helper()
+
 	return NewQueryGetter(url.Values(values))
 }
 
@@ -98,6 +101,7 @@ func TestFormGetter(t *testing.T, pairs ...string) ValueGetter {
 	for i := 0; i < len(pairs); i += 2 {
 		values.Set(pairs[i], pairs[i+1])
 	}
+
 	return NewFormGetter(values)
 }
 
@@ -117,6 +121,7 @@ func TestPathGetter(t *testing.T, pairs ...string) ValueGetter {
 	for i := 0; i < len(pairs); i += 2 {
 		params[pairs[i]] = pairs[i+1]
 	}
+
 	return NewPathGetter(params)
 }
 
@@ -136,6 +141,7 @@ func TestHeaderGetter(t *testing.T, pairs ...string) ValueGetter {
 	for i := 0; i < len(pairs); i += 2 {
 		header.Set(pairs[i], pairs[i+1])
 	}
+
 	return NewHeaderGetter(header)
 }
 
@@ -158,6 +164,7 @@ func TestCookieGetter(t *testing.T, pairs ...string) ValueGetter {
 			Value: pairs[i+1],
 		})
 	}
+
 	return NewCookieGetter(cookies)
 }
 
@@ -227,6 +234,7 @@ func MustBind[T any](t *testing.T, getter ValueGetter, tag string, opts ...Optio
 		}
 		t.Fatalf("MustBind[%T]: binding failed: %v", result, err)
 	}
+
 	return result
 }
 
@@ -242,6 +250,7 @@ func MustBindJSON[T any](t *testing.T, jsonData string, opts ...Option) T {
 	if err != nil {
 		t.Fatalf("MustBindJSON[%T]: binding failed: %v", result, err)
 	}
+
 	return result
 }
 
@@ -261,6 +270,7 @@ func MustBindQuery[T any](t *testing.T, values url.Values, opts ...Option) T {
 		}
 		t.Fatalf("MustBindQuery[%T]: binding failed: %v", result, err)
 	}
+
 	return result
 }
 
@@ -280,6 +290,7 @@ func MustBindForm[T any](t *testing.T, values url.Values, opts ...Option) T {
 		}
 		t.Fatalf("MustBindForm[%T]: binding failed: %v", result, err)
 	}
+
 	return result
 }
 
@@ -293,6 +304,7 @@ func (tv *TestValidator) Validate(v any) error {
 	if tv.ValidateFunc != nil {
 		return tv.ValidateFunc(v)
 	}
+
 	return nil
 }
 

@@ -43,6 +43,7 @@ func XML[T any](body []byte, opts ...Option) (T, error) {
 	if err := bindXMLBytesInternal(&result, body, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -64,6 +65,7 @@ func XMLReader[T any](r io.Reader, opts ...Option) (T, error) {
 	if err := bindXMLReaderInternal(&result, r, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -76,6 +78,7 @@ func XMLReader[T any](r io.Reader, opts ...Option) (T, error) {
 func XMLTo(body []byte, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindXMLBytesInternal(out, body, cfg)
 }
 
@@ -88,6 +91,7 @@ func XMLTo(body []byte, out any, opts ...Option) error {
 func XMLReaderTo(r io.Reader, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindXMLReaderInternal(out, r, cfg)
 }
 

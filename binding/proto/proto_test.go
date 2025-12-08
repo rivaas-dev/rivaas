@@ -398,5 +398,6 @@ func (v *testValidator) Validate(data any) error {
 	if v.shouldFail {
 		return errors.New(v.errMsg)
 	}
+
 	return nil
 }

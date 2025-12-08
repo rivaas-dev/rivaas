@@ -255,6 +255,7 @@ func TestBind_Headers(t *testing.T) {
 				h.Set("User-Agent", "Mozilla/5.0")
 				h.Set("Authorization", "Bearer token123")
 				h.Set("Accept", "application/json")
+
 				return h
 			}(),
 			params: &RequestHeaders{},
@@ -271,6 +272,7 @@ func TestBind_Headers(t *testing.T) {
 			headers: func() http.Header {
 				h := http.Header{}
 				h.Set("User-Agent", "Test")
+
 				return h
 			}(),
 			params: &struct {
@@ -433,6 +435,7 @@ func TestValueGetter_HasSemantics(t *testing.T) {
 			setupGetter: func() ValueGetter {
 				values := url.Values{}
 				values.Set("name", "") // Empty but present
+
 				return NewQueryGetter(values)
 			},
 			key:     "name",
@@ -444,6 +447,7 @@ func TestValueGetter_HasSemantics(t *testing.T) {
 			setupGetter: func() ValueGetter {
 				values := url.Values{}
 				values.Set("other", "value")
+
 				return NewQueryGetter(values)
 			},
 			key:     "name",
@@ -455,6 +459,7 @@ func TestValueGetter_HasSemantics(t *testing.T) {
 			setupGetter: func() ValueGetter {
 				values := url.Values{}
 				values.Set("email", "")
+
 				return NewFormGetter(values)
 			},
 			key:     "email",
@@ -467,6 +472,7 @@ func TestValueGetter_HasSemantics(t *testing.T) {
 				params := map[string]string{
 					"id": "",
 				}
+
 				return NewPathGetter(params)
 			},
 			key:     "id",

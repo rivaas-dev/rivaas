@@ -50,6 +50,7 @@ func JSON[T any](body []byte, opts ...Option) (T, error) {
 	if err := bindJSONBytesInternal(&result, body, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -72,6 +73,7 @@ func JSONReader[T any](r io.Reader, opts ...Option) (T, error) {
 	if err := bindJSONReaderInternal(&result, r, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -84,6 +86,7 @@ func JSONReader[T any](r io.Reader, opts ...Option) (T, error) {
 func JSONTo(body []byte, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindJSONBytesInternal(out, body, cfg)
 }
 
@@ -96,6 +99,7 @@ func JSONTo(body []byte, out any, opts ...Option) error {
 func JSONReaderTo(r io.Reader, out any, opts ...Option) error {
 	cfg := applyOptions(opts)
 	defer cfg.finish()
+
 	return bindJSONReaderInternal(out, r, cfg)
 }
 
@@ -109,6 +113,7 @@ func bindJSONReaderInternal(out any, r io.Reader, cfg *config) error {
 			cfg.trackError()
 			return err
 		}
+
 		return bindJSONBytesInternal(out, body, cfg)
 	}
 
@@ -158,6 +163,7 @@ func bindJSONBytesInternal(out any, body []byte, cfg *config) error {
 				if cfg.events.UnknownField != nil {
 					cfg.events.UnknownField(fieldName)
 				}
+
 				return &UnknownFieldError{Fields: []string{fieldName}}
 			}
 
@@ -259,5 +265,6 @@ func extractUnknownFieldName(errMsg string) string {
 	if end == -1 {
 		return ""
 	}
+
 	return errMsg[start+1 : start+1+end]
 }

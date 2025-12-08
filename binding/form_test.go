@@ -130,6 +130,7 @@ func TestBind_FormMaps(t *testing.T) {
 				v.Set("metadata[key1]", "value1")
 				v.Set("metadata[key2]", "value2")
 				v.Set("metadata[key3]", "value3")
+
 				return v
 			}(),
 			params: &struct {
@@ -153,6 +154,7 @@ func TestBind_FormMaps(t *testing.T) {
 				v := url.Values{}
 				v.Set("metadata.name", "John")
 				v.Set("metadata.age", "30")
+
 				return v
 			}(),
 			params: &struct {
@@ -175,6 +177,7 @@ func TestBind_FormMaps(t *testing.T) {
 				v := url.Values{}
 				v.Set("intmap[count]", "42")
 				v.Set("intmap[total]", "100")
+
 				return v
 			}(),
 			params: &struct {
@@ -198,6 +201,7 @@ func TestBind_FormMaps(t *testing.T) {
 				v.Set("data[name]", "John")
 				v.Set("data[age]", "30")
 				v.Set("data[active]", "true")
+
 				return v
 			}(),
 			params: &struct {
@@ -221,6 +225,7 @@ func TestBind_FormMaps(t *testing.T) {
 				v := url.Values{}
 				v.Set("metadata.name", "John")
 				v.Set("metadata.age", "30")
+
 				return v
 			}(),
 			params: &struct {
@@ -242,6 +247,7 @@ func TestBind_FormMaps(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("metadata", `{"name":"John","age":"30","city":"NYC"}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -264,6 +270,7 @@ func TestBind_FormMaps(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("scores", `{"math":95,"science":88}`)
+
 				return v
 			}(),
 			params: &struct {
@@ -288,6 +295,7 @@ func TestBind_FormMaps(t *testing.T) {
 				v.Set("config[key-with-dashes]", "value2")
 				v.Set("config[key_with_underscores]", "value3")
 				v.Set("config[123numeric]", "value4")
+
 				return v
 			}(),
 			params: &struct {
@@ -312,6 +320,7 @@ func TestBind_FormMaps(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("config[database][host]", "localhost")
+
 				return v
 			}(),
 			params: &struct {
@@ -332,6 +341,7 @@ func TestBind_FormMaps(t *testing.T) {
 				v := url.Values{}
 				v.Set("items[1]", "first")
 				v.Set("items[2]", "second")
+
 				return v
 			}(),
 			params: &struct {
@@ -351,6 +361,7 @@ func TestBind_FormMaps(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("intkeys[not-a-number]", "value")
+
 				return v
 			}(),
 			params: &struct {
@@ -372,6 +383,7 @@ func TestBind_FormMaps(t *testing.T) {
 				v := url.Values{}
 				v.Set("scores.math", "not-a-number")
 				v.Set("scores.science", "88")
+
 				return v
 			}(),
 			params: &struct {
@@ -387,6 +399,7 @@ func TestBind_FormMaps(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("rates[usd]", "invalid-float")
+
 				return v
 			}(),
 			params: &struct {
@@ -402,6 +415,7 @@ func TestBind_FormMaps(t *testing.T) {
 			values: func() url.Values {
 				v := url.Values{}
 				v.Set("metadata", `{invalid json}`)
+
 				return v
 			}(),
 			params: &struct {

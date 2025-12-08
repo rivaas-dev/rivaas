@@ -62,6 +62,7 @@ func applyOptions(opts []Option) *config {
 	for _, opt := range opts {
 		opt(cfg)
 	}
+
 	return cfg
 }
 
@@ -79,6 +80,7 @@ func TOML[T any](body []byte, opts ...Option) (T, error) {
 	if err := bindTOMLBytes(&result, body, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -98,6 +100,7 @@ func TOMLWithMetadata[T any](body []byte, opts ...Option) (T, Metadata, error) {
 	if err != nil {
 		return result, meta, err
 	}
+
 	return result, meta, nil
 }
 
@@ -112,6 +115,7 @@ func TOMLReader[T any](r io.Reader, opts ...Option) (T, error) {
 	if err := bindTOMLReader(&result, r, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 

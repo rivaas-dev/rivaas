@@ -605,6 +605,7 @@ func (c *config) validate() error {
 	if c.maxSliceLen < 0 {
 		return fmt.Errorf("binding: maxSliceLen must be non-negative, got %d", c.maxSliceLen)
 	}
+
 	return nil
 }
 
@@ -621,6 +622,7 @@ func (c *config) clone() *config {
 		clone.typeConverters = make(map[reflect.Type]TypeConverter, len(c.typeConverters))
 		maps.Copy(clone.typeConverters, c.typeConverters)
 	}
+
 	return &clone
 }
 

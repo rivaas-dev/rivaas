@@ -71,6 +71,7 @@ func applyOptions(opts []Option) *config {
 	for _, opt := range opts {
 		opt(cfg)
 	}
+
 	return cfg
 }
 
@@ -88,6 +89,7 @@ func YAML[T any](body []byte, opts ...Option) (T, error) {
 	if err := bindYAMLBytes(&result, body, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -102,6 +104,7 @@ func YAMLReader[T any](r io.Reader, opts ...Option) (T, error) {
 	if err := bindYAMLReader(&result, r, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 

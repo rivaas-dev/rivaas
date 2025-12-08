@@ -34,6 +34,7 @@ type jsonFieldTrie struct {
 func newJSONFieldTrie(t reflect.Type, tag string) *jsonFieldTrie {
 	root := &jsonFieldTrie{children: make(map[string]*jsonFieldTrie)}
 	buildTrie(root, t, tag, "")
+
 	return root
 }
 
@@ -118,6 +119,7 @@ func walkValue(value json.RawMessage, trie *jsonFieldTrie, path []string, onUnkn
 		// Array - check if it's an array of objects
 		return walkArray(value, trie, path, onUnknown)
 	}
+
 	return nil
 }
 
@@ -137,5 +139,6 @@ func walkArray(data json.RawMessage, trie *jsonFieldTrie, path []string, onUnkno
 			}
 		}
 	}
+
 	return nil
 }

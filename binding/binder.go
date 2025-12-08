@@ -70,6 +70,7 @@ func New(opts ...Option) (*Binder, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
+
 	return &Binder{cfg: cfg}, nil
 }
 
@@ -89,6 +90,7 @@ func MustNew(opts ...Option) *Binder {
 	if err != nil {
 		panic(fmt.Sprintf("binding.MustNew: %v", err))
 	}
+
 	return b
 }
 
@@ -102,6 +104,7 @@ func QueryWith[T any](b *Binder, values url.Values) (T, error) {
 	if err := bindFromSource(&result, NewQueryGetter(values), TagQuery, b.cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -115,6 +118,7 @@ func PathWith[T any](b *Binder, params map[string]string) (T, error) {
 	if err := bindFromSource(&result, NewPathGetter(params), TagPath, b.cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -128,6 +132,7 @@ func FormWith[T any](b *Binder, values url.Values) (T, error) {
 	if err := bindFromSource(&result, NewFormGetter(values), TagForm, b.cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -141,6 +146,7 @@ func HeaderWith[T any](b *Binder, h http.Header) (T, error) {
 	if err := bindFromSource(&result, NewHeaderGetter(h), TagHeader, b.cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -154,6 +160,7 @@ func CookieWith[T any](b *Binder, cookies []*http.Cookie) (T, error) {
 	if err := bindFromSource(&result, NewCookieGetter(cookies), TagCookie, b.cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -167,6 +174,7 @@ func JSONWith[T any](b *Binder, body []byte) (T, error) {
 	if err := bindJSONBytesInternal(&result, body, b.cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -180,6 +188,7 @@ func JSONReaderWith[T any](b *Binder, r io.Reader) (T, error) {
 	if err := bindJSONReaderInternal(&result, r, b.cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -193,6 +202,7 @@ func XMLWith[T any](b *Binder, body []byte) (T, error) {
 	if err := bindXMLBytesInternal(&result, body, b.cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -206,6 +216,7 @@ func XMLReaderWith[T any](b *Binder, r io.Reader) (T, error) {
 	if err := bindXMLReaderInternal(&result, r, b.cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -228,6 +239,7 @@ func BindWith[T any](b *Binder, opts ...Option) (T, error) {
 	if err := bindMultiSource(&result, cfg); err != nil {
 		return result, err
 	}
+
 	return result, nil
 }
 
@@ -337,5 +349,6 @@ func (b *Binder) BindTo(out any, opts ...Option) error {
 	for _, opt := range opts {
 		opt(cfg)
 	}
+
 	return bindMultiSource(out, cfg)
 }
