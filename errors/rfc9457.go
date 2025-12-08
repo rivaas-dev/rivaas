@@ -102,6 +102,7 @@ func (p ProblemDetail) MarshalJSON() ([]byte, error) {
 			m[k] = v
 		}
 	}
+
 	return json.Marshal(m)
 }
 
@@ -206,6 +207,7 @@ func (f *RFC9457) determineType(err error) string {
 		if f.BaseURL != "" {
 			return f.BaseURL + "/" + code
 		}
+
 		return code
 	}
 
@@ -222,5 +224,6 @@ func generateErrorID() string {
 		// Fallback: use timestamp-based ID if random fails
 		return fmt.Sprintf("err-%d", time.Now().UnixNano())
 	}
+
 	return "err-" + hex.EncodeToString(bytes)
 }

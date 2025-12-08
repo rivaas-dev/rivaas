@@ -219,5 +219,6 @@ func convertPathToPointer(path string) string {
 
 	// Replace dots with slashes for nested paths
 	pointer := strings.ReplaceAll(path, ".", "/")
+
 	return "/data/attributes/" + pointer
 }
