@@ -32,6 +32,7 @@ func getDefaultValidator() *Validator {
 	defaultValidatorOnce.Do(func() {
 		defaultValidator = MustNew()
 	})
+
 	return defaultValidator
 }
 
@@ -231,6 +232,7 @@ func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy
 				}
 			}
 		}
+
 		return false
 
 	case StrategyTags:
@@ -253,6 +255,7 @@ func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy
 				return true
 			}
 		}
+
 		return false
 
 	case StrategyJSONSchema:
@@ -263,6 +266,7 @@ func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy
 		if _, ok := val.(JSONSchemaProvider); ok {
 			return true
 		}
+
 		return false
 
 	default:
@@ -317,6 +321,7 @@ func (v *Validator) validateByStrategy(ctx context.Context, val any, strategy St
 		for rv.Kind() == reflect.Ptr && !rv.IsNil() {
 			rv = rv.Elem()
 		}
+
 		return v.validateWithTags(rv.Interface(), cfg)
 
 	case StrategyJSONSchema:
@@ -325,6 +330,7 @@ func (v *Validator) validateByStrategy(ctx context.Context, val any, strategy St
 		for rv.Kind() == reflect.Ptr && !rv.IsNil() {
 			rv = rv.Elem()
 		}
+
 		return v.validateWithSchema(ctx, rv.Interface(), cfg)
 
 	default:

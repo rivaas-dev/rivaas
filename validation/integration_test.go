@@ -629,10 +629,11 @@ func TestIntegration_MaxErrorsTruncation(t *testing.T) {
 }
 
 func TestIntegration_ComputePresenceNestedJSON(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	t.Parallel()
 
 	tests := []struct {
 		name           string

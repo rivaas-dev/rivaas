@@ -48,6 +48,7 @@ func (u *userWithValidator) Validate() error {
 	if u.Email == "" {
 		return errEmailRequired
 	}
+
 	return nil
 }
 
@@ -59,6 +60,7 @@ func (u userWithValueValidator) Validate() error {
 	if u.Name == "" {
 		return errNameRequired
 	}
+
 	return nil
 }
 
@@ -79,6 +81,7 @@ func (u *userWithContextValidator) ValidateContext(ctx context.Context) error {
 			return errNameTooShort
 		}
 	}
+
 	return nil
 }
 
@@ -90,6 +93,7 @@ func (u userWithValueContextValidator) ValidateContext(_ context.Context) error 
 	if u.Name == "" {
 		return errNameRequired
 	}
+
 	return nil
 }
 
@@ -106,6 +110,7 @@ func (u *userWithBoth) ValidateContext(_ context.Context) error {
 	if u.Name == "" {
 		return errNameRequired
 	}
+
 	return nil
 }
 
@@ -655,6 +660,7 @@ func TestValidateWithInterface_ContextCancellation(t *testing.T) {
 			setupCtx: func(t *testing.T) context.Context {
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // Cancel immediately
+
 				return ctx
 			},
 			user:      &userWithContextValidator{Name: "John"},
@@ -665,6 +671,7 @@ func TestValidateWithInterface_ContextCancellation(t *testing.T) {
 			setupCtx: func(t *testing.T) context.Context {
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel()
+
 				return ctx
 			},
 			user:      &userWithContextValidator{},

@@ -28,6 +28,7 @@ func (u *benchUser) Validate() error {
 	if u.Name == "" || u.Email == "" {
 		return ErrValidationFailed
 	}
+
 	return nil
 }
 

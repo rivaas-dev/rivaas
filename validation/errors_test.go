@@ -59,6 +59,7 @@ func TestValidationErrors_HasErrors(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			expected: true,
@@ -69,6 +70,7 @@ func TestValidationErrors_HasErrors(t *testing.T) {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
 				verr.Add("email", "email", "invalid email", nil)
+
 				return verr
 			},
 			expected: true,
@@ -127,6 +129,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				verr.Add("a", "code2", "msg2", nil)
 				verr.Add("a", "code1", "msg3", nil)
 				verr.Sort()
+
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
@@ -144,6 +147,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Sort()
+
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
@@ -157,6 +161,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
 				verr.Sort()
+
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
@@ -171,6 +176,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				verr.Add("name", "required", "msg1", nil)
 				verr.Add("name", "required", "msg2", nil)
 				verr.Sort()
+
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
@@ -187,6 +193,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				verr.Add("a", "code2", "msg2", nil)
 				verr.Add("", "code2", "msg3", nil)
 				verr.Sort()
+
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
@@ -401,6 +408,7 @@ func TestValidationErrors_AddError(t *testing.T) {
 			setup: func() error {
 				var verr Error
 				verr.Add("email", "email", "invalid email", nil)
+
 				return verr
 			},
 			expectedCount: 1,
@@ -480,6 +488,7 @@ func TestValidationErrors_Error(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			contains: []string{"name"},
@@ -489,6 +498,7 @@ func TestValidationErrors_Error(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("", "general", "general error", nil)
+
 				return verr
 			},
 			contains:    []string{"general error"},
@@ -500,6 +510,7 @@ func TestValidationErrors_Error(t *testing.T) {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
 				verr.Add("email", "email", "invalid email", nil)
+
 				return verr
 			},
 			contains: []string{"validation failed", "name", "email"},
@@ -511,6 +522,7 @@ func TestValidationErrors_Error(t *testing.T) {
 				verr.Add("name", "required", "is required", nil)
 				verr.Add("email", "email", "invalid email", nil)
 				verr.Truncated = true
+
 				return verr
 			},
 			contains: []string{"truncated"},
@@ -520,6 +532,7 @@ func TestValidationErrors_Error(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			contains:    []string{"name"},
@@ -531,6 +544,7 @@ func TestValidationErrors_Error(t *testing.T) {
 				var verr Error
 				verr.Add("user.name", "required", "is required", nil)
 				verr.Add("user.email", "email", "invalid email", nil)
+
 				return verr
 			},
 			contains: []string{"validation failed", "user.name", "user.email"},
@@ -739,6 +753,7 @@ func TestValidationErrors_Has(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			path:     "name",
@@ -749,6 +764,7 @@ func TestValidationErrors_Has(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			path:     "email",
@@ -759,6 +775,7 @@ func TestValidationErrors_Has(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("user.address.city", "required", "is required", nil)
+
 				return verr
 			},
 			path:     "user.address.city",
@@ -777,6 +794,7 @@ func TestValidationErrors_Has(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("", "general", "general error", nil)
+
 				return verr
 			},
 			path:     "",
@@ -806,6 +824,7 @@ func TestValidationErrors_GetField(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			path: "name",
@@ -820,6 +839,7 @@ func TestValidationErrors_GetField(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			path:     "email",
@@ -831,6 +851,7 @@ func TestValidationErrors_GetField(t *testing.T) {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
 				verr.Add("name", "min", "must be at least 3", nil)
+
 				return verr
 			},
 			path: "name",

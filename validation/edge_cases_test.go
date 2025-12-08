@@ -329,6 +329,7 @@ func TestValidateWithContext_Cancellation(t *testing.T) {
 				t.Helper()
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // Cancel immediately
+
 				return ctx
 			},
 			user:      &User{Name: "John"},
@@ -340,6 +341,7 @@ func TestValidateWithContext_Cancellation(t *testing.T) {
 				t.Helper()
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel()
+
 				return ctx
 			},
 			user:      &User{},
@@ -392,6 +394,7 @@ func TestValidateWithContext_Timeout(t *testing.T) {
 				t.Helper()
 				ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 				time.Sleep(20 * time.Millisecond) // Wait for timeout
+
 				return ctx, cancel
 			},
 			user:      &User{Name: "John"},
@@ -440,6 +443,7 @@ func TestValidationErrors_ErrorsAs(t *testing.T) {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
 				verr.Add("email", "email", "invalid email", nil)
+
 				return verr
 			},
 			wantCount: 2,
@@ -455,6 +459,7 @@ func TestValidationErrors_ErrorsAs(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			wantCount: 1,
@@ -578,6 +583,7 @@ func TestValidationErrors_UnwrapChain(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			checkErr: func(t *testing.T, verr Error) {
@@ -591,6 +597,7 @@ func TestValidationErrors_UnwrapChain(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("name", "required", "is required", nil)
+
 				return verr
 			},
 			checkErr: func(t *testing.T, verr Error) {
@@ -603,6 +610,7 @@ func TestValidationErrors_UnwrapChain(t *testing.T) {
 			setup: func() Error {
 				var verr Error
 				verr.Add("email", "email", "invalid email", nil)
+
 				return verr
 			},
 			checkErr: func(t *testing.T, verr Error) {
@@ -752,6 +760,7 @@ func TestValidate_DeepRecursion(t *testing.T) {
 					current.Next = &Nested{Value: "test"}
 					current = current.Next
 				}
+
 				return root
 			},
 			wantError: false,
@@ -766,6 +775,7 @@ func TestValidate_DeepRecursion(t *testing.T) {
 					current = current.Next
 				}
 				current.Next = &Nested{} // Missing value
+
 				return root
 			},
 			wantError: true,
@@ -779,6 +789,7 @@ func TestValidate_DeepRecursion(t *testing.T) {
 					current.Next = &Nested{Value: "test"}
 					current = current.Next
 				}
+
 				return root
 			},
 			wantError: false,

@@ -88,6 +88,7 @@ func (c *config) validate() error {
 	if c.maxCachedSchemas < 0 {
 		return errors.New("maxCachedSchemas must be non-negative")
 	}
+
 	return nil
 }
 
@@ -99,6 +100,7 @@ func (c *config) clone() *config {
 		clone.customTags = make([]customTag, len(c.customTags))
 		copy(clone.customTags, c.customTags)
 	}
+
 	return &clone
 }
 
@@ -344,5 +346,6 @@ func applyOptions(base *config, opts ...Option) *config {
 	for _, opt := range opts {
 		opt(cfg)
 	}
+
 	return cfg
 }

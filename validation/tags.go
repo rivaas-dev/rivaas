@@ -130,8 +130,10 @@ func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 
 	if result.HasErrors() {
 		result.Sort()
+
 		return &result
 	}
+
 	return nil
 }
 
@@ -159,6 +161,7 @@ func (v *Validator) resolvePath(val any, path string) (reflect.Value, reflect.St
 					continue
 				}
 			}
+
 			return reflect.Value{}, reflect.StructField{}, false
 		}
 
@@ -197,6 +200,7 @@ func getJSONFieldName(field reflect.StructField) string {
 	if idx := strings.Index(jsonTag, ","); idx != -1 {
 		return jsonTag[:idx]
 	}
+
 	return jsonTag
 }
 
@@ -210,6 +214,7 @@ func buildFieldMap(structType reflect.Type) map[string]int {
 			fieldMap[jsonName] = i
 		}
 	}
+
 	return fieldMap
 }
 
@@ -260,6 +265,7 @@ func (v *Validator) formatTagErrors(errs validator.ValidationErrors, structValue
 	}
 
 	result.Sort()
+
 	return &result
 }
 
@@ -276,6 +282,7 @@ func namespaceToJSONPath(ns string, structType reflect.Type) string {
 			if currentType.Kind() == reflect.Slice || currentType.Kind() == reflect.Array {
 				currentType = currentType.Elem()
 			}
+
 			continue
 		}
 
@@ -289,6 +296,7 @@ func namespaceToJSONPath(ns string, structType reflect.Type) string {
 				if currentType.Kind() == reflect.Ptr {
 					currentType = currentType.Elem()
 				}
+
 				continue
 			}
 		}
@@ -313,11 +321,13 @@ func getTagErrorMessage(e validator.FieldError) string {
 		if e.Type().Kind() == reflect.String {
 			return fmt.Sprintf("must be at least %s characters", e.Param())
 		}
+
 		return fmt.Sprintf("must be at least %s", e.Param())
 	case "max":
 		if e.Type().Kind() == reflect.String {
 			return fmt.Sprintf("must be at most %s characters", e.Param())
 		}
+
 		return fmt.Sprintf("must be at most %s", e.Param())
 	case "oneof":
 		return fmt.Sprintf("must be one of [%s]", e.Param())

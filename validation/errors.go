@@ -66,6 +66,7 @@ func (e FieldError) Error() string {
 	if e.Path == "" {
 		return e.Message
 	}
+
 	return fmt.Sprintf("%s: %s", e.Path, e.Message)
 }
 
@@ -116,6 +117,7 @@ func (v Error) Error() string {
 	for _, err := range v.Fields {
 		msgs = append(msgs, err.Error())
 	}
+
 	return fmt.Sprintf("validation failed: %s%s", strings.Join(msgs, "; "), suffix)
 }
 
@@ -176,6 +178,7 @@ func (v *Error) AddError(err error) {
 		if ve.Truncated {
 			v.Truncated = true
 		}
+
 		return
 	}
 
@@ -184,6 +187,7 @@ func (v *Error) AddError(err error) {
 		if ve.Truncated {
 			v.Truncated = true
 		}
+
 		return
 	}
 
@@ -211,6 +215,7 @@ func (v Error) HasCode(code string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -227,6 +232,7 @@ func (v Error) Has(path string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -244,6 +250,7 @@ func (v Error) GetField(path string) *FieldError {
 			return &f
 		}
 	}
+
 	return nil
 }
 
@@ -254,6 +261,7 @@ func (v *Error) Sort() {
 		if v.Fields[i].Path != v.Fields[j].Path {
 			return v.Fields[i].Path < v.Fields[j].Path
 		}
+
 		return v.Fields[i].Code < v.Fields[j].Code
 	})
 }

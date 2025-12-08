@@ -99,6 +99,7 @@ func (v *Validator) validateWithSchema(ctx context.Context, val any, cfg *config
 		if verr, ok := err.(*jsonschema.ValidationError); ok {
 			return formatSchemaErrors(verr, cfg)
 		}
+
 		return &Error{Fields: []FieldError{{Code: "schema_validation_error", Message: err.Error()}}}
 	}
 
@@ -127,6 +128,7 @@ func pruneByPresence(data any, prefix string, pm PresenceMap, depth int) any {
 				out[k] = pruneByPresence(v, path, pm, depth+1)
 			}
 		}
+
 		return out
 
 	case []any:
@@ -140,6 +142,7 @@ func pruneByPresence(data any, prefix string, pm PresenceMap, depth int) any {
 				out[i] = nil
 			}
 		}
+
 		return out
 
 	default:
@@ -199,6 +202,7 @@ func formatSchemaErrors(verr *jsonschema.ValidationError, cfg *config) error {
 	collectSchemaErrors(verr, &result, cfg)
 
 	result.Sort()
+
 	return &result
 }
 

@@ -50,6 +50,7 @@ func (pm PresenceMap) HasPrefix(prefix string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -123,6 +124,7 @@ func ComputePresence(rawJSON []byte) (PresenceMap, error) {
 
 	pm := make(PresenceMap)
 	markPresence(data, "", pm, 0)
+
 	return pm, nil
 }
 

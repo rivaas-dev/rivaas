@@ -33,6 +33,7 @@ func (v *Validator) validateWithInterface(ctx context.Context, val any, cfg *con
 			if err := validator.ValidateContext(ctx); err != nil {
 				return v.coerceToValidationErrors(err, cfg)
 			}
+
 			return nil
 		}
 
@@ -51,6 +52,7 @@ func (v *Validator) validateWithInterface(ctx context.Context, val any, cfg *con
 		if err := validator.Validate(); err != nil {
 			return v.coerceToValidationErrors(err, cfg)
 		}
+
 		return nil
 	}
 
@@ -82,6 +84,7 @@ func (v *Validator) callValidator(val any) error {
 					return err
 				}
 			}
+
 			return nil
 		}
 	}
@@ -99,6 +102,7 @@ func (v *Validator) callValidator(val any) error {
 						return err
 					}
 				}
+
 				return nil
 			}
 		}
@@ -117,6 +121,7 @@ func (v *Validator) callValidator(val any) error {
 						return err
 					}
 				}
+
 				return nil
 			}
 		}
@@ -142,6 +147,7 @@ func (v *Validator) callValidatorWithContext(ctx context.Context, val any) error
 					return err
 				}
 			}
+
 			return nil
 		}
 	}
@@ -160,6 +166,7 @@ func (v *Validator) callValidatorWithContext(ctx context.Context, val any) error
 						return err
 					}
 				}
+
 				return nil
 			}
 		}
@@ -179,6 +186,7 @@ func (v *Validator) callValidatorWithContext(ctx context.Context, val any) error
 						return err
 					}
 				}
+
 				return nil
 			}
 		}
@@ -201,6 +209,7 @@ func (v *Validator) coerceToValidationErrors(err error, cfg *config) error {
 			verrs.Truncated = true
 		}
 		verrs.Sort()
+
 		return verrs
 	}
 

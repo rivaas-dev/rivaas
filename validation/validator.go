@@ -119,6 +119,7 @@ func MustNew(opts ...Option) *Validator {
 	if err != nil {
 		panic(fmt.Sprintf("validation.MustNew: %v", err))
 	}
+
 	return v
 }
 
@@ -139,6 +140,7 @@ func (v *Validator) initTagValidator() {
 			if name == "" {
 				return fld.Name
 			}
+
 			return name
 		})
 
@@ -203,6 +205,7 @@ func (v *Validator) typeImplementsValidator(t reflect.Type) bool {
 			return result
 		}
 	}
+
 	return implements
 }
 
@@ -222,6 +225,7 @@ func (v *Validator) typeImplementsValidatorWithContext(t reflect.Type) bool {
 			return result
 		}
 	}
+
 	return implements
 }
 
@@ -241,6 +245,7 @@ func (v *Validator) getFieldMap(structType reflect.Type) map[string]int {
 			return result
 		}
 	}
+
 	return fieldMap
 }
 
@@ -286,6 +291,7 @@ func (v *Validator) getCachedJSONPath(ns string, structType reflect.Type) string
 			return result
 		}
 	}
+
 	return jsonPath
 }
 
@@ -299,6 +305,7 @@ func (v *Validator) getOrCompileSchema(id, schemaJSON string) (*jsonschemaSchema
 			schema := entry.schema
 			v.schemaCacheMu.RUnlock()
 			entry.lastAccess.Store(now.UnixNano())
+
 			return schema, nil
 		}
 		v.schemaCacheMu.RUnlock()
