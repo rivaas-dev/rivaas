@@ -779,6 +779,7 @@ func (m *mockRegistrar) RegisterNamedRoute(name string, route *Route) error {
 		return &duplicateNameError{name: name}
 	}
 	m.namedRoutes[name] = route
+
 	return nil
 }
 func (m *mockRegistrar) GetRouteCompiler() *compiler.RouteCompiler                   { return nil }
@@ -789,6 +790,7 @@ func (m *mockRegistrar) StoreRouteInfo(_ Info)                                  
 func (m *mockRegistrar) AddRouteWithConstraints(method, path string, handlers []Handler) *Route {
 	route := NewRoute(m, "", method, path, handlers)
 	m.AddPendingRoute(route)
+
 	return route
 }
 func (m *mockRegistrar) CacheRouteHandlers(_ *compiler.CompiledRoute, _ []Handler) {}

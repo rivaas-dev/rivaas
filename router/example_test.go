@@ -176,6 +176,7 @@ func ExampleContext_Error() {
 			c.JSON(http.StatusBadRequest, map[string]any{
 				"errors": c.Errors(),
 			})
+
 			return
 		}
 
@@ -224,6 +225,7 @@ func ExampleContext_HasErrors() {
 			c.JSON(http.StatusBadRequest, map[string]any{
 				"error": "validation failed",
 			})
+
 			return
 		}
 
@@ -246,6 +248,7 @@ func ExampleContext_JSON() {
 			c.Logger().Error("failed to write JSON", "err", err)
 			c.Error(err) // Optionally collect it
 			c.WriteErrorResponse(http.StatusInternalServerError, "encoding failed")
+
 			return
 		}
 	})
@@ -270,6 +273,7 @@ func ExampleContext_Error_withErrorsJoin() {
 			c.JSON(http.StatusBadRequest, map[string]any{
 				"error": joinedErr.Error(),
 			})
+
 			return
 		}
 

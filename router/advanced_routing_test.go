@@ -187,6 +187,7 @@ func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
 				if strings.HasPrefix(host, "v1.") {
 					return "v1"
 				}
+
 				return "v1" // default
 			}),
 			version.WithDefault("v1"),
@@ -342,6 +343,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 			request: func() *http.Request {
 				req := httptest.NewRequest(http.MethodGet, "/test", nil)
 				req.Header.Set("X-Api-Version", "v2")
+
 				return req
 			},
 			expected: "v2",

@@ -176,6 +176,7 @@ func TestEngineDetectVersion(t *testing.T) {
 				if r.Host == "v2.example.com" {
 					return "v2"
 				}
+
 				return ""
 			}),
 			WithDefault("v1"),

@@ -52,6 +52,7 @@ func (rc *RouteCompiler) MatchDynamic(method, path string, ctx ContextParamWrite
 				}
 			}
 			rc.mu.RUnlock()
+
 			return nil
 		}
 	}
@@ -66,6 +67,7 @@ func (rc *RouteCompiler) MatchDynamic(method, path string, ctx ContextParamWrite
 	}
 
 	rc.mu.RUnlock()
+
 	return nil
 }
 
@@ -278,5 +280,6 @@ func (r *CompiledRoute) matchAndExtract(path string, ctx ContextParamWriter) boo
 	}
 
 	ctx.SetParamCount(paramCount)
+
 	return true
 }

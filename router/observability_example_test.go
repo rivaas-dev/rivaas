@@ -210,6 +210,7 @@ func (w *observableResponseWriter) Write(b []byte) (int, error) {
 	}
 	n, err := w.ResponseWriter.Write(b)
 	w.size += int64(n)
+
 	return n, err
 }
 

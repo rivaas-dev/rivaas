@@ -59,6 +59,7 @@ func (m *testContextParamWriter) GetParam(key string) (string, bool) {
 		return "", false
 	}
 	v, ok := m.params[key]
+
 	return v, ok
 }
 
@@ -66,6 +67,7 @@ func (m *testContextParamWriter) GetParam(key string) (string, bool) {
 func (m *testContextParamWriter) GetCount() int32 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	return m.count
 }
 

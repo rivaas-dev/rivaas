@@ -305,6 +305,7 @@ func parseQuality(s string) int {
 				return -1 // Invalid like "1.5"
 			}
 		}
+
 		return 1000
 	}
 
@@ -327,6 +328,7 @@ func parseQuality(s string) int {
 			result += int(s[i]-'0') * multiplier
 			multiplier /= 10
 		}
+
 		return result
 	}
 
@@ -477,6 +479,7 @@ func splitMediaType(mediaType string) (string, string) {
 		// Convert to lowercase for comparison (unavoidable for case-insensitive)
 		typeStr := strings.ToLower(mediaType[:slash])
 		subtypeStr := strings.ToLower(mediaType[slash+1:])
+
 		return typeStr, subtypeStr
 	}
 

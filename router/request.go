@@ -269,6 +269,7 @@ func (c *Context) ClientIPs() []string {
 				ips = append(ips, ip)
 			}
 		}
+
 		return ips
 	}
 
@@ -277,6 +278,7 @@ func (c *Context) ClientIPs() []string {
 	if err != nil {
 		return []string{c.Request.RemoteAddr}
 	}
+
 	return []string{ip}
 }
 
@@ -575,6 +577,7 @@ func (c *Context) Files(name string) ([]*File, error) {
 		for i, h := range headers {
 			files[i] = newFile(h)
 		}
+
 		return files, nil
 	}
 

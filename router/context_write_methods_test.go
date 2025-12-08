@@ -275,6 +275,7 @@ func TestContext_ResponseMethods_AllVariants(t *testing.T) {
 						err = fmt.Errorf("YAML encoding panicked: %v", r)
 					}
 				}()
+
 				return c.YAML(200, invalidData)
 			},
 		},

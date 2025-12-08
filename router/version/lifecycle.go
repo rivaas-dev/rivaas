@@ -101,5 +101,6 @@ func ApplyLifecycleOptions(opts ...LifecycleOption) *LifecycleConfig {
 	for _, opt := range opts {
 		opt(lc)
 	}
+
 	return lc
 }

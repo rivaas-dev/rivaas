@@ -54,6 +54,7 @@ func (m *mockParameterReader) QueryDefault(key, defaultValue string) string {
 	if val, ok := m.queryDefaults[key]; ok {
 		return val
 	}
+
 	return defaultValue
 }
 
@@ -65,18 +66,21 @@ func (m *mockParameterReader) FormValueDefault(key, defaultValue string) string 
 	if val, ok := m.formDefaults[key]; ok {
 		return val
 	}
+
 	return defaultValue
 }
 
 func (m *mockParameterReader) AllParams() map[string]string {
 	result := make(map[string]string, len(m.params))
 	maps.Copy(result, m.params)
+
 	return result
 }
 
 func (m *mockParameterReader) AllQueries() map[string]string {
 	result := make(map[string]string, len(m.queries))
 	maps.Copy(result, m.queries)
+
 	return result
 }
 
@@ -84,6 +88,7 @@ func (m *mockParameterReader) GetCookie(name string) (string, error) {
 	if val, ok := m.cookies[name]; ok {
 		return val, nil
 	}
+
 	return "", errCookieNotFound
 }
 
@@ -100,6 +105,7 @@ func (m *mockResponseWriter) JSON(code int, _ any) error {
 	m.headers["Content-Type"] = "application/json; charset=utf-8"
 	// In real implementation, would marshal obj to JSON
 	m.body = []byte(`{"test":"data"}`)
+
 	return nil
 }
 
@@ -123,6 +129,7 @@ func (m *mockResponseWriter) String(code int, value string) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = "text/plain"
 	m.body = []byte(value)
+
 	return nil
 }
 
@@ -130,6 +137,7 @@ func (m *mockResponseWriter) Stringf(code int, format string, _ ...any) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = "text/plain"
 	m.body = []byte(format)
+
 	return nil
 }
 
@@ -137,12 +145,14 @@ func (m *mockResponseWriter) HTML(code int, html string) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = "text/html"
 	m.body = []byte(html)
+
 	return nil
 }
 
 func (m *mockResponseWriter) YAML(code int, _ any) error {
 	m.statusCode = code
 	m.headers["Content-Type"] = "application/x-yaml"
+
 	return nil
 }
 
@@ -150,6 +160,7 @@ func (m *mockResponseWriter) Data(code int, contentType string, data []byte) err
 	m.statusCode = code
 	m.headers["Content-Type"] = contentType
 	m.body = data
+
 	return nil
 }
 

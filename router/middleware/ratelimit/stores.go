@@ -58,6 +58,7 @@ func NewInMemoryTokenBucketStore(rate, burst int) *InMemoryTokenBucketStore {
 	// Start cleanup goroutine
 	store.cleanup = time.NewTicker(5 * time.Minute)
 	go store.cleanupLoop()
+
 	return store
 }
 
@@ -126,6 +127,7 @@ func (s *InMemoryTokenBucketStore) Allow(key string, now time.Time) (allowed boo
 		entry.tokens -= 1.0
 		remaining = int(entry.tokens)
 		resetSeconds = 1 // Reset in 1 second (token bucket refills continuously)
+
 		return true, remaining, resetSeconds
 	}
 
@@ -134,6 +136,7 @@ func (s *InMemoryTokenBucketStore) Allow(key string, now time.Time) (allowed boo
 	// Calculate time until next token is available
 	tokensNeeded := 1.0 - entry.tokens
 	resetSeconds = max(int(tokensNeeded/float64(s.rate)*float64(time.Second)), 1)
+
 	return false, remaining, resetSeconds
 }
 
@@ -161,6 +164,7 @@ func NewInMemoryStore() *InMemoryStore {
 	}
 	store.cleanup = time.NewTicker(5 * time.Minute)
 	go store.cleanupLoop()
+
 	return store
 }
 
@@ -243,6 +247,7 @@ func (s *InMemoryStore) Incr(_ context.Context, key string, window time.Duration
 			}
 			s.entries[key] = entry
 			s.mu.Unlock()
+
 			return nil
 		}
 		s.mu.Unlock()

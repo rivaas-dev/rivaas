@@ -162,6 +162,7 @@ func (c *Context) Download(filepath string, filename ...string) error {
 
 	// Serve the file
 	http.ServeFile(c.Response, c.Request, filepath)
+
 	return nil
 }
 
@@ -178,6 +179,7 @@ func (c *Context) Send(data []byte) error {
 	}
 
 	_, err := c.Response.Write(data)
+
 	return err
 }
 
@@ -205,6 +207,7 @@ func (c *Context) SendStatus(code int) error {
 	}
 
 	_, err := c.Response.Write([]byte(statusText))
+
 	return err
 }
 
@@ -240,6 +243,7 @@ func (c *Context) JSONP(code int, obj any, callback ...string) error {
 	// Send JSONP response: callback(json)
 	response := fmt.Sprintf("%s(%s)", callbackName, jsonData)
 	_, writeErr := c.Response.Write([]byte(response))
+
 	return writeErr
 }
 
@@ -271,6 +275,7 @@ func (c *Context) Format(code int, data any) error {
 		c.Status(code)
 		xml := fmt.Sprintf("<?xml version=\"1.0\"?>\n<response>%v</response>", data)
 		_, err := c.Response.Write([]byte(xml))
+
 		return err
 
 	case "txt", "":

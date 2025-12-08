@@ -186,6 +186,7 @@ func (r *Router) getVersionTree(ver, method string) *node {
 	if methodTrees, exists := versionTrees[ver]; exists {
 		return methodTrees[method]
 	}
+
 	return nil
 }
 
@@ -504,6 +505,7 @@ func (vg *VersionGroup) Handle(method, path string, handlers ...HandlerFunc) *ro
 	rt := vg.versionRouter.addVersionRoute(method, fullPath, allHandlers)
 	// Set version group reference for name prefixing
 	rt.SetVersionGroup(vg)
+
 	return rt
 }
 

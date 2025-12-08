@@ -77,6 +77,7 @@ func TestNewBloomFilter(t *testing.T) {
 				assert.Panics(t, func() {
 					NewBloomFilter(tt.size, tt.numHashFuncs)
 				})
+
 				return
 			}
 

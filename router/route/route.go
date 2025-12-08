@@ -209,6 +209,7 @@ func (r *Route) WhereUUID(name string) *Route {
 	if wasRegistered {
 		r.RegisterRoute()
 	}
+
 	return r
 }
 
@@ -236,6 +237,7 @@ func (r *Route) WhereInt(name string) *Route {
 	if wasRegistered {
 		r.RegisterRoute()
 	}
+
 	return r
 }
 
@@ -256,6 +258,7 @@ func (r *Route) WhereFloat(name string) *Route {
 	if wasRegistered {
 		r.RegisterRoute()
 	}
+
 	return r
 }
 
@@ -276,6 +279,7 @@ func (r *Route) WhereRegex(name, pattern string) *Route {
 	if wasRegistered {
 		r.RegisterRoute()
 	}
+
 	return r
 }
 
@@ -299,6 +303,7 @@ func (r *Route) WhereEnum(name string, values ...string) *Route {
 	if wasRegistered {
 		r.RegisterRoute()
 	}
+
 	return r
 }
 
@@ -319,6 +324,7 @@ func (r *Route) WhereDate(name string) *Route {
 	if wasRegistered {
 		r.RegisterRoute()
 	}
+
 	return r
 }
 
@@ -339,6 +345,7 @@ func (r *Route) WhereDateTime(name string) *Route {
 	if wasRegistered {
 		r.RegisterRoute()
 	}
+
 	return r
 }
 
@@ -349,6 +356,7 @@ func (r *Route) TypedConstraints() map[string]ParamConstraint {
 	}
 	out := make(map[string]ParamConstraint, len(r.typedConstraints))
 	maps.Copy(out, r.typedConstraints)
+
 	return out
 }
 

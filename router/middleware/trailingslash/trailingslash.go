@@ -106,6 +106,7 @@ func Wrap(h http.Handler, opts ...Option) http.Handler {
 			if hasSlash {
 				newPath := strings.TrimSuffix(path, "/")
 				redirect308HTTP(w, r, newPath)
+
 				return
 			}
 
@@ -171,6 +172,7 @@ func New(opts ...Option) router.HandlerFunc {
 				// This prevents collapsing multiple slashes like /a// → /a
 				newPath := strings.TrimSuffix(path, "/")
 				redirect308(c, newPath)
+
 				return
 			}
 			// Normalize path by removing trailing slash for routing

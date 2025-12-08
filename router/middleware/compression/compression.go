@@ -101,6 +101,7 @@ func (cw *compressWriter) Write(data []byte) (int, error) {
 		if cw.compress {
 			return cw.writer.Write(data)
 		}
+
 		return cw.ResponseWriter.Write(data)
 	}
 
@@ -109,6 +110,7 @@ func (cw *compressWriter) Write(data []byte) (int, error) {
 		cw.decided = true
 		cw.compress = true
 		cw.initCompression()
+
 		return cw.writer.Write(data)
 	}
 
@@ -190,6 +192,7 @@ func (cw *compressWriter) WriteHeader(code int) {
 		cw.decided = true
 		cw.ResponseWriter.WriteHeader(code)
 		cw.headersSent = true
+
 		return
 	}
 
@@ -200,6 +203,7 @@ func (cw *compressWriter) WriteHeader(code int) {
 		cw.decided = true
 		cw.ResponseWriter.WriteHeader(code)
 		cw.headersSent = true
+
 		return
 	}
 
@@ -245,6 +249,7 @@ func (cw *compressWriter) Close() error {
 			}
 			cw.ResponseWriter.Write(cw.buffer)
 		}
+
 		return nil
 	}
 
@@ -258,6 +263,7 @@ func (cw *compressWriter) Close() error {
 			w.Reset(nil)
 		}
 		cw.pool.Put(cw.writer)
+
 		return err
 	}
 
@@ -328,6 +334,7 @@ func getGzipWriterPool(level int) *sync.Pool {
 		},
 	}
 	gzipWriterPools[level] = pool
+
 	return pool
 }
 
@@ -355,6 +362,7 @@ func getBrotliWriterPool(level int) *sync.Pool {
 		},
 	}
 	brotliWriterPools[level] = pool
+
 	return pool
 }
 

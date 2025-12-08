@@ -174,6 +174,7 @@ func WithTokenBucket(tb TokenBucket, opts CommonOptions) router.HandlerFunc {
 				// Always abort after calling custom handler to prevent route handler execution
 				// The custom handler is responsible for writing the response
 				c.Abort()
+
 				return
 			}
 
@@ -185,6 +186,7 @@ func WithTokenBucket(tb TokenBucket, opts CommonOptions) router.HandlerFunc {
 				// Return 429 response
 				c.WriteErrorResponse(http.StatusTooManyRequests, "Too Many Requests")
 				c.Abort()
+
 				return
 			}
 		}
@@ -218,6 +220,7 @@ func WithSlidingWindow(sw SlidingWindow, opts CommonOptions) router.HandlerFunc 
 				opts.logger.Warn("rate limit store error", "error", err, "key", key)
 			}
 			c.Next()
+
 			return
 		}
 
@@ -264,6 +267,7 @@ func WithSlidingWindow(sw SlidingWindow, opts CommonOptions) router.HandlerFunc 
 				// Always abort after calling custom handler to prevent route handler execution
 				// The custom handler is responsible for writing the response
 				c.Abort()
+
 				return
 			}
 
@@ -275,6 +279,7 @@ func WithSlidingWindow(sw SlidingWindow, opts CommonOptions) router.HandlerFunc 
 				// Return 429 response
 				c.WriteErrorResponse(http.StatusTooManyRequests, "Too Many Requests")
 				c.Abort()
+
 				return
 			}
 		}

@@ -129,6 +129,7 @@ func CompileRoute(method, pattern string, handlers []HandlerFunc, constraints []
 	if pattern == "/" {
 		route.isStatic = true
 		route.segmentCount = 0
+
 		return route
 	}
 

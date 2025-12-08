@@ -53,6 +53,7 @@ func (c *Context) ParamInt(name string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
 	}
+
 	return val, nil
 }
 
@@ -68,6 +69,7 @@ func (c *Context) ParamInt64(name string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
 	}
+
 	return val, nil
 }
 
@@ -83,6 +85,7 @@ func (c *Context) ParamUint(name string) (uint, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
 	}
+
 	return uint(val), nil
 }
 
@@ -98,6 +101,7 @@ func (c *Context) ParamUint64(name string) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
 	}
+
 	return val, nil
 }
 
@@ -113,6 +117,7 @@ func (c *Context) ParamFloat64(name string) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
 	}
+
 	return val, nil
 }
 
@@ -169,6 +174,7 @@ func hexToByte(c byte) byte {
 	case 'A' <= c && c <= 'F':
 		return c - 'A' + 10
 	}
+
 	return 255 // invalid
 }
 
@@ -194,6 +200,7 @@ func (c *Context) ParamTime(name, layout string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
 	}
+
 	return val, nil
 }
 
@@ -364,6 +371,7 @@ func (c *Context) QueryStrings(name string) []string {
 			result = append(result, p)
 		}
 	}
+
 	return result
 }
 

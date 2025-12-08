@@ -146,6 +146,7 @@ func (cfg *realIPConfig) isTrusted(ip string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -236,6 +237,7 @@ func (c *Context) ClientIP() string {
 						"xff":       xff,
 					})
 				}
+
 				return ip
 			}
 		case HeaderXRealIP:
@@ -270,6 +272,7 @@ func clientIPFromRemoteAddr(remoteAddr string) string {
 		// No port, return as-is
 		return remoteAddr
 	}
+
 	return host
 }
 
@@ -377,5 +380,6 @@ func splitAndTrim(s string, sep byte) []string {
 			result = append(result, p)
 		}
 	}
+
 	return result
 }

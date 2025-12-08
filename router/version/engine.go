@@ -41,6 +41,7 @@ func New(opts ...Option) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Engine{config: cfg}, nil
 }
 
@@ -68,6 +69,7 @@ func (e *Engine) DetectVersion(req *http.Request) string {
 
 	// No version detected
 	e.notifyMissing()
+
 	return e.config.defaultVersion
 }
 
@@ -89,6 +91,7 @@ func (e *Engine) validateVersion(version string) string {
 
 	// Invalid version
 	e.notifyInvalid(version)
+
 	return ""
 }
 
@@ -155,6 +158,7 @@ func (e *Engine) ExtractPathSegment(path string) (string, bool) {
 			}
 		}
 	}
+
 	return "", false
 }
 
@@ -172,6 +176,7 @@ func (e *Engine) StripPathVersion(path, version string) string {
 			}
 		}
 	}
+
 	return path
 }
 
@@ -204,6 +209,7 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version, route strin
 		if lc.MigrationURL != "" {
 			w.Header().Set("Link", fmt.Sprintf("<%s>; rel=\"sunset\"", lc.MigrationURL))
 		}
+
 		return true
 	}
 

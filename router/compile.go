@@ -27,6 +27,7 @@ func (r *Router) countStaticRoutesForMethod(method string) int {
 	if tree == nil {
 		return 0
 	}
+
 	return tree.countStaticRoutes()
 }
 
@@ -51,6 +52,7 @@ func optimalBloomFilterSize(routeCount int) uint64 {
 	if size > 1000000 {
 		return 1000000
 	}
+
 	return size
 }
 

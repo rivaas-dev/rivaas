@@ -133,6 +133,7 @@ func (m *mockHTTPResponseWriter) Write(b []byte) (int, error) {
 		n = len(b)
 	}
 	m.responseSize += int64(n)
+
 	return n, err
 }
 
@@ -158,6 +159,7 @@ func (m *mockHTTPResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if h, ok := m.ResponseWriter.(http.Hijacker); ok {
 		return h.Hijack()
 	}
+
 	return nil, nil, http.ErrNotSupported
 }
 
@@ -167,5 +169,6 @@ func newMockObservabilityWithExclusion(excludePath string) *mockObservabilityRec
 	mock.shouldExclude = func(path string) bool {
 		return path == excludePath
 	}
+
 	return mock
 }

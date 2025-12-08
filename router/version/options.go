@@ -44,6 +44,7 @@ func WithPathDetection(pattern string) Option {
 			return fmt.Errorf("%w: path pattern %q", ErrMissingVersionPlaceholder, pattern)
 		}
 		cfg.detectors = append(cfg.detectors, newPathDetector(pattern))
+
 		return nil
 	}
 }
@@ -63,6 +64,7 @@ func WithHeaderDetection(headerName string) Option {
 			return ErrEmptyHeaderName
 		}
 		cfg.detectors = append(cfg.detectors, &headerDetector{header: headerName})
+
 		return nil
 	}
 }
@@ -82,6 +84,7 @@ func WithQueryDetection(paramName string) Option {
 			return ErrEmptyQueryParam
 		}
 		cfg.detectors = append(cfg.detectors, &queryDetector{param: paramName})
+
 		return nil
 	}
 }
@@ -102,6 +105,7 @@ func WithAcceptDetection(pattern string) Option {
 			return fmt.Errorf("%w: accept pattern %q", ErrMissingVersionPlaceholder, pattern)
 		}
 		cfg.detectors = append(cfg.detectors, &acceptDetector{pattern: pattern})
+
 		return nil
 	}
 }
@@ -123,6 +127,7 @@ func WithCustomDetection(fn func(*http.Request) string) Option {
 		}
 		// Insert at the beginning for highest priority
 		cfg.detectors = append([]Detector{&customDetector{fn: fn}}, cfg.detectors...)
+
 		return nil
 	}
 }
@@ -142,6 +147,7 @@ func WithDefault(version string) Option {
 			return ErrEmptyDefaultVersion
 		}
 		cfg.defaultVersion = version
+
 		return nil
 	}
 }
@@ -163,6 +169,7 @@ func WithValidVersions(versions ...string) Option {
 			}
 		}
 		cfg.validVersions = versions
+
 		return nil
 	}
 }
@@ -235,6 +242,7 @@ func WithObserver(opts ...ObserverOption) Option {
 			opt(obs)
 		}
 		cfg.observer = obs
+
 		return nil
 	}
 }

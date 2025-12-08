@@ -219,5 +219,6 @@ func (g *Group) addRoute(method, path string, handlers []Handler) *Route {
 	route := g.registrar.AddRouteWithConstraints(method, fullPath, allHandlers)
 	// Set group reference for name prefixing
 	route.SetGroup(g)
+
 	return route
 }

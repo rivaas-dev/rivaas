@@ -48,6 +48,7 @@ func WithMiddleware(m ...HandlerFunc) route.MountOption {
 	for i, h := range m {
 		handlers[i] = h
 	}
+
 	return route.WithMiddleware(handlers...)
 }
 
@@ -65,6 +66,7 @@ func (r *Router) IsFrozen() bool {
 func (r *Router) IsWarmedUp() bool {
 	r.pendingRoutesMu.Lock()
 	defer r.pendingRoutesMu.Unlock()
+
 	return r.warmedUp
 }
 
@@ -88,6 +90,7 @@ func (r *Router) GetGlobalMiddleware() []route.Handler {
 	for i, h := range r.middleware {
 		handlers[i] = h
 	}
+
 	return handlers
 }
 
@@ -123,6 +126,7 @@ func (r *Router) RegisterNamedRoute(name string, rt *route.Route) error {
 			name, existing.Method(), existing.Path(), rt.Method(), rt.Path())
 	}
 	r.namedRoutes[name] = rt
+
 	return nil
 }
 
@@ -161,6 +165,7 @@ func convertHandlers(handlers []route.Handler) []HandlerFunc {
 			handlerFuncs[i] = h.(HandlerFunc)
 		}
 	}
+
 	return handlerFuncs
 }
 
@@ -281,6 +286,7 @@ func (r *Router) Group(prefix string, middleware ...HandlerFunc) *route.Group {
 	for i, h := range middleware {
 		handlers[i] = h
 	}
+
 	return route.NewGroup(r, prefix, handlers)
 }
 
@@ -490,6 +496,7 @@ func (r *Router) MustURLFor(routeName string, params map[string]string, query ur
 	if err != nil {
 		panic(fmt.Sprintf("MustURLFor failed: %v", err))
 	}
+
 	return url
 }
 
@@ -506,6 +513,7 @@ func (r *Router) Routes() []route.Info {
 		if routes[i].Method == routes[j].Method {
 			return routes[i].Path < routes[j].Path
 		}
+
 		return routes[i].Method < routes[j].Method
 	})
 
@@ -566,5 +574,6 @@ func (r *Router) GetRoutes() []*route.Route {
 
 	result := make([]*route.Route, len(r.routeSnapshot))
 	copy(result, r.routeSnapshot)
+
 	return result
 }

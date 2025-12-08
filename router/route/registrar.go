@@ -97,6 +97,7 @@ func CompilerHandlers(handlers []Handler) []compiler.HandlerFunc {
 	for i, h := range handlers {
 		compilerHandlers[i] = compiler.HandlerFunc(h)
 	}
+
 	return compilerHandlers
 }
 
@@ -112,6 +113,7 @@ func CompilerConstraints(constraints []Constraint) []compiler.RouteConstraint {
 			Pattern: c.Pattern,
 		}
 	}
+
 	return compilerConstraints
 }
 
@@ -125,6 +127,7 @@ func ConstraintFromPattern(param, pattern string) Constraint {
 	if err != nil {
 		panic("Invalid regex pattern for parameter '" + param + "': " + err.Error())
 	}
+
 	return Constraint{
 		Param:   param,
 		Pattern: regex,

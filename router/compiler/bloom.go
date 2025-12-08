@@ -96,5 +96,6 @@ func (bf *BloomFilter) Test(data []byte) bool {
 			return false // Early exit - definitely not present
 		}
 	}
+
 	return true
 }

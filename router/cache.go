@@ -36,6 +36,7 @@ func (e ETag) String() string {
 	if e.Weak {
 		return `W/"` + e.Value + `"`
 	}
+
 	return `"` + e.Value + `"`
 }
 
@@ -46,7 +47,9 @@ func WeakETagFromBytes(b []byte) ETag {
 	if len(b) == 0 {
 		return ETag{}
 	}
+
 	hash := sha256.Sum256(b)
+
 	return ETag{
 		Value: hex.EncodeToString(hash[:]),
 		Weak:  true,
@@ -60,6 +63,7 @@ func StrongETagFromBytes(b []byte) ETag {
 		return ETag{}
 	}
 	hash := sha256.Sum256(b)
+
 	return ETag{
 		Value: hex.EncodeToString(hash[:]),
 		Weak:  false,
@@ -71,6 +75,7 @@ func WeakETagFromString(s string) ETag {
 	if s == "" {
 		return ETag{}
 	}
+
 	return WeakETagFromBytes([]byte(s))
 }
 
@@ -79,6 +84,7 @@ func StrongETagFromString(s string) ETag {
 	if s == "" {
 		return ETag{}
 	}
+
 	return StrongETagFromBytes([]byte(s))
 }
 
@@ -110,6 +116,7 @@ func (c *Context) SetLastModified(t time.Time) {
 func normalizeETagValue(tag string) string {
 	tag = strings.TrimSpace(tag)
 	tag = strings.TrimPrefix(tag, "W/")
+
 	return strings.Trim(tag, `"`)
 }
 
@@ -287,6 +294,7 @@ func (c *Context) sendPreconditionFailed(detail string) bool {
 		message += ": " + detail
 	}
 	c.WriteErrorResponse(http.StatusPreconditionFailed, message)
+
 	return true
 }
 
@@ -300,6 +308,7 @@ func (c *Context) IfNoneMatch(tag ETag) bool {
 	if method != http.MethodGet && method != http.MethodHead {
 		return false
 	}
+
 	return c.HandleConditionals(CondOpts{ETag: &tag})
 }
 
@@ -313,6 +322,7 @@ func (c *Context) IfModifiedSince(t time.Time) bool {
 	if method != http.MethodGet && method != http.MethodHead {
 		return false
 	}
+
 	return c.HandleConditionals(CondOpts{LastModified: &t})
 }
 

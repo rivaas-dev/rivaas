@@ -129,6 +129,7 @@ func (f *File) Open() (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
+
 	return src, nil
 }
 

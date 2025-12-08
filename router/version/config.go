@@ -154,6 +154,7 @@ func (c *Config) GetLifecycle(version string) *LifecycleConfig {
 	if c.versionLifecycles == nil {
 		return nil
 	}
+
 	return c.versionLifecycles[version]
 }
 
@@ -170,6 +171,7 @@ func (c *Config) Now() time.Time {
 	if c.now != nil {
 		return c.now()
 	}
+
 	return time.Now()
 }
 

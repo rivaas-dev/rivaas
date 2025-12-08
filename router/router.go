@@ -73,6 +73,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	}
 	n, err := rw.ResponseWriter.Write(b)
 	rw.size += int64(n)
+
 	return n, err
 }
 
@@ -81,6 +82,7 @@ func (rw *responseWriter) StatusCode() int {
 	if rw.statusCode == 0 {
 		return http.StatusOK
 	}
+
 	return rw.statusCode
 }
 
@@ -102,6 +104,7 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}
+
 	return nil, nil, ErrResponseWriterNotHijacker
 }
 
@@ -276,6 +279,7 @@ func MustNew(opts ...Option) *Router {
 	if err != nil {
 		panic(fmt.Sprintf("router.MustNew: %v", err))
 	}
+
 	return r
 }
 
@@ -608,6 +612,7 @@ func (r *Router) addRouteToTree(method, path string, handlers []HandlerFunc, con
 		maps.Copy(newTrees, currentTrees)
 		newTrees[method] = &node{}
 		newTrees[method].addRouteWithConstraints(path, handlers, constraints)
+
 		return newTrees
 	})
 }

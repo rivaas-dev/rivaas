@@ -209,6 +209,7 @@ func NewPooledContext(r *Router, preallocateMap bool) *Context {
 		ctx.Params = make(map[string]string, 16)
 	}
 	ctx.reset()
+
 	return ctx
 }
 
@@ -356,6 +357,7 @@ func (c *Context) JSON(code int, obj any) error {
 
 	// Write the pre-encoded JSON
 	_, writeErr := c.Response.Write([]byte(buf.String()))
+
 	return writeErr
 }
 
@@ -385,6 +387,7 @@ func (c *Context) IndentedJSON(code int, obj any) error {
 
 	// Write the formatted JSON
 	_, writeErr := c.Response.Write(jsonBytes)
+
 	return writeErr
 }
 
@@ -419,6 +422,7 @@ func (c *Context) PureJSON(code int, obj any) error {
 
 	// Write the JSON
 	_, writeErr := c.Response.Write([]byte(buf.String()))
+
 	return writeErr
 }
 
@@ -458,6 +462,7 @@ func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 	// Note: json.Encoder.Encode() adds a newline, we keep it for compatibility
 	response := securityPrefix + buf.String()
 	_, writeErr := c.Response.Write([]byte(response))
+
 	return writeErr
 }
 
@@ -528,6 +533,7 @@ func (c *Context) ASCIIJSON(code int, obj any) error {
 
 	// Write the ASCII-safe JSON
 	_, writeErr := c.Response.Write([]byte(result.String()))
+
 	return writeErr
 }
 
@@ -599,6 +605,7 @@ func (c *Context) String(code int, value string) error {
 	if err != nil {
 		return fmt.Errorf("writing string response: %w", err)
 	}
+
 	return nil
 }
 
@@ -641,6 +648,7 @@ func (c *Context) Stringf(code int, format string, values ...any) error {
 	if err != nil {
 		return fmt.Errorf("writing formatted string response: %w", err)
 	}
+
 	return nil
 }
 
@@ -704,6 +712,7 @@ func (c *Context) HTML(code int, html string) error {
 	if err != nil {
 		return fmt.Errorf("writing HTML response: %w", err)
 	}
+
 	return nil
 }
 
@@ -773,6 +782,7 @@ func (c *Context) Query(key string) string {
 	if c.Request == nil {
 		return ""
 	}
+
 	return c.Request.URL.Query().Get(key)
 }
 
@@ -829,6 +839,7 @@ func (c *Context) QueryDefault(key, defaultValue string) string {
 	if value == "" {
 		return defaultValue
 	}
+
 	return value
 }
 
@@ -843,6 +854,7 @@ func (c *Context) FormValueDefault(key, defaultValue string) string {
 	if value == "" {
 		return defaultValue
 	}
+
 	return value
 }
 
@@ -872,6 +884,7 @@ func (c *Context) Logger() *slog.Logger {
 	if c.logger != nil {
 		return c.logger
 	}
+
 	return noopLogger
 }
 
@@ -919,6 +932,7 @@ func (c *Context) GetCookie(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return value, nil
 }
 
@@ -947,6 +961,7 @@ func (c *Context) YAML(code int, obj any) error {
 
 	// Write YAML
 	_, writeErr := c.Response.Write(yamlBytes)
+
 	return writeErr
 }
 
@@ -1096,6 +1111,7 @@ func (c *Context) Errors() []error {
 	if c.errors == nil {
 		return nil
 	}
+
 	return c.errors
 }
 
@@ -1160,6 +1176,7 @@ func (c *Context) TraceID() string {
 	if c.tracingRecorder != nil {
 		return c.tracingRecorder.TraceID()
 	}
+
 	return ""
 }
 
@@ -1169,6 +1186,7 @@ func (c *Context) SpanID() string {
 	if c.tracingRecorder != nil {
 		return c.tracingRecorder.SpanID()
 	}
+
 	return ""
 }
 
@@ -1219,6 +1237,7 @@ func (c *Context) RequestContext() context.Context {
 	if c.Request != nil {
 		return c.Request.Context()
 	}
+
 	return context.Background()
 }
 
@@ -1274,6 +1293,7 @@ func (c *Context) RequireContentType(allowed ...string) bool {
 		if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPatch {
 			return c.unsupportedMediaTypeProblem("", allowed)
 		}
+
 		return true // GET/DELETE don't need Content-Type
 	}
 
@@ -1338,6 +1358,7 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 		ute := err.(*json.UnmarshalTypeError)
 		// Valid JSON, wrong types -> 422
 		c.WriteErrorResponse(http.StatusUnprocessableEntity, fmt.Sprintf("Invalid type for field %q: expected %s", ute.Field, ute.Type))
+
 		return err
 
 	default:
@@ -1346,6 +1367,7 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 		if field, ok := strings.CutPrefix(errStr, "json: unknown field "); ok {
 			field = strings.Trim(field, `"`)
 			c.WriteErrorResponse(http.StatusBadRequest, fmt.Sprintf("Unknown field %q", field))
+
 			return err
 		}
 
@@ -1357,6 +1379,7 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 
 		// Fallback
 		c.WriteErrorResponse(http.StatusBadRequest, "Malformed JSON: "+err.Error())
+
 		return err
 	}
 }
@@ -1485,6 +1508,7 @@ func StreamNDJSON[T any](c *Context, each func(T) error) error {
 			if errors.Is(err, io.EOF) {
 				break
 			}
+
 			return c.writeJSONDecodeProblem(err)
 		}
 

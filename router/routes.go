@@ -95,6 +95,7 @@ func init() {
 func (r *Router) getTreeForMethodDirect(method string) *node {
 	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
 	trees := (*map[string]*node)(treesPtr)
+
 	return (*trees)[method]
 }
 
@@ -105,6 +106,7 @@ func (rt *atomicRouteTree) loadTrees() *map[string]*node {
 	if treesPtr == nil {
 		return nil
 	}
+
 	return (*map[string]*node)(treesPtr)
 }
 
@@ -194,5 +196,6 @@ func (r *Router) addRoute(method, path string, handlers []HandlerFunc) *route.Ro
 	for i, h := range handlers {
 		routeHandlers[i] = h
 	}
+
 	return r.AddRouteWithConstraints(method, path, routeHandlers)
 }

@@ -34,6 +34,7 @@ func newPathDetector(pattern string) *pathDetector {
 	if idx > 0 {
 		prefix = pattern[:idx]
 	}
+
 	return &pathDetector{
 		pattern: pattern,
 		prefix:  prefix,
@@ -44,6 +45,7 @@ func (d *pathDetector) Detect(req *http.Request) (string, bool) {
 	if req == nil || req.URL == nil {
 		return "", false
 	}
+
 	return d.extractFromPath(req.URL.Path)
 }
 
@@ -91,6 +93,7 @@ func (d *pathDetector) extractFromPath(path string) (string, bool) {
 	if strings.HasSuffix(d.prefix, "v") {
 		return "v" + segment, true
 	}
+
 	return segment, true
 }
 
@@ -122,6 +125,7 @@ func (d *pathDetector) ExtractSegment(path string) (string, bool) {
 	if strings.HasSuffix(d.prefix, "v") {
 		return "v" + segment, true
 	}
+
 	return segment, true
 }
 
@@ -161,6 +165,7 @@ func (d *headerDetector) Detect(req *http.Request) (string, bool) {
 		return "", false
 	}
 	v := req.Header.Get(d.header)
+
 	return v, v != ""
 }
 
@@ -180,6 +185,7 @@ func (d *queryDetector) Detect(req *http.Request) (string, bool) {
 	if req == nil || req.URL == nil {
 		return "", false
 	}
+
 	return d.extractFromQuery(req.URL.RawQuery)
 }
 
@@ -220,6 +226,7 @@ func (d *queryDetector) extractFromQuery(query string) (string, bool) {
 	if end == -1 {
 		return query[start:], true
 	}
+
 	return query[start : start+end], true
 }
 
@@ -286,10 +293,6 @@ func (d *acceptDetector) extractFromAccept(accept string) (string, bool) {
 	return "", false
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Custom Detector
-// ═══════════════════════════════════════════════════════════════════════════════
-
 type customDetector struct {
 	fn func(*http.Request) string
 }
@@ -299,6 +302,7 @@ func (d *customDetector) Detect(req *http.Request) (string, bool) {
 		return "", false
 	}
 	v := d.fn(req)
+
 	return v, v != ""
 }
 

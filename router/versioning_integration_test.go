@@ -412,6 +412,7 @@ var _ = Describe("Versioning Integration", func() {
 					if ua == "ClientV2" {
 						return "v2"
 					}
+
 					return "v1"
 				}),
 				version.WithDefault("v1"),

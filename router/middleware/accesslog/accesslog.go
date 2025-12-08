@@ -180,6 +180,7 @@ func sampleByHash(id string, rate float64) bool {
 
 	// Deterministic threshold check
 	threshold := uint64(rate * float64(^uint64(0)))
+
 	return hashValue <= threshold
 }
 
@@ -214,6 +215,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	}
 	n, err := rw.ResponseWriter.Write(b)
 	rw.size += int64(n)
+
 	return n, err
 }
 
@@ -221,6 +223,7 @@ func (rw *responseWriter) StatusCode() int {
 	if rw.statusCode == 0 {
 		return http.StatusOK
 	}
+
 	return rw.statusCode
 }
 
@@ -240,6 +243,7 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if h, ok := rw.ResponseWriter.(http.Hijacker); ok {
 		return h.Hijack()
 	}
+
 	return nil, nil, errors.New("hijacker not supported")
 }
 
@@ -248,6 +252,7 @@ func (rw *responseWriter) Push(target string, opts *http.PushOptions) error {
 	if p, ok := rw.ResponseWriter.(http.Pusher); ok {
 		return p.Push(target, opts)
 	}
+
 	return http.ErrNotSupported
 }
 
@@ -256,10 +261,12 @@ func (rw *responseWriter) ReadFrom(r io.Reader) (int64, error) {
 	if rf, ok := rw.ResponseWriter.(io.ReaderFrom); ok {
 		n, err := rf.ReadFrom(r)
 		rw.size += n
+
 		return n, err
 	}
 	// Fallback to io.Copy
 	n, err := io.Copy(rw.ResponseWriter, r)
 	rw.size += n
+
 	return n, err
 }

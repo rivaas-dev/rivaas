@@ -237,6 +237,7 @@ func New(opts ...Option) router.HandlerFunc {
 				// Content-Length exceeds limit, reject immediately
 				cfg.errorHandler(c, cfg.limit)
 				c.Abort()
+
 				return
 			}
 		}

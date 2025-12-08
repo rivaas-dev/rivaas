@@ -135,5 +135,6 @@ func GetOriginalMethod(c *router.Context) string {
 	if orig, ok := c.Request.Context().Value(middleware.OriginalMethodKey).(string); ok {
 		return orig
 	}
+
 	return c.Request.Method
 }

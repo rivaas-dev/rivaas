@@ -125,9 +125,11 @@ func TestBodyLimit_ActualBodyRead_ExceedsLimit(t *testing.T) {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
 					"error": "request body too large",
 				})
+
 				return
 			}
 			c.JSON(400, map[string]string{"error": err.Error()})
+
 			return
 		}
 		c.JSON(http.StatusOK, map[string]string{"message": "success"})
@@ -279,6 +281,7 @@ func TestBodyLimit_FormData(t *testing.T) {
 					return
 				}
 				c.JSON(400, map[string]string{"error": err.Error()})
+
 				return
 			}
 		} else {
@@ -288,6 +291,7 @@ func TestBodyLimit_FormData(t *testing.T) {
 					return
 				}
 				c.JSON(400, map[string]string{"error": err.Error()})
+
 				return
 			}
 		}
@@ -366,6 +370,7 @@ func TestBodyLimit_InvalidContentLength(t *testing.T) {
 				return
 			}
 			c.JSON(400, map[string]string{"error": err.Error()})
+
 			return
 		}
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -396,9 +401,11 @@ func TestBodyLimit_ErrorTypeChecking(t *testing.T) {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
 					"error": "body limit exceeded",
 				})
+
 				return
 			}
 			c.JSON(400, map[string]string{"error": err.Error()})
+
 			return
 		}
 		c.JSON(http.StatusOK, map[string]any{"size": len(body)})
@@ -426,6 +433,7 @@ func TestBodyLimit_ConcurrentRequests(t *testing.T) {
 				return
 			}
 			c.JSON(400, map[string]string{"error": err.Error()})
+
 			return
 		}
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})

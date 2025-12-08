@@ -149,6 +149,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			if obsState != nil {
 				r.observability.OnRequestEnd(ctx, obsState, w, routePattern)
 			}
+
 			return
 		}
 
@@ -275,6 +276,7 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 			// Version is past sunset date - return 410 Gone
 			w.WriteHeader(http.StatusGone)
 			w.Write(fmt.Appendf(nil, "API %s was removed. Please upgrade to a supported version.", version))
+
 			return
 		}
 	}
@@ -319,6 +321,7 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 			// Version is past sunset date - return 410 Gone
 			w.WriteHeader(http.StatusGone)
 			w.Write(fmt.Appendf(nil, "API %s was removed. Please upgrade to a supported version.", version))
+
 			return
 		}
 	}

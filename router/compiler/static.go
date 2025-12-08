@@ -31,5 +31,6 @@ func (rc *RouteCompiler) LookupStatic(method, path string) *CompiledRoute {
 	h := fnv.New64a()
 	h.Write([]byte(key))
 	hash := h.Sum64()
+
 	return rc.staticRoutes[hash]
 }

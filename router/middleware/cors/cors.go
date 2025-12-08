@@ -176,6 +176,7 @@ func New(opts ...Option) router.HandlerFunc {
 
 			// Preflight successful, return 204 No Content
 			c.Response.WriteHeader(http.StatusNoContent)
+
 			return
 		}
 

@@ -139,6 +139,7 @@ func New(opts ...Option) router.HandlerFunc {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
 			c.Abort()
+
 			return
 		}
 
@@ -148,6 +149,7 @@ func New(opts ...Option) router.HandlerFunc {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
 			c.Abort()
+
 			return
 		}
 
@@ -157,6 +159,7 @@ func New(opts ...Option) router.HandlerFunc {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
 			c.Abort()
+
 			return
 		}
 
@@ -167,6 +170,7 @@ func New(opts ...Option) router.HandlerFunc {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
 			c.Abort()
+
 			return
 		}
 
@@ -194,6 +198,7 @@ func New(opts ...Option) router.HandlerFunc {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
 			c.Abort()
+
 			return
 		}
 
@@ -217,5 +222,6 @@ func GetUsername(c *router.Context) string {
 	if username, ok := c.Request.Context().Value(middleware.AuthUsernameKey).(string); ok {
 		return username
 	}
+
 	return ""
 }

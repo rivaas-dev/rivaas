@@ -108,6 +108,7 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 		n.handlers = handlers
 		n.constraints = constraints
 		n.path = "/"
+
 		return
 	}
 
@@ -115,6 +116,7 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 		n.handlers = handlers
 		n.constraints = constraints
 		n.path = ""
+
 		return
 	}
 
@@ -133,6 +135,7 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 			n.wildcard.node.handlers = handlers
 			n.wildcard.node.constraints = constraints
 			n.wildcard.node.path = path
+
 			return
 		}
 
@@ -160,6 +163,7 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 		current.wildcard.node.handlers = handlers
 		current.wildcard.node.constraints = constraints
 		current.wildcard.node.path = path
+
 		return
 	}
 
@@ -177,6 +181,7 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 		n.children[path].handlers = handlers
 		n.children[path].constraints = constraints
 		n.children[path].path = path
+
 		return
 	}
 
@@ -328,6 +333,7 @@ func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
 				}
 				ctx.Params[paramName] = path[start:]
 			}
+
 			return current.wildcard.node.handlers, current.wildcard.node.path
 		} else {
 			// No match found - route doesn't exist
@@ -340,6 +346,7 @@ func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
 			if current.handlers != nil && !validateConstraints(current.constraints, ctx) {
 				return nil, "" // Constraint validation failed
 			}
+
 			return current.handlers, current.path
 		}
 
@@ -388,6 +395,7 @@ func validateConstraints(constraints []route.Constraint, ctx *Context) bool {
 				return false
 			}
 		}
+
 		return true
 	}
 
@@ -518,6 +526,7 @@ func (table *CompiledRouteTable) getRoute(path string) []HandlerFunc {
 		if route, exists := table.routes[routeHash]; exists {
 			return route.handlers
 		}
+
 		return nil
 	}
 
@@ -558,6 +567,7 @@ func (table *CompiledRouteTable) getRouteWithPath(path string) ([]HandlerFunc, s
 		if route, exists := table.routes[routeHash]; exists {
 			return route.handlers, route.path
 		}
+
 		return nil, ""
 	}
 

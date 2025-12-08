@@ -342,6 +342,7 @@ func TestContext_AllResponseMethods_ReturnErrors(t *testing.T) {
 						err = fmt.Errorf("YAML encoding panicked: %v", r)
 					}
 				}()
+
 				return c.YAML(http.StatusOK, struct{ Func func() }{Func: func() {}})
 			},
 		},
@@ -447,6 +448,7 @@ func TestContext_ErrorCollection_RealWorldScenario(t *testing.T) {
 				"errors": c.Errors(),
 				"joined": joinedErr.Error(),
 			})
+
 			return
 		}
 
@@ -465,6 +467,7 @@ func validateUserID(userID string) error {
 	if userID == "" {
 		return errors.New("user ID is required")
 	}
+
 	return nil
 }
 
@@ -472,6 +475,7 @@ func validateEmail(email string) error {
 	if email == "" || !contains(email, "@") {
 		return errors.New("invalid email format")
 	}
+
 	return nil
 }
 

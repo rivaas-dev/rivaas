@@ -45,6 +45,7 @@ func getContextFromGlobalPool() *Context {
 		// either pool corruption or someone Put() an incorrect type into the pool.
 		panic("router: pool corruption - globalContextPool returned non-Context type")
 	}
+
 	return ctx
 }
 

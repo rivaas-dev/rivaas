@@ -99,6 +99,8 @@ func TestRequestID_ClientIDHandling(t *testing.T) {
 }
 
 func TestRequestID_Configuration(t *testing.T) {
+	t.Parallel()
+
 	counter := 0
 	customGenerator := func() string {
 		counter++

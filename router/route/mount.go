@@ -70,6 +70,7 @@ func BuildMountConfig(opts ...MountOption) *MountConfig {
 	for _, opt := range opts {
 		opt(cfg)
 	}
+
 	return cfg
 }
 
@@ -140,5 +141,6 @@ func ExtractConstraintPattern(c Constraint) string {
 	if len(pattern) >= 2 && pattern[0] == '^' && pattern[len(pattern)-1] == '$' {
 		return pattern[1 : len(pattern)-1]
 	}
+
 	return pattern
 }

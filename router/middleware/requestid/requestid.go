@@ -68,6 +68,7 @@ func generateRandomID() string {
 		binary.BigEndian.PutUint32(bytes[8:12], uint32(rnd))
 		binary.BigEndian.PutUint32(bytes[12:16], uint32(pid))
 	}
+
 	return hex.EncodeToString(bytes)
 }
 
@@ -157,5 +158,6 @@ func Get(c *router.Context) string {
 	if requestID, ok := c.Request.Context().Value(middleware.RequestIDKey).(string); ok {
 		return requestID
 	}
+
 	return ""
 }

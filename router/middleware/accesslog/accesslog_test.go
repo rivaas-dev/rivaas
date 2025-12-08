@@ -67,6 +67,7 @@ func (h *testHandler) Handle(_ context.Context, r slog.Record) error {
 		msg:   r.Message,
 		attrs: attrs,
 	})
+
 	return nil
 }
 
@@ -94,6 +95,7 @@ func (h *testHandler) getRecords(level slog.Level) []testRecord {
 			result = append(result, r)
 		}
 	}
+
 	return result
 }
 
