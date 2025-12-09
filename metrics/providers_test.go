@@ -294,13 +294,13 @@ func TestShutdownEdgeCases(t *testing.T) {
 		// Wait for server to start
 		time.Sleep(100 * time.Millisecond)
 
-		// Create cancelled context
+		// Create canceled context
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		// Shutdown with cancelled context - should still work
+		// Shutdown with canceled context - should still work
 		err = recorder.Shutdown(ctx)
-		// May error due to cancelled context, but shouldn't panic
+		// May error due to canceled context, but shouldn't panic
 		_ = err
 	})
 

@@ -46,9 +46,9 @@ func FuzzMetricNameValidation(f *testing.F) {
 	f.Add("metric\nnewline")
 
 	// Very long name
-	longName := make([]byte, 300)
-	for i := range longName {
-		longName[i] = 'a'
+	longName := make([]byte, 0, 300)
+	for range 300 {
+		longName = append(longName, 'a')
 	}
 	f.Add(string(longName))
 

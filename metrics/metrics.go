@@ -380,7 +380,7 @@ func (r *Recorder) Path() string {
 }
 
 // Start starts the metrics server if auto-start is enabled.
-// The context is used for the server's lifecycle - when cancelled, it signals shutdown.
+// The context is used for the server's lifecycle - when canceled, it signals shutdown.
 // This method is idempotent; calling it multiple times is safe.
 //
 // For Prometheus provider with auto-start enabled, this starts the HTTP server

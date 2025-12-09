@@ -508,13 +508,13 @@ func BenchmarkHeaderProcessing(b *testing.B) {
 
 // toLower is a simple lowercase helper for benchmarking.
 func toLower(s string) string {
-	result := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
+	result := make([]byte, 0, len(s))
+	for i := range len(s) {
 		c := s[i]
 		if c >= 'A' && c <= 'Z' {
 			c += 'a' - 'A'
 		}
-		result[i] = c
+		result = append(result, c)
 	}
 
 	return string(result)

@@ -125,9 +125,9 @@ func WithHeaders(headers ...string) MiddlewareOption {
 		}
 		c.recordHeaders = filtered
 		// Pre-compute lowercased header names
-		c.recordHeadersLow = make([]string, len(filtered))
-		for i, h := range filtered {
-			c.recordHeadersLow[i] = strings.ToLower(h)
+		c.recordHeadersLow = make([]string, 0, len(filtered))
+		for _, h := range filtered {
+			c.recordHeadersLow = append(c.recordHeadersLow, strings.ToLower(h))
 		}
 	}
 }

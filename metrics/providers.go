@@ -53,7 +53,7 @@ func (r *Recorder) initializeProvider() error {
 	case OTLPProvider:
 		// OTLP initialization is deferred to Start(ctx) to use the lifecycle context.
 		// This allows proper context propagation for network connections to the collector
-		// and enables graceful shutdown when the context is cancelled.
+		// and enables graceful shutdown when the context is canceled.
 		r.providerDeferred.Store(true)
 		return nil
 	case StdoutProvider:
@@ -141,7 +141,7 @@ func (r *Recorder) initOTLPProvider(ctx context.Context) error {
 	}
 
 	// Use the lifecycle context for proper shutdown propagation.
-	// When ctx is cancelled (e.g., during graceful shutdown), the exporter
+	// When ctx is canceled (e.g., during graceful shutdown), the exporter
 	// will stop its background goroutines and flush pending metrics.
 	exporter, err := otlpmetrichttp.New(ctx, opts...)
 	if err != nil {

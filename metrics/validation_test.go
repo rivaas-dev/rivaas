@@ -320,10 +320,10 @@ func TestShutdownPreventsServerRestart(t *testing.T) {
 	assert.Nil(t, server, "Server should not be started after shutdown")
 }
 
-// TestContextCancellationInStart tests that Start handles cancelled contexts.
+// TestContextCancellationInStart tests that Start handles canceled contexts.
 // Start does not check ctx.Done() upfront. The OpenTelemetry SDK handles cancellation
 // internally during metric recording. This test verifies that Start doesn't panic
-// with cancelled context.
+// with canceled context.
 func TestContextCancellationInStart(t *testing.T) {
 	t.Parallel()
 
@@ -336,20 +336,20 @@ func TestContextCancellationInStart(t *testing.T) {
 		recorder.Shutdown(t.Context())
 	})
 
-	// Create cancelled context
+	// Create canceled context
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	// Start should not panic with cancelled context
+	// Start should not panic with canceled context
 	// It returns a metrics object; the OTel SDK handles cancellation internally
 	result := recorder.BeginRequest(ctx)
-	assert.NotNil(t, result, "Start returns metrics object even with cancelled context (OTel SDK handles cancellation)")
+	assert.NotNil(t, result, "Start returns metrics object even with canceled context (OTel SDK handles cancellation)")
 
 	// Finish should also not panic
 	recorder.Finish(ctx, result, 200, 1024, "/test")
 }
 
-// TestContextCancellationInCustomMetrics tests that custom metrics returns error with cancelled context
+// TestContextCancellationInCustomMetrics tests that custom metrics returns error with canceled context
 func TestContextCancellationInCustomMetrics(t *testing.T) {
 	t.Parallel()
 
@@ -362,7 +362,7 @@ func TestContextCancellationInCustomMetrics(t *testing.T) {
 		recorder.Shutdown(t.Context())
 	})
 
-	// Create cancelled context
+	// Create canceled context
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
