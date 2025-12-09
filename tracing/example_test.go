@@ -93,14 +93,14 @@ func ExampleTracer_AddSpanEvent() {
 
 // ExampleExtractTraceContext demonstrates extracting trace context from headers.
 func ExampleTracer_ExtractTraceContext() {
+	ctx := context.Background()
 	tracer := tracing.MustNew(
 		tracing.WithServiceName("my-service"),
 		tracing.WithStdout(),
 	)
-	defer tracer.Shutdown(context.Background())
+	defer tracer.Shutdown(ctx)
 
-	ctx := context.Background()
-	req, _ := http.NewRequest(http.MethodGet, "/api/users", nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/users", nil)
 	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
 	ctx = tracer.ExtractTraceContext(ctx, req.Header)
@@ -122,32 +122,7 @@ func ExampleWithSampleRate() {
 	// Output: Service: my-service
 }
 
-// ExampleMustMiddleware demonstrates using middleware with path exclusion.
-func ExampleMustMiddleware() {
-	tracer := tracing.MustNew(
-		tracing.WithServiceName("my-service"),
-		tracing.WithStdout(),
-	)
-	defer tracer.Shutdown(context.Background())
-
-	// Create handler with middleware options
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/users", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	// Use MustMiddleware for convenience (panics on invalid options)
-	handler := tracing.MustMiddleware(tracer,
-		tracing.WithExcludePaths("/health", "/metrics", "/ready"),
-		tracing.WithHeaders("X-Request-ID", "X-Correlation-ID"),
-	)(mux)
-
-	// Use handler...
-	_ = handler
-	// Output:
-}
-
-// ExampleMiddleware demonstrates using middleware with error handling.
+// ExampleMiddleware demonstrates using middleware with path exclusion.
 func ExampleMiddleware() {
 	tracer := tracing.MustNew(
 		tracing.WithServiceName("my-service"),
@@ -161,17 +136,13 @@ func ExampleMiddleware() {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Use Middleware with error handling
-	middleware, err := tracing.Middleware(tracer,
+	// Use Middleware (panics on invalid options like invalid regex)
+	handler := tracing.Middleware(tracer,
 		tracing.WithExcludePaths("/health", "/metrics", "/ready"),
 		tracing.WithHeaders("X-Request-ID", "X-Correlation-ID"),
-	)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
+	)(mux)
 
-	handler := middleware(mux)
+	// Use handler...
 	_ = handler
 	// Output:
 }

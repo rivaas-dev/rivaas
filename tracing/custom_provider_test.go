@@ -65,7 +65,7 @@ func TestWithCustomTracerProvider(t *testing.T) {
 
 	// Shutdown should NOT shut down the custom provider (user manages it)
 	err = config.Shutdown(t.Context())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// User should shutdown their own provider
 	err = customProvider.Shutdown(t.Context())

@@ -54,8 +54,8 @@ func TestingTracer(tb testing.TB, opts ...Option) *Tracer {
 	tb.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(tb.Context(), 5*time.Second)
 		defer cancel()
-		if err := tracer.Shutdown(ctx); err != nil {
-			tb.Logf("TestingTracer: shutdown warning: %v", err)
+		if shutdownErr := tracer.Shutdown(ctx); shutdownErr != nil {
+			tb.Logf("TestingTracer: shutdown warning: %v", shutdownErr)
 		}
 	})
 
@@ -95,8 +95,8 @@ func TestingTracerWithStdout(tb testing.TB, opts ...Option) *Tracer {
 	tb.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(tb.Context(), 5*time.Second)
 		defer cancel()
-		if err := tracer.Shutdown(ctx); err != nil {
-			tb.Logf("TestingTracerWithStdout: shutdown warning: %v", err)
+		if shutdownErr := tracer.Shutdown(ctx); shutdownErr != nil {
+			tb.Logf("TestingTracerWithStdout: shutdown warning: %v", shutdownErr)
 		}
 	})
 
@@ -118,12 +118,7 @@ func TestingMiddleware(tb testing.TB, middlewareOpts ...MiddlewareOption) func(h
 	tb.Helper()
 
 	tracer := TestingTracer(tb)
-	middleware, err := Middleware(tracer, middlewareOpts...)
-	if err != nil {
-		tb.Fatalf("TestingMiddleware: failed to create middleware: %v", err)
-	}
-
-	return middleware
+	return Middleware(tracer, middlewareOpts...)
 }
 
 // TestingMiddlewareWithTracer creates test middleware with a custom tracer.
@@ -140,13 +135,8 @@ func TestingMiddleware(tb testing.TB, middlewareOpts ...MiddlewareOption) func(h
 //	    handler := middleware(myHandler)
 //	    // Use handler...
 //	}
-func TestingMiddlewareWithTracer(t testing.TB, tracer *Tracer, middlewareOpts ...MiddlewareOption) func(http.Handler) http.Handler {
-	t.Helper()
+func TestingMiddlewareWithTracer(tb testing.TB, tracer *Tracer, middlewareOpts ...MiddlewareOption) func(http.Handler) http.Handler {
+	tb.Helper()
 
-	middleware, err := Middleware(tracer, middlewareOpts...)
-	if err != nil {
-		t.Fatalf("TestingMiddlewareWithTracer: failed to create middleware: %v", err)
-	}
-
-	return middleware
+	return Middleware(tracer, middlewareOpts...)
 }

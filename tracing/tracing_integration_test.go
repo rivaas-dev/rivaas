@@ -55,7 +55,7 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 		w.Write([]byte(`{"users":[]}`))
 	})
 
-	handler := tracing.MustMiddleware(tracer)(mux)
+	handler := tracing.Middleware(tracer)(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	w := httptest.NewRecorder()
@@ -119,7 +119,7 @@ func TestIntegration_PathExclusion(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			handler := tracing.MustMiddleware(tracer,
+			handler := tracing.Middleware(tracer,
 				tracing.WithExcludePaths(tt.excludePaths...),
 			)(mux)
 
@@ -149,7 +149,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 		tracer.Shutdown(context.Background())
 	})
 
-	handler := tracing.MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := tracing.Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -195,7 +195,7 @@ func TestIntegration_TraceContextPropagation(t *testing.T) {
 	})
 
 	var capturedTraceID, capturedSpanID string
-	handler := tracing.MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := tracing.Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Capture trace and span IDs from the context
 		capturedTraceID = tracing.TraceID(r.Context())
 		capturedSpanID = tracing.SpanID(r.Context())
@@ -272,7 +272,7 @@ func TestIntegration_ErrorStatusCodes(t *testing.T) {
 			w.WriteHeader(status)
 		})
 	}
-	handler := tracing.MustMiddleware(tracer)(mux)
+	handler := tracing.Middleware(tracer)(mux)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -304,7 +304,7 @@ func TestIntegration_HeaderRecording(t *testing.T) {
 		tracer.Shutdown(context.Background())
 	})
 
-	handler := tracing.MustMiddleware(tracer,
+	handler := tracing.Middleware(tracer,
 		tracing.WithHeaders("X-Request-ID", "X-Correlation-ID", "User-Agent"),
 	)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -414,7 +414,7 @@ func TestIntegration_ShutdownBehavior(t *testing.T) {
 		require.NoError(t, err)
 
 		// Make some requests
-		handler := tracing.MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := tracing.Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 

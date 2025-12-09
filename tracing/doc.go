@@ -53,20 +53,11 @@
 //	)
 //	defer tracer.Shutdown(context.Background())
 //
-//	// Use MustMiddleware for convenience (panics on error)
-//	handler := tracing.MustMiddleware(tracer,
+//	// Use Middleware for HTTP handlers (panics on invalid options like bad regex)
+//	handler := tracing.Middleware(tracer,
 //	    tracing.WithExcludePaths("/health", "/metrics"),
 //	    tracing.WithHeaders("X-Request-ID"),
 //	)(mux)
-//
-//	// Or use Middleware with error handling
-//	middleware, err := tracing.Middleware(tracer,
-//	    tracing.WithExcludePaths("/health", "/metrics"),
-//	)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	handler := middleware(mux)
 //
 //	http.ListenAndServe(":8080", handler)
 //

@@ -23,11 +23,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-)
 
-// =============================================================================
-// Middleware Option Tests
-// =============================================================================
+	"rivaas.dev/router"
+)
 
 // TestWithExcludePaths tests the WithExcludePaths middleware option.
 func TestWithExcludePaths(t *testing.T) {
@@ -70,7 +68,7 @@ func TestWithExcludePaths(t *testing.T) {
 			t.Parallel()
 
 			tracer := TestingTracer(t)
-			middleware := MustMiddleware(tracer, WithExcludePaths(tt.excludePaths...))
+			middleware := Middleware(tracer, WithExcludePaths(tt.excludePaths...))
 
 			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
@@ -126,7 +124,7 @@ func TestWithExcludePrefixes(t *testing.T) {
 			t.Parallel()
 
 			tracer := TestingTracer(t)
-			middleware := MustMiddleware(tracer, WithExcludePrefixes(tt.excludePrefixes...))
+			middleware := Middleware(tracer, WithExcludePrefixes(tt.excludePrefixes...))
 
 			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
@@ -149,7 +147,7 @@ func TestWithExcludePatterns(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := MustMiddleware(tracer,
+		middleware := Middleware(tracer,
 			WithExcludePatterns(`^/api/v\d+/health$`, `^/internal/.*`),
 		)
 
@@ -167,22 +165,12 @@ func TestWithExcludePatterns(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid pattern returns error", func(t *testing.T) {
-		t.Parallel()
-
-		tracer := TestingTracer(t)
-		_, err := Middleware(tracer, WithExcludePatterns("[invalid"))
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "excludePatterns: invalid regex")
-	})
-
-	t.Run("MustMiddleware panics on invalid pattern", func(t *testing.T) {
+	t.Run("Middleware panics on invalid pattern", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
 		assert.Panics(t, func() {
-			MustMiddleware(tracer, WithExcludePatterns("[invalid"))
+			Middleware(tracer, WithExcludePatterns("[invalid"))
 		})
 	})
 }
@@ -195,7 +183,7 @@ func TestWithHeaders(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := MustMiddleware(tracer, WithHeaders("X-Request-ID", "X-Correlation-ID"))
+		middleware := Middleware(tracer, WithHeaders("X-Request-ID", "X-Correlation-ID"))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -215,7 +203,7 @@ func TestWithHeaders(t *testing.T) {
 
 		tracer := TestingTracer(t)
 		// Authorization and Cookie should be filtered out
-		middleware := MustMiddleware(tracer, WithHeaders("X-Request-ID", "Authorization", "Cookie"))
+		middleware := Middleware(tracer, WithHeaders("X-Request-ID", "Authorization", "Cookie"))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -240,7 +228,7 @@ func TestWithRecordParams(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := MustMiddleware(tracer, WithRecordParams("user_id", "page"))
+		middleware := Middleware(tracer, WithRecordParams("user_id", "page"))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -257,7 +245,7 @@ func TestWithRecordParams(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := MustMiddleware(tracer, WithRecordParams())
+		middleware := Middleware(tracer, WithRecordParams())
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -276,7 +264,7 @@ func TestWithExcludeParams(t *testing.T) {
 	t.Parallel()
 
 	tracer := TestingTracer(t)
-	middleware := MustMiddleware(tracer, WithExcludeParams("password", "token", "api_key"))
+	middleware := Middleware(tracer, WithExcludeParams("password", "token", "api_key"))
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -294,7 +282,7 @@ func TestWithoutParams(t *testing.T) {
 	t.Parallel()
 
 	tracer := TestingTracer(t)
-	middleware := MustMiddleware(tracer, WithoutParams())
+	middleware := Middleware(tracer, WithoutParams())
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -319,7 +307,7 @@ func TestMiddleware_BasicFunctionality(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := MustMiddleware(tracer)
+		middleware := Middleware(tracer)
 
 		handlerCalled := false
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -341,7 +329,7 @@ func TestMiddleware_BasicFunctionality(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t, WithSampleRate(0.0))
-		middleware := MustMiddleware(tracer)
+		middleware := Middleware(tracer)
 
 		handlerCalled := false
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -378,7 +366,7 @@ func TestMiddleware_StatusCodes(t *testing.T) {
 			t.Parallel()
 
 			tracer := TestingTracer(t)
-			middleware := MustMiddleware(tracer)
+			middleware := Middleware(tracer)
 
 			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(code)
@@ -412,7 +400,7 @@ func TestMiddleware_HTTPMethods(t *testing.T) {
 			t.Parallel()
 
 			tracer := TestingTracer(t)
-			middleware := MustMiddleware(tracer)
+			middleware := Middleware(tracer)
 
 			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, method, r.Method)
@@ -595,14 +583,15 @@ func TestContextTracing_Helper(t *testing.T) {
 		ct.AddSpanEvent("event")
 	})
 
-	t.Run("with nil context uses background", func(t *testing.T) {
+	t.Run("with nil context panics", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		//nolint:staticcheck // Intentionally testing nil context handling
-		ct := NewContextTracing(nil, tracer, nil)
-
-		assert.NotNil(t, ct.TraceContext()) // Should default to background context
+		// Nil context should panic (consistent with stdlib context functions)
+		assert.Panics(t, func() {
+			//nolint:staticcheck // Intentionally testing nil context handling
+			NewContextTracing(nil, tracer, nil)
+		})
 	})
 
 	t.Run("SetSpanAttribute and AddSpanEvent", func(t *testing.T) {
@@ -638,14 +627,13 @@ func TestMiddlewareConfig_Validation(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("invalid regex pattern fails validation", func(t *testing.T) {
+	t.Run("invalid regex pattern panics", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		_, err := Middleware(tracer, WithExcludePatterns("[invalid", "(unclosed"))
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "excludePatterns")
+		assert.Panics(t, func() {
+			Middleware(tracer, WithExcludePatterns("[invalid", "(unclosed"))
+		})
 	})
 }
 
@@ -684,4 +672,118 @@ func TestShouldRecordParam(t *testing.T) {
 		assert.True(t, shouldRecordParam(cfg, "user_id"))
 		assert.False(t, shouldRecordParam(cfg, "password")) // Excluded even though whitelisted
 	})
+}
+
+// TestTracingResponseWriterImplementsMarkerInterface verifies that the
+// tracing middleware response writer implements the marker interface.
+func TestTracingResponseWriterImplementsMarkerInterface(t *testing.T) {
+	t.Parallel()
+
+	innerWriter := httptest.NewRecorder()
+	wrapped := newResponseWriter(innerWriter)
+
+	// Verify it implements the marker interface
+	marker, ok := interface{}(wrapped).(router.ObservabilityWrappedWriter)
+	require.True(t, ok, "responseWriter should implement ObservabilityWrappedWriter")
+	assert.True(t, marker.IsObservabilityWrapped())
+}
+
+// TestTracingMiddlewareDoubleWrappingPrevention tests that the tracing middleware
+// doesn't wrap an already-wrapped response writer.
+func TestTracingMiddlewareDoubleWrappingPrevention(t *testing.T) {
+	t.Parallel()
+
+	tracer := TestingTracer(t)
+	middleware := Middleware(tracer)
+
+	// Create a pre-wrapped writer
+	preWrappedWriter := httptest.NewRecorder()
+	alreadyWrapped := &mockWrappedWriter{ResponseWriter: preWrappedWriter}
+
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	// Serve with already-wrapped writer
+	handler.ServeHTTP(alreadyWrapped, req)
+
+	assert.Equal(t, http.StatusOK, alreadyWrapped.StatusCode())
+	// The middleware should detect it's already wrapped and not wrap again
+}
+
+// TestTracingMiddlewareWithExcludedPathsNoWrapping tests that excluded paths skip wrapping.
+func TestTracingMiddlewareWithExcludedPathsNoWrapping(t *testing.T) {
+	t.Parallel()
+
+	tracer := TestingTracer(t)
+	middleware := Middleware(tracer, WithExcludePaths("/health"))
+
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check if writer is wrapped
+		if _, ok := w.(router.ObservabilityWrappedWriter); ok {
+			w.Write([]byte("wrapped"))
+		} else {
+			w.Write([]byte("not-wrapped"))
+		}
+	}))
+
+	// Test excluded path
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	assert.Equal(t, "not-wrapped", w.Body.String(), "Excluded path should not be wrapped")
+
+	// Test non-excluded path
+	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w2 := httptest.NewRecorder()
+	handler.ServeHTTP(w2, req2)
+	assert.Equal(t, "wrapped", w2.Body.String(), "Non-excluded path should be wrapped")
+}
+
+// mockWrappedWriter is a mock implementation of an already-wrapped response writer.
+type mockWrappedWriter struct {
+	http.ResponseWriter
+	statusCode int
+	size       int
+	written    bool
+}
+
+func (m *mockWrappedWriter) WriteHeader(code int) {
+	if !m.written {
+		m.statusCode = code
+		m.ResponseWriter.WriteHeader(code)
+		m.written = true
+	}
+}
+
+func (m *mockWrappedWriter) Write(b []byte) (int, error) {
+	if !m.written {
+		m.written = true
+		m.statusCode = http.StatusOK
+	}
+	n, err := m.ResponseWriter.Write(b)
+	m.size += n
+	return n, err
+}
+
+func (m *mockWrappedWriter) StatusCode() int {
+	if m.statusCode == 0 {
+		return http.StatusOK
+	}
+	return m.statusCode
+}
+
+func (m *mockWrappedWriter) Size() int64 {
+	return int64(m.size)
+}
+
+func (m *mockWrappedWriter) IsObservabilityWrapped() bool {
+	return true
+}
+
+func (m *mockWrappedWriter) Unwrap() http.ResponseWriter {
+	return m.ResponseWriter
 }

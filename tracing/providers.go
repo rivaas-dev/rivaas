@@ -30,18 +30,31 @@ import (
 )
 
 // initializeProvider initializes the tracing provider based on configuration.
+// This is used for non-OTLP providers that don't require network connections.
 func (t *Tracer) initializeProvider() error {
 	switch t.provider {
 	case NoopProvider:
 		return t.initNoopProvider()
 	case StdoutProvider:
 		return t.initStdoutProvider()
-	case OTLPProvider:
-		return t.initOTLPProvider()
-	case OTLPHTTPProvider:
-		return t.initOTLPHTTPProvider()
+	case OTLPProvider, OTLPHTTPProvider:
+		// OTLP providers should use initializeProviderWithContext
+		return fmt.Errorf("OTLP providers require context; use Start(ctx)")
 	default:
 		return fmt.Errorf("unsupported tracing provider: %s", t.provider)
+	}
+}
+
+// initializeProviderWithContext initializes OTLP providers with a context.
+// The context is used for network connection establishment.
+func (t *Tracer) initializeProviderWithContext(ctx context.Context) error {
+	switch t.provider {
+	case OTLPProvider:
+		return t.initOTLPProvider(ctx)
+	case OTLPHTTPProvider:
+		return t.initOTLPHTTPProvider(ctx)
+	default:
+		return fmt.Errorf("provider %s does not require context initialization", t.provider)
 	}
 }
 
@@ -129,7 +142,8 @@ func (t *Tracer) initStdoutProvider() error {
 }
 
 // initOTLPProvider initializes the OTLP gRPC trace exporter.
-func (t *Tracer) initOTLPProvider() error {
+// The context is used for connection establishment.
+func (t *Tracer) initOTLPProvider(ctx context.Context) error {
 	// If user provided a custom tracer provider, use it
 	if t.customTracerProvider {
 		t.emitDebug("Using custom user-provided tracer provider")
@@ -155,8 +169,8 @@ func (t *Tracer) initOTLPProvider() error {
 		opts = append(opts, otlptracegrpc.WithInsecure())
 	}
 
-	// Create OTLP exporter
-	exporter, err := otlptracegrpc.New(context.Background(), opts...)
+	// Create OTLP exporter with the provided context
+	exporter, err := otlptracegrpc.New(ctx, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create OTLP gRPC exporter: %w", err)
 	}
@@ -187,7 +201,8 @@ func (t *Tracer) initOTLPProvider() error {
 }
 
 // initOTLPHTTPProvider initializes the OTLP HTTP trace exporter.
-func (t *Tracer) initOTLPHTTPProvider() error {
+// The context is used for connection establishment.
+func (t *Tracer) initOTLPHTTPProvider(ctx context.Context) error {
 	// If user provided a custom tracer provider, use it
 	if t.customTracerProvider {
 		t.emitDebug("Using custom user-provided tracer provider")
@@ -214,8 +229,8 @@ func (t *Tracer) initOTLPHTTPProvider() error {
 		if trimmed, ok := strings.CutPrefix(endpoint, "http://"); ok {
 			endpoint = trimmed
 			isHTTP = true
-		} else if trimmed, ok := strings.CutPrefix(endpoint, "https://"); ok {
-			endpoint = trimmed
+		} else if trimmedHTTPS, trimmedOk := strings.CutPrefix(endpoint, "https://"); trimmedOk {
+			endpoint = trimmedHTTPS
 		}
 
 		// Remove trailing path if present
@@ -229,8 +244,8 @@ func (t *Tracer) initOTLPHTTPProvider() error {
 		}
 	}
 
-	// Create OTLP HTTP exporter
-	exporter, err := otlptracehttp.New(context.Background(), opts...)
+	// Create OTLP HTTP exporter with the provided context
+	exporter, err := otlptracehttp.New(ctx, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create OTLP HTTP exporter: %w", err)
 	}

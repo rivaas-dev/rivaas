@@ -57,7 +57,7 @@ func TestTracingWithHTTP(t *testing.T) {
 	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 	// Create HTTP handler with tracing middleware
-	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -106,7 +106,7 @@ func TestTracingMiddleware(t *testing.T) {
 	})
 
 	// Wrap with tracing middleware (with path exclusion)
-	middleware := MustMiddleware(tracer, WithExcludePaths("/health"))
+	middleware := Middleware(tracer, WithExcludePaths("/health"))
 	wrappedHandler := middleware(handler)
 
 	// Test the wrapped handler
@@ -141,7 +141,7 @@ func TestTracingIntegration(t *testing.T) {
 	})
 
 	// Wrap with tracing middleware
-	handler := MustMiddleware(tracer, WithExcludePaths("/health"))(mux)
+	handler := Middleware(tracer, WithExcludePaths("/health"))(mux)
 
 	// Test normal route
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -200,7 +200,7 @@ func TestSamplingRate(t *testing.T) {
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 		// All requests should be traced
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -222,7 +222,7 @@ func TestSamplingRate(t *testing.T) {
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 		// No requests should be traced
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -243,7 +243,7 @@ func TestSamplingRate(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -272,7 +272,7 @@ func TestParameterRecording(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -292,7 +292,7 @@ func TestParameterRecording(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -398,7 +398,7 @@ func TestErrorStatusCodes(t *testing.T) {
 			w.Write([]byte(body))
 		})
 	}
-	handler := MustMiddleware(tracer)(mux)
+	handler := Middleware(tracer)(mux)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -422,7 +422,7 @@ func TestConcurrentResponseWriter(t *testing.T) {
 	)
 	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -449,7 +449,7 @@ func TestContextTracingHelpers(t *testing.T) {
 	)
 	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		SetSpanAttributeFromContext(ctx, "string", "value")
@@ -725,7 +725,7 @@ func TestDisabledRecording(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -745,7 +745,7 @@ func TestDisabledRecording(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer, WithHeaders("X-Request-ID", "User-Agent"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer, WithHeaders("X-Request-ID", "User-Agent"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -777,7 +777,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 			w.Write([]byte("OK"))
 		})
 
-		middleware := MustMiddleware(tracer)
+		middleware := Middleware(tracer)
 		wrappedHandler := middleware(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -799,7 +799,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		middleware := MustMiddleware(tracer, WithExcludePaths("/health"))
+		middleware := Middleware(tracer, WithExcludePaths("/health"))
 		wrappedHandler := middleware(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -818,7 +818,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		middleware := MustMiddleware(tracer)
+		middleware := Middleware(tracer)
 		wrappedHandler := middleware(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -979,10 +979,10 @@ func TestProviderSetup(t *testing.T) {
 		defer cancel()
 
 		err = tracer.Shutdown(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		err = tracer.Shutdown(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("MustNew_Success", func(t *testing.T) {
@@ -1033,7 +1033,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1063,7 +1063,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		}))
 
@@ -1096,7 +1096,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1130,7 +1130,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1153,7 +1153,7 @@ func TestGranularParameterRecording(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer, WithRecordParams("user_id", "request_id"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer, WithRecordParams("user_id", "request_id"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1170,7 +1170,7 @@ func TestGranularParameterRecording(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer, WithExcludeParams("password", "token", "api_key"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer, WithExcludeParams("password", "token", "api_key"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1202,8 +1202,8 @@ func TestConcurrentShutdown(t *testing.T) {
 
 	for range numGoroutines {
 		wg.Go(func() {
-			err := tracer.Shutdown(ctx)
-			assert.NoError(t, err)
+			shutdownErr := tracer.Shutdown(ctx)
+			assert.NoError(t, shutdownErr)
 		})
 	}
 
@@ -1284,7 +1284,7 @@ func TestExcludePathPattern(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer,
+		handler := Middleware(tracer,
 			WithExcludePatterns("^/internal/.*", "^/(health|ready|live)"),
 		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -1299,45 +1299,14 @@ func TestExcludePathPattern(t *testing.T) {
 		}
 	})
 
-	t.Run("InvalidPattern_ReturnsError", func(t *testing.T) {
-		t.Parallel()
-
-		tracer := MustNew(WithServiceName("test"))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
-
-		// Invalid regex pattern (unclosed bracket)
-		_, err := Middleware(tracer,
-			WithExcludePatterns("[invalid"),
-		)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "excludePatterns: invalid regex")
-		assert.Contains(t, err.Error(), "[invalid")
-	})
-
-	t.Run("MixedPatterns_PartialError", func(t *testing.T) {
-		t.Parallel()
-
-		tracer := MustNew(WithServiceName("test"))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
-
-		// One valid, one invalid pattern
-		_, err := Middleware(tracer,
-			WithExcludePatterns("^/valid/.*", "[invalid", "^/also-valid$"),
-		)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "excludePatterns: invalid regex")
-	})
-
-	t.Run("MustMiddleware_PanicsOnInvalidPattern", func(t *testing.T) {
+	t.Run("Middleware_PanicsOnInvalidPattern", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
 		assert.Panics(t, func() {
-			MustMiddleware(tracer,
+			Middleware(tracer,
 				WithExcludePatterns("[invalid"),
 			)
 		})
@@ -1354,7 +1323,7 @@ func TestExcludePrefixes(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer, WithExcludePrefixes("/debug/"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer, WithExcludePrefixes("/debug/"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1372,7 +1341,7 @@ func TestExcludePrefixes(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
 
-		handler := MustMiddleware(tracer,
+		handler := Middleware(tracer,
 			WithExcludePrefixes("/debug/", "/internal/", "/admin/"),
 		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)

@@ -27,7 +27,7 @@ import (
 func BenchmarkTracingOverhead(b *testing.B) {
 	b.Run("NoTracing", func(b *testing.B) {
 		tracer := MustNew(WithSampleRate(0.0))
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -44,7 +44,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 
 	b.Run("WithTracing100Percent", func(b *testing.B) {
 		tracer := MustNew(WithSampleRate(1.0))
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -61,7 +61,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 
 	b.Run("WithTracing50Percent", func(b *testing.B) {
 		tracer := MustNew(WithSampleRate(0.5))
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
 		}))
@@ -182,7 +182,7 @@ func BenchmarkContextPropagation(b *testing.B) {
 // BenchmarkResponseWriterConcurrency measures responseWriter mutex contention.
 func BenchmarkResponseWriterConcurrency(b *testing.B) {
 	tracer := MustNew(WithSampleRate(1.0))
-	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	}))
@@ -249,7 +249,7 @@ func BenchmarkExcludedPaths(b *testing.B) {
 func BenchmarkMiddlewareWithExclusions(b *testing.B) {
 	b.Run("NoExclusions", func(b *testing.B) {
 		tracer := MustNew()
-		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -265,7 +265,7 @@ func BenchmarkMiddlewareWithExclusions(b *testing.B) {
 
 	b.Run("With10Exclusions_NotExcluded", func(b *testing.B) {
 		tracer := MustNew()
-		handler := MustMiddleware(tracer,
+		handler := Middleware(tracer,
 			WithExcludePaths("/health", "/metrics", "/ready", "/live", "/debug",
 				"/status", "/ping", "/version", "/info", "/admin"),
 		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -284,7 +284,7 @@ func BenchmarkMiddlewareWithExclusions(b *testing.B) {
 
 	b.Run("With10Exclusions_Excluded", func(b *testing.B) {
 		tracer := MustNew()
-		handler := MustMiddleware(tracer,
+		handler := Middleware(tracer,
 			WithExcludePaths("/health", "/metrics", "/ready", "/live", "/debug",
 				"/status", "/ping", "/version", "/info", "/admin"),
 		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -180,8 +180,9 @@ type Tracer struct {
 	otlpInsecure         bool
 	enabled              bool
 	customTracerProvider bool
-	registerGlobal       bool // If true, sets otel.SetTracerProvider()
-	providerSet          bool // Tracks if a provider option was explicitly configured
+	registerGlobal       bool        // If true, sets otel.SetTracerProvider()
+	providerSet          bool        // Tracks if a provider option was explicitly configured
+	isStarted            atomic.Bool // Tracks if Start() has been called
 
 	// Validation errors (collected during option application)
 	validationErrors []error
@@ -227,9 +228,12 @@ func New(opts ...Option) (*Tracer, error) {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	// Initialize the provider
-	if err := t.initializeProvider(); err != nil {
-		return nil, fmt.Errorf("failed to initialize tracing: %w", err)
+	// Initialize non-OTLP providers immediately (they don't need network)
+	// OTLP providers are deferred to Start(ctx) for proper context propagation
+	if !t.requiresNetworkInit() {
+		if err := t.initializeProvider(); err != nil {
+			return nil, fmt.Errorf("failed to initialize tracing: %w", err)
+		}
 	}
 
 	return t, nil
@@ -363,6 +367,48 @@ func (t *Tracer) GetProvider() Provider {
 	}
 
 	return t.provider
+}
+
+// requiresNetworkInit returns true if the provider requires network initialization.
+// OTLP providers need network connections and should be initialized in Start(ctx).
+func (t *Tracer) requiresNetworkInit() bool {
+	return t.provider == OTLPProvider || t.provider == OTLPHTTPProvider
+}
+
+// Start initializes OTLP providers that require network connections.
+// The context is used for the OTLP connection establishment.
+// This method is idempotent; calling it multiple times is safe.
+//
+// For non-OTLP providers (Noop, Stdout), this is a no-op since they
+// are initialized in New().
+//
+// Example:
+//
+//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+//	defer cancel()
+//
+//	tracer, _ := tracing.New(tracing.WithOTLP("localhost:4317"))
+//	if err := tracer.Start(ctx); err != nil {
+//	    log.Fatal(err)
+//	}
+func (t *Tracer) Start(ctx context.Context) error {
+	if !t.enabled {
+		return nil
+	}
+
+	// Idempotent: only start once
+	if !t.isStarted.CompareAndSwap(false, true) {
+		return nil // Already started
+	}
+
+	// Initialize OTLP providers with the provided context
+	if t.requiresNetworkInit() {
+		if err := t.initializeProviderWithContext(ctx); err != nil {
+			return fmt.Errorf("failed to initialize tracing: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // Shutdown gracefully shuts down the tracing system, flushing any pending spans.

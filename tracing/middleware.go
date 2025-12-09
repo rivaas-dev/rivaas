@@ -26,6 +26,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"rivaas.dev/router"
 )
 
 // MiddlewareOption configures the tracing middleware.
@@ -243,7 +245,7 @@ func WithoutParams() MiddlewareOption {
 // without using the app package.
 //
 // Path filtering, header recording, and param recording are configured via MiddlewareOption.
-// Returns an error if any middleware option is invalid (e.g., invalid regex pattern).
+// Panics if any middleware option is invalid (e.g., invalid regex pattern).
 //
 // Example:
 //
@@ -252,25 +254,21 @@ func WithoutParams() MiddlewareOption {
 //	    tracing.WithServiceName("my-api"),
 //	)
 //
-//	middleware, err := tracing.Middleware(tracer,
+//	handler := tracing.Middleware(tracer,
 //	    tracing.WithExcludePaths("/health", "/metrics"),
 //	    tracing.WithHeaders("X-Request-ID"),
-//	)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	handler := middleware(mux)
+//	)(mux)
 //
 //	http.ListenAndServe(":8080", handler)
-func Middleware(tracer *Tracer, opts ...MiddlewareOption) (func(http.Handler) http.Handler, error) {
+func Middleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) http.Handler {
 	cfg := newMiddlewareConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
-	// Validate configuration
+	// Validate configuration - panic on error for consistent API
 	if err := cfg.validate(); err != nil {
-		return nil, err
+		panic(fmt.Sprintf("tracing.Middleware: %v", err))
 	}
 
 	return func(next http.Handler) http.Handler {
@@ -290,6 +288,15 @@ func Middleware(tracer *Tracer, opts ...MiddlewareOption) (func(http.Handler) ht
 			ctx, span := startMiddlewareSpan(tracer, cfg, r)
 
 			// Wrap response writer to capture status code
+			// Check if already wrapped to prevent double-wrapping
+			if _, ok := w.(router.ObservabilityWrappedWriter); ok {
+				// Already wrapped, use as-is
+				next.ServeHTTP(w, r.WithContext(ctx))
+				// Finish with default status (can't extract from outer wrapper)
+				tracer.FinishRequestSpan(span, http.StatusOK)
+				return
+			}
+
 			rw := newResponseWriter(w)
 
 			// Execute the next handler with trace context
@@ -298,24 +305,7 @@ func Middleware(tracer *Tracer, opts ...MiddlewareOption) (func(http.Handler) ht
 			// Finish tracing
 			tracer.FinishRequestSpan(span, rw.StatusCode())
 		})
-	}, nil
-}
-
-// MustMiddleware is like Middleware but panics on error.
-// Use this for convenience in main() where panic is acceptable.
-//
-// Example:
-//
-//	handler := tracing.MustMiddleware(tracer,
-//	    tracing.WithExcludePaths("/health", "/metrics"),
-//	)(mux)
-func MustMiddleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) http.Handler {
-	middleware, err := Middleware(tracer, opts...)
-	if err != nil {
-		panic(fmt.Sprintf("failed to create tracing middleware: %v", err))
 	}
-
-	return middleware
 }
 
 // startMiddlewareSpan starts a span for HTTP request with middleware configuration.
@@ -423,6 +413,11 @@ func newResponseWriter(w http.ResponseWriter) *responseWriter {
 	return &responseWriter{ResponseWriter: w}
 }
 
+// Ensure responseWriter implements required interfaces
+var (
+	_ router.ObservabilityWrappedWriter = (*responseWriter)(nil)
+)
+
 // WriteHeader captures the status code.
 func (rw *responseWriter) WriteHeader(code int) {
 	if !rw.written {
@@ -490,6 +485,13 @@ func (rw *responseWriter) Unwrap() http.ResponseWriter {
 	return rw.ResponseWriter
 }
 
+// IsObservabilityWrapped implements [router.ObservabilityWrappedWriter] marker interface.
+// This signals that the writer has been wrapped by observability middleware,
+// preventing double-wrapping when combining standalone tracing with app observability.
+func (rw *responseWriter) IsObservabilityWrapped() bool {
+	return true
+}
+
 // ContextTracing provides context integration helpers for router context.
 type ContextTracing struct {
 	tracer *Tracer
@@ -500,7 +502,7 @@ type ContextTracing struct {
 // NewContextTracing creates a new context tracing helper.
 func NewContextTracing(ctx context.Context, tracer *Tracer, span trace.Span) *ContextTracing {
 	if ctx == nil {
-		ctx = context.Background()
+		panic("tracing: nil context passed to NewContextTracing")
 	}
 
 	return &ContextTracing{
