@@ -7,6 +7,12 @@
 
 A high-performance, modular web framework for Go with integrated observability.
 
+| Metric | Value |
+|--------|-------|
+| Throughput | 6.5M+ req/sec |
+| Latency | 155ns average |
+| Memory | 16 bytes/request |
+
 ## Quick Start
 
 ```go
@@ -39,7 +45,7 @@ a, err := app.New(
     app.WithServiceName("my-api"),
     app.WithObservability(
         app.WithLogging(logging.WithConsoleHandler()),
-        app.WithMetrics(), // Prometheus is default
+        app.WithMetrics(), // Prometheus on :9090/metrics
         app.WithTracing(tracing.WithStdout()),
     ),
 )
@@ -52,6 +58,8 @@ See [full-featured example](./app/examples/02-full-featured/) for a complete pro
 ```bash
 go get rivaas.dev/app
 ```
+
+Requires Go 1.25.0 or higher.
 
 ## Philosophy
 
@@ -70,10 +78,11 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 
 ## Why Rivaas?
 
-- **Production-Ready** — Built-in observability, health endpoints, and graceful shutdown
+- **Production-Ready** — Graceful shutdown, health endpoints, panic recovery
 - **High Performance** — 6.5M+ req/sec, 155ns latency, 16 bytes/request
-- **Flexible** — Choose high-level convenience (`app`) or low-level control (`router`)
-- **Cloud-Native** — OpenTelemetry-native with Prometheus, OTLP, and Jaeger support
+- **Flexible** — Use `app` for batteries-included or `router` for full control
+- **Cloud-Native** — OpenTelemetry-native with Prometheus, OTLP, Jaeger support
+- **Modular** — Each package works standalone without the full framework
 
 ## Packages
 
@@ -122,57 +131,34 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 └───────────────┴───────────────┴─────────────────────────────┘
 ```
 
-## Configuration
+Each package is independently usable. The `app` package integrates them with automatic service metadata propagation and lifecycle management.
 
-Rivaas uses functional options for clean, type-safe configuration:
+## Configuration
 
 ```go
 a, err := app.New(
     app.WithServiceName("my-api"),
     app.WithServiceVersion("v1.0.0"),
-    app.WithEnvironment("production"),
     app.WithObservability(
         app.WithLogging(logging.WithJSONHandler()),
-        app.WithMetrics(), // Prometheus is default
-        app.WithTracing(tracing.WithSampleRate(0.1)),
-        app.WithExcludePaths("/healthz", "/readyz"),
+        app.WithMetrics(),
+        app.WithTracing(tracing.WithOTLP("localhost:4317")),
     ),
     app.WithHealthEndpoints(
-        app.WithLivenessCheck("process", func(ctx context.Context) error { return nil }),
-    ),
-    app.WithServerConfig(
-        app.WithReadTimeout(15 * time.Second),
-        app.WithShutdownTimeout(30 * time.Second),
+        app.WithReadinessCheck("database", dbPingCheck),
     ),
 )
 ```
 
-Service metadata is automatically propagated to all observability components. See the [App Documentation](./app/README.md) for complete configuration options.
+See [App Documentation](./app/README.md) for complete configuration options.
 
 ## Middleware
 
-Built-in production-ready middleware from `rivaas.dev/router/middleware`:
-
-| Middleware | Description |
-|------------|-------------|
-| `accesslog` | Request/response logging |
-| `recovery` | Panic recovery |
-| `cors` | Cross-origin resource sharing |
-| `requestid` | Request correlation IDs |
-| `timeout` | Request timeouts |
-| `ratelimit` | Token bucket rate limiting |
-| `basicauth` | HTTP Basic authentication |
-| `bodylimit` | Request body size limits |
-| `compression` | Response compression (gzip, deflate) |
-| `security` | Security headers (CSP, HSTS, etc.) |
-| `methodoverride` | HTTP method override (X-HTTP-Method-Override) |
-| `trailingslash` | Trailing slash redirect/strip |
+Built-in production-ready middleware: `accesslog`, `recovery`, `cors`, `requestid`, `timeout`, `ratelimit`, `basicauth`, `bodylimit`, `compression`, `security`.
 
 See [Middleware Documentation](./router/middleware/README.md) for usage and configuration.
 
 ## Examples
-
-Complete runnable examples are available in each package:
 
 - **[App Examples](./app/examples/)** — Quick start and full-featured apps
 - **[Router Examples](./router/examples/)** — Routing, middleware, versioning
@@ -192,54 +178,30 @@ See [benchmarks](./router/benchmarks/) for detailed comparisons.
 
 ## Repository Structure
 
-This is a **multi-module repository**. Each package has its own `go.mod` and can be versioned independently.
+Multi-module repository — each package has its own `go.mod` and can be versioned independently.
 
 ```
 rivaas/
-├── app/          → rivaas.dev/app          (framework)
-├── router/       → rivaas.dev/router       (HTTP router)
-├── binding/      → rivaas.dev/binding      (request binding)
-├── validation/   → rivaas.dev/validation   (validation)
-├── logging/      → rivaas.dev/logging      (logging)
-├── metrics/      → rivaas.dev/metrics      (metrics)
-├── tracing/      → rivaas.dev/tracing      (tracing)
-├── openapi/      → rivaas.dev/openapi      (API docs)
-├── errors/       → rivaas.dev/errors       (error formatting)
-└── go.work       (workspace for local development)
-```
-
-### Local Development
-
-```bash
-git clone https://github.com/rivaas-dev/rivaas.git
-cd rivaas
-go test ./...
-```
-
-## Migration from Other Frameworks
-
-```go
-// Gin
-r := gin.Default()
-r.GET("/users/:id", func(c *gin.Context) {
-    c.JSON(200, gin.H{"id": c.Param("id")})
-})
-
-// Rivaas
-a, _ := app.New()
-a.GET("/users/:id", func(c *app.Context) {
-    c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
-})
+├── app/          → rivaas.dev/app
+├── router/       → rivaas.dev/router
+├── binding/      → rivaas.dev/binding
+├── validation/   → rivaas.dev/validation
+├── logging/      → rivaas.dev/logging
+├── metrics/      → rivaas.dev/metrics
+├── tracing/      → rivaas.dev/tracing
+├── openapi/      → rivaas.dev/openapi
+├── errors/       → rivaas.dev/errors
+└── go.work
 ```
 
 ## Documentation
 
 | Resource | Description |
 |----------|-------------|
-| [App Guide](./app/README.md) | High-level framework documentation |
-| [Router Guide](./router/README.md) | Low-level router documentation |
-| [Middleware](./router/middleware/README.md) | All middleware options |
-| [OpenAPI](./openapi/README.md) | API documentation generation |
+| [App Guide](./app/README.md) | Framework documentation |
+| [Router Guide](./router/README.md) | HTTP routing and binding |
+| [Middleware](./router/middleware/README.md) | Middleware catalog |
+| [Design Principles](./docs/DESIGN_PRINCIPLES.md) | Architecture decisions |
 | [Testing Standards](./docs/TESTING_STANDARDS.md) | Testing guidelines |
 
 ## Contributing
@@ -248,8 +210,7 @@ a.GET("/users/:id", func(c *app.Context) {
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
 3. Write tests for your changes
 4. Ensure all tests pass (`go test ./...`)
-5. Commit and push
-6. Open a Pull Request
+5. Open a Pull Request
 
 ## License
 
