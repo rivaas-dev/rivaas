@@ -150,11 +150,12 @@ func ExampleLogger_IsEnabled() {
 //
 //nolint:testableexamples // Output is non-deterministic (contains timestamps)
 func ExampleLogger_LogRequest() {
+	ctx := context.Background()
 	logger := logging.MustNew(logging.WithJSONHandler())
-	defer logger.Shutdown(context.Background())
+	defer logger.Shutdown(ctx)
 
 	// Simulate an HTTP request
-	req, _ := http.NewRequest(http.MethodGet, "/api/users?page=1", nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/users?page=1", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
 	req.Header.Set("User-Agent", "MyApp/1.0")
 

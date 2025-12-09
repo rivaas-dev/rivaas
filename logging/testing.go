@@ -152,19 +152,19 @@ func (th *TestHelper) ContainsAttr(key string, value any) bool {
 	}
 
 	for _, entry := range entries {
-		if v, ok := entry.Attrs[key]; ok {
+		if v, vOk := entry.Attrs[key]; vOk {
 			// Handle numeric type conversions (JSON unmarshals to float64)
 			switch expected := value.(type) {
 			case int:
-				if actual, ok := v.(float64); ok {
+				if actual, actualOk := v.(float64); actualOk {
 					return int(actual) == expected
 				}
 			case int64:
-				if actual, ok := v.(float64); ok {
+				if actual, actualOk := v.(float64); actualOk {
 					return int64(actual) == expected
 				}
 			case float64:
-				if actual, ok := v.(float64); ok {
+				if actual, actualOk := v.(float64); actualOk {
 					return actual == expected
 				}
 			}
@@ -216,8 +216,8 @@ func (th *TestHelper) AssertLog(t *testing.T, level, msg string, attrs map[strin
 		// Check attributes
 		match := true
 		for k, expectedVal := range attrs {
-			actualVal, ok := entry.Attrs[k]
-			if !ok {
+			actualVal, actualValOk := entry.Attrs[k]
+			if !actualValOk {
 				match = false
 				break
 			}
@@ -226,15 +226,15 @@ func (th *TestHelper) AssertLog(t *testing.T, level, msg string, attrs map[strin
 			matched := false
 			switch expected := expectedVal.(type) {
 			case int:
-				if actual, ok := actualVal.(float64); ok {
+				if actual, actualOk := actualVal.(float64); actualOk {
 					matched = int(actual) == expected
 				}
 			case int64:
-				if actual, ok := actualVal.(float64); ok {
+				if actual, actualOk := actualVal.(float64); actualOk {
 					matched = int64(actual) == expected
 				}
 			case float64:
-				if actual, ok := actualVal.(float64); ok {
+				if actual, actualOk := actualVal.(float64); actualOk {
 					matched = actual == expected
 				}
 			case string:

@@ -50,8 +50,8 @@ func TestLogger_Buffering(t *testing.T) {
 	}
 
 	// Flush the buffer
-	if err := logger.FlushBuffer(); err != nil {
-		t.Fatalf("FlushBuffer failed: %v", err)
+	if flushErr := logger.FlushBuffer(); flushErr != nil {
+		t.Fatalf("FlushBuffer failed: %v", flushErr)
 	}
 
 	if logger.IsBuffering() {
@@ -126,8 +126,8 @@ func TestLogger_Buffering_NoBuffer(t *testing.T) {
 	}
 
 	// FlushBuffer should be a no-op when not buffering
-	if err := logger.FlushBuffer(); err != nil {
-		t.Errorf("FlushBuffer should not error when not buffering: %v", err)
+	if flushErr := logger.FlushBuffer(); flushErr != nil {
+		t.Errorf("FlushBuffer should not error when not buffering: %v", flushErr)
 	}
 }
 
