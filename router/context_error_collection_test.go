@@ -177,9 +177,9 @@ func TestContext_Error_WithErrorsIs(t *testing.T) {
 	c.Error(errors.New("generic error"))
 
 	// Check if specific errors exist
-	assert.ErrorIs(t, c.Errors()[0], ErrContextResponseNil, "Expected first error to be ErrContextResponseNil")
-	assert.True(t, errors.Is(c.Errors()[1], ErrContentTypeNotAllowed), "Expected second error to be ErrContentTypeNotAllowed")
-	assert.False(t, errors.Is(c.Errors()[2], ErrContextResponseNil), "Expected third error not to be ErrContextResponseNil")
+	require.ErrorIs(t, c.Errors()[0], ErrContextResponseNil, "Expected first error to be ErrContextResponseNil")
+	require.ErrorIs(t, c.Errors()[1], ErrContentTypeNotAllowed, "Expected second error to be ErrContentTypeNotAllowed")
+	assert.NotErrorIs(t, c.Errors()[2], ErrContextResponseNil, "Expected third error not to be ErrContextResponseNil")
 }
 
 // CustomError is a custom error type for testing errors.As
@@ -249,7 +249,7 @@ func TestContext_JSON_CollectsErrors(t *testing.T) {
 
 	// JSON should return error, not collect it automatically
 	err := c.JSON(http.StatusOK, badData)
-	assert.Error(t, err, "Expected error to be returned from JSON encoding failure")
+	require.Error(t, err, "Expected error to be returned from JSON encoding failure")
 
 	// Error should NOT be automatically collected
 	assert.False(t, c.HasErrors(), "Expected error NOT to be automatically collected")
@@ -285,7 +285,7 @@ func TestContext_JSON_ReturnsError(t *testing.T) {
 
 	// JSON should return error
 	err := c.JSON(http.StatusOK, badData)
-	assert.Error(t, err, "Expected JSON to return error for unencodable data")
+	require.Error(t, err, "Expected JSON to return error for unencodable data")
 
 	// Error should NOT be automatically collected
 	assert.False(t, c.HasErrors(), "Expected JSON not to automatically collect errors")
@@ -376,14 +376,14 @@ func TestContext_ErrorCollection_WithSuccessfulWrites(t *testing.T) {
 
 	// Successful JSON write
 	err := c.JSON(http.StatusOK, map[string]string{"message": "success"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Should not have errors
 	assert.False(t, c.HasErrors(), "Expected no errors after successful JSON write")
 
 	// Successful String write
 	err = c.String(http.StatusOK, "Hello World")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Should still not have errors
 	assert.False(t, c.HasErrors(), "Expected no errors after successful String write")
@@ -399,12 +399,12 @@ func TestContext_ErrorCollection_MixedSuccessAndFailure(t *testing.T) {
 
 	// Successful write - should return no error
 	err := c.JSON(http.StatusOK, map[string]string{"ok": "yes"})
-	assert.NoError(t, err, "Expected no error after successful write")
+	require.NoError(t, err, "Expected no error after successful write")
 	assert.False(t, c.HasErrors(), "Expected no errors after successful write")
 
 	// Failed write - should return error, not collect automatically
 	err = c.JSON(http.StatusOK, make(chan int))
-	assert.Error(t, err, "Expected error to be returned from failed write")
+	require.Error(t, err, "Expected error to be returned from failed write")
 	assert.False(t, c.HasErrors(), "Expected error NOT to be automatically collected")
 
 	// Explicitly collect the error
@@ -415,7 +415,7 @@ func TestContext_ErrorCollection_MixedSuccessAndFailure(t *testing.T) {
 
 	// Another successful write - error should still be there (manually collected)
 	err = c.String(http.StatusOK, "text")
-	assert.NoError(t, err, "Expected no error from successful String call")
+	require.NoError(t, err, "Expected no error from successful String call")
 	assert.True(t, c.HasErrors(), "Expected manually collected error to persist after subsequent successful write")
 
 	// Should have exactly one error

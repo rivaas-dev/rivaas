@@ -1466,18 +1466,18 @@ func StreamJSONArray[T any](c *Context, each func(T) error, maxItems int) error 
 		}
 
 		var v T
-		if err := dec.Decode(&v); err != nil {
-			return c.writeJSONDecodeProblem(err)
+		if decodeErr := dec.Decode(&v); decodeErr != nil {
+			return c.writeJSONDecodeProblem(decodeErr)
 		}
 
-		if err := each(v); err != nil {
-			return err
+		if eachErr := each(v); eachErr != nil {
+			return eachErr
 		}
 	}
 
 	// Read closing ']'
-	if _, err := dec.Token(); err != nil {
-		return c.writeJSONDecodeProblem(err)
+	if _, tokenErr := dec.Token(); tokenErr != nil {
+		return c.writeJSONDecodeProblem(tokenErr)
 	}
 
 	return nil

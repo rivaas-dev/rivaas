@@ -260,10 +260,10 @@ var _ = Describe("Router Stress Tests", func() {
 			// Test multiple routes to verify compilation worked
 			for i := range 10 {
 				path := "/route" + string(rune('0'+i%10)) + "/" + string(rune('a'+i%26)) + "/" + string(rune('A'+(i/26)%26))
-				req := httptest.NewRequest(http.MethodGet, path, nil)
-				w := httptest.NewRecorder()
-				r.ServeHTTP(w, req)
-				Expect(w.Code).To(Equal(http.StatusOK))
+				testReq := httptest.NewRequest(http.MethodGet, path, nil)
+				testW := httptest.NewRecorder()
+				r.ServeHTTP(testW, testReq)
+				Expect(testW.Code).To(Equal(http.StatusOK))
 			}
 		})
 	})

@@ -224,8 +224,8 @@ func TestDownload(t *testing.T) {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		err := c.Download(tmpfile.Name())
-		require.NoError(t, err)
+		downloadErr := c.Download(tmpfile.Name())
+		require.NoError(t, downloadErr)
 
 		// Check Content-Disposition header
 		cd := w.Header().Get("Content-Disposition")
@@ -239,8 +239,8 @@ func TestDownload(t *testing.T) {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
 
-		err := c.Download(tmpfile.Name(), "custom-name.txt")
-		require.NoError(t, err)
+		downloadErr := c.Download(tmpfile.Name(), "custom-name.txt")
+		require.NoError(t, downloadErr)
 
 		cd := w.Header().Get("Content-Disposition")
 		assert.Contains(t, cd, "custom-name.txt")

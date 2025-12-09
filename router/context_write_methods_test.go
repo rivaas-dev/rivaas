@@ -99,7 +99,7 @@ func TestContext_String_PlainText(t *testing.T) {
 
 	err := c.String(http.StatusOK, "Plain text")
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "Plain text", w.Body.String())
 }
 
@@ -114,7 +114,7 @@ func TestContext_HTML_Success(t *testing.T) {
 	html := "<h1>Title</h1><p>Content</p>"
 	err := c.HTML(http.StatusOK, html)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "text/html", w.Header().Get("Content-Type"))
 	assert.Equal(t, html, w.Body.String())
@@ -131,7 +131,7 @@ func TestContext_Data_Success(t *testing.T) {
 	data := []byte("test data")
 	err := c.Data(http.StatusOK, "application/octet-stream", data)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
 	assert.Equal(t, string(data), w.Body.String())
@@ -303,7 +303,7 @@ func TestContext_ResponseMethods_AllVariants(t *testing.T) {
 				c := NewContext(w, req)
 
 				err := tt.callInvalid(c)
-				assert.Error(t, err, "Expected error for invalid data")
+				require.Error(t, err, "Expected error for invalid data")
 				assert.False(t, c.HasErrors(), "Expected response methods not to automatically collect errors")
 			})
 		}

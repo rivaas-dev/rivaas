@@ -804,7 +804,7 @@ func TestParseQuality(t *testing.T) {
 				if tt.expected >= 0 {
 					if f, err := strconv.ParseFloat(tt.input, 64); err == nil {
 						expectedFloat := float64(tt.expected) / 1000.0
-						assert.Equal(t, expectedFloat, f, "parseQuality(%q) = %d (%.3f), but ParseFloat = %.3f", tt.input, result, expectedFloat, f)
+						assert.InDelta(t, expectedFloat, f, 0.001, "parseQuality(%q) = %d (%.3f), but ParseFloat = %.3f", tt.input, result, expectedFloat, f)
 					}
 				}
 			})
@@ -1021,9 +1021,9 @@ func TestParseAcceptPart(t *testing.T) {
 
 				specs := parseAccept(tt.header, arena)
 
-				assert.Equal(t, tt.expectedCount, len(specs), "parseAccept(%q) returned %d specs, want %d", tt.header, len(specs), tt.expectedCount)
+				assert.Len(t, specs, tt.expectedCount, "parseAccept(%q) returned %d specs, want %d", tt.header, len(specs), tt.expectedCount)
 
-				require.Equal(t, len(tt.expectedValues), len(specs), "spec count mismatch: got %d, want %d", len(specs), len(tt.expectedValues))
+				require.Len(t, specs, len(tt.expectedValues), "spec count mismatch: got %d, want %d", len(specs), len(tt.expectedValues))
 
 				for i, spec := range specs {
 					assert.Equal(t, tt.expectedValues[i], spec.value, "spec[%d].value", i)
@@ -1080,7 +1080,7 @@ func TestParseAccept_EmptyHeader(t *testing.T) {
 		arena.reset()
 		resultWhitespace := parseAccept("   ", arena)
 		assert.NotNil(t, resultWhitespace, "parseAccept(\"   \") should return empty slice, not nil")
-		assert.Equal(t, 0, len(resultWhitespace), "parseAccept(\"   \") returned slice with length %d, want 0", len(resultWhitespace))
+		assert.Empty(t, resultWhitespace)
 	})
 }
 

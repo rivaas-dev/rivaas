@@ -166,8 +166,8 @@ func (f *File) Save(dst string) (err error) {
 
 	// Create parent directories if needed
 	dir := filepath.Dir(dst)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
+	if mkdirErr := os.MkdirAll(dir, 0o755); mkdirErr != nil {
+		return fmt.Errorf("failed to create directory: %w", mkdirErr)
 	}
 
 	// Create destination file
@@ -184,8 +184,8 @@ func (f *File) Save(dst string) (err error) {
 	}()
 
 	// Copy file contents
-	if _, err := io.Copy(out, src); err != nil {
-		return fmt.Errorf("failed to save file: %w", err)
+	if _, copyErr := io.Copy(out, src); copyErr != nil {
+		return fmt.Errorf("failed to save file: %w", copyErr)
 	}
 
 	return nil

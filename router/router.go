@@ -173,6 +173,10 @@ type Router struct {
 	enableH2C      bool            // Enable HTTP/2 cleartext support (dev/behind LB only)
 	serverTimeouts *serverTimeouts // HTTP server timeout configuration
 
+	// Server lifecycle (for Shutdown support)
+	server   *http.Server // Current HTTP server (set by Serve/ServeTLS)
+	serverMu sync.Mutex   // Protects server field
+
 	// Trusted proxies configuration for real client IP detection
 	realip *realIPConfig // Compiled trusted proxy configuration
 

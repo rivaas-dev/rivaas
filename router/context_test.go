@@ -56,8 +56,8 @@ func TestContextHelpers(t *testing.T) {
 	t.Run("PostFormDefault", func(t *testing.T) {
 		t.Parallel()
 
-		r := MustNew()
-		r.POST("/form-default", func(c *Context) {
+		router := MustNew()
+		router.POST("/form-default", func(c *Context) {
 			role := c.FormValueDefault("role", "guest")
 			c.Stringf(http.StatusOK, "role=%s", role)
 		})
@@ -66,7 +66,7 @@ func TestContextHelpers(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 
-		r.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "role=guest", w.Body.String())
@@ -75,8 +75,8 @@ func TestContextHelpers(t *testing.T) {
 	t.Run("IsSecure", func(t *testing.T) {
 		t.Parallel()
 
-		r := MustNew()
-		r.GET("/secure", func(c *Context) {
+		testRouter := MustNew()
+		testRouter.GET("/secure", func(c *Context) {
 			if c.IsHTTPS() {
 				c.String(http.StatusOK, "secure")
 			} else {
@@ -87,29 +87,29 @@ func TestContextHelpers(t *testing.T) {
 		// Test HTTP
 		req := httptest.NewRequest(http.MethodGet, "/secure", nil)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		testRouter.ServeHTTP(w, req)
 		assert.Equal(t, "insecure", w.Body.String())
 
 		// Test with X-Forwarded-Proto header
 		req = httptest.NewRequest(http.MethodGet, "/secure", nil)
 		req.Header.Set("X-Forwarded-Proto", "https")
 		w = httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		testRouter.ServeHTTP(w, req)
 		assert.Equal(t, "secure", w.Body.String())
 	})
 
 	t.Run("NoContent", func(t *testing.T) {
 		t.Parallel()
 
-		r := MustNew()
-		r.DELETE("/item", func(c *Context) {
+		router := MustNew()
+		router.DELETE("/item", func(c *Context) {
 			c.NoContent()
 		})
 
 		req := httptest.NewRequest(http.MethodDelete, "/item", nil)
 		w := httptest.NewRecorder()
 
-		r.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
 		assert.Empty(t, w.Body.String())
@@ -633,7 +633,7 @@ func TestContext_Next_NestedCalls(t *testing.T) {
 		"middleware1-end",
 	}
 
-	require.Equal(t, len(expected), len(callOrder), "expected %d calls, got %d: %v", len(expected), len(callOrder), callOrder)
+	require.Len(t, callOrder, len(expected), "expected %d calls, got %d: %v", len(expected), len(callOrder), callOrder)
 
 	for i, exp := range expected {
 		assert.Equal(t, exp, callOrder[i], "call %d", i)

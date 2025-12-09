@@ -206,8 +206,8 @@ func (r *Router) addVersionRoute(ver, method, path string, handlers []HandlerFun
 	versionTreesPtr := atomic.LoadPointer(&r.versionTrees.trees)
 	if versionTreesPtr != nil {
 		versionTrees := *(*map[string]map[string]*node)(versionTreesPtr)
-		if methodTrees, exists := versionTrees[ver]; exists {
-			if tree, exists := methodTrees[method]; exists {
+		if methodTrees, methodTreesExists := versionTrees[ver]; methodTreesExists {
+			if tree, treeExists := methodTrees[method]; treeExists {
 				// Tree exists, add route directly (thread-safe due to per-node mutex)
 				// No CAS needed - we're only modifying the tree structure, not replacing pointers
 				tree.addRouteWithConstraints(path, handlers, constraints)
@@ -220,21 +220,21 @@ func (r *Router) addVersionRoute(ver, method, path string, handlers []HandlerFun
 	// Use CAS loop to handle concurrent creation attempts
 	for {
 		// Step 1: Load current version trees atomically
-		versionTreesPtr := atomic.LoadPointer(&r.versionTrees.trees)
+		loadedVersionTreesPtr := atomic.LoadPointer(&r.versionTrees.trees)
 		var currentTrees map[string]map[string]*node
 
-		if versionTreesPtr == nil {
+		if loadedVersionTreesPtr == nil {
 			// No version trees exist yet, start with empty map
 			currentTrees = make(map[string]map[string]*node)
 		} else {
 			// Version trees exist, use current snapshot
-			currentTrees = *(*map[string]map[string]*node)(versionTreesPtr)
+			currentTrees = *(*map[string]map[string]*node)(loadedVersionTreesPtr)
 		}
 
 		// Step 2: Double-check if another goroutine created the tree during retry
 		// This is the classic "check-before-copy" pattern in CAS loops
-		if methodTrees, exists := currentTrees[ver]; exists {
-			if tree, exists := methodTrees[method]; exists {
+		if methodTrees, methodTreesExists := currentTrees[ver]; methodTreesExists {
+			if tree, treeExists := methodTrees[method]; treeExists {
 				// Another goroutine won the race and created it, use it directly
 				tree.addRouteWithConstraints(path, handlers, constraints)
 				return

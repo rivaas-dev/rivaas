@@ -258,7 +258,7 @@ func TestGroupMiddlewareInheritance(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	expected := []string{"global", "api", "v1", "handler"}
-	require.Equal(t, len(expected), len(executionOrder), "expected %d middleware/handlers, got %d: %v", len(expected), len(executionOrder), executionOrder)
+	require.Len(t, executionOrder, len(expected), "expected %d middleware/handlers, got %d: %v", len(expected), len(executionOrder), executionOrder)
 
 	for i, name := range expected {
 		assert.Equal(t, name, executionOrder[i], "execution order[%d]", i)

@@ -242,7 +242,7 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	// have different handlers even for the same path
 	cacheKey := version + ":" + req.Method
 	if compiledValue, ok := r.versionCache.Load(cacheKey); ok {
-		if compiled, ok := compiledValue.(*CompiledRouteTable); ok && compiled != nil {
+		if compiled, compiledOk := compiledValue.(*CompiledRouteTable); compiledOk && compiled != nil {
 			// Try compiled routes first - get both handlers and route pattern
 			if handlers, routePath := compiled.getRouteWithPath(path); handlers != nil {
 				// Use the actual route path (pattern) for observability, version for deprecation headers
@@ -449,6 +449,9 @@ func (r *Router) serveCompiledRouteWithParams(w http.ResponseWriter, req *http.R
 // Serve starts the HTTP server on the specified address.
 // Automatically enables h2c if configured via WithH2C().
 //
+// This method follows the stdlib pattern: it blocks until the server exits.
+// For graceful shutdown, use the Shutdown method from another goroutine.
+//
 // The server is configured with production-safe timeouts to prevent
 // slowloris attacks and resource exhaustion. These timeouts are critical
 // for production deployments.
@@ -459,9 +462,23 @@ func (r *Router) serveCompiledRouteWithParams(w http.ResponseWriter, req *http.R
 //	r.GET("/", func(c *router.Context) {
 //	    c.String(http.StatusOK, "Hello, World!")
 //	})
-//	if err := r.Serve(":8080"); err != nil {
-//	    log.Fatal(err)
-//	}
+//
+//	// Start server in goroutine
+//	go func() {
+//	    if err := r.Serve(":8080"); err != nil && err != http.ErrServerClosed {
+//	        log.Fatal(err)
+//	    }
+//	}()
+//
+//	// Wait for signal
+//	quit := make(chan os.Signal, 1)
+//	signal.Notify(quit, os.Interrupt)
+//	<-quit
+//
+//	// Graceful shutdown
+//	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+//	defer cancel()
+//	r.Shutdown(ctx)
 //
 // With H2C enabled (dev/behind LB only):
 //
@@ -489,11 +506,19 @@ func (r *Router) Serve(addr string) error {
 		IdleTimeout:       timeouts.idle,
 	}
 
+	// Store server reference for Shutdown
+	r.serverMu.Lock()
+	r.server = srv
+	r.serverMu.Unlock()
+
 	return srv.ListenAndServe()
 }
 
 // ServeTLS starts the HTTPS server with TLS configuration.
 // For TLS servers, HTTP/2 is automatically enabled via ALPN.
+//
+// This method follows the stdlib pattern: it blocks until the server exits.
+// For graceful shutdown, use the Shutdown method from another goroutine.
 //
 // The server is configured with production-safe timeouts to prevent
 // slowloris attacks and resource exhaustion.
@@ -530,9 +555,55 @@ func (r *Router) ServeTLS(addr, certFile, keyFile string) error {
 		IdleTimeout:       timeouts.idle,
 	}
 
+	// Store server reference for Shutdown
+	r.serverMu.Lock()
+	r.server = srv
+	r.serverMu.Unlock()
+
 	// HTTP/2 is automatically enabled over TLS via ALPN
 	// Optional: tune HTTP/2 settings
 	// http2.ConfigureServer(srv, &http2.Server{MaxConcurrentStreams: 256})
 
 	return srv.ListenAndServeTLS(certFile, keyFile)
+}
+
+// Shutdown gracefully shuts down the server without interrupting active connections.
+// This follows the stdlib http.Server.Shutdown pattern.
+//
+// The provided context controls the timeout for the graceful shutdown.
+// When the context is cancelled, active connections are forcefully closed.
+//
+// Shutdown returns nil if no server is running, or the error from http.Server.Shutdown.
+//
+// Example:
+//
+//	// In main goroutine
+//	go func() {
+//	    if err := r.Serve(":8080"); err != nil && err != http.ErrServerClosed {
+//	        log.Fatal(err)
+//	    }
+//	}()
+//
+//	// Wait for signal
+//	quit := make(chan os.Signal, 1)
+//	signal.Notify(quit, os.Interrupt)
+//	<-quit
+//
+//	// Graceful shutdown with 30s timeout
+//	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+//	defer cancel()
+//	if err := r.Shutdown(ctx); err != nil {
+//	    log.Printf("Server shutdown error: %v", err)
+//	}
+func (r *Router) Shutdown(ctx context.Context) error {
+	r.serverMu.Lock()
+	srv := r.server
+	r.server = nil
+	r.serverMu.Unlock()
+
+	if srv == nil {
+		return nil // No server running
+	}
+
+	return srv.Shutdown(ctx)
 }

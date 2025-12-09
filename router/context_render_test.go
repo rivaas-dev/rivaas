@@ -97,7 +97,7 @@ func TestIndentedJSON(t *testing.T) {
 
 			if tt.shouldError {
 				err := c.IndentedJSON(tt.expectedStatus, tt.data)
-				assert.Error(t, err, "Expected error but got none")
+				require.Error(t, err, "Expected error but got none")
 			} else {
 				require.NoError(t, c.IndentedJSON(tt.expectedStatus, tt.data))
 			}
@@ -208,9 +208,9 @@ func TestPureJSON_vs_JSON_Escaping(t *testing.T) {
 	// Both should produce valid JSON
 	var resultJSON, resultPure map[string]string
 	err := json.Unmarshal([]byte(jsonBody), &resultJSON)
-	assert.NoError(t, err, "JSON() output is not valid JSON")
+	require.NoError(t, err, "JSON() output is not valid JSON")
 	err = json.Unmarshal([]byte(pureBody), &resultPure)
-	assert.NoError(t, err, "PureJSON() output is not valid JSON")
+	require.NoError(t, err, "PureJSON() output is not valid JSON")
 
 	// Both should unmarshal to same values
 	assert.Equal(t, resultJSON["html"], resultPure["html"], "JSON and PureJSON should unmarshal to same values")
@@ -323,7 +323,7 @@ func TestASCIIJSON(t *testing.T) {
 				// Should be valid JSON that unmarshals correctly
 				var result map[string]string
 				err := json.Unmarshal([]byte(body), &result)
-				assert.NoError(t, err, "Invalid JSON")
+				require.NoError(t, err, "Invalid JSON")
 				assert.Equal(t, "🌍🎉", result["emoji"], "Emoji should unmarshal to original value")
 			},
 		},
@@ -416,7 +416,7 @@ func TestYAML(t *testing.T) {
 				// Should be valid YAML
 				var result []string
 				err := yaml.Unmarshal([]byte(body), &result)
-				assert.NoError(t, err, "Invalid YAML")
+				require.NoError(t, err, "Invalid YAML")
 				assert.Len(t, result, 3, "Expected 3 items")
 			},
 		},

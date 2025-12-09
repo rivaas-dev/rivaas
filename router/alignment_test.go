@@ -151,7 +151,7 @@ func TestStructSizes(t *testing.T) {
 			name:         "Router",
 			size:         unsafe.Sizeof(Router{}),
 			expectedSize: 0,   // Not checking exact size, just documenting
-			maxSize:      450, // Warn if Router grows beyond reasonable size (includes deferred registration fields)
+			maxSize:      480, // Warn if Router grows beyond reasonable size (includes deferred registration, server shutdown fields)
 		},
 	}
 

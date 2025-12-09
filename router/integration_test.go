@@ -616,9 +616,9 @@ var _ = Describe("Router Integration", func() {
 		)
 
 		It("should apply middleware to route groups", func() {
-			r := router.MustNew()
+			testRouter := router.MustNew()
 
-			api := r.Group("/api/v1")
+			api := testRouter.Group("/api/v1")
 			api.Use(func(c *router.Context) {
 				c.Header("X-Api-Version", "v1")
 				c.Next()
@@ -630,7 +630,7 @@ var _ = Describe("Router Integration", func() {
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
+			testRouter.ServeHTTP(w, req)
 
 			Expect(w.Code).To(Equal(http.StatusOK))
 			Expect(w.Header().Get("X-Api-Version")).To(Equal("v1"))

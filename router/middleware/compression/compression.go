@@ -323,8 +323,8 @@ func getGzipWriterPool(level int) *sync.Pool {
 	defer poolsMutex.Unlock()
 
 	// Double-check after acquiring write lock
-	if pool, exists := gzipWriterPools[level]; exists {
-		return pool
+	if existingPool, poolExists := gzipWriterPools[level]; poolExists {
+		return existingPool
 	}
 
 	pool = &sync.Pool{
@@ -352,8 +352,8 @@ func getBrotliWriterPool(level int) *sync.Pool {
 	defer poolsMutex.Unlock()
 
 	// Double-check after acquiring write lock
-	if pool, exists := brotliWriterPools[level]; exists {
-		return pool
+	if existingPool, poolExists := brotliWriterPools[level]; poolExists {
+		return existingPool
 	}
 
 	pool = &sync.Pool{
