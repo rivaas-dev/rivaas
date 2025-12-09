@@ -219,7 +219,7 @@ func (f *RFC9457) determineType(err error) string {
 //
 // Returns a unique error identifier string.
 func generateErrorID() string {
-	bytes := make([]byte, 16)
+	bytes := make([]byte, 16) //nolint:makezero // crypto/rand.Read requires pre-allocated buffer
 	if _, err := rand.Read(bytes); err != nil {
 		// Fallback: use timestamp-based ID if random fails
 		return fmt.Sprintf("err-%d", time.Now().UnixNano())
