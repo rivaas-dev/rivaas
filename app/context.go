@@ -178,7 +178,7 @@ func (c *Context) bindJSON(out any) error {
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
 		// Track presence using validation package
-		if pm, err := validation.ComputePresence(body); err == nil {
+		if pm, presenceErr := validation.ComputePresence(body); presenceErr == nil {
 			c.bindingMeta.presence = pm
 		}
 
@@ -227,7 +227,7 @@ func (c *Context) BindJSONStrict(out any) error {
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
 		// Track presence using validation package
-		if pm, err := validation.ComputePresence(body); err == nil {
+		if pm, presenceErr := validation.ComputePresence(body); presenceErr == nil {
 			c.bindingMeta.presence = pm
 		}
 
@@ -441,8 +441,8 @@ func (c *Context) Error(err error) {
 		}
 	}
 
-	if err := c.JSON(response.Status, response.Body); err != nil {
-		c.Logger().Error("failed to write JSON response", "err", err)
+	if jsonErr := c.JSON(response.Status, response.Body); jsonErr != nil {
+		c.Logger().Error("failed to write JSON response", "err", jsonErr)
 	}
 }
 

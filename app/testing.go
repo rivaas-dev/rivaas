@@ -168,8 +168,8 @@ func ExpectJSON(t testingT, resp *http.Response, statusCode int, out any) {
 		return
 	}
 
-	if err := json.Unmarshal(body, out); err != nil {
-		t.Errorf("failed to decode JSON: %v\nBody: %s", err, string(body))
+	if unmarshalErr := json.Unmarshal(body, out); unmarshalErr != nil {
+		t.Errorf("failed to decode JSON: %v\nBody: %s", unmarshalErr, string(body))
 		return
 	}
 }

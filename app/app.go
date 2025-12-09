@@ -484,15 +484,15 @@ func New(opts ...Option) (*App, error) {
 
 	// Register health endpoints if configured
 	if cfg.health != nil && cfg.health.enabled {
-		if err := app.registerHealthEndpoints(cfg.health); err != nil {
-			return nil, fmt.Errorf("failed to register health endpoints: %w", err)
+		if healthErr := app.registerHealthEndpoints(cfg.health); healthErr != nil {
+			return nil, fmt.Errorf("failed to register health endpoints: %w", healthErr)
 		}
 	}
 
 	// Register debug endpoints if configured
 	if cfg.debug != nil && cfg.debug.enabled {
-		if err := app.registerDebugEndpoints(cfg.debug); err != nil {
-			return nil, fmt.Errorf("failed to register debug endpoints: %w", err)
+		if debugErr := app.registerDebugEndpoints(cfg.debug); debugErr != nil {
+			return nil, fmt.Errorf("failed to register debug endpoints: %w", debugErr)
 		}
 	}
 
@@ -978,7 +978,7 @@ func (a *App) Tracing() *tracing.Tracer {
 
 // Route retrieves a route by name.
 // It returns the route and true if found, false otherwise.
-// It panics if the router is not frozen (call after app.Run() or app.Router().Freeze()).
+// It panics if the router is not frozen (call after app.Start() or app.Router().Freeze()).
 //
 // Example:
 //
@@ -991,7 +991,7 @@ func (a *App) Route(name string) (*route.Route, bool) {
 }
 
 // Routes returns an immutable snapshot of all named routes.
-// Routes panics if the router is not frozen (call after app.Run() or app.Router().Freeze()).
+// Routes panics if the router is not frozen (call after app.Start() or app.Router().Freeze()).
 //
 // Example:
 //
@@ -1069,6 +1069,7 @@ func initializeMetrics(
 	loggingCfg *logging.Logger,
 	r *router.Router,
 ) (*metrics.Recorder, error) {
+
 	if obsSettings.metrics == nil || !obsSettings.metrics.enabled {
 		return nil, nil
 	}
@@ -1081,8 +1082,8 @@ func initializeMetrics(
 	}
 
 	if obsSettings.metricsOnMainRouter {
-		if err := mountMetricsEndpoint(recorder, r, obsSettings.metricsMainRouterPath); err != nil {
-			return nil, err
+		if mountErr := mountMetricsEndpoint(recorder, r, obsSettings.metricsMainRouterPath); mountErr != nil {
+			return nil, mountErr
 		}
 	}
 

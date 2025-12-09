@@ -459,3 +459,114 @@ func TestWithObservability_MultipleValidationErrors(t *testing.T) {
 		assert.Contains(t, errorStr, "[invalid")
 	})
 }
+
+// TestDoubleWrappingPrevention tests that response writers aren't wrapped twice
+// when combining app observability with standalone middleware.
+func TestDoubleWrappingPrevention(t *testing.T) {
+	t.Parallel()
+
+	// Create app with observability enabled
+	app := MustNew(
+		WithServiceName("test-service"),
+		WithObservability(
+			WithLogging(logging.WithTextHandler()),
+			WithMetrics(),
+			WithTracing(tracing.WithStdout()),
+		),
+	)
+
+	var wrappedWriterSeen bool
+
+	// Add a middleware that checks if the writer is already wrapped
+	app.Use(func(c *Context) {
+		// Check if the response writer implements the marker interface
+		if _, ok := c.Response.(ObservabilityWrappedWriter); ok {
+			wrappedWriterSeen = true
+		}
+		c.Next()
+	})
+
+	app.GET("/test", func(c *Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+
+	// This should wrap the writer via observabilityRecorder
+	app.Router().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, wrappedWriterSeen, "Response writer should have been wrapped by observability")
+}
+
+// TestNoWrappingForExcludedPaths tests that excluded paths don't get wrapped.
+func TestNoWrappingForExcludedPaths(t *testing.T) {
+	t.Parallel()
+
+	app := MustNew(
+		WithServiceName("test-service"),
+		WithObservability(
+			WithExcludePaths("/health", "/metrics"),
+			WithLogging(logging.WithTextHandler()),
+		),
+	)
+
+	var wrappedWriterSeen bool
+
+	app.Use(func(c *Context) {
+		// Check if the response writer is wrapped
+		if _, ok := c.Response.(ObservabilityWrappedWriter); ok {
+			wrappedWriterSeen = true
+		}
+		c.Next()
+	})
+
+	app.GET("/health", func(c *Context) {
+		c.String(http.StatusOK, "healthy")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+
+	app.Router().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.False(t, wrappedWriterSeen, "Excluded paths should not have wrapped response writer")
+}
+
+// TestObservabilityResponseWriterImplementsMarkerInterface verifies that
+// the observability response writer correctly implements the marker interface.
+func TestObservabilityResponseWriterImplementsMarkerInterface(t *testing.T) {
+	t.Parallel()
+
+	innerWriter := httptest.NewRecorder()
+	wrapped := &observabilityResponseWriter{ResponseWriter: innerWriter}
+
+	// Verify it implements the marker interface
+	marker, ok := interface{}(wrapped).(ObservabilityWrappedWriter)
+	require.True(t, ok, "observabilityResponseWriter should implement ObservabilityWrappedWriter")
+	assert.True(t, marker.IsObservabilityWrapped())
+
+	// Verify it implements ResponseInfo
+	ri, ok := interface{}(wrapped).(ResponseInfo)
+	require.True(t, ok, "observabilityResponseWriter should implement ResponseInfo")
+
+	// Write some data
+	wrapped.WriteHeader(http.StatusOK)
+	wrapped.Write([]byte("test"))
+
+	assert.Equal(t, http.StatusOK, ri.StatusCode())
+	assert.Equal(t, int64(4), ri.Size())
+}
+
+// ObservabilityWrappedWriter is imported from router package
+type ObservabilityWrappedWriter interface {
+	IsObservabilityWrapped() bool
+}
+
+// ResponseInfo is imported from router package
+type ResponseInfo interface {
+	StatusCode() int
+	Size() int64
+}

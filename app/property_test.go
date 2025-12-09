@@ -161,7 +161,7 @@ func TestProperty_ConfigurationDefaults(t *testing.T) {
 	cfg := defaultConfig()
 
 	err := cfg.validate()
-	assert.NoError(t, err, "default configuration should always be valid")
+	require.NoError(t, err, "default configuration should always be valid")
 
 	// Verify defaults satisfy constraints
 	assert.Greater(t, cfg.server.readTimeout, time.Duration(0))
@@ -191,6 +191,7 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 				WithServiceVersion("1.0.0"),
 			},
 			check: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				require.ErrorAs(t, err, &ve)
 				for _, e := range ve.Errors {
@@ -207,8 +208,9 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 				WithServerConfig(WithReadTimeout(-1 * time.Second)),
 			},
 			check: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
-				assert.ErrorAs(t, err, &ve)
+				require.ErrorAs(t, err, &ve)
 				for _, e := range ve.Errors {
 					if e.Field == "server.readTimeout" {
 						assert.NotNil(t, e.Value, "error should include invalid value")
@@ -224,7 +226,7 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 			t.Parallel()
 
 			_, err := New(tc.opts...)
-			assert.Error(t, err)
+			require.Error(t, err)
 			if tc.check != nil {
 				tc.check(t, err)
 			}

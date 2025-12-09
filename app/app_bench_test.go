@@ -41,8 +41,8 @@ func BenchmarkTestJSON(b *testing.B) {
 		b.Fatal(err)
 	}
 	app.GET("/test", func(c *Context) {
-		if err := c.JSON(http.StatusOK, map[string]string{"status": "ok"}); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+		if jsonErr := c.JSON(http.StatusOK, map[string]string{"status": "ok"}); jsonErr != nil {
+			c.Logger().Error("failed to write response", "err", jsonErr)
 		}
 	})
 
@@ -52,9 +52,9 @@ func BenchmarkTestJSON(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		resp, err := app.TestJSON(http.MethodPost, "/test", body)
-		if err != nil {
-			b.Fatal(err)
+		resp, testErr := app.TestJSON(http.MethodPost, "/test", body)
+		if testErr != nil {
+			b.Fatal(testErr)
 		}
 		_ = resp.Body.Close() //nolint:errcheck // Benchmark cleanup
 	}
@@ -77,9 +77,9 @@ func BenchmarkHealthCheckConcurrent(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-			resp, err := app.Test(req)
-			if err != nil {
-				b.Fatal(err)
+			resp, testErr := app.Test(req)
+			if testErr != nil {
+				b.Fatal(testErr)
 			}
 			_ = resp.Body.Close() //nolint:errcheck // Benchmark cleanup
 		}
@@ -97,8 +97,8 @@ func BenchmarkRouteRegistration(b *testing.B) {
 
 	for b.Loop() {
 		app.GET("/test", func(c *Context) {
-			if err := c.String(http.StatusOK, "ok"); err != nil {
-				c.Logger().Error("failed to write response", "err", err)
+			if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
+				c.Logger().Error("failed to write response", "err", stringErr)
 			}
 		})
 	}
@@ -110,8 +110,8 @@ func BenchmarkRequestHandling(b *testing.B) {
 		b.Fatal(err)
 	}
 	app.GET("/test", func(c *Context) {
-		if err := c.String(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+		if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
+			c.Logger().Error("failed to write response", "err", stringErr)
 		}
 	})
 
@@ -121,9 +121,9 @@ func BenchmarkRequestHandling(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		resp, err := app.Test(req)
-		if err != nil {
-			b.Fatal(err)
+		resp, testErr := app.Test(req)
+		if testErr != nil {
+			b.Fatal(testErr)
 		}
 		_ = resp.Body.Close() //nolint:errcheck // Benchmark cleanup
 	}
@@ -141,8 +141,8 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 		c.Next()
 	})
 	app.GET("/test", func(c *Context) {
-		if err := c.String(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+		if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
+			c.Logger().Error("failed to write response", "err", stringErr)
 		}
 	})
 
@@ -152,9 +152,9 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		resp, err := app.Test(req)
-		if err != nil {
-			b.Fatal(err)
+		resp, testErr := app.Test(req)
+		if testErr != nil {
+			b.Fatal(testErr)
 		}
 		_ = resp.Body.Close() //nolint:errcheck // Benchmark cleanup
 	}

@@ -78,7 +78,7 @@ func newObservabilityRecorder(cfg *observabilityConfig) router.ObservabilityReco
 // observabilityState is the opaque token holding per-request observability state
 // passed between lifecycle methods.
 type observabilityState struct {
-	metricsData *metrics.RequestMetrics // Metrics state from metrics.Start
+	metricsData *metrics.RequestMetrics // Metrics state from metrics.BeginRequest
 	span        trace.Span              // Active span from tracing
 	startTime   time.Time               // Request start time for duration calculation
 	req         *http.Request           // Original request for access logging
@@ -105,7 +105,7 @@ func (o *observabilityRecorder) OnRequestStart(ctx context.Context, req *http.Re
 	// Start metrics (if enabled)
 	// Note: We'll update with route pattern in OnRequestEnd for cardinality control
 	if o.metrics != nil && o.metrics.IsEnabled() {
-		state.metricsData = o.metrics.Start(ctx)
+		state.metricsData = o.metrics.BeginRequest(ctx)
 	}
 
 	return ctx, state
@@ -114,6 +114,12 @@ func (o *observabilityRecorder) OnRequestStart(ctx context.Context, req *http.Re
 func (o *observabilityRecorder) WrapResponseWriter(w http.ResponseWriter, state any) http.ResponseWriter {
 	if state == nil {
 		return w // Excluded: don't wrap
+	}
+
+	// Check if already wrapped by observability middleware
+	// This prevents double-wrapping when combining app observability with standalone middleware
+	if _, ok := w.(router.ObservabilityWrappedWriter); ok {
+		return w // Already wrapped, don't wrap again
 	}
 
 	return &observabilityResponseWriter{ResponseWriter: w}
@@ -130,7 +136,7 @@ func (o *observabilityRecorder) OnRequestEnd(ctx context.Context, state any, wri
 	// Extract response metadata from wrapped writer
 	statusCode := http.StatusOK
 	var responseSize int64 = 0
-	if ri, ok := writer.(router.ResponseInfo); ok {
+	if ri, riOk := writer.(router.ResponseInfo); riOk {
 		statusCode = ri.StatusCode()
 		responseSize = ri.Size()
 	}
@@ -171,6 +177,7 @@ func (o *observabilityRecorder) logAccessRequest(
 	duration time.Duration,
 	routePattern string,
 ) {
+
 	isError := statusCode >= 400
 	isSlow := o.slowThreshold > 0 && duration >= o.slowThreshold
 
@@ -277,8 +284,11 @@ type observabilityResponseWriter struct {
 	written    bool
 }
 
-// Ensure we implement required interface
-var _ router.ResponseInfo = (*observabilityResponseWriter)(nil)
+// Ensure we implement required interfaces
+var (
+	_ router.ResponseInfo               = (*observabilityResponseWriter)(nil)
+	_ router.ObservabilityWrappedWriter = (*observabilityResponseWriter)(nil)
+)
 
 func (rw *observabilityResponseWriter) WriteHeader(code int) {
 	if !rw.written {
@@ -309,6 +319,13 @@ func (rw *observabilityResponseWriter) StatusCode() int {
 
 func (rw *observabilityResponseWriter) Size() int64 {
 	return rw.size
+}
+
+// IsObservabilityWrapped implements [router.ObservabilityWrappedWriter] marker interface.
+// This signals that the writer has been wrapped by observability middleware,
+// preventing double-wrapping when combining app observability with standalone middleware.
+func (rw *observabilityResponseWriter) IsObservabilityWrapped() bool {
+	return true
 }
 
 // Preserve http.Hijacker (for WebSockets, HTTP/2, etc.)

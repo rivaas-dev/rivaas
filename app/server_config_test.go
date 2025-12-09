@@ -57,8 +57,9 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
-				assert.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "read timeout should not exceed write timeout")
 			},
 		},
@@ -74,6 +75,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "must be at least 1 second")
@@ -91,6 +93,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "must be at least 1KB")
@@ -108,6 +111,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "server.readTimeout")
@@ -125,6 +129,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				assert.Contains(t, err.Error(), "server.writeTimeout")
@@ -142,6 +147,7 @@ func TestServerConfig_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			check: func(t *testing.T, err error) {
+				t.Helper()
 				var ve *ValidationError
 				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
 				// Should have multiple errors
@@ -250,7 +256,7 @@ func TestServerConfig_Validate_Integration(t *testing.T) {
 			),
 		)
 
-		assert.Error(t, err, "should return validation error")
+		require.Error(t, err, "should return validation error")
 		assert.Nil(t, app, "app should be nil on validation error")
 
 		var ve *ValidationError

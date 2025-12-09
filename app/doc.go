@@ -76,7 +76,10 @@
 //	    c.JSON(http.StatusOK, map[string]string{"message": "Hello"})
 //	})
 //
-//	if err := app.Run(":8080"); err != nil {
+//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+//	defer cancel()
+//
+//	if err := app.Start(ctx, ":8080"); err != nil {
 //	    log.Fatal(err)
 //	}
 //

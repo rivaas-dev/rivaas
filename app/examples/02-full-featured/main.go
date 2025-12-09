@@ -20,6 +20,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"example.com/full-featured/handlers"
@@ -38,6 +40,10 @@ import (
 )
 
 func main() {
+	// Create context that listens for interrupt signal
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
 	// Get environment configuration
 	environment := getEnv("ENVIRONMENT", "development")
 	serviceName := getEnv("SERVICE_NAME", "full-featured-api")
@@ -276,7 +282,7 @@ func main() {
 	// Start server with graceful shutdown
 	// Health endpoints: GET /healthz, GET /readyz
 	// Debug endpoints (in development): GET /debug/pprof/*
-	if err := a.Run(":8181"); err != nil {
+	if err := a.Start(ctx, ":8181"); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
 }

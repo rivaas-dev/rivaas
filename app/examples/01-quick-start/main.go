@@ -19,11 +19,18 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"rivaas.dev/app"
 )
 
 func main() {
+	// Create context that listens for interrupt signal
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
 	// Create a new app with default settings and health endpoints
 	a, err := app.New(
 		// Enable standard health endpoints
@@ -40,10 +47,10 @@ func main() {
 
 	// Register routes
 	a.GET("/", func(c *app.Context) {
-		if err := c.JSON(http.StatusOK, map[string]string{
+		if jsonErr := c.JSON(http.StatusOK, map[string]string{
 			"message": "Hello from Rivaas App!",
-		}); err != nil {
-			log.Printf("Failed to write response: %v", err)
+		}); jsonErr != nil {
+			log.Printf("Failed to write response: %v", jsonErr)
 		}
 	})
 
@@ -51,7 +58,7 @@ func main() {
 	// Health endpoints are available at:
 	//   GET /healthz - Liveness probe (returns 200 "ok")
 	//   GET /readyz  - Readiness probe (returns 204)
-	if err := a.Run(":8080"); err != nil {
+	if err := a.Start(ctx, ":8080"); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
 }

@@ -172,6 +172,8 @@ func (a *App) executeReadyHooks() {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
+					// Use context.Background() because OnReady hooks are fire-and-forget goroutines
+					// that don't receive a context. During panic recovery, we just need to log the error.
 					a.logLifecycleEvent(context.Background(), slog.LevelError, "OnReady hook panic", "error", r)
 				}
 			}()

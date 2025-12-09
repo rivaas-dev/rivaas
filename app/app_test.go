@@ -998,7 +998,7 @@ func TestApp_GetMetricsHandler(t *testing.T) {
 			handler, err := app.GetMetricsHandler()
 
 			if tt.wantError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, handler)
 				if tt.errorCheck != nil {
 					tt.errorCheck(t, err)
@@ -1174,6 +1174,7 @@ func TestApp_Metrics(t *testing.T) {
 			},
 			wantNil: false,
 			validateCfg: func(t *testing.T, app *App, recorder *metrics.Recorder) {
+				t.Helper()
 				assert.NotNil(t, recorder)
 				assert.Equal(t, app.metrics, recorder)
 			},
@@ -1232,6 +1233,7 @@ func TestApp_Tracing(t *testing.T) {
 			},
 			wantNil: false,
 			validateCfg: func(t *testing.T, app *App, cfg *tracing.Tracer) {
+				t.Helper()
 				assert.NotNil(t, cfg)
 				assert.Equal(t, app.tracing, cfg)
 			},

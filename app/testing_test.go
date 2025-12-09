@@ -115,6 +115,7 @@ func TestApp_Test(t *testing.T) {
 			},
 			wantStatus: 200,
 			checkResponse: func(t *testing.T, resp *http.Response) {
+				t.Helper()
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				var data map[string]string
@@ -210,13 +211,13 @@ func TestApp_Test_Timeout(t *testing.T) {
 			resp, err := app.Test(req, opts...)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 				assert.Nil(t, resp)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, resp)
 				if resp != nil {
 					resp.Body.Close()
@@ -239,10 +240,12 @@ func TestApp_Test_Context(t *testing.T) {
 		{
 			name: "context with custom value",
 			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
 				return context.WithValue(t.Context(), contextKey("key"), "value")
 			},
 			wantErr: false,
 			checkValue: func(t *testing.T, resp *http.Response) {
+				t.Helper()
 				assert.Equal(t, 200, resp.StatusCode)
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
@@ -252,6 +255,7 @@ func TestApp_Test_Context(t *testing.T) {
 		{
 			name: "cancelled context",
 			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // immediately cancel
 
@@ -262,6 +266,7 @@ func TestApp_Test_Context(t *testing.T) {
 		{
 			name: "context with timeout",
 			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
 				ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 				_ = cancel // cancel will be called when context expires
 
@@ -292,7 +297,7 @@ func TestApp_Test_Context(t *testing.T) {
 			resp, err := app.Test(req, WithContext(tt.setupCtx(t)))
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if resp != nil {
 					resp.Body.Close()
 				}
@@ -345,6 +350,7 @@ func TestApp_TestJSON(t *testing.T) {
 			},
 			wantStatus: 201,
 			checkResp: func(t *testing.T, resp *http.Response) {
+				t.Helper()
 				contentType := resp.Header.Get("Content-Type")
 				assert.Contains(t, contentType, "application/json")
 			},
@@ -497,6 +503,7 @@ func TestExpectJSON(t *testing.T) {
 			out:         &User{},
 			expectError: false,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
+				t.Helper()
 				assert.False(t, mockT.errorCalled, "expected no errors")
 			},
 		},
@@ -514,6 +521,7 @@ func TestExpectJSON(t *testing.T) {
 			out:         &User{},
 			expectError: true,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
+				t.Helper()
 				assert.True(t, mockT.errorCalled, "expected Errorf to be called")
 				assert.Contains(t, mockT.errorMsg, "expected status 200, got 500")
 			},
@@ -532,6 +540,7 @@ func TestExpectJSON(t *testing.T) {
 			out:         &User{},
 			expectError: true,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
+				t.Helper()
 				assert.True(t, mockT.errorCalled, "expected Errorf to be called")
 				assert.Contains(t, mockT.errorMsg, "Content-Type")
 			},
@@ -550,6 +559,7 @@ func TestExpectJSON(t *testing.T) {
 			out:         &User{},
 			expectError: true,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
+				t.Helper()
 				assert.True(t, mockT.errorCalled, "expected Errorf to be called")
 				assert.Contains(t, mockT.errorMsg, "failed to decode JSON")
 			},
@@ -568,6 +578,7 @@ func TestExpectJSON(t *testing.T) {
 			out:         &User{},
 			expectError: false,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
+				t.Helper()
 				assert.False(t, mockT.errorCalled, "expected no errors")
 			},
 		},
@@ -616,6 +627,7 @@ func TestTestOptions(t *testing.T) {
 		{
 			name: "multiple options combined",
 			setupOpts: func(t *testing.T) []TestOption {
+				t.Helper()
 				return []TestOption{
 					WithTimeout(5 * time.Second),
 					WithContext(context.WithValue(t.Context(), contextKey("test"), "value")),
@@ -627,6 +639,7 @@ func TestTestOptions(t *testing.T) {
 		{
 			name: "timeout and context",
 			setupOpts: func(t *testing.T) []TestOption {
+				t.Helper()
 				return []TestOption{
 					WithTimeout(1 * time.Second),
 					WithContext(t.Context()),
@@ -638,6 +651,7 @@ func TestTestOptions(t *testing.T) {
 		{
 			name: "no options (defaults)",
 			setupOpts: func(*testing.T) []TestOption {
+				t.Helper()
 				return nil
 			},
 			wantStatus: 200,

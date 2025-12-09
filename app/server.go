@@ -21,9 +21,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"rivaas.dev/router"
 )
@@ -48,7 +45,7 @@ func (a *App) flushStartupLogs() {
 }
 
 // logStartupInfo logs startup information including address, environment, and observability.
-func (a *App) logStartupInfo(addr, protocol string) {
+func (a *App) logStartupInfo(ctx context.Context, addr, protocol string) {
 	attrs := []any{
 		"address", addr,
 		"environment", a.config.environment,
@@ -59,14 +56,33 @@ func (a *App) logStartupInfo(addr, protocol string) {
 		attrs = append(attrs, "metrics_enabled", true, "metrics_address", a.metrics.ServerAddress())
 	}
 
-	a.logLifecycleEvent(context.Background(), slog.LevelInfo, "server starting", attrs...)
+	a.logLifecycleEvent(ctx, slog.LevelInfo, "server starting", attrs...)
 
 	if a.tracing != nil {
-		a.logLifecycleEvent(context.Background(), slog.LevelInfo, "tracing enabled")
+		a.logLifecycleEvent(ctx, slog.LevelInfo, "tracing enabled")
 	}
 }
 
-// shutdownObservability gracefully shuts down all enabled observability components.
+// startObservability starts observability components (metrics, tracing) with the given context.
+// The context is used for network connections and server lifecycle.
+func (a *App) startObservability(ctx context.Context) error {
+	// Start metrics server if configured
+	if a.metrics != nil {
+		if err := a.metrics.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start metrics server: %w", err)
+		}
+	}
+
+	// Start tracing if configured (initializes OTLP exporters)
+	if a.tracing != nil {
+		if err := a.tracing.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start tracing: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (a *App) shutdownObservability(ctx context.Context) {
 	// Shutdown metrics if running
 	if a.metrics != nil {
@@ -84,8 +100,13 @@ func (a *App) shutdownObservability(ctx context.Context) {
 }
 
 // runServer handles the common lifecycle for starting and shutting down an HTTP server.
-// It is used by [App.Run], [App.RunTLS], and [App.RunMTLS].
-func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol string) error {
+// It is used by [App.Start], [App.StartTLS], and [App.StartMTLS].
+// The context controls the server lifecycle - when cancelled, it triggers graceful shutdown.
+//
+// Unlike stdlib's http.Server which uses separate Shutdown() call, this method combines
+// serving and lifecycle management for a simpler API. Users should pass a context
+// configured with signal.NotifyContext for graceful shutdown on OS signals.
+func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serverStartFunc, protocol string) error {
 	// Start server in a goroutine
 	serverErr := make(chan error, 1)
 	serverReady := make(chan struct{})
@@ -96,7 +117,7 @@ func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol
 		// This ensures all initialization logs appear after the banner for cleaner DX.
 		a.flushStartupLogs()
 
-		a.logStartupInfo(server.Addr, protocol)
+		a.logStartupInfo(ctx, server.Addr, protocol)
 		// Routes are now displayed as part of the startup banner
 
 		// Signal that server is ready to accept connections
@@ -111,36 +132,38 @@ func (a *App) runServer(server *http.Server, startFunc serverStartFunc, protocol
 	<-serverReady
 	a.executeReadyHooks()
 
-	// Wait for interrupt signal or server error
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
+	// Wait for context cancellation or server error
+	// Note: Signal handling should be done by the caller via signal.NotifyContext
 	select {
 	case err := <-serverErr:
 		return err
-	case <-quit:
-		a.logLifecycleEvent(context.Background(), slog.LevelInfo, "server shutting down", "protocol", protocol)
+	case <-ctx.Done():
+		a.logLifecycleEvent(ctx, slog.LevelInfo, "server shutting down", "protocol", protocol, "reason", ctx.Err())
 	}
 
-	// Create a deadline for shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), a.config.server.shutdownTimeout)
+	// Create a deadline for shutdown.
+	// We use context.Background() because the original ctx is already cancelled (that's what triggered
+	// the shutdown). Using a cancelled context as parent would give us 0 time for graceful shutdown.
+	// This is the standard Go pattern - the parent ctx signals WHEN to shutdown, the fresh context
+	// controls HOW LONG the shutdown can take.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), a.config.server.shutdownTimeout)
 	defer cancel()
 
 	// Execute OnShutdown hooks (LIFO order)
-	a.executeShutdownHooks(ctx)
+	a.executeShutdownHooks(shutdownCtx)
 
 	// Shutdown the server
-	if err := server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("%s server forced to shutdown: %w", protocol, err)
 	}
 
 	// Shutdown observability components (metrics and tracing)
-	a.shutdownObservability(ctx)
+	a.shutdownObservability(shutdownCtx)
 
 	// Execute OnStop hooks (best-effort)
 	a.executeStopHooks()
 
-	a.logLifecycleEvent(ctx, slog.LevelInfo, "server exited", "protocol", protocol)
+	a.logLifecycleEvent(shutdownCtx, slog.LevelInfo, "server exited", "protocol", protocol)
 
 	return nil
 }
@@ -205,24 +228,37 @@ func (a *App) registerOpenAPIEndpoints() {
 </body>
 </html>`
 
-			if err := c.HTML(http.StatusOK, html); err != nil {
-				c.Logger().Error("failed to write HTML response", "err", err)
+			if htmlErr := c.HTML(http.StatusOK, html); htmlErr != nil {
+				c.Logger().Error("failed to write HTML response", "err", htmlErr)
 			}
 		})
 	}
 }
 
-// Run starts the HTTP server with graceful shutdown.
-// Run automatically freezes the router before starting, making routes immutable.
+// Start starts the HTTP server with graceful shutdown.
+// Start automatically freezes the router before starting, making routes immutable.
+//
+// The context controls the application lifecycle - when cancelled, it triggers
+// graceful shutdown of the server and all observability components (metrics, tracing).
+//
+// Note: Signal handling should be configured by the caller using signal.NotifyContext.
+// This follows the Go pattern of explicit signal handling at the application boundary.
 //
 // Example:
 //
-//	if err := app.Run(":8080"); err != nil {
+//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+//	defer cancel()
+//
+//	if err := app.Start(ctx, ":8080"); err != nil {
 //	    log.Fatal(err)
 //	}
-func (a *App) Run(addr string) error {
+func (a *App) Start(ctx context.Context, addr string) error {
+	// Start observability servers (metrics, etc.)
+	if err := a.startObservability(ctx); err != nil {
+		return fmt.Errorf("failed to start observability: %w", err)
+	}
+
 	// Execute OnStart hooks sequentially, stopping on first error
-	ctx := context.Background()
 	if err := a.executeStartHooks(ctx); err != nil {
 		return fmt.Errorf("startup failed: %w", err)
 	}
@@ -243,20 +279,32 @@ func (a *App) Run(addr string) error {
 		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
 	}
 
-	return a.runServer(server, server.ListenAndServe, "HTTP")
+	return a.runServer(ctx, server, server.ListenAndServe, "HTTP")
 }
 
-// RunTLS starts the HTTPS server with graceful shutdown.
-// RunTLS automatically freezes the router before starting, making routes immutable.
+// StartTLS starts the HTTPS server with graceful shutdown.
+// StartTLS automatically freezes the router before starting, making routes immutable.
+//
+// The context controls the application lifecycle - when cancelled, it triggers
+// graceful shutdown of the server and all observability components (metrics, tracing).
+//
+// Note: Signal handling should be configured by the caller using signal.NotifyContext.
 //
 // Example:
 //
-//	if err := app.RunTLS(":8443", "server.crt", "server.key"); err != nil {
+//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+//	defer cancel()
+//
+//	if err := app.StartTLS(ctx, ":8443", "server.crt", "server.key"); err != nil {
 //	    log.Fatal(err)
 //	}
-func (a *App) RunTLS(addr, certFile, keyFile string) error {
+func (a *App) StartTLS(ctx context.Context, addr, certFile, keyFile string) error {
+	// Start observability servers (metrics, etc.)
+	if err := a.startObservability(ctx); err != nil {
+		return fmt.Errorf("failed to start observability: %w", err)
+	}
+
 	// Execute OnStart hooks sequentially, stopping on first error
-	ctx := context.Background()
 	if err := a.executeStartHooks(ctx); err != nil {
 		return fmt.Errorf("startup failed: %w", err)
 	}
@@ -277,14 +325,19 @@ func (a *App) RunTLS(addr, certFile, keyFile string) error {
 		MaxHeaderBytes:    a.config.server.maxHeaderBytes,
 	}
 
-	return a.runServer(server, func() error {
+	return a.runServer(ctx, server, func() error {
 		return server.ListenAndServeTLS(certFile, keyFile)
 	}, "HTTPS")
 }
 
-// RunMTLS starts an HTTPS server with mutual TLS (mTLS) authentication.
+// StartMTLS starts an HTTPS server with mutual TLS (mTLS) authentication.
 // It requires both client and server certificates for bidirectional authentication.
 // It automatically freezes the router before starting, making routes immutable.
+//
+// The context controls the application lifecycle - when cancelled, it triggers
+// graceful shutdown of the server and all observability components (metrics, tracing).
+//
+// Note: Signal handling should be configured by the caller using signal.NotifyContext.
 //
 // It configures the server to:
 //   - Require client certificates (ClientAuth: RequireAndVerifyClientCert)
@@ -294,6 +347,9 @@ func (a *App) RunTLS(addr, certFile, keyFile string) error {
 //   - Support hot-reload via WithConfigForClient callback
 //
 // Example:
+//
+//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+//	defer cancel()
 //
 //	// Load server certificate
 //	serverCert, err := tls.LoadX509KeyPair("server.crt", "server.key")
@@ -310,7 +366,7 @@ func (a *App) RunTLS(addr, certFile, keyFile string) error {
 //	caCertPool.AppendCertsFromPEM(caCert)
 //
 //	// Start server with mTLS
-//	err = app.RunMTLS(":8443", serverCert,
+//	err = app.StartMTLS(ctx, ":8443", serverCert,
 //	    app.WithClientCAs(caCertPool),
 //	    app.WithMinVersion(tls.VersionTLS13),
 //	    app.WithAuthorize(func(cert *x509.Certificate) (string, bool) {
@@ -318,7 +374,7 @@ func (a *App) RunTLS(addr, certFile, keyFile string) error {
 //	        return cert.Subject.CommonName, cert.Subject.CommonName != ""
 //	    }),
 //	)
-func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOption) error {
+func (a *App) StartMTLS(ctx context.Context, addr string, serverCert tls.Certificate, opts ...MTLSOption) error {
 	// Create mTLS configuration from options
 	cfg := newMTLSConfig(serverCert, opts...)
 
@@ -327,8 +383,12 @@ func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOptio
 		return fmt.Errorf("invalid mTLS configuration: %w", err)
 	}
 
+	// Start observability servers (metrics, etc.)
+	if err := a.startObservability(ctx); err != nil {
+		return fmt.Errorf("failed to start observability: %w", err)
+	}
+
 	// Execute OnStart hooks sequentially, stopping on first error
-	ctx := context.Background()
 	if err := a.executeStartHooks(ctx); err != nil {
 		return fmt.Errorf("startup failed: %w", err)
 	}
@@ -380,7 +440,7 @@ func (a *App) RunMTLS(addr string, serverCert tls.Certificate, opts ...MTLSOptio
 	}
 
 	// Use runServer helper with custom start function for TLS listener
-	return a.runServer(server, func() error {
+	return a.runServer(ctx, server, func() error {
 		return server.Serve(tlsListener)
 	}, "mTLS")
 }

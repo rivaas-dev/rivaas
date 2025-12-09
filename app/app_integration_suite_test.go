@@ -321,8 +321,8 @@ var _ = Describe("App Integration", func() {
 						Expect(a).NotTo(BeNil())
 
 						a.GET("/test", func(c *app.Context) {
-							if err := c.String(http.StatusOK, "ok"); err != nil {
-								c.Logger().Error("failed to write response", "err", err)
+							if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
+								c.Logger().Error("failed to write response", "err", stringErr)
 							}
 						})
 
@@ -462,8 +462,8 @@ var _ = Describe("App Integration", func() {
 					c.Logger().Info("test request", "request_id", "123")
 
 					successCount.Add(1)
-					if err := c.String(http.StatusOK, "ok"); err != nil {
-						c.Logger().Error("failed to write response", "err", err)
+					if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
+						c.Logger().Error("failed to write response", "err", stringErr)
 					}
 				})
 
@@ -581,8 +581,8 @@ var _ = Describe("App Integration", func() {
 				Expect(err).NotTo(HaveOccurred(), "server should shutdown gracefully")
 
 				select {
-				case err := <-serverErr:
-					Expect(err).NotTo(HaveOccurred())
+				case serverErrVal := <-serverErr:
+					Expect(serverErrVal).NotTo(HaveOccurred())
 				case <-time.After(100 * time.Millisecond):
 					// Server didn't error, which is fine for this test
 				}

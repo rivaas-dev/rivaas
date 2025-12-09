@@ -34,10 +34,10 @@ func Example() {
 	}
 
 	a.GET("/", func(c *app.Context) {
-		if err := c.JSON(http.StatusOK, map[string]string{
+		if jsonErr := c.JSON(http.StatusOK, map[string]string{
 			"message": "Hello, World!",
-		}); err != nil {
-			log.Printf("Failed to write response: %v", err)
+		}); jsonErr != nil {
+			log.Printf("Failed to write response: %v", jsonErr)
 		}
 	})
 
