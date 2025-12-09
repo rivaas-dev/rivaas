@@ -173,9 +173,9 @@ func WithHeaders(headers ...string) MiddlewareOption {
 		}
 		c.recordHeaders = filtered
 		// Pre-compute lowercased header names
-		c.recordHeadersLow = make([]string, len(filtered))
-		for i, h := range filtered {
-			c.recordHeadersLow[i] = strings.ToLower(h)
+		c.recordHeadersLow = make([]string, 0, len(filtered))
+		for _, h := range filtered {
+			c.recordHeadersLow = append(c.recordHeadersLow, strings.ToLower(h))
 		}
 	}
 }
@@ -195,8 +195,8 @@ func WithHeaders(headers ...string) MiddlewareOption {
 func WithRecordParams(params ...string) MiddlewareOption {
 	return func(c *middlewareConfig) {
 		if len(params) > 0 {
-			c.recordParamsList = make([]string, len(params))
-			copy(c.recordParamsList, params)
+			c.recordParamsList = make([]string, 0, len(params))
+			c.recordParamsList = append(c.recordParamsList, params...)
 			c.recordParams = true
 		}
 	}

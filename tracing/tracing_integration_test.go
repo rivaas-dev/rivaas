@@ -30,10 +30,10 @@ import (
 
 // TestIntegration_FullRequestCycle tests the complete request/response cycle with tracing.
 func TestIntegration_FullRequestCycle(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	t.Parallel()
 
 	tracer, err := tracing.New(
 		tracing.WithServiceName("integration-test"),
@@ -43,16 +43,22 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		// Use context.Background() instead of t.Context() because with t.Parallel(),
+		// the test context is canceled before cleanup runs, causing shutdown to fail.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		tracer.Shutdown(ctx)
+		if err := tracer.Shutdown(ctx); err != nil {
+			t.Errorf("failed to shutdown tracer: %v", err)
+		}
 	})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/users", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"users":[]}`))
+		if _, err := w.Write([]byte(`{"users":[]}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	})
 
 	handler := tracing.Middleware(tracer)(mux)
@@ -67,8 +73,6 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 }
 
 // TestIntegration_PathExclusion tests that excluded paths bypass tracing.
-//
-//nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_PathExclusion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -81,7 +85,9 @@ func TestIntegration_PathExclusion(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		tracer.Shutdown(context.Background())
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			t.Errorf("failed to shutdown tracer: %v", err)
+		}
 	})
 
 	tests := []struct {
@@ -146,12 +152,16 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		tracer.Shutdown(context.Background())
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			t.Errorf("failed to shutdown tracer: %v", err)
+		}
 	})
 
 	handler := tracing.Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 
 	const numRequests = 100
@@ -191,7 +201,9 @@ func TestIntegration_TraceContextPropagation(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		tracer.Shutdown(context.Background())
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			t.Errorf("failed to shutdown tracer: %v", err)
+		}
 	})
 
 	var capturedTraceID, capturedSpanID string
@@ -230,7 +242,9 @@ func TestIntegration_ErrorStatusCodes(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		tracer.Shutdown(context.Background())
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			t.Errorf("failed to shutdown tracer: %v", err)
+		}
 	})
 
 	tests := []struct {
@@ -301,7 +315,9 @@ func TestIntegration_HeaderRecording(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		tracer.Shutdown(context.Background())
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			t.Errorf("failed to shutdown tracer: %v", err)
+		}
 	})
 
 	handler := tracing.Middleware(tracer,
@@ -388,7 +404,9 @@ func TestIntegration_ProviderTypes(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, tracer)
 			t.Cleanup(func() {
-				tracer.Shutdown(context.Background())
+				if err := tracer.Shutdown(context.Background()); err != nil {
+					t.Errorf("failed to shutdown tracer: %v", err)
+				}
 			})
 
 			assert.True(t, tracer.IsEnabled())

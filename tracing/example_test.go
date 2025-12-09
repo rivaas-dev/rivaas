@@ -32,12 +32,20 @@ func ExampleNew() {
 		tracing.WithStdout(),
 	)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		if _, printErr := fmt.Printf("Error: %v\n", err); printErr != nil {
+			panic(printErr)
+		}
 		return
 	}
-	defer tracer.Shutdown(context.Background())
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
 
-	fmt.Printf("Tracing enabled: %v\n", tracer.IsEnabled())
+	if _, err := fmt.Printf("Tracing enabled: %v\n", tracer.IsEnabled()); err != nil {
+		panic(err)
+	}
 	// Output: Tracing enabled: true
 }
 
@@ -47,9 +55,15 @@ func ExampleMustNew() {
 		tracing.WithServiceName("my-service"),
 		tracing.WithStdout(),
 	)
-	defer tracer.Shutdown(context.Background())
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
 
-	fmt.Printf("Service: %s\n", tracer.ServiceName())
+	if _, err := fmt.Printf("Service: %s\n", tracer.ServiceName()); err != nil {
+		panic(err)
+	}
 	// Output: Service: my-service
 }
 
@@ -59,7 +73,11 @@ func ExampleTracer_StartSpan() {
 		tracing.WithServiceName("my-service"),
 		tracing.WithStdout(),
 	)
-	defer tracer.Shutdown(context.Background())
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
 
 	ctx := context.Background()
 	ctx, span := tracer.StartSpan(ctx, "database-query")
@@ -76,7 +94,11 @@ func ExampleTracer_AddSpanEvent() {
 		tracing.WithServiceName("my-service"),
 		tracing.WithStdout(),
 	)
-	defer tracer.Shutdown(context.Background())
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
 
 	ctx := context.Background()
 	ctx, span := tracer.StartSpan(ctx, "cache-operation")
@@ -98,9 +120,16 @@ func ExampleTracer_ExtractTraceContext() {
 		tracing.WithServiceName("my-service"),
 		tracing.WithStdout(),
 	)
-	defer tracer.Shutdown(ctx)
+	defer func() {
+		if err := tracer.Shutdown(ctx); err != nil {
+			panic(err)
+		}
+	}()
 
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/users", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/api/users", nil)
+	if err != nil {
+		panic(err)
+	}
 	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
 	ctx = tracer.ExtractTraceContext(ctx, req.Header)
@@ -116,9 +145,15 @@ func ExampleWithSampleRate() {
 		tracing.WithStdout(),
 		tracing.WithSampleRate(0.1), // Sample 10% of requests
 	)
-	defer tracer.Shutdown(context.Background())
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
 
-	fmt.Printf("Service: %s\n", tracer.ServiceName())
+	if _, err := fmt.Printf("Service: %s\n", tracer.ServiceName()); err != nil {
+		panic(err)
+	}
 	// Output: Service: my-service
 }
 
@@ -128,7 +163,11 @@ func ExampleMiddleware() {
 		tracing.WithServiceName("my-service"),
 		tracing.WithStdout(),
 	)
-	defer tracer.Shutdown(context.Background())
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
 
 	// Create handler with middleware options
 	mux := http.NewServeMux()
@@ -153,9 +192,15 @@ func ExampleWithOTLP() {
 		tracing.WithServiceName("my-service"),
 		tracing.WithOTLP("localhost:4317", tracing.OTLPInsecure()),
 	)
-	defer tracer.Shutdown(context.Background())
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
 
-	fmt.Printf("Service: %s\n", tracer.ServiceName())
+	if _, err := fmt.Printf("Service: %s\n", tracer.ServiceName()); err != nil {
+		panic(err)
+	}
 	// Output: Service: my-service
 }
 
@@ -165,8 +210,14 @@ func ExampleWithOTLPHTTP() {
 		tracing.WithServiceName("my-service"),
 		tracing.WithOTLPHTTP("http://localhost:4318"),
 	)
-	defer tracer.Shutdown(context.Background())
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
 
-	fmt.Printf("Service: %s\n", tracer.ServiceName())
+	if _, err := fmt.Printf("Service: %s\n", tracer.ServiceName()); err != nil {
+		panic(err)
+	}
 	// Output: Service: my-service
 }

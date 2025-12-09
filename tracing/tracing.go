@@ -465,7 +465,7 @@ func (t *Tracer) StartSpan(ctx context.Context, name string, opts ...trace.SpanS
 		return ctx, trace.SpanFromContext(ctx)
 	}
 
-	// Check if context is already cancelled
+	// Check if context is already canceled
 	select {
 	case <-ctx.Done():
 		return ctx, trace.SpanFromContext(ctx)
@@ -573,10 +573,10 @@ func (t *Tracer) StartRequestSpan(ctx context.Context, req *http.Request, path s
 		return ctx, trace.SpanFromContext(ctx)
 	}
 
-	// Check if context is already cancelled
+	// Check if context is already canceled
 	select {
 	case <-ctx.Done():
-		t.emitDebug("Context cancelled before span creation", "path", path, "method", req.Method)
+		t.emitDebug("Context canceled before span creation", "path", path, "method", req.Method)
 		return ctx, trace.SpanFromContext(ctx)
 	default:
 	}
