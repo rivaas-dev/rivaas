@@ -2,7 +2,7 @@
 
 An HTTP router for Go, designed for cloud-native applications with comprehensive routing, middleware, and observability features.
 
-[![Go Version](https://img.shields.io/badge/go-%3E%3D1.23.0-blue.svg)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 ## Table of Contents
@@ -753,7 +753,7 @@ func CORS() router.HandlerFunc {
 go get rivaas.dev/router
 ```
 
-**Requirements**: Go 1.23.0 or higher
+**Requirements**: Go 1.25.0 or higher
 
 ## Quick Start
 
