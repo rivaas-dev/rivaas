@@ -94,7 +94,7 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 		if marshalErr == nil {
 			var detailsData any
 			if unmarshalErr := json.Unmarshal(detailsJSON, &detailsData); unmarshalErr == nil {
-				if fieldErrors, ok := detailsData.([]any); ok {
+				if fieldErrors, fieldErrorsOk := detailsData.([]any); fieldErrorsOk {
 					// It's a slice - convert each field error
 					for _, field := range fieldErrors {
 						apiErr := jsonAPIError{
@@ -104,8 +104,8 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 						}
 
 						// Extract field information from map
-						if fieldMap, ok := field.(map[string]any); ok {
-							if path, ok := fieldMap["path"].(string); ok && path != "" {
+						if fieldMap, fieldMapOk := field.(map[string]any); fieldMapOk {
+							if path, pathOk := fieldMap["path"].(string); pathOk && path != "" {
 								// Convert path to JSON Pointer format
 								// "email" -> "/data/attributes/email"
 								// "items.0.price" -> "/data/attributes/items/0/price"
@@ -114,13 +114,13 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 									Pointer: pointer,
 								}
 							}
-							if code, ok := fieldMap["code"].(string); ok && code != "" {
+							if code, codeOk := fieldMap["code"].(string); codeOk && code != "" {
 								apiErr.Code = code
 							}
-							if message, ok := fieldMap["message"].(string); ok && message != "" {
+							if message, messageOk := fieldMap["message"].(string); messageOk && message != "" {
 								apiErr.Detail = message
 							}
-							if meta, ok := fieldMap["meta"].(map[string]any); ok && len(meta) > 0 {
+							if meta, metaOk := fieldMap["meta"].(map[string]any); metaOk && len(meta) > 0 {
 								apiErr.Meta = meta
 							}
 						}
@@ -156,7 +156,7 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 		}
 
 		// Add code if available
-		if coded, ok := err.(ErrorCode); ok {
+		if coded, codedOk := err.(ErrorCode); codedOk {
 			apiErr.Code = coded.Code()
 		}
 

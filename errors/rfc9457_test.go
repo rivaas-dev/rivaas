@@ -142,7 +142,7 @@ func TestRFC9457_Format(t *testing.T) {
 
 			// Check custom error ID generator
 			if tt.formatter.ErrorIDGenerator != nil {
-				if id, ok := body.Extensions["error_id"].(string); ok {
+				if id, idOk := body.Extensions["error_id"].(string); idOk {
 					assert.Equal(t, "custom-id-123", id, "error_id")
 				}
 			}

@@ -84,12 +84,12 @@ func TestSimple_Format(t *testing.T) {
 			assert.Equal(t, tt.err.Error(), body["error"], "error")
 
 			// Check code if available
-			if coded, ok := tt.err.(ErrorCode); ok {
+			if coded, codedOk := tt.err.(ErrorCode); codedOk {
 				assert.Equal(t, coded.Code(), body["code"], "code")
 			}
 
 			// Check details if available
-			if detailed, ok := tt.err.(ErrorDetails); ok {
+			if detailed, detailedOk := tt.err.(ErrorDetails); detailedOk {
 				assert.NotNil(t, body["details"], "details not found in body")
 				// Details should be present
 				_ = detailed.Details()
