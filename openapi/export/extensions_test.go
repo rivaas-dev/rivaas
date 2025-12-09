@@ -387,9 +387,9 @@ func assertExtensionValue(t *testing.T, got, want any) {
 
 	if gotIsSlice && wantIsStringSlice {
 		// Convert []string to []any for comparison
-		wantAny := make([]any, len(wantSlice))
-		for i, s := range wantSlice {
-			wantAny[i] = s
+		wantAny := make([]any, 0, len(wantSlice))
+		for _, s := range wantSlice {
+			wantAny = append(wantAny, s)
 		}
 		assert.Equal(t, wantAny, gotSlice)
 	} else {

@@ -348,20 +348,23 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				specJSON []byte
 				etag     string
 				err      error
-			}, numGoroutines)
+			}, 0, numGoroutines)
+			var mu sync.Mutex
 
 			var wg sync.WaitGroup
-			for i := range numGoroutines {
+			for range numGoroutines {
 				wg.Add(1)
-				go func(idx int) {
+				go func() {
 					defer wg.Done()
 					specJSON, etag, err := manager.GenerateSpec()
-					results[idx] = struct {
+					mu.Lock()
+					results = append(results, struct {
 						specJSON []byte
 						etag     string
 						err      error
-					}{specJSON, etag, err}
-				}(i)
+					}{specJSON, etag, err})
+					mu.Unlock()
+				}()
 			}
 			wg.Wait()
 

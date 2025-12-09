@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Package build provides OpenAPI specification building from route metadata.
 //
 // The Builder type accumulates API metadata (servers, tags, security schemes)
@@ -353,9 +367,9 @@ func paramSpecToParameter(ps schema.ParamSpec, sg *schema.SchemaGenerator) model
 	}
 
 	if len(ps.Enum) > 0 {
-		s.Enum = make([]any, len(ps.Enum))
-		for i, v := range ps.Enum {
-			s.Enum[i] = v
+		s.Enum = make([]any, 0, len(ps.Enum))
+		for _, v := range ps.Enum {
+			s.Enum = append(s.Enum, v)
 		}
 	}
 
@@ -408,9 +422,9 @@ func constraintToSchema(c PathConstraint) *model.Schema {
 	case ConstraintRegex:
 		return &model.Schema{Kind: model.KindString, Pattern: c.Pattern}
 	case ConstraintEnum:
-		enum := make([]any, len(c.Enum))
-		for i, v := range c.Enum {
-			enum[i] = v
+		enum := make([]any, 0, len(c.Enum))
+		for _, v := range c.Enum {
+			enum = append(enum, v)
 		}
 
 		return &model.Schema{Kind: model.KindString, Enum: enum}

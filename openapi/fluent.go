@@ -34,7 +34,7 @@ func isZeroValue(v any) bool {
 	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
 		return rv.IsNil()
 	case reflect.Struct:
-		for i := 0; i < rv.NumField(); i++ {
+		for i := range rv.NumField() {
 			field := rv.Field(i)
 			// Skip unexported fields - they cannot be accessed via Interface()
 			if !field.CanInterface() {

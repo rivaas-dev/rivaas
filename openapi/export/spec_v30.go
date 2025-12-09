@@ -130,8 +130,8 @@ func info30(in model.Info, warns *[]Warning) InfoV30 {
 }
 
 func servers30(in []model.Server) []ServerV30 {
-	out := make([]ServerV30, len(in))
-	for i, s := range in {
+	out := make([]ServerV30, 0, len(in))
+	for _, s := range in {
 		server := ServerV30{
 			URL:         s.URL,
 			Description: s.Description,
@@ -148,15 +148,15 @@ func servers30(in []model.Server) []ServerV30 {
 			}
 		}
 		server.Extensions = copyExtensions(s.Extensions, "3.0.4")
-		out[i] = server
+		out = append(out, server)
 	}
 
 	return out
 }
 
 func tags30(in []model.Tag) []TagV30 {
-	out := make([]TagV30, len(in))
-	for i, t := range in {
+	out := make([]TagV30, 0, len(in))
+	for _, t := range in {
 		tag := TagV30{
 			Name:        t.Name,
 			Description: t.Description,
@@ -165,16 +165,16 @@ func tags30(in []model.Tag) []TagV30 {
 			tag.ExternalDocs = externalDocs30(t.ExternalDocs)
 		}
 		tag.Extensions = copyExtensions(t.Extensions, "3.0.4")
-		out[i] = tag
+		out = append(out, tag)
 	}
 
 	return out
 }
 
 func security30(in []model.SecurityRequirement) []SecurityRequirementV30 {
-	out := make([]SecurityRequirementV30, len(in))
-	for i, s := range in {
-		out[i] = SecurityRequirementV30(s)
+	out := make([]SecurityRequirementV30, 0, len(in))
+	for _, s := range in {
+		out = append(out, SecurityRequirementV30(s))
 	}
 
 	return out
@@ -243,9 +243,9 @@ func operation30(in *model.Operation, warns *[]Warning) *OperationV30 {
 }
 
 func parameters30(in []model.Parameter, warns *[]Warning) []ParameterV30 {
-	out := make([]ParameterV30, len(in))
-	for i, p := range in {
-		out[i] = parameter30(p, warns)
+	out := make([]ParameterV30, 0, len(in))
+	for _, p := range in {
+		out = append(out, parameter30(p, warns))
 	}
 
 	return out

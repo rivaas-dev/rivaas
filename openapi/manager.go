@@ -157,9 +157,9 @@ func NewManager(cfg *Config) *Manager {
 	}
 
 	if len(cfg.DefaultSecurity) > 0 {
-		sec := make([]model.SecurityRequirement, len(cfg.DefaultSecurity))
-		for i, r := range cfg.DefaultSecurity {
-			sec[i] = model.SecurityRequirement(r)
+		sec := make([]model.SecurityRequirement, 0, len(cfg.DefaultSecurity))
+		for _, r := range cfg.DefaultSecurity {
+			sec = append(sec, model.SecurityRequirement(r))
 		}
 		b.SetGlobalSecurity(sec)
 	}
@@ -300,9 +300,9 @@ func extractTypedConstraints(v reflect.Value) map[string]PathConstraint {
 
 		// Extract Enum field for enum constraints
 		if enumField := constraint.FieldByName("Enum"); enumField.IsValid() && enumField.Kind() == reflect.Slice {
-			pc.Enum = make([]string, enumField.Len())
+			pc.Enum = make([]string, 0, enumField.Len())
 			for i := range enumField.Len() {
-				pc.Enum[i] = enumField.Index(i).String()
+				pc.Enum = append(pc.Enum, enumField.Index(i).String())
 			}
 		}
 
@@ -361,36 +361,36 @@ func (m *Manager) GenerateSpec() ([]byte, string, error) {
 	}
 
 	// Build enriched routes
-	enriched := make([]build.EnrichedRoute, len(m.routes))
-	for i, w := range m.routes {
+	enriched := make([]build.EnrichedRoute, 0, len(m.routes))
+	for _, w := range m.routes {
 		ri := w.Info()
 		doc := w.GetFrozenDoc()
 		var buildDoc *build.RouteDoc
 		if doc != nil {
 			// Convert request examples
-			requestNamedExamples := make([]build.ExampleData, len(doc.RequestNamedExamples))
-			for j, ex := range doc.RequestNamedExamples {
-				requestNamedExamples[j] = build.ExampleData{
+			requestNamedExamples := make([]build.ExampleData, 0, len(doc.RequestNamedExamples))
+			for _, ex := range doc.RequestNamedExamples {
+				requestNamedExamples = append(requestNamedExamples, build.ExampleData{
 					Name:          ex.Name(),
 					Summary:       ex.Summary(),
 					Description:   ex.Description(),
 					Value:         ex.Value(),
 					ExternalValue: ex.ExternalValue(),
-				}
+				})
 			}
 
 			// Convert response examples
 			responseNamedExamples := make(map[int][]build.ExampleData)
 			for status, examples := range doc.ResponseNamedExamples {
-				responseNamedExamples[status] = make([]build.ExampleData, len(examples))
-				for k, ex := range examples {
-					responseNamedExamples[status][k] = build.ExampleData{
+				responseNamedExamples[status] = make([]build.ExampleData, 0, len(examples))
+				for _, ex := range examples {
+					responseNamedExamples[status] = append(responseNamedExamples[status], build.ExampleData{
 						Name:          ex.Name(),
 						Summary:       ex.Summary(),
 						Description:   ex.Description(),
 						Value:         ex.Value(),
 						ExternalValue: ex.ExternalValue(),
-					}
+					})
 				}
 			}
 
@@ -412,14 +412,14 @@ func (m *Manager) GenerateSpec() ([]byte, string, error) {
 				Security:              convertSecurityReqs(doc.Security),
 			}
 		}
-		enriched[i] = build.EnrichedRoute{
+		enriched = append(enriched, build.EnrichedRoute{
 			RouteInfo: build.RouteInfo{
 				Method:          ri.Method,
 				Path:            ri.Path,
 				PathConstraints: convertPathConstraints(ri.PathConstraints),
 			},
 			Doc: buildDoc,
-		}
+		})
 	}
 
 	// Build spec
@@ -513,8 +513,8 @@ func (m *Manager) Warnings() []export.Warning {
 	}
 
 	// Return a copy to prevent external modification
-	result := make([]export.Warning, len(m.lastWarnings))
-	copy(result, m.lastWarnings)
+	result := make([]export.Warning, 0, len(m.lastWarnings))
+	result = append(result, m.lastWarnings...)
 
 	return result
 }
@@ -524,12 +524,12 @@ func convertSecurityReqs(reqs []SecurityReq) []build.SecurityReq {
 	if len(reqs) == 0 {
 		return nil
 	}
-	result := make([]build.SecurityReq, len(reqs))
-	for i, r := range reqs {
-		result[i] = build.SecurityReq{
+	result := make([]build.SecurityReq, 0, len(reqs))
+	for _, r := range reqs {
+		result = append(result, build.SecurityReq{
 			Scheme: r.Scheme,
 			Scopes: r.Scopes,
-		}
+		})
 	}
 
 	return result

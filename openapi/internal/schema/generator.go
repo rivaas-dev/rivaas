@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Package schema provides schema generation from Go types using reflection.
 //
 // The SchemaGenerator type converts Go types to OpenAPI schemas, handling
@@ -325,9 +339,9 @@ func applyValidationConstraints(s *model.Schema, f reflect.StructField) {
 			}
 		case strings.HasPrefix(part, "oneof="):
 			vals := strings.Fields(strings.TrimPrefix(part, "oneof="))
-			s.Enum = make([]any, len(vals))
-			for i, v := range vals {
-				s.Enum[i] = v
+			s.Enum = make([]any, 0, len(vals))
+			for _, v := range vals {
+				s.Enum = append(s.Enum, v)
 			}
 		}
 	}

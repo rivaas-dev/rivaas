@@ -215,15 +215,19 @@ func TestRouteWrapper_Freeze_Concurrent(t *testing.T) {
 
 		var wg sync.WaitGroup
 		const numGoroutines = 100
-		results := make([]*RouteDoc, numGoroutines)
+		results := make([]*RouteDoc, 0, numGoroutines)
+		var mu sync.Mutex
 
 		// Concurrent freeze calls
-		for i := range numGoroutines {
+		for range numGoroutines {
 			wg.Add(1)
-			go func(idx int) {
+			go func() {
 				defer wg.Done()
-				results[idx] = rw.Freeze()
-			}(i)
+				doc := rw.Freeze()
+				mu.Lock()
+				results = append(results, doc)
+				mu.Unlock()
+			}()
 		}
 		wg.Wait()
 
@@ -243,15 +247,19 @@ func TestRouteWrapper_Freeze_Concurrent(t *testing.T) {
 
 		var wg sync.WaitGroup
 		const numGoroutines = 100
-		results := make([]*RouteDoc, numGoroutines)
+		results := make([]*RouteDoc, 0, numGoroutines)
+		var mu sync.Mutex
 
 		// Concurrent reads after freeze
-		for i := range numGoroutines {
+		for range numGoroutines {
 			wg.Add(1)
-			go func(idx int) {
+			go func() {
 				defer wg.Done()
-				results[idx] = rw.GetFrozenDoc()
-			}(i)
+				doc := rw.GetFrozenDoc()
+				mu.Lock()
+				results = append(results, doc)
+				mu.Unlock()
+			}()
 		}
 		wg.Wait()
 

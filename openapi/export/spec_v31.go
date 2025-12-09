@@ -491,7 +491,7 @@ func servers31(in []model.Server, warns *[]Warning) []ServerV31 {
 	if len(in) == 0 {
 		return []ServerV31{{URL: "/"}}
 	}
-	out := make([]ServerV31, len(in))
+	out := make([]ServerV31, 0, len(in))
 	for i, s := range in {
 		server := ServerV31{
 			URL:         s.URL,
@@ -501,7 +501,7 @@ func servers31(in []model.Server, warns *[]Warning) []ServerV31 {
 			server.Variables = convertServerVariables(s.Variables, i, warns)
 		}
 		server.Extensions = copyExtensions(s.Extensions, "3.1.2")
-		out[i] = server
+		out = append(out, server)
 	}
 
 	return out
@@ -553,8 +553,8 @@ func validateServerVariableEnum(v *model.ServerVariable, serverIdx int, name str
 }
 
 func tags31(in []model.Tag) []TagV31 {
-	out := make([]TagV31, len(in))
-	for i, t := range in {
+	out := make([]TagV31, 0, len(in))
+	for _, t := range in {
 		tag := TagV31{
 			Name:        t.Name,
 			Description: t.Description,
@@ -563,16 +563,16 @@ func tags31(in []model.Tag) []TagV31 {
 			tag.ExternalDocs = externalDocs31(t.ExternalDocs)
 		}
 		tag.Extensions = copyExtensions(t.Extensions, "3.1.2")
-		out[i] = tag
+		out = append(out, tag)
 	}
 
 	return out
 }
 
 func security31(in []model.SecurityRequirement) []SecurityRequirementV31 {
-	out := make([]SecurityRequirementV31, len(in))
-	for i, s := range in {
-		out[i] = SecurityRequirementV31(s)
+	out := make([]SecurityRequirementV31, 0, len(in))
+	for _, s := range in {
+		out = append(out, SecurityRequirementV31(s))
 	}
 
 	return out
@@ -666,9 +666,9 @@ func operation31(in *model.Operation, warns *[]Warning) *OperationV31 {
 }
 
 func parameters31(in []model.Parameter, warns *[]Warning) []ParameterV31 {
-	out := make([]ParameterV31, len(in))
-	for i, p := range in {
-		out[i] = parameter31(p, warns)
+	out := make([]ParameterV31, 0, len(in))
+	for _, p := range in {
+		out = append(out, parameter31(p, warns))
 	}
 
 	return out

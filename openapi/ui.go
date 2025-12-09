@@ -434,9 +434,9 @@ func (c *uiConfig) ToConfigMap(specURL string) map[string]any {
 	}
 
 	if len(c.SupportedSubmitMethods) > 0 {
-		methods := make([]string, len(c.SupportedSubmitMethods))
-		for i, method := range c.SupportedSubmitMethods {
-			methods[i] = string(method)
+		methods := make([]string, 0, len(c.SupportedSubmitMethods))
+		for _, method := range c.SupportedSubmitMethods {
+			methods = append(methods, string(method))
 		}
 		m["supportedSubmitMethods"] = methods
 	}
@@ -446,9 +446,9 @@ func (c *uiConfig) ToConfigMap(specURL string) map[string]any {
 			"defaultExpanded": c.RequestSnippets.DefaultExpanded,
 		}
 		if len(c.RequestSnippets.Languages) > 0 {
-			langs := make([]string, len(c.RequestSnippets.Languages))
-			for i, lang := range c.RequestSnippets.Languages {
-				langs[i] = string(lang)
+			langs := make([]string, 0, len(c.RequestSnippets.Languages))
+			for _, lang := range c.RequestSnippets.Languages {
+				langs = append(langs, string(lang))
 			}
 			snippets["languages"] = langs
 		}
