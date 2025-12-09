@@ -35,7 +35,9 @@ func ExampleValidate() {
 		var verr *validation.Error
 		if errors.As(err, &verr) {
 			for _, fieldErr := range verr.Fields {
-				fmt.Printf("%s: %s\n", fieldErr.Path, fieldErr.Message)
+				if _, err := fmt.Printf("%s: %s\n", fieldErr.Path, fieldErr.Message); err != nil {
+					panic(err)
+				}
 			}
 		}
 	}
@@ -54,7 +56,9 @@ func ExampleNew() {
 		}),
 	)
 	if err != nil {
-		fmt.Printf("Failed to create validator: %v\n", err)
+		if _, printErr := fmt.Printf("Failed to create validator: %v\n", err); printErr != nil {
+			panic(printErr)
+		}
 		return
 	}
 
@@ -64,9 +68,13 @@ func ExampleNew() {
 
 	user := User{Email: "john@example.com"}
 	if validateErr := validator.Validate(context.Background(), &user); validateErr != nil {
-		fmt.Printf("Validation failed: %v\n", validateErr)
+		if _, err := fmt.Printf("Validation failed: %v\n", validateErr); err != nil {
+			panic(err)
+		}
 	} else {
-		fmt.Println("Validation passed")
+		if _, err := fmt.Println("Validation passed"); err != nil {
+			panic(err)
+		}
 	}
 	// Output: Validation passed
 }
@@ -84,9 +92,13 @@ func ExampleMustNew() {
 
 	user := User{Name: "Alice"}
 	if err := validator.Validate(context.Background(), &user); err != nil {
-		fmt.Printf("Validation failed: %v\n", err)
+		if _, printErr := fmt.Printf("Validation failed: %v\n", err); printErr != nil {
+			panic(printErr)
+		}
 	} else {
-		fmt.Println("User is valid")
+		if _, printErr := fmt.Println("User is valid"); printErr != nil {
+			panic(printErr)
+		}
 	}
 	// Output: User is valid
 }
@@ -101,15 +113,22 @@ func ExampleValidatePartial() {
 
 	// Simulate a PATCH request that only updates email
 	rawJSON := []byte(`{"email": "new@example.com"}`)
-	presence, _ := validation.ComputePresence(rawJSON)
+	presence, err := validation.ComputePresence(rawJSON)
+	if err != nil {
+		panic(err)
+	}
 
 	user := User{Name: "Existing Name", Email: "new@example.com", Age: 25}
-	err := validation.ValidatePartial(context.Background(), &user, presence)
+	err = validation.ValidatePartial(context.Background(), &user, presence)
 
 	if err != nil {
-		fmt.Printf("Validation failed: %v\n", err)
+		if _, printErr := fmt.Printf("Validation failed: %v\n", err); printErr != nil {
+			panic(printErr)
+		}
 	} else {
-		fmt.Println("Validation passed")
+		if _, printErr := fmt.Println("Validation passed"); printErr != nil {
+			panic(printErr)
+		}
 	}
 	// Output: Validation passed
 }
@@ -127,8 +146,12 @@ func ExampleValidator_Validate() {
 	if err != nil {
 		var verr *validation.Error
 		if errors.As(err, &verr) {
-			fmt.Printf("Found %d error(s)\n", len(verr.Fields))
-			fmt.Printf("First error: %s\n", verr.Fields[0].Message)
+			if _, printErr := fmt.Printf("Found %d error(s)\n", len(verr.Fields)); printErr != nil {
+				panic(printErr)
+			}
+			if _, printErr := fmt.Printf("First error: %s\n", verr.Fields[0].Message); printErr != nil {
+				panic(printErr)
+			}
 		}
 	}
 	// Output:
@@ -161,11 +184,13 @@ func ExampleValidate_withOptions() {
 		var verr *validation.Error
 		if errors.As(err, &verr) {
 			for _, fieldErr := range verr.Fields {
-				fmt.Printf("%s: %s (value: %v)\n",
+				if _, printErr := fmt.Printf("%s: %s (value: %v)\n",
 					fieldErr.Path,
 					fieldErr.Message,
 					fieldErr.Meta["value"],
-				)
+				); printErr != nil {
+					panic(printErr)
+				}
 			}
 		}
 	}
@@ -188,21 +213,35 @@ func ExampleComputePresence() {
 
 	presence, err := validation.ComputePresence(rawJSON)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		if _, printErr := fmt.Printf("Error: %v\n", err); printErr != nil {
+			panic(printErr)
+		}
 		return
 	}
 
 	// Check if specific paths are present
-	fmt.Printf("user.name present: %v\n", presence.Has("user.name"))
-	fmt.Printf("user.email present: %v\n", presence.Has("user.email"))
-	fmt.Printf("items.0.name present: %v\n", presence.Has("items.0.name"))
-	fmt.Printf("items.1.name present: %v\n", presence.Has("items.1.name"))
+	if _, err := fmt.Printf("user.name present: %v\n", presence.Has("user.name")); err != nil {
+		panic(err)
+	}
+	if _, err := fmt.Printf("user.email present: %v\n", presence.Has("user.email")); err != nil {
+		panic(err)
+	}
+	if _, err := fmt.Printf("items.0.name present: %v\n", presence.Has("items.0.name")); err != nil {
+		panic(err)
+	}
+	if _, err := fmt.Printf("items.1.name present: %v\n", presence.Has("items.1.name")); err != nil {
+		panic(err)
+	}
 
 	// Get leaf paths (fields that aren't prefixes of others)
 	leaves := presence.LeafPaths()
 	// Sort for consistent output in example
-	fmt.Printf("Leaf paths count: %d\n", len(leaves))
-	fmt.Printf("Sample leaf: %s\n", leaves[0])
+	if _, err := fmt.Printf("Leaf paths count: %d\n", len(leaves)); err != nil {
+		panic(err)
+	}
+	if _, err := fmt.Printf("Sample leaf: %s\n", leaves[0]); err != nil {
+		panic(err)
+	}
 
 	// Output:
 	// user.name present: true

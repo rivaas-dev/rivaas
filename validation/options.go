@@ -97,8 +97,8 @@ func (c *config) clone() *config {
 	clone := *c
 	// Deep copy slices
 	if c.customTags != nil {
-		clone.customTags = make([]customTag, len(c.customTags))
-		copy(clone.customTags, c.customTags)
+		clone.customTags = make([]customTag, 0, len(c.customTags))
+		clone.customTags = append(clone.customTags, c.customTags...)
 	}
 
 	return &clone

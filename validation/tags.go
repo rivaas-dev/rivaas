@@ -26,7 +26,9 @@ import (
 // validateWithTags validates using go-playground/validator struct tags ([StrategyTags]).
 // It supports both full and partial validation modes.
 func (v *Validator) validateWithTags(val any, cfg *config) error {
-	v.initTagValidator()
+	if err := v.initTagValidator(); err != nil {
+		return fmt.Errorf("initialize tag validator: %w", err)
+	}
 
 	rv := reflect.ValueOf(val)
 	if rv.Kind() == reflect.Ptr {
@@ -207,7 +209,7 @@ func getJSONFieldName(field reflect.StructField) string {
 // buildFieldMap builds a map of JSON field names to field indices for a struct type.
 func buildFieldMap(structType reflect.Type) map[string]int {
 	fieldMap := make(map[string]int, structType.NumField())
-	for i := 0; i < structType.NumField(); i++ {
+	for i := range structType.NumField() {
 		field := structType.Field(i)
 		jsonName := getJSONFieldName(field)
 		if jsonName != "" && jsonName != "-" {

@@ -249,7 +249,7 @@ func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy
 		}
 		// Check if struct has any validation tags
 		rt := rv.Type()
-		for i := 0; i < rt.NumField(); i++ {
+		for i := range rt.NumField() {
 			field := rt.Field(i)
 			if field.Tag.Get("validate") != "" {
 				return true

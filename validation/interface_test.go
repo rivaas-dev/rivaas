@@ -687,7 +687,7 @@ func TestValidateWithInterface_ContextCancellation(t *testing.T) {
 		wantError bool
 	}{
 		{
-			name: "cancelled context should still validate",
+			name: "canceled context should still validate",
 			setupCtx: func(t *testing.T) context.Context {
 				t.Helper()
 				ctx, cancel := context.WithCancel(t.Context())
@@ -696,10 +696,10 @@ func TestValidateWithInterface_ContextCancellation(t *testing.T) {
 				return ctx
 			},
 			user:      &userWithContextValidator{Name: "John"},
-			wantError: false, // Validation should still work even with cancelled context
+			wantError: false, // Validation should still work even with canceled context
 		},
 		{
-			name: "cancelled context with invalid user",
+			name: "canceled context with invalid user",
 			setupCtx: func(t *testing.T) context.Context {
 				t.Helper()
 				ctx, cancel := context.WithCancel(t.Context())

@@ -125,7 +125,8 @@ func FuzzValidateJSONSchema(f *testing.F) {
 
 		ctx := t.Context()
 
-		// Validation should never panic
+		// Note: Validation errors are intentionally ignored in fuzz testing.
+		// We're only checking that validation doesn't panic, not correctness.
 		_ = Validate(ctx, &data,
 			WithStrategy(StrategyJSONSchema),
 			WithCustomSchema("fuzz-schema", schema),
@@ -188,7 +189,7 @@ func FuzzValidationError(f *testing.F) {
 		verr.Add(path, code, message, nil)
 		verr.Add(path, code, message, map[string]any{"key": "value"})
 
-		// These operations should never panic
+		// Note: Return values intentionally ignored - we're testing for panics, not correctness.
 		_ = verr.Error()
 		_ = verr.HasErrors()
 		_ = verr.HasCode(code)
@@ -213,8 +214,9 @@ func FuzzFieldError(f *testing.F) {
 			Message: message,
 		}
 
-		// These should never panic
+		// Note: Return values intentionally ignored - we're testing for panics, not correctness.
 		_ = fe.Error()
+		// FieldError.Unwrap() returns nil (no wrapped error), safe to ignore in fuzz test
 		_ = fe.Unwrap()
 	})
 }

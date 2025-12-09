@@ -52,6 +52,7 @@ type Validator struct {
 	// Tag validator (go-playground/validator)
 	tagValidator     *validator.Validate
 	tagValidatorOnce sync.Once
+	tagValidatorErr  error // stores init error for deferred checking
 
 	// Schema cache for JSON Schema validation
 	schemaCache   map[string]*schemaCacheEntry
@@ -97,8 +98,9 @@ func New(opts ...Option) (*Validator, error) {
 		schemaCache: make(map[string]*schemaCacheEntry),
 	}
 
-	// Initialize tag validator
-	v.initTagValidator()
+	if err := v.initTagValidator(); err != nil {
+		return nil, fmt.Errorf("initialize tag validator: %w", err)
+	}
 
 	return v, nil
 }
@@ -124,7 +126,8 @@ func MustNew(opts ...Option) *Validator {
 }
 
 // initTagValidator initializes the go-playground/validator instance for [StrategyTags].
-func (v *Validator) initTagValidator() {
+// This method is safe for concurrent use.
+func (v *Validator) initTagValidator() error {
 	v.tagValidatorOnce.Do(func() {
 		v.tagValidator = validator.New(validator.WithRequiredStructEnabled())
 
@@ -144,20 +147,20 @@ func (v *Validator) initTagValidator() {
 			return name
 		})
 
-		// Register built-in validators
 		if err := v.registerBuiltinValidators(); err != nil {
-			// Log warning but don't fail - built-in validators are nice-to-have
-			// In production, you'd use a proper logger here
-			fmt.Printf("warning: failed to register built-in validators: %v\n", err)
+			v.tagValidatorErr = fmt.Errorf("register built-in validators: %w", err)
+			return
 		}
 
-		// Register custom tags from config
 		for _, ct := range v.cfg.customTags {
 			if err := v.tagValidator.RegisterValidation(ct.name, ct.fn); err != nil {
-				fmt.Printf("warning: failed to register custom tag %s: %v\n", ct.name, err)
+				v.tagValidatorErr = fmt.Errorf("register custom tag %q: %w", ct.name, err)
+				return
 			}
 		}
 	})
+
+	return v.tagValidatorErr
 }
 
 // Built-in regex patterns for custom validators (username, slug).

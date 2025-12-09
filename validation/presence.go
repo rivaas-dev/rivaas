@@ -75,12 +75,12 @@ func (pm PresenceMap) LeafPaths() []string {
 	sort.Strings(paths)
 
 	// Use single-pass algorithm: if next path has current as prefix, current is not a leaf
-	isLeaf := make([]bool, len(paths))
-	for i := range isLeaf {
-		isLeaf[i] = true
+	isLeaf := make([]bool, 0, len(paths))
+	for range paths {
+		isLeaf = append(isLeaf, true)
 	}
 
-	for i := 0; i < len(paths)-1; i++ {
+	for i := range len(paths) - 1 {
 		// If next path has current as prefix, current is not a leaf
 		if strings.HasPrefix(paths[i+1], paths[i]+".") {
 			isLeaf[i] = false

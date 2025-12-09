@@ -133,13 +133,13 @@ func pruneByPresence(data any, prefix string, pm PresenceMap, depth int) any {
 
 	case []any:
 		// Keep array length with nil placeholders
-		out := make([]any, len(t))
-		for i, v := range t {
-			path := prefix + "." + strconv.Itoa(i)
+		out := make([]any, 0, len(t))
+		for _, v := range t {
+			path := prefix + "." + strconv.Itoa(len(out))
 			if pm.HasPrefix(path) {
-				out[i] = pruneByPresence(v, path, pm, depth+1)
+				out = append(out, pruneByPresence(v, path, pm, depth+1))
 			} else {
-				out[i] = nil
+				out = append(out, nil)
 			}
 		}
 
