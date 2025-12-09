@@ -379,7 +379,7 @@ func TestStress_RequestMetricsLifecycle(t *testing.T) {
 			defer wg.Done()
 			for j := range requestsPerGoroutine {
 				// Full request lifecycle
-				m := recorder.Start(ctx)
+				m := recorder.BeginRequest(ctx)
 				if m == nil {
 					t.Error("Start returned nil for enabled recorder")
 					continue
@@ -417,6 +417,12 @@ func TestStress_PrometheusServerStability(t *testing.T) {
 		WithServiceName("prometheus-stress"),
 	)
 
+	// Start the metrics server
+	err := recorder.Start(t.Context())
+	if err != nil {
+		t.Skipf("Could not start metrics server: %v", err)
+	}
+
 	// Wait for server to start
 	time.Sleep(100 * time.Millisecond)
 
@@ -426,7 +432,7 @@ func TestStress_PrometheusServerStability(t *testing.T) {
 	}
 
 	// Try to wait for server
-	err := waitForMetricsServer(t, "localhost"+serverAddr, 2*time.Second)
+	err = waitForMetricsServer(t, "localhost"+serverAddr, 2*time.Second)
 	if err != nil {
 		t.Skipf("Could not connect to metrics server: %v", err)
 	}

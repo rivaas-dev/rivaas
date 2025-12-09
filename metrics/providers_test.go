@@ -144,18 +144,25 @@ func TestPortDiscovery(t *testing.T) {
 		require.NoError(t, err)
 		defer config1.Shutdown(t.Context())
 
+		// Start the first server
+		err = config1.Start(t.Context())
+		require.NoError(t, err, "StartServer should not error")
+
 		// Wait for server to start
 		err = waitForMetricsServer(t, "localhost:19307", 1*time.Second)
 		require.NoError(t, err, "First server should start successfully")
 
 		// Try to use the same port in strict mode - should fail to start server
-		// Note: New() still succeeds, but the server goroutine will fail
+		// Note: New() still succeeds, but StartServer will fail
 		config2, err := New(
 			WithPrometheus(":19307", "/metrics"),
 			WithServiceName("test-service-2"),
 			WithStrictPort(),
 		)
 		require.NoError(t, err) // New() succeeds
+
+		// Start the second server - this will fail silently (logged)
+		_ = config2.Start(t.Context())
 
 		// Wait a bit for server start attempt
 		time.Sleep(100 * time.Millisecond)
@@ -177,6 +184,10 @@ func TestPortDiscovery(t *testing.T) {
 		require.NoError(t, err)
 		defer config1.Shutdown(t.Context())
 
+		// Start the first server
+		err = config1.Start(t.Context())
+		require.NoError(t, err, "StartServer should not error")
+
 		// Wait for server to start
 		time.Sleep(100 * time.Millisecond)
 
@@ -188,6 +199,10 @@ func TestPortDiscovery(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer config2.Shutdown(t.Context())
+
+		// Start the second server - should find alternative port
+		err = config2.Start(t.Context())
+		require.NoError(t, err, "StartServer should find alternative port")
 
 		// Should have found a different port
 		assert.NotEqual(t, ":19308", config2.ServerAddress())
@@ -463,7 +478,7 @@ func TestMetricsWithDisabledState(t *testing.T) {
 	_ = recorder.RecordHistogram(ctx, "test", 1.0)
 	_ = recorder.SetGauge(ctx, "test", 1.0)
 
-	result := recorder.Start(ctx)
+	result := recorder.BeginRequest(ctx)
 	assert.Nil(t, result)
 
 	// Shutdown should succeed

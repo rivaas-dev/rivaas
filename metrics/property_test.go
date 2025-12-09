@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestProperty_MetricCountNeverExceedsLimit verifies the invariant that
@@ -217,16 +218,16 @@ func TestProperty_DisabledRecorderNeverRecords(t *testing.T) {
 
 	// All metric operations should be no-ops
 	err := recorder.IncrementCounter(ctx, "test_counter")
-	assert.NoError(t, err, "IncrementCounter on disabled recorder should not error")
+	require.NoError(t, err, "IncrementCounter on disabled recorder should not error")
 
 	err = recorder.RecordHistogram(ctx, "test_histogram", 1.0)
-	assert.NoError(t, err, "RecordHistogram on disabled recorder should not error")
+	require.NoError(t, err, "RecordHistogram on disabled recorder should not error")
 
 	err = recorder.SetGauge(ctx, "test_gauge", 1.0)
-	assert.NoError(t, err, "SetGauge on disabled recorder should not error")
+	require.NoError(t, err, "SetGauge on disabled recorder should not error")
 
 	// Start should return nil
-	result := recorder.Start(ctx)
+	result := recorder.BeginRequest(ctx)
 	assert.Nil(t, result, "Start on disabled recorder should return nil")
 
 	// Shutdown should succeed

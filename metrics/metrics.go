@@ -186,6 +186,9 @@ type Recorder struct {
 	provider            Provider
 	providerSetCount    int         // Tracks how many times a provider option was called
 	isShuttingDown      atomic.Bool // Prevents server restart during shutdown
+	isStarted           atomic.Bool // Tracks if Start() has been called
+	providerDeferred    atomic.Bool // If true, provider initialization is deferred to Start()
+	warnNotStarted      sync.Once   // Warn once if BeginRequest called before Start()
 	enabled             bool
 	autoStartServer     bool
 	strictPort          bool // If true, fail instead of finding alternative port
@@ -374,6 +377,49 @@ func (r *Recorder) Path() string {
 	}
 
 	return r.metricsPath
+}
+
+// Start starts the metrics server if auto-start is enabled.
+// The context is used for the server's lifecycle - when cancelled, it signals shutdown.
+// This method is idempotent; calling it multiple times is safe.
+//
+// For Prometheus provider with auto-start enabled, this starts the HTTP server
+// that exposes the /metrics endpoint.
+//
+// Example:
+//
+//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+//	defer cancel()
+//
+//	recorder, _ := metrics.New(metrics.WithPrometheus(":9090", "/metrics"))
+//	if err := recorder.Start(ctx); err != nil {
+//	    log.Fatal(err)
+//	}
+func (r *Recorder) Start(ctx context.Context) error {
+	if !r.enabled {
+		return nil
+	}
+
+	// Idempotent: only start once
+	if !r.isStarted.CompareAndSwap(false, true) {
+		return nil // Already started
+	}
+
+	// Initialize deferred providers (OTLP) with lifecycle context for proper shutdown
+	if r.providerDeferred.Load() {
+		if err := r.initOTLPProvider(ctx); err != nil {
+			r.isStarted.Store(false) // Reset on failure to allow retry
+			return fmt.Errorf("failed to initialize OTLP provider: %w", err)
+		}
+		r.providerDeferred.Store(false) // Initialization complete
+	}
+
+	// Start the metrics server if auto-start is enabled and using Prometheus
+	if r.autoStartServer && r.provider == PrometheusProvider {
+		r.startMetricsServer(ctx)
+	}
+
+	return nil
 }
 
 // Shutdown gracefully shuts down the metrics system, flushing any pending metrics.

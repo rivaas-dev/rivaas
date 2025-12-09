@@ -311,7 +311,7 @@ func TestShutdownPreventsServerRestart(t *testing.T) {
 	assert.True(t, recorder.isShuttingDown.Load(), "Shutdown flag should be set")
 
 	// Try to start server again (should be prevented)
-	recorder.startMetricsServer()
+	recorder.startMetricsServer(t.Context())
 
 	// Server should not be running
 	recorder.serverMutex.Lock()
@@ -342,7 +342,7 @@ func TestContextCancellationInStart(t *testing.T) {
 
 	// Start should not panic with cancelled context
 	// It returns a metrics object; the OTel SDK handles cancellation internally
-	result := recorder.Start(ctx)
+	result := recorder.BeginRequest(ctx)
 	assert.NotNil(t, result, "Start returns metrics object even with cancelled context (OTel SDK handles cancellation)")
 
 	// Finish should also not panic

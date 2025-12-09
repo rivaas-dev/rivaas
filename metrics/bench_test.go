@@ -120,14 +120,14 @@ func BenchmarkIncrementCounter_Cached(b *testing.B) {
 
 // BenchmarkIncrementCounter_CachedWithAttributes benchmarks counter increment with attributes.
 func BenchmarkIncrementCounter_CachedWithAttributes(b *testing.B) {
+	ctx := b.Context()
 	recorder := MustNew(
 		WithServiceName("bench-service"),
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(context.Background())
+	defer recorder.Shutdown(ctx)
 
-	ctx := b.Context()
 	attrs := []attribute.KeyValue{
 		attribute.String("status", "success"),
 		attribute.String("operation", "create"),
@@ -181,7 +181,7 @@ func BenchmarkStart(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		recorder.Start(ctx)
+		recorder.BeginRequest(ctx)
 	}
 }
 
@@ -200,7 +200,7 @@ func BenchmarkStart_WithAttributes(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		m := recorder.Start(ctx)
+		m := recorder.BeginRequest(ctx)
 		m.AddAttributes(
 			attribute.String("http.method", "GET"),
 			attribute.String("http.url", "http://localhost/api/users"),
@@ -226,7 +226,7 @@ func BenchmarkStartFinish(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		m := recorder.Start(ctx)
+		m := recorder.BeginRequest(ctx)
 		m.AddAttributes(
 			attribute.String("http.method", "GET"),
 			attribute.String("http.url", "http://localhost/api/users"),
@@ -323,7 +323,7 @@ func BenchmarkCASContention(b *testing.B) {
 			WithServerDisabled(),
 			WithMaxCustomMetrics(100000),
 		)
-		defer recorder.Shutdown(context.Background())
+		defer recorder.Shutdown(b.Context())
 
 		ctx := b.Context()
 		b.ResetTimer()
@@ -341,7 +341,7 @@ func BenchmarkCASContention(b *testing.B) {
 			WithServerDisabled(),
 			WithMaxCustomMetrics(100000),
 		)
-		defer recorder.Shutdown(context.Background())
+		defer recorder.Shutdown(b.Context())
 
 		ctx := b.Context()
 		b.ResetTimer()
@@ -364,7 +364,7 @@ func BenchmarkCASContention(b *testing.B) {
 			WithServerDisabled(),
 			WithMaxCustomMetrics(100000),
 		)
-		defer recorder.Shutdown(context.Background())
+		defer recorder.Shutdown(b.Context())
 
 		ctx := b.Context()
 		b.ResetTimer()
@@ -416,7 +416,7 @@ func BenchmarkMetricCreation_Parallel(b *testing.B) {
 		WithServerDisabled(),
 		WithMaxCustomMetrics(1000000),
 	)
-	defer recorder.Shutdown(context.Background())
+	defer recorder.Shutdown(b.Context())
 
 	ctx := b.Context()
 	var counter int64
@@ -467,7 +467,7 @@ func BenchmarkNoopProvider(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		m := recorder.Start(ctx)
+		m := recorder.BeginRequest(ctx)
 		m.AddAttributes(
 			attribute.String("http.method", "GET"),
 			attribute.String("http.url", "http://localhost/api/users"),
@@ -658,14 +658,14 @@ func BenchmarkCustomMetricsCreation(b *testing.B) {
 //
 //nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestRecordHistogram_ZeroAlloc(t *testing.T) {
+	ctx := t.Context()
 	recorder := MustNew(
 		WithStdout(),
 		WithServiceName("alloc-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(ctx) })
 
-	ctx := t.Context()
 	// Pre-create the metric so it's cached
 	_ = recorder.RecordHistogram(ctx, "prewarmed_histogram", 1.0)
 
@@ -685,14 +685,14 @@ func TestRecordHistogram_ZeroAlloc(t *testing.T) {
 //
 //nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestIncrementCounter_ZeroAlloc(t *testing.T) {
+	ctx := t.Context()
 	recorder := MustNew(
 		WithStdout(),
 		WithServiceName("alloc-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(ctx) })
 
-	ctx := t.Context()
 	// Pre-create the counter
 	_ = recorder.IncrementCounter(ctx, "prewarmed_counter")
 
@@ -711,14 +711,14 @@ func TestIncrementCounter_ZeroAlloc(t *testing.T) {
 //
 //nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestSetGauge_ZeroAlloc(t *testing.T) {
+	ctx := t.Context()
 	recorder := MustNew(
 		WithStdout(),
 		WithServiceName("alloc-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(ctx) })
 
-	ctx := t.Context()
 	// Pre-create the gauge
 	_ = recorder.SetGauge(ctx, "prewarmed_gauge", 1.0)
 
@@ -786,17 +786,16 @@ func TestValidateMetricName_ZeroAlloc(t *testing.T) {
 //
 //nolint:paralleltest // Cannot use t.Parallel() with testing.AllocsPerRun
 func TestStart_Allocations(t *testing.T) {
+	ctx := t.Context()
 	recorder := MustNew(
 		WithStdout(),
 		WithServiceName("alloc-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
-
-	ctx := t.Context()
+	t.Cleanup(func() { recorder.Shutdown(ctx) })
 
 	allocs := testing.AllocsPerRun(100, func() {
-		m := recorder.Start(ctx)
+		m := recorder.BeginRequest(ctx)
 		// Must use m to prevent compiler optimization
 		if m == nil {
 			t.Fatal("unexpected nil")

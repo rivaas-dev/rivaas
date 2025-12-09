@@ -11,6 +11,7 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.38.0
 	go.opentelemetry.io/otel/metric v1.38.0
 	go.opentelemetry.io/otel/sdk/metric v1.38.0
+	rivaas.dev/router v0.2.0
 )
 
 require (

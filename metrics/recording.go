@@ -93,12 +93,23 @@ type RequestMetrics struct {
 	Attributes []attribute.KeyValue
 }
 
-// Start initializes metrics collection for a request.
+// BeginRequest initializes metrics collection for a request.
 // This is the minimal API for app integration; it starts timing.
-// Returns nil if metrics are disabled.
+// Returns nil if metrics are disabled or if Start() hasn't been called yet
+// (for providers with deferred initialization like OTLP).
 // Call [Recorder.Finish] when the request completes to record the metrics.
-func (r *Recorder) Start(ctx context.Context) *RequestMetrics {
+func (r *Recorder) BeginRequest(ctx context.Context) *RequestMetrics {
 	if !r.enabled {
+		return nil
+	}
+
+	// For deferred providers (OTLP), meter is nil until Start() is called.
+	// Warn once to help users catch misconfiguration, then silently skip.
+	if r.meter == nil {
+		r.warnNotStarted.Do(func() {
+			r.emitDebug("BeginRequest called before Start() - metrics will be skipped until Start() is called",
+				"provider", r.provider)
+		})
 		return nil
 	}
 

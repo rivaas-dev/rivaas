@@ -58,8 +58,8 @@ func TestingRecorder(tb testing.TB, serviceName string, opts ...Option) *Recorde
 	tb.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(tb.Context(), 5*time.Second)
 		defer cancel()
-		if err := recorder.Shutdown(ctx); err != nil {
-			tb.Logf("TestingRecorder: shutdown warning: %v", err)
+		if shutdownErr := recorder.Shutdown(ctx); shutdownErr != nil {
+			tb.Logf("TestingRecorder: shutdown warning: %v", shutdownErr)
 		}
 	})
 
@@ -97,11 +97,16 @@ func TestingRecorderWithPrometheus(tb testing.TB, serviceName string, opts ...Op
 		tb.Fatalf("TestingRecorderWithPrometheus: failed to create recorder: %v", err)
 	}
 
+	// Start the metrics server
+	if startErr := recorder.Start(tb.Context()); startErr != nil {
+		tb.Fatalf("TestingRecorderWithPrometheus: failed to start server: %v", startErr)
+	}
+
 	tb.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(tb.Context(), 5*time.Second)
 		defer cancel()
-		if err := recorder.Shutdown(ctx); err != nil {
-			tb.Logf("TestingRecorderWithPrometheus: shutdown warning: %v", err)
+		if shutdownErr := recorder.Shutdown(ctx); shutdownErr != nil {
+			tb.Logf("TestingRecorderWithPrometheus: shutdown warning: %v", shutdownErr)
 		}
 	})
 
@@ -134,7 +139,8 @@ func WaitForMetricsServer(tb testing.TB, address string, timeout time.Duration) 
 func findAvailableTestPort(tb testing.TB) int {
 	tb.Helper()
 
-	listener, err := net.Listen("tcp", ":0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(tb.Context(), "tcp", ":0")
 	if err != nil {
 		tb.Fatalf("findAvailableTestPort: failed to find available port: %v", err)
 	}

@@ -23,6 +23,8 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
+
+	"rivaas.dev/router"
 )
 
 // MiddlewareOption configures the metrics middleware.
@@ -173,7 +175,7 @@ func Middleware(recorder *Recorder, opts ...MiddlewareOption) func(http.Handler)
 			ctx := r.Context()
 
 			// Start metrics collection
-			m := recorder.Start(ctx)
+			m := recorder.BeginRequest(ctx)
 			if m == nil {
 				next.ServeHTTP(w, r)
 				return
@@ -201,6 +203,14 @@ func Middleware(recorder *Recorder, opts ...MiddlewareOption) func(http.Handler)
 			}
 
 			// Wrap response writer to capture status code and size
+			// Check if already wrapped to prevent double-wrapping
+			if _, ok := w.(router.ObservabilityWrappedWriter); ok {
+				// Already wrapped, use as-is
+				next.ServeHTTP(w, r)
+				// Can't extract metrics reliably from outer wrapper
+				return
+			}
+
 			rw := newResponseWriter(w)
 
 			// Execute the next handler
@@ -227,6 +237,11 @@ type responseWriter struct {
 func newResponseWriter(w http.ResponseWriter) *responseWriter {
 	return &responseWriter{ResponseWriter: w}
 }
+
+// Ensure responseWriter implements required interfaces
+var (
+	_ router.ObservabilityWrappedWriter = (*responseWriter)(nil)
+)
 
 // WriteHeader captures the status code and prevents duplicate calls.
 func (rw *responseWriter) WriteHeader(code int) {
@@ -295,4 +310,11 @@ func (rw *responseWriter) Push(target string, opts *http.PushOptions) error {
 // Unwrap returns the underlying ResponseWriter for [http.ResponseController] support (Go 1.20+).
 func (rw *responseWriter) Unwrap() http.ResponseWriter {
 	return rw.ResponseWriter
+}
+
+// IsObservabilityWrapped implements [router.ObservabilityWrappedWriter] marker interface.
+// This signals that the writer has been wrapped by observability middleware,
+// preventing double-wrapping when combining standalone metrics with app observability.
+func (rw *responseWriter) IsObservabilityWrapped() bool {
+	return true
 }

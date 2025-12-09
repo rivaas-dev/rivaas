@@ -51,8 +51,14 @@ func (r *Recorder) initializeProvider() error {
 	case PrometheusProvider:
 		return r.initPrometheusProvider()
 	case OTLPProvider:
-		return r.initOTLPProvider()
+		// OTLP initialization is deferred to Start(ctx) to use the lifecycle context.
+		// This allows proper context propagation for network connections to the collector
+		// and enables graceful shutdown when the context is cancelled.
+		r.providerDeferred.Store(true)
+		return nil
 	case StdoutProvider:
+		// Stdout doesn't need lifecycle context (no network I/O), so initialize immediately.
+		// This allows simpler debugging use cases without requiring Start().
 		return r.initStdoutProvider()
 	default:
 		return fmt.Errorf("unsupported metrics provider: %s", r.provider)
@@ -93,20 +99,21 @@ func (r *Recorder) initPrometheusProvider() error {
 	r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
 
 	// Initialize metrics instruments
-	if err := r.initializeMetrics(); err != nil {
-		return err
+	if initErr := r.initializeMetrics(); initErr != nil {
+		return initErr
 	}
 
-	// Start the metrics server if auto-start is enabled
-	if r.autoStartServer {
-		r.startMetricsServer()
-	}
+	// Note: Server startup is deferred to Start(ctx) method
+	// This allows the application to pass a proper lifecycle context
 
 	return nil
 }
 
 // initOTLPProvider initializes the OTLP metrics provider.
-func (r *Recorder) initOTLPProvider() error {
+// The context is used for the OTLP exporter's network connections and background goroutines.
+// This is called from Start(ctx) to use the lifecycle context, enabling proper cancellation
+// during graceful shutdown.
+func (r *Recorder) initOTLPProvider(ctx context.Context) error {
 	opts := []otlpmetrichttp.Option{}
 
 	if r.otlpEndpoint != "" {
@@ -115,11 +122,11 @@ func (r *Recorder) initOTLPProvider() error {
 		isHTTP := false
 
 		// Remove protocol prefix if present
-		if trimmed, ok := strings.CutPrefix(endpoint, "http://"); ok {
+		if trimmed, trimmedOk := strings.CutPrefix(endpoint, "http://"); trimmedOk {
 			endpoint = trimmed
 			isHTTP = true
-		} else if trimmed, ok := strings.CutPrefix(endpoint, "https://"); ok {
-			endpoint = trimmed
+		} else if trimmedHTTPS, trimmedHTTPSOk := strings.CutPrefix(endpoint, "https://"); trimmedHTTPSOk {
+			endpoint = trimmedHTTPS
 		}
 
 		// Remove trailing path if present
@@ -133,7 +140,10 @@ func (r *Recorder) initOTLPProvider() error {
 		}
 	}
 
-	exporter, err := otlpmetrichttp.New(context.Background(), opts...)
+	// Use the lifecycle context for proper shutdown propagation.
+	// When ctx is cancelled (e.g., during graceful shutdown), the exporter
+	// will stop its background goroutines and flush pending metrics.
+	exporter, err := otlpmetrichttp.New(ctx, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
@@ -161,6 +171,8 @@ func (r *Recorder) initOTLPProvider() error {
 }
 
 // initStdoutProvider initializes the stdout metrics provider.
+// Unlike OTLP, stdout doesn't need a lifecycle context since it doesn't
+// perform network I/O - it just writes to stdout for debugging.
 func (r *Recorder) initStdoutProvider() error {
 	exporter, err := stdoutmetric.New()
 	if err != nil {
@@ -190,7 +202,8 @@ func (r *Recorder) initStdoutProvider() error {
 }
 
 // startMetricsServer starts a dedicated HTTP server for Prometheus metrics.
-func (r *Recorder) startMetricsServer() {
+// The context is used for port binding operations.
+func (r *Recorder) startMetricsServer(ctx context.Context) {
 	if r.prometheusHandler == nil {
 		return
 	}
@@ -207,10 +220,11 @@ func (r *Recorder) startMetricsServer() {
 
 	if r.strictPort {
 		// Strict mode: use exact port only
-		listener, err := net.Listen("tcp", r.metricsPort)
-		if err != nil {
+		var lc net.ListenConfig
+		listener, listenErr := lc.Listen(ctx, "tcp", r.metricsPort)
+		if listenErr != nil {
 			r.emitError("Failed to start metrics server on required port (strict mode)",
-				"error", err, "port", r.metricsPort)
+				"error", listenErr, "port", r.metricsPort)
 
 			return
 		}
@@ -218,7 +232,7 @@ func (r *Recorder) startMetricsServer() {
 		actualPort = r.metricsPort
 	} else {
 		// Flexible mode: try to find an available port
-		actualPort, err = findAvailablePort(r.metricsPort)
+		actualPort, err = findAvailablePort(ctx, r.metricsPort)
 		if err != nil {
 			r.emitError("Failed to find available port for metrics server", "error", err, "preferred_port", r.metricsPort)
 			return
@@ -262,12 +276,12 @@ func (r *Recorder) startMetricsServer() {
 				"path", metricsPath)
 		}
 
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if serveErr := server.ListenAndServe(); serveErr != nil && serveErr != http.ErrServerClosed {
 			// Clear the server reference on error with mutex protection
 			r.serverMutex.Lock()
 			r.metricsServer = nil
 			r.serverMutex.Unlock()
-			r.emitError("Metrics server error", "error", err)
+			r.emitError("Metrics server error", "error", serveErr)
 		}
 	}()
 }
@@ -293,7 +307,7 @@ func (r *Recorder) stopMetricsServer(ctx context.Context) error {
 
 // findAvailablePort attempts to find an available port starting from the given port.
 // It tries the original port first, then increments until it finds an available one.
-func findAvailablePort(preferredPort string) (string, error) {
+func findAvailablePort(ctx context.Context, preferredPort string) (string, error) {
 	// Handle port format (:port or just port number)
 	port := preferredPort
 	if !strings.HasPrefix(port, ":") {
@@ -308,13 +322,14 @@ func findAvailablePort(preferredPort string) (string, error) {
 	}
 
 	// Try up to 100 ports starting from the preferred port
+	var lc net.ListenConfig
 	for i := range 100 {
 		testPort := portNum + i
 		testAddr := fmt.Sprintf(":%d", testPort)
 
 		// Try to listen on the port
-		listener, err := net.Listen("tcp", testAddr)
-		if err == nil {
+		listener, listenErr := lc.Listen(ctx, "tcp", testAddr)
+		if listenErr == nil {
 			// Port is available
 			listener.Close()
 			return testAddr, nil

@@ -65,8 +65,12 @@ func TestRecorderWithHTTP(t *testing.T) {
 		recorder.Shutdown(context.Background())
 	})
 
+	// Start the metrics server
+	err := recorder.Start(t.Context())
+	require.NoError(t, err, "StartServer should not error")
+
 	// Wait for server to be ready
-	err := waitForMetricsServer(t, "localhost:9092", 1*time.Second)
+	err = waitForMetricsServer(t, "localhost:9092", 1*time.Second)
 	require.NoError(t, err, "Metrics server should start")
 
 	// Create HTTP handler with metrics middleware
@@ -363,8 +367,12 @@ func TestShutdown(t *testing.T) {
 			WithServiceName("test-service"),
 		)
 
+		// Start the metrics server
+		err := recorder.Start(t.Context())
+		require.NoError(t, err, "StartServer should not error")
+
 		// Wait for server to be ready
-		err := waitForMetricsServer(t, "localhost:9103", 1*time.Second)
+		err = waitForMetricsServer(t, "localhost:9103", 1*time.Second)
 		require.NoError(t, err, "Metrics server should start")
 
 		// Shutdown should not error
@@ -410,8 +418,12 @@ func TestShutdown(t *testing.T) {
 			WithServiceName("test-service"),
 		)
 
+		// Start the metrics server
+		err := recorder.Start(t.Context())
+		require.NoError(t, err, "StartServer should not error")
+
 		// Wait for server to be ready
-		err := waitForMetricsServer(t, "localhost:9106", 1*time.Second)
+		err = waitForMetricsServer(t, "localhost:9106", 1*time.Second)
 		require.NoError(t, err, "Metrics server should start")
 
 		ctx := t.Context()
@@ -526,17 +538,17 @@ func TestCustomMetricsLimitEnforcement(t *testing.T) {
 
 	// Create 3 metrics (should succeed)
 	err := recorder.IncrementCounter(ctx, "counter1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = recorder.RecordHistogram(ctx, "histogram1", 1.0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = recorder.SetGauge(ctx, "gauge1", 1.0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Try to create a 4th metric (should fail with error)
 	err = recorder.IncrementCounter(ctx, "counter2")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "limit reached")
 
 	// Verify we have exactly 3 metrics

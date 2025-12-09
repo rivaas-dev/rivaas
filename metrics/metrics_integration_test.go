@@ -183,14 +183,14 @@ func TestIntegration_CustomMetrics(t *testing.T) {
 
 	// Record various custom metrics
 	for i := range 10 {
-		err := recorder.IncrementCounter(ctx, "business_events_total")
-		require.NoError(t, err)
+		incErr := recorder.IncrementCounter(ctx, "business_events_total")
+		require.NoError(t, incErr)
 
-		err = recorder.RecordHistogram(ctx, "processing_duration_seconds", float64(i)*0.1)
-		require.NoError(t, err)
+		histErr := recorder.RecordHistogram(ctx, "processing_duration_seconds", float64(i)*0.1)
+		require.NoError(t, histErr)
 
-		err = recorder.SetGauge(ctx, "queue_depth", float64(i*5))
-		require.NoError(t, err)
+		gaugeErr := recorder.SetGauge(ctx, "queue_depth", float64(i*5))
+		require.NoError(t, gaugeErr)
 	}
 
 	// Verify custom metrics count
