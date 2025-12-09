@@ -171,7 +171,10 @@ func bindJSONBytesInternal(out any, body []byte, cfg *config) error {
 		}
 
 	case UnknownWarn:
-		// Two-pass: detect unknowns, then decode
+		// Two-pass: detect unknowns, then decode.
+		// Use context.Background() because the binding public API doesn't expose context.
+		// TODO: Consider adding context support to binding functions for cancellation during
+		// expensive reflection operations in high-load scenarios.
 		if err := bindJSONWithWarnings(context.Background(), out, body, cfg); err != nil {
 			return err
 		}

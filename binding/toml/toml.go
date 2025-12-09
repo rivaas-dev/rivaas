@@ -169,12 +169,12 @@ func bindTOMLBytesWithMeta(out any, body []byte, cfg *config) (Metadata, error) 
 
 	// Run validator if configured
 	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
+		if validateErr := cfg.validator.Validate(out); validateErr != nil {
 			return meta, &binding.BindError{
 				Field:  "",
 				Source: binding.SourceTOML,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
+				Reason: fmt.Sprintf("validation failed: %v", validateErr),
+				Err:    validateErr,
 			}
 		}
 	}

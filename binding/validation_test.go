@@ -51,6 +51,7 @@ func TestValidation(t *testing.T) {
 				wantErr:        false,
 				expectedErrMsg: "",
 				validate: func(t *testing.T, params Params) {
+					t.Helper()
 					assert.Equal(t, "active", params.Status)
 				},
 			},
@@ -65,6 +66,7 @@ func TestValidation(t *testing.T) {
 				wantErr:        false,
 				expectedErrMsg: "",
 				validate: func(t *testing.T, params Params) {
+					t.Helper()
 					assert.Equal(t, "inactive", params.Status)
 				},
 			},
@@ -79,6 +81,7 @@ func TestValidation(t *testing.T) {
 				wantErr:        false,
 				expectedErrMsg: "",
 				validate: func(t *testing.T, params Params) {
+					t.Helper()
 					assert.Equal(t, "pending", params.Status)
 				},
 			},
@@ -92,7 +95,7 @@ func TestValidation(t *testing.T) {
 				}(),
 				wantErr:        true,
 				expectedErrMsg: "not in allowed values",
-				validate:       func(t *testing.T, params Params) {},
+				validate:       func(t *testing.T, params Params) { t.Helper() },
 			},
 			{
 				name: "empty value skips validation",
@@ -105,6 +108,7 @@ func TestValidation(t *testing.T) {
 				wantErr:        false,
 				expectedErrMsg: "",
 				validate: func(t *testing.T, params Params) {
+					t.Helper()
 					assert.Empty(t, params.Status, "Expected empty status")
 				},
 			},
@@ -114,6 +118,7 @@ func TestValidation(t *testing.T) {
 				wantErr:        false,
 				expectedErrMsg: "",
 				validate: func(t *testing.T, params Params) {
+					t.Helper()
 					assert.Empty(t, params.Status, "Expected empty status")
 				},
 			},
@@ -162,6 +167,7 @@ func TestValidation(t *testing.T) {
 				wantErr:        true,
 				expectedErrMsg: "unsupported type",
 				validate: func(t *testing.T, err error) {
+					t.Helper()
 					assert.ErrorContains(t, err, "array", "Error should mention 'array'")
 				},
 			},
@@ -179,6 +185,7 @@ func TestValidation(t *testing.T) {
 				wantErr:        true,
 				expectedErrMsg: "unsupported type",
 				validate: func(t *testing.T, err error) {
+					t.Helper()
 					assert.ErrorContains(t, err, "Chan", "Error should mention 'Chan'")
 				},
 			},
@@ -196,6 +203,7 @@ func TestValidation(t *testing.T) {
 				wantErr:        true,
 				expectedErrMsg: "unsupported type",
 				validate: func(t *testing.T, err error) {
+					t.Helper()
 					assert.ErrorContains(t, err, "func", "Error should mention 'func'")
 				},
 			},
@@ -212,7 +220,7 @@ func TestValidation(t *testing.T) {
 				}{},
 				wantErr:        true,
 				expectedErrMsg: "unsupported type",
-				validate:       func(t *testing.T, err error) {},
+				validate:       func(t *testing.T, err error) { t.Helper() },
 			},
 			{
 				name: "unsupported type - Complex128",
@@ -227,7 +235,7 @@ func TestValidation(t *testing.T) {
 				}{},
 				wantErr:        true,
 				expectedErrMsg: "unsupported type",
-				validate:       func(t *testing.T, err error) {},
+				validate:       func(t *testing.T, err error) { t.Helper() },
 			},
 		}
 

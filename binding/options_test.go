@@ -217,6 +217,7 @@ func TestMaxMapSize_Enforcement(t *testing.T) {
 			wantError:     false,
 			errorContains: nil,
 			validate: func(t *testing.T, params Params) {
+				t.Helper()
 				assert.Equal(t, "value1", params.Metadata["key1"])
 				assert.Equal(t, "value2", params.Metadata["key2"])
 			},
@@ -236,6 +237,7 @@ func TestMaxMapSize_Enforcement(t *testing.T) {
 			wantError:     false,
 			errorContains: nil,
 			validate: func(t *testing.T, params Params) {
+				t.Helper()
 				assert.Len(t, params.Metadata, 100)
 			},
 		},
@@ -325,6 +327,7 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 			wantError:     false,
 			errorContains: nil,
 			validate: func(t *testing.T, params Params) {
+				t.Helper()
 				assert.Equal(t, []string{"tag1", "tag2"}, params.Tags)
 			},
 		},
@@ -357,6 +360,7 @@ func TestMaxSliceLen_Enforcement(t *testing.T) {
 			wantError:     false,
 			errorContains: nil,
 			validate: func(t *testing.T, params Params) {
+				t.Helper()
 				assert.Len(t, params.Tags, 100)
 			},
 		},

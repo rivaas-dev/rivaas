@@ -276,6 +276,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					return &prefixGetter{inner: getter, prefix: "X-Meta-"}, "Tags", true
 				},
 				validate: func(t *testing.T, result bool, key string) {
+					t.Helper()
 					assert.True(t, result, "Expected Has(%q) to return true", key)
 				},
 			},
@@ -290,6 +291,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					return &prefixGetter{inner: getter, prefix: "X-Meta-"}, "Nonexistent", false
 				},
 				validate: func(t *testing.T, result bool, key string) {
+					t.Helper()
 					assert.False(t, result, "Expected Has(%q) to return false", key)
 				},
 			},
@@ -303,6 +305,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					return &prefixGetter{inner: getter, prefix: "user."}, "name", true
 				},
 				validate: func(t *testing.T, result bool, key string) {
+					t.Helper()
 					assert.True(t, result, "Expected Has(%q) to return true", key)
 				},
 			},
@@ -318,6 +321,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					return &prefixGetter{inner: getter, prefix: "user."}, "id", true
 				},
 				validate: func(t *testing.T, result bool, key string) {
+					t.Helper()
 					assert.True(t, result, "Expected Has(%q) to return true", key)
 				},
 			},
@@ -333,6 +337,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					return &prefixGetter{inner: getter, prefix: "user."}, "nonexistent", false
 				},
 				validate: func(t *testing.T, result bool, key string) {
+					t.Helper()
 					assert.False(t, result, "Expected Has(%q) to return false", key)
 				},
 			},
@@ -374,6 +379,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 				return &prefixGetter{inner: getter, prefix: "user."}, "name"
 			},
 			validate: func(t *testing.T, result []string, key string) {
+				t.Helper()
 				require.Len(t, result, 1, "Expected 1 value for %q", key)
 				assert.Equal(t, "John", result[0], "Expected first value to be 'John'")
 			},
@@ -392,6 +398,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 				return &prefixGetter{inner: getter, prefix: "user."}, "email"
 			},
 			validate: func(t *testing.T, result []string, key string) {
+				t.Helper()
 				require.Len(t, result, 2, "Expected 2 values for %q", key)
 				assert.Equal(t, "john@example.com", result[0], "Expected first email")
 				assert.Equal(t, "john.doe@example.com", result[1], "Expected second email")
@@ -408,6 +415,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 				return &prefixGetter{inner: getter, prefix: "user."}, "nonexistent"
 			},
 			validate: func(t *testing.T, result []string, key string) {
+				t.Helper()
 				assert.Nil(t, result, "Expected nil for non-existent key")
 			},
 		},
@@ -425,6 +433,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 				return &prefixGetter{inner: getter, prefix: "meta."}, "tags"
 			},
 			validate: func(t *testing.T, result []string, key string) {
+				t.Helper()
 				require.Len(t, result, 2, "Expected 2 values for %q", key)
 			},
 		},
@@ -440,6 +449,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 				return &prefixGetter{inner: getter, prefix: "meta."}, "version"
 			},
 			validate: func(t *testing.T, result []string, key string) {
+				t.Helper()
 				require.Len(t, result, 1, "Expected 1 value for %q", key)
 				assert.Equal(t, "1.0", result[0], "Expected version to be '1.0'")
 			},
@@ -501,6 +511,7 @@ func TestBind_PrefixGetterGetAllThroughNestedBinding(t *testing.T) {
 				return NewQueryGetter(values), TagQuery, &ParamsQuery{}
 			},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*ParamsQuery)
 				require.True(t, ok)
 				require.Len(t, p.Address.Tags, 2, "Expected 2 tags")
@@ -519,6 +530,7 @@ func TestBind_PrefixGetterGetAllThroughNestedBinding(t *testing.T) {
 				return NewFormGetter(values), TagForm, &FormData{}
 			},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*FormData)
 				require.True(t, ok)
 				require.Len(t, p.Metadata.Versions, 3, "Expected 3 versions")
@@ -537,6 +549,7 @@ func TestBind_PrefixGetterGetAllThroughNestedBinding(t *testing.T) {
 				return NewQueryGetter(values), TagQuery, &ParamsDeep{}
 			},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*ParamsDeep)
 				require.True(t, ok)
 				require.Len(t, p.Section.Items.Tags, 2, "Expected 2 tags")

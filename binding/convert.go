@@ -482,6 +482,7 @@ func bindMapFromValues(
 	opts *config,
 	entryCount int,
 ) (bool, int, error) {
+
 	found := false
 
 	for key := range values {

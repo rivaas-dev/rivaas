@@ -812,6 +812,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 				return nil, TagJSON, &JSONDataSkipField{}
 			},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*JSONDataSkipField)
 				require.True(t, ok)
 				jsonData := `{"public":"visible","Private":"should be ignored"}`

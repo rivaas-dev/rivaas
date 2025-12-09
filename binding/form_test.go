@@ -138,6 +138,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Metadata map[string]string `form:"metadata"`
 				})
@@ -162,6 +163,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Metadata map[string]string `form:"metadata"`
 				})
@@ -185,6 +187,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					IntMap map[string]int `form:"intmap"`
 				})
@@ -209,6 +212,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Data map[string]any `form:"data"`
 				})
@@ -233,6 +237,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Metadata *map[string]string `form:"metadata"`
 				})
@@ -255,6 +260,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Metadata map[string]string `form:"metadata"`
 				})
@@ -278,6 +284,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Scores map[string]int `form:"scores"`
 				})
@@ -303,6 +310,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Config map[string]string `form:"config"`
 				})
@@ -328,6 +336,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: true,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				assert.True(t,
 					strings.Contains(err.Error(), "map") ||
 						strings.Contains(err.Error(), "unsupported") ||
@@ -349,6 +358,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: true,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				assert.True(t,
 					strings.Contains(err.Error(), "unsupported") ||
 						strings.Contains(err.Error(), "map[string]") ||
@@ -369,6 +379,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: true,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				assert.True(t,
 					strings.Contains(err.Error(), "not-a-number") ||
 						strings.Contains(err.Error(), "IntKeys") ||
@@ -391,6 +402,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: true,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				assert.ErrorContains(t, err, "math", "Error should mention key 'math'")
 			},
 		},
@@ -407,6 +419,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: true,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				assert.ErrorContains(t, err, "usd", "Error should mention key 'usd'")
 			},
 		},
@@ -423,6 +436,7 @@ func TestBind_FormMaps(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Metadata map[string]string `form:"metadata"`
 				})

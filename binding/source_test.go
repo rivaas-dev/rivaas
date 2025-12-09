@@ -194,6 +194,7 @@ func TestBind_Cookies(t *testing.T) {
 			},
 			params: &SessionCookies{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				cookies, ok := params.(*SessionCookies)
 				require.True(t, ok)
 				assert.Equal(t, "abc123", cookies.SessionID)
@@ -210,6 +211,7 @@ func TestBind_Cookies(t *testing.T) {
 				SessionID string `cookie:"session_id"`
 			}{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				cookies, ok := params.(*struct {
 					SessionID string `cookie:"session_id"`
 				})
@@ -260,6 +262,7 @@ func TestBind_Headers(t *testing.T) {
 			}(),
 			params: &RequestHeaders{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				headers, ok := params.(*RequestHeaders)
 				require.True(t, ok)
 				assert.Equal(t, "Mozilla/5.0", headers.UserAgent)
@@ -279,6 +282,7 @@ func TestBind_Headers(t *testing.T) {
 				UserAgent string `header:"User-Agent"`
 			}{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				headers, ok := params.(*struct {
 					UserAgent string `header:"User-Agent"`
 				})
@@ -359,6 +363,7 @@ func TestBind_GetAll(t *testing.T) {
 				},
 				params: &CookiesWithSession{},
 				validate: func(t *testing.T, cookies any) {
+					t.Helper()
 					c, ok := cookies.(*CookiesWithSession)
 					require.True(t, ok)
 					require.Len(t, c.Session, 2, "Expected 2 session cookies")
@@ -373,6 +378,7 @@ func TestBind_GetAll(t *testing.T) {
 				},
 				params: &CookiesWithData{},
 				validate: func(t *testing.T, cookies any) {
+					t.Helper()
 					c, ok := cookies.(*CookiesWithData)
 					require.True(t, ok)
 					require.Len(t, c.Data, 1, "Expected 1 data cookie")
@@ -479,6 +485,7 @@ func TestValueGetter_HasSemantics(t *testing.T) {
 			wantHas: true,
 			wantGet: "",
 			validate: func(t *testing.T, getter ValueGetter) {
+				t.Helper()
 				assert.False(t, getter.Has("missing"), "Has() should return false for missing key")
 			},
 		},

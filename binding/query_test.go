@@ -55,6 +55,7 @@ func TestBind_QueryBasic(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params SearchParams, err error) {
+				t.Helper()
 				assert.Equal(t, "golang", params.Query)
 				assert.Equal(t, 2, params.Page)
 				assert.Equal(t, 20, params.PageSize)
@@ -71,6 +72,7 @@ func TestBind_QueryBasic(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params SearchParams, err error) {
+				t.Helper()
 				assert.Equal(t, "test", params.Query)
 				assert.Equal(t, 0, params.Page, "Page should be zero value when not provided")
 			},
@@ -85,6 +87,7 @@ func TestBind_QueryBasic(t *testing.T) {
 			}(),
 			wantErr: true,
 			validate: func(t *testing.T, params SearchParams, err error) {
+				t.Helper()
 				var bindErr *BindError
 				require.ErrorAs(t, err, &bindErr, "Expected BindError")
 				assert.Equal(t, "Page", bindErr.Field)
@@ -137,6 +140,7 @@ func TestBind_QuerySlices(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params TagRequest) {
+				t.Helper()
 				require.Len(t, params.Tags, 3)
 				assert.Equal(t, "go", params.Tags[0])
 				assert.Equal(t, "rust", params.Tags[1])
@@ -155,6 +159,7 @@ func TestBind_QuerySlices(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params TagRequest) {
+				t.Helper()
 				require.Len(t, params.IDs, 3)
 				assert.Equal(t, 1, params.IDs[0])
 				assert.Equal(t, 2, params.IDs[1])
@@ -172,7 +177,7 @@ func TestBind_QuerySlices(t *testing.T) {
 				return v
 			}(),
 			wantErr:  true,
-			validate: func(t *testing.T, params TagRequest) {},
+			validate: func(t *testing.T, params TagRequest) { t.Helper() },
 		},
 	}
 
@@ -220,6 +225,7 @@ func TestBind_QueryPointers(t *testing.T) {
 				return v
 			}(),
 			validate: func(t *testing.T, params OptionalParams) {
+				t.Helper()
 				require.NotNil(t, params.Name)
 				assert.Equal(t, "John", *params.Name)
 				require.NotNil(t, params.Age)
@@ -237,6 +243,7 @@ func TestBind_QueryPointers(t *testing.T) {
 				return v
 			}(),
 			validate: func(t *testing.T, params OptionalParams) {
+				t.Helper()
 				require.NotNil(t, params.Name)
 				assert.Equal(t, "John", *params.Name)
 				assert.Nil(t, params.Age, "Age should be nil when not provided")
@@ -252,6 +259,7 @@ func TestBind_QueryPointers(t *testing.T) {
 				return v
 			}(),
 			validate: func(t *testing.T, params OptionalParams) {
+				t.Helper()
 				assert.Nil(t, params.Name, "Name should be nil for empty value")
 				assert.Nil(t, params.Age, "Age should be nil for empty value")
 			},
@@ -340,6 +348,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params EventParams) {
+					t.Helper()
 					expectedStart, err := time.Parse(time.RFC3339, "2024-01-15T10:30:00Z")
 					require.NoError(t, err)
 					assert.True(t, params.StartDate.Equal(expectedStart), "StartDate should match expected time")
@@ -355,6 +364,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params EventParams) {
+					t.Helper()
 					expected, err := time.Parse(time.DateOnly, "2024-01-15")
 					require.NoError(t, err)
 					assert.True(t, params.StartDate.Equal(expected), "StartDate should match expected date")
@@ -370,6 +380,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params EventParams) {
+					t.Helper()
 					require.NotNil(t, params.Created, "Created should not be nil")
 					expected, err := time.Parse(time.RFC3339, "2024-01-15T10:00:00Z")
 					require.NoError(t, err)
@@ -385,7 +396,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					return v
 				}(),
 				wantErr:  true,
-				validate: func(t *testing.T, params EventParams) {},
+				validate: func(t *testing.T, params EventParams) { t.Helper() },
 			},
 		}
 
@@ -434,6 +445,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params TimeoutParams) {
+					t.Helper()
 					assert.Equal(t, 5*time.Second, params.Timeout)
 					assert.Equal(t, 10*time.Minute, params.Interval)
 					require.NotNil(t, params.TTL)
@@ -450,6 +462,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params TimeoutParams) {
+					t.Helper()
 					expected := time.Hour + 30*time.Minute + 45*time.Second
 					assert.Equal(t, expected, params.Timeout)
 				},
@@ -463,7 +476,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					return v
 				}(),
 				wantErr:  true,
-				validate: func(t *testing.T, params TimeoutParams) {},
+				validate: func(t *testing.T, params TimeoutParams) { t.Helper() },
 			},
 		}
 
@@ -510,6 +523,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params NetworkParams) {
+					t.Helper()
 					expected := net.ParseIP("192.168.1.1")
 					assert.True(t, params.AllowedIP.Equal(expected))
 				},
@@ -524,6 +538,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params NetworkParams) {
+					t.Helper()
 					assert.NotNil(t, params.AllowedIP, "AllowedIP should not be nil")
 				},
 			},
@@ -539,6 +554,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params NetworkParams) {
+					t.Helper()
 					require.Len(t, params.IPs, 3)
 				},
 			},
@@ -551,7 +567,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					return v
 				}(),
 				wantErr:  true,
-				validate: func(t *testing.T, params NetworkParams) {},
+				validate: func(t *testing.T, params NetworkParams) { t.Helper() },
 			},
 		}
 
@@ -598,6 +614,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params NetworkParams) {
+					t.Helper()
 					_, expected, err := net.ParseCIDR("192.168.1.0/24")
 					require.NoError(t, err)
 					assert.Equal(t, expected.String(), params.Subnet.String())
@@ -613,6 +630,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params NetworkParams) {
+					t.Helper()
 					assert.NotNil(t, params.Subnet.IP, "Subnet IP should not be nil")
 				},
 			},
@@ -628,6 +646,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params NetworkParams) {
+					t.Helper()
 					require.Len(t, params.AllowedRanges, 3)
 				},
 			},
@@ -640,7 +659,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					return v
 				}(),
 				wantErr:  true,
-				validate: func(t *testing.T, params NetworkParams) {},
+				validate: func(t *testing.T, params NetworkParams) { t.Helper() },
 			},
 		}
 
@@ -686,6 +705,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					return v
 				}(),
 				validate: func(t *testing.T, params WebhookParams) {
+					t.Helper()
 					expected := "https://example.com/webhook"
 					assert.Equal(t, expected, params.CallbackURL.String())
 				},
@@ -699,6 +719,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					return v
 				}(),
 				validate: func(t *testing.T, params WebhookParams) {
+					t.Helper()
 					assert.Equal(t, "example.com", params.CallbackURL.Host)
 				},
 			},
@@ -740,6 +761,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 				}(),
 				wantErr: false,
 				validate: func(t *testing.T, params PatternParams) {
+					t.Helper()
 					expected := `^user-[0-9]+$`
 					assert.Equal(t, expected, params.Pattern.String())
 					assert.True(t, params.Pattern.MatchString("user-123"), "Pattern should match user-123")
@@ -755,7 +777,7 @@ func TestBind_QueryComplexTypes(t *testing.T) {
 					return v
 				}(),
 				wantErr:  true,
-				validate: func(t *testing.T, params PatternParams) {},
+				validate: func(t *testing.T, params PatternParams) { t.Helper() },
 			},
 		}
 
@@ -804,6 +826,7 @@ func TestBind_QueryMaps(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params MapParams) {
+				t.Helper()
 				require.NotNil(t, params.Metadata, "Metadata should not be nil")
 				assert.Equal(t, "John", params.Metadata["name"])
 				assert.Equal(t, "30", params.Metadata["age"])
@@ -821,6 +844,7 @@ func TestBind_QueryMaps(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params MapParams) {
+				t.Helper()
 				require.NotNil(t, params.Metadata, "Metadata map should not be nil")
 				assert.Equal(t, "John", params.Metadata["name"])
 				assert.Equal(t, "30", params.Metadata["age"])
@@ -838,6 +862,7 @@ func TestBind_QueryMaps(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params MapParams) {
+				t.Helper()
 				assert.Equal(t, 95, params.Scores["math"])
 				assert.Equal(t, 88, params.Scores["science"])
 				require.Len(t, params.Scores, 2)
@@ -927,6 +952,7 @@ func TestBind_QueryEnumValidation(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params StatusParams) {
+				t.Helper()
 				assert.Equal(t, "active", params.Status)
 				assert.Equal(t, "admin", params.Role)
 				assert.Equal(t, "high", params.Priority)
@@ -941,7 +967,7 @@ func TestBind_QueryEnumValidation(t *testing.T) {
 				return v
 			}(),
 			wantErr:  true,
-			validate: func(t *testing.T, params StatusParams) {},
+			validate: func(t *testing.T, params StatusParams) { t.Helper() },
 		},
 		{
 			name: "empty value passes enum validation",
@@ -953,6 +979,7 @@ func TestBind_QueryEnumValidation(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params StatusParams) {
+				t.Helper()
 				assert.Equal(t, "admin", params.Role)
 				assert.Empty(t, params.Status, "Status should be empty")
 			},
@@ -1000,6 +1027,7 @@ func TestBind_QueryDefaultValues(t *testing.T) {
 			name:   "all defaults applied",
 			values: url.Values{},
 			validate: func(t *testing.T, params ParamsWithDefaults) {
+				t.Helper()
 				assert.Equal(t, 1, params.Page, "Page should default to 1")
 				assert.Equal(t, 10, params.PageSize, "PageSize should default to 10")
 				assert.Equal(t, "created_at", params.Sort, "Sort should default to created_at")
@@ -1019,6 +1047,7 @@ func TestBind_QueryDefaultValues(t *testing.T) {
 				return v
 			}(),
 			validate: func(t *testing.T, params ParamsWithDefaults) {
+				t.Helper()
 				assert.Equal(t, 5, params.Page, "Page should be user value")
 				assert.Equal(t, 50, params.PageSize, "PageSize should be user value")
 				assert.False(t, params.Active, "Active should be user value")
@@ -1034,6 +1063,7 @@ func TestBind_QueryDefaultValues(t *testing.T) {
 				return v
 			}(),
 			validate: func(t *testing.T, params ParamsWithDefaults) {
+				t.Helper()
 				assert.Equal(t, 3, params.Page, "Page should be user value")
 				assert.Equal(t, 10, params.PageSize, "PageSize should be default")
 			},
@@ -1153,6 +1183,7 @@ func TestBind_QueryRealWorld(t *testing.T) {
 				Order    string `query:"order"`
 			}{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Page     int    `query:"page"`
 					PageSize int    `query:"page_size"`
@@ -1185,6 +1216,7 @@ func TestBind_QueryRealWorld(t *testing.T) {
 				MaxPrice float64  `query:"max_price"`
 			}{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				f, ok := params.(*struct {
 					Status   []string `query:"status"`
 					Category []string `query:"category"`
@@ -1256,6 +1288,7 @@ func TestBind_QueryTextUnmarshaler(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params Request) {
+				t.Helper()
 				expectedID := "550e8400-e29b-41d4-a716-446655440000"
 				expectedTraceID := "660e8400-e29b-41d4-a716-446655440001"
 				assert.Equal(t, expectedID, string(params.ID))
@@ -1271,7 +1304,7 @@ func TestBind_QueryTextUnmarshaler(t *testing.T) {
 				return v
 			}(),
 			wantErr:  true,
-			validate: func(t *testing.T, params Request) {},
+			validate: func(t *testing.T, params Request) { t.Helper() },
 		},
 		{
 			name: "pointer to custom type",
@@ -1284,6 +1317,7 @@ func TestBind_QueryTextUnmarshaler(t *testing.T) {
 			}(),
 			wantErr: false,
 			validate: func(t *testing.T, params Request) {
+				t.Helper()
 				require.NotNil(t, params.Optional, "Optional should not be nil")
 				expected := "770e8400-e29b-41d4-a716-446655440002"
 				assert.Equal(t, expected, string(*params.Optional))
@@ -1395,6 +1429,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Metadata map[string]string `query:"metadata"`
 				})
@@ -1419,6 +1454,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Scores map[string]int `query:"scores"`
 				})
@@ -1442,6 +1478,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Rates map[string]float64 `query:"rates"`
 				})
@@ -1464,6 +1501,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Flags map[string]bool `query:"flags"`
 				})
@@ -1487,6 +1525,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Settings map[string]any `query:"settings"`
 				})
@@ -1510,6 +1549,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Metadata map[string]string `query:"metadata"`
 				})
@@ -1531,7 +1571,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
-				// Should not error, just skip JSON parsing
+				t.Helper()
 			},
 		},
 		{
@@ -1547,6 +1587,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Metadata map[string]string `query:"metadata"`
 				})
@@ -1568,6 +1609,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: true,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				// Error should mention the key
 				assert.ErrorContains(t, err, "math", "Error should mention the key 'math'")
 			},
@@ -1585,6 +1627,7 @@ func TestBind_QueryMapJSONFallback(t *testing.T) {
 			}{},
 			wantErr: false,
 			validate: func(t *testing.T, params any, err error) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Data map[string]string `query:"data"`
 				})
@@ -1636,6 +1679,7 @@ func TestBind_QueryPointerMap(t *testing.T) {
 				Metadata *map[string]string `query:"metadata"`
 			}{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Metadata *map[string]string `query:"metadata"`
 				})
@@ -1658,6 +1702,7 @@ func TestBind_QueryPointerMap(t *testing.T) {
 				Scores *map[string]int `query:"scores"`
 			}{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*struct {
 					Scores *map[string]int `query:"scores"`
 				})
@@ -1707,6 +1752,7 @@ func TestBind_QueryMapTypeConversionError(t *testing.T) {
 			}{},
 			wantErr: true,
 			validate: func(t *testing.T, err error) {
+				t.Helper()
 				assert.ErrorContains(t, err, "math", "Error should mention key 'math'")
 			},
 		},
@@ -1723,6 +1769,7 @@ func TestBind_QueryMapTypeConversionError(t *testing.T) {
 			}{},
 			wantErr: true,
 			validate: func(t *testing.T, err error) {
+				t.Helper()
 				assert.ErrorContains(t, err, "usd", "Error should mention key 'usd'")
 			},
 		},
@@ -1825,6 +1872,7 @@ func TestBind_QueryAllComplexTypes(t *testing.T) {
 			}(),
 			params: &ComplexParams{},
 			validate: func(t *testing.T, params any) {
+				t.Helper()
 				p, ok := params.(*ComplexParams)
 				require.True(t, ok)
 				assert.Equal(t, "John", p.Name, "Name should match")
