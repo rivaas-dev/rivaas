@@ -172,21 +172,23 @@ func TestChaos_RandomRoutePatterns(t *testing.T) {
 	var panicCount atomic.Int64
 
 	// Generate random route patterns
-	routes := make([]string, numRoutes)
+	routes := make([]string, 0, numRoutes)
 	for i := range numRoutes {
 		// Generate various route patterns
+		var route string
 		switch i % 5 {
 		case 0:
-			routes[i] = fmt.Sprintf("/api/v%d/resource", i%10)
+			route = fmt.Sprintf("/api/v%d/resource", i%10)
 		case 1:
-			routes[i] = "/users/:id/posts/:post_id"
+			route = "/users/:id/posts/:post_id"
 		case 2:
-			routes[i] = fmt.Sprintf("/static%d", i)
+			route = fmt.Sprintf("/static%d", i)
 		case 3:
-			routes[i] = fmt.Sprintf("/deep/nested/path/%d", i)
+			route = fmt.Sprintf("/deep/nested/path/%d", i)
 		default:
-			routes[i] = fmt.Sprintf("/wildcard/*path%d", i)
+			route = fmt.Sprintf("/wildcard/*path%d", i)
 		}
+		routes = append(routes, route)
 	}
 
 	// Register routes concurrently

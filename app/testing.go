@@ -59,7 +59,7 @@ func WithContext(ctx context.Context) TestOption {
 // The request is executed in a goroutine with optional timeout via context.
 // If a timeout occurs, Test returns an error immediately, but the handler
 // goroutine may continue running until it completes (the router's ServeHTTP
-// cannot be cancelled mid-execution). This is acceptable for test scenarios
+// cannot be canceled mid-execution). This is acceptable for test scenarios
 // where handlers are expected to complete within a reasonable time.
 //
 // Test returns an *http.Response that can be inspected for status, headers, and body.

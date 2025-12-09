@@ -101,7 +101,7 @@ func (a *App) shutdownObservability(ctx context.Context) {
 
 // runServer handles the common lifecycle for starting and shutting down an HTTP server.
 // It is used by [App.Start], [App.StartTLS], and [App.StartMTLS].
-// The context controls the server lifecycle - when cancelled, it triggers graceful shutdown.
+// The context controls the server lifecycle - when canceled, it triggers graceful shutdown.
 //
 // Unlike stdlib's http.Server which uses separate Shutdown() call, this method combines
 // serving and lifecycle management for a simpler API. Users should pass a context
@@ -142,8 +142,8 @@ func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serv
 	}
 
 	// Create a deadline for shutdown.
-	// We use context.Background() because the original ctx is already cancelled (that's what triggered
-	// the shutdown). Using a cancelled context as parent would give us 0 time for graceful shutdown.
+	// We use context.Background() because the original ctx is already canceled (that's what triggered
+	// the shutdown). Using a canceled context as parent would give us 0 time for graceful shutdown.
 	// This is the standard Go pattern - the parent ctx signals WHEN to shutdown, the fresh context
 	// controls HOW LONG the shutdown can take.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), a.config.server.shutdownTimeout)
@@ -238,7 +238,7 @@ func (a *App) registerOpenAPIEndpoints() {
 // Start starts the HTTP server with graceful shutdown.
 // Start automatically freezes the router before starting, making routes immutable.
 //
-// The context controls the application lifecycle - when cancelled, it triggers
+// The context controls the application lifecycle - when canceled, it triggers
 // graceful shutdown of the server and all observability components (metrics, tracing).
 //
 // Note: Signal handling should be configured by the caller using signal.NotifyContext.
@@ -285,7 +285,7 @@ func (a *App) Start(ctx context.Context, addr string) error {
 // StartTLS starts the HTTPS server with graceful shutdown.
 // StartTLS automatically freezes the router before starting, making routes immutable.
 //
-// The context controls the application lifecycle - when cancelled, it triggers
+// The context controls the application lifecycle - when canceled, it triggers
 // graceful shutdown of the server and all observability components (metrics, tracing).
 //
 // Note: Signal handling should be configured by the caller using signal.NotifyContext.
@@ -334,7 +334,7 @@ func (a *App) StartTLS(ctx context.Context, addr, certFile, keyFile string) erro
 // It requires both client and server certificates for bidirectional authentication.
 // It automatically freezes the router before starting, making routes immutable.
 //
-// The context controls the application lifecycle - when cancelled, it triggers
+// The context controls the application lifecycle - when canceled, it triggers
 // graceful shutdown of the server and all observability components (metrics, tracing).
 //
 // Note: Signal handling should be configured by the caller using signal.NotifyContext.

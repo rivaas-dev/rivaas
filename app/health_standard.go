@@ -123,7 +123,7 @@ func runChecks(ctx context.Context, checks map[string]CheckFunc, timeout time.Du
 	}
 
 	failures := make(map[string]string)
-	for i := 0; i < len(checks); i++ {
+	for range len(checks) {
 		r := <-results
 		if r.err != nil {
 			failures[r.name] = r.err.Error()

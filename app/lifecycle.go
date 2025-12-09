@@ -134,8 +134,8 @@ func (a *App) fireRouteHook(rt *route.Route) {
 	}
 
 	a.hooks.mu.Lock()
-	hooks := make([]func(*route.Route), len(a.hooks.onRoute))
-	copy(hooks, a.hooks.onRoute)
+	hooks := make([]func(*route.Route), 0, len(a.hooks.onRoute))
+	hooks = append(hooks, a.hooks.onRoute...)
 	a.hooks.mu.Unlock()
 
 	for _, hook := range hooks {
@@ -147,8 +147,8 @@ func (a *App) fireRouteHook(rt *route.Route) {
 // It returns an error if any hook fails.
 func (a *App) executeStartHooks(ctx context.Context) error {
 	a.hooks.mu.Lock()
-	hooks := make([]func(context.Context) error, len(a.hooks.onStart))
-	copy(hooks, a.hooks.onStart)
+	hooks := make([]func(context.Context) error, 0, len(a.hooks.onStart))
+	hooks = append(hooks, a.hooks.onStart...)
 	a.hooks.mu.Unlock()
 
 	for i, hook := range hooks {
@@ -164,8 +164,8 @@ func (a *App) executeStartHooks(ctx context.Context) error {
 // It runs hooks in fire-and-forget mode with panic recovery to prevent silent failures.
 func (a *App) executeReadyHooks() {
 	a.hooks.mu.Lock()
-	hooks := make([]func(), len(a.hooks.onReady))
-	copy(hooks, a.hooks.onReady)
+	hooks := make([]func(), 0, len(a.hooks.onReady))
+	hooks = append(hooks, a.hooks.onReady...)
 	a.hooks.mu.Unlock()
 
 	for _, hook := range hooks {
@@ -185,8 +185,8 @@ func (a *App) executeReadyHooks() {
 // executeShutdownHooks runs all OnShutdown hooks in reverse order (LIFO).
 func (a *App) executeShutdownHooks(ctx context.Context) {
 	a.hooks.mu.Lock()
-	hooks := make([]func(context.Context), len(a.hooks.onShutdown))
-	copy(hooks, a.hooks.onShutdown)
+	hooks := make([]func(context.Context), 0, len(a.hooks.onShutdown))
+	hooks = append(hooks, a.hooks.onShutdown...)
 	a.hooks.mu.Unlock()
 
 	// Execute in reverse order (LIFO)
@@ -198,8 +198,8 @@ func (a *App) executeShutdownHooks(ctx context.Context) {
 // executeStopHooks runs all OnStop hooks in best-effort mode.
 func (a *App) executeStopHooks() {
 	a.hooks.mu.Lock()
-	hooks := make([]func(), len(a.hooks.onStop))
-	copy(hooks, a.hooks.onStop)
+	hooks := make([]func(), 0, len(a.hooks.onStop))
+	hooks = append(hooks, a.hooks.onStop...)
 	a.hooks.mu.Unlock()
 
 	for _, hook := range hooks {

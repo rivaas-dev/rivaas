@@ -16,7 +16,7 @@ require (
 	rivaas.dev/logging v0.1.0
 	rivaas.dev/metrics v0.1.0
 	rivaas.dev/openapi v0.1.0
-	rivaas.dev/router v0.1.0
+	rivaas.dev/router v0.2.0
 	rivaas.dev/tracing v0.1.0
 	rivaas.dev/validation v0.1.0
 )

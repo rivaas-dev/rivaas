@@ -544,12 +544,12 @@ func TestObservabilityResponseWriterImplementsMarkerInterface(t *testing.T) {
 	wrapped := &observabilityResponseWriter{ResponseWriter: innerWriter}
 
 	// Verify it implements the marker interface
-	marker, ok := interface{}(wrapped).(ObservabilityWrappedWriter)
+	marker, ok := any(wrapped).(ObservabilityWrappedWriter)
 	require.True(t, ok, "observabilityResponseWriter should implement ObservabilityWrappedWriter")
 	assert.True(t, marker.IsObservabilityWrapped())
 
 	// Verify it implements ResponseInfo
-	ri, ok := interface{}(wrapped).(ResponseInfo)
+	ri, ok := any(wrapped).(ResponseInfo)
 	require.True(t, ok, "observabilityResponseWriter should implement ResponseInfo")
 
 	// Write some data

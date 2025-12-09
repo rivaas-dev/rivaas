@@ -253,7 +253,7 @@ func TestApp_Test_Context(t *testing.T) {
 			},
 		},
 		{
-			name: "cancelled context",
+			name: "canceled context",
 			setupCtx: func(t *testing.T) context.Context {
 				t.Helper()
 				ctx, cancel := context.WithCancel(t.Context())

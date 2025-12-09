@@ -291,10 +291,10 @@ func generatePermutations(n int) [][]int {
 
 	for _, perm := range smaller {
 		for i := 0; i <= len(perm); i++ {
-			newPerm := make([]int, len(perm)+1)
-			copy(newPerm[:i], perm[:i])
-			newPerm[i] = n - 1
-			copy(newPerm[i+1:], perm[i:])
+			newPerm := make([]int, 0, len(perm)+1)
+			newPerm = append(newPerm, perm[:i]...)
+			newPerm = append(newPerm, n-1)
+			newPerm = append(newPerm, perm[i:]...)
 			result = append(result, newPerm)
 		}
 	}

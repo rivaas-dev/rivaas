@@ -632,9 +632,9 @@ func (a *App) wrapHandler(handler HandlerFunc) router.HandlerFunc {
 //	// With inline middleware
 //	app.GET("/users/:id", Auth(), GetUser)
 func (a *App) GET(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, len(handlers))
-	for i, h := range handlers {
-		routerHandlers[i] = a.wrapHandler(h)
+	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
+	for _, h := range handlers {
+		routerHandlers = append(routerHandlers, a.wrapHandler(h))
 	}
 	route := a.router.GET(path, routerHandlers...)
 	a.fireRouteHook(route)
@@ -654,9 +654,9 @@ func (a *App) GET(path string, handlers ...HandlerFunc) *RouteWrapper {
 //	// With inline middleware
 //	app.POST("/users", Validate(), CreateUser)
 func (a *App) POST(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, len(handlers))
-	for i, h := range handlers {
-		routerHandlers[i] = a.wrapHandler(h)
+	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
+	for _, h := range handlers {
+		routerHandlers = append(routerHandlers, a.wrapHandler(h))
 	}
 	route := a.router.POST(path, routerHandlers...)
 	a.fireRouteHook(route)
@@ -672,9 +672,9 @@ func (a *App) POST(path string, handlers ...HandlerFunc) *RouteWrapper {
 //	    Doc("Update user", "Updates an existing user").
 //	    WhereInt("id")
 func (a *App) PUT(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, len(handlers))
-	for i, h := range handlers {
-		routerHandlers[i] = a.wrapHandler(h)
+	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
+	for _, h := range handlers {
+		routerHandlers = append(routerHandlers, a.wrapHandler(h))
 	}
 	route := a.router.PUT(path, routerHandlers...)
 	a.fireRouteHook(route)
@@ -690,9 +690,9 @@ func (a *App) PUT(path string, handlers ...HandlerFunc) *RouteWrapper {
 //	    Doc("Delete user", "Deletes a user by ID").
 //	    WhereInt("id")
 func (a *App) DELETE(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, len(handlers))
-	for i, h := range handlers {
-		routerHandlers[i] = a.wrapHandler(h)
+	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
+	for _, h := range handlers {
+		routerHandlers = append(routerHandlers, a.wrapHandler(h))
 	}
 	route := a.router.DELETE(path, routerHandlers...)
 	a.fireRouteHook(route)
@@ -708,9 +708,9 @@ func (a *App) DELETE(path string, handlers ...HandlerFunc) *RouteWrapper {
 //	    Doc("Partially update user", "Updates specific user fields").
 //	    WhereInt("id")
 func (a *App) PATCH(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, len(handlers))
-	for i, h := range handlers {
-		routerHandlers[i] = a.wrapHandler(h)
+	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
+	for _, h := range handlers {
+		routerHandlers = append(routerHandlers, a.wrapHandler(h))
 	}
 	route := a.router.PATCH(path, routerHandlers...)
 	a.fireRouteHook(route)
@@ -725,9 +725,9 @@ func (a *App) PATCH(path string, handlers ...HandlerFunc) *RouteWrapper {
 //	app.HEAD("/users/:id", handler).
 //	    WhereInt("id")
 func (a *App) HEAD(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, len(handlers))
-	for i, h := range handlers {
-		routerHandlers[i] = a.wrapHandler(h)
+	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
+	for _, h := range handlers {
+		routerHandlers = append(routerHandlers, a.wrapHandler(h))
 	}
 	route := a.router.HEAD(path, routerHandlers...)
 	a.fireRouteHook(route)
@@ -741,9 +741,9 @@ func (a *App) HEAD(path string, handlers ...HandlerFunc) *RouteWrapper {
 //
 //	app.OPTIONS("/users", handler)
 func (a *App) OPTIONS(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, len(handlers))
-	for i, h := range handlers {
-		routerHandlers[i] = a.wrapHandler(h)
+	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
+	for _, h := range handlers {
+		routerHandlers = append(routerHandlers, a.wrapHandler(h))
 	}
 	route := a.router.OPTIONS(path, routerHandlers...)
 	a.fireRouteHook(route)
@@ -759,9 +759,9 @@ func (a *App) OPTIONS(path string, handlers ...HandlerFunc) *RouteWrapper {
 //	app.Use(AuthMiddleware(), LoggingMiddleware())
 //	app.GET("/users", handler) // Will execute auth + logging + handler
 func (a *App) Use(middleware ...HandlerFunc) {
-	routerMiddleware := make([]router.HandlerFunc, len(middleware))
-	for i, m := range middleware {
-		routerMiddleware[i] = a.wrapHandler(m)
+	routerMiddleware := make([]router.HandlerFunc, 0, len(middleware))
+	for _, m := range middleware {
+		routerMiddleware = append(routerMiddleware, a.wrapHandler(m))
 	}
 	a.router.Use(routerMiddleware...)
 }
@@ -1069,7 +1069,6 @@ func initializeMetrics(
 	loggingCfg *logging.Logger,
 	r *router.Router,
 ) (*metrics.Recorder, error) {
-
 	if obsSettings.metrics == nil || !obsSettings.metrics.enabled {
 		return nil, nil
 	}

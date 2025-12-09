@@ -25,7 +25,7 @@ type HealthOption func(*healthSettings)
 
 // CheckFunc defines a function that performs a health or readiness check.
 // The function should return nil if the check passes, or an error if it fails.
-// The context may be cancelled if the check takes too long.
+// The context may be canceled if the check takes too long.
 type CheckFunc func(ctx context.Context) error
 
 // healthSettings holds health endpoint configuration.
