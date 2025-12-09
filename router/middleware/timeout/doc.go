@@ -16,7 +16,7 @@
 // long-running requests from consuming server resources.
 //
 // This middleware sets a deadline on the request context, causing handlers
-// to be cancelled if they exceed the configured timeout duration. This prevents
+// to be canceled if they exceed the configured timeout duration. This prevents
 // slow or stuck handlers from consuming resources indefinitely.
 //
 // # Basic Usage
@@ -41,7 +41,7 @@
 //
 // When a timeout occurs:
 //
-//   - The request context is cancelled
+//   - The request context is canceled
 //   - Handlers should check ctx.Done() and return early
 //   - A 504 Gateway Timeout response is sent
 //   - The error handler can customize the response

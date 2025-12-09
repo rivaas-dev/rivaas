@@ -192,9 +192,9 @@ func (r *Router) HEAD(path string, handlers ...HandlerFunc) *route.Route {
 // the fluent Where* API to work correctly without re-registration issues.
 func (r *Router) addRoute(method, path string, handlers []HandlerFunc) *route.Route {
 	// Convert handlers to route.Handler
-	routeHandlers := make([]route.Handler, len(handlers))
-	for i, h := range handlers {
-		routeHandlers[i] = h
+	routeHandlers := make([]route.Handler, 0, len(handlers))
+	for _, h := range handlers {
+		routeHandlers = append(routeHandlers, h)
 	}
 
 	return r.AddRouteWithConstraints(method, path, routeHandlers)

@@ -417,7 +417,7 @@ func TestAtomicRouteRegistration(t *testing.T) {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
-			for j := 0; j < routeCount/concurrency; j++ {
+			for j := range routeCount / concurrency {
 				routeID := workerID*routeCount/concurrency + j
 				path := "/test" + string(rune('0'+routeID%10)) + "/" + string(rune('0'+routeID%100))
 
@@ -475,7 +475,7 @@ func TestAtomicRouteLookup(t *testing.T) {
 	// Make concurrent requests
 	for range concurrency {
 		wg.Go(func() {
-			for j := 0; j < requestCount/concurrency; j++ {
+			for range requestCount / concurrency {
 				// Test different route patterns
 				testPaths := []string{
 					"/",

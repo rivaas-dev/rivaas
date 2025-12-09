@@ -383,9 +383,9 @@ func (r *Router) serveCompiledRoute(w http.ResponseWriter, req *http.Request, ro
 		c.initForRequest(req, w, handlers, r)
 	} else {
 		// Fallback: Convert compiler.HandlerFunc to router.HandlerFunc
-		handlers := make([]HandlerFunc, len(route.Handlers()))
-		for i, h := range route.Handlers() {
-			handlers[i] = h.(HandlerFunc)
+		handlers := make([]HandlerFunc, 0, len(route.Handlers()))
+		for _, h := range route.Handlers() {
+			handlers = append(handlers, h.(HandlerFunc))
 		}
 		c.initForRequest(req, w, handlers, r)
 	}
@@ -419,9 +419,9 @@ func (r *Router) serveCompiledRouteWithParams(w http.ResponseWriter, req *http.R
 		c.initForRequestWithParams(req, w, handlers, r)
 	} else {
 		// Fallback: Convert compiler.HandlerFunc to router.HandlerFunc
-		handlers := make([]HandlerFunc, len(route.Handlers()))
-		for i, h := range route.Handlers() {
-			handlers[i] = h.(HandlerFunc)
+		handlers := make([]HandlerFunc, 0, len(route.Handlers()))
+		for _, h := range route.Handlers() {
+			handlers = append(handlers, h.(HandlerFunc))
 		}
 		c.initForRequestWithParams(req, w, handlers, r)
 	}
@@ -571,7 +571,7 @@ func (r *Router) ServeTLS(addr, certFile, keyFile string) error {
 // This follows the stdlib http.Server.Shutdown pattern.
 //
 // The provided context controls the timeout for the graceful shutdown.
-// When the context is cancelled, active connections are forcefully closed.
+// When the context is canceled, active connections are forcefully closed.
 //
 // Shutdown returns nil if no server is running, or the error from http.Server.Shutdown.
 //

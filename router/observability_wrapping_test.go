@@ -36,7 +36,7 @@ func TestObservabilityWrappedWriterMarkerInterface(t *testing.T) {
 	}
 
 	// Verify it implements the marker interface
-	_, ok := interface{}(mockWriter).(ObservabilityWrappedWriter)
+	_, ok := any(mockWriter).(ObservabilityWrappedWriter)
 	assert.True(t, ok, "mockWrappedResponseWriter should implement ObservabilityWrappedWriter")
 	assert.True(t, mockWriter.IsObservabilityWrapped(), "IsObservabilityWrapped should return true")
 }
@@ -154,7 +154,7 @@ func TestStatusCodeAndSizeExtractionThroughWrapper(t *testing.T) {
 	assert.Equal(t, 13, written)
 
 	// Verify we can extract metadata via ResponseInfo interface
-	if ri, ok := interface{}(wrapped).(ResponseInfo); ok {
+	if ri, ok := any(wrapped).(ResponseInfo); ok {
 		assert.Equal(t, http.StatusCreated, ri.StatusCode())
 		assert.Equal(t, int64(13), ri.Size())
 	} else {

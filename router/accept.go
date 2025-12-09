@@ -125,9 +125,9 @@ func (c *Context) Accepts(offers ...string) string {
 	}
 
 	// Normalize offers to full MIME types
-	normalizedOffers := make([]string, len(offers))
-	for i, offer := range offers {
-		normalizedOffers[i] = normalizeMediaType(offer)
+	normalizedOffers := make([]string, 0, len(offers))
+	for _, offer := range offers {
+		normalizedOffers = append(normalizedOffers, normalizeMediaType(offer))
 	}
 
 	// Find best match
@@ -450,7 +450,7 @@ func matchMediaType(offer string, spec acceptSpec) (quality float64, specificity
 func splitMediaType(mediaType string) (string, string) {
 	// Find semicolon to remove parameters
 	semicolon := -1
-	for i := 0; i < len(mediaType); i++ {
+	for i := range len(mediaType) {
 		if mediaType[i] == ';' {
 			semicolon = i
 			break
@@ -468,7 +468,7 @@ func splitMediaType(mediaType string) (string, string) {
 
 	// Find slash separator
 	slash := -1
-	for i := 0; i < len(mediaType); i++ {
+	for i := range len(mediaType) {
 		if mediaType[i] == '/' {
 			slash = i
 			break

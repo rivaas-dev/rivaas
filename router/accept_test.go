@@ -719,9 +719,9 @@ func TestHeaderArena_GetSpecs(t *testing.T) {
 		}()
 
 		// Create a header with more than 16 parts to trigger heap allocation
-		parts := make([]string, 20)
-		for i := range 20 {
-			parts[i] = "application/json"
+		parts := make([]string, 0, 20)
+		for range 20 {
+			parts = append(parts, "application/json")
 		}
 		largeHeader := strings.Join(parts, ", ")
 
@@ -848,7 +848,7 @@ func TestParseQuality(t *testing.T) {
 		t.Parallel()
 
 		// Test a range of valid q-values
-		for i := 0; i <= 1000; i++ {
+		for i := range 1001 {
 			// Generate q-values: 0, 0.001, 0.002, ..., 0.999, 1.000
 			var input string
 			if i == 1000 {

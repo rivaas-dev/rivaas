@@ -93,9 +93,9 @@ type Registrar interface {
 
 // CompilerHandlers converts handlers to compiler-compatible format.
 func CompilerHandlers(handlers []Handler) []compiler.HandlerFunc {
-	compilerHandlers := make([]compiler.HandlerFunc, len(handlers))
-	for i, h := range handlers {
-		compilerHandlers[i] = compiler.HandlerFunc(h)
+	compilerHandlers := make([]compiler.HandlerFunc, 0, len(handlers))
+	for _, h := range handlers {
+		compilerHandlers = append(compilerHandlers, compiler.HandlerFunc(h))
 	}
 
 	return compilerHandlers
@@ -106,12 +106,12 @@ func CompilerConstraints(constraints []Constraint) []compiler.RouteConstraint {
 	if len(constraints) == 0 {
 		return nil
 	}
-	compilerConstraints := make([]compiler.RouteConstraint, len(constraints))
-	for i, c := range constraints {
-		compilerConstraints[i] = compiler.RouteConstraint{
+	compilerConstraints := make([]compiler.RouteConstraint, 0, len(constraints))
+	for _, c := range constraints {
+		compilerConstraints = append(compilerConstraints, compiler.RouteConstraint{
 			Param:   c.Param,
 			Pattern: c.Pattern,
-		}
+		})
 	}
 
 	return compilerConstraints

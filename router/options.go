@@ -159,7 +159,7 @@ func WithBloomFilterHashFunctions(numFuncs int) Option {
 }
 
 // WithCancellationCheck returns a RouterOption that enables/disables context cancellation
-// checking in the middleware chain. When enabled, the router checks for cancelled contexts
+// checking in the middleware chain. When enabled, the router checks for canceled contexts
 // between each handler, preventing wasted work on timed-out requests.
 //
 // Default: true (enabled)

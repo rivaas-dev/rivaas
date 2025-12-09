@@ -1,3 +1,17 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // verify_layout is a development tool that verifies the memory layout of the Context struct.
 //
 // # Purpose
@@ -67,6 +81,9 @@ func main() {
 	fmt.Println("=== Context Field Layout Analysis ===")
 	fmt.Println()
 
+	// Note: fmt.Printf errors are explicitly ignored (_, _) throughout this diagnostic tool.
+	// Stdout write failures are acceptable here since the tool's purpose is just to print layout info.
+
 	// Calculate sizes
 	requestSize := unsafe.Sizeof(c.Request)
 	responseSize := unsafe.Sizeof(c.Response)
@@ -75,29 +92,29 @@ func main() {
 	indexSize := unsafe.Sizeof(c.index)
 	paramCountSize := unsafe.Sizeof(c.paramCount)
 
-	fmt.Printf("Field Sizes:\n")
-	fmt.Printf("  Request:     %2d bytes (offset: %3d)\n", requestSize, unsafe.Offsetof(c.Request))
-	fmt.Printf("  Response:    %2d bytes (offset: %3d)\n", responseSize, unsafe.Offsetof(c.Response))
-	fmt.Printf("  handlers:    %2d bytes (offset: %3d)\n", handlersSize, unsafe.Offsetof(c.handlers))
-	fmt.Printf("  router:      %2d bytes (offset: %3d)\n", routerSize, unsafe.Offsetof(c.router))
-	fmt.Printf("  index:       %2d bytes (offset: %3d)\n", indexSize, unsafe.Offsetof(c.index))
-	fmt.Printf("  paramCount:  %2d bytes (offset: %3d)\n", paramCountSize, unsafe.Offsetof(c.paramCount))
-	fmt.Printf("  paramKeys:   %2d bytes (offset: %3d)\n", unsafe.Sizeof(c.paramKeys), unsafe.Offsetof(c.paramKeys))
-	fmt.Printf("  paramValues: %2d bytes (offset: %3d)\n", unsafe.Sizeof(c.paramValues), unsafe.Offsetof(c.paramValues))
+	_, _ = fmt.Printf("Field Sizes:\n")
+	_, _ = fmt.Printf("  Request:     %2d bytes (offset: %3d)\n", requestSize, unsafe.Offsetof(c.Request))
+	_, _ = fmt.Printf("  Response:    %2d bytes (offset: %3d)\n", responseSize, unsafe.Offsetof(c.Response))
+	_, _ = fmt.Printf("  handlers:    %2d bytes (offset: %3d)\n", handlersSize, unsafe.Offsetof(c.handlers))
+	_, _ = fmt.Printf("  router:      %2d bytes (offset: %3d)\n", routerSize, unsafe.Offsetof(c.router))
+	_, _ = fmt.Printf("  index:       %2d bytes (offset: %3d)\n", indexSize, unsafe.Offsetof(c.index))
+	_, _ = fmt.Printf("  paramCount:  %2d bytes (offset: %3d)\n", paramCountSize, unsafe.Offsetof(c.paramCount))
+	_, _ = fmt.Printf("  paramKeys:   %2d bytes (offset: %3d)\n", unsafe.Sizeof(c.paramKeys), unsafe.Offsetof(c.paramKeys))
+	_, _ = fmt.Printf("  paramValues: %2d bytes (offset: %3d)\n", unsafe.Sizeof(c.paramValues), unsafe.Offsetof(c.paramValues))
 
 	totalBefore := requestSize + responseSize + handlersSize + routerSize + indexSize + paramCountSize
-	fmt.Printf("\n\"Hot Path\" Fields Total: %d bytes\n", totalBefore)
+	_, _ = fmt.Printf("\n\"Hot Path\" Fields Total: %d bytes\n", totalBefore)
 
 	firstCacheLineEnd := unsafe.Offsetof(c.paramKeys)
-	fmt.Printf("First Cache Line Ends At: %d bytes\n", firstCacheLineEnd)
+	_, _ = fmt.Printf("First Cache Line Ends At: %d bytes\n", firstCacheLineEnd)
 
 	if firstCacheLineEnd <= 64 {
-		fmt.Printf("✅ Hot fields fit in one cache line (64 bytes)\n")
+		_, _ = fmt.Printf("✅ Hot fields fit in one cache line (64 bytes)\n")
 	} else {
-		fmt.Printf("❌ Hot fields DO NOT fit in one cache line (need %d bytes)\n", firstCacheLineEnd)
+		_, _ = fmt.Printf("❌ Hot fields DO NOT fit in one cache line (need %d bytes)\n", firstCacheLineEnd)
 	}
 
-	fmt.Printf("\nTotal Context Size: %d bytes\n", unsafe.Sizeof(c))
+	_, _ = fmt.Printf("\nTotal Context Size: %d bytes\n", unsafe.Sizeof(c))
 
 	// String internal layout
 	type stringStruct struct {
@@ -105,6 +122,6 @@ func main() {
 		length int
 	}
 	var s string
-	fmt.Printf("\nString size: %d bytes (ptr + len)\n", unsafe.Sizeof(s))
-	fmt.Printf("  String internals: %+v\n", (*stringStruct)(unsafe.Pointer(&s)))
+	_, _ = fmt.Printf("\nString size: %d bytes (ptr + len)\n", unsafe.Sizeof(s))
+	_, _ = fmt.Printf("  String internals: %+v\n", (*stringStruct)(unsafe.Pointer(&s)))
 }

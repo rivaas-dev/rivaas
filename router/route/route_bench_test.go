@@ -53,6 +53,7 @@ func BenchmarkBuildURL_Simple(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
+		// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
 		_, _ = pattern.BuildURL(nil, nil)
 	}
 }
@@ -67,6 +68,7 @@ func BenchmarkBuildURL_WithParams(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
+		// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
 		_, _ = pattern.BuildURL(params, nil)
 	}
 }
@@ -81,6 +83,7 @@ func BenchmarkBuildURL_WithQuery(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
+		// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
 		_, _ = pattern.BuildURL(params, query)
 	}
 }
@@ -102,6 +105,7 @@ func BenchmarkBuildURL_Complex(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
+		// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
 		_, _ = pattern.BuildURL(params, query)
 	}
 }
@@ -230,6 +234,7 @@ func BenchmarkBuildURL_Parallel(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
+			// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
 			_, _ = pattern.BuildURL(params, nil)
 		}
 	})

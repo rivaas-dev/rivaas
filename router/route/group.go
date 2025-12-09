@@ -99,8 +99,9 @@ func (g *Group) Group(prefix string, middleware ...Handler) *Group {
 	} else {
 		var sb strings.Builder
 		sb.Grow(len(g.prefix) + len(prefix))
-		sb.WriteString(g.prefix)
-		sb.WriteString(prefix)
+		// Note: strings.Builder Write methods never return errors (always nil)
+		_, _ = sb.WriteString(g.prefix)
+		_, _ = sb.WriteString(prefix)
 		fullPrefix = sb.String()
 	}
 
@@ -207,8 +208,9 @@ func (g *Group) addRoute(method, path string, handlers []Handler) *Route {
 	} else {
 		var sb strings.Builder
 		sb.Grow(len(g.prefix) + len(path))
-		sb.WriteString(g.prefix)
-		sb.WriteString(path)
+		// Note: strings.Builder Write methods never return errors (always nil)
+		_, _ = sb.WriteString(g.prefix)
+		_, _ = sb.WriteString(path)
 		fullPath = sb.String()
 	}
 

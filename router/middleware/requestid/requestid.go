@@ -54,7 +54,7 @@ func defaultConfig() *config {
 
 // generateRandomID generates a random hex string for request IDs.
 func generateRandomID() string {
-	bytes := make([]byte, 16)
+	bytes := make([]byte, 16) //nolint:makezero // crypto/rand.Read requires pre-allocated buffer
 	if _, err := rand.Read(bytes); err != nil {
 		// Fallback: combine timestamp + random number + process ID for better entropy
 		// This is extremely unlikely to happen (crypto/rand failure is rare), but when

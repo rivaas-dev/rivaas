@@ -550,28 +550,29 @@ func ParseReversePattern(path string) *ReversePattern {
 // BuildURL builds a URL from the reverse pattern and parameters.
 func (p *ReversePattern) BuildURL(params map[string]string, query url.Values) (string, error) {
 	var buf strings.Builder
-	buf.WriteByte('/')
+	// Note: strings.Builder Write methods never return errors (always nil)
+	_ = buf.WriteByte('/')
 
 	for i, seg := range p.Segments {
 		if i > 0 {
-			buf.WriteByte('/')
+			_ = buf.WriteByte('/')
 		}
 
 		if seg.Static {
-			buf.WriteString(seg.Value)
+			_, _ = buf.WriteString(seg.Value)
 		} else {
 			val, ok := params[seg.Value]
 			if !ok {
 				return "", fmt.Errorf("missing required parameter: %s", seg.Value)
 			}
-			buf.WriteString(url.PathEscape(val))
+			_, _ = buf.WriteString(url.PathEscape(val))
 		}
 	}
 
 	// Add query string if provided
 	if len(query) > 0 {
-		buf.WriteByte('?')
-		buf.WriteString(query.Encode())
+		_ = buf.WriteByte('?')
+		_, _ = buf.WriteString(query.Encode())
 	}
 
 	return buf.String(), nil

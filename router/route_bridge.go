@@ -44,9 +44,9 @@ var (
 
 // WithMiddleware adds additional middleware to the subrouter.
 func WithMiddleware(m ...HandlerFunc) route.MountOption {
-	handlers := make([]route.Handler, len(m))
-	for i, h := range m {
-		handlers[i] = h
+	handlers := make([]route.Handler, 0, len(m))
+	for _, h := range m {
+		handlers = append(handlers, h)
 	}
 
 	return route.WithMiddleware(handlers...)
@@ -86,9 +86,9 @@ func (r *Router) RegisterRouteNow(rt *route.Route) {
 func (r *Router) GetGlobalMiddleware() []route.Handler {
 	r.middlewareMu.RLock()
 	defer r.middlewareMu.RUnlock()
-	handlers := make([]route.Handler, len(r.middleware))
-	for i, h := range r.middleware {
-		handlers[i] = h
+	handlers := make([]route.Handler, 0, len(r.middleware))
+	for _, h := range r.middleware {
+		handlers = append(handlers, h)
 	}
 
 	return handlers
@@ -154,15 +154,15 @@ func (r *Router) AddVersionRoute(version, method, path string, handlers []route.
 
 // convertHandlers converts []route.Handler to []HandlerFunc, handling type variations.
 func convertHandlers(handlers []route.Handler) []HandlerFunc {
-	handlerFuncs := make([]HandlerFunc, len(handlers))
-	for i, h := range handlers {
+	handlerFuncs := make([]HandlerFunc, 0, len(handlers))
+	for _, h := range handlers {
 		switch fn := h.(type) {
 		case HandlerFunc:
-			handlerFuncs[i] = fn
+			handlerFuncs = append(handlerFuncs, fn)
 		case func(*Context):
-			handlerFuncs[i] = HandlerFunc(fn)
+			handlerFuncs = append(handlerFuncs, HandlerFunc(fn))
 		default:
-			handlerFuncs[i] = h.(HandlerFunc)
+			handlerFuncs = append(handlerFuncs, h.(HandlerFunc))
 		}
 	}
 
@@ -202,7 +202,7 @@ func (r *Router) addRouteInternal(method, path string, handlers []HandlerFunc) *
 	var middlewareNames []string
 	if len(handlers) > 1 {
 		middlewareNames = make([]string, 0, len(handlers)-1)
-		for i := 0; i < len(handlers)-1; i++ {
+		for i := range len(handlers) - 1 {
 			middlewareNames = append(middlewareNames, getHandlerName(handlers[i]))
 		}
 	}
@@ -232,9 +232,9 @@ func (r *Router) addRouteInternal(method, path string, handlers []HandlerFunc) *
 	})
 	r.routeTree.routesMutex.Unlock()
 
-	routeHandlers := make([]route.Handler, len(handlers))
-	for i, h := range handlers {
-		routeHandlers[i] = h
+	routeHandlers := make([]route.Handler, 0, len(handlers))
+	for _, h := range handlers {
+		routeHandlers = append(routeHandlers, h)
 	}
 
 	rt := route.NewRoute(r, "", method, path, routeHandlers)
@@ -282,9 +282,9 @@ func getHandlerName(handler HandlerFunc) string {
 
 // Group creates a new route group with the specified prefix and optional middleware.
 func (r *Router) Group(prefix string, middleware ...HandlerFunc) *route.Group {
-	handlers := make([]route.Handler, len(middleware))
-	for i, h := range middleware {
-		handlers[i] = h
+	handlers := make([]route.Handler, 0, len(middleware))
+	for _, h := range middleware {
+		handlers = append(handlers, h)
 	}
 
 	return route.NewGroup(r, prefix, handlers)
@@ -306,8 +306,8 @@ func (r *Router) Mount(prefix string, sub *Router, opts ...route.MountOption) {
 	var middlewareChain []HandlerFunc
 	if cfg.InheritMiddleware {
 		r.middlewareMu.RLock()
-		middlewareChain = make([]HandlerFunc, len(r.middleware))
-		copy(middlewareChain, r.middleware)
+		middlewareChain = make([]HandlerFunc, 0, len(r.middleware))
+		middlewareChain = append(middlewareChain, r.middleware...)
 		r.middlewareMu.RUnlock()
 	}
 
@@ -339,8 +339,8 @@ func (r *Router) Mount(prefix string, sub *Router, opts ...route.MountOption) {
 
 func (r *Router) mergeSubrouterRoutes(prefix string, sub *Router, middlewareChain []HandlerFunc, namePrefix string) {
 	sub.pendingRoutesMu.Lock()
-	pendingRoutes := make([]*route.Route, len(sub.pendingRoutes))
-	copy(pendingRoutes, sub.pendingRoutes)
+	pendingRoutes := make([]*route.Route, 0, len(sub.pendingRoutes))
+	pendingRoutes = append(pendingRoutes, sub.pendingRoutes...)
 	sub.pendingRoutesMu.Unlock()
 
 	for _, rt := range pendingRoutes {
@@ -348,8 +348,8 @@ func (r *Router) mergeSubrouterRoutes(prefix string, sub *Router, middlewareChai
 	}
 
 	sub.routeTree.routesMutex.RLock()
-	routeInfos := make([]route.Info, len(sub.routeTree.routes))
-	copy(routeInfos, sub.routeTree.routes)
+	routeInfos := make([]route.Info, 0, len(sub.routeTree.routes))
+	routeInfos = append(routeInfos, sub.routeTree.routes...)
 	sub.routeTree.routesMutex.RUnlock()
 
 	if len(routeInfos) > 0 && len(pendingRoutes) == 0 {
@@ -504,8 +504,8 @@ func (r *Router) MustURLFor(routeName string, params map[string]string, query ur
 // The returned slice is sorted by method and then by path for consistency.
 func (r *Router) Routes() []route.Info {
 	r.routeTree.routesMutex.RLock()
-	routes := make([]route.Info, len(r.routeTree.routes))
-	copy(routes, r.routeTree.routes)
+	routes := make([]route.Info, 0, len(r.routeTree.routes))
+	routes = append(routes, r.routeTree.routes...)
 	r.routeTree.routesMutex.RUnlock()
 
 	// Sort by method, then by path for consistent output
@@ -572,8 +572,8 @@ func (r *Router) GetRoutes() []*route.Route {
 	r.routeSnapshotMutex.RLock()
 	defer r.routeSnapshotMutex.RUnlock()
 
-	result := make([]*route.Route, len(r.routeSnapshot))
-	copy(result, r.routeSnapshot)
+	result := make([]*route.Route, 0, len(r.routeSnapshot))
+	result = append(result, r.routeSnapshot...)
 
 	return result
 }

@@ -376,7 +376,7 @@ func validateConstraints(constraints []route.Constraint, ctx *Context) bool {
 			found := false
 
 			// Check array lookup first (up to 8 params)
-			for i := int32(0); i < ctx.paramCount; i++ {
+			for i := range ctx.paramCount {
 				if ctx.paramKeys[i] == constraint.Param {
 					value = ctx.paramValues[i]
 					found = true
@@ -402,7 +402,7 @@ func validateConstraints(constraints []route.Constraint, ctx *Context) bool {
 	// Slow path: Many constraints AND many parameters - build lookup map once
 	// This reduces nested loops
 	params := make(map[string]string, ctx.paramCount)
-	for i := int32(0); i < ctx.paramCount; i++ {
+	for i := range ctx.paramCount {
 		params[ctx.paramKeys[i]] = ctx.paramValues[i]
 	}
 	// Merge overflow map if exists

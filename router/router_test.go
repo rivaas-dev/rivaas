@@ -377,7 +377,7 @@ func TestWithCancellationCheck_ContextCancelled(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.True(t, handlerCalled, "handler should be called when context is not cancelled")
+		assert.True(t, handlerCalled, "handler should be called when context is not canceled")
 	})
 
 	// Test with cancellation checking disabled

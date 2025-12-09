@@ -61,7 +61,7 @@ func TestTimeout_Behavior(t *testing.T) {
 					case <-time.After(tt.handlerDelay):
 						c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 					case <-c.Request.Context().Done():
-						// Context cancelled due to timeout - don't write response
+						// Context canceled due to timeout - don't write response
 						return
 					}
 				} else {
@@ -99,7 +99,7 @@ func TestTimeout_RespectsContextCancellation(t *testing.T) {
 				time.Sleep(20 * time.Millisecond)
 			}
 		}
-		// Only write response if not cancelled
+		// Only write response if not canceled
 		select {
 		case <-ctx.Done():
 			contextCancelled <- true
@@ -117,7 +117,7 @@ func TestTimeout_RespectsContextCancellation(t *testing.T) {
 	// Wait for handler to signal cancellation or timeout
 	select {
 	case <-contextCancelled:
-		// Good - context was cancelled
+		// Good - context was canceled
 	case <-time.After(200 * time.Millisecond):
 		assert.Fail(t, "Handler should detect context cancellation")
 	}

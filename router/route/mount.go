@@ -110,8 +110,8 @@ func PrepareMountRoute(prefix string, route *Route, middlewareChain []Handler, n
 
 	// Copy constraints
 	if len(route.constraints) > 0 {
-		data.Constraints = make([]Constraint, len(route.constraints))
-		copy(data.Constraints, route.constraints)
+		data.Constraints = make([]Constraint, 0, len(route.constraints))
+		data.Constraints = append(data.Constraints, route.constraints...)
 	}
 
 	// Copy typed constraints
@@ -128,8 +128,8 @@ func PrepareMountRoute(prefix string, route *Route, middlewareChain []Handler, n
 	// Copy metadata
 	data.Description = route.description
 	if len(route.tags) > 0 {
-		data.Tags = make([]string, len(route.tags))
-		copy(data.Tags, route.tags)
+		data.Tags = make([]string, 0, len(route.tags))
+		data.Tags = append(data.Tags, route.tags...)
 	}
 
 	return data

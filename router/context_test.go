@@ -281,7 +281,7 @@ func TestContext_Status_AlreadyWritten(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code, "expected status 200 (first write)")
 }
 
-// TestContext_Next_WithCancellation tests Next with cancelled context
+// TestContext_Next_WithCancellation tests Next with canceled context
 //
 //nolint:paralleltest // Tests cancellation behavior
 func TestContext_Next_WithCancellation(t *testing.T) {
@@ -298,7 +298,7 @@ func TestContext_Next_WithCancellation(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	// Create request with already-cancelled context
+	// Create request with already-canceled context
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // Cancel immediately
 
@@ -307,7 +307,7 @@ func TestContext_Next_WithCancellation(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	// With cancelled context, cancellation check prevents handlers from running
+	// With canceled context, cancellation check prevents handlers from running
 	// The test verifies no panic occurs and request completes gracefully
 	// Whether handlers are called depends on exact timing of cancellation detection
 	_ = handlerCalled // May or may not be called, both are valid

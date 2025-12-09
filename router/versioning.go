@@ -409,7 +409,7 @@ func (vr *VersionRouter) addVersionRoute(method, path string, handlers []Handler
 	var middlewareNames []string
 	if len(handlers) > 1 {
 		middlewareNames = make([]string, 0, len(handlers)-1)
-		for i := 0; i < len(handlers)-1; i++ {
+		for i := range len(handlers) - 1 {
 			middlewareNames = append(middlewareNames, getHandlerName(handlers[i]))
 		}
 	}
@@ -438,9 +438,9 @@ func (vr *VersionRouter) addVersionRoute(method, path string, handlers []Handler
 	vr.router.recordRouteRegistration(method, path)
 
 	// Convert handlers to route.Handler
-	routeHandlers := make([]route.Handler, len(handlers))
-	for i, h := range handlers {
-		routeHandlers[i] = h
+	routeHandlers := make([]route.Handler, 0, len(handlers))
+	for _, h := range handlers {
+		routeHandlers = append(routeHandlers, h)
 	}
 
 	// Create route object with version field set for deferred registration

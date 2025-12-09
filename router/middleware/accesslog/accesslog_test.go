@@ -367,12 +367,12 @@ func TestAccessLog_Sampling(t *testing.T) { //nolint:paralleltest // Tests sampl
 	req.Header.Set("X-Request-ID", requestID)
 
 	// Run multiple times - all should make the same decision
-	decisions := make([]bool, 10)
-	for i := range 10 {
+	decisions := make([]bool, 0, 10)
+	for range 10 {
 		handler.reset()
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
-		decisions[i] = len(handler.getRecords(slog.LevelInfo)) > 0
+		decisions = append(decisions, len(handler.getRecords(slog.LevelInfo)) > 0)
 	}
 
 	// All decisions should be the same (deterministic)

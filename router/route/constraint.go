@@ -74,10 +74,10 @@ func (pc *ParamConstraint) ToRegexConstraint(paramName string) *Constraint {
 		pattern = pc.Pattern
 	case ConstraintEnum:
 		// Convert enum to regex: (value1|value2|value3)
-		escaped := make([]string, len(pc.Enum))
-		for i, v := range pc.Enum {
+		escaped := make([]string, 0, len(pc.Enum))
+		for _, v := range pc.Enum {
 			// Escape special regex characters in enum values
-			escaped[i] = regexp.QuoteMeta(v)
+			escaped = append(escaped, regexp.QuoteMeta(v))
 		}
 		pattern = "(" + strings.Join(escaped, "|") + ")"
 	case ConstraintDate:

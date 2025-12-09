@@ -187,9 +187,9 @@ func BenchmarkData(b *testing.B) {
 // BenchmarkData_Binary tests binary data sending.
 func BenchmarkData_Binary(b *testing.B) {
 	// 1KB binary data
-	data := make([]byte, 1024)
-	for i := range data {
-		data[i] = byte(i % 256)
+	data := make([]byte, 0, 1024)
+	for i := range 1024 {
+		data = append(data, byte(i%256))
 	}
 
 	w := httptest.NewRecorder()
@@ -215,7 +215,7 @@ func BenchmarkJSON_vs_IndentedJSON_Comparison(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			c.JSON(http.StatusOK, benchData)
 		}
@@ -229,7 +229,7 @@ func BenchmarkJSON_vs_IndentedJSON_Comparison(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			c.IndentedJSON(http.StatusOK, benchData)
 		}
@@ -252,7 +252,7 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			c.JSON(http.StatusOK, htmlData)
 		}
@@ -266,7 +266,7 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			c.PureJSON(http.StatusOK, htmlData)
 		}
@@ -283,7 +283,7 @@ func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			c.JSON(http.StatusOK, benchData)
 		}
@@ -297,7 +297,7 @@ func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			c.SecureJSON(http.StatusOK, benchData)
 		}
@@ -314,7 +314,7 @@ func BenchmarkJSON_vs_YAML_Comparison(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			c.JSON(http.StatusOK, benchData)
 		}
@@ -328,7 +328,7 @@ func BenchmarkJSON_vs_YAML_Comparison(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			w.Body.Reset()
 			c.YAML(http.StatusOK, benchData)
 		}
@@ -358,7 +358,7 @@ func BenchmarkDataFromReader_Sizes(b *testing.B) {
 			b.ReportAllocs()
 			b.SetBytes(int64(sz.size))
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				w.Body.Reset()
 				reader := bytes.NewReader(data)
 				_ = c.DataFromReader(200, int64(sz.size), "application/octet-stream", reader, nil)

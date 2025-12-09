@@ -27,7 +27,7 @@ type Option func(*config)
 
 // config holds the configuration for the timeout middleware.
 type config struct {
-	// timeout is the duration after which requests are cancelled
+	// timeout is the duration after which requests are canceled
 	timeout time.Duration
 
 	// errorHandler is called when a timeout occurs
@@ -56,7 +56,7 @@ func defaultErrorHandler(c *router.Context) {
 }
 
 // New returns a middleware that adds a timeout to requests.
-// If a request takes longer than the specified duration, it will be cancelled
+// If a request takes longer than the specified duration, it will be canceled
 // and an error response will be sent.
 //
 // The middleware creates a new context with timeout and passes it to the handler.
@@ -91,7 +91,7 @@ func defaultErrorHandler(c *router.Context) {
 //	    case <-time.After(2 * time.Second):
 //	        c.JSON(http.StatusOK, map[string]string{"message": "Done"})
 //	    case <-c.Request.Context().Done():
-//	        // Request was cancelled or timed out
+//	        // Request was canceled or timed out
 //	        return
 //	    }
 //	})
@@ -109,7 +109,7 @@ func defaultErrorHandler(c *router.Context) {
 // Goroutine behavior:
 //
 //	The timeout middleware spawns a goroutine to execute the handler chain.
-//	If a timeout occurs, the context is cancelled but the goroutine continues
+//	If a timeout occurs, the context is canceled but the goroutine continues
 //	until it naturally completes or checks c.Request.Context().Done().
 //	This is expected behavior and handlers must be designed to respect context
 //	cancellation to avoid goroutine leaks and unnecessary work.
@@ -149,7 +149,7 @@ func New(timeout time.Duration, opts ...Option) router.HandlerFunc {
 		case <-done:
 			// Request completed normally
 		case <-ctx.Done():
-			// Request timed out or was cancelled
+			// Request timed out or was canceled
 			if ctx.Err() == context.DeadlineExceeded {
 				timedOut = true
 				cfg.errorHandler(c)

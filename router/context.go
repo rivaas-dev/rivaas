@@ -241,10 +241,10 @@ func (c *Context) Next() {
 			if c.aborted {
 				return
 			}
-			// Check for context cancellation to avoid processing cancelled requests
+			// Check for context cancellation to avoid processing canceled requests
 			// This is important for long-running handler chains or I/O operations
 			if err := c.Request.Context().Err(); err != nil {
-				return // Context cancelled or deadline exceeded
+				return // Context canceled or deadline exceeded
 			}
 			c.handlers[c.index](c)
 			c.index++
@@ -311,7 +311,7 @@ func (c *Context) IsAborted() bool {
 //go:inline
 func (c *Context) Param(key string) string {
 	// Array lookup first
-	for i := int32(0); i < c.paramCount; i++ {
+	for i := range c.paramCount {
 		if c.paramKeys[i] == key {
 			return c.paramValues[i]
 		}
@@ -1227,7 +1227,7 @@ func (c *Context) AddSpanEvent(name string, attrs ...attribute.KeyValue) {
 //	// Long-running operation with cancellation
 //	select {
 //	case <-c.RequestContext().Done():
-//		return // Request cancelled
+//		return // Request canceled
 //	case result := <-longOperation():
 //		if err := c.JSON(200, result); err != nil {
 //		    c.Logger().Error("failed to write response", "err", err)

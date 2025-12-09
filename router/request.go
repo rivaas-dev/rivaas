@@ -429,7 +429,7 @@ func (c *Context) Subdomains(offset ...int) []string {
 	subdomains := parts[:len(parts)-off]
 
 	// Reverse to get left-to-right order
-	for i := 0; i < len(subdomains)/2; i++ {
+	for i := range len(subdomains) / 2 {
 		j := len(subdomains) - 1 - i
 		subdomains[i], subdomains[j] = subdomains[j], subdomains[i]
 	}
@@ -573,9 +573,9 @@ func (c *Context) Files(name string) ([]*File, error) {
 	// Get files from multipart form
 	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File[name] != nil {
 		headers := c.Request.MultipartForm.File[name]
-		files := make([]*File, len(headers))
-		for i, h := range headers {
-			files[i] = newFile(h)
+		files := make([]*File, 0, len(headers))
+		for _, h := range headers {
+			files = append(files, newFile(h))
 		}
 
 		return files, nil

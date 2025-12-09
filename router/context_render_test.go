@@ -827,9 +827,9 @@ func TestData_LargeData(t *testing.T) {
 	c := NewContext(w, req)
 
 	// Create 1MB of data
-	largeData := make([]byte, 1024*1024)
-	for i := range largeData {
-		largeData[i] = byte(i % 256)
+	largeData := make([]byte, 0, 1024*1024)
+	for i := range 1024 * 1024 {
+		largeData = append(largeData, byte(i%256))
 	}
 
 	c.Data(http.StatusOK, "application/octet-stream", largeData)

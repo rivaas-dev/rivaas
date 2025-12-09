@@ -147,9 +147,9 @@ func TestRequestID_Configuration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			opts := make([]Option, len(tt.options))
-			for i, optFunc := range tt.options {
-				opts[i] = optFunc()
+			opts := make([]Option, 0, len(tt.options))
+			for _, optFunc := range tt.options {
+				opts = append(opts, optFunc())
 			}
 
 			r := router.MustNew()
