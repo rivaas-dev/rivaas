@@ -144,9 +144,9 @@ func (h *consoleHandler) Handle(_ context.Context, r slog.Record) error {
 // WithAttrs returns a new handler with additional attributes.
 // Implements [slog.Handler.WithAttrs].
 func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
-	copy(newAttrs, h.attrs)
-	copy(newAttrs[len(h.attrs):], attrs)
+	newAttrs := make([]slog.Attr, 0, len(h.attrs)+len(attrs))
+	newAttrs = append(newAttrs, h.attrs...)
+	newAttrs = append(newAttrs, attrs...)
 
 	return &consoleHandler{
 		opts:   h.opts,
@@ -159,9 +159,9 @@ func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 // WithGroup returns a new handler with a group name.
 // Implements [slog.Handler.WithGroup].
 func (h *consoleHandler) WithGroup(name string) slog.Handler {
-	newGroups := make([]string, len(h.groups)+1)
-	copy(newGroups, h.groups)
-	newGroups[len(h.groups)] = name
+	newGroups := make([]string, 0, len(h.groups)+1)
+	newGroups = append(newGroups, h.groups...)
+	newGroups = append(newGroups, name)
 
 	return &consoleHandler{
 		opts:   h.opts,

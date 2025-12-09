@@ -188,7 +188,7 @@ func (l *Logger) ErrorWithStack(msg string, err error, includeStack bool, extra 
 //   - 3: typical value to skip captureStack, ErrorWithStack, and caller's caller
 func captureStack(skip int) string {
 	var buf strings.Builder
-	pcs := make([]uintptr, 10)
+	pcs := make([]uintptr, 10) //nolint:makezero // runtime.Callers requires pre-allocated buffer
 	n := runtime.Callers(skip, pcs)
 	frames := runtime.CallersFrames(pcs[:n])
 
