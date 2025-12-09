@@ -55,8 +55,8 @@ func (e *Engine) ValidateJSON(ctx context.Context, schemaJSON, docJSON []byte) e
 	schema, err := e.compiler.Compile("schema.json")
 	if err != nil {
 		// If compilation fails, try adding the schema as a resource first
-		if err := e.compiler.AddResource("schema.json", bytes.NewReader(schemaJSON)); err != nil {
-			return err
+		if addErr := e.compiler.AddResource("schema.json", bytes.NewReader(schemaJSON)); addErr != nil {
+			return addErr
 		}
 		schema, err = e.compiler.Compile("schema.json")
 		if err != nil {
@@ -65,8 +65,8 @@ func (e *Engine) ValidateJSON(ctx context.Context, schemaJSON, docJSON []byte) e
 	}
 
 	// Validate document
-	if err := schema.Validate(bytes.NewReader(docJSON)); err != nil {
-		return err
+	if validateErr := schema.Validate(bytes.NewReader(docJSON)); validateErr != nil {
+		return validateErr
 	}
 
 	return nil

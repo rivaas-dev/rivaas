@@ -90,11 +90,13 @@ func Project(spec *model.Spec, cfg Config, schema30, schema31 []byte) ([]byte, [
 		}
 		out = spec30
 
-		// Validate if engine is provided
+		// Validate if engine is provided.
+		// Use context.Background() because Project() doesn't take a context parameter.
+		// Schema validation is CPU-bound and typically fast, so cancellation is less critical.
 		if cfg.JSONSchemaEngine != nil && len(schema30) > 0 {
 			b, _ := json.Marshal(spec30)
-			if err := cfg.JSONSchemaEngine.ValidateJSON(context.Background(), schema30, b); err != nil {
-				return nil, warns, err
+			if validateErr := cfg.JSONSchemaEngine.ValidateJSON(context.Background(), schema30, b); validateErr != nil {
+				return nil, warns, validateErr
 			}
 		}
 
@@ -106,11 +108,13 @@ func Project(spec *model.Spec, cfg Config, schema30, schema31 []byte) ([]byte, [
 		}
 		out = spec31
 
-		// Validate if engine is provided
+		// Validate if engine is provided.
+		// Use context.Background() because Project() doesn't take a context parameter.
+		// Schema validation is CPU-bound and typically fast, so cancellation is less critical.
 		if cfg.JSONSchemaEngine != nil && len(schema31) > 0 {
 			b, _ := json.Marshal(spec31)
-			if err := cfg.JSONSchemaEngine.ValidateJSON(context.Background(), schema31, b); err != nil {
-				return nil, warns, err
+			if validateErr := cfg.JSONSchemaEngine.ValidateJSON(context.Background(), schema31, b); validateErr != nil {
+				return nil, warns, validateErr
 			}
 		}
 

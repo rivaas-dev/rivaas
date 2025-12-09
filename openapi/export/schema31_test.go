@@ -36,6 +36,7 @@ func TestSchema31(t *testing.T) {
 			name:  "nil schema",
 			input: nil,
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				assert.Nil(t, result)
 			},
 		},
@@ -45,6 +46,7 @@ func TestSchema31(t *testing.T) {
 				Ref: "#/components/schemas/User",
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "#/components/schemas/User", result.Ref)
 			},
@@ -58,6 +60,7 @@ func TestSchema31(t *testing.T) {
 				Format:      "string",
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "string", result.Type)
 				assert.Equal(t, "Name", result.Title)
@@ -72,6 +75,7 @@ func TestSchema31(t *testing.T) {
 				Nullable: true,
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				typeVal, ok := result.Type.([]string)
 				require.True(t, ok)
@@ -93,6 +97,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "integer", result.Type)
 				require.NotNil(t, result.ExclusiveMinimum)
@@ -115,6 +120,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Minimum)
 				assert.InDelta(t, 10.0, *result.Minimum, 0.001)
@@ -129,6 +135,7 @@ func TestSchema31(t *testing.T) {
 				Const: "fixed-value",
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "fixed-value", result.Const)
 				assert.Empty(t, warns, "should not warn about const in 3.1")
@@ -143,6 +150,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.UnevaluatedProps)
 				assert.Equal(t, "string", result.UnevaluatedProps.Type)
@@ -163,6 +171,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.PatternProperties)
 				assert.Contains(t, result.PatternProperties, "^S_")
@@ -176,6 +185,7 @@ func TestSchema31(t *testing.T) {
 				Examples: []any{"example1", "example2", "example3"},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Examples, 3)
 				assert.Equal(t, []any{"example1", "example2", "example3"}, result.Examples)
@@ -189,6 +199,7 @@ func TestSchema31(t *testing.T) {
 				Example: "single-example",
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Examples, 1)
 				assert.Equal(t, "single-example", result.Examples[0])
@@ -202,6 +213,7 @@ func TestSchema31(t *testing.T) {
 				MaxProperties: intPtr(10),
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.MinProperties)
 				assert.Equal(t, 1, *result.MinProperties)
@@ -220,6 +232,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "array", result.Type)
 				require.NotNil(t, result.MinItems)
@@ -245,6 +258,7 @@ func TestSchema31(t *testing.T) {
 				Required: []string{"name"},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "object", result.Type)
 				require.NotNil(t, result.Properties)
@@ -262,6 +276,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, false, result.AdditionalProps)
 			},
@@ -277,6 +292,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.AdditionalProps)
 				schema, ok := result.AdditionalProps.(*SchemaV31)
@@ -304,6 +320,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.AllOf, 2)
 			},
@@ -318,6 +335,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.AnyOf, 2)
 			},
@@ -332,6 +350,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.OneOf, 2)
 			},
@@ -345,6 +364,7 @@ func TestSchema31(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Not)
 				assert.Equal(t, "string", result.Not.Type)
@@ -403,6 +423,7 @@ func TestSchemaV31_TypeUnion(t *testing.T) {
 				Nullable: true,
 			},
 			validate: func(t *testing.T, result *SchemaV31) {
+				t.Helper()
 				typeVal, ok := result.Type.([]string)
 				require.True(t, ok)
 				assert.Len(t, typeVal, 2)
@@ -417,6 +438,7 @@ func TestSchemaV31_TypeUnion(t *testing.T) {
 				Nullable: false,
 			},
 			validate: func(t *testing.T, result *SchemaV31) {
+				t.Helper()
 				assert.Equal(t, "string", result.Type)
 			},
 		},
@@ -427,6 +449,7 @@ func TestSchemaV31_TypeUnion(t *testing.T) {
 				Nullable: true,
 			},
 			validate: func(t *testing.T, result *SchemaV31) {
+				t.Helper()
 				typeVal, ok := result.Type.([]string)
 				require.True(t, ok)
 				assert.Len(t, typeVal, 2)

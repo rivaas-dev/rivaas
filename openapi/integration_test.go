@@ -251,10 +251,10 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 
 			tagNames := make(map[string]bool)
 			for _, tag := range tags {
-				tagMap, ok := tag.(map[string]any)
-				Expect(ok).To(BeTrue())
-				name, ok := tagMap["name"].(string)
-				Expect(ok).To(BeTrue())
+				tagMap, tagMapOk := tag.(map[string]any)
+				Expect(tagMapOk).To(BeTrue())
+				name, nameOk := tagMap["name"].(string)
+				Expect(nameOk).To(BeTrue())
 				tagNames[name] = true
 			}
 

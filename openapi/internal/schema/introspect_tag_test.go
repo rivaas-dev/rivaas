@@ -36,6 +36,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request](), tagQuery, "query"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 3)
 					paramMap := make(map[string]ParamSpec)
 					for _, p := range params {
@@ -67,6 +68,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request](), tagPath, "path"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 2)
 					paramMap := make(map[string]ParamSpec)
 					for _, p := range params {
@@ -89,6 +91,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request](), tagHeader, "header"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 2)
 					paramMap := make(map[string]ParamSpec)
 					for _, p := range params {
@@ -109,6 +112,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request](), tagCookie, "cookie"
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 2)
 					paramMap := make(map[string]ParamSpec)
 					for _, p := range params {
@@ -149,6 +153,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 				},
 				expected: 1,
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					assert.Equal(t, "valid", params[0].Name)
 				},
 			},
@@ -163,6 +168,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 				},
 				expected: 1,
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					// When tag value is empty after comma, should use field name
 					assert.Equal(t, "FieldName", params[0].Name)
 				},
@@ -178,6 +184,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 				},
 				expected: 1,
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					assert.Equal(t, "field_name", params[0].Name)
 				},
 			},
@@ -211,6 +218,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 1)
 					assert.Equal(t, "User identifier", params[0].Description)
 				},
@@ -226,6 +234,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 2)
 					paramMap := make(map[string]ParamSpec)
 					for _, p := range params {
@@ -246,6 +255,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 2)
 					paramMap := make(map[string]ParamSpec)
 					for _, p := range params {
@@ -282,6 +292,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 1)
 					assert.Equal(t, []string{"pending", "active", "completed"}, params[0].Enum)
 				},
@@ -296,6 +307,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 1)
 					assert.Contains(t, params[0].Enum, "red")
 					assert.Contains(t, params[0].Enum, "green")
@@ -312,6 +324,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 					return reflect.TypeFor[Request]()
 				},
 				validate: func(t *testing.T, params []ParamSpec) {
+					t.Helper()
 					require.Len(t, params, 1)
 					// Should have all values from both enum and oneof
 					assert.Contains(t, params[0].Enum, "pending")
@@ -846,6 +859,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				assert.Empty(t, meta.Parameters)
 			},
 		},
@@ -860,6 +874,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				require.Len(t, meta.Parameters, 1)
 				assert.Equal(t, "valid", meta.Parameters[0].Name)
 			},
@@ -875,6 +890,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				assert.True(t, meta.HasBody) // Has valid json tag
 			},
 		},
@@ -888,6 +904,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				assert.False(t, meta.HasBody)
 			},
 		},
@@ -905,6 +922,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				assert.True(t, meta.HasBody)
 				assert.Len(t, meta.Parameters, 4)
 
@@ -929,6 +947,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				require.Len(t, meta.Parameters, 1)
 				assert.Equal(t, "field", meta.Parameters[0].Name)
 			},
@@ -948,6 +967,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				return reflect.TypeFor[Request]()
 			},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				assert.Len(t, meta.Parameters, 5)
 
 				paramMap := make(map[string]ParamSpec)
@@ -1023,6 +1043,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 			},
 			expected: true,
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				// BodyType should be set to the struct type
 				require.NotNil(t, meta.BodyType)
 				assert.Equal(t, reflect.Struct, meta.BodyType.Kind())

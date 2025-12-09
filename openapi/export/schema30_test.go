@@ -144,6 +144,7 @@ func TestSchema30(t *testing.T) {
 				Required: []string{"name"},
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "object", result.Type)
 				require.NotNil(t, result.Properties)
@@ -160,6 +161,7 @@ func TestSchema30(t *testing.T) {
 			},
 			wantWarn: true,
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Enum, 1)
 				assert.Equal(t, "fixed-value", result.Enum[0])
@@ -182,6 +184,7 @@ func TestSchema30(t *testing.T) {
 			},
 			wantWarn: true,
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				// Enum should be preserved, const ignored
 				assert.Equal(t, []any{"value1", "value2"}, result.Enum)
@@ -205,6 +208,7 @@ func TestSchema30(t *testing.T) {
 			},
 			wantWarn: true,
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				var found bool
 				for _, w := range warns {
@@ -224,6 +228,7 @@ func TestSchema30(t *testing.T) {
 			},
 			wantWarn: true,
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "example1", result.Example)
 				var found bool
@@ -245,6 +250,7 @@ func TestSchema30(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, false, result.AdditionalProps)
 			},
@@ -260,6 +266,7 @@ func TestSchema30(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.AdditionalProps)
 				schema, ok := result.AdditionalProps.(*SchemaV30)
@@ -287,6 +294,7 @@ func TestSchema30(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.AllOf, 2)
 			},
@@ -301,6 +309,7 @@ func TestSchema30(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.AnyOf, 2)
 			},
@@ -315,6 +324,7 @@ func TestSchema30(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.OneOf, 2)
 			},
@@ -328,6 +338,7 @@ func TestSchema30(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *SchemaV30, warns []Warning) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Not)
 				assert.Equal(t, "string", result.Not.Type)

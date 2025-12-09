@@ -36,6 +36,7 @@ func TestWarning(t *testing.T) {
 				Message: "const keyword not supported in 3.0; converted to enum",
 			},
 			validate: func(t *testing.T, w Warning) {
+				t.Helper()
 				assert.Equal(t, DownlevelConstToEnum, w.Code)
 				assert.Equal(t, "#/components/schemas/User", w.Path)
 				assert.Equal(t, "const keyword not supported in 3.0; converted to enum", w.Message)
@@ -49,6 +50,7 @@ func TestWarning(t *testing.T) {
 				Message: "webhooks are 3.1-only; dropped",
 			},
 			validate: func(t *testing.T, w Warning) {
+				t.Helper()
 				assert.Equal(t, DownlevelWebhooks, w.Code)
 				assert.Empty(t, w.Path)
 				assert.Equal(t, "webhooks are 3.1-only; dropped", w.Message)

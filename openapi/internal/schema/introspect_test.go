@@ -39,6 +39,7 @@ func TestIntrospectRequest(t *testing.T) {
 			name:  "path and query parameters",
 			input: GetUserRequest{},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				require.NotNil(t, meta)
 				assert.Len(t, meta.Parameters, 4)
 				assert.False(t, meta.HasBody)
@@ -99,6 +100,7 @@ func TestIntrospectRequest(t *testing.T) {
 			name:  "mixed json and query",
 			input: CreateUserRequest{},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				require.NotNil(t, meta)
 				assert.True(t, meta.HasBody)
 				assert.Len(t, meta.Parameters, 1) // Only age query param
@@ -115,6 +117,7 @@ func TestIntrospectRequest(t *testing.T) {
 			name:  "all parameter types",
 			input: MixedRequest{},
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				require.NotNil(t, meta)
 				assert.True(t, meta.HasBody)
 				assert.Len(t, meta.Parameters, 2) // id (path) and q (query)
@@ -135,6 +138,7 @@ func TestIntrospectRequest(t *testing.T) {
 			name:  "non-struct type",
 			input: "string",
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				assert.Nil(t, meta)
 			},
 		},
@@ -142,6 +146,7 @@ func TestIntrospectRequest(t *testing.T) {
 			name:  "pointer to struct",
 			input: (*GetUserRequest)(nil),
 			validate: func(t *testing.T, meta *RequestMetadata) {
+				t.Helper()
 				require.NotNil(t, meta)
 				// Should work the same as non-pointer
 			},

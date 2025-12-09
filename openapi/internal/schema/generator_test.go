@@ -132,6 +132,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "time.Time type",
 			input: time.Time{},
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindString, s.Kind)
 				assert.Equal(t, "date-time", s.Format)
 				assert.NotNil(t, s.Example)
@@ -141,6 +142,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "[]byte type (binary data)",
 			input: []byte{},
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindString, s.Kind)
 				assert.Equal(t, "base64", s.ContentEncoding)
 			},
@@ -149,6 +151,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "pointer type (nullable)",
 			input: new(string),
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindString, s.Kind)
 				assert.True(t, s.Nullable)
 			},
@@ -157,6 +160,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "struct type",
 			input: TestStruct{},
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.NotEmpty(t, s.Ref)
 				assert.Contains(t, s.Ref, "#/components/schemas/")
 			},
@@ -165,6 +169,7 @@ func TestSchemaGenerator_Generate(t *testing.T) {
 			name:  "nil type",
 			input: nil,
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindObject, s.Kind)
 			},
 		},
@@ -320,24 +325,28 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 		{
 			field: "Email",
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, "email", s.Format)
 			},
 		},
 		{
 			field: "URL",
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, "uri", s.Format)
 			},
 		},
 		{
 			field: "UUID",
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				assert.Equal(t, "uuid", s.Format)
 			},
 		},
 		{
 			field: "MinLen",
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				require.NotNil(t, s.MinLength)
 				assert.Equal(t, 5, *s.MinLength)
 			},
@@ -345,6 +354,7 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 		{
 			field: "MaxLen",
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				require.NotNil(t, s.MaxLength)
 				assert.Equal(t, 10, *s.MaxLength)
 			},
@@ -352,6 +362,7 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 		{
 			field: "Min",
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				require.NotNil(t, s.Minimum)
 				assert.InDelta(t, 10.0, s.Minimum.Value, 0.001)
 				assert.False(t, s.Minimum.Exclusive)
@@ -360,6 +371,7 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 		{
 			field: "Max",
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				require.NotNil(t, s.Maximum)
 				assert.InDelta(t, 100.0, s.Maximum.Value, 0.001)
 				assert.False(t, s.Maximum.Exclusive)
@@ -368,6 +380,7 @@ func TestSchemaGenerator_ValidationConstraints(t *testing.T) {
 		{
 			field: "Enum",
 			validate: func(t *testing.T, s *model.Schema) {
+				t.Helper()
 				require.Len(t, s.Enum, 3)
 				assert.Contains(t, s.Enum, "red")
 				assert.Contains(t, s.Enum, "green")
@@ -398,6 +411,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 			name:  "empty struct",
 			input: struct{}{},
 			validate: func(t *testing.T, schema *model.Schema, schemas map[string]*model.Schema) {
+				t.Helper()
 				// Empty structs without names don't create component schemas
 				// They return an inline object schema
 				assert.Equal(t, model.KindObject, schema.Kind)
@@ -413,6 +427,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 				} `json:"user"`
 			}{},
 			validate: func(t *testing.T, schema *model.Schema, schemas map[string]*model.Schema) {
+				t.Helper()
 				// Anonymous nested structs are inlined
 				assert.Equal(t, model.KindObject, schema.Kind)
 				assert.Contains(t, schema.Properties, "user")
@@ -424,6 +439,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 			name:  "map with non-string key",
 			input: map[int]string{},
 			validate: func(t *testing.T, schema *model.Schema, schemas map[string]*model.Schema) {
+				t.Helper()
 				// Non-string keys should fallback to object
 				assert.Equal(t, model.KindObject, schema.Kind)
 			},
@@ -432,6 +448,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 			name:  "any type",
 			input: any(nil),
 			validate: func(t *testing.T, schema *model.Schema, schemas map[string]*model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindObject, schema.Kind)
 			},
 		},
@@ -439,6 +456,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 			name:  "slice of pointers",
 			input: []*string{},
 			validate: func(t *testing.T, schema *model.Schema, schemas map[string]*model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindArray, schema.Kind)
 				require.NotNil(t, schema.Items)
 				assert.Equal(t, model.KindString, schema.Items.Kind)
@@ -449,6 +467,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 			name:  "map of slices",
 			input: map[string][]int{},
 			validate: func(t *testing.T, schema *model.Schema, schemas map[string]*model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindObject, schema.Kind)
 				require.NotNil(t, schema.Additional)
 				require.NotNil(t, schema.Additional.Schema)
@@ -459,6 +478,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 			name:  "pointer to slice",
 			input: (*[]string)(nil),
 			validate: func(t *testing.T, schema *model.Schema, schemas map[string]*model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindArray, schema.Kind)
 				assert.True(t, schema.Nullable)
 				require.NotNil(t, schema.Items)
@@ -469,6 +489,7 @@ func TestSchemaGenerator_EdgeCases(t *testing.T) {
 			name:  "array with fixed size",
 			input: [10]int{},
 			validate: func(t *testing.T, schema *model.Schema, schemas map[string]*model.Schema) {
+				t.Helper()
 				assert.Equal(t, model.KindArray, schema.Kind)
 				require.NotNil(t, schema.Items)
 				assert.Equal(t, model.KindInteger, schema.Items.Kind)

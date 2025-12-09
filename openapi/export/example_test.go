@@ -55,8 +55,8 @@ func ExampleProject() {
 	}
 
 	var result map[string]any
-	if err := json.Unmarshal(jsonBytes, &result); err != nil {
-		fmt.Printf("Error: %v\n", err)
+	if unmarshalErr := json.Unmarshal(jsonBytes, &result); unmarshalErr != nil {
+		fmt.Printf("Error: %v\n", unmarshalErr)
 		return
 	}
 
@@ -147,8 +147,8 @@ func ExampleProject_withWarnings() {
 	}
 
 	var result map[string]any
-	if err := json.Unmarshal(jsonBytes, &result); err != nil {
-		fmt.Printf("Error: %v\n", err)
+	if unmarshalErr := json.Unmarshal(jsonBytes, &result); unmarshalErr != nil {
+		fmt.Printf("Error: %v\n", unmarshalErr)
 		return
 	}
 
@@ -200,8 +200,8 @@ func ExampleProject_v31() {
 	}
 
 	var result map[string]any
-	if err := json.Unmarshal(jsonBytes, &result); err != nil {
-		fmt.Printf("Error: %v\n", err)
+	if unmarshalErr := json.Unmarshal(jsonBytes, &result); unmarshalErr != nil {
+		fmt.Printf("Error: %v\n", unmarshalErr)
 		return
 	}
 

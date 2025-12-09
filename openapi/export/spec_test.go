@@ -87,6 +87,7 @@ func TestProject(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, jsonBytes []byte, warns []Warning) {
+				t.Helper()
 				var m map[string]any
 				require.NoError(t, json.Unmarshal(jsonBytes, &m))
 				assert.Equal(t, "3.0.4", m["openapi"])
@@ -119,6 +120,7 @@ func TestProject(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, jsonBytes []byte, warns []Warning) {
+				t.Helper()
 				var m map[string]any
 				require.NoError(t, json.Unmarshal(jsonBytes, &m))
 				assert.Equal(t, "3.1.2", m["openapi"])
@@ -156,6 +158,7 @@ func TestProject(t *testing.T) {
 			wantErr:   false,
 			wantWarns: true,
 			validate: func(t *testing.T, jsonBytes []byte, warns []Warning) {
+				t.Helper()
 				assert.NotEmpty(t, warns)
 				var foundSummary, foundWebhooks bool
 				for _, w := range warns {
@@ -239,6 +242,7 @@ func TestProject(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, jsonBytes []byte, warns []Warning) {
+				t.Helper()
 				var m map[string]any
 				require.NoError(t, json.Unmarshal(jsonBytes, &m))
 				assert.Equal(t, "value", m["x-custom"])

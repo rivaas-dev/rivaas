@@ -122,8 +122,8 @@ func marshalWithExtensions(v any, extensions map[string]any) ([]byte, error) {
 
 	// Parse the JSON into a map
 	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
-		return nil, err
+	if unmarshalErr := json.Unmarshal(data, &m); unmarshalErr != nil {
+		return nil, unmarshalErr
 	}
 
 	// Merge extensions into the map
