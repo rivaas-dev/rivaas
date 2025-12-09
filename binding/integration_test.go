@@ -16,6 +16,7 @@ package binding_test
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -82,9 +83,8 @@ func TestIntegration_JSONBodyBinding(t *testing.T) {
 	}
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body := make([]byte, r.ContentLength)
-		_, err := r.Body.Read(body)
-		if err != nil && err.Error() != "EOF" {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
 		}

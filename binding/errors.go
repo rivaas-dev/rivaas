@@ -269,9 +269,9 @@ func (m *MultiError) Error() string {
 
 // Unwrap returns all errors for errors.Is/As compatibility.
 func (m *MultiError) Unwrap() []error {
-	errs := make([]error, len(m.Errors))
-	for i, e := range m.Errors {
-		errs[i] = e
+	errs := make([]error, 0, len(m.Errors))
+	for _, e := range m.Errors {
+		errs = append(errs, e)
 	}
 
 	return errs

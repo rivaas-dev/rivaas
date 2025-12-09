@@ -861,7 +861,7 @@ func hasStructTagRecursive(t reflect.Type, tag string, visited map[reflect.Type]
 	}
 	visited[t] = true
 
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		field := t.Field(i)
 		if !field.IsExported() {
 			continue

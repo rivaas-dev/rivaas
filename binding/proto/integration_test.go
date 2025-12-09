@@ -396,11 +396,11 @@ func TestIntegration_ProtoLargePayload(t *testing.T) {
 	})
 
 	// Create Protocol Buffers encoded body with 100 items
-	tags := make([]string, 100)
-	prices := make([]int32, 100)
+	tags := make([]string, 0, 100)
+	prices := make([]int32, 0, 100)
 	for i := range 100 {
-		tags[i] = "tag"
-		prices[i] = int32(i * 10)
+		tags = append(tags, "tag")
+		prices = append(prices, int32(i*10))
 	}
 
 	product := &testdata.Product{

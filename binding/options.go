@@ -614,8 +614,8 @@ func (c *config) clone() *config {
 	clone := *c
 	// Deep copy sources slice
 	if c.sources != nil {
-		clone.sources = make([]sourceEntry, len(c.sources))
-		copy(clone.sources, c.sources)
+		clone.sources = make([]sourceEntry, 0, len(c.sources))
+		clone.sources = append(clone.sources, c.sources...)
 	}
 	// Deep copy type converters map
 	if c.typeConverters != nil {

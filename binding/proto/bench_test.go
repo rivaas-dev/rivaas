@@ -211,11 +211,11 @@ func BenchmarkProto_Parallel(b *testing.B) {
 
 // BenchmarkProto_LargeRepeatedFields benchmarks with larger repeated fields.
 func BenchmarkProto_LargeRepeatedFields(b *testing.B) {
-	tags := make([]string, 100)
-	prices := make([]int32, 100)
+	tags := make([]string, 0, 100)
+	prices := make([]int32, 0, 100)
 	for i := range 100 {
-		tags[i] = "tag"
-		prices[i] = int32(i * 10)
+		tags = append(tags, "tag")
+		prices = append(prices, int32(i*10))
 	}
 
 	product := &testdata.Product{
