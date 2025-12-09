@@ -231,6 +231,7 @@ func isValidationError(err error) bool {
 		err == ErrValidationFailed ||
 		err == ErrCannotValidateNilValue ||
 		err == ErrInvalidType {
+
 		return true
 	}
 

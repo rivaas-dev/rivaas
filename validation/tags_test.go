@@ -40,7 +40,7 @@ func TestValidateWithTags_Required(t *testing.T) {
 			user:      User{}, // Missing required fields
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				assert.True(t, verr.HasCode("tag.required"), "should have 'tag.required' error")
@@ -51,10 +51,10 @@ func TestValidateWithTags_Required(t *testing.T) {
 			user:      User{Email: "john@example.com"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
-				require.ErrorAs(t, err, &verr)
-				assert.True(t, verr.HasCode("tag.required"))
+				require.ErrorAs(t, err, &verr, "expected validation.Error")
+				assert.True(t, verr.HasCode("tag.required"), "should have 'tag.required' error")
 			},
 		},
 		{
@@ -62,10 +62,10 @@ func TestValidateWithTags_Required(t *testing.T) {
 			user:      User{Name: "John"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
-				require.ErrorAs(t, err, &verr)
-				assert.True(t, verr.HasCode("tag.required"))
+				require.ErrorAs(t, err, &verr, "expected validation.Error")
+				assert.True(t, verr.HasCode("tag.required"), "should have 'tag.required' error")
 			},
 		},
 		{
@@ -108,7 +108,7 @@ func TestValidateWithTags_Email(t *testing.T) {
 			user:      User{Email: "invalid-email"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				assert.True(t, verr.HasCode("tag.email"), "should have 'tag.email' error")
@@ -129,7 +129,7 @@ func TestValidateWithTags_Email(t *testing.T) {
 			user:      User{Email: "johnexample.com"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.True(t, verr.HasCode("tag.email"))
@@ -248,7 +248,7 @@ func TestValidateWithTags_CustomValidators(t *testing.T) {
 			user:      User{Username: "ab", Slug: "Invalid_Slug"}, // Too short username, invalid slug
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				assert.GreaterOrEqual(t, len(verr.Fields), 2, "expected at least 2 errors")
@@ -259,7 +259,7 @@ func TestValidateWithTags_CustomValidators(t *testing.T) {
 			user:      User{Username: "ab", Slug: "valid-slug"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -270,7 +270,7 @@ func TestValidateWithTags_CustomValidators(t *testing.T) {
 			user:      User{Username: "validuser", Slug: "Invalid_Slug"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -331,7 +331,7 @@ func TestPathResolution(t *testing.T) {
 			order:     Order{Items: []Item{{Name: "", Price: 0}}},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				// Check that paths are correctly formatted
@@ -350,7 +350,7 @@ func TestPathResolution(t *testing.T) {
 			order:     Order{Items: []Item{{Name: "", Price: 0}, {Name: "", Price: 0}}},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -406,7 +406,7 @@ func TestRedaction(t *testing.T) {
 			user:      User{Password: "short", Token: ""},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				// Check that errors exist for password and token
@@ -434,7 +434,7 @@ func TestRedaction(t *testing.T) {
 			user:      User{Token: "token123"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				foundPassword := false
@@ -716,7 +716,7 @@ func TestFieldNameMapper_NestedFields(t *testing.T) {
 			user:      User{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				// Check that errors exist for nested fields
@@ -734,7 +734,7 @@ func TestFieldNameMapper_NestedFields(t *testing.T) {
 			user:      User{Address: Address{Street: "123 Main", City: "NYC"}},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -745,7 +745,7 @@ func TestFieldNameMapper_NestedFields(t *testing.T) {
 			user:      User{FirstName: "John"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				found := false
@@ -801,7 +801,7 @@ func TestFieldNameMapper_ArrayElements(t *testing.T) {
 			order:     Order{Items: []Item{{Name: ""}}},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				// Check that we got validation errors for the items array
@@ -829,7 +829,7 @@ func TestFieldNameMapper_ArrayElements(t *testing.T) {
 			order:     Order{Items: []Item{{Name: ""}, {Name: ""}}},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -888,7 +888,7 @@ func TestRedaction_NestedSensitiveFields(t *testing.T) {
 			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				// Check that errors exist for password and profile.token
@@ -925,7 +925,7 @@ func TestRedaction_NestedSensitiveFields(t *testing.T) {
 			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				foundPassword := false
@@ -972,7 +972,7 @@ func TestRedaction_AllErrorTypes(t *testing.T) {
 			user:      &User{Password: ""},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				// Check that error exists for password

@@ -132,9 +132,9 @@ func TestValidateWithInterface_PointerReceiver(t *testing.T) {
 			user:      &userWithValidator{Email: "john@example.com"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
-				require.ErrorAs(t, err, &verr)
+				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				assert.True(t, verr.HasCode("validation_error"))
 			},
 		},
@@ -143,9 +143,9 @@ func TestValidateWithInterface_PointerReceiver(t *testing.T) {
 			user:      &userWithValidator{Name: "John"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
-				require.ErrorAs(t, err, &verr)
+				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				assert.True(t, verr.HasCode("validation_error"))
 			},
 		},
@@ -154,7 +154,7 @@ func TestValidateWithInterface_PointerReceiver(t *testing.T) {
 			user:      &userWithValidator{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.True(t, verr.HasCode("validation_error"))
@@ -196,7 +196,7 @@ func TestValidateWithInterface_ValueReceiver(t *testing.T) {
 			user:      userWithValueValidator{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.True(t, verr.HasCode("validation_error"))
@@ -207,6 +207,7 @@ func TestValidateWithInterface_ValueReceiver(t *testing.T) {
 			user:      userWithValueValidator{Name: ""},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 			},
 		},
@@ -238,51 +239,71 @@ func TestValidateWithInterface_WithContext(t *testing.T) {
 		checkErr  func(t *testing.T, err error)
 	}{
 		{
-			name:      "valid user with English locale",
-			user:      &userWithContextValidator{Name: "John"},
-			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
+			name: "valid user with English locale",
+			user: &userWithContextValidator{Name: "John"},
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return context.WithValue(t.Context(), testLocaleKey, "en")
+			},
 			wantError: false,
 		},
 		{
-			name:      "invalid user - missing name",
-			user:      &userWithContextValidator{},
-			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
+			name: "invalid user - missing name",
+			user: &userWithContextValidator{},
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return context.WithValue(t.Context(), testLocaleKey, "en")
+			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 			},
 		},
 		{
-			name:      "invalid user - short name for Farsi locale",
-			user:      &userWithContextValidator{Name: "Jo"},
-			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "fa") },
+			name: "invalid user - short name for Farsi locale",
+			user: &userWithContextValidator{Name: "Jo"},
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return context.WithValue(t.Context(), testLocaleKey, "fa")
+			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 			},
 		},
 		{
-			name:      "valid long name for Farsi locale",
-			user:      &userWithContextValidator{Name: "محمد"},
-			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "fa") },
+			name: "valid long name for Farsi locale",
+			user: &userWithContextValidator{Name: "محمد"},
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return context.WithValue(t.Context(), testLocaleKey, "fa")
+			},
 			wantError: false,
 		},
 		{
 			name:      "valid name with no locale in context",
 			user:      &userWithContextValidator{Name: "John"},
-			setupCtx:  func(t *testing.T) context.Context { return t.Context() },
+			setupCtx:  func(t *testing.T) context.Context { t.Helper(); return t.Context() },
 			wantError: false,
 		},
 		{
-			name:      "valid name with different locale",
-			user:      &userWithContextValidator{Name: "Jo"},
-			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
+			name: "valid name with different locale",
+			user: &userWithContextValidator{Name: "Jo"},
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return context.WithValue(t.Context(), testLocaleKey, "en")
+			},
 			wantError: false, // English locale doesn't have length restriction
 		},
 		{
-			name:      "invalid - empty name with context",
-			user:      &userWithContextValidator{Name: ""},
-			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
+			name: "invalid - empty name with context",
+			user: &userWithContextValidator{Name: ""},
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return context.WithValue(t.Context(), testLocaleKey, "en")
+			},
 			wantError: true,
 		},
 	}
@@ -322,6 +343,7 @@ func TestValidateWithInterface_ValueReceiverWithContext(t *testing.T) {
 			user:      userWithValueContextValidator{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 			},
 		},
@@ -362,6 +384,7 @@ func TestValidateWithInterface_PrefersContextOverValidate(t *testing.T) {
 			user:      &userWithBoth{Name: "John"},
 			wantError: false,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				// If Validate() was called, it would return "should not use Validate()"
 				// Since wantError is false, err should be nil
 				require.NoError(t, err, "valid user should not have errors")
@@ -377,6 +400,7 @@ func TestValidateWithInterface_PrefersContextOverValidate(t *testing.T) {
 			user:      &userWithBoth{Name: ""},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				// Should not have used Validate() which returns "should not use Validate()"
 				assert.NotContains(t, err.Error(), "should not use Validate()",
@@ -460,7 +484,7 @@ func TestValidateWithInterface_ErrorCoercion(t *testing.T) {
 			name: "missing name should be coerced to validation.Error",
 			user: &userWithValidator{Email: "test@example.com"},
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "should be able to unwrap to validation.Error")
 			},
@@ -469,7 +493,7 @@ func TestValidateWithInterface_ErrorCoercion(t *testing.T) {
 			name: "missing email should be coerced to validation.Error",
 			user: &userWithValidator{Name: "John"},
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "should be able to unwrap to validation.Error")
 			},
@@ -478,7 +502,7 @@ func TestValidateWithInterface_ErrorCoercion(t *testing.T) {
 			name: "missing both fields should be coerced to validation.Error",
 			user: &userWithValidator{},
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "should be able to unwrap to validation.Error")
 				// Should contain error about name (first check in Validate method)
@@ -545,15 +569,21 @@ func TestValidateWithInterface_ContextWithoutWithContextOption(t *testing.T) {
 		wantError bool
 	}{
 		{
-			name:      "context provided but WithContext not called - should still use ValidateContext",
-			user:      &userWithContextValidator{Name: "John"},
-			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
+			name: "context provided but WithContext not called - should still use ValidateContext",
+			user: &userWithContextValidator{Name: "John"},
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return context.WithValue(t.Context(), testLocaleKey, "en")
+			},
 			wantError: false,
 		},
 		{
-			name:      "context provided but WithContext not called - invalid user",
-			user:      &userWithContextValidator{},
-			setupCtx:  func(t *testing.T) context.Context { return context.WithValue(t.Context(), testLocaleKey, "en") },
+			name: "context provided but WithContext not called - invalid user",
+			user: &userWithContextValidator{},
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return context.WithValue(t.Context(), testLocaleKey, "en")
+			},
 			wantError: true,
 		},
 	}
@@ -618,7 +648,7 @@ func TestValidateWithInterface_ErrorUnwrapping(t *testing.T) {
 			name: "error should unwrap to ErrValidation",
 			user: &userWithValidator{},
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				unwrapped := verr.Unwrap()
@@ -629,6 +659,7 @@ func TestValidateWithInterface_ErrorUnwrapping(t *testing.T) {
 			name: "error should be unwrappable with errors.Is",
 			user: &userWithValidator{Email: "test@example.com"},
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				assert.ErrorIs(t, err, ErrValidation)
 			},
@@ -658,6 +689,7 @@ func TestValidateWithInterface_ContextCancellation(t *testing.T) {
 		{
 			name: "cancelled context should still validate",
 			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // Cancel immediately
 
@@ -669,6 +701,7 @@ func TestValidateWithInterface_ContextCancellation(t *testing.T) {
 		{
 			name: "cancelled context with invalid user",
 			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel()
 

@@ -147,11 +147,11 @@ func markPresence(m map[string]any, prefix string, pm PresenceMap, depth int) {
 			markPresence(nested, path, pm, depth+1)
 		}
 
-		if arr, ok := v.([]any); ok {
+		if arr, arrOk := v.([]any); arrOk {
 			for i, item := range arr {
 				itemPath := path + "." + strconv.Itoa(i)
 				pm[itemPath] = true
-				if nestedMap, ok := item.(map[string]any); ok {
+				if nestedMap, nestedMapOk := item.(map[string]any); nestedMapOk {
 					markPresence(nestedMap, itemPath, pm, depth+1)
 				}
 			}

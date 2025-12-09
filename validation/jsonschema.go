@@ -61,25 +61,25 @@ func (v *Validator) validateWithSchema(ctx context.Context, val any, cfg *config
 
 	// Otherwise marshal
 	if jsonBytes == nil {
-		var err error
-		jsonBytes, err = json.Marshal(val)
-		if err != nil {
-			return &Error{Fields: []FieldError{{Code: "marshal_error", Message: err.Error()}}}
+		var marshalErr error
+		jsonBytes, marshalErr = json.Marshal(val)
+		if marshalErr != nil {
+			return &Error{Fields: []FieldError{{Code: "marshal_error", Message: marshalErr.Error()}}}
 		}
 	}
 
 	// Decode and prune for partial mode
 	var data any
 	if cfg.partial && cfg.presence != nil {
-		if err := json.Unmarshal(jsonBytes, &data); err != nil {
-			return &Error{Fields: []FieldError{{Code: "unmarshal_error", Message: err.Error()}}}
+		if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+			return &Error{Fields: []FieldError{{Code: "unmarshal_error", Message: unmarshalErr.Error()}}}
 		}
 
 		data = pruneByPresence(data, "", cfg.presence, 0)
 		// Preserve original bytes in case marshal fails
 		originalBytes := jsonBytes
-		prunedBytes, err := json.Marshal(data)
-		if err != nil {
+		prunedBytes, pruneMarshalErr := json.Marshal(data)
+		if pruneMarshalErr != nil {
 			// If marshal fails, fall back to original jsonBytes
 			jsonBytes = originalBytes
 		} else {
@@ -89,18 +89,18 @@ func (v *Validator) validateWithSchema(ctx context.Context, val any, cfg *config
 
 	// Unmarshal data for validation
 	if data == nil {
-		if err := json.Unmarshal(jsonBytes, &data); err != nil {
-			return &Error{Fields: []FieldError{{Code: "unmarshal_error", Message: err.Error()}}}
+		if unmarshalErr := json.Unmarshal(jsonBytes, &data); unmarshalErr != nil {
+			return &Error{Fields: []FieldError{{Code: "unmarshal_error", Message: unmarshalErr.Error()}}}
 		}
 	}
 
 	// Validate
-	if err := schema.Validate(data); err != nil {
-		if verr, ok := err.(*jsonschema.ValidationError); ok {
+	if validateErr := schema.Validate(data); validateErr != nil {
+		if verr, verrOk := validateErr.(*jsonschema.ValidationError); verrOk {
 			return formatSchemaErrors(verr, cfg)
 		}
 
-		return &Error{Fields: []FieldError{{Code: "schema_validation_error", Message: err.Error()}}}
+		return &Error{Fields: []FieldError{{Code: "schema_validation_error", Message: validateErr.Error()}}}
 	}
 
 	return nil

@@ -167,7 +167,7 @@ func TestWithMaxErrors(t *testing.T) {
 			maxErrors: 2,
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				assert.LessOrEqual(t, len(verr.Fields), 2, "expected at most 2 errors")
@@ -180,7 +180,7 @@ func TestWithMaxErrors(t *testing.T) {
 			maxErrors: 0,
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				assert.GreaterOrEqual(t, len(verr.Fields), 4, "expected at least 4 errors with unlimited")
@@ -192,7 +192,7 @@ func TestWithMaxErrors(t *testing.T) {
 			maxErrors: 1,
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.LessOrEqual(t, len(verr.Fields), 1)
@@ -207,7 +207,7 @@ func TestWithMaxErrors(t *testing.T) {
 			maxErrors: 10,
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.LessOrEqual(t, len(verr.Fields), 10)
@@ -267,6 +267,7 @@ func TestWithCustomValidator(t *testing.T) {
 			user:      &User{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "custom: name is required",
 					"expected custom error message")
@@ -282,6 +283,7 @@ func TestWithCustomValidator(t *testing.T) {
 			user:      &User{Name: ""},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "custom: name is required")
 			},
@@ -322,7 +324,7 @@ func TestWithFieldNameMapper(t *testing.T) {
 			user:      User{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				// Check that field names exist (field name mapper is not in public API, so we just verify errors exist)
@@ -336,7 +338,7 @@ func TestWithFieldNameMapper(t *testing.T) {
 			user:      User{LastName: "Doe"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -383,7 +385,7 @@ func TestWithRedactor(t *testing.T) {
 			user:      User{Password: "short", Token: ""},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				// Verify errors exist for password and token fields
@@ -406,7 +408,7 @@ func TestWithRedactor(t *testing.T) {
 			user:      User{Token: "token123"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				foundPassword := false
@@ -465,6 +467,7 @@ func TestWithContext(t *testing.T) {
 			user:      &User{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err, "expected validation error")
 			},
 		},
@@ -523,6 +526,7 @@ func TestWithPresence(t *testing.T) {
 			pm:        PresenceMap{"name": true, "email": true},
 			wantError: false, // In partial mode, only present fields are validated
 			checkErr: func(t *testing.T, err error, pm PresenceMap) {
+				t.Helper()
 				assert.True(t, pm.Has("name"), "presence map should contain 'name'")
 				assert.True(t, pm.Has("email"), "presence map should contain 'email'")
 			},
@@ -654,6 +658,7 @@ func TestNewValidationConfig_Defaults(t *testing.T) {
 			opts:      []Option{WithMaxErrors(1)},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 				var verr *Error
 				if errors.As(err, &verr) {
@@ -675,7 +680,7 @@ func TestNewValidationConfig_Defaults(t *testing.T) {
 			opts:      nil,
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -776,11 +781,10 @@ func TestWithMultipleOptions(t *testing.T) {
 			opts:      []Option{WithRunAll(true), WithMaxErrors(2)},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
-				if errors.As(err, &verr) {
-					assert.LessOrEqual(t, len(verr.Fields), 2)
-				}
+				require.ErrorAs(t, err, &verr, "expected validation.Error")
+				assert.LessOrEqual(t, len(verr.Fields), 2, "expected at most 2 errors")
 			},
 		},
 		{
@@ -789,11 +793,10 @@ func TestWithMultipleOptions(t *testing.T) {
 			opts:      []Option{WithStrategy(StrategyTags), WithMaxErrors(1)},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
-				if errors.As(err, &verr) {
-					assert.LessOrEqual(t, len(verr.Fields), 1)
-				}
+				require.ErrorAs(t, err, &verr, "expected validation.Error")
+				assert.LessOrEqual(t, len(verr.Fields), 1, "expected at most 1 error")
 			},
 		},
 		{

@@ -94,7 +94,7 @@ func TestValidateWithSchema_Basic(t *testing.T) {
 			user:      User{Name: "John", Age: 0},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				assert.NotEmpty(t, verr.Fields, "should have validation errors")
@@ -375,12 +375,14 @@ func TestGetRawJSONFromContext(t *testing.T) {
 		{
 			name: "should extract raw JSON from context",
 			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
 				rawJSON := []byte(`{"name": "John"}`)
 				return InjectRawJSONCtx(t.Context(), rawJSON)
 			},
 			wantFound: true,
 			wantData:  []byte(`{"name": "John"}`),
 			check: func(t *testing.T, retrieved []byte, ok bool) {
+				t.Helper()
 				assert.True(t, ok, "should be able to extract raw JSON")
 				assert.JSONEq(t, `{"name": "John"}`, string(retrieved))
 			},
@@ -388,10 +390,12 @@ func TestGetRawJSONFromContext(t *testing.T) {
 		{
 			name: "should return false for context without raw JSON",
 			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
 				return t.Context()
 			},
 			wantFound: false,
 			check: func(t *testing.T, retrieved []byte, ok bool) {
+				t.Helper()
 				assert.False(t, ok, "should return false for context without raw JSON")
 				assert.Nil(t, retrieved, "should return nil for context without raw JSON")
 			},
@@ -399,12 +403,14 @@ func TestGetRawJSONFromContext(t *testing.T) {
 		{
 			name: "should extract empty JSON array",
 			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
 				rawJSON := []byte(`[]`)
 				return InjectRawJSONCtx(t.Context(), rawJSON)
 			},
 			wantFound: true,
 			wantData:  []byte(`[]`),
 			check: func(t *testing.T, retrieved []byte, ok bool) {
+				t.Helper()
 				assert.True(t, ok)
 				assert.Equal(t, `[]`, string(retrieved))
 			},
@@ -412,12 +418,14 @@ func TestGetRawJSONFromContext(t *testing.T) {
 		{
 			name: "should extract complex nested JSON",
 			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
 				rawJSON := []byte(`{"user": {"name": "John", "age": 30}, "tags": ["admin", "user"]}`)
 				return InjectRawJSONCtx(t.Context(), rawJSON)
 			},
 			wantFound: true,
 			wantData:  []byte(`{"user": {"name": "John", "age": 30}, "tags": ["admin", "user"]}`),
 			check: func(t *testing.T, retrieved []byte, ok bool) {
+				t.Helper()
 				assert.True(t, ok)
 				assert.JSONEq(t, `{"user": {"name": "John", "age": 30}, "tags": ["admin", "user"]}`, string(retrieved))
 			},
@@ -474,7 +482,7 @@ func TestJSONSchemaProvider(t *testing.T) {
 			user:      User{Name: ""},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -579,7 +587,7 @@ func TestValidateWithSchema_InvalidSchema(t *testing.T) {
 			user:      User{Name: "John"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				// Should have schema compile error
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
@@ -593,7 +601,7 @@ func TestValidateWithSchema_InvalidSchema(t *testing.T) {
 			user:      User{Name: "John"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -692,7 +700,7 @@ func TestValidateWithSchema_NestedObjectErrors(t *testing.T) {
 			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				// Should have error for address.city
@@ -717,6 +725,7 @@ func TestValidateWithSchema_NestedObjectErrors(t *testing.T) {
 			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				require.Error(t, err)
 			},
 		},

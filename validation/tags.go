@@ -97,7 +97,7 @@ func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 
 		// Validate this single field
 		if err := v.tagValidator.Var(fieldVal.Interface(), validateTag); err != nil {
-			if verrs, ok := err.(validator.ValidationErrors); ok {
+			if verrs, verrsOk := err.(validator.ValidationErrors); verrsOk {
 				// Format with proper path context
 				for _, e := range verrs {
 					code := "tag." + e.Tag()

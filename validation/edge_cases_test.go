@@ -186,7 +186,6 @@ func TestValidate_DeeplyNestedStructures(t *testing.T) {
 			wantPath:  "level2.level3.level4.level5.value",
 			checkErr: func(t *testing.T, err error) {
 				t.Helper()
-				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected ValidationErrors")
 				found := false
@@ -682,7 +681,6 @@ func TestValidate_ManyErrors(t *testing.T) {
 			wantTruncated: true,
 			checkErr: func(t *testing.T, err error) {
 				t.Helper()
-				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected ValidationErrors")
 				assert.LessOrEqual(t, len(verr.Fields), 5, "expected at most 5 errors")
@@ -698,7 +696,6 @@ func TestValidate_ManyErrors(t *testing.T) {
 			wantTruncated: false,
 			checkErr: func(t *testing.T, err error) {
 				t.Helper()
-				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected validation.Error")
 				assert.GreaterOrEqual(t, len(verr.Fields), 15, "expected at least 15 errors with unlimited")
@@ -713,7 +710,6 @@ func TestValidate_ManyErrors(t *testing.T) {
 			wantTruncated: true,
 			checkErr: func(t *testing.T, err error) {
 				t.Helper()
-				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.LessOrEqual(t, len(verr.Fields), 1)

@@ -63,8 +63,8 @@ func ExampleNew() {
 	}
 
 	user := User{Email: "john@example.com"}
-	if err := validator.Validate(context.Background(), &user); err != nil {
-		fmt.Printf("Validation failed: %v\n", err)
+	if validateErr := validator.Validate(context.Background(), &user); validateErr != nil {
+		fmt.Printf("Validation failed: %v\n", validateErr)
 	} else {
 		fmt.Println("Validation passed")
 	}

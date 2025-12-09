@@ -225,6 +225,7 @@ func TestIntegration_PartialValidationWorkflow(t *testing.T) {
 			existingVal: User{Name: "Old Name", Email: "email@example.com", Address: "123 St"},
 			wantError:   true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				var verr *validation.Error
 				require.ErrorAs(t, err, &verr)
 				assert.True(t, verr.Has("name"))
@@ -325,6 +326,7 @@ func TestIntegration_ValidatorInstance(t *testing.T) {
 			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				var verr *validation.Error
 				require.ErrorAs(t, err, &verr)
 				assert.True(t, verr.Has("password"))
@@ -343,6 +345,7 @@ func TestIntegration_ValidatorInstance(t *testing.T) {
 			user:      SensitiveUser{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
+				t.Helper()
 				var verr *validation.Error
 				require.ErrorAs(t, err, &verr)
 				assert.GreaterOrEqual(t, len(verr.Fields), 3)
@@ -355,15 +358,15 @@ func TestIntegration_ValidatorInstance(t *testing.T) {
 			t.Parallel()
 
 			ctx := t.Context()
-			err := validator.Validate(ctx, &tt.user)
+			validateErr := validator.Validate(ctx, &tt.user)
 
 			if tt.wantError {
-				require.Error(t, err)
+				require.Error(t, validateErr)
 				if tt.checkErr != nil {
-					tt.checkErr(t, err)
+					tt.checkErr(t, validateErr)
 				}
 			} else {
-				assert.NoError(t, err)
+				assert.NoError(t, validateErr)
 			}
 		})
 	}
@@ -661,6 +664,7 @@ func TestIntegration_ComputePresenceNestedJSON(t *testing.T) {
 			}`,
 			expectedLeaves: []string{"user.name", "user.profile.bio"},
 			checkPresence: func(t *testing.T, pm validation.PresenceMap) {
+				t.Helper()
 				assert.True(t, pm.Has("user"))
 				assert.True(t, pm.Has("user.name"))
 				assert.True(t, pm.Has("user.profile"))
@@ -678,6 +682,7 @@ func TestIntegration_ComputePresenceNestedJSON(t *testing.T) {
 				]
 			}`,
 			checkPresence: func(t *testing.T, pm validation.PresenceMap) {
+				t.Helper()
 				assert.True(t, pm.Has("items"))
 				assert.True(t, pm.Has("items.0"))
 				assert.True(t, pm.Has("items.0.id"))
@@ -691,6 +696,7 @@ func TestIntegration_ComputePresenceNestedJSON(t *testing.T) {
 			name:      "empty object",
 			jsonInput: `{}`,
 			checkPresence: func(t *testing.T, pm validation.PresenceMap) {
+				t.Helper()
 				leaves := pm.LeafPaths()
 				assert.Empty(t, leaves)
 			},

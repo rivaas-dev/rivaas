@@ -165,6 +165,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.Len(t, verr.Fields, 1)
 				assert.Equal(t, "name", verr.Fields[0].Path)
 			},
@@ -180,6 +181,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.Len(t, verr.Fields, 2)
 				assert.Equal(t, "name", verr.Fields[0].Path)
 				assert.Equal(t, "name", verr.Fields[1].Path)
@@ -197,6 +199,7 @@ func TestValidationErrors_Sort(t *testing.T) {
 				return verr
 			},
 			validate: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.Empty(t, verr.Fields[0].Path)
 				assert.Equal(t, "code1", verr.Fields[0].Code)
 				assert.Empty(t, verr.Fields[1].Path)
@@ -324,6 +327,7 @@ func TestValidationErrors_Add(t *testing.T) {
 			message: "is required",
 			meta:    nil,
 			validate: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.Len(t, verr.Fields, 1)
 				assert.Equal(t, "name", verr.Fields[0].Path)
 				assert.Equal(t, "required", verr.Fields[0].Code)
@@ -337,6 +341,7 @@ func TestValidationErrors_Add(t *testing.T) {
 			message: "must be at least 18",
 			meta:    map[string]any{"min": 18, "actual": 15},
 			validate: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.Len(t, verr.Fields, 1)
 				assert.Equal(t, "age", verr.Fields[0].Path)
 				assert.Equal(t, "min", verr.Fields[0].Code)
@@ -351,6 +356,7 @@ func TestValidationErrors_Add(t *testing.T) {
 			message: "general error",
 			meta:    nil,
 			validate: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.Len(t, verr.Fields, 1)
 				assert.Empty(t, verr.Fields[0].Path)
 			},
@@ -362,6 +368,7 @@ func TestValidationErrors_Add(t *testing.T) {
 			message: "invalid email",
 			meta:    nil,
 			validate: func(t *testing.T, verr Error) {
+				t.Helper()
 				assert.Len(t, verr.Fields, 2)
 				assert.Equal(t, "name", verr.Fields[0].Path)
 				assert.Equal(t, "email", verr.Fields[1].Path)

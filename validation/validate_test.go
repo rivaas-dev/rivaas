@@ -48,7 +48,7 @@ func TestValidateAll_MultipleStrategies(t *testing.T) {
 			user:      User{Name: "John"}, // Missing email
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected ValidationErrors")
 				assert.NotEmpty(t, verr.Fields, "should have validation errors")
@@ -60,7 +60,6 @@ func TestValidateAll_MultipleStrategies(t *testing.T) {
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
 				t.Helper()
-				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -204,7 +203,7 @@ func TestCoerceToValidationErrors_AlreadyValidationErrors(t *testing.T) {
 			user:      User{}, // Missing fields
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var resultVerr *Error
 				require.ErrorAs(t, err, &resultVerr, "expected Error")
 				assert.GreaterOrEqual(t, len(resultVerr.Fields), 2, "expected at least 2 errors")
@@ -216,7 +215,6 @@ func TestCoerceToValidationErrors_AlreadyValidationErrors(t *testing.T) {
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
 				t.Helper()
-				require.Error(t, err)
 				var resultVerr *Error
 				require.ErrorAs(t, err, &resultVerr)
 				assert.NotEmpty(t, resultVerr.Fields)
@@ -266,7 +264,7 @@ func TestCoerceToValidationErrors_WithMaxErrors(t *testing.T) {
 			maxErrors: 2,
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var resultVerr *Error
 				require.ErrorAs(t, err, &resultVerr, "expected Error")
 				assert.LessOrEqual(t, len(resultVerr.Fields), 2, "expected at most 2 errors")
@@ -281,7 +279,7 @@ func TestCoerceToValidationErrors_WithMaxErrors(t *testing.T) {
 			maxErrors: 1,
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var resultVerr *Error
 				require.ErrorAs(t, err, &resultVerr)
 				assert.LessOrEqual(t, len(resultVerr.Fields), 1)
@@ -293,7 +291,7 @@ func TestCoerceToValidationErrors_WithMaxErrors(t *testing.T) {
 			maxErrors: 0,
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var resultVerr *Error
 				require.ErrorAs(t, err, &resultVerr)
 				assert.GreaterOrEqual(t, len(resultVerr.Fields), 3, "expected at least 3 errors")
@@ -334,6 +332,7 @@ func TestCoerceToValidationErrors_FieldError(t *testing.T) {
 			wantCode: "required",
 			wantMsg:  "is required",
 			checkErr: func(t *testing.T, target FieldError) {
+				t.Helper()
 				assert.Equal(t, "name", target.Path)
 				assert.Equal(t, "required", target.Code)
 				assert.Equal(t, "is required", target.Message)
@@ -346,6 +345,7 @@ func TestCoerceToValidationErrors_FieldError(t *testing.T) {
 			wantCode: "validation_error",
 			wantMsg:  "generic error",
 			checkErr: func(t *testing.T, target FieldError) {
+				t.Helper()
 				assert.Empty(t, target.Path)
 				assert.Equal(t, "validation_error", target.Code)
 			},
@@ -389,7 +389,7 @@ func TestCoerceToValidationErrors_GenericError(t *testing.T) {
 			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected Error")
 				assert.Len(t, verr.Fields, 1, "expected 1 error")
@@ -404,7 +404,7 @@ func TestCoerceToValidationErrors_GenericError(t *testing.T) {
 			},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.Len(t, verr.Fields, 1)
@@ -891,7 +891,6 @@ func TestValidateAll_AllStrategiesCombined(t *testing.T) {
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
 				t.Helper()
-				require.Error(t, err)
 				var verr *Error
 				require.ErrorAs(t, err, &verr, "expected Error")
 				assert.NotEmpty(t, verr.Fields, "should have validation errors")
@@ -902,7 +901,7 @@ func TestValidateAll_AllStrategiesCombined(t *testing.T) {
 			user:      &CombinedUser{Email: "john@example.com"},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)
@@ -913,7 +912,7 @@ func TestValidateAll_AllStrategiesCombined(t *testing.T) {
 			user:      &CombinedUser{},
 			wantError: true,
 			checkErr: func(t *testing.T, err error) {
-				require.Error(t, err)
+				t.Helper()
 				var verr *Error
 				require.ErrorAs(t, err, &verr)
 				assert.NotEmpty(t, verr.Fields)

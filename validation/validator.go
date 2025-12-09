@@ -192,7 +192,7 @@ func (v *Validator) registerBuiltinValidators() error {
 // typeImplementsValidator checks if a type implements [ValidatorInterface].
 func (v *Validator) typeImplementsValidator(t reflect.Type) bool {
 	if cached, ok := v.validatorTypeCache.Load(t); ok {
-		if result, ok := cached.(bool); ok {
+		if result, resultOk := cached.(bool); resultOk {
 			return result
 		}
 	}
@@ -212,7 +212,7 @@ func (v *Validator) typeImplementsValidator(t reflect.Type) bool {
 // typeImplementsValidatorWithContext checks if a type implements [ValidatorWithContext].
 func (v *Validator) typeImplementsValidatorWithContext(t reflect.Type) bool {
 	if cached, ok := v.validatorWithContextTypeCache.Load(t); ok {
-		if result, ok := cached.(bool); ok {
+		if result, resultOk := cached.(bool); resultOk {
 			return result
 		}
 	}
@@ -232,7 +232,7 @@ func (v *Validator) typeImplementsValidatorWithContext(t reflect.Type) bool {
 // getFieldMap returns a map of JSON field names to field indices for a struct type.
 func (v *Validator) getFieldMap(structType reflect.Type) map[string]int {
 	if cached, ok := v.fieldMapCache.Load(structType); ok {
-		if fieldMap, ok := cached.(map[string]int); ok {
+		if fieldMap, fieldMapOk := cached.(map[string]int); fieldMapOk {
 			return fieldMap
 		}
 	}
@@ -262,12 +262,12 @@ func (v *Validator) getCachedJSONPath(ns string, structType reflect.Type) string
 		}
 	}
 
-	typeCache, ok := cacheVal.(*sync.Map)
-	if !ok {
+	typeCache, typeOk := cacheVal.(*sync.Map)
+	if !typeOk {
 		newCache := &sync.Map{}
 		actual, loaded := v.pathCache.LoadOrStore(structType, newCache)
 		if loaded {
-			if tc, ok := actual.(*sync.Map); ok {
+			if tc, tcOk := actual.(*sync.Map); tcOk {
 				typeCache = tc
 			} else {
 				typeCache = newCache
@@ -277,8 +277,8 @@ func (v *Validator) getCachedJSONPath(ns string, structType reflect.Type) string
 		}
 	}
 
-	if cached, ok := typeCache.Load(ns); ok {
-		if result, ok := cached.(string); ok {
+	if cached, cachedOk := typeCache.Load(ns); cachedOk {
+		if result, resultOk := cached.(string); resultOk {
 			return result
 		}
 	}
@@ -287,7 +287,7 @@ func (v *Validator) getCachedJSONPath(ns string, structType reflect.Type) string
 
 	actual, loaded := typeCache.LoadOrStore(ns, jsonPath)
 	if loaded {
-		if result, ok := actual.(string); ok {
+		if result, resultOk := actual.(string); resultOk {
 			return result
 		}
 	}
