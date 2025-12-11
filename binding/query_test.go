@@ -1354,13 +1354,15 @@ func TestBind_QueryEmbeddedStruct(t *testing.T) {
 	}
 
 	type SearchRequest struct {
-		Pagination        // Embedded struct
-		Query      string `query:"q"`
-		Sort       string `query:"sort"`
+		Pagination // Embedded struct
+
+		Query string `query:"q"`
+		Sort  string `query:"sort"`
 	}
 
 	type AdvancedSearch struct {
 		*Pagination
+
 		Query string `query:"q"`
 	}
 

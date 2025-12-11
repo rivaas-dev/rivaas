@@ -47,8 +47,7 @@ func ExampleProto() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Name: %s, Email: %s, Age: %d, Active: %v\n",
-		result.GetName(), result.GetEmail(), result.GetAge(), result.GetActive())
+	_, _ = fmt.Printf("Name: %s, Email: %s, Age: %d, Active: %v\n", result.GetName(), result.GetEmail(), result.GetAge(), result.GetActive())
 	// Output: Name: John, Email: john@example.com, Age: 30, Active: true
 }
 
@@ -76,8 +75,7 @@ func ExampleProtoTo() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Title: %s, Server: %s:%d\n",
-		result.GetTitle(), result.GetServer().GetHost(), result.GetServer().GetPort())
+	_, _ = fmt.Printf("Title: %s, Server: %s:%d\n", result.GetTitle(), result.GetServer().GetHost(), result.GetServer().GetPort())
 	// Output: Title: My App, Server: localhost:8080
 }
 
@@ -103,7 +101,7 @@ func ExampleProtoReader() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Name: %s, Email: %s\n", result.Name, result.Email)
+	_, _ = fmt.Printf("Name: %s, Email: %s\n", result.GetName(), result.GetEmail())
 	// Output: Name: Alice, Email: alice@example.com
 }
 
@@ -129,7 +127,7 @@ func ExampleProto_withDiscardUnknown() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Name: %s, Active: %v\n", result.Name, result.Active)
+	_, _ = fmt.Printf("Name: %s, Active: %v\n", result.GetName(), result.GetActive())
 	// Output: Name: Bob, Active: false
 }
 
@@ -163,9 +161,9 @@ func ExampleProto_nestedMessages() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Title: %s\n", result.Title)
-	fmt.Printf("Server: %s:%d\n", result.Server.Host, result.Server.Port)
-	fmt.Printf("Database: %s@%s:%d\n", result.Database.Name, result.Database.Host, result.Database.Port)
+	_, _ = fmt.Printf("Title: %s\n", result.GetTitle())
+	_, _ = fmt.Printf("Server: %s:%d\n", result.GetServer().GetHost(), result.GetServer().GetPort())
+	_, _ = fmt.Printf("Database: %s@%s:%d\n", result.GetDatabase().GetName(), result.GetDatabase().GetHost(), result.GetDatabase().GetPort())
 	// Output:
 	// Title: Production Config
 	// Server: 0.0.0.0:8080
@@ -193,9 +191,9 @@ func ExampleProto_repeatedFields() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Product: %s\n", result.Name)
-	fmt.Printf("Tags: %v\n", result.Tags)
-	fmt.Printf("Prices: %v\n", result.Prices)
+	_, _ = fmt.Printf("Product: %s\n", result.GetName())
+	_, _ = fmt.Printf("Tags: %v\n", result.GetTags())
+	_, _ = fmt.Printf("Prices: %v\n", result.GetPrices())
 	// Output:
 	// Product: Widget
 	// Tags: [electronics gadget sale]
@@ -225,9 +223,9 @@ func ExampleProto_mapFields() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Settings: %s\n", result.Name)
-	fmt.Printf("Version: %s\n", result.Metadata["version"])
-	fmt.Printf("Environment: %s\n", result.Metadata["environment"])
+	_, _ = fmt.Printf("Settings: %s\n", result.GetName())
+	_, _ = fmt.Printf("Version: %s\n", result.GetMetadata()["version"])
+	_, _ = fmt.Printf("Environment: %s\n", result.GetMetadata()["environment"])
 	// Output:
 	// Settings: AppSettings
 	// Version: 1.0.0
@@ -259,7 +257,7 @@ func ExampleProto_withValidator() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Name: %s, Validated: true\n", result.Name)
+	_, _ = fmt.Printf("Name: %s, Validated: true\n", result.GetName())
 	// Output: Name: Charlie, Validated: true
 }
 
@@ -296,6 +294,6 @@ func ExampleProto_multipleOptions() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Name: %s, Age: %d\n", result.Name, result.Age)
+	_, _ = fmt.Printf("Name: %s, Age: %d\n", result.GetName(), result.GetAge())
 	// Output: Name: Diana, Age: 32
 }

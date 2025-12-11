@@ -36,11 +36,11 @@ func ExampleQuery() {
 
 	params, err := binding.Query[Params](values)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Age: %d, Email: %s\n", params.Name, params.Age, params.Email)
+	_, _ = fmt.Printf("Name: %s, Age: %d, Email: %s\n", params.Name, params.Age, params.Email)
 	// Output: Name: Alice, Age: 30, Email: alice@example.com
 }
 
@@ -60,11 +60,11 @@ func ExampleQueryTo() {
 	var params Params
 	err := binding.QueryTo(values, &params)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Age: %d, Email: %s\n", params.Name, params.Age, params.Email)
+	_, _ = fmt.Printf("Name: %s, Age: %d, Email: %s\n", params.Name, params.Age, params.Email)
 	// Output: Name: Bob, Age: 25, Email: bob@example.com
 }
 
@@ -82,11 +82,11 @@ func ExamplePath() {
 
 	params, err := binding.Path[Params](pathParams)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("ID: %d, Slug: %s\n", params.ID, params.Slug)
+	_, _ = fmt.Printf("ID: %d, Slug: %s\n", params.ID, params.Slug)
 	// Output: ID: 123, Slug: hello-world
 }
 
@@ -102,11 +102,11 @@ func ExampleJSON() {
 
 	user, err := binding.JSON[User](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Email: %s, Age: %d\n", user.Name, user.Email, user.Age)
+	_, _ = fmt.Printf("Name: %s, Email: %s, Age: %d\n", user.Name, user.Email, user.Age)
 	// Output: Name: Charlie, Email: charlie@example.com, Age: 35
 }
 
@@ -131,11 +131,11 @@ func ExampleBind() {
 		binding.FromQuery(query),
 	)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("UserID: %d, Page: %d, Limit: %d\n", req.UserID, req.Page, req.Limit)
+	_, _ = fmt.Printf("UserID: %d, Page: %d, Limit: %d\n", req.UserID, req.Page, req.Limit)
 	// Output: UserID: 456, Page: 2, Limit: 20
 }
 
@@ -156,11 +156,11 @@ func ExampleBindTo() {
 		binding.FromQuery(query),
 	)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("UserID: %d, Page: %d\n", req.UserID, req.Page)
+	_, _ = fmt.Printf("UserID: %d, Page: %d\n", req.UserID, req.Page)
 	// Output: UserID: 789, Page: 3
 }
 
@@ -178,12 +178,11 @@ func ExampleQuery_withDefaults() {
 
 	config, err := binding.Query[Config](values)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Port: %d, Host: %s, Debug: %v, LogLevel: %s\n",
-		config.Port, config.Host, config.Debug, config.LogLevel)
+	_, _ = fmt.Printf("Port: %d, Host: %s, Debug: %v, LogLevel: %s\n", config.Port, config.Host, config.Debug, config.LogLevel)
 	// Output: Port: 8080, Host: localhost, Debug: false, LogLevel: info
 }
 
@@ -201,11 +200,11 @@ func ExampleQuery_withOptions() {
 		binding.WithSliceMode(binding.SliceCSV),
 	)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Tags: %v\n", params.Tags)
+	_, _ = fmt.Printf("Tags: %v\n", params.Tags)
 	// Output: Tags: [go rust python]
 }
 
@@ -226,11 +225,11 @@ func ExampleMustNew() {
 	// Use generic helper function with binder
 	user, err := binding.JSONWith[User](binder, body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Email: %s\n", user.Name, user.Email)
+	_, _ = fmt.Printf("Name: %s, Email: %s\n", user.Name, user.Email)
 	// Output: Name: Diana, Email: diana@example.com
 }
 
@@ -246,11 +245,11 @@ func ExampleJSON_withUnknownFields() {
 	// Default: unknown fields are ignored
 	user, err := binding.JSON[User](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s\n", user.Name)
+	_, _ = fmt.Printf("Name: %s\n", user.Name)
 	// Output: Name: Eve
 }
 
@@ -270,6 +269,6 @@ func ExampleHasStructTag() {
 	// typ := reflect.TypeOf((*UserRequest)(nil)).Elem()
 	// hasPath := binding.HasStructTag(typ, binding.TagPath)
 
-	fmt.Printf("UserRequest has multiple source tags\n")
+	_, _ = fmt.Printf("UserRequest has multiple source tags\n")
 	// Output: UserRequest has multiple source tags
 }

@@ -45,11 +45,11 @@ func ExampleMsgPack() {
 
 	config, err := msgpack.MsgPack[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Port: %d, Debug: %v\n", config.Name, config.Port, config.Debug)
+	_, _ = fmt.Printf("Name: %s, Port: %d, Debug: %v\n", config.Name, config.Port, config.Debug)
 	// Output: Name: myapp, Port: 8080, Debug: true
 }
 
@@ -69,11 +69,11 @@ func ExampleMsgPackTo() {
 	var server Server
 	err = msgpack.MsgPackTo(body, &server)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Server: %s:%d\n", server.Host, server.Port)
+	_, _ = fmt.Printf("Server: %s:%d\n", server.Host, server.Port)
 	// Output: Server: localhost:3000
 }
 
@@ -97,11 +97,11 @@ func ExampleMsgPackReader() {
 
 	db, err := msgpack.MsgPackReader[Database](bytes.NewReader(data))
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Database: %s@%s:%d\n", db.Database, db.Host, db.Port)
+	_, _ = fmt.Printf("Database: %s@%s:%d\n", db.Database, db.Host, db.Port)
 	// Output: Database: mydb@db.example.com:5432
 }
 
@@ -131,11 +131,11 @@ func ExampleMsgPack_nestedStructs() {
 
 	person, err := msgpack.MsgPack[Person](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Address: %s, %s\n",
+	_, _ = fmt.Printf("Name: %s, Address: %s, %s\n",
 		person.Name, person.Address.Street, person.Address.City)
 	// Output: Name: Jane, Address: 123 Main St, Boston
 }
@@ -158,11 +158,11 @@ func ExampleMsgPack_arrays() {
 
 	config, err := msgpack.MsgPack[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Hosts: %d, Ports: %d\n", len(config.Hosts), len(config.Ports))
+	_, _ = fmt.Printf("Hosts: %d, Ports: %d\n", len(config.Hosts), len(config.Ports))
 	// Output: Hosts: 2, Ports: 2
 }
 
@@ -187,11 +187,11 @@ func ExampleMsgPack_withJSONTag() {
 
 	user, err := msgpack.MsgPack[User](buf.Bytes(), msgpack.WithJSONTag())
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Email: %s\n", user.Name, user.Email)
+	_, _ = fmt.Printf("Name: %s, Email: %s\n", user.Name, user.Email)
 	// Output: Name: John, Email: john@example.com
 }
 
@@ -214,11 +214,11 @@ func ExampleMsgPack_maps() {
 
 	config, err := msgpack.MsgPack[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Log Level: %s\n", config.Settings["log_level"])
+	_, _ = fmt.Printf("Log Level: %s\n", config.Settings["log_level"])
 	// Output: Log Level: debug
 }
 
@@ -240,11 +240,11 @@ func ExampleMsgPack_withValidator() {
 
 	config, err := msgpack.MsgPack[Config](body, msgpack.WithValidator(validator))
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Port: %d\n", config.Name, config.Port)
+	_, _ = fmt.Printf("Name: %s, Port: %d\n", config.Name, config.Port)
 	// Output: Name: myapp, Port: 8080
 }
 
@@ -270,10 +270,10 @@ func ExampleMsgPack_withDisallowUnknown() {
 
 	config, err := msgpack.MsgPack[Config](body, msgpack.WithDisallowUnknown())
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s\n", config.Name)
+	_, _ = fmt.Printf("Name: %s\n", config.Name)
 	// Output: Name: myapp
 }

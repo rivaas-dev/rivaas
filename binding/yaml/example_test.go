@@ -37,11 +37,11 @@ debug: true
 
 	config, err := yaml.YAML[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Port: %d, Debug: %v\n", config.Name, config.Port, config.Debug)
+	_, _ = fmt.Printf("Name: %s, Port: %d, Debug: %v\n", config.Name, config.Port, config.Debug)
 	// Output: Name: myapp, Port: 8080, Debug: true
 }
 
@@ -60,11 +60,11 @@ port: 3000
 	var server Server
 	err := yaml.YAMLTo(body, &server)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Host: %s, Port: %d\n", server.Host, server.Port)
+	_, _ = fmt.Printf("Host: %s, Port: %d\n", server.Host, server.Port)
 	// Output: Host: localhost, Port: 3000
 }
 
@@ -84,11 +84,11 @@ database: mydb
 
 	db, err := yaml.YAMLReader[Database](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Database: %s@%s:%d\n", db.Database, db.Host, db.Port)
+	_, _ = fmt.Printf("Database: %s@%s:%d\n", db.Database, db.Host, db.Port)
 	// Output: Database: mydb@db.example.com:5432
 }
 
@@ -103,11 +103,11 @@ func ExampleYAML_withStrict() {
 
 	config, err := yaml.YAML[Config](body, yaml.WithStrict())
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s\n", config.Name)
+	_, _ = fmt.Printf("Name: %s\n", config.Name)
 	// Output: Name: myapp
 }
 
@@ -141,11 +141,11 @@ database:
 
 	config, err := yaml.YAML[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("App: %s, Server: %s:%d, DB: %s:%d\n",
+	_, _ = fmt.Printf("App: %s, Server: %s:%d, DB: %s:%d\n",
 		config.App,
 		config.Server.Host, config.Server.Port,
 		config.Database.Host, config.Database.Port)
@@ -170,11 +170,11 @@ ports:
 
 	config, err := yaml.YAML[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Hosts: %v, Ports: %v\n", config.Hosts, config.Ports)
+	_, _ = fmt.Printf("Hosts: %v, Ports: %v\n", config.Hosts, config.Ports)
 	// Output: Hosts: [host1.example.com host2.example.com], Ports: [8080 8081]
 }
 
@@ -195,11 +195,11 @@ port: 8080
 
 	config, err := yaml.YAML[Config](body, yaml.WithValidator(validator))
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s, Port: %d\n", config.Name, config.Port)
+	_, _ = fmt.Printf("Name: %s, Port: %d\n", config.Name, config.Port)
 	// Output: Name: myapp, Port: 8080
 }
 
@@ -225,10 +225,10 @@ settings:
 
 	config, err := yaml.YAML[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Log Level: %s\n", config.Settings["log_level"])
+	_, _ = fmt.Printf("Log Level: %s\n", config.Settings["log_level"])
 	// Output: Log Level: debug
 }

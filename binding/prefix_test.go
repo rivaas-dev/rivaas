@@ -43,8 +43,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values.Set("address.street", "Main St")
 					values.Set("address.city", "NYC")
 					values.Set("name", "John")
-					getter, ok := NewQueryGetter(values).(*QueryGetter)
-					require.True(t, ok)
+					getter := NewQueryGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "address."}, values
 				},
@@ -58,8 +57,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values.Set("address.street", "Main St")
 					values.Set("address.city", "NYC")
 					values.Set("name", "John")
-					getter, ok := NewQueryGetter(values).(*QueryGetter)
-					require.True(t, ok)
+					getter := NewQueryGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "address."}, values
 				},
@@ -73,8 +71,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values.Set("address.street", "Main St")
 					values.Set("address.city", "NYC")
 					values.Set("name", "John")
-					getter, ok := NewQueryGetter(values).(*QueryGetter)
-					require.True(t, ok)
+					getter := NewQueryGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "address."}, values
 				},
@@ -88,8 +85,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values.Set("address.location.lat", "40.7128")
 					values.Set("address.location.lng", "-74.0060")
 					values.Set("address.city", "NYC")
-					getter, ok := NewQueryGetter(values).(*QueryGetter)
-					require.True(t, ok)
+					getter := NewQueryGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "address."}, values
 				},
@@ -103,8 +99,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values.Set("user.name", "John")
 					values.Set("user.email", "john@example.com")
 					values.Set("other.field", "value")
-					getter, ok := NewQueryGetter(values).(*QueryGetter)
-					require.True(t, ok)
+					getter := NewQueryGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "address."}, values
 				},
@@ -115,8 +110,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 				name: "queryGetter - empty values",
 				setup: func() (*prefixGetter, url.Values) {
 					values := url.Values{}
-					getter, ok := NewQueryGetter(values).(*QueryGetter)
-					require.True(t, ok)
+					getter := NewQueryGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "address."}, values
 				},
@@ -130,8 +124,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values.Set("address.street", "Main St")
 					values.Set("address.street.number", "123")
 					values.Set("address.city", "NYC")
-					getter, ok := NewQueryGetter(values).(*QueryGetter)
-					require.True(t, ok)
+					getter := NewQueryGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "address."}, values
 				},
@@ -143,8 +136,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 				setup: func() (*prefixGetter, url.Values) {
 					values := url.Values{}
 					values.Set("address.location.lat", "40.7128")
-					getter, ok := NewQueryGetter(values).(*QueryGetter)
-					require.True(t, ok)
+					getter := NewQueryGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "address."}, values
 				},
@@ -180,8 +172,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values.Set("metadata.name", "John")
 					values.Set("metadata.age", "30")
 					values.Set("title", "Mr")
-					getter, ok := NewFormGetter(values).(*FormGetter)
-					require.True(t, ok)
+					getter := NewFormGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "metadata."}, values
 				},
@@ -195,8 +186,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values.Set("config.database.host", "localhost")
 					values.Set("config.database.port", "5432")
 					values.Set("config.debug", "true")
-					getter, ok := NewFormGetter(values).(*FormGetter)
-					require.True(t, ok)
+					getter := NewFormGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "config."}, values
 				},
@@ -209,8 +199,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values := url.Values{}
 					values.Set("user.name", "John")
 					values.Set("other.field", "value")
-					getter, ok := NewFormGetter(values).(*FormGetter)
-					require.True(t, ok)
+					getter := NewFormGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "config."}, values
 				},
@@ -223,8 +212,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					values := url.Values{}
 					values.Set("addresses.street", "Main St")
 					values.Set("address.city", "NYC")
-					getter, ok := NewFormGetter(values).(*FormGetter)
-					require.True(t, ok)
+					getter := NewFormGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "address."}, values
 				},
@@ -236,8 +224,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 				setup: func() (*prefixGetter, url.Values) {
 					values := url.Values{}
 					values.Set("config.database.host", "localhost")
-					getter, ok := NewFormGetter(values).(*FormGetter)
-					require.True(t, ok)
+					getter := NewFormGetter(values)
 
 					return &prefixGetter{inner: getter, prefix: "config."}, values
 				},
@@ -270,8 +257,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 				setup: func() (*prefixGetter, string, bool) {
 					headers := http.Header{}
 					headers.Set("X-Meta-Tags", "tag1")
-					getter, ok := NewHeaderGetter(headers).(*HeaderGetter)
-					require.True(t, ok)
+					getter := NewHeaderGetter(headers)
 
 					return &prefixGetter{inner: getter, prefix: "X-Meta-"}, "Tags", true
 				},
@@ -285,8 +271,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 				setup: func() (*prefixGetter, string, bool) {
 					headers := http.Header{}
 					headers.Set("X-Meta-Tags", "tag1")
-					getter, ok := NewHeaderGetter(headers).(*HeaderGetter)
-					require.True(t, ok)
+					getter := NewHeaderGetter(headers)
 
 					return &prefixGetter{inner: getter, prefix: "X-Meta-"}, "Nonexistent", false
 				},
@@ -299,8 +284,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 				name: "paramsGetter with prefix",
 				setup: func() (*prefixGetter, string, bool) {
 					params := map[string]string{"user.name": "John"}
-					getter, ok := NewPathGetter(params).(*PathGetter)
-					require.True(t, ok)
+					getter := NewPathGetter(params)
 
 					return &prefixGetter{inner: getter, prefix: "user."}, "name", true
 				},
@@ -315,8 +299,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					cookies := []*http.Cookie{
 						{Name: "user.id", Value: "123"},
 					}
-					getter, ok := NewCookieGetter(cookies).(*CookieGetter)
-					require.True(t, ok)
+					getter := NewCookieGetter(cookies)
 
 					return &prefixGetter{inner: getter, prefix: "user."}, "id", true
 				},
@@ -331,8 +314,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 					cookies := []*http.Cookie{
 						{Name: "user.id", Value: "123"},
 					}
-					getter, ok := NewCookieGetter(cookies).(*CookieGetter)
-					require.True(t, ok)
+					getter := NewCookieGetter(cookies)
 
 					return &prefixGetter{inner: getter, prefix: "user."}, "nonexistent", false
 				},
@@ -373,8 +355,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 				values.Add("user.email", "john@example.com")
 				values.Add("user.email", "john.doe@example.com")
 				values.Add("other.field", "value")
-				getter, ok := NewQueryGetter(values).(*QueryGetter)
-				require.True(t, ok)
+				getter := NewQueryGetter(values)
 
 				return &prefixGetter{inner: getter, prefix: "user."}, "name"
 			},
@@ -392,8 +373,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 				values.Add("user.email", "john@example.com")
 				values.Add("user.email", "john.doe@example.com")
 				values.Add("other.field", "value")
-				getter, ok := NewQueryGetter(values).(*QueryGetter)
-				require.True(t, ok)
+				getter := NewQueryGetter(values)
 
 				return &prefixGetter{inner: getter, prefix: "user."}, "email"
 			},
@@ -409,8 +389,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 			setup: func() (*prefixGetter, string) {
 				values := url.Values{}
 				values.Add("user.name", "John")
-				getter, ok := NewQueryGetter(values).(*QueryGetter)
-				require.True(t, ok)
+				getter := NewQueryGetter(values)
 
 				return &prefixGetter{inner: getter, prefix: "user."}, "nonexistent"
 			},
@@ -427,8 +406,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 				values.Add("meta.tags", "rust")
 				values.Add("meta.version", "1.0")
 				values.Add("other.data", "value")
-				getter, ok := NewFormGetter(values).(*FormGetter)
-				require.True(t, ok)
+				getter := NewFormGetter(values)
 
 				return &prefixGetter{inner: getter, prefix: "meta."}, "tags"
 			},
@@ -443,8 +421,7 @@ func TestPrefixGetter_GetAll(t *testing.T) {
 				values := url.Values{}
 				values.Add("meta.tags", "go")
 				values.Add("meta.version", "1.0")
-				getter, ok := NewFormGetter(values).(*FormGetter)
-				require.True(t, ok)
+				getter := NewFormGetter(values)
 
 				return &prefixGetter{inner: getter, prefix: "meta."}, "version"
 			},

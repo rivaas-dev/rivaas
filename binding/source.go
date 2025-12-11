@@ -116,7 +116,7 @@ type QueryGetter struct {
 //
 //	getter := binding.NewQueryGetter(r.URL.Query())
 //	err := binding.Raw(getter, "query", &result)
-func NewQueryGetter(v url.Values) ValueGetter {
+func NewQueryGetter(v url.Values) *QueryGetter {
 	return &QueryGetter{values: v}
 }
 
@@ -168,7 +168,7 @@ type PathGetter struct {
 // Example:
 //
 //	getter := binding.NewPathGetter(map[string]string{"id": "123"})
-func NewPathGetter(p map[string]string) ValueGetter {
+func NewPathGetter(p map[string]string) *PathGetter {
 	return &PathGetter{params: p}
 }
 
@@ -205,7 +205,7 @@ type FormGetter struct {
 //
 //	getter := binding.NewFormGetter(r.PostForm)
 //	err := binding.Raw(getter, "form", &result)
-func NewFormGetter(v url.Values) ValueGetter {
+func NewFormGetter(v url.Values) *FormGetter {
 	return &FormGetter{values: v}
 }
 
@@ -259,7 +259,7 @@ type CookieGetter struct {
 //
 //	getter := binding.NewCookieGetter(r.Cookies())
 //	err := binding.Raw(getter, "cookie", &result)
-func NewCookieGetter(c []*http.Cookie) ValueGetter {
+func NewCookieGetter(c []*http.Cookie) *CookieGetter {
 	return &CookieGetter{cookies: c}
 }
 
@@ -322,7 +322,7 @@ type HeaderGetter struct {
 //
 //	getter := binding.NewHeaderGetter(r.Header)
 //	err := binding.Raw(getter, "header", &result)
-func NewHeaderGetter(h http.Header) ValueGetter {
+func NewHeaderGetter(h http.Header) *HeaderGetter {
 	// Headers are already canonicalized by http.Header, but we store
 	// a normalized map for consistent lookups
 	normalized := make(map[string]string, len(h))

@@ -545,8 +545,9 @@ func TestBind_ParseStructTypeRemainingPaths(t *testing.T) {
 		Value string `query:"value"`
 	}
 	type ParamsEmbedded struct {
-		*Embedded        // Pointer to embedded struct
-		Name      string `query:"name"`
+		*Embedded // Pointer to embedded struct
+
+		Name string `query:"name"`
 	}
 
 	tests := []struct {

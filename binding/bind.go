@@ -798,7 +798,7 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 				hasTypedDefault = true
 			} else {
 				// Use invalidTagf which panics in debug builds, returns error in prod
-				//nolint:errcheck // Error is intentionally ignored for graceful degradation
+
 				_ = invalidTagf("field %s: invalid default value %q for type %s: %v",
 					field.Name, defaultValue, field.Type, err)
 				// In debug builds: invalidTagf panics above, preventing startup with invalid config

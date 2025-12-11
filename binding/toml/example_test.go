@@ -37,11 +37,11 @@ debug = true
 
 	config, err := toml.TOML[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Title: %s, Version: %s, Debug: %v\n", config.Title, config.Version, config.Debug)
+	_, _ = fmt.Printf("Title: %s, Version: %s, Debug: %v\n", config.Title, config.Version, config.Debug)
 	// Output: Title: My App, Version: 1.0.0, Debug: true
 }
 
@@ -60,11 +60,11 @@ port = 8080
 	var server Server
 	err := toml.TOMLTo(body, &server)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Server: %s:%d\n", server.Host, server.Port)
+	_, _ = fmt.Printf("Server: %s:%d\n", server.Host, server.Port)
 	// Output: Server: localhost:8080
 }
 
@@ -84,11 +84,11 @@ database = "mydb"
 
 	db, err := toml.TOMLReader[Database](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Database: %s@%s:%d\n", db.Database, db.Host, db.Port)
+	_, _ = fmt.Printf("Database: %s@%s:%d\n", db.Database, db.Host, db.Port)
 	// Output: Database: mydb@db.example.com:5432
 }
 
@@ -124,11 +124,11 @@ port = 5432
 
 	config, err := toml.TOML[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Title: %s, Server: %s:%d, DB: %s:%d\n",
+	_, _ = fmt.Printf("Title: %s, Server: %s:%d, DB: %s:%d\n",
 		config.Title,
 		config.Server.Host, config.Server.Port,
 		config.Database.Host, config.Database.Port)
@@ -149,11 +149,11 @@ ports = [8080, 8081, 8082]
 
 	config, err := toml.TOML[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Hosts: %v, Ports: %v\n", config.Hosts, config.Ports)
+	_, _ = fmt.Printf("Hosts: %v, Ports: %v\n", config.Hosts, config.Ports)
 	// Output: Hosts: [host1.example.com host2.example.com], Ports: [8080 8081 8082]
 }
 
@@ -180,12 +180,12 @@ price = 200
 
 	catalog, err := toml.TOML[Catalog](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Products: %d items\n", len(catalog.Products))
-	fmt.Printf("First: %s ($%d)\n", catalog.Products[0].Name, catalog.Products[0].Price)
+	_, _ = fmt.Printf("Products: %d items\n", len(catalog.Products))
+	_, _ = fmt.Printf("First: %s ($%d)\n", catalog.Products[0].Name, catalog.Products[0].Price)
 	// Output: Products: 2 items
 	// First: Widget ($100)
 }
@@ -207,11 +207,11 @@ origin = { x = 10, y = 20 }
 
 	config, err := toml.TOML[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Origin: (%d, %d)\n", config.Origin.X, config.Origin.Y)
+	_, _ = fmt.Printf("Origin: (%d, %d)\n", config.Origin.X, config.Origin.Y)
 	// Output: Origin: (10, 20)
 }
 
@@ -228,12 +228,12 @@ unknown = "ignored"
 
 	config, meta, err := toml.TOMLWithMetadata[Config](body)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Name: %s\n", config.Name)
-	fmt.Printf("Undecoded keys: %v\n", meta.Undecoded())
+	_, _ = fmt.Printf("Name: %s\n", config.Name)
+	_, _ = fmt.Printf("Undecoded keys: %v\n", meta.Undecoded())
 	// Output: Name: myapp
 	// Undecoded keys: [unknown]
 }
@@ -255,11 +255,11 @@ port = 8080
 
 	config, err := toml.TOML[Config](body, toml.WithValidator(validator))
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Title: %s, Port: %d\n", config.Title, config.Port)
+	_, _ = fmt.Printf("Title: %s, Port: %d\n", config.Title, config.Port)
 	// Output: Title: My App, Port: 8080
 }
 
