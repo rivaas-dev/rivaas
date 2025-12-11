@@ -328,9 +328,9 @@ func BenchmarkSetLevel(b *testing.B) {
 	toggle := false
 	for b.Loop() {
 		if toggle {
-			logger.SetLevel(LevelDebug)
+			_ = logger.SetLevel(LevelDebug)
 		} else {
-			logger.SetLevel(LevelInfo)
+			_ = logger.SetLevel(LevelInfo)
 		}
 		toggle = !toggle
 	}

@@ -101,7 +101,7 @@ func (h *consoleHandler) Handle(_ context.Context, r slog.Record) error {
 	// Level with color
 	b.WriteString(h.levelColor(r.Level))
 	b.WriteString(colorBold)
-	b.WriteString(fmt.Sprintf("%-5s", r.Level.String()))
+	fmt.Fprintf(b, "%-5s", r.Level.String())
 	b.WriteString(colorReset)
 	b.WriteString(" ")
 
@@ -233,7 +233,7 @@ func (h *consoleHandler) appendAttr(b *strings.Builder, a slog.Attr) {
 		b.WriteString(v.Error())
 	default:
 		// Only use fmt.Sprint as last resort
-		b.WriteString(fmt.Sprint(v))
+		fmt.Fprint(b, v)
 	}
 
 	b.WriteString(" ")

@@ -16,7 +16,6 @@ package logging
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -552,7 +551,7 @@ func TestSlowWriter(t *testing.T) {
 	sw := NewSlowWriter(50*time.Millisecond, io.Discard)
 
 	start := time.Now()
-	sw.Write([]byte("test"))
+	_, _ = sw.Write([]byte("test"))
 	elapsed := time.Since(start)
 
 	assert.GreaterOrEqual(t, elapsed, 50*time.Millisecond, "expected at least 50ms delay")
@@ -650,7 +649,7 @@ func TestLogger_Sampling_WithTicker(t *testing.T) {
 			Tick:       50 * time.Millisecond,
 		}),
 	)
-	t.Cleanup(func() { logger.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = logger.Shutdown(t.Context()) })
 
 	// First batch: should log first 2
 	logger.Info("msg 1")

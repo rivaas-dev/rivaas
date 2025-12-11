@@ -46,7 +46,7 @@ func TestIntegration_MultiLoggerCoexistence(t *testing.T) {
 		logging.WithServiceName("service-a"),
 		logging.WithLevel(logging.LevelInfo),
 	)
-	t.Cleanup(func() { logger1.Shutdown(context.Background()) })
+	t.Cleanup(func() { logger1.Shutdown(t.Context()) })
 
 	logger2 := logging.MustNew(
 		logging.WithJSONHandler(),
@@ -54,7 +54,7 @@ func TestIntegration_MultiLoggerCoexistence(t *testing.T) {
 		logging.WithServiceName("service-b"),
 		logging.WithLevel(logging.LevelDebug),
 	)
-	t.Cleanup(func() { logger2.Shutdown(context.Background()) })
+	t.Cleanup(func() { logger2.Shutdown(t.Context()) })
 
 	// Log from both loggers
 	logger1.Info("message from service-a", "key", "value1")
@@ -89,7 +89,7 @@ func TestIntegration_ConcurrentLogging(t *testing.T) {
 		logging.WithOutput(buf),
 		logging.WithLevel(logging.LevelDebug),
 	)
-	t.Cleanup(func() { logger.Shutdown(context.Background()) })
+	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	const goroutines = 50
 	const messagesPerGoroutine = 100
@@ -131,7 +131,7 @@ func TestIntegration_BatchLoggerWithFlush(t *testing.T) {
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
 	)
-	t.Cleanup(func() { logger.Shutdown(context.Background()) })
+	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Create batch logger with auto-flush
 	bl := logging.NewBatchLogger(logger, 10, 100*time.Millisecond)
@@ -167,7 +167,7 @@ func TestIntegration_SamplingUnderLoad(t *testing.T) {
 			Thereafter: 10, // Log 1 in every 10 after initial
 		}),
 	)
-	t.Cleanup(func() { logger.Shutdown(context.Background()) })
+	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Log 100 INFO messages
 	for i := range 100 {
@@ -198,7 +198,7 @@ func TestIntegration_ErrorsNeverSampled(t *testing.T) {
 			Thereafter: 1000, // Aggressive sampling
 		}),
 	)
-	t.Cleanup(func() { logger.Shutdown(context.Background()) })
+	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Log many errors - they should all appear
 	const errorCount = 50
@@ -231,7 +231,7 @@ func TestIntegration_ContextLoggerPropagation(t *testing.T) {
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
 	)
-	t.Cleanup(func() { logger.Shutdown(context.Background()) })
+	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Simulate request context with tracing
 	ctx := t.Context()
@@ -269,7 +269,7 @@ func TestIntegration_DynamicLevelChange(t *testing.T) {
 		logging.WithOutput(buf),
 		logging.WithLevel(logging.LevelInfo),
 	)
-	t.Cleanup(func() { logger.Shutdown(context.Background()) })
+	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Debug should not log at INFO level
 	logger.Debug("debug before change")
@@ -333,7 +333,7 @@ func TestIntegration_SensitiveDataRedaction(t *testing.T) {
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
 	)
-	t.Cleanup(func() { logger.Shutdown(context.Background()) })
+	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Log with sensitive fields
 	logger.Info("user authentication",

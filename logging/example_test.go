@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+	"errors"
 
 	"rivaas.dev/logging"
 )
@@ -171,7 +172,7 @@ func ExampleLogger_LogError() {
 	logger := logging.MustNew(logging.WithConsoleHandler())
 	defer logger.Shutdown(context.Background())
 
-	err := fmt.Errorf("database connection failed")
+	err := errors.New("database connection failed")
 	logger.LogError(err, "database operation failed",
 		"operation", "INSERT",
 		"table", "users",
@@ -207,7 +208,7 @@ func ExampleLogger_ErrorWithStack() {
 	logger := logging.MustNew(logging.WithConsoleHandler())
 	defer logger.Shutdown(context.Background())
 
-	err := fmt.Errorf("critical error occurred")
+	err := errors.New("critical error occurred")
 	logger.ErrorWithStack("critical error", err, true,
 		"component", "payment-processor",
 		"transaction_id", "tx-12345",
