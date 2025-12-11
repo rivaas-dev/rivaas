@@ -1,0 +1,775 @@
+# golangci-lint configuration (SOFT/OPTIONAL checks)
+# This config contains non-critical linters for code quality improvements.
+# These checks are advisory and won't block CI by default.
+# For required checks, see .golangci.yaml
+version: "2"
+
+linters:
+  enable:
+    # === STYLE / FORMATTING (WARNING) ===
+
+    # whitespace: Checks for unnecessary newlines (has autofix)
+    # BAD:  func foo() {
+    #
+    #           return  // unnecessary blank line at start
+    #       }
+    - whitespace
+
+    # nlreturn: Requires blank line before return/branch statements (has autofix)
+    # Improves readability by visually separating return from logic
+    # BAD:  x := compute()
+    #       return x
+    # GOOD: x := compute()
+    #
+    #       return x
+    - nlreturn
+
+    # tagliatelle: Enforces consistent struct tag naming conventions
+    # BAD:  `json:"UserName"` when camelCase expected
+    # GOOD: `json:"userName"`
+    - tagliatelle
+
+    # canonicalheader: Ensures canonical HTTP header names
+    # BAD:  r.Header.Get("content-type")
+    # GOOD: r.Header.Get("Content-Type")
+    - canonicalheader
+
+    # lll: Enforces maximum line length for readability
+    # Long lines are hard to read, especially in code reviews and diffs
+    # 120 is a common standard (wider than 80, fits modern screens)
+    - lll
+
+    # === COMPLEXITY (WARNING) ===
+
+    # cyclop: Checks cyclomatic complexity (number of code paths)
+    # High complexity = hard to test, maintain, and understand
+    # Encourages breaking large functions into smaller, focused ones
+    - cyclop
+
+    # gocognit: Checks cognitive complexity (how hard code is to understand)
+    # Complements cyclop - measures nesting, branching, and control flow
+    - gocognit
+
+    # nestif: Reports deeply nested if statements
+    # Deep nesting is hard to read and understand
+    # BAD:  if a { if b { if c { if d { ... } } } }
+    # GOOD: Use early returns, guard clauses, or extract functions
+    - nestif
+
+    # interfacebloat: Limits interface size (Go idiom: small interfaces)
+    # BAD:  type Repository interface { Create(); Read(); Update(); Delete(); List(); Count(); ... }
+    # GOOD: type Reader interface { Read() }; type Writer interface { Write() }
+    - interfacebloat
+
+    # === CODE QUALITY (WARNING) ===
+
+    # unused: Detects unused constants, variables, functions, types
+    # Essential for dead code elimination
+    - unused
+
+    # unparam: Reports unused function parameters
+    # BAD:  func foo(ctx context.Context, unused int) { /* unused not used */ }
+    # GOOD: func foo(ctx context.Context) { ... }
+    - unparam
+
+    # wastedassign: Finds assignments whose values are never used
+    # BAD:  x := 1; x = 2; return x  // first assignment wasted
+    # GOOD: x := 2; return x
+    - wastedassign
+
+    # ineffassign: Detects assignments to variables that are never used
+    # BAD:  x := compute(); x = 5; return x  // first assignment wasted
+    # GOOD: x := 5; return x
+    - ineffassign
+
+    # unconvert: Removes unnecessary type conversions
+    # BAD:  int(x) when x is already int
+    # BAD:  string(s) when s is already string
+    - unconvert
+
+    # gocritic: Comprehensive bug, performance, and style checker
+    # Catches issues other linters miss (has autofix)
+    - gocritic
+
+    # perfsprint: Suggests faster alternatives to fmt.Sprintf (has autofix)
+    # BAD:  fmt.Sprintf("%s", s)     // use s directly
+    # BAD:  fmt.Sprintf("%d", n)     // use strconv.Itoa(n)
+    # GOOD: s, strconv.Itoa(n)
+    - perfsprint
+
+    # mirror: Catches inefficient bytes/strings conversions (has autofix)
+    # BAD:  strings.HasPrefix(string(b), "x")
+    # GOOD: bytes.HasPrefix(b, []byte("x"))
+    - mirror
+
+    # === NAMING (WARNING) ===
+
+    # errname: Enforces error naming conventions
+    # BAD:  var Failed = errors.New("failed")
+    # GOOD: var ErrFailed = errors.New("failed")
+    - errname
+
+    # predeclared: Catches shadowing of Go's predeclared identifiers
+    # BAD:  len := 5           // shadows builtin len()
+    # BAD:  error := "failed"  // shadows builtin error type
+    # GOOD: length := 5; errMsg := "failed"
+    - predeclared
+
+    # goprintffuncname: Printf-like functions must end with 'f'
+    # BAD:  func LogError(format string, args ...any)
+    # GOOD: func LogErrorf(format string, args ...any)
+    - goprintffuncname
+
+    # inamedparam: Requires named parameters in interface methods
+    # BAD:  type Handler interface { Handle(context.Context, string) error }
+    # GOOD: type Handler interface { Handle(ctx context.Context, id string) error }
+    - inamedparam
+
+    # nakedret: Flags naked returns in long functions (has autofix)
+    # Naked returns are confusing when function is long
+    # BAD:  func foo() (x int) { x = 5; /* 20 lines */ return }
+    # GOOD: func foo() (x int) { x = 5; /* 20 lines */ return x }
+    - nakedret
+
+    # === DOCUMENTATION (WARNING) ===
+
+    # dupword: Catches duplicate words in comments/strings (typos)
+    # BAD:  // This function returns the the user's name
+    # GOOD: // This function returns the user's name
+    - dupword
+
+    # misspell: Catches common spelling mistakes (has autofix)
+    # BAD:  // This function recieves data and perfoms validation
+    # GOOD: // This function receives data and performs validation
+    - misspell
+
+    # === SECURITY / PORTABILITY (WARNING) ===
+
+    # asciicheck: Prevents non-ASCII identifiers (security + portability)
+    # BAD:  func calculateСумма() {} // Cyrillic 'С' looks like Latin 'C'
+    # BAD:  const π = 3.14159        // Greek letter
+    # GOOD: func calculateSum() {}
+    - asciicheck
+
+    # === VARIADIC / ARGS (WARNING) ===
+
+    # asasalint: Catches passing []any as single element to variadic func(...any)
+    # BAD:  logItems(values)    -> logs [["a","b","c"]] (nested)
+    # GOOD: logItems(values...) -> logs ["a","b","c"]
+    - asasalint
+
+    # dogsled: Flags too many blank identifiers in assignments
+    # BAD:  x, _, _, _, _ := someFunc() // ignoring too many returns
+    # GOOD: Reconsider if you need this function or handle returns
+    - dogsled
+
+    # === PATTERNS (WARNING) ===
+
+    # iotamixing: Detects mixing iota with explicit values in const blocks
+    # BAD:  const ( A = iota; B; C = 100; D )  // D = 3, not 101!
+    # GOOD: const ( A = iota; B; C ); const Explicit = 100
+    - iotamixing
+
+    # copyloopvar: Detects unnecessary loop variable copies (Go 1.22+)
+    # BAD:  for _, v := range items { v := v; go process(v) }
+    # GOOD: for _, v := range items { go process(v) } // Go 1.22+ safe
+    - copyloopvar
+
+    # nosprintfhostport: Prevents IPv6 URL bugs
+    # BAD:  fmt.Sprintf("http://%s:%d", host, port) // breaks with IPv6
+    # GOOD: fmt.Sprintf("http://%s", net.JoinHostPort(host, port))
+    - nosprintfhostport
+
+    # noctx: Ensures context is used in HTTP requests
+    # BAD:  http.Get("https://api.example.com")
+    # GOOD: http.NewRequestWithContext(ctx, "GET", url, nil)
+    - noctx
+
+    # promlinter: Validates Prometheus metrics naming conventions
+    # BAD:  http_requests (missing _total suffix for counter)
+    # GOOD: http_requests_total
+    - promlinter
+
+    # sloglint: Ensures consistent slog usage (has autofix)
+    # BAD:  slog.Info("msg", "key")           // odd args
+    # BAD:  slog.Info("msg", key, "value")    // non-string key
+    # BAD:  slog.Info("msg", "Key", "value")  // non-snake_case key
+    # GOOD: slog.Info("msg", "user_id", id)
+    - sloglint
+
+    # nolintlint: Keeps //nolint directives clean and documented
+    # BAD:  //nolint
+    # GOOD: //nolint:errcheck // Close error ignored on read-only file
+    - nolintlint
+
+    # depguard: Controls which packages can be imported
+    # Use to block deprecated packages and enforce standards
+    - depguard
+
+    # forbidigo: Blocks forbidden identifiers (debug prints, etc.)
+    # BAD:  fmt.Println("debug:", value)
+    # GOOD: log.Info("message", "key", value) // structured logging
+    - forbidigo
+
+    # exhaustive: Checks enum switch statements for completeness
+    # Ensures all enum cases are handled (or default exists)
+    - exhaustive
+
+    # gochecksumtype: Exhaustiveness checks for Go "sum types" (sealed interfaces)
+    # Ensures all interface implementations are handled in type switches
+    - gochecksumtype
+
+    # iface: Detects interface pollution and misuse
+    # - identical: Same interface defined multiple times in a package
+    # - unused: Interface declared but never used in same package
+    # - opaque: Function always returns same concrete type (interface unnecessary)
+    # - unexported: Unexported interface used in exported API
+    - iface
+
+    # err113: Requires errors to be defined as variables, not inline
+    # BAD:  return errors.New("failed")
+    # GOOD: var ErrFailed = errors.New("failed"); return ErrFailed
+    - err113
+
+    # errchkjson: Checks JSON encoding for unsupported types
+    # Identifies when json.Marshal error can safely be ignored
+    # (structs with only basic types that can't fail)
+    - errchkjson
+
+    # gocheckcompilerdirectives: Validates //go: compiler directives
+    # BAD:  //go:noinlin   // typo - silently ignored by compiler!
+    # GOOD: //go:noinline
+    - gocheckcompilerdirectives
+
+    # goheader: Enforces consistent file headers (license, copyright)
+    # Ensures all source files have proper Apache 2.0 license header
+    - goheader
+
+    # === BEST PRACTICES (INFO) ===
+
+    # dupl: Duplicate code detection
+    - dupl
+
+    # modernize: Suggests modern Go idioms and stdlib features
+    # - interface{} -> any (Go 1.18+)
+    # - for i := 0; i < n; i++ -> for i := range n (Go 1.22+)
+    # - manual loops -> slices.Contains (Go 1.21+)
+    - modernize
+
+    # exptostd: Replaces golang.org/x/exp with stdlib equivalents
+    # BAD:  import "golang.org/x/exp/slices"
+    # GOOD: import "slices" (Go 1.21+)
+    - exptostd
+
+    # intrange: Suggests integer range syntax for for loops (has autofix)
+    # BAD:  for i := 0; i < n; i++ { ... }
+    # GOOD: for i := range n { ... }
+    # NOTE: Overlaps with modernize, but intrange has autofix while modernize
+    #       catches this plus other patterns - worth having both.
+    - intrange
+
+    # usestdlibvars: Use stdlib constants instead of magic values (has autofix)
+    # BAD:  w.WriteHeader(200)
+    # GOOD: w.WriteHeader(http.StatusOK)
+    - usestdlibvars
+
+    # usetesting: Use testing package helpers (has autofix)
+    # BAD:  os.MkdirTemp("", "test")
+    # GOOD: t.TempDir()
+    - usetesting
+
+    # ireturn: Enforces "accept interfaces, return concrete types" principle
+    # BAD:  func NewReader() io.Reader { return &myReader{} }
+    # GOOD: func NewReader() *MyReader { return &MyReader{} }
+    # Exception: error, stdlib interfaces, anonymous interfaces are allowed
+    - ireturn
+
+    # recvcheck: Ensures consistent receiver types (pointer vs value)
+    # BAD:  func (t Type) A() {}; func (t *Type) B() {}  // inconsistent
+    # GOOD: func (t *Type) A() {}; func (t *Type) B() {} // consistent
+    - recvcheck
+
+    # containedctx: Detects context.Context stored in structs (anti-pattern)
+    # BAD:  type Server struct { ctx context.Context }
+    # GOOD: Pass context as first parameter to methods
+    - containedctx
+
+    # embeddedstructfieldcheck: Ensures proper embedded field placement
+    # BAD:  type S struct { name string; http.Handler }
+    # GOOD: type S struct { http.Handler; name string } // embedded first
+    # Also forbids embedded sync.Mutex (exposes Lock/Unlock methods)
+    - embeddedstructfieldcheck
+
+    # === TEST QUALITY (INFO) ===
+
+    # paralleltest: Ensures tests use t.Parallel() for faster test execution
+    # BAD:  func TestFoo(t *testing.T) { /* no t.Parallel() */ }
+    # GOOD: func TestFoo(t *testing.T) { t.Parallel(); /* ... */ }
+    - paralleltest
+
+    # tparallel: Detects inappropriate t.Parallel() usage
+    # BAD:  func TestFoo(t *testing.T) { t.Run("sub", func(t *testing.T) { t.Parallel() }) }
+    #       // parent missing t.Parallel()
+    # GOOD: Both parent and subtest call t.Parallel()
+    - tparallel
+
+    # thelper: Ensures test helpers call t.Helper()
+    # BAD:  func assertOK(t *testing.T, err error) { /* no t.Helper() */ }
+    # GOOD: func assertOK(t *testing.T, err error) { t.Helper(); ... }
+    - thelper
+
+    # testableexamples: Ensures Example functions have expected output
+    # BAD:  func ExampleFoo() { fmt.Println("hello") }  // no // Output: comment
+    # GOOD: func ExampleFoo() { fmt.Println("hello") }  // Output: hello
+    - testableexamples
+
+    # testifylint: Validates testify usage patterns (has autofix)
+    # BAD:  assert.Equal(t, result, expected)  // wrong order
+    # GOOD: assert.Equal(t, expected, result)
+    - testifylint
+
+    # ginkgolinter: Enforces Ginkgo/Gomega best practices
+    # Catches common mistakes in BDD-style tests
+    - ginkgolinter
+
+    # protogetter: Ensures proto message fields use getters (has autofix)
+    # BAD:  msg.Field           // nil pointer risk
+    # GOOD: msg.GetField()      // returns zero value if nil
+    - protogetter
+
+  settings:
+    asasalint:
+      # Exclude fmt/log functions from check (they handle []any correctly)
+      # Set to false for stricter checking
+      use-builtin-exclusions: true
+
+    copyloopvar:
+      # Also check: v := v (not just v = v)
+      check-alias: true
+
+    cyclop:
+      # Max cyclomatic complexity per function
+      # 10 = strict, 15 = practical, 20 = lenient
+      max-complexity: 15
+      # Average complexity per package (0.0 = disabled)
+      # Can be noisy for packages with many simple functions
+      package-average: 0.0
+
+    depguard:
+      rules:
+        main:
+          deny:
+            # Deprecated random package
+            - pkg: "math/rand$"
+              desc: "use math/rand/v2 for better API (Go 1.22+)"
+            # Deprecated errors package
+            - pkg: "github.com/pkg/errors"
+              desc: "use standard errors with fmt.Errorf and %w"
+            # Deprecated ioutil package
+            - pkg: "io/ioutil"
+              desc: "deprecated in Go 1.16, use io and os packages"
+
+    dogsled:
+      # Max blank identifiers before flagging
+      # x, _, _, _ := f() has 3 blanks
+      max-blank-identifiers: 3
+
+    dupword:
+      # Check all duplicate words (empty = all)
+      keywords: []
+      # Focus on comments where typos matter most
+      comments-only: true
+
+    embeddedstructfieldcheck:
+      # Require blank line between embedded and regular fields
+      empty-line: true
+      # Forbid sync.Mutex as embedded field (exposes Lock/Unlock methods)
+      # BAD:  type Counter struct { sync.Mutex; count int }
+      # GOOD: type Counter struct { mu sync.Mutex; count int }
+      forbid-mutex: true
+
+    errchkjson:
+      # Identify when json.Marshal error can safely be ignored
+      # (when encoding types that can't fail: strings, ints, etc.)
+      check-error-free-encoding: true
+      # Don't warn about structs with no exported fields
+      report-no-exported: false
+
+    exhaustive:
+      # default case satisfies exhaustiveness check
+      default-signifies-exhaustive: true
+
+    forbidigo:
+      forbid:
+        # Block built-in print (debugging)
+        - pattern: ^print(ln)?$
+          msg: "use structured logging instead of built-in print"
+        # Block fmt.Print* (debugging)
+        - pattern: ^fmt\.Print.*$
+          msg: "use structured logging instead of fmt.Print"
+      # Don't flag examples in godoc
+      exclude-godoc-examples: true
+      # Handle import aliases correctly
+      analyze-types: true
+
+    gochecksumtype:
+      # default case satisfies exhaustiveness for sum types
+      default-signifies-exhaustive: true
+
+    gocognit:
+      # Cognitive complexity threshold (how hard to understand)
+      # 10 = strict, 15-20 = practical, 30 = lenient (default)
+      min-complexity: 20
+
+    ginkgolinter:
+      # Forbid focused tests (FDescribe, FIt) - they skip other tests!
+      forbid-focus-container: true
+      # Forbid variable assignments in Describe/Context (use BeforeEach)
+      forbid-spec-pollution: true
+      # Force Expect().To() style over Expect().Should()
+      force-expect-to: true
+      # Force ToNot/ShouldNot over To(Not())
+      force-tonot: true
+      # Validate async intervals (timeout and polling)
+      validate-async-intervals: true
+
+    gocritic:
+      # Enable additional high-value checks beyond defaults.
+      # Default checks (automatically enabled): appendAssign, badCond, dupArg,
+      # offBy1, badCall, dupCase, dupBranchBody, exitAfterDefer, elseif,
+      # ifElseChain, singleCaseSwitch, switchTrue, sloppyTypeAssert, underef,
+      # unlambda, unslice, valSwap, wrapperFunc
+      enabled-checks:
+        # === DIAGNOSTIC (Bug Detection) - Non-default ===
+        # BAD: mu.Lock(); mu.Lock() // deadlock
+        - badLock
+        # BAD: return nil // in function returning error
+        - nilValReturn
+        # Non-exhaustive conditions
+        - weakCond
+        # Suspicious regexp patterns
+        - badRegexp
+        # Shadowing builtins (len, cap, etc.)
+        - builtinShadow
+
+        # === PERFORMANCE - Non-default ===
+        # Multiple appends → single append
+        - appendCombine
+        # strings.Index allocations
+        - indexAlloc
+        # Expensive range expression copies
+        - rangeExprCopy
+        # Case-insensitive compare allocations
+        - equalFold
+        # Redundant fmt.Sprint calls
+        - redundantSprint
+        # String/[]byte conversion optimization
+        - stringXbytes
+
+        # === STYLE - Non-default ===
+        # nil == x → x == nil (Yoda style)
+        - yodaStyleExpr
+        # Simplify boolean expressions
+        - boolExprSimplify
+        # Empty string check: len(s) == 0 → s == ""
+        - emptyStringTest
+
+      settings:
+        ifElseChain:
+          # Minimum if-else blocks to trigger
+          minThreshold: 3
+        rangeExprCopy:
+          # Size threshold for expensive copies
+          sizeThreshold: 512
+          skipTestFuncs: true
+
+    goheader:
+      # Apache 2.0 License header template
+      # All source files must start with this header
+      template: |-
+        Copyright {{ YEAR }} The Rivaas Authors
+
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+
+            http://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+
+    iface:
+      # Enable all interface pollution analyzers
+      enable:
+        # Identifies interfaces with identical method sets in same package
+        - identical
+        # Identifies interfaces never used in the package where defined
+        - unused
+        # Identifies functions that always return the same concrete type
+        - opaque
+        # Identifies unexported interfaces used in exported functions
+        - unexported
+
+    inamedparam:
+      # Allow unnamed parameters when there's only one
+      # e.g., func Close(context.Context) error is acceptable
+      skip-single-param: true
+
+    ineffassign:
+      # Don't check escaping error variables (may cause false positives)
+      # e.g., err assigned in goroutine, used after goroutine completes
+      check-escaping-errors: false
+
+    interfacebloat:
+      # Maximum methods per interface (Go idiom: small interfaces)
+      # 10 = default/lenient, 5 = strict, 7 = balanced
+      max: 7
+
+    intrange:
+      # No specific settings needed
+
+    iotamixing:
+      # Report individual const declarations, not just the block
+      # Helps pinpoint exactly which const breaks the pattern
+      report-individual: true
+
+    ireturn:
+      # Allow returning these interface types (sensible defaults)
+      allow:
+        - anon    # Anonymous interfaces: func() interface{ Method() }
+        - error   # Error interface (idiomatic)
+        - empty   # interface{} / any
+        - stdlib  # Standard library interfaces (io.Reader, etc.)
+        - generic # Generic interfaces (Go 1.18+)
+
+    lll:
+      # Maximum line length (characters)
+      # 80 = traditional, 100 = moderate, 120 = modern standard
+      line-length: 120
+      # Tab width for counting (1 = count tab as 1 char)
+      tab-width: 1
+
+    misspell:
+      # Use US English spelling (color, not colour)
+      locale: US
+      # Check all content (code + comments), not just comments
+      # mode: restricted would only check comments
+      mode: ""
+
+    modernize:
+      disable:
+        # Go 1.26 not released yet
+        - newexpr
+
+    nakedret:
+      # Allow naked returns in very short functions (easier to understand)
+      # 0 = ban all naked returns, 5 = allow in tiny functions
+      # Longer functions MUST use explicit returns
+      max-func-lines: 5
+
+    nestif:
+      # Minimum complexity to report (depth of nesting)
+      # 5 = default, 4 = stricter, 3 = very strict
+      min-complexity: 5
+
+    nlreturn:
+      # Block size where blank line before return is not required
+      # 2 = allow "x := 1; return x" without blank line
+      # 1 = always require blank line (strictest)
+      block-size: 2
+
+    nolintlint:
+      # Flag unused //nolint directives (stale suppressions)
+      allow-unused: false
+      # Require explanation: //nolint:linter // reason why
+      require-explanation: true
+      # Must specify which linter: //nolint:errcheck not just //nolint
+      require-specific: true
+
+    paralleltest:
+      # Don't require t.Parallel() in every test, just flag incorrect usage
+      # Set to false to require t.Parallel() in all tests
+      ignore-missing: false
+      # Require t.Parallel() in subtests too
+      ignore-missing-subtests: false
+
+    perfsprint:
+      # Enable all performance optimizations (defaults are good)
+      # fmt.Sprintf("%s", s) → s
+      integer-format: true
+      # Allow int conversion: fmt.Sprintf("%d", int64(n)) → strconv.FormatInt(n, 10)
+      int-conversion: true
+      # fmt.Sprintf("%v", err) → err.Error()
+      error-format: true
+      # Optimize fmt.Errorf
+      errorf: true
+      # fmt.Sprintf("%s", s) → s
+      string-format: true
+      # fmt.Sprintf(s) with one arg → s
+      sprintf1: true
+      # fmt.Sprintf("%s%s", a, b) → a + b
+      strconcat: true
+      # fmt.Sprintf("%t", b) → strconv.FormatBool(b)
+      bool-format: true
+      # fmt.Sprintf("%x", b) → hex.EncodeToString(b)
+      hex-format: true
+
+    predeclared:
+      # Include method names and field names in checks
+      # Catches: type Foo struct { len int }
+      qualified-name: true
+
+    promlinter:
+      # Non-strict mode (strict can have false positives with dynamic metrics)
+      strict: false
+
+    protogetter:
+      # Skip generated files (they're auto-generated anyway)
+      skip-any-generated: true
+
+    recvcheck:
+      # Keep built-in exclusions for Marshal* methods
+      # (MarshalJSON, MarshalText, etc. often need value receivers)
+      disable-builtin: false
+
+    sloglint:
+      # Don't mix key-value pairs with slog.Attr in same call
+      no-mixed-args: true
+      # Use key-value style: slog.Info("msg", "key", value)
+      # (simpler than slog.Attr style)
+      kv-only: true
+      # Require context-aware logging when context is in scope
+      # "scope" = only if ctx exists in function, "all" = always require
+      context: "scope"
+      # Enforce snake_case for log keys
+      key-naming-case: snake
+
+    tagliatelle:
+      case:
+        rules:
+          # JSON APIs use camelCase (most common convention)
+          json: camel
+          # YAML configs use camelCase for consistency with JSON
+          yaml: camel
+          # XML uses camelCase
+          xml: camel
+          # Environment variables use UPPER_SNAKE_CASE
+          env: upperSnake
+          # mapstructure (Viper) uses snake_case
+          mapstructure: snake
+
+    testifylint:
+      # Enable all checkers for comprehensive coverage
+      enable-all: true
+
+    thelper:
+      # Ensure t.Helper() is called in test helper functions
+      test:
+        # *testing.T must be first param (or after context.Context)
+        first: true
+        # *testing.T param must be named "t"
+        name: true
+        # t.Helper() must be first statement in helper
+        begin: true
+      benchmark:
+        first: true
+        name: true
+        begin: true
+      tb:
+        first: true
+        name: true
+        begin: true
+      fuzz:
+        first: true
+        name: true
+        begin: true
+
+    unconvert:
+      # Be more conservative (avoid false positives)
+      safe: true
+
+    unparam:
+      # Don't check exported functions (may have false positives
+      # when run on subdirectories without seeing external callers)
+      check-exported: false
+
+    usestdlibvars:
+      # Suggest http.MethodGET instead of "GET"
+      http-method: true
+      # Suggest http.StatusOK instead of 200
+      http-status-code: true
+      # Suggest time.Monday instead of 1
+      time-weekday: true
+      # Suggest time.January instead of 1
+      time-month: true
+      # Suggest time.RFC3339 instead of "2006-01-02T15:04:05Z07:00"
+      time-layout: true
+      # Suggest crypto.SHA256 instead of 5
+      crypto-hash: true
+
+    usetesting:
+      # Use t.TempDir() instead of os.MkdirTemp()
+      os-create-temp: true
+      os-mkdir-temp: true
+      # Use t.Setenv() instead of os.Setenv()
+      os-setenv: true
+      # Use t.Chdir() instead of os.Chdir() (Go 1.24+)
+      os-chdir: true
+      # Use t.Context() instead of context.Background() in tests (Go 1.24+)
+      context-background: true
+      context-todo: true
+
+    whitespace:
+      # Enforce newline after multi-line if statement
+      multi-if: true
+      # Enforce newline after multi-line function signature
+      multi-func: true
+
+formatters:
+  enable:
+    # gofumpt: Stricter gofmt with additional consistency rules
+    # Superset of gofmt - enforces more opinionated formatting
+    # Widely adopted by major Go projects (Kubernetes, CockroachDB)
+    - gofumpt
+
+    # gci: Import statement organization with granular control
+    # Groups imports: stdlib → 3rd party → local modules
+    # More configurable than goimports for import ordering
+    - gci
+
+  settings:
+    gofumpt:
+      # Module path for determining local imports
+      module-path: rivaas.dev
+      # Enable additional formatting rules beyond gofmt
+      extra-rules: true
+
+    gci:
+      # Import section order (custom-order: true makes this explicit)
+      # stdlib first, then external deps, then local rivaas.dev modules
+      sections:
+        - standard                    # Standard library packages
+        - default                     # Third-party packages
+        - prefix(rivaas.dev)          # All rivaas.dev/* local modules
+        - blank                       # Blank imports (side effects)
+        - alias                       # Aliased imports
+      # Use the order defined in sections above
+      custom-order: true
+      # Disallow inline comments on import lines
+      no-inline-comments: true
+      # Disallow comment lines above imports
+      no-prefix-comments: true
+
+issues:
+  # Report all issues
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  # Auto-fix suggestions in soft mode
+  fix: false
+
+run:
+  # Timeout for total work
+  timeout: 5m
