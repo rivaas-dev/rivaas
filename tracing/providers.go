@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"errors"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -39,7 +40,7 @@ func (t *Tracer) initializeProvider() error {
 		return t.initStdoutProvider()
 	case OTLPProvider, OTLPHTTPProvider:
 		// OTLP providers should use initializeProviderWithContext
-		return fmt.Errorf("OTLP providers require context; use Start(ctx)")
+		return errors.New("OTLP providers require context; use Start(ctx)")
 	default:
 		return fmt.Errorf("unsupported tracing provider: %s", t.provider)
 	}

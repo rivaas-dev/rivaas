@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"errors"
 	"regexp"
 	"slices"
 	"strings"
@@ -261,6 +262,9 @@ func WithoutParams() MiddlewareOption {
 //
 //	http.ListenAndServe(":8080", handler)
 func Middleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) http.Handler {
+	if tracer == nil {
+		panic("tracing.Middleware: tracer cannot be nil")
+	}
 	cfg := newMiddlewareConfig()
 	for _, opt := range opts {
 		opt(cfg)
@@ -294,6 +298,7 @@ func Middleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) htt
 				next.ServeHTTP(w, r.WithContext(ctx))
 				// Finish with default status (can't extract from outer wrapper)
 				tracer.FinishRequestSpan(span, http.StatusOK)
+
 				return
 			}
 
@@ -306,6 +311,27 @@ func Middleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) htt
 			tracer.FinishRequestSpan(span, rw.StatusCode())
 		})
 	}
+}
+
+// MustMiddleware creates a middleware function for standalone HTTP integration.
+// It panics if any middleware option is invalid (e.g., invalid regex pattern).
+// This is a convenience wrapper around Middleware for consistency with MustNew.
+//
+// Example:
+//
+//	tracer := tracing.MustNew(
+//	    tracing.WithOTLP("localhost:4317"),
+//	    tracing.WithServiceName("my-api"),
+//	)
+//
+//	handler := tracing.MustMiddleware(tracer,
+//	    tracing.WithExcludePaths("/health", "/metrics"),
+//	    tracing.WithHeaders("X-Request-ID"),
+//	)(mux)
+//
+//	http.ListenAndServe(":8080", handler)
+func MustMiddleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) http.Handler {
+	return Middleware(tracer, opts...)
 }
 
 // startMiddlewareSpan starts a span for HTTP request with middleware configuration.
@@ -329,11 +355,11 @@ func startMiddlewareSpan(t *Tracer, cfg *middlewareConfig, req *http.Request) (c
 
 	// Build span name
 	var spanName string
-	sb := t.spanNamePool.Get().(*strings.Builder)
+	sb, _ := t.spanNamePool.Get().(*strings.Builder)
 	sb.Reset()
-	sb.WriteString(req.Method)
-	sb.WriteByte(' ')
-	sb.WriteString(req.URL.Path)
+	_, _ = sb.WriteString(req.Method)
+	_ = sb.WriteByte(' ')
+	_, _ = sb.WriteString(req.URL.Path)
 	spanName = sb.String()
 	t.spanNamePool.Put(sb)
 
@@ -403,6 +429,7 @@ func shouldRecordParam(cfg *middlewareConfig, param string) bool {
 // responseWriter wraps http.ResponseWriter to capture status code and size.
 type responseWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 	size       int
 	written    bool
@@ -468,7 +495,7 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 		return h.Hijack()
 	}
 
-	return nil, nil, fmt.Errorf("underlying ResponseWriter doesn't support Hijack")
+	return nil, nil, errors.New("underlying ResponseWriter doesn't support Hijack")
 }
 
 // Push implements http.Pusher for HTTP/2 server push.

@@ -35,6 +35,7 @@ func ExampleNew() {
 		if _, printErr := fmt.Printf("Error: %v\n", err); printErr != nil {
 			panic(printErr)
 		}
+
 		return
 	}
 	defer func() {

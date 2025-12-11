@@ -85,7 +85,11 @@ func TestIntegration_PathExclusion(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		if err := tracer.Shutdown(context.Background()); err != nil {
+		// Use context.Background() instead of t.Context() because with t.Parallel(),
+		// the test context is canceled before cleanup runs, causing shutdown to fail.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -152,7 +156,11 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		if err := tracer.Shutdown(context.Background()); err != nil {
+		// Use context.Background() instead of t.Context() because with t.Parallel(),
+		// the test context is canceled before cleanup runs, causing shutdown to fail.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -201,7 +209,11 @@ func TestIntegration_TraceContextPropagation(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		if err := tracer.Shutdown(context.Background()); err != nil {
+		// Use context.Background() instead of t.Context() because with t.Parallel(),
+		// the test context is canceled before cleanup runs, causing shutdown to fail.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -242,7 +254,11 @@ func TestIntegration_ErrorStatusCodes(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		if err := tracer.Shutdown(context.Background()); err != nil {
+		// Use context.Background() instead of t.Context() because with t.Parallel(),
+		// the test context is canceled before cleanup runs, causing shutdown to fail.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -315,7 +331,11 @@ func TestIntegration_HeaderRecording(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		if err := tracer.Shutdown(context.Background()); err != nil {
+		// Use context.Background() instead of t.Context() because with t.Parallel(),
+		// the test context is canceled before cleanup runs, causing shutdown to fail.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -404,7 +424,11 @@ func TestIntegration_ProviderTypes(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, tracer)
 			t.Cleanup(func() {
-				if err := tracer.Shutdown(context.Background()); err != nil {
+				// Use context.Background() instead of t.Context() because with t.Parallel(),
+				// the test context is canceled before cleanup runs, causing shutdown to fail.
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := tracer.Shutdown(ctx); err != nil {
 					t.Errorf("failed to shutdown tracer: %v", err)
 				}
 			})

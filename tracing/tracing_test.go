@@ -37,7 +37,7 @@ func TestTracerConfig(t *testing.T) {
 		WithServiceVersion("v1.0.0"),
 		WithSampleRate(0.5),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	assert.True(t, tracer.IsEnabled())
 	assert.Equal(t, "test-service", tracer.ServiceName())
@@ -54,12 +54,12 @@ func TestTracingWithHTTP(t *testing.T) {
 		WithServiceName("test-service"),
 		WithSampleRate(1.0),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	// Create HTTP handler with tracing middleware
 	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -87,7 +87,7 @@ func TestTracerOptions(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithSampleRate(0.5))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 		assert.InEpsilon(t, 0.5, tracer.sampleRate, 0.001)
 	})
 }
@@ -102,7 +102,7 @@ func TestTracingMiddleware(t *testing.T) {
 	// Create a test handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	// Wrap with tracing middleware (with path exclusion)
@@ -132,12 +132,12 @@ func TestTracingIntegration(t *testing.T) {
 	// Add routes
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message":"Hello"}`))
+		_, _ = w.Write([]byte(`{"message":"Hello"}`))
 	})
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy"}`))
+		_, _ = w.Write([]byte(`{"status":"healthy"}`))
 	})
 
 	// Wrap with tracing middleware
@@ -179,15 +179,15 @@ func TestSamplingRate(t *testing.T) {
 		// Test clamping of sample rate
 		tracer := MustNew(WithServiceName("test"), WithSampleRate(1.5))
 		assert.InEpsilon(t, 1.0, tracer.sampleRate, 0.001)
-		tracer.Shutdown(context.Background())
+		_ = tracer.Shutdown(t.Context())
 
 		tracer = MustNew(WithServiceName("test"), WithSampleRate(-0.5))
 		assert.InDelta(t, 0.0, tracer.sampleRate, 0.001)
-		tracer.Shutdown(context.Background())
+		_ = tracer.Shutdown(t.Context())
 
 		tracer = MustNew(WithServiceName("test"), WithSampleRate(0.5))
 		assert.InEpsilon(t, 0.5, tracer.sampleRate, 0.001)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 	})
 
 	t.Run("SampleRate100Percent", func(t *testing.T) {
@@ -197,12 +197,12 @@ func TestSamplingRate(t *testing.T) {
 			WithServiceName("test-service"),
 			WithSampleRate(1.0),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		// All requests should be traced
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -219,12 +219,12 @@ func TestSamplingRate(t *testing.T) {
 			WithServiceName("test-service"),
 			WithSampleRate(0.0),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		// No requests should be traced
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -241,11 +241,11 @@ func TestSamplingRate(t *testing.T) {
 			WithServiceName("test-service"),
 			WithSampleRate(0.5),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		// Make multiple requests to verify sampling doesn't cause issues
@@ -270,11 +270,11 @@ func TestParameterRecording(t *testing.T) {
 		tracer := MustNew(
 			WithServiceName("test-service"),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test?foo=bar&baz=qux", nil)
@@ -290,11 +290,11 @@ func TestParameterRecording(t *testing.T) {
 		tracer := MustNew(
 			WithServiceName("test-service"),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test?foo=bar", nil)
@@ -386,7 +386,7 @@ func TestErrorStatusCodes(t *testing.T) {
 	tracer := MustNew(
 		WithServiceName("test-service"),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	// Create mux with different status codes
 	mux := http.NewServeMux()
@@ -395,7 +395,7 @@ func TestErrorStatusCodes(t *testing.T) {
 		body := tt.wantBody
 		mux.HandleFunc(tt.path, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(status)
-			w.Write([]byte(body))
+			_, _ = w.Write([]byte(body))
 		})
 	}
 	handler := Middleware(tracer)(mux)
@@ -420,11 +420,11 @@ func TestConcurrentResponseWriter(t *testing.T) {
 	tracer := MustNew(
 		WithServiceName("test-service"),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
 
 	// Test concurrent requests
@@ -447,7 +447,7 @@ func TestContextTracingHelpers(t *testing.T) {
 	tracer := MustNew(
 		WithServiceName("test-service"),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -463,7 +463,7 @@ func TestContextTracingHelpers(t *testing.T) {
 		spanID := SpanID(ctx)
 
 		w.WriteHeader(http.StatusOK)
-		w.Write(fmt.Appendf(nil, `{"trace_id":"%s","span_id":"%s"}`, traceID, spanID))
+		_, _ = w.Write(fmt.Appendf(nil, `{"trace_id":"%s","span_id":"%s"}`, traceID, spanID))
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -541,7 +541,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithServiceName("test"), WithSampleRate(999.9))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 		assert.InEpsilon(t, 1.0, tracer.sampleRate, 0.001)
 	})
 
@@ -549,7 +549,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithServiceName("test"), WithSampleRate(-999.9))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 		assert.InDelta(t, 0.0, tracer.sampleRate, 0.001)
 	})
 
@@ -584,7 +584,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		tracer := MustNew()
 		ctx := t.Context()
 		headers := http.Header{}
-		headers.Set("traceparent", "invalid-trace-parent")
+		headers.Set("Traceparent", "invalid-trace-parent")
 
 		ctx = tracer.ExtractTraceContext(ctx, headers)
 		assert.NotNil(t, ctx)
@@ -661,7 +661,7 @@ func TestTraceContextPropagation(t *testing.T) {
 		tracer := MustNew()
 
 		headers := http.Header{}
-		headers.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		headers.Set("Traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
 		ctx := t.Context()
 		ctx = tracer.ExtractTraceContext(ctx, headers)
@@ -723,11 +723,11 @@ func TestDisabledRecording(t *testing.T) {
 		tracer := MustNew(
 			WithServiceName("test"),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test?secret=password&token=abc123", nil)
@@ -743,11 +743,17 @@ func TestDisabledRecording(t *testing.T) {
 		tracer := MustNew(
 			WithServiceName("test"),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() {
+			// Use context.Background() instead of t.Context() because with t.Parallel(),
+			// the test context is canceled before cleanup runs, causing shutdown to fail.
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = tracer.Shutdown(ctx)
+		})
 
 		handler := Middleware(tracer, WithHeaders("X-Request-ID", "User-Agent"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -774,7 +780,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 
 		handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("OK"))
+			_, _ = w.Write([]byte("OK"))
 		})
 
 		middleware := Middleware(tracer)
@@ -909,7 +915,7 @@ func TestProviderSetup(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.NotNil(t, tracer)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		assert.Equal(t, StdoutProvider, tracer.GetProvider())
 		assert.Equal(t, "test-service", tracer.ServiceName())
@@ -925,7 +931,7 @@ func TestProviderSetup(t *testing.T) {
 			WithOTLP("localhost:4317", OTLPInsecure()),
 		)
 		if tracer != nil {
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 		}
 		if err != nil {
 			assert.Error(t, err)
@@ -945,7 +951,7 @@ func TestProviderSetup(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.NotNil(t, tracer)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		assert.Equal(t, NoopProvider, tracer.GetProvider())
 	})
@@ -959,7 +965,7 @@ func TestProviderSetup(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.NotNil(t, tracer)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		// Default should be noop
 		assert.Equal(t, NoopProvider, tracer.GetProvider())
@@ -997,7 +1003,7 @@ func TestProviderSetup(t *testing.T) {
 			)
 		})
 		if cleanupTracer != nil {
-			t.Cleanup(func() { cleanupTracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = cleanupTracer.Shutdown(t.Context()) })
 		}
 	})
 
@@ -1031,7 +1037,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			WithServiceName("test"),
 			WithSpanStartHook(startHook),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -1061,7 +1067,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			WithServiceName("test"),
 			WithSpanFinishHook(finishHook),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
@@ -1094,7 +1100,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			WithSpanStartHook(startHook),
 			WithSpanFinishHook(finishHook),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -1128,7 +1134,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 			WithSpanStartHook(startHook),
 			WithSpanFinishHook(finishHook),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -1151,7 +1157,7 @@ func TestGranularParameterRecording(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithServiceName("test"))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer, WithRecordParams("user_id", "request_id"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -1168,7 +1174,7 @@ func TestGranularParameterRecording(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithServiceName("test"))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer, WithExcludeParams("password", "token", "api_key"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -1229,7 +1235,7 @@ func TestProviderFailure(t *testing.T) {
 			assert.Error(t, err)
 		} else {
 			require.NotNil(t, tracer)
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 		}
 	})
 }
@@ -1242,7 +1248,7 @@ func TestContextCancellationInStartRequestSpan(t *testing.T) {
 		WithServiceName("test-service"),
 		WithSampleRate(1.0),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	t.Run("CancelledContext", func(t *testing.T) {
 		t.Parallel()
@@ -1282,7 +1288,7 @@ func TestExcludePathPattern(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithServiceName("test"))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer,
 			WithExcludePatterns("^/internal/.*", "^/(health|ready|live)"),
@@ -1303,7 +1309,7 @@ func TestExcludePathPattern(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithServiceName("test"))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		assert.Panics(t, func() {
 			Middleware(tracer,
@@ -1321,7 +1327,7 @@ func TestExcludePrefixes(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithServiceName("test"))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer, WithExcludePrefixes("/debug/"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -1339,7 +1345,7 @@ func TestExcludePrefixes(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew(WithServiceName("test"))
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		handler := Middleware(tracer,
 			WithExcludePrefixes("/debug/", "/internal/", "/admin/"),
@@ -1368,7 +1374,7 @@ func TestNewProviderOptions(t *testing.T) {
 			WithOTLP("localhost:4317"),
 		)
 		if tracer != nil {
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 			assert.Equal(t, OTLPProvider, tracer.GetProvider())
 		}
 		// May fail if OTLP collector not running - that's ok
@@ -1383,7 +1389,7 @@ func TestNewProviderOptions(t *testing.T) {
 			WithOTLP("localhost:4317", OTLPInsecure()),
 		)
 		if tracer != nil {
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 			assert.Equal(t, OTLPProvider, tracer.GetProvider())
 		}
 		_ = err
@@ -1397,7 +1403,7 @@ func TestNewProviderOptions(t *testing.T) {
 			WithOTLPHTTP("http://localhost:4318"),
 		)
 		if tracer != nil {
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 			assert.Equal(t, OTLPHTTPProvider, tracer.GetProvider())
 		}
 		_ = err
@@ -1411,7 +1417,7 @@ func TestNewProviderOptions(t *testing.T) {
 			WithStdout(),
 		)
 		require.NoError(t, err)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 		assert.Equal(t, StdoutProvider, tracer.GetProvider())
 	})
 
@@ -1423,7 +1429,7 @@ func TestNewProviderOptions(t *testing.T) {
 			WithNoop(),
 		)
 		require.NoError(t, err)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 		assert.Equal(t, NoopProvider, tracer.GetProvider())
 	})
 }
@@ -1499,7 +1505,7 @@ func TestMultipleProvidersValidation(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.NotNil(t, tracer)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 		assert.Equal(t, StdoutProvider, tracer.GetProvider())
 	})
 

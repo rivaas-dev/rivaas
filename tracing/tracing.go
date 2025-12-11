@@ -16,6 +16,7 @@ package tracing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -295,12 +296,12 @@ func (t *Tracer) validate() error {
 
 	// Validate service name
 	if t.serviceName == "" {
-		return fmt.Errorf("serviceName: cannot be empty")
+		return errors.New("serviceName: cannot be empty")
 	}
 
 	// Validate service version
 	if t.serviceVersion == "" {
-		return fmt.Errorf("serviceVersion: cannot be empty")
+		return errors.New("serviceVersion: cannot be empty")
 	}
 
 	// Validate sample rate
@@ -600,11 +601,11 @@ func (t *Tracer) StartRequestSpan(ctx context.Context, req *http.Request, path s
 
 	// Build span name from method and path
 	var spanName string
-	sb := t.spanNamePool.Get().(*strings.Builder)
+	sb, _ := t.spanNamePool.Get().(*strings.Builder)
 	sb.Reset()
-	sb.WriteString(req.Method)
-	sb.WriteByte(' ')
-	sb.WriteString(path)
+	_, _ = sb.WriteString(req.Method)
+	_ = sb.WriteByte(' ')
+	_, _ = sb.WriteString(path)
 	spanName = sb.String()
 	t.spanNamePool.Put(sb)
 

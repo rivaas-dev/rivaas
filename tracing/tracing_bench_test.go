@@ -29,7 +29,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 		tracer := MustNew(WithSampleRate(0.0))
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -46,7 +46,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 		tracer := MustNew(WithSampleRate(1.0))
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -63,7 +63,7 @@ func BenchmarkTracingOverhead(b *testing.B) {
 		tracer := MustNew(WithSampleRate(0.5))
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -157,7 +157,7 @@ func BenchmarkContextPropagation(b *testing.B) {
 	headers := http.Header{}
 
 	b.Run("ExtractTraceContext", func(b *testing.B) {
-		headers.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		headers.Set("Traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -184,7 +184,7 @@ func BenchmarkResponseWriterConcurrency(b *testing.B) {
 	tracer := MustNew(WithSampleRate(1.0))
 	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)

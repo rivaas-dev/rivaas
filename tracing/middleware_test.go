@@ -313,7 +313,7 @@ func TestMiddleware_BasicFunctionality(t *testing.T) {
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			handlerCalled = true
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("OK")) //nolint:errcheck // Test handler - error not critical
+			_, _ = w.Write([]byte("OK"))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -469,10 +469,9 @@ func TestResponseWriter(t *testing.T) {
 		w := httptest.NewRecorder()
 		rw := newResponseWriter(w)
 
-		//nolint:errcheck // Testing size accumulation - errors not critical
-		rw.Write([]byte("Hello"))
-		rw.Write([]byte(", "))
-		rw.Write([]byte("World!"))
+		_, _ = rw.Write([]byte("Hello"))
+		_, _ = rw.Write([]byte(", "))
+		_, _ = rw.Write([]byte("World!"))
 
 		assert.Equal(t, 13, rw.Size()) // "Hello, World!" = 13 bytes
 	})
@@ -702,7 +701,7 @@ func TestTracingMiddlewareDoubleWrappingPrevention(t *testing.T) {
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -724,9 +723,9 @@ func TestTracingMiddlewareWithExcludedPathsNoWrapping(t *testing.T) {
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if writer is wrapped
 		if _, ok := w.(router.ObservabilityWrappedWriter); ok {
-			w.Write([]byte("wrapped"))
+			_, _ = w.Write([]byte("wrapped"))
 		} else {
-			w.Write([]byte("not-wrapped"))
+			_, _ = w.Write([]byte("not-wrapped"))
 		}
 	}))
 
@@ -746,6 +745,7 @@ func TestTracingMiddlewareWithExcludedPathsNoWrapping(t *testing.T) {
 // mockWrappedWriter is a mock implementation of an already-wrapped response writer.
 type mockWrappedWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 	size       int
 	written    bool
@@ -766,6 +766,7 @@ func (m *mockWrappedWriter) Write(b []byte) (int, error) {
 	}
 	n, err := m.ResponseWriter.Write(b)
 	m.size += n
+
 	return n, err
 }
 
@@ -773,6 +774,7 @@ func (m *mockWrappedWriter) StatusCode() int {
 	if m.statusCode == 0 {
 		return http.StatusOK
 	}
+
 	return m.statusCode
 }
 

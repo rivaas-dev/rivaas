@@ -75,7 +75,7 @@ func TestWithServiceName(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, tracer)
-			t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 			assert.Equal(t, tt.serviceName, tracer.ServiceName())
 		})
@@ -132,7 +132,7 @@ func TestWithServiceVersion(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, tracer)
-			t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 			assert.Equal(t, tt.serviceVersion, tracer.ServiceVersion())
 		})
@@ -198,7 +198,7 @@ func TestWithSampleRate(t *testing.T) {
 				WithServiceName("test"),
 				WithSampleRate(tt.rate),
 			)
-			t.Cleanup(func() { _ = tracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 			assert.Equal(t, tt.expectedRate, tracer.sampleRate) //nolint:testifylint // exact sample rate comparison
 		})
@@ -220,7 +220,7 @@ func TestWithCustomTracer(t *testing.T) {
 		WithTracerProvider(noopProvider),
 		WithCustomTracer(customTracer),
 	)
-	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	assert.Equal(t, customTracer, tracer.tracer)
 	assert.True(t, tracer.IsEnabled())
@@ -236,7 +236,7 @@ func TestWithCustomPropagator(t *testing.T) {
 		WithServiceName("test"),
 		WithCustomPropagator(customPropagator),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	assert.NotNil(t, tracer.GetPropagator())
 }
@@ -254,7 +254,7 @@ func TestWithEventHandler(t *testing.T) {
 		WithServiceName("test"),
 		WithEventHandler(handler),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	// Trigger an event by calling internal emit methods
 	tracer.emitInfo("test message", "key", "value")
@@ -274,7 +274,7 @@ func TestWithLogger(t *testing.T) {
 		WithServiceName("test"),
 		WithLogger(logger),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	assert.NotNil(t, tracer.eventHandler)
 }
@@ -287,7 +287,7 @@ func TestWithLogger_NilLogger(t *testing.T) {
 		WithServiceName("test"),
 		WithLogger(nil),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	// Should not panic when emitting events with nil logger
 	tracer.emitInfo("test message")
@@ -312,7 +312,7 @@ func TestWithSpanStartHook(t *testing.T) {
 		WithServiceName("test"),
 		WithSpanStartHook(hook),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	assert.NotNil(t, tracer.spanStartHook)
 
@@ -338,7 +338,7 @@ func TestWithSpanFinishHook(t *testing.T) {
 		WithServiceName("test"),
 		WithSpanFinishHook(hook),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	assert.NotNil(t, tracer.spanFinishHook)
 
@@ -356,7 +356,7 @@ func TestWithGlobalTracerProvider(t *testing.T) {
 		WithServiceName("test"),
 		WithGlobalTracerProvider(),
 	)
-	t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 	assert.True(t, tracer.registerGlobal)
 }
@@ -372,7 +372,7 @@ func TestProviderOptions(t *testing.T) {
 			WithServiceName("test"),
 			WithStdout(),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		assert.Equal(t, StdoutProvider, tracer.GetProvider())
 	})
@@ -384,7 +384,7 @@ func TestProviderOptions(t *testing.T) {
 			WithServiceName("test"),
 			WithNoop(),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		assert.Equal(t, NoopProvider, tracer.GetProvider())
 	})
@@ -395,7 +395,7 @@ func TestProviderOptions(t *testing.T) {
 		tracer := MustNew(
 			WithServiceName("test"),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		// Default should be noop
 		assert.Equal(t, NoopProvider, tracer.GetProvider())
@@ -415,7 +415,7 @@ func TestOTLPOptions(t *testing.T) {
 		)
 		// May fail if OTLP collector not running
 		if err == nil {
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 			assert.Equal(t, OTLPProvider, tracer.GetProvider())
 		}
 	})
@@ -429,7 +429,7 @@ func TestOTLPOptions(t *testing.T) {
 		)
 		// May fail if OTLP collector not running
 		if err == nil {
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 			assert.Equal(t, OTLPProvider, tracer.GetProvider())
 			assert.True(t, tracer.otlpInsecure)
 		}
@@ -444,7 +444,7 @@ func TestOTLPOptions(t *testing.T) {
 		)
 		// May fail if OTLP collector not running
 		if err == nil {
-			t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 			assert.Equal(t, OTLPHTTPProvider, tracer.GetProvider())
 		}
 	})
@@ -569,7 +569,7 @@ func TestOptionsCombination(t *testing.T) {
 			WithNoop(),
 			WithEventHandler(eventHandler),
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		assert.Equal(t, "combined-test", tracer.ServiceName())
 		assert.Equal(t, "v2.0.0", tracer.ServiceVersion())
@@ -587,7 +587,7 @@ func TestOptionsCombination(t *testing.T) {
 			WithSampleRate(0.1),
 			WithSampleRate(0.9), // Should override
 		)
-		t.Cleanup(func() { tracer.Shutdown(context.Background()) })
+		t.Cleanup(func() { _ = tracer.Shutdown(t.Context()) })
 
 		assert.Equal(t, "second-name", tracer.ServiceName())
 		assert.Equal(t, 0.9, tracer.sampleRate) //nolint:testifylint // exact sample rate comparison

@@ -176,7 +176,7 @@ func WithEventHandler(handler EventHandler) Option {
 //	tracing.New(tracing.WithLogger(slog.Default()))
 //
 //	// Use custom slog logger
-//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	:= slog.New(slog.NewJSONHandler(os.Stdout, nil))
 //	tracing.New(tracing.WithLogger(logger))
 func WithLogger(logger *slog.Logger) Option {
 	return WithEventHandler(DefaultEventHandler(logger))

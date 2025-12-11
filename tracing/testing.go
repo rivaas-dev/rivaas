@@ -118,6 +118,7 @@ func TestingMiddleware(tb testing.TB, middlewareOpts ...MiddlewareOption) func(h
 	tb.Helper()
 
 	tracer := TestingTracer(tb)
+
 	return Middleware(tracer, middlewareOpts...)
 }
 
