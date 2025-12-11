@@ -39,7 +39,7 @@ func BenchmarkMethodOverride_Header(b *testing.B) {
 
 	for b.Loop() {
 		req := httptest.NewRequest(http.MethodPost, "/users/123", nil)
-		req.Header.Set("X-HTTP-Method-Override", "PUT")
+		req.Header.Set("X-Http-Method-Override", "PUT")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 	}
@@ -107,7 +107,7 @@ func BenchmarkMethodOverride_WithCSRFCheck(b *testing.B) {
 
 	for b.Loop() {
 		req := httptest.NewRequest(http.MethodPost, "/users/123", nil)
-		req.Header.Set("X-HTTP-Method-Override", "PUT")
+		req.Header.Set("X-Http-Method-Override", "PUT")
 		// CSRF not verified, so override should be skipped
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -132,7 +132,7 @@ func BenchmarkMethodOverride_Parallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			req := httptest.NewRequest(http.MethodPost, "/users/123", nil)
-			req.Header.Set("X-HTTP-Method-Override", "PUT")
+			req.Header.Set("X-Http-Method-Override", "PUT")
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 		}

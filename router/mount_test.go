@@ -29,19 +29,19 @@ func TestMount_BasicRouteRegistration(t *testing.T) {
 	// Create subrouter with routes
 	sub := MustNew()
 	sub.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "users list")
+		_ = c.String(http.StatusOK, "users list") // Error ignored: test verifies route registration, not response handling
 	})
 	sub.GET("/users/:id", func(c *Context) {
-		c.String(http.StatusOK, "user "+c.Param("id"))
+		_ = c.String(http.StatusOK, "user "+c.Param("id")) // Error ignored: test verifies route registration, not response handling
 	})
 	sub.POST("/users", func(c *Context) {
-		c.String(http.StatusOK, "user created")
+		_ = c.String(http.StatusOK, "user created") // Error ignored: test verifies route registration, not response handling
 	})
 
 	// Create parent router and mount subrouter
 	r := MustNew()
 	r.GET("/health", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies route registration, not response handling
 	})
 	r.Mount("/api/v1", sub)
 
@@ -67,7 +67,7 @@ func TestMount_RoutePatternPreservedForObservability(t *testing.T) {
 	var capturedPattern string
 	sub.GET("/users/:id", func(c *Context) {
 		capturedPattern = c.RoutePattern()
-		c.String(http.StatusOK, "user "+c.Param("id"))
+		_ = c.String(http.StatusOK, "user "+c.Param("id")) // Error ignored: test verifies route pattern preservation, not response handling
 	})
 
 	// Create parent router and mount subrouter
@@ -115,7 +115,7 @@ func TestMount_MiddlewareInheritance(t *testing.T) {
 	sub.Use(subMiddleware)
 	sub.GET("/test", func(c *Context) {
 		middlewareOrder = append(middlewareOrder, "handler")
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies middleware inheritance, not response handling
 	})
 
 	// Mount with InheritMiddleware and extra middleware
@@ -160,7 +160,7 @@ func TestMount_MiddlewareWithoutInheritance(t *testing.T) {
 	sub.Use(subMiddleware)
 	sub.GET("/test", func(c *Context) {
 		middlewareOrder = append(middlewareOrder, "handler")
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies middleware inheritance, not response handling
 	})
 
 	// Mount WITHOUT InheritMiddleware
@@ -184,7 +184,7 @@ func TestMount_NamePrefix(t *testing.T) {
 
 	sub := MustNew()
 	sub.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "users")
+		_ = c.String(http.StatusOK, "users") // Error ignored: test verifies name prefixing, not response handling
 	}).SetName("users.list")
 
 	r := MustNew()
@@ -211,12 +211,12 @@ func TestMount_WithNotFound(t *testing.T) {
 	notFoundCalled := false
 	customNotFound := func(c *Context) {
 		notFoundCalled = true
-		c.String(http.StatusNotFound, "custom 404")
+		_ = c.String(http.StatusNotFound, "custom 404") // Error ignored: test verifies custom 404 handler, not response details
 	}
 
 	sub := MustNew()
 	sub.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "users")
+		_ = c.String(http.StatusOK, "users") // Error ignored: test verifies custom 404 handler, not response details
 	})
 
 	r := MustNew()
@@ -244,7 +244,7 @@ func TestMount_ConstraintsPreserved(t *testing.T) {
 
 	sub := MustNew()
 	sub.GET("/users/:id", func(c *Context) {
-		c.String(http.StatusOK, "user "+c.Param("id"))
+		_ = c.String(http.StatusOK, "user "+c.Param("id")) // Error ignored: test verifies constraint preservation, not response handling
 	}).Where("id", `\d+`)
 
 	r := MustNew()
@@ -293,10 +293,10 @@ func TestMount_RootPathHandling(t *testing.T) {
 
 	sub := MustNew()
 	sub.GET("/", func(c *Context) {
-		c.String(http.StatusOK, "root")
+		_ = c.String(http.StatusOK, "root") // Error ignored: test verifies root path handling, not response details
 	})
 	sub.GET("/nested", func(c *Context) {
-		c.String(http.StatusOK, "nested")
+		_ = c.String(http.StatusOK, "nested") // Error ignored: test verifies nested path handling, not response details
 	})
 
 	r := MustNew()
@@ -323,12 +323,12 @@ func TestMount_MultipleMounts(t *testing.T) {
 	// Create two subrouters
 	apiV1 := MustNew()
 	apiV1.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v1 users")
+		_ = c.String(http.StatusOK, "v1 users") // Error ignored: test verifies multiple mounts, not response handling
 	})
 
 	apiV2 := MustNew()
 	apiV2.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "v2 users")
+		_ = c.String(http.StatusOK, "v2 users") // Error ignored: test verifies multiple mounts, not response handling
 	})
 
 	// Mount both
@@ -358,7 +358,7 @@ func TestMount_ParamsExtracted(t *testing.T) {
 	sub.GET("/users/:userId/posts/:postId", func(c *Context) {
 		userID := c.Param("userId")
 		postID := c.Param("postId")
-		c.String(http.StatusOK, "user:"+userID+" post:"+postID)
+		_ = c.String(http.StatusOK, "user:"+userID+" post:"+postID) // Error ignored: test verifies param extraction, not response handling
 	})
 
 	r := MustNew()
@@ -378,7 +378,7 @@ func TestMount_WildcardRoutes(t *testing.T) {
 	sub := MustNew()
 	sub.GET("/files/*", func(c *Context) {
 		filepath := c.Param("filepath")
-		c.String(http.StatusOK, "file:"+filepath)
+		_ = c.String(http.StatusOK, "file:"+filepath) // Error ignored: test verifies wildcard routes, not response handling
 	})
 
 	r := MustNew()
@@ -401,7 +401,7 @@ func TestMount_NilSubrouter(t *testing.T) {
 
 	// Router should still work
 	r.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies nil subrouter handling, not response details
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -414,13 +414,13 @@ func TestMount_AllHTTPMethods(t *testing.T) {
 	t.Parallel()
 
 	sub := MustNew()
-	sub.GET("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodGet) })
-	sub.POST("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodPost) })
-	sub.PUT("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodPut) })
-	sub.PATCH("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodPatch) })
-	sub.DELETE("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodDelete) })
+	sub.GET("/resource", func(c *Context) { _ = c.String(http.StatusOK, http.MethodGet) })       // Error ignored: test verifies HTTP methods, not response handling
+	sub.POST("/resource", func(c *Context) { _ = c.String(http.StatusOK, http.MethodPost) })     // Error ignored: test verifies HTTP methods, not response handling
+	sub.PUT("/resource", func(c *Context) { _ = c.String(http.StatusOK, http.MethodPut) })       // Error ignored: test verifies HTTP methods, not response handling
+	sub.PATCH("/resource", func(c *Context) { _ = c.String(http.StatusOK, http.MethodPatch) })   // Error ignored: test verifies HTTP methods, not response handling
+	sub.DELETE("/resource", func(c *Context) { _ = c.String(http.StatusOK, http.MethodDelete) }) // Error ignored: test verifies HTTP methods, not response handling
 	sub.HEAD("/resource", func(c *Context) { c.Status(http.StatusOK) })
-	sub.OPTIONS("/resource", func(c *Context) { c.String(http.StatusOK, http.MethodOptions) })
+	sub.OPTIONS("/resource", func(c *Context) { _ = c.String(http.StatusOK, http.MethodOptions) }) // Error ignored: test verifies HTTP methods, not response handling
 
 	r := MustNew()
 	r.Mount("/api", sub)
@@ -446,11 +446,11 @@ func TestMount_ObservabilityIntegration(t *testing.T) {
 	sub := MustNew()
 	sub.GET("/users/:id", func(c *Context) {
 		observedPatterns = append(observedPatterns, c.RoutePattern())
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies observability integration, not response handling
 	})
 	sub.GET("/products/:category/:id", func(c *Context) {
 		observedPatterns = append(observedPatterns, c.RoutePattern())
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies observability integration, not response handling
 	})
 
 	r := MustNew()

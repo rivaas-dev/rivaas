@@ -28,6 +28,7 @@ import (
 // AdvancedRoutingTestSuite tests advanced routing functionality
 type AdvancedRoutingTestSuite struct {
 	suite.Suite
+
 	router *Router
 }
 

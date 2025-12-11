@@ -117,7 +117,7 @@ func WithAcceptDetection(pattern string) Option {
 //
 //	version.WithCustomDetection(func(r *http.Request) string {
 //	    // Extract version from JWT token
-//	    token := r.Header.Get("Authorization")
+//	    := r.Header.Get("Authorization")
 //	    return extractVersionFromToken(token)
 //	})
 func WithCustomDetection(fn func(*http.Request) string) Option {

@@ -31,7 +31,7 @@ func BenchmarkRateLimit(b *testing.B) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: benchmark focuses on router/middleware performance, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -54,7 +54,7 @@ func BenchmarkRateLimit_ParallelSameKey(b *testing.B) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: benchmark focuses on router/middleware performance, not response handling
 	})
 
 	b.ResetTimer()
@@ -77,12 +77,12 @@ func BenchmarkRateLimit_ParallelDifferentKeys(b *testing.B) {
 		WithRequestsPerSecond(1000000),
 		WithBurst(1000000),
 		WithKeyFunc(func(c *router.Context) string {
-			return c.Request.Header.Get("X-User-ID")
+			return c.Request.Header.Get("X-User-Id")
 		}),
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: benchmark focuses on router/middleware performance, not response handling
 	})
 
 	b.ResetTimer()
@@ -93,7 +93,7 @@ func BenchmarkRateLimit_ParallelDifferentKeys(b *testing.B) {
 
 		for pb.Next() {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			req.Header.Set("X-User-ID", string(rune(userID)))
+			req.Header.Set("X-User-Id", string(rune(userID)))
 			userID++
 
 			w := httptest.NewRecorder()

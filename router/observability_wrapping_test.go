@@ -196,6 +196,7 @@ func (t *testObservabilityRecorder) BuildRequestLogger(_ context.Context, _ *htt
 // mockWrappedResponseWriter is a test implementation of a wrapped response writer.
 type mockWrappedResponseWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 	size       int64
 	written    bool
@@ -216,6 +217,7 @@ func (m *mockWrappedResponseWriter) Write(b []byte) (int, error) {
 	}
 	n, err := m.ResponseWriter.Write(b)
 	m.size += int64(n)
+
 	return n, err
 }
 
@@ -223,6 +225,7 @@ func (m *mockWrappedResponseWriter) StatusCode() int {
 	if m.statusCode == 0 {
 		return http.StatusOK
 	}
+
 	return m.statusCode
 }
 

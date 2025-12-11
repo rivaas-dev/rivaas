@@ -27,6 +27,7 @@ import (
 // ExtendedTestSuite tests extended router functionality
 type ExtendedTestSuite struct {
 	suite.Suite
+
 	router *Router
 }
 

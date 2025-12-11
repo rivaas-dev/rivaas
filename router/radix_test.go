@@ -29,6 +29,7 @@ import (
 // RadixTestSuite tests radix tree functionality
 type RadixTestSuite struct {
 	suite.Suite
+
 	root *node
 }
 

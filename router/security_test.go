@@ -252,7 +252,7 @@ func TestRouter_ConcurrentVersionRegistration(t *testing.T) {
 	for version := 1; version <= 5; version++ {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/test/0/0", nil)
-		req.Header.Set("X-API-Version", fmt.Sprintf("v%d", version))
+		req.Header.Set("X-Api-Version", fmt.Sprintf("v%d", version))
 
 		r.ServeHTTP(w, req)
 

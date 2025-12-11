@@ -16,6 +16,7 @@ package timeout
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -150,7 +151,7 @@ func New(timeout time.Duration, opts ...Option) router.HandlerFunc {
 			// Request completed normally
 		case <-ctx.Done():
 			// Request timed out or was canceled
-			if ctx.Err() == context.DeadlineExceeded {
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				timedOut = true
 				cfg.errorHandler(c)
 			}

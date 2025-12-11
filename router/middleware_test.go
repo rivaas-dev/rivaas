@@ -27,6 +27,7 @@ import (
 // MiddlewareTestSuite tests middleware functionality
 type MiddlewareTestSuite struct {
 	suite.Suite
+
 	router *Router
 }
 
@@ -55,7 +56,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChain() {
 	// Add a route
 	suite.router.GET("/test", func(c *Context) {
 		executionOrder = append(executionOrder, "handler")
-		c.String(http.StatusOK, "test")
+		_ = c.String(http.StatusOK, "test") // Error ignored: test verifies middleware execution order, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -79,10 +80,10 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainCaching() {
 
 	// Add multiple routes with same middleware
 	suite.router.GET("/route1", func(c *Context) {
-		c.String(http.StatusOK, "route1")
+		_ = c.String(http.StatusOK, "route1") // Error ignored: test verifies middleware caching, not response handling
 	})
 	suite.router.GET("/route2", func(c *Context) {
-		c.String(http.StatusOK, "route2")
+		_ = c.String(http.StatusOK, "route2") // Error ignored: test verifies middleware caching, not response handling
 	})
 
 	// Test both routes
@@ -110,7 +111,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainConcurrency() {
 	})
 
 	r.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "test")
+		_ = c.String(http.StatusOK, "test") // Error ignored: test verifies middleware behavior, not response handling
 	})
 
 	// Test concurrent requests
@@ -151,7 +152,7 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainPerformance() {
 	}
 
 	r.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "test")
+		_ = c.String(http.StatusOK, "test") // Error ignored: test verifies middleware behavior, not response handling
 	})
 
 	// Measure execution time
@@ -181,11 +182,11 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainMemorySafety() {
 	// Add middleware that manipulates context
 	r.Use(func(c *Context) {
 		// Simulate middleware work
-		c.String(http.StatusOK, "middleware")
+		_ = c.String(http.StatusOK, "middleware") // Error ignored: test verifies memory safety, not response handling
 	})
 
 	r.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "test")
+		_ = c.String(http.StatusOK, "test") // Error ignored: test verifies middleware behavior, not response handling
 	})
 
 	// Test multiple requests to ensure memory safety
@@ -206,21 +207,21 @@ func (suite *MiddlewareTestSuite) TestMiddlewareChainCacheEfficiency() {
 
 	// Add middleware
 	r.Use(func(c *Context) {
-		c.String(http.StatusOK, "middleware")
+		_ = c.String(http.StatusOK, "middleware") // Error ignored: test verifies cache efficiency, not response handling
 	})
 
 	// Add routes with different middleware combinations
 	r.GET("/route1", func(c *Context) {
-		c.String(http.StatusOK, "route1")
+		_ = c.String(http.StatusOK, "route1") // Error ignored: test verifies cache efficiency, not response handling
 	})
 
 	// Create a group with additional middleware
 	api := r.Group("/api")
 	api.Use(func(c *Context) {
-		c.String(http.StatusOK, "api_middleware")
+		_ = c.String(http.StatusOK, "api_middleware") // Error ignored: test verifies cache efficiency, not response handling
 	})
 	api.GET("/users", func(c *Context) {
-		c.String(http.StatusOK, "users")
+		_ = c.String(http.StatusOK, "users") // Error ignored: test verifies cache efficiency, not response handling
 	})
 
 	// Test both routes

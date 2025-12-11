@@ -58,6 +58,7 @@ func TestWithDiagnostics(t *testing.T) {
 
 type mockHijackableResponseWriter struct {
 	*httptest.ResponseRecorder
+
 	hijackCalled bool
 	conn         net.Conn
 	rw           *bufio.ReadWriter
@@ -72,6 +73,7 @@ func (m *mockHijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, er
 // mockFlushableResponseWriter implements http.ResponseWriter and http.Flusher for testing
 type mockFlushableResponseWriter struct {
 	*httptest.ResponseRecorder
+
 	flushCalled bool
 }
 
@@ -82,6 +84,7 @@ func (m *mockFlushableResponseWriter) Flush() {
 // mockHijackFlushResponseWriter implements both http.Hijacker and http.Flusher
 type mockHijackFlushResponseWriter struct {
 	*httptest.ResponseRecorder
+
 	hijackCalled bool
 	flushCalled  bool
 	conn         net.Conn

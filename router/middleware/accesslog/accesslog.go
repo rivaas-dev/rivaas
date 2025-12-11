@@ -187,6 +187,7 @@ func sampleByHash(id string, rate float64) bool {
 // responseWriter wraps http.ResponseWriter and preserves optional interfaces.
 type responseWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 	size       int64
 	written    bool

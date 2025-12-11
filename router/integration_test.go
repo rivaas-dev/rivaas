@@ -53,6 +53,7 @@ func registerMethod(r *router.Router, method, path string, handler router.Handle
 // mockHijackableResponseWriter implements http.Hijacker for testing
 type mockHijackableResponseWriter struct {
 	*httptest.ResponseRecorder
+
 	hijackCalled bool
 	conn         net.Conn
 	rw           *bufio.ReadWriter
@@ -67,6 +68,7 @@ func (m *mockHijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, er
 // mockFlushableResponseWriter implements http.Flusher for testing
 type mockFlushableResponseWriter struct {
 	*httptest.ResponseRecorder
+
 	flushCalled bool
 }
 
@@ -77,6 +79,7 @@ func (m *mockFlushableResponseWriter) Flush() {
 // mockHijackFlushResponseWriter implements both http.Hijacker and http.Flusher
 type mockHijackFlushResponseWriter struct {
 	*httptest.ResponseRecorder
+
 	hijackCalled bool
 	flushCalled  bool
 	conn         net.Conn
@@ -943,7 +946,7 @@ var _ = Describe("Router Integration", func() {
 				r.ServeHTTP(mockWriter, req)
 
 				Expect(mockWriter.hijackCalled).To(BeTrue())
-				Expect(hijackErr).To(BeNil())
+				Expect(hijackErr).ToNot(HaveOccurred())
 				Expect(hijackedConn).NotTo(BeNil())
 				Expect(hijackedRW).NotTo(BeNil())
 			})
@@ -967,7 +970,7 @@ var _ = Describe("Router Integration", func() {
 
 				r.ServeHTTP(mockWriter, req)
 
-				Expect(receivedErr).NotTo(BeNil())
+				Expect(receivedErr).To(HaveOccurred())
 				Expect(errors.Is(receivedErr, http.ErrNotSupported)).To(BeTrue())
 			})
 
@@ -981,7 +984,7 @@ var _ = Describe("Router Integration", func() {
 
 					if hijacker, ok := c.Response.(http.Hijacker); ok {
 						conn, _, err := hijacker.Hijack()
-						Expect(err).To(BeNil())
+						Expect(err).ToNot(HaveOccurred())
 						Expect(conn).NotTo(BeNil())
 					}
 				})
@@ -1081,7 +1084,7 @@ var _ = Describe("Router Integration", func() {
 
 					if hijacker, ok := c.Response.(http.Hijacker); ok {
 						conn, _, err := hijacker.Hijack()
-						Expect(err).To(BeNil())
+						Expect(err).ToNot(HaveOccurred())
 						Expect(conn).NotTo(BeNil())
 					}
 				})
@@ -1142,7 +1145,7 @@ var _ = Describe("Router Integration", func() {
 				r.GET("/ws", func(c *router.Context) {
 					if hijacker, ok := c.Response.(http.Hijacker); ok {
 						conn, _, err := hijacker.Hijack()
-						Expect(err).To(BeNil())
+						Expect(err).ToNot(HaveOccurred())
 						Expect(conn).NotTo(BeNil())
 					}
 				})

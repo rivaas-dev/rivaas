@@ -39,7 +39,7 @@ func TestRateLimit_Basic(t *testing.T) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test focuses on rate limiting behavior, not response handling
 	})
 
 	// First 5 requests should succeed (burst capacity)
@@ -71,7 +71,7 @@ func TestRateLimit_TokenRefill(t *testing.T) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test focuses on rate limiting behavior, not response handling
 	})
 
 	// Use up the burst
@@ -111,18 +111,18 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 		WithRequestsPerSecond(5),
 		WithBurst(2),
 		WithKeyFunc(func(c *router.Context) string {
-			return c.Request.Header.Get("X-User-ID")
+			return c.Request.Header.Get("X-User-Id")
 		}),
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test focuses on rate limiting behavior, not response handling
 	})
 
 	// User 1: use up burst
 	for i := range 2 {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.Header.Set("X-User-ID", "user1")
+		req.Header.Set("X-User-Id", "user1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -131,7 +131,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 
 	// User 1: should be rate limited
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-User-ID", "user1")
+	req.Header.Set("X-User-Id", "user1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -139,7 +139,7 @@ func TestRateLimit_CustomKeyFunc(t *testing.T) {
 
 	// User 2: should still have tokens
 	req = httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-User-ID", "user2")
+	req.Header.Set("X-User-Id", "user2")
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -158,12 +158,12 @@ func TestRateLimit_CustomLimitHandler(t *testing.T) {
 		WithBurst(1),
 		WithHandler(func(c *router.Context) {
 			customHandlerCalled = true
-			c.String(http.StatusTooManyRequests, "custom rate limit message")
+			_ = c.String(http.StatusTooManyRequests, "custom rate limit message") // Error ignored: test verifies handler is called, not response details
 		}),
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test focuses on rate limiting behavior, not response handling
 	})
 
 	// First request succeeds
@@ -194,7 +194,7 @@ func TestRateLimit_Concurrent(t *testing.T) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test focuses on rate limiting behavior, not response handling
 	})
 
 	// Send concurrent requests
@@ -242,7 +242,7 @@ func TestRateLimit_EmptyKey(t *testing.T) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test focuses on rate limiting behavior, not response handling
 	})
 
 	// Request should be allowed (empty key = no rate limiting)
@@ -265,7 +265,7 @@ func TestRateLimit_BurstBehavior(t *testing.T) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test focuses on rate limiting behavior, not response handling
 	})
 
 	// Should allow burst of 3 requests immediately

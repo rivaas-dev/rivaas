@@ -191,6 +191,7 @@ func (s *SimpleObservabilityRecorder) BuildRequestLogger(ctx context.Context, re
 // observableResponseWriter wraps http.ResponseWriter to capture response metadata.
 type observableResponseWriter struct {
 	http.ResponseWriter
+
 	status      int
 	size        int64
 	wroteHeader bool

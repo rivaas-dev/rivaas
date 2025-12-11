@@ -106,6 +106,7 @@ func (m *mockObservabilityRecorder) BuildRequestLogger(ctx context.Context, req 
 // It also implements optional interfaces like Flusher, Hijacker for testing
 type mockHTTPResponseWriter struct {
 	http.ResponseWriter
+
 	statusCode        int
 	responseSize      int64
 	writeHeaderCalled bool

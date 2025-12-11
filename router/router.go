@@ -49,6 +49,7 @@ type Option func(*Router)
 // It also prevents "superfluous response.WriteHeader call" errors
 type responseWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 	size       int64
 	written    bool

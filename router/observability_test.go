@@ -105,7 +105,7 @@ func TestContextWithMetrics(t *testing.T) {
 		assert.True(t, contextMetrics.incrementCalled)
 		assert.True(t, contextMetrics.setGaugeCalled)
 
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies context metrics integration, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics-enabled", nil)
@@ -142,7 +142,7 @@ func TestContextWithTracing(t *testing.T) {
 		assert.True(t, contextTracing.addEventCalled)
 		assert.NotNil(t, ctx)
 
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies context tracing integration, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/tracing-enabled", nil)
@@ -161,7 +161,7 @@ func TestServeHTTPWithMetrics(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies observability recorder integration, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -182,7 +182,7 @@ func TestServeHTTPWithTracing(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies observability recorder integration, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -203,7 +203,7 @@ func TestServeHTTPWithBothMetricsAndTracing(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies observability recorder integration, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -225,10 +225,10 @@ func TestServeHTTPWithCompiledRoutes(t *testing.T) {
 
 	// Add static routes
 	r.GET("/home", func(c *Context) {
-		c.String(http.StatusOK, "home")
+		_ = c.String(http.StatusOK, "home") // Error ignored: test verifies compiled routes, not response handling
 	})
 	r.GET("/about", func(c *Context) {
-		c.String(http.StatusOK, "about")
+		_ = c.String(http.StatusOK, "about") // Error ignored: test verifies compiled routes, not response handling
 	})
 
 	// Compile routes
@@ -251,7 +251,7 @@ func TestServeHTTPWithCompiledRoutesAndMetrics(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/static", func(c *Context) {
-		c.String(http.StatusOK, "static")
+		_ = c.String(http.StatusOK, "static") // Error ignored: test verifies observability with compiled routes, not response handling
 	})
 
 	r.Warmup()
@@ -272,7 +272,7 @@ func TestServeHTTPWithCompiledRoutesAndTracing(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/static", func(c *Context) {
-		c.String(http.StatusOK, "static")
+		_ = c.String(http.StatusOK, "static") // Error ignored: test verifies observability with compiled routes, not response handling
 	})
 
 	r.Warmup()
@@ -293,7 +293,7 @@ func TestServeHTTPWithCompiledRoutesAndBoth(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/static", func(c *Context) {
-		c.String(http.StatusOK, "static")
+		_ = c.String(http.StatusOK, "static") // Error ignored: test verifies observability with compiled routes, not response handling
 	})
 
 	r.Warmup()
@@ -316,7 +316,7 @@ func TestCompiledRouteWithTracingAndMetrics(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/compiled", func(c *Context) {
-		c.String(http.StatusOK, "compiled-route")
+		_ = c.String(http.StatusOK, "compiled-route") // Error ignored: test verifies compiled route path with observability, not response handling
 	})
 
 	// Compile routes to enable compiled route lookup
@@ -343,7 +343,7 @@ func TestCompiledRouteWithTracingOnly(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/trace-only", func(c *Context) {
-		c.String(http.StatusOK, "trace-only-route")
+		_ = c.String(http.StatusOK, "trace-only-route") // Error ignored: test verifies tracing-only path, not response handling
 	})
 
 	r.Warmup()
@@ -367,7 +367,7 @@ func TestCompiledRouteWithMetricsOnly(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/metrics-only", func(c *Context) {
-		c.String(http.StatusOK, "metrics-only-route")
+		_ = c.String(http.StatusOK, "metrics-only-route") // Error ignored: test verifies metrics-only path, not response handling
 	})
 
 	r.Warmup()
@@ -390,7 +390,7 @@ func TestCompiledRouteWithoutTracingOrMetrics(t *testing.T) {
 	// No metrics or tracing recorders set
 
 	r.GET("/direct", func(c *Context) {
-		c.String(http.StatusOK, "direct-route")
+		_ = c.String(http.StatusOK, "direct-route") // Error ignored: test verifies direct execution without observability, not response handling
 	})
 
 	r.Warmup()
@@ -419,13 +419,13 @@ func TestCompiledRouteWithVersioningWithoutTracingOrMetrics(t *testing.T) {
 	v1 := r.Version("v1")
 	v1.GET("/versioned", func(c *Context) {
 		assert.Equal(t, "v1", c.Version(), "Version should be set on context")
-		c.String(http.StatusOK, "versioned-route-v1")
+		_ = c.String(http.StatusOK, "versioned-route-v1") // Error ignored: test verifies versioning without observability, not response handling
 	})
 
 	r.Warmup()
 
 	req := httptest.NewRequest(http.MethodGet, "/versioned", nil)
-	req.Header.Set("X-API-Version", "v1")
+	req.Header.Set("X-Api-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -449,13 +449,13 @@ func TestCompiledRouteWithVersioningAndBothObservability(t *testing.T) {
 	v2 := r.Version("v2")
 	v2.GET("/versioned-observable", func(c *Context) {
 		assert.Equal(t, "v2", c.Version(), "Version should be set on context")
-		c.String(http.StatusOK, "versioned-route-v2")
+		_ = c.String(http.StatusOK, "versioned-route-v2") // Error ignored: test verifies versioning with observability, not response handling
 	})
 
 	r.Warmup()
 
 	req := httptest.NewRequest(http.MethodGet, "/versioned-observable", nil)
-	req.Header.Set("X-API-Version", "v2")
+	req.Header.Set("X-Api-Version", "v2")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -473,7 +473,7 @@ func TestServeDynamicWithMetrics(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/users/:id", func(c *Context) {
-		c.Stringf(http.StatusOK, "user %s", c.Param("id"))
+		_ = c.Stringf(http.StatusOK, "user %s", c.Param("id")) // Error ignored: test verifies dynamic routes with observability, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
@@ -493,7 +493,7 @@ func TestServeDynamicWithTracing(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/users/:id", func(c *Context) {
-		c.Stringf(http.StatusOK, "user %s", c.Param("id"))
+		_ = c.Stringf(http.StatusOK, "user %s", c.Param("id")) // Error ignored: test verifies dynamic routes with observability, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
@@ -513,7 +513,7 @@ func TestServeDynamicWithBoth(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/users/:id", func(c *Context) {
-		c.Stringf(http.StatusOK, "user %s", c.Param("id"))
+		_ = c.Stringf(http.StatusOK, "user %s", c.Param("id")) // Error ignored: test verifies dynamic routes with observability, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
@@ -541,11 +541,11 @@ func TestVersionedRoutingWithMetrics(t *testing.T) {
 
 	v1 := r.Version("v1")
 	v1.GET("/data", func(c *Context) {
-		c.String(http.StatusOK, "v1 data")
+		_ = c.String(http.StatusOK, "v1 data") // Error ignored: test verifies versioned routing with observability, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/data", nil)
-	req.Header.Set("X-API-Version", "v1")
+	req.Header.Set("X-Api-Version", "v1")
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -569,11 +569,11 @@ func TestVersionedRoutingWithTracing(t *testing.T) {
 
 	v1 := r.Version("v1")
 	v1.GET("/data", func(c *Context) {
-		c.String(http.StatusOK, "v1 data")
+		_ = c.String(http.StatusOK, "v1 data") // Error ignored: test verifies versioned routing with observability, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/data", nil)
-	req.Header.Set("X-API-Version", "v1")
+	req.Header.Set("X-Api-Version", "v1")
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -597,11 +597,11 @@ func TestVersionedRoutingWithBoth(t *testing.T) {
 
 	v1 := r.Version("v1")
 	v1.GET("/data", func(c *Context) {
-		c.String(http.StatusOK, "v1 data")
+		_ = c.String(http.StatusOK, "v1 data") // Error ignored: test verifies versioned routing with observability, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/data", nil)
-	req.Header.Set("X-API-Version", "v1")
+	req.Header.Set("X-Api-Version", "v1")
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -626,17 +626,17 @@ func TestVersionedCompiledRoutesWithObservability(t *testing.T) {
 
 	v1 := r.Version("v1")
 	v1.GET("/static1", func(c *Context) {
-		c.String(http.StatusOK, "v1 static")
+		_ = c.String(http.StatusOK, "v1 static") // Error ignored: test verifies compiled versioned routes with observability, not response handling
 	})
 	v1.GET("/static2", func(c *Context) {
-		c.String(http.StatusOK, "v1 static2")
+		_ = c.String(http.StatusOK, "v1 static2") // Error ignored: test verifies compiled versioned routes with observability, not response handling
 	})
 
 	// Compile routes
 	r.Warmup()
 
 	req := httptest.NewRequest(http.MethodGet, "/static1", nil)
-	req.Header.Set("X-API-Version", "v1")
+	req.Header.Set("X-Api-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -654,7 +654,7 @@ func TestTracingExcludedPaths(t *testing.T) {
 	r.SetObservabilityRecorder(mockObs)
 
 	r.GET("/health", func(c *Context) {
-		c.String(http.StatusOK, "healthy")
+		_ = c.String(http.StatusOK, "healthy") // Error ignored: test verifies tracing path exclusion, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -674,7 +674,7 @@ func TestPostFormDefault(t *testing.T) {
 	r.POST("/form", func(c *Context) {
 		role := c.FormValueDefault("role", "guest")
 		name := c.FormValueDefault("name", "anonymous")
-		c.Stringf(http.StatusOK, "role=%s,name=%s", role, name)
+		_ = c.Stringf(http.StatusOK, "role=%s,name=%s", role, name) // Error ignored: test verifies FormValueDefault, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/form", nil)
@@ -698,9 +698,9 @@ func TestIsSecureWithTLS(_ *testing.T) {
 
 	r.GET("/secure", func(c *Context) {
 		if c.IsHTTPS() {
-			c.String(http.StatusOK, "secure")
+			_ = c.String(http.StatusOK, "secure") // Error ignored: test verifies IsHTTPS, not response handling
 		} else {
-			c.String(http.StatusOK, "insecure")
+			_ = c.String(http.StatusOK, "insecure") // Error ignored: test verifies IsHTTPS, not response handling
 		}
 	})
 
@@ -715,7 +715,7 @@ func TestGetCookieError(t *testing.T) { //nolint:paralleltest // Tests error han
 	r.GET("/cookie", func(c *Context) {
 		_, err := c.GetCookie("invalid-cookie=")
 		require.Error(t, err)
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies GetCookie error path, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/cookie", nil)
@@ -738,7 +738,7 @@ func TestContextMetricsMethodsNoOp(t *testing.T) {
 		c.RecordMetric("test_metric", 1.5)
 		c.IncrementCounter("test_counter")
 		c.SetGauge("test_gauge", 42)
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies no-op metrics behavior, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics-test", nil)
@@ -767,7 +767,7 @@ func TestContextTracingMethodsNoOp(t *testing.T) {
 		assert.Empty(t, spanID)
 		assert.NotNil(t, ctx)
 
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok") // Error ignored: test verifies no-op tracing behavior, not response handling
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/tracing-test", nil)
@@ -790,7 +790,7 @@ func TestCompiledRouteBranchWithTracingAndMetrics(t *testing.T) {
 
 	// Register a static route
 	r.GET("/static-both", func(c *Context) {
-		c.String(http.StatusOK, "static-with-both")
+		_ = c.String(http.StatusOK, "static-with-both") // Error ignored: test verifies compiled route with both tracing and metrics, not response handling
 	})
 
 	// Compile routes to ensure compiled route path is used
@@ -817,7 +817,7 @@ func TestCompiledRouteBranchWithTracingOnly(t *testing.T) {
 
 	// Register a static route
 	r.GET("/static-trace", func(c *Context) {
-		c.String(http.StatusOK, "static-with-trace")
+		_ = c.String(http.StatusOK, "static-with-trace") // Error ignored: test verifies compiled route with tracing only, not response handling
 	})
 
 	// Compile routes to ensure compiled route path is used
@@ -845,7 +845,7 @@ func TestCompiledRouteBranchWithMetricsOnly(t *testing.T) {
 
 	// Register a static route
 	r.GET("/static-metrics", func(c *Context) {
-		c.String(http.StatusOK, "static-with-metrics")
+		_ = c.String(http.StatusOK, "static-with-metrics") // Error ignored: test verifies compiled route with metrics only, not response handling
 	})
 
 	// Compile routes to ensure compiled route path is used
@@ -870,7 +870,7 @@ func TestCompiledRouteBranchWithoutTracingOrMetrics(t *testing.T) {
 
 	// Register a static route
 	r.GET("/static-direct", func(c *Context) {
-		c.String(http.StatusOK, "static-direct")
+		_ = c.String(http.StatusOK, "static-direct") // Error ignored: test verifies compiled route without observability, not response handling
 	})
 
 	// Compile routes to ensure compiled route path is used
@@ -901,14 +901,14 @@ func TestCompiledRouteBranchWithoutTracingOrMetricsWithVersioning(t *testing.T) 
 	v1 := r.Version("v1")
 	v1.GET("/static-versioned", func(c *Context) {
 		assert.Equal(t, "v1", c.Version(), "Version should be set from header")
-		c.String(http.StatusOK, "static-with-version")
+		_ = c.String(http.StatusOK, "static-with-version") // Error ignored: test verifies versioning without observability, not response handling
 	})
 
 	// Compile routes to ensure compiled route path is used
 	r.Warmup()
 
 	req := httptest.NewRequest(http.MethodGet, "/static-versioned", nil)
-	req.Header.Set("X-API-Version", "v1")
+	req.Header.Set("X-Api-Version", "v1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -934,13 +934,13 @@ func TestCompiledRouteBranchWithTracingAndVersioning(t *testing.T) {
 	v2 := r.Version("v2")
 	v2.GET("/static-trace-version", func(c *Context) {
 		assert.Equal(t, "v2", c.Version(), "Version should be set from header")
-		c.String(http.StatusOK, "static-trace-version")
+		_ = c.String(http.StatusOK, "static-trace-version") // Error ignored: test verifies tracing with versioning, not response handling
 	})
 
 	r.Warmup()
 
 	req := httptest.NewRequest(http.MethodGet, "/static-trace-version", nil)
-	req.Header.Set("X-API-Version", "v2")
+	req.Header.Set("X-Api-Version", "v2")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -974,7 +974,7 @@ func TestCompiledRouteBranchWithMetricsAndVersioning(t *testing.T) {
 	r.Warmup()
 
 	req := httptest.NewRequest(http.MethodGet, "/static-metrics-version", nil)
-	req.Header.Set("X-API-Version", "v3")
+	req.Header.Set("X-Api-Version", "v3")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -1008,7 +1008,7 @@ func TestCompiledRouteBranchWithBothAndVersioning(t *testing.T) {
 	r.Warmup()
 
 	req := httptest.NewRequest(http.MethodGet, "/static-both-version", nil)
-	req.Header.Set("X-API-Version", "v4")
+	req.Header.Set("X-Api-Version", "v4")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -1471,7 +1471,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		r, healthCalled, _, _, _ := setupRouter()
 
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
-		req.Header.Set("X-API-Version", "v2")
+		req.Header.Set("X-Api-Version", "v2")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1486,7 +1486,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		r, _, metricsCalled, _, _ := setupRouter()
 
 		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-		req.Header.Set("X-API-Version", "v1")
+		req.Header.Set("X-Api-Version", "v1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1500,7 +1500,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		r, _, _, v1Called, v2Called := setupRouter()
 
 		req := httptest.NewRequest(http.MethodGet, "/users", nil)
-		req.Header.Set("X-API-Version", "v1")
+		req.Header.Set("X-Api-Version", "v1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1515,7 +1515,7 @@ func TestMainTreeIgnoresVersionHeader(t *testing.T) {
 		r, _, _, v1Called, v2Called := setupRouter()
 
 		req := httptest.NewRequest(http.MethodGet, "/users", nil)
-		req.Header.Set("X-API-Version", "v2")
+		req.Header.Set("X-Api-Version", "v2")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 

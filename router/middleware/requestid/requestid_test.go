@@ -220,11 +220,11 @@ func TestRequestID_CombinedOptions(t *testing.T) {
 
 	// Try to provide client ID (should be ignored)
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-Trace-ID", "client-id")
+	req.Header.Set("X-Trace-Id", "client-id")
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
 
-	requestID := w.Header().Get("X-Trace-ID")
+	requestID := w.Header().Get("X-Trace-Id")
 	assert.Equal(t, "generated-123", requestID)
 }

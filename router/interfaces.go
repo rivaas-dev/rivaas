@@ -75,13 +75,3 @@ type ContextTracingRecorder interface {
 // This interface abstracts the metrics data structure used during request processing.
 // It is implemented by the metrics package and returned by StartRequest().
 // The interface is intentionally minimal to allow for flexible implementations.
-type RequestMetrics interface {
-	// GetStartTime returns the request start time.
-	GetStartTime() any
-
-	// GetRequestSize returns the request size in bytes.
-	GetRequestSize() int64
-
-	// GetAttributes returns the request attributes.
-	GetAttributes() []attribute.KeyValue
-}

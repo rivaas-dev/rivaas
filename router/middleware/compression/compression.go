@@ -80,6 +80,7 @@ func defaultConfig() *config {
 // It buffers data up to the threshold before deciding whether to compress.
 type compressWriter struct {
 	http.ResponseWriter
+
 	writer              io.WriteCloser
 	pool                *sync.Pool
 	encoding            string

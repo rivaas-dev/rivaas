@@ -27,6 +27,7 @@ import (
 // StressTestSuite tests router under high load
 type StressTestSuite struct {
 	suite.Suite
+
 	router *Router
 }
 

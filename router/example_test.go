@@ -165,10 +165,10 @@ func ExampleContext_Error() {
 	r.POST("/users", func(c *router.Context) {
 		// Collect validation errors
 		if userID := c.Param("id"); userID == "" {
-			c.Error(fmt.Errorf("user ID is required"))
+			c.Error(errors.New("user ID is required"))
 		}
 		if email := c.Query("email"); email == "" {
-			c.Error(fmt.Errorf("email is required"))
+			c.Error(errors.New("email is required"))
 		}
 
 		// Check if any errors were collected
@@ -193,8 +193,8 @@ func ExampleContext_Errors() {
 
 	r.POST("/validate", func(c *router.Context) {
 		// Collect multiple errors
-		c.Error(fmt.Errorf("validation error 1"))
-		c.Error(fmt.Errorf("validation error 2"))
+		c.Error(errors.New("validation error 1"))
+		c.Error(errors.New("validation error 2"))
 
 		// Retrieve all errors
 		errors := c.Errors()
@@ -217,7 +217,7 @@ func ExampleContext_HasErrors() {
 	r.POST("/process", func(c *router.Context) {
 		// Perform validations
 		if c.Query("name") == "" {
-			c.Error(fmt.Errorf("name is required"))
+			c.Error(errors.New("name is required"))
 		}
 
 		// Check if any errors exist
@@ -263,9 +263,9 @@ func ExampleContext_Error_withErrorsJoin() {
 
 	r.POST("/validate", func(c *router.Context) {
 		// Collect multiple errors
-		c.Error(fmt.Errorf("name is required"))
-		c.Error(fmt.Errorf("email is invalid"))
-		c.Error(fmt.Errorf("age must be positive"))
+		c.Error(errors.New("name is required"))
+		c.Error(errors.New("email is invalid"))
+		c.Error(errors.New("age must be positive"))
 
 		// Combine all errors using standard library
 		if c.HasErrors() {

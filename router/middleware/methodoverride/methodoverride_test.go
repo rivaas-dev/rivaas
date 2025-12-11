@@ -71,7 +71,7 @@ func TestMethodOverride_Basic(t *testing.T) {
 
 			req := httptest.NewRequest(tt.originalMethod, url, nil)
 			if tt.overrideHeader != "" {
-				req.Header.Set("X-HTTP-Method-Override", tt.overrideHeader)
+				req.Header.Set("X-Http-Method-Override", tt.overrideHeader)
 			}
 			w := httptest.NewRecorder()
 
@@ -114,7 +114,7 @@ func TestMethodOverride_OnlyOnFiltering(t *testing.T) {
 			t.Parallel()
 			handler := New(WithOnlyOn("POST"))
 			req := httptest.NewRequest(tt.originalMethod, "/test", nil)
-			req.Header.Set("X-HTTP-Method-Override", tt.override)
+			req.Header.Set("X-Http-Method-Override", tt.override)
 			w := httptest.NewRecorder()
 
 			c := router.NewContext(w, req)
@@ -158,7 +158,7 @@ func TestMethodOverride_AllowList(t *testing.T) {
 			t.Parallel()
 			handler := New(WithAllow("PUT", "DELETE"))
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
-			req.Header.Set("X-HTTP-Method-Override", tt.override)
+			req.Header.Set("X-Http-Method-Override", tt.override)
 			w := httptest.NewRecorder()
 
 			c := router.NewContext(w, req)
@@ -186,7 +186,7 @@ func TestMethodOverride_CaseInsensitive(t *testing.T) {
 			t.Parallel()
 			handler := New()
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
-			req.Header.Set("X-HTTP-Method-Override", tt.override)
+			req.Header.Set("X-Http-Method-Override", tt.override)
 			w := httptest.NewRecorder()
 
 			c := router.NewContext(w, req)
@@ -222,7 +222,7 @@ func TestMethodOverride_RespectBody(t *testing.T) {
 			handler := New(WithRespectBody(true))
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			req.ContentLength = tt.contentLength
-			req.Header.Set("X-HTTP-Method-Override", "PUT")
+			req.Header.Set("X-Http-Method-Override", "PUT")
 			w := httptest.NewRecorder()
 
 			c := router.NewContext(w, req)
@@ -257,7 +257,7 @@ func TestMethodOverride_CSRFRequired(t *testing.T) {
 			t.Parallel()
 			handler := New(WithRequireCSRFToken(true))
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
-			req.Header.Set("X-HTTP-Method-Override", "DELETE")
+			req.Header.Set("X-Http-Method-Override", "DELETE")
 
 			if tt.csrfVerified {
 				req = req.WithContext(context.WithValue(req.Context(), CSRFVerifiedKey, true))
@@ -276,7 +276,7 @@ func TestMethodOverride_CustomHeader(t *testing.T) {
 	t.Parallel()
 	handler := New(WithHeader("X-HTTP-Method"))
 	req := httptest.NewRequest(http.MethodPost, "/test", nil)
-	req.Header.Set("X-HTTP-Method", "DELETE")
+	req.Header.Set("X-Http-Method", "DELETE")
 	w := httptest.NewRecorder()
 
 	c := router.NewContext(w, req)
@@ -313,7 +313,7 @@ func TestMethodOverride_DisabledQueryParam(t *testing.T) {
 			handler := New(WithQueryParam(""))
 			req := httptest.NewRequest(http.MethodPost, tt.url, nil)
 			if tt.header != "" {
-				req.Header.Set("X-HTTP-Method-Override", tt.header)
+				req.Header.Set("X-Http-Method-Override", tt.header)
 			}
 			w := httptest.NewRecorder()
 
@@ -349,7 +349,7 @@ func TestMethodOverride_EdgeCases(t *testing.T) {
 			t.Parallel()
 			handler := New()
 			req := httptest.NewRequest(http.MethodPost, "/test", nil)
-			req.Header.Set("X-HTTP-Method-Override", tt.override)
+			req.Header.Set("X-Http-Method-Override", tt.override)
 			w := httptest.NewRecorder()
 
 			c := router.NewContext(w, req)
@@ -391,7 +391,7 @@ func TestGetOriginalMethod(t *testing.T) {
 			handler := New()
 			req := httptest.NewRequest(tt.originalMethod, "/test", nil)
 			if tt.override != "" {
-				req.Header.Set("X-HTTP-Method-Override", tt.override)
+				req.Header.Set("X-Http-Method-Override", tt.override)
 			}
 			w := httptest.NewRecorder()
 
@@ -444,7 +444,7 @@ func TestMethodOverride_DefaultConfig(t *testing.T) {
 			handler := New()
 			req := httptest.NewRequest(http.MethodPost, tt.url, nil)
 			if tt.header != "" {
-				req.Header.Set("X-HTTP-Method-Override", tt.header)
+				req.Header.Set("X-Http-Method-Override", tt.header)
 			}
 			w := httptest.NewRecorder()
 

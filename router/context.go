@@ -987,7 +987,7 @@ func (c *Context) YAML(code int, obj any) error {
 //	c.DataFromReader(200, stat.Size(), "application/octet-stream", file, nil)
 //
 //	// Stream with custom headers
-//	headers := map[string]string{
+//	:= map[string]string{
 //	    "Content-Disposition": `attachment; filename="data.bin"`,
 //	    "Cache-Control": "no-cache",
 //	}

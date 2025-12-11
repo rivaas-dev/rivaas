@@ -69,7 +69,7 @@ var _ = Describe("Versioning Integration", func() {
 				func(path, header, expected string) {
 					req := httptest.NewRequest(http.MethodGet, path, nil)
 					if header != "" {
-						req.Header.Set("X-API-Version", header)
+						req.Header.Set("X-Api-Version", header)
 					}
 					w := httptest.NewRecorder()
 
@@ -98,7 +98,7 @@ var _ = Describe("Versioning Integration", func() {
 				func(path, header, expected string) {
 					req := httptest.NewRequest(http.MethodGet, path, nil)
 					if header != "" {
-						req.Header.Set("X-API-Version", header)
+						req.Header.Set("X-Api-Version", header)
 					}
 					w := httptest.NewRecorder()
 
@@ -191,7 +191,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("non-versioned route has empty version", func() {
 				req := httptest.NewRequest(http.MethodGet, "/health", nil)
-				req.Header.Set("X-API-Version", "v1") // Should be ignored
+				req.Header.Set("X-Api-Version", "v1") // Should be ignored
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -202,7 +202,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("versioned route has version set", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v1")
+				req.Header.Set("X-Api-Version", "v1")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -263,7 +263,7 @@ var _ = Describe("Versioning Integration", func() {
 			DescribeTable("HTTP methods with version header",
 				func(method, path, ver, expected string, status int) {
 					req := httptest.NewRequest(method, path, nil)
-					req.Header.Set("X-API-Version", ver)
+					req.Header.Set("X-Api-Version", ver)
 					w := httptest.NewRecorder()
 
 					r.ServeHTTP(w, req)
@@ -316,7 +316,7 @@ var _ = Describe("Versioning Integration", func() {
 			DescribeTable("HTTP methods with versioned groups",
 				func(method, path, expected string, status int) {
 					req := httptest.NewRequest(method, path, nil)
-					req.Header.Set("X-API-Version", "v1")
+					req.Header.Set("X-Api-Version", "v1")
 					w := httptest.NewRecorder()
 
 					r.ServeHTTP(w, req)
@@ -352,7 +352,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("routes to compiled versioned routes", func() {
 				req := httptest.NewRequest(http.MethodGet, "/static1", nil)
-				req.Header.Set("X-API-Version", "v1")
+				req.Header.Set("X-Api-Version", "v1")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -563,7 +563,7 @@ var _ = Describe("Versioning Integration", func() {
 				func(path, header, expected string) {
 					req := httptest.NewRequest(http.MethodGet, path, nil)
 					if header != "" {
-						req.Header.Set("X-API-Version", header)
+						req.Header.Set("X-Api-Version", header)
 					}
 					w := httptest.NewRecorder()
 
@@ -726,7 +726,7 @@ var _ = Describe("Versioning Integration", func() {
 				// Path versioning not enabled, so path should remain unchanged
 				// Route registered as "/users" should match "/users" (not "/v1/users")
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v1")
+				req.Header.Set("X-Api-Version", "v1")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -966,7 +966,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("includes deprecation headers", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v1")
+				req.Header.Set("X-Api-Version", "v1")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -1006,7 +1006,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("does not include deprecation headers", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v2")
+				req.Header.Set("X-Api-Version", "v2")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -1039,7 +1039,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("includes Link header with migration docs", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v1")
+				req.Header.Set("X-Api-Version", "v1")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -1076,7 +1076,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("applies lifecycle configuration", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v1")
+				req.Header.Set("X-Api-Version", "v1")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -1117,7 +1117,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("calls callback on version detection", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v2")
+				req.Header.Set("X-Api-Version", "v2")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -1190,7 +1190,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("calls callback on invalid version", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v99") // Invalid version
+				req.Header.Set("X-Api-Version", "v99") // Invalid version
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -1240,7 +1240,7 @@ var _ = Describe("Versioning Integration", func() {
 			It("detects header version", func() {
 				methods = []string{}
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v2")
+				req.Header.Set("X-Api-Version", "v2")
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
@@ -1420,7 +1420,7 @@ var _ = Describe("Versioning Integration", func() {
 			Context("with invalid version", func() {
 				It("falls back to default version", func() {
 					req := httptest.NewRequest(http.MethodGet, "/users", nil)
-					req.Header.Set("X-API-Version", "v99")
+					req.Header.Set("X-Api-Version", "v99")
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1431,7 +1431,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				It("records invalid version attempt", func() {
 					req := httptest.NewRequest(http.MethodGet, "/users", nil)
-					req.Header.Set("X-API-Version", "v99")
+					req.Header.Set("X-Api-Version", "v99")
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1442,7 +1442,7 @@ var _ = Describe("Versioning Integration", func() {
 			Context("with valid version", func() {
 				It("routes to specified version", func() {
 					req := httptest.NewRequest(http.MethodGet, "/users", nil)
-					req.Header.Set("X-API-Version", "v3")
+					req.Header.Set("X-Api-Version", "v3")
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1452,7 +1452,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				It("routes to deprecated version with headers", func() {
 					req := httptest.NewRequest(http.MethodGet, "/users", nil)
-					req.Header.Set("X-API-Version", "v1")
+					req.Header.Set("X-Api-Version", "v1")
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)
 
@@ -1487,7 +1487,7 @@ var _ = Describe("Versioning Integration", func() {
 		Describe("Version detection priority", func() {
 			It("prioritizes path over header", func() {
 				req := httptest.NewRequest(http.MethodGet, "/v2/users", nil)
-				req.Header.Set("X-API-Version", "v1") // Should be ignored
+				req.Header.Set("X-Api-Version", "v1") // Should be ignored
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 
@@ -1496,7 +1496,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("prioritizes header over query", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users?v=v1", nil)
-				req.Header.Set("X-API-Version", "v2") // Should take precedence
+				req.Header.Set("X-Api-Version", "v2") // Should take precedence
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 
@@ -1524,7 +1524,7 @@ var _ = Describe("Versioning Integration", func() {
 
 			It("calls invalid version callback for invalid versions", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
-				req.Header.Set("X-API-Version", "v99")
+				req.Header.Set("X-Api-Version", "v99")
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
 
