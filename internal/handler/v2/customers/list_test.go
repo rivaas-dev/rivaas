@@ -2,6 +2,7 @@ package customers
 
 import (
 	"encoding/json"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,14 +12,11 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"go.uber.org/mock/gomock"
 )
 
 // --- Mocks and helpers ---
-
-func strptr(s string) *string { return &s }
 
 func makeOMAClient(t *testing.T, opaHandler http.HandlerFunc) *client.Client {
 	t.Helper()
@@ -43,12 +41,11 @@ func makeOMAClient(t *testing.T, opaHandler http.HandlerFunc) *client.Client {
 	return c
 }
 
-func newHandlerForTests(kc keycloak.Client, oc *client.Client) *Handler {
+func newHandlerForTests(oc *client.Client, cs customers.ServiceInterface) *Handler {
 	return &Handler{
-		keycloakClient:  kc,
 		keycloakConfig:  config.KeyCloakConfig{BrifRepresentation: true},
 		omaClient:       oc,
-		customerService: customers.New(nil, nil, nil),
+		customerService: cs,
 		defaultPageSize: 1,
 		maxPageSize:     10,
 	}
@@ -69,17 +66,19 @@ func performRequest(r http.Handler, method, path string, headers map[string]stri
 func TestLIST_HappyPath_Admin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Mock keycloak responses
-	attrs := map[string][]string{}
-	groups := []*keycloak.Group{
-		{ID: strptr("g1"), Name: strptr("Alpha"), Attributes: &attrs},
-		{ID: strptr("g2"), Name: strptr("Beta"), Attributes: &attrs},
-	}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
-	kc.EXPECT().GetGroupsCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(2, nil)
-	kc.EXPECT().GetGroupsPaginated(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(groups, nil)
+
+	// Mock customers service
+	cs := customers.NewMockServiceInterface(ctrl)
+	cs.EXPECT().GetCustomersCount(gomock.Any(), gomock.Any()).Return(2, nil)
+
+	// Create expected customer resources
+	customerResources := []*customers.CustomerResource{
+		{ID: "g1", Name: "Alpha"},
+		{ID: "g2", Name: "Beta"},
+	}
+	cs.EXPECT().GetCustomersPaginated(gomock.Any(), gomock.Any()).Return(customerResources, nil)
 
 	// OPA returns authorized
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +86,7 @@ func TestLIST_HappyPath_Admin(t *testing.T) {
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
 
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 
@@ -123,12 +122,13 @@ func TestLIST_InvalidPagination_BadPageSize(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
+
+	cs := customers.NewMockServiceInterface(ctrl)
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 
 	r := gin.New()
 	r.GET("/customers", h.LIST)
@@ -148,12 +148,13 @@ func TestLIST_Forbidden_WhenOPAReturnsFalse(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
+
+	cs := customers.NewMockServiceInterface(ctrl)
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": false}`))
 	})
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 
 	r := gin.New()
 	r.GET("/customers", h.LIST)
@@ -173,13 +174,16 @@ func TestLIST_InternalError_WhenKeycloakFails(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
-	kc.EXPECT().GetGroupsCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, assertErr("count error"))
+
+	// Mock customers service to return error
+	cs := customers.NewMockServiceInterface(ctrl)
+	cs.EXPECT().GetCustomersCount(gomock.Any(), gomock.Any()).Return(0, assertErr("count error"))
+
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 
 	r := gin.New()
 	r.GET("/customers", h.LIST)
@@ -205,12 +209,13 @@ func TestLIST_InvalidPagination_BadPageNumber(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
+
+	cs := customers.NewMockServiceInterface(ctrl)
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 
 	r := gin.New()
 	r.GET("/customers", h.LIST)
@@ -230,14 +235,17 @@ func TestLIST_InternalError_WhenKeycloakPaginationFails(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
-	kc.EXPECT().GetGroupsCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(2, nil)
-	kc.EXPECT().GetGroupsPaginated(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assertErr("page error"))
+
+	// Mock customers service to return success for count but error for pagination
+	cs := customers.NewMockServiceInterface(ctrl)
+	cs.EXPECT().GetCustomersCount(gomock.Any(), gomock.Any()).Return(2, nil)
+	cs.EXPECT().GetCustomersPaginated(gomock.Any(), gomock.Any()).Return(nil, assertErr("page error"))
+
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 
 	r := gin.New()
 	r.GET("/customers", h.LIST)
@@ -255,20 +263,24 @@ func TestLIST_InternalError_WhenKeycloakPaginationFails(t *testing.T) {
 func TestLIST_NonAdmin_Success_GetByID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	attrs := map[string][]string{}
-	group := &keycloak.Group{ID: strptr("cust-1"), Name: strptr("Acme"), Attributes: &attrs}
+	group := &customers.CustomerResource{
+		ID:           "cust-1",
+		Name:         "Acme",
+		SalesforceID: "",
+		Contacts:     nil,
+	}
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
-	kc.EXPECT().GetGroupByID(gomock.Any(), "cust-1").Return(group, nil)
+	cs := customers.NewMockServiceInterface(ctrl)
+	cs.EXPECT().GetCustomer(gomock.Any(), "cust-1").Return(group, nil)
 
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
 
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 
@@ -300,15 +312,15 @@ func TestLIST_NonAdmin_Error_GetByID(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
-	kc.EXPECT().GetGroupByID(gomock.Any(), "cust-1").Return(nil, assertErr("group not found"))
+	cs := customers.NewMockServiceInterface(ctrl)
+	cs.EXPECT().GetCustomer(gomock.Any(), "cust-1").Return(nil, assertErr("group not found"))
 
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
 
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 
@@ -328,12 +340,12 @@ func TestLIST_InvalidAuthorizationHeader_BadCustomerID(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
+	cs := customers.NewMockServiceInterface(ctrl)
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 
 	r := gin.New()
 	r.GET("/customers", h.LIST)
@@ -354,13 +366,13 @@ func TestLIST_AuthorizationCheck_ErrorOPA(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
+	cs := customers.NewMockServiceInterface(ctrl)
 	// OPA returns 500 to trigger OMA client error
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 
@@ -376,33 +388,30 @@ func TestLIST_AuthorizationCheck_ErrorOPA(t *testing.T) {
 
 // custom matcher to verify *string value in gomock expectations
 
-type strPtrValMatcher struct{ want string }
-
-func (m strPtrValMatcher) Matches(x any) bool {
-	p, ok := x.(*string)
-	return ok && p != nil && *p == m.want
-}
-func (m strPtrValMatcher) String() string { return "is *string with wanted value" }
-
 func TestLIST_Admin_WithNameFilter_PropagatesSearch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	attrs := map[string][]string{}
-	groups := []*keycloak.Group{
-		{ID: strptr("g1"), Name: strptr("Beta"), Attributes: &attrs},
+	groups := []*customers.CustomerResource{{
+		ID:           "g1",
+		Name:         "Beta",
+		SalesforceID: "",
+		Contacts:     nil,
+	},
 	}
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
-	kc.EXPECT().GetGroupsCount(gomock.Any(), strPtrValMatcher{want: "Beta"}, gomock.Any()).Return(1, nil)
-	kc.EXPECT().GetGroupsPaginated(gomock.Any(), strPtrValMatcher{want: "Beta"}, gomock.Any(), gomock.Any(), gomock.Any()).Return(groups, nil)
+	cs := customers.NewMockServiceInterface(ctrl)
+	searchValue := "Beta"
+	cs.EXPECT().GetCustomersCount(gomock.Any(), customer.ListParams{Search: &searchValue}).Return(1, nil)
+	cs.EXPECT().GetCustomersPaginated(gomock.Any(), customer.ListParams{Search: &searchValue, First: 0, Max: 1}).Return(groups, nil)
 
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
 
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 
@@ -419,22 +428,24 @@ func TestLIST_Admin_WithNameFilter_PropagatesSearch(t *testing.T) {
 func TestLIST_NonAdmin_WithNameFilter_PropagatesSearch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	attrs := map[string][]string{}
-	group := &keycloak.Group{
-		ID: strptr("g1"), Name: strptr("Beta"), Attributes: &attrs,
+	group := &customers.CustomerResource{
+		ID:           "cust-1",
+		Name:         "Beta",
+		SalesforceID: "",
+		Contacts:     nil,
 	}
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
-	kc.EXPECT().GetGroupByID(gomock.Any(), "cust-1").Return(group, nil)
+	cs := customers.NewMockServiceInterface(ctrl)
+	cs.EXPECT().GetCustomer(gomock.Any(), "cust-1").Return(group, nil)
 
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
 
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 
@@ -452,12 +463,12 @@ func TestLIST_InvalidPagination_SizeTooBig(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
+	cs := customers.NewMockServiceInterface(ctrl)
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 
@@ -475,12 +486,12 @@ func TestLIST_InvalidPagination_NonIntegerNumber(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
+	cs := customers.NewMockServiceInterface(ctrl)
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 
@@ -498,12 +509,12 @@ func TestLIST_InvalidPagination_NonIntegerSize(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
+	cs := customers.NewMockServiceInterface(ctrl)
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 
@@ -519,22 +530,26 @@ func TestLIST_InvalidPagination_NonIntegerSize(t *testing.T) {
 
 func TestLIST_DefaultPagination_Succeeds(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	attrs := map[string][]string{}
-	groups := []*keycloak.Group{
-		{ID: strptr("g1"), Name: strptr("OnlyOne"), Attributes: &attrs},
+	groups := []*customers.CustomerResource{{
+		ID:           "g1",
+		Name:         "OnlyOne",
+		SalesforceID: "",
+		Contacts:     nil,
+	},
 	}
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	kc := keycloak.NewMockClient(ctrl)
-	kc.EXPECT().GetGroupsCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(2, nil)
-	kc.EXPECT().GetGroupsPaginated(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(groups, nil)
+	cs := customers.NewMockServiceInterface(ctrl)
+	cs.EXPECT().GetCustomersCount(gomock.Any(), customer.ListParams{}).Return(2, nil)
+	cs.EXPECT().GetCustomersPaginated(gomock.Any(), customer.ListParams{First: 0, Max: 1}).Return(groups, nil)
 
 	oc := makeOMAClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result": true}`))
 	})
 
-	h := newHandlerForTests(kc, oc)
+	h := newHandlerForTests(oc, cs)
 	r := gin.New()
 	r.GET("/customers", h.LIST)
 

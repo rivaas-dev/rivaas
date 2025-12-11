@@ -2,13 +2,14 @@
 package keys
 
 import (
-	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
-	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"net/http"
 	"time"
+
+	"github.com/rs/zerolog/log"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
@@ -76,6 +77,12 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 }
 
 func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key) []ListOutput {
+	// call keycloak to get the customer name, set it as unknown to avoid panic when not found
+	customers, err := h.customerClient.ListCustomers(ctx, customer.ListParams{})
+	if err != nil {
+		log.Err(err).Msg("cant find client in keycloak")
+	}
+
 	response := make([]ListOutput, 0)
 	for _, key := range keys {
 		rl := RateLimit{
@@ -91,12 +98,6 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 			}
 		}
 
-		// call keycloak to get the customer name, set it as unknown to avoid panic when not found
-		keycloakGroups, err := h.keycloakClient.GetGroupsPaginated(ctx, nil, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
-		if err != nil {
-			log.Err(err).Msg("cant find client in keycloak")
-		}
-
 		emails := make([]string, 0, len(key.Contact.Emails))
 		for _, email := range key.Contact.Emails {
 			emails = append(emails, email.Address)
@@ -105,7 +106,7 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 		// Define the response
 		response = append(response, ListOutput{
 			ID:           key.ID,
-			CustomerName: internal.GetCustomerName(keycloakGroups, *key),
+			CustomerName: getCustomerName(customers, *key),
 			CreatorID:    key.CreatorID,
 			Hash:         key.Hash,
 			ActorID:      key.ActorID,

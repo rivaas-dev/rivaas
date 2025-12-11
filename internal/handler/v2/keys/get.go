@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
+	"net/http"
+
 	"github.com/antihax/optional"
 	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
@@ -18,7 +21,6 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"go.opentelemetry.io/otel/attribute"
-	"net/http"
 )
 
 // GET handles GET requests on the endpoint.
@@ -169,7 +171,7 @@ func (h *Handler) merge(dbKey *db.Key, tykResponse *tyk.SessionState, customerNa
 func (h *Handler) getCustomerName(ctx context.Context, actorID string) (string, error) {
 	// Get customer data
 	_, span := goot.Span(ctx, "get_from_keycloak")
-	keycloakGroups, err := h.keycloakClient.GetGroupsPaginated(ctx, nil, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
+	keycloakGroups, err := h.customerService.GetCustomersPaginated(ctx, customer.ListParams{})
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call keycloak")
 		log.Err(err).Msg("error while communicating with keycloak")
@@ -177,7 +179,7 @@ func (h *Handler) getCustomerName(ctx context.Context, actorID string) (string, 
 	}
 
 	goot.EndSpan(span)
-	return internal.GetCustomerNameByActorID(keycloakGroups, actorID), nil
+	return getCustomerNameByActorID(keycloakGroups, actorID), nil
 }
 
 func bindGetRequest(ctx *goskell.Context) (apikey.KeyID, error) {

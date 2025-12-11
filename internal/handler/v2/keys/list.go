@@ -3,6 +3,12 @@ package keys
 
 import (
 	"errors"
+	"math"
+	"net/http"
+
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
+
 	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
@@ -13,8 +19,6 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
-	"math"
-	"net/http"
 )
 
 // ListInput represents the request body of the LIST endpoint.
@@ -51,8 +55,17 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 		return
 	}
 
+	// call keycloak to get the customers
+	_, span = goot.Span(ctx.Request.Context(), "get_groups_from_keycloak")
+	customersList, err := h.customerService.GetCustomersPaginated(ctx, customer.ListParams{})
+	if err != nil {
+		goot.EndSpanWithError(span, err, "failed to call keycloak")
+		log.Err(err).Msg("cant find client in keycloak")
+	}
+	goot.EndSpan(span)
+
 	// Prepare the response.
-	jsonAPIResponse, err := jsonapi.Marshal(h.convertListDBResultToJSON(ctx, keys))
+	jsonAPIResponse, err := jsonapi.Marshal(h.convertListDBResultToJSON(ctx, keys, customersList))
 	if err != nil {
 		log.Err(err).Msg("failed to marshal JSON API response")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
@@ -96,7 +109,7 @@ func (h *Handler) getAPIKeys(request *ListInput) (keys []*db.Key, totalResults i
 	return h.keysRepository.GetKeysPaginated(searchParams, request.PaginationParams.Size, request.PaginationParams.Page)
 }
 
-func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key) []*apikey.ListOutput {
+func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key, customers []*customers.CustomerResource) []*apikey.ListOutput {
 	response := make([]*apikey.ListOutput, 0)
 	for _, key := range keys {
 		rl := apikey.RateLimit{
@@ -112,16 +125,11 @@ func (h *Handler) convertListDBResultToJSON(ctx *goskell.Context, keys []*db.Key
 			}
 		}
 
-		// call keycloak to get the customer name, set it as unknown to avoid panic when not found
-		keycloakGroups, err := h.keycloakClient.GetGroups(ctx, nil, h.keycloakConfig.BrifRepresentation)
-		if err != nil {
-			log.Err(err).Msg("cant find client in keycloak")
-		}
 		// Define the response
 		response = append(response, &apikey.ListOutput{
 			ID:           key.ID,
 			Name:         key.Name,
-			CustomerName: internal.GetCustomerName(keycloakGroups, *key),
+			CustomerName: getCustomerName(customers, *key),
 			CreatorID:    key.CreatorID,
 			Hash:         key.Hash,
 			ActorID:      key.ActorID,

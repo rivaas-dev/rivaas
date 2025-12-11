@@ -186,9 +186,8 @@ func (h *Handler) POST(ctx *goskell.Context) {
 	}
 
 	accountExt, err := h.customerService.GetAccountExtended(ctx.Request.Context(), request.Body.Attributes.CustomerID, request.Body.Attributes.AccountID)
-	if errors.Is(err, customers.ErrInvalidGroup) {
-		goskell.JsonAPIError(ctx, "API key creation failed", ErrNoValidAPIPlan, http.StatusUnprocessableEntity)
-		return
+	if errors.Is(err, ErrNoValidAPIPlan) {
+		goskell.JsonAPIError(ctx, "API key creation failed", err, http.StatusUnprocessableEntity)
 	}
 	if errors.Is(err, customers.ErrPricingPlanNotFound) {
 		log.Error().Err(err).

@@ -19,7 +19,7 @@ import (
 	keysV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys"
 	policiesV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/policies"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
@@ -27,6 +27,7 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"go.companyinfo.dev/conflex"
 	"go.companyinfo.dev/conflex/codec"
+	"go.companyinfo.dev/keycloak"
 	"go.opentelemetry.io/otel/propagation"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/contrib/opentelemetry"
@@ -125,6 +126,7 @@ func run(ctx context.Context) error {
 		First:              cfg.KeyCloak.First,
 		Max:                cfg.KeyCloak.Max,
 	}
+
 	// Connect to Keycloak client
 	keyCloakClient, err := keycloak.New(ctx, cfg.KeyCloak.Credentials)
 	if err != nil {
@@ -132,6 +134,7 @@ func run(ctx context.Context) error {
 			Err(err).
 			Msg("Unable to initialize keyCloak client")
 	}
+	customerClient := customer.NewService(keyCloakClient)
 
 	// Create Solvimon client
 	solvimonClient := solvimon.New(cfg.Solvimon.BaseUrl, cfg.Solvimon.ApiKey)
@@ -140,7 +143,7 @@ func run(ctx context.Context) error {
 	omaClient := newOMAClient(ctx, cfg.OMA)
 
 	// Register handlers.
-	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, solvimonClient, cfg)
+	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, customerClient, solvimonClient, cfg)
 
 	// Run server.
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -191,13 +194,14 @@ func registerHandlers(
 	tykClient *tyk.APIClient,
 	temporalClient client.Client,
 	omaClient *oma.Client,
-	keyCloakClient keycloak.Client,
+	keyCloakClient *keycloak.Client,
 	keyCloakConfig config.KeyCloakConfig,
+	customerClient customer.CustomerClient,
 	solvimonClient *solvimon.Client,
 	cfg config.Config,
 ) {
 	// v1 endpoints - not JSON:API compliant
-	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig)
+	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, customerClient)
 	server.POST("/keys", keyHandler.POST)
 	server.GET("/keys", keyHandler.LIST)
 	server.GET("/keys/:id", keyHandler.GET)
@@ -207,14 +211,14 @@ func registerHandlers(
 	policiesHandler := policiesHandler.New(tykClient)
 	server.GET("/policies", policiesHandler.LIST)
 
-	accountHandler := accounts.New(keyCloakClient, keyCloakConfig, solvimonClient)
+	accountHandler := accounts.New(customerClient, solvimonClient)
 	server.GET("/accounts", accountHandler.GET)
 	server.PUT("/accounts/:id", accountHandler.PUT)
 
 	// group v2 endpoints
 	{
-		customerSvc := customerService.New(dbClient, keyCloakClient, cfg.PricingPlans)
-		keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, keyCloakClient, keyCloakConfig, customerSvc, cfg.APIKeyDefaults, cfg.Pagination)
+		customerSvc := customerService.New(dbClient, *keyCloakClient, cfg.PricingPlans)
+		keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, *keyCloakClient, keyCloakConfig, customerSvc, cfg.APIKeyDefaults, cfg.Pagination)
 
 		v2 := server.GetRouter().Group("/v2")
 		// keys endpoints

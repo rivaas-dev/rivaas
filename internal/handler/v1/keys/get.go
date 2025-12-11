@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
-	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
-	"go.opentelemetry.io/otel/attribute"
 	"net/http"
 	"time"
+
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
+	"go.opentelemetry.io/otel/attribute"
 
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
 
@@ -130,7 +131,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 
 	// Get customer data
 	_, span = goot.Span(ctx.Request.Context(), "get_from_keycloak")
-	keycloakGroups, err := h.keycloakClient.GetGroupsPaginated(ctx, nil, h.keycloakConfig.BrifRepresentation, h.keycloakConfig.First, h.keycloakConfig.Max)
+	customers, err := h.customerClient.ListCustomers(ctx, customer.ListParams{})
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call keycloak")
 		log.Err(err).Msg("error while communicating with keycloak")
@@ -145,7 +146,7 @@ func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, e
 	// build key from db response
 	result := GetOutput{
 		ID:             dbKey.ID,
-		CustomerName:   internal.GetCustomerName(keycloakGroups, *dbKey),
+		CustomerName:   getCustomerName(customers, *dbKey),
 		Hash:           dbKey.Hash,
 		ActorID:        dbKey.ActorID,
 		CreatorID:      dbKey.CreatorID,

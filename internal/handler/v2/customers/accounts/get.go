@@ -1,12 +1,12 @@
 package accounts
 
 import (
-	"encoding/json"
 	"errors"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"net/http"
 
+	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
@@ -58,7 +58,7 @@ func (h *Handler) GET(ctx *goskell.Context) {
 	}
 
 	// Build response from groups
-	response, err := json.Marshal(account)
+	response, err := jsonapi.Marshal(account)
 	if err != nil {
 		log.Error().Err(err).
 			Str("customerID", request.Path.CustomerID).
@@ -69,5 +69,5 @@ func (h *Handler) GET(ctx *goskell.Context) {
 	}
 
 	// Return JSONAPI
-	internal.WriteResponse(ctx, response, http.StatusOK, nil)
+	internal.WriteJSONAPIResponse(ctx, response, http.StatusOK, nil)
 }

@@ -2,179 +2,171 @@ package customers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-
-	"github.com/companyinfo/jsonapi"
 	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
-	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
-	"go.opentelemetry.io/otel/attribute"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 )
+
+const apiType = "api"
+
+var ErrNoValidAPIPlan = errors.New("account is not an API account")
+
+type AccountResource struct {
+	ID                    string             `json:"id" jsonapi:"primary,accounts"`
+	Customers             *CustomerResource  `json:"customers" jsonapi:"relation,customers"`
+	Name                  string             `json:"name" jsonapi:"attr,name"`
+	AccountContactDetails []customer.Contact `json:"contactDetails" jsonapi:"attr,contactDetails,omitempty"`
+}
 
 // AccountService handles account-related operations
 type AccountService struct {
-	dataProvider        CustomerProvider
-	subscriptionService *SubscriptionService
+	customerService customer.Service
 }
 
 // NewAccountService creates a new AccountService
-func NewAccountService(dataProvider CustomerProvider, subscriptionService *SubscriptionService) *AccountService {
+func NewAccountService(customerService customer.Service) *AccountService {
 	return &AccountService{
-		dataProvider:        dataProvider,
-		subscriptionService: subscriptionService,
+		customerService: customerService,
 	}
 }
 
 // GetAccount retrieves an account by customer ID and account ID
-func (s *AccountService) GetAccount(ctx context.Context, customerID, accountID string) (*AccountResource, error) {
-	if customerID == "" {
-		return nil, ErrInvalidCustomerID
-	}
-	if accountID == "" {
-		return nil, ErrInvalidAccountID
-	}
-
-	accountData, err := s.dataProvider.GetAccount(ctx, customerID, accountID)
+func (s *AccountService) GetAccount(ctx context.Context, customerID, accountID string) (*customer.Account, error) {
+	customerResult, err := s.customerService.GetCustomerAccount(ctx, customerID, accountID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get account data: %w", err)
+		return nil, err
 	}
 
-	return s.accountToResource(accountData), nil
+	return &customerResult.Accounts[0], nil
+}
+
+// ExtendedAccountResource represents an account with subscription information
+type ExtendedAccountResource struct {
+	ID           string            `json:"id" jsonapi:"primary,accounts"`
+	Name         string            `json:"name" jsonapi:"attr,name"`
+	Subscription Subscription      `json:"subscription" jsonapi:"attr,subscription"`
+	Customers    *CustomerResource `json:"customers" jsonapi:"relation,customers"`
 }
 
 // GetAccountExtended retrieves an account with subscription information
-func (s *AccountService) GetAccountExtended(ctx context.Context, customerID, accountID string) (*AccountExtended, error) {
-	_, span := goot.Span(ctx, "get_account_extended",
-		attribute.String("customerID", customerID),
-		attribute.String("accountID", accountID),
-	)
-	defer goot.EndSpan(span)
-
-	accountData, err := s.dataProvider.GetAccount(ctx, customerID, accountID)
+func (s *AccountService) GetAccountExtended(ctx context.Context, customerID, accountID string, subscriptionService *SubscriptionService) (*ExtendedAccountResource, error) {
+	customer, err := s.customerService.GetCustomerAccount(ctx, customerID, accountID)
 	if err != nil {
-		goot.EndSpanWithError(span, err, "failed to get account data")
-		return nil, fmt.Errorf("failed to get account data: %w", err)
+		return nil, err
 	}
 
-	account := s.accountToResource(accountData)
+	// should only return 1 group which is the api group
+	account := customer.Accounts[0]
+	if account.Type != apiType {
+		return nil, ErrNoValidAPIPlan
+	}
 
 	// Get subscription information
 	pricingPlanID := "custom" // Default fallback
-	if len(accountData.PricingPlanIDs) == 0 {
+	if account.PricingPlanID == "" {
 		log.Warn().
 			Str("customerID", customerID).
 			Str("accountID", accountID).
 			Msg("no pricing plan found in Keycloak, using 'custom' as fallback")
-	} else if len(accountData.PricingPlanIDs) > 1 {
-		return nil, fmt.Errorf("more than one pricing plan found: %d", len(accountData.PricingPlanIDs))
-	} else if accountData.PricingPlanIDs[0] == "" {
-		log.Warn().
-			Str("customerID", customerID).
-			Str("accountID", accountID).
-			Msg("pricing plan attribute is empty in Keycloak, using 'custom' as fallback")
 	} else {
-		pricingPlanID = accountData.PricingPlanIDs[0]
+		pricingPlanID = account.PricingPlanID
 	}
 
-	subscription, err := s.subscriptionService.GetSubscription(ctx, customerID, accountID, pricingPlanID)
+	subscription, err := subscriptionService.GetSubscription(ctx, customerID, accountID, pricingPlanID)
 	if err != nil {
-		goot.EndSpanWithError(span, err, "failed to get subscription")
-		return nil, fmt.Errorf("failed to get subscription: %w", err)
+		return nil, err
 	}
 
-	return &AccountExtended{
-		AccountResource: *account,
-		Subscription:    subscription,
+	// Create a CustomerResource from the customer
+	customerResource := &CustomerResource{
+		ID:           customer.ID,
+		Name:         customer.Name,
+		SalesforceID: customer.SalesforceID,
+		Contacts:     customer.Contacts,
+	}
+
+	// Create an ExtendedAccountResource with the account and subscription information
+	return &ExtendedAccountResource{
+		ID:           account.ID,
+		Name:         account.Name,
+		Subscription: subscription,
+		Customers:    customerResource,
 	}, nil
 }
 
 // ListAccounts retrieves all accounts for a customer
-func (s *AccountService) ListAccounts(ctx context.Context, customerID string) ([]*AccountResource, error) {
-	if customerID == "" {
-		return nil, ErrInvalidCustomerID
-	}
-
-	accountsData, err := s.dataProvider.ListCustomerAccounts(ctx, customerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list accounts: %w", err)
-	}
-
-	var accounts []*AccountResource
-	for _, accountData := range accountsData {
-		accounts = append(accounts, s.accountToResource(accountData))
-	}
-
-	return accounts, nil
+func (s *AccountService) ListAccounts(ctx context.Context, customerID string) ([]customer.Account, error) {
+	return s.customerService.ListAccounts(ctx, customerID)
 }
 
-// accountToResource converts Account to AccountResource
-func (s *AccountService) accountToResource(data *Account) *AccountResource {
-	var contacts []Contact
-	for _, contactData := range data.Contacts {
-		contacts = append(contacts, Contact{
-			ID: contactData.ID,
-			Contact: keycloak.Contact{
-				Email: contactData.Email,
-			},
+// ListAccountsPaginated retrieves accounts for a customer with pagination
+func (s *AccountService) ListAccountsPaginated(ctx context.Context, customerID string, first, max int) ([]*AccountResource, error) {
+	accounts, err := s.customerService.ListAccounts(ctx, customerID)
+	if err != nil {
+		return nil, err
+	}
+	customer, err := s.customerService.GetCustomer(ctx, customerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// prevents the max to be more than the length of the list
+	if len(accounts) < max {
+		max = len(accounts)
+	}
+
+	var accountResources []*AccountResource
+	// for pagination reasons splits the list
+	for _, group := range accounts[first:max] {
+		account := convertToAccountResource(group, customer)
+
+		accountResources = append(accountResources, account)
+	}
+
+	return accountResources, nil
+}
+
+// GetAccountCount retrieves the count of accounts for a customer
+func (s *AccountService) GetAccountCount(ctx context.Context, customerID string) (int, error) {
+	accounts, err := s.customerService.ListAccounts(ctx, customerID)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(accounts), err
+}
+
+// UpdateAccount updates a customer account with the provided information
+func (s *AccountService) UpdateAccount(ctx context.Context, customerUpdate customer.CustomerUpdate) error {
+	// Validate the customer update data
+	if err := customerUpdate.Validate(); err != nil {
+		return err
+	}
+
+	// Call the UpdateCustomerAccount method on the underlying customerService
+	return s.customerService.UpdateCustomerAccount(ctx, customerUpdate)
+}
+
+func convertToAccountResource(account customer.Account, customerGroup customer.Customer) *AccountResource {
+	var contacts []customer.Contact
+	for _, contact := range account.SalesforceContactDetails {
+		contacts = append(contacts, customer.Contact{
+			Email:     contact.Email,
+			FirstName: contact.FirstName,
+			LastName:  contact.LastName,
+			Type:      contact.Type,
 		})
 	}
 
-	// Create customer relationship
-	customer := &CustomerResource{
-		ID:           data.CustomerID,
-		Name:         data.CustomerName,
-		SalesforceID: data.CustomerSalesforceID,
-	}
-
 	return &AccountResource{
-		ID:                    data.ID,
-		Name:                  data.Name,
-		Customers:             customer,
+		ID: account.ID,
+		Customers: &CustomerResource{
+			ID:           customerGroup.ID,
+			Name:         customerGroup.Name,
+			SalesforceID: customerGroup.SalesforceID,
+			Contacts:     customerGroup.Contacts,
+		},
+		Name:                  account.Name,
 		AccountContactDetails: contacts,
 	}
-}
-
-// AccountExtended represents an account with subscription information
-type AccountExtended struct {
-	AccountResource
-	Subscription Subscription `json:"subscription,omitempty" jsonapi:"attr,subscription,omitempty"`
-}
-
-// MarshalJSON helps marshal embedded struct as a part of AccountResource JSONAPI object
-func (a *AccountExtended) MarshalJSON() ([]byte, error) {
-	payloaderAccount, err := jsonapi.Marshal(&a.AccountResource)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal account: %w", err)
-	}
-
-	payloaderSubscription, err := jsonapi.Marshal(&a.Subscription)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal subscription: %w", err)
-	}
-
-	accountSerialized, ok := payloaderAccount.(*jsonapi.OnePayload)
-	if !ok {
-		return nil, errors.New("failed to assert account jsonapi type")
-	}
-
-	subscriptionSerialized, ok := payloaderSubscription.(*jsonapi.OnePayload)
-	if !ok {
-		return nil, errors.New("failed to assert subscription jsonapi type")
-	}
-
-	if len(subscriptionSerialized.Data.Attributes) > 0 {
-		accountSerialized.Data.Attributes["subscription"] = subscriptionSerialized.Data.Attributes
-	}
-
-	return json.Marshal(accountSerialized)
-}
-
-// AccountResource is the base data element
-type AccountResource struct {
-	ID                    string            `json:"id" jsonapi:"primary,accounts"`
-	Customers             *CustomerResource `json:"customers" jsonapi:"relation,customers"`
-	Name                  string            `json:"name" jsonapi:"attr,name"`
-	AccountContactDetails []Contact         `json:"contactDetails" jsonapi:"attr,contactDetails,omitempty"`
 }

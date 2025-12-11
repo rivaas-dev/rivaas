@@ -2,7 +2,7 @@ package config
 
 import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
+	"go.companyinfo.dev/keycloak"
 )
 
 // Config represents application configuration.
