@@ -16,6 +16,7 @@ package errors_test
 
 import (
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +30,7 @@ func ExampleRFC9457() {
 	formatter := errors.NewRFC9457("https://api.example.com/problems")
 
 	// Create a test error
-	err := fmt.Errorf("validation failed")
+	err := stderrors.New("validation failed")
 
 	// Create a request
 	req := httptest.NewRequest(http.MethodPost, "/api/users", nil)
@@ -41,10 +42,10 @@ func ExampleRFC9457() {
 	w := httptest.NewRecorder()
 	w.WriteHeader(response.Status)
 	w.Header().Set("Content-Type", response.ContentType)
-	json.NewEncoder(w).Encode(response.Body)
+	_ = json.NewEncoder(w).Encode(response.Body)
 
-	fmt.Printf("Status: %d\n", response.Status)
-	fmt.Printf("Content-Type: %s\n", response.ContentType)
+	_, _ = fmt.Printf("Status: %d\n", response.Status)
+	_, _ = fmt.Printf("Content-Type: %s\n", response.ContentType)
 	// Output:
 	// Status: 500
 	// Content-Type: application/problem+json; charset=utf-8
@@ -56,7 +57,7 @@ func ExampleJSONAPI() {
 	formatter := errors.NewJSONAPI()
 
 	// Create a test error
-	err := fmt.Errorf("resource not found")
+	err := stderrors.New("resource not found")
 
 	// Create a request
 	req := httptest.NewRequest(http.MethodGet, "/api/users/123", nil)
@@ -68,10 +69,10 @@ func ExampleJSONAPI() {
 	w := httptest.NewRecorder()
 	w.WriteHeader(response.Status)
 	w.Header().Set("Content-Type", response.ContentType)
-	json.NewEncoder(w).Encode(response.Body)
+	_ = json.NewEncoder(w).Encode(response.Body)
 
-	fmt.Printf("Status: %d\n", response.Status)
-	fmt.Printf("Content-Type: %s\n", response.ContentType)
+	_, _ = fmt.Printf("Status: %d\n", response.Status)
+	_, _ = fmt.Printf("Content-Type: %s\n", response.ContentType)
 	// Output:
 	// Status: 500
 	// Content-Type: application/vnd.api+json; charset=utf-8
@@ -83,7 +84,7 @@ func ExampleSimple() {
 	formatter := errors.NewSimple()
 
 	// Create a test error
-	err := fmt.Errorf("internal server error")
+	err := stderrors.New("internal server error")
 
 	// Create a request
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
@@ -95,10 +96,10 @@ func ExampleSimple() {
 	w := httptest.NewRecorder()
 	w.WriteHeader(response.Status)
 	w.Header().Set("Content-Type", response.ContentType)
-	json.NewEncoder(w).Encode(response.Body)
+	_ = json.NewEncoder(w).Encode(response.Body)
 
-	fmt.Printf("Status: %d\n", response.Status)
-	fmt.Printf("Content-Type: %s\n", response.ContentType)
+	_, _ = fmt.Printf("Status: %d\n", response.Status)
+	_, _ = fmt.Printf("Content-Type: %s\n", response.ContentType)
 	// Output:
 	// Status: 500
 	// Content-Type: application/json; charset=utf-8
@@ -114,12 +115,12 @@ func ExampleRFC9457_customErrorID() {
 		},
 	}
 
-	err := fmt.Errorf("test error")
+	err := stderrors.New("test error")
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	response := formatter.Format(req, err)
 
 	body := response.Body.(errors.ProblemDetail)
-	fmt.Printf("Error ID: %v\n", body.Extensions["error_id"])
+	_, _ = fmt.Printf("Error ID: %v\n", body.Extensions["error_id"])
 	// Output:
 	// Error ID: custom-id-12345
 }
@@ -132,13 +133,13 @@ func ExampleRFC9457_disableErrorID() {
 		DisableErrorID: true,
 	}
 
-	err := fmt.Errorf("test error")
+	err := stderrors.New("test error")
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	response := formatter.Format(req, err)
 
 	body := response.Body.(errors.ProblemDetail)
 	if _, ok := body.Extensions["error_id"]; !ok {
-		fmt.Println("Error ID is disabled")
+		_, _ = fmt.Println("Error ID is disabled")
 	}
 	// Output:
 	// Error ID is disabled
