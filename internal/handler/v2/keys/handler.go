@@ -5,9 +5,9 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
+	"go.companyinfo.dev/keycloak"
 	"go.temporal.io/sdk/client"
 )
 

@@ -3,25 +3,25 @@ package customers
 import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
+	"go.companyinfo.dev/keycloak"
 )
 
 // Handler handles keys requests
 type Handler struct {
-	keycloakClient  keycloak.Client
+	keycloakClient  *keycloak.Client
 	keycloakConfig  config.KeyCloakConfig
 	omaClient       *oma.Client
-	customerService *customers.Service
+	customerService customers.ServiceInterface
 
 	defaultPageSize uint
 	maxPageSize     uint
 }
 
 // New constructs a new Handler.
-func New(KeyCloakClient keycloak.Client, KeyCloakConfig config.KeyCloakConfig,
+func New(KeyCloakClient *keycloak.Client, KeyCloakConfig config.KeyCloakConfig,
 	omaClient *oma.Client,
-	customerService *customers.Service,
+	customerService customers.ServiceInterface,
 	pagination config.Pagination,
 ) *Handler {
 	return &Handler{

@@ -2,6 +2,8 @@ package customers
 
 import (
 	"context"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 	"math"
 	"net/http"
 
@@ -12,7 +14,6 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/customers/filters"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/pagination"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"go.opentelemetry.io/otel/attribute"
@@ -53,15 +54,8 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	}
 	goot.EndSpan(span)
 
-	// Parse the group data
-	parsedKeyCloakGroups, err := h.customerService.ListCustomersFromGroups(ctx.Request.Context(), customerGroups)
-	if err != nil {
-		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
-		return
-	}
-
 	// Build response from groups
-	jsonAPIResponse, err := jsonapi.Marshal(parsedKeyCloakGroups)
+	jsonAPIResponse, err := jsonapi.Marshal(customerGroups)
 	if err != nil {
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return
@@ -114,18 +108,18 @@ func bindRequest(ctx *goskell.Context, defaultPageSize, maxPageSize uint) (*List
 	return &request, nil
 }
 
-func (h *Handler) getCustomers(ctx context.Context, request *ListInput) (groups []*keycloak.Group, totalResults int, err error) {
+func (h *Handler) getCustomers(ctx context.Context, request *ListInput) (groups []*customers.CustomerResource, totalResults int, err error) {
 	// if the user is not an admin, return only their group
 	if !headers.IsAdministrator(request.Authorization.Roles) {
 		_, span := goot.Span(ctx, "get_from_keycloak", attribute.String("customer_id", request.Authorization.CustomerUser.CustomerID))
-		group, err := h.keycloakClient.GetGroupByID(ctx, request.Authorization.CustomerUser.CustomerID)
+		customerResource, err := h.customerService.GetCustomer(ctx, request.Authorization.CustomerUser.CustomerID)
 		if err != nil {
 			goot.EndSpanWithError(span, err, "failed to call keycloak")
 			return nil, 0, errors.New("invalid customer id")
 		}
 		goot.EndSpan(span)
 
-		return []*keycloak.Group{group}, 1, nil
+		return []*customers.CustomerResource{customerResource}, 1, nil
 	}
 
 	searchParams := filters.NewSearchParameters(filters.FilterParam{Match: request.Match})
@@ -135,8 +129,7 @@ func (h *Handler) getCustomers(ctx context.Context, request *ListInput) (groups 
 
 	// Fetch total group count
 	_, span := goot.Span(ctx, "get_group_count_from_keycloak")
-	t := true
-	totalResults, err = h.keycloakClient.GetGroupsCount(ctx, searchParams.Name, &t)
+	totalResults, err = h.customerService.GetCustomersCount(ctx, customer.ListParams{Search: searchParams.Name})
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call keycloak")
 		return nil, 0, err
@@ -145,12 +138,16 @@ func (h *Handler) getCustomers(ctx context.Context, request *ListInput) (groups 
 
 	// Fetch the requested page of the groups
 	_, span = goot.Span(ctx, "get_from_keycloak")
-	groups, err = h.keycloakClient.GetGroupsPaginated(ctx, searchParams.Name, h.keycloakConfig.BrifRepresentation, firstElement, maxPageSize)
+	customerGroups, err := h.customerService.GetCustomersPaginated(ctx, customer.ListParams{
+		Search: searchParams.Name,
+		First:  firstElement,
+		Max:    maxPageSize,
+	})
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call keycloak")
 		return nil, 0, err
 	}
 	goot.EndSpan(span)
 
-	return groups, totalResults, nil
+	return customerGroups, totalResults, nil
 }

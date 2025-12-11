@@ -1,23 +1,20 @@
 package accounts
 
 import (
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon"
 )
 
 // Handler handles keys requests
 type Handler struct {
-	keycloakClient keycloak.Client
-	keycloakConfig config.KeyCloakConfig
-	solvimonClient *solvimon.Client
+	customerService customer.CustomerClient
+	solvimonClient  *solvimon.Client
 }
 
 // New constructs a new Handler.
-func New(KeyCloakClient keycloak.Client, KeyCloakConfig config.KeyCloakConfig, SolvimonClient *solvimon.Client) *Handler {
+func New(customerService customer.CustomerClient, SolvimonClient *solvimon.Client) *Handler {
 	return &Handler{
-		keycloakClient: KeyCloakClient,
-		keycloakConfig: KeyCloakConfig,
-		solvimonClient: SolvimonClient,
+		customerService: customerService,
+		solvimonClient:  SolvimonClient,
 	}
 }

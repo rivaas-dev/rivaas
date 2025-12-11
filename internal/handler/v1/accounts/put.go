@@ -3,12 +3,13 @@ package accounts
 import (
 	"context"
 	"errors"
+	"net/http"
+
 	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
-	"net/http"
 )
 
 // AccountInput represents PUT request body.
@@ -30,14 +31,14 @@ func (i AccountInput) Validate() error {
 	for _, contact := range append(i.Body.Customer.CustomerContactDetails, i.Body.AccountContactDetails...) {
 		// if we already found financial contact, and then we got another one, return an error.
 		// we expect only one financial contact.
-		if contact.Type == keycloak.FinancialContactType && financialEmail != "" {
+		if contact.Type == customer.FinancialContactType && financialEmail != "" {
 			log.Error().Str("invalidContact", contact.ID).
 				Msg("customer has to have one financial contact")
 			return errors.New("customer has to have one financial contact")
 		}
 
 		// if it's the only one, save it.
-		if contact.Type == keycloak.FinancialContactType {
+		if contact.Type == customer.FinancialContactType {
 			financialEmail = contact.Email
 		}
 	}
@@ -108,13 +109,13 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 		return
 	}
 
-	err = keycloak.UpdateCustomerAccount(ctx, h.keycloakClient, keycloak.CustomerUpdate{
-		Account: keycloak.Account{
-			ID:       request.Path.ID,
-			Contacts: contactsToMap(request.Body.AccountContactDetails),
-		},
+	err = h.customerService.UpdateCustomerAccount(ctx, customer.CustomerUpdate{
 		ID:       request.Body.Customer.ID,
 		Contacts: contactsToMap(request.Body.Customer.CustomerContactDetails),
+		Account: customer.Account{
+			ID:                       request.Path.ID,
+			SalesforceContactDetails: contactsToMap(request.Body.AccountContactDetails),
+		},
 	})
 	if err != nil {
 		// revert Solvimon first
@@ -141,12 +142,12 @@ func (h *Handler) PUT(ctx *goskell.Context) {
 	}
 }
 
-func contactsToMap(contacts []Contact) map[string]keycloak.Contact {
+func contactsToMap(contacts []Contact) map[string]customer.Contact {
 	if len(contacts) == 0 {
 		return nil
 	}
 
-	m := make(map[string]keycloak.Contact, len(contacts))
+	m := make(map[string]customer.Contact, len(contacts))
 	for _, contact := range contacts {
 		m[contact.ID] = contact.Contact
 	}
@@ -156,7 +157,7 @@ func contactsToMap(contacts []Contact) map[string]keycloak.Contact {
 func (h *Handler) updateSolvimon(ctx context.Context, request AccountInput) (oldEmail string, err error) {
 	var financialEmail string
 	for _, contact := range append(request.Body.Customer.CustomerContactDetails, request.Body.AccountContactDetails...) {
-		if contact.Type == keycloak.FinancialContactType {
+		if contact.Type == customer.FinancialContactType {
 			financialEmail = contact.Email
 			break
 		}
@@ -169,13 +170,13 @@ func (h *Handler) updateSolvimon(ctx context.Context, request AccountInput) (old
 }
 
 func (h *Handler) updateSolvimonEmail(ctx context.Context, customerReference, email string) (oldEmail string, err error) {
-	customer, err := h.solvimonClient.Customer.GetByReference(ctx, customerReference)
+	solvimonCustomer, err := h.solvimonClient.Customer.GetByReference(ctx, customerReference)
 	if err != nil {
 		return "", err
 	}
 
-	_, err = h.solvimonClient.Customer.Update(ctx, customer.ID, &solvimon.CustomerUpdateInput{
+	_, err = h.solvimonClient.Customer.Update(ctx, solvimonCustomer.ID, &solvimon.CustomerUpdateInput{
 		Email: email,
 	})
-	return customer.Email, err
+	return solvimonCustomer.Email, err
 }

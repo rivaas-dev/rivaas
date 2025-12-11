@@ -2,15 +2,11 @@ package internal
 
 import (
 	"fmt"
-	"github.com/google/jsonapi"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
-	"gitlab.ci.fdmg.org/ci-api/cigourn"
-	"gitlab.ci.fdmg.org/ci-api/cigourn/api"
-	"gitlab.ci.fdmg.org/ci-api/cigourn/salesforce"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
-	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"math"
 	"net/url"
+
+	"github.com/google/jsonapi"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
 
 type PaginationParams struct {
@@ -113,40 +109,4 @@ func GeneratePageLinks(ctx *goskell.Context, paginationParams *PaginationParams,
 	}
 
 	return &links, nil
-}
-
-// GetCustomerName compares the keycloak group id with the database key actor id.
-func GetCustomerName(keycloakGroups []*keycloak.Group, key db.Key) string {
-	return GetCustomerNameByActorID(keycloakGroups, key.ActorID)
-}
-
-// GetCustomerNameByActorID compares the keycloak group id with the database key actor id.
-func GetCustomerNameByActorID(keycloakGroups []*keycloak.Group, actorID string) string {
-	// Set default as unknown
-	customerName := "UNKNOWN"
-	// Parse the URN
-	parsedURN, err := cigourn.Parse(actorID)
-	if err != nil {
-		return customerName
-	}
-	// Check if the parsed urn is of account type api key or salesforce
-	_, TypeApi := parsedURN.(*api.Key)
-	_, TypeSalesForce := parsedURN.(*salesforce.Account)
-	// Validate
-	if !TypeApi && !TypeSalesForce {
-		return customerName
-	}
-	// Check in the keycloak groups for a matching customerId on api.key & salesforce.account
-	for _, gr := range keycloakGroups {
-		// For api account
-		if TypeApi && *gr.ID == parsedURN.(*api.Key).CustomerID {
-			return *gr.Name
-		}
-		// For salesforce account
-		if TypeSalesForce && *gr.ID == parsedURN.(*salesforce.Account).AccountID {
-			return *gr.Name
-		}
-	}
-
-	return customerName
 }

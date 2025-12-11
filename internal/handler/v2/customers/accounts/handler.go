@@ -3,14 +3,14 @@ package accounts
 import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/config"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
+	"go.companyinfo.dev/keycloak"
 )
 
 // Handler handles keys requests
 type Handler struct {
-	keycloakClient  keycloak.Client
+	keycloakClient  *keycloak.Client
 	keycloakConfig  config.KeyCloakConfig
 	solvimonClient  *solvimon.Client
 	omaClient       *oma.Client
@@ -22,7 +22,7 @@ type Handler struct {
 }
 
 // New constructs a new Handler.
-func New(keyCloakClient keycloak.Client, keyCloakConfig config.KeyCloakConfig,
+func New(keyCloakClient *keycloak.Client, keyCloakConfig config.KeyCloakConfig,
 	solvimonClient *solvimon.Client,
 	omaClient *oma.Client,
 	customerService *customers.Service,

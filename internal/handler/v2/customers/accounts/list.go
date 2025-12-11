@@ -48,7 +48,7 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 
 	// Fetch total group count
 	_, span := goot.Span(ctx.Request.Context(), "get_group_count_from_keycloak")
-	totalResults, err := h.keycloakClient.GetSubGroupsCount(ctx, request.Path.CustomerID)
+	totalResults, err := h.customerService.GetAccountCount(ctx, request.Path.CustomerID)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call keycloak")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
@@ -56,19 +56,9 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	}
 	goot.EndSpan(span)
 
-	// Fetch group
-	_, span = goot.Span(ctx.Request.Context(), "get_from_keycloak")
-	group, err := h.keycloakClient.GetGroupByID(ctx, request.Path.CustomerID)
-	if err != nil {
-		goot.EndSpanWithError(span, err, "failed to call keycloak to get a group")
-		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
-		return
-	}
-	goot.EndSpan(span)
-
 	// Fetch subgroups
 	_, span = goot.Span(ctx.Request.Context(), "get_from_keycloak")
-	subgroups, err := h.keycloakClient.GetSubGroupsPaginated(ctx, request.Path.CustomerID, h.keycloakConfig.BrifRepresentation, first, max)
+	subgroups, err := h.customerService.ListAccountsPaginated(ctx, request.Path.CustomerID, first, max)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call keycloak to get subgroups")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
@@ -76,15 +66,8 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 	}
 	goot.EndSpan(span)
 
-	// Parse the group data
-	parsedKeyCloakGroups, err := h.customerService.ListAccountsFromGroups(ctx.Request.Context(), group, subgroups)
-	if err != nil {
-		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
-		return
-	}
-
 	// Build response from groups
-	response, err := jsonapi.Marshal(parsedKeyCloakGroups)
+	response, err := jsonapi.Marshal(subgroups)
 	if err != nil {
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
 		return

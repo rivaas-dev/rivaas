@@ -1,18 +1,21 @@
 module gitlab.ci.fdmg.org/ci-api/admin-api
 
-go 1.23.11
+go 1.24.0
+
+toolchain go1.24.10
 
 require (
 	github.com/antihax/optional v1.0.0
 	github.com/companyinfo/gourn v0.1.1
 	github.com/companyinfo/jsonapi v0.2.0
+	github.com/gin-gonic/gin v1.9.1
 	github.com/google/jsonapi v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
 	gitlab.ci.fdmg.org/ci-api/cigourn v0.1.6
-	gitlab.ci.fdmg.org/ci-api/go-pkgs/keycloak v1.8.3
+	gitlab.ci.fdmg.org/ci-api/go-pkgs/customer v0.2.2
 	gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.9.0
 	gitlab.ci.fdmg.org/ci-api/oma v0.4.1
 	gitlab.ci.fdmg.org/ci-api/tyk-sdk-go v0.1.0
@@ -20,9 +23,11 @@ require (
 	gitlab.ci.fdmg.org/datacluster/golibs/goot v1.0.0
 	gitlab.ci.fdmg.org/datacluster/golibs/goskell v1.8.2
 	go.companyinfo.dev/conflex v0.1.2
+	go.companyinfo.dev/keycloak v0.2.0
 	go.opentelemetry.io/otel v1.36.0
 	go.temporal.io/sdk v1.25.1
 	go.temporal.io/sdk/contrib/opentelemetry v0.3.0
+	go.uber.org/mock v0.5.2
 	gorm.io/driver/postgres v1.5.4
 	gorm.io/gorm v1.25.5
 )
@@ -36,7 +41,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
-	github.com/coreos/go-oidc/v3 v3.15.0 // indirect
+	github.com/coreos/go-oidc/v3 v3.16.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/evanphx/json-patch v0.5.2 // indirect
@@ -45,8 +50,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/gin-contrib/logger v0.2.5 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.9.1 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.2 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -104,11 +108,12 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
+	go.companyinfo.dev/ptr v0.1.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.36.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.23.1 // indirect
@@ -118,14 +123,13 @@ require (
 	go.opentelemetry.io/proto/otlp v1.7.0 // indirect
 	go.temporal.io/api v1.26.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	go.uber.org/mock v0.5.2 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
-	golang.org/x/net v0.42.0 // indirect
-	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
+	golang.org/x/net v0.46.0 // indirect
+	golang.org/x/oauth2 v0.32.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	google.golang.org/genproto v0.0.0-20240125205218-1f4bbc51befe // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
