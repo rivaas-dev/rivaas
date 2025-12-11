@@ -59,6 +59,7 @@ func ExampleNew() {
 		if _, printErr := fmt.Printf("Failed to create validator: %v\n", err); printErr != nil {
 			panic(printErr)
 		}
+
 		return
 	}
 
@@ -216,6 +217,7 @@ func ExampleComputePresence() {
 		if _, printErr := fmt.Printf("Error: %v\n", err); printErr != nil {
 			panic(printErr)
 		}
+
 		return
 	}
 

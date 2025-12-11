@@ -16,6 +16,7 @@ package validation
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -229,10 +230,10 @@ func isValidationError(err error) bool {
 	}
 
 	// Check for sentinel errors
-	if err == ErrValidation ||
-		err == ErrValidationFailed ||
-		err == ErrCannotValidateNilValue ||
-		err == ErrInvalidType {
+	if errors.Is(err, ErrValidation) ||
+		errors.Is(err, ErrValidationFailed) ||
+		errors.Is(err, ErrCannotValidateNilValue) ||
+		errors.Is(err, ErrInvalidType) {
 
 		return true
 	}

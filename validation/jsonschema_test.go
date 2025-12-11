@@ -377,6 +377,7 @@ func TestGetRawJSONFromContext(t *testing.T) {
 			setupCtx: func(t *testing.T) context.Context {
 				t.Helper()
 				rawJSON := []byte(`{"name": "John"}`)
+
 				return InjectRawJSONCtx(t.Context(), rawJSON)
 			},
 			wantFound: true,
@@ -405,6 +406,7 @@ func TestGetRawJSONFromContext(t *testing.T) {
 			setupCtx: func(t *testing.T) context.Context {
 				t.Helper()
 				rawJSON := []byte(`[]`)
+
 				return InjectRawJSONCtx(t.Context(), rawJSON)
 			},
 			wantFound: true,
@@ -420,6 +422,7 @@ func TestGetRawJSONFromContext(t *testing.T) {
 			setupCtx: func(t *testing.T) context.Context {
 				t.Helper()
 				rawJSON := []byte(`{"user": {"name": "John", "age": 30}, "tags": ["admin", "user"]}`)
+
 				return InjectRawJSONCtx(t.Context(), rawJSON)
 			},
 			wantFound: true,

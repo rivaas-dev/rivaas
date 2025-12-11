@@ -324,13 +324,13 @@ func getTagErrorMessage(e validator.FieldError) string {
 			return fmt.Sprintf("must be at least %s characters", e.Param())
 		}
 
-		return fmt.Sprintf("must be at least %s", e.Param())
+		return "must be at least " + e.Param()
 	case "max":
 		if e.Type().Kind() == reflect.String {
 			return fmt.Sprintf("must be at most %s characters", e.Param())
 		}
 
-		return fmt.Sprintf("must be at most %s", e.Param())
+		return "must be at most " + e.Param()
 	case "oneof":
 		return fmt.Sprintf("must be one of [%s]", e.Param())
 	case "username":
