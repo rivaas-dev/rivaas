@@ -536,6 +536,7 @@ func TestSchemaGenerator_EmbeddedStructs(t *testing.T) {
 
 	type Extended struct {
 		Base
+
 		Email string `json:"email"`
 	}
 

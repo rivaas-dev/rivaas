@@ -230,6 +230,7 @@ func TestIntrospectRequest_EmbeddedStructs(t *testing.T) {
 
 	type ExtendedRequest struct {
 		BaseParams
+
 		Query string `query:"q"`
 		Body  string `json:"body"`
 	}

@@ -29,17 +29,20 @@ type BaseStruct struct {
 
 type EmbeddedStruct struct {
 	BaseStruct
+
 	Email string `json:"email"`
 }
 
 type NestedEmbedded struct {
 	BaseStruct
 	EmbeddedStruct
+
 	Age int `json:"age"`
 }
 
 type PointerEmbedded struct {
 	*BaseStruct
+
 	Status string `json:"status"`
 }
 
@@ -180,10 +183,12 @@ func TestWalkFields(t *testing.T) {
 		}
 		type Level2 struct {
 			Level1
+
 			Field2 string `json:"field2"`
 		}
 		type Level3 struct {
 			Level2
+
 			Field3 string `json:"field3"`
 		}
 

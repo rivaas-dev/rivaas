@@ -398,6 +398,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 
 		type Request struct {
 			BaseParams
+
 			Page int `query:"page"`
 		}
 
@@ -1107,6 +1108,7 @@ func TestIntrospectRequest_JSONBodyDetection(t *testing.T) {
 				}
 				type Request struct {
 					Body
+
 					ID int `path:"id"`
 				}
 

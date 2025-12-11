@@ -220,14 +220,12 @@ func TestRouteWrapper_Freeze_Concurrent(t *testing.T) {
 
 		// Concurrent freeze calls
 		for range numGoroutines {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				doc := rw.Freeze()
 				mu.Lock()
 				results = append(results, doc)
 				mu.Unlock()
-			}()
+			})
 		}
 		wg.Wait()
 
@@ -252,14 +250,12 @@ func TestRouteWrapper_Freeze_Concurrent(t *testing.T) {
 
 		// Concurrent reads after freeze
 		for range numGoroutines {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				doc := rw.GetFrozenDoc()
 				mu.Lock()
 				results = append(results, doc)
 				mu.Unlock()
-			}()
+			})
 		}
 		wg.Wait()
 
