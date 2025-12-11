@@ -2,7 +2,23 @@
 { pkgs, lib }:
 
 let
-  # Helper function to count changes for a module
+  # =============================================================================
+  # Configuration Constants
+  # =============================================================================
+  cfg = {
+    aiTimeoutSec = 30;           # Timeout for AI message generation
+    diffTruncateBytes = 20000;   # ~400-500 lines, keeps AI context manageable
+    complexChangeThreshold = 5;  # Files changed before using multi-line commit format
+    editorWidth = 80;            # Width for multi-line commit editor
+    editorHeight = 10;           # Height for multi-line commit editor
+    inputWidth = 72;             # Width for single-line commit input (git convention)
+  };
+
+  # =============================================================================
+  # Reusable Shell Script Helpers
+  # =============================================================================
+
+  # Count changes for a module
   # Returns: staged unstaged untracked (space-separated)
   countChangesScript = ''
     count_changes() {
@@ -15,9 +31,8 @@ let
     }
   '';
 
-  # Common setup: ensure we're at repo root
+  # Ensure we're at the repository root
   repoRootCheck = ''
-    # Ensure we're at the repository root
     repo_root=$($git rev-parse --show-toplevel 2>/dev/null)
     if [ -z "$repo_root" ]; then
       $gum style --foreground ${lib.colors.error} "✗ Not in a git repository"
@@ -25,6 +40,63 @@ let
     fi
     cd "$repo_root" || exit 1
   '';
+
+  # Discover root-level Go modules
+  findModulesScript = ''
+    find_modules() {
+      ${pkgs.findutils}/bin/find . ${lib.findPatterns.rootModules} | sed 's|^\./||' | sort
+    }
+  '';
+
+  # Check for changes outside Go modules and print warning if any
+  # Args: $1 = newline-separated list of module paths
+  checkOutsideChangesScript = ''
+    check_outside_changes() {
+      local modules="$1"
+      local other_changes module_changes outside_changes
+
+      other_changes=$($git status --porcelain 2>/dev/null | wc -l)
+      module_changes=0
+
+      while IFS= read -r mod; do
+        [ -z "$mod" ] && continue
+        count=$($git status --porcelain -- "$mod/" 2>/dev/null | wc -l)
+        module_changes=$((module_changes + count))
+      done <<< "$modules"
+
+      outside_changes=$((other_changes - module_changes))
+      if [ "$outside_changes" -gt 0 ]; then
+        echo ""
+        $gum style --foreground ${lib.colors.accent4} "  ⚠ $outside_changes file(s) changed outside Go modules"
+        return 0
+      fi
+      return 1
+    }
+  '';
+
+  # Clean AI output: strip quotes and trim whitespace
+  cleanAiOutputScript = ''
+    clean_ai_output() {
+      echo "$1" | sed 's/^"//;s/"$//' | sed "s/^'//;s/'$//" | xargs
+    }
+  '';
+
+  # Strip markdown code fences from AI output
+  stripMarkdownScript = ''
+    strip_markdown() {
+      sed '/^```/d'
+    }
+  '';
+
+  # Common AI prompt rules (shared between simple and complex prompts)
+  aiPromptRules = ''
+RULES:
+- Start with lowercase verb (add, fix, refactor, update, etc.)
+- No module name in message
+- Max 50 chars for title line
+- PLAIN TEXT ONLY - no markdown, no code fences, no quotes
+- Just output the message, nothing else'';
+
 in
 {
   # Check which modules have uncommitted changes
@@ -38,14 +110,14 @@ in
       git="${pkgs.git}/bin/git"
 
       ${repoRootCheck}
-
       ${countChangesScript}
+      ${findModulesScript}
+      ${checkOutsideChangesScript}
 
       $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Module Changes Status"
       echo ""
 
-      # Root-level modules only
-      modules=$(${pkgs.findutils}/bin/find . ${lib.findPatterns.rootModules} | sed 's|^\./||' | sort)
+      modules=$(find_modules)
 
       if [ -z "$modules" ]; then
         $gum style --foreground ${lib.colors.info} "No modules found"
@@ -58,7 +130,6 @@ in
       for mod in $modules; do
         [ -z "$mod" ] && continue
 
-        # Get changes for this module (staged + unstaged + untracked)
         read -r staged unstaged untracked <<< "$(count_changes "$mod")"
         total=$((staged + unstaged + untracked))
 
@@ -81,16 +152,7 @@ in
       [ $has_changes -gt 0 ] && $gum style --foreground ${lib.colors.accent3} "  ● $has_changes module(s) with uncommitted changes"
       [ $clean -gt 0 ] && $gum style --foreground ${lib.colors.success} "  ✓ $clean module(s) with nothing to commit"
 
-      # Check for changes outside Go modules
-      other_changes=$($git status --porcelain 2>/dev/null | wc -l)
-      module_changes=$(for mod in $modules; do
-        $git status --porcelain -- "$mod/" 2>/dev/null
-      done | wc -l)
-      outside_changes=$((other_changes - module_changes))
-      if [ "$outside_changes" -gt 0 ]; then
-        echo ""
-        $gum style --foreground ${lib.colors.accent4} "  ⚠ $outside_changes file(s) changed outside Go modules"
-      fi
+      check_outside_changes "$modules"
     '');
   };
 
@@ -105,17 +167,17 @@ in
       git="${pkgs.git}/bin/git"
 
       ${repoRootCheck}
-
       ${countChangesScript}
+      ${findModulesScript}
+      ${checkOutsideChangesScript}
+      ${cleanAiOutputScript}
+      ${stripMarkdownScript}
 
       # Generate AI commit message with timeout and error handling
       generate_ai_message() {
         local prompt="$1"
-        local timeout_sec=30
-
-        # Run cursor-agent with timeout, capture stdout separately from stderr
         local output
-        if output=$(timeout "$timeout_sec" ${pkgs.cursor-cli}/bin/cursor-agent -p --output-format text "$prompt" 2>/dev/null); then
+        if output=$(timeout ${toString cfg.aiTimeoutSec} ${pkgs.cursor-cli}/bin/cursor-agent -p --output-format text "$prompt" 2>/dev/null); then
           echo "$output"
           return 0
         else
@@ -136,10 +198,8 @@ in
         $gum style --faint "  Run: cursor-agent login"
 
         if $gum confirm "Login now?"; then
-          # Prevent browser auto-open, show URL in terminal instead
           NO_OPEN_BROWSER=1 ${pkgs.cursor-cli}/bin/cursor-agent login
 
-          # Re-check after login attempt
           login_status=$(${pkgs.cursor-cli}/bin/cursor-agent status 2>&1)
           if echo "$login_status" | grep -q "Not logged in"; then
             $gum style --foreground ${lib.colors.error} "✗ Login failed"
@@ -155,15 +215,14 @@ in
       $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Interactive Module Commit"
       echo ""
 
-      # Root-level modules only
-      modules=$(${pkgs.findutils}/bin/find . ${lib.findPatterns.rootModules} | sed 's|^\./||' | sort)
+      modules=$(find_modules)
 
       if [ -z "$modules" ]; then
         $gum style --foreground ${lib.colors.info} "No modules found"
         exit 0
       fi
 
-      # Find modules with changes (store in array-like newline-separated string)
+      # Find modules with changes
       modules_with_changes=""
       for mod in $modules; do
         [ -z "$mod" ] && continue
@@ -174,17 +233,12 @@ in
         [ "$total" -gt 0 ] && modules_with_changes="$modules_with_changes"$'\n'"$mod"
       done
 
-      # Trim leading newline and check if empty
       modules_with_changes=$(echo "$modules_with_changes" | sed '/^$/d')
 
       if [ -z "$modules_with_changes" ]; then
         $gum style --foreground ${lib.colors.info} "Nothing to commit in Go modules"
 
-        # Check for changes outside Go modules
-        other_changes=$($git status --porcelain 2>/dev/null | wc -l)
-        if [ "$other_changes" -gt 0 ]; then
-          echo ""
-          $gum style --foreground ${lib.colors.accent4} "Note: $other_changes file(s) changed outside Go modules"
+        if check_outside_changes "$modules"; then
           $gum style --faint "  Use 'git status' to see all changes"
         fi
         exit 0
@@ -215,11 +269,15 @@ in
 
       # Count selected modules for progress indicator
       total_selected=$(echo "$selected" | wc -l)
+
       current_idx=0
       committed_count=0
 
+      # Read all selected modules into an array first (avoids stdin issues in loop)
+      readarray -t selected_modules <<< "$selected"
+
       # Process each selected module
-      while IFS= read -r mod; do
+      for mod in "''${selected_modules[@]}"; do
         [ -z "$mod" ] && continue
         current_idx=$((current_idx + 1))
 
@@ -245,23 +303,21 @@ in
         $git add "$mod/"
 
         # Get the diff for AI context (limit by bytes to avoid huge prompts)
-        # Use 20KB limit which is roughly 400-500 lines of code
-        diff_content=$($git diff --cached -- "$mod/" 2>/dev/null | head -c 20000)
-        diff_full_size=$($git diff --cached -- "$mod/" 2>/dev/null | wc -c)
+        diff_limit=${toString cfg.diffTruncateBytes}
+        diff_content=$($git diff --cached -- "$mod/" 2>/dev/null | head -c "$diff_limit")
+        diff_full_size=$($git diff --cached -- "$mod/" 2>/dev/null | wc -c | tr -d ' ')
 
-        if [ "$diff_full_size" -gt 20000 ]; then
-          $gum style --foreground ${lib.colors.accent4} "  (diff truncated: $(($diff_full_size / 1024))KB → 20KB for AI context)"
-          # Add summary of what was truncated
+        if [ "$diff_full_size" -gt "$diff_limit" ]; then
+          $gum style --foreground ${lib.colors.accent4} "  (diff truncated: $(($diff_full_size / 1024))KB → $((diff_limit / 1024))KB for AI context)"
           diff_content="$diff_content"$'\n\n'"[... truncated, full diff is $(($diff_full_size / 1024))KB ...]"
         fi
 
         # Count changed files to determine if this is a complex change
-        file_count=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l)
+        file_count=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l | tr -d ' ')
 
-        # Generate commit message using cursor-agent
         $gum style --foreground ${lib.colors.info} "Generating commit message with AI..."
 
-        if [ "$file_count" -gt 5 ]; then
+        if [ "$file_count" -gt ${toString cfg.complexChangeThreshold} ]; then
           # Complex change: generate title + body
           prompt="Write a git commit message for this diff.
 
@@ -277,20 +333,14 @@ refactor error handling across handlers
 - update middleware error types
 - fix inconsistent error messages
 
-RULES:
-- First line is the title (max 50 chars, start with lowercase verb)
-- No module name in title
+${aiPromptRules}
 - 2-3 bullet points describing changes
-- PLAIN TEXT ONLY - no markdown, no code fences, no quotes
 
 Diff:
 $diff_content"
 
           if raw_output=$(generate_ai_message "$prompt"); then
-            # Strip any markdown code fences the AI might have added
-            raw_output=$(echo "$raw_output" | sed '/^```/d')
-
-            # Extract title (first non-empty line) and body (rest)
+            raw_output=$(echo "$raw_output" | strip_markdown)
             ai_title=$(echo "$raw_output" | sed '/^[[:space:]]*$/d' | head -1)
             ai_body=$(echo "$raw_output" | sed '1,/^[[:space:]]*$/d' | sed '/^[[:space:]]*$/d')
           else
@@ -298,25 +348,21 @@ $diff_content"
             ai_body=""
           fi
 
-          # Fallback if cursor-agent failed
           if [ -z "$ai_title" ]; then
             ai_title="update $mod"
             ai_body=""
             $gum style --foreground ${lib.colors.accent4} "  (AI generation failed or timed out, using default)"
           fi
 
-          # Clean up the title
-          ai_title=$(echo "$ai_title" | sed 's/^"//;s/"$//' | sed "s/^'//;s/'$//" | xargs)
+          ai_title=$(clean_ai_output "$ai_title")
 
-          # Add module prefix
           ai_message_with_prefix="$mod: $ai_title"
           [ -n "$ai_body" ] && ai_message_with_prefix="$ai_message_with_prefix
 
 $ai_body"
 
-          # Let user edit with multi-line editor
           $gum style --foreground ${lib.colors.info} "Edit commit message (Ctrl+D to save, Esc to cancel):"
-          message=$($gum write --width 80 --height 10 --value "$ai_message_with_prefix")
+          message=$($gum write --width ${toString cfg.editorWidth} --height ${toString cfg.editorHeight} --value "$ai_message_with_prefix" </dev/tty)
         else
           # Simple change: title only
           prompt="Write a git commit message title (max 50 chars).
@@ -324,37 +370,27 @@ $ai_body"
 EXAMPLE OUTPUT:
 format imports and remove unused
 
-RULES:
-- Start with lowercase verb
-- No module name
-- PLAIN TEXT ONLY - no markdown, no code fences, no quotes
-- Just output the message, nothing else
+${aiPromptRules}
 
 Diff:
 $diff_content"
 
           if raw_output=$(generate_ai_message "$prompt"); then
-            # Strip any markdown code fences and get first non-empty line
-            ai_message=$(echo "$raw_output" | sed '/^```/d' | sed '/^[[:space:]]*$/d' | head -1)
+            ai_message=$(echo "$raw_output" | strip_markdown | sed '/^[[:space:]]*$/d' | head -1)
           else
             ai_message=""
           fi
 
-          # Fallback if cursor-agent failed
           if [ -z "$ai_message" ]; then
             ai_message="update $mod"
             $gum style --foreground ${lib.colors.accent4} "  (AI generation failed or timed out, using default)"
           fi
 
-          # Clean up the message (remove quotes, trim whitespace)
-          ai_message=$(echo "$ai_message" | sed 's/^"//;s/"$//' | sed "s/^'//;s/'$//" | xargs)
-
-          # Add module prefix for editing
+          ai_message=$(clean_ai_output "$ai_message")
           ai_message_with_prefix="$mod: $ai_message"
 
-          # Let user edit the message (with prefix visible)
           $gum style --foreground ${lib.colors.info} "Edit commit message:"
-          message=$($gum input --width 72 --value "$ai_message_with_prefix")
+          message=$($gum input --width ${toString cfg.inputWidth} --value "$ai_message_with_prefix" </dev/tty)
         fi
 
         if [ -z "$message" ]; then
@@ -379,22 +415,23 @@ $diff_content"
         fi
         echo ""
 
-        if $gum confirm "Commit?"; then
-          # Use heredoc for reliable multi-line message handling
-          if $git commit -F - <<EOF
-$final_message
-EOF
-          then
+        if $gum confirm "Commit?" </dev/tty; then
+          # Use temp file instead of heredoc to avoid stdin issues in loop
+          commit_msg_file=$(mktemp)
+          printf '%s\n' "$final_message" > "$commit_msg_file"
+          if $git commit -F "$commit_msg_file"; then
+            rm -f "$commit_msg_file"
             $gum style --foreground ${lib.colors.success} "✓ Committed: $mod"
             committed_count=$((committed_count + 1))
           else
+            rm -f "$commit_msg_file"
             $gum style --foreground ${lib.colors.error} "✗ Failed to commit $mod"
           fi
         else
           $git reset HEAD -- "$mod/" >/dev/null 2>&1 || true
           $gum style --foreground ${lib.colors.info} "Skipped $mod"
         fi
-      done <<< "$selected"
+      done
 
       # Summary
       echo ""
