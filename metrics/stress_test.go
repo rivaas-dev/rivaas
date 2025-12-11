@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -48,17 +47,15 @@ func TestStress_RapidCreateShutdownCycles(t *testing.T) {
 				WithServerDisabled(),
 			)
 
-			ctx := t.Context()
-
 			// Rapidly record some metrics
 			for j := range 50 {
-				_ = recorder.IncrementCounter(ctx, fmt.Sprintf("counter_%d", j%10))
-				_ = recorder.RecordHistogram(ctx, fmt.Sprintf("histogram_%d", j%5), float64(j))
-				_ = recorder.SetGauge(ctx, fmt.Sprintf("gauge_%d", j%3), float64(j))
+				_ = recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", j%10))
+				_ = recorder.RecordHistogram(t.Context(), fmt.Sprintf("histogram_%d", j%5), float64(j))
+				_ = recorder.SetGauge(t.Context(), fmt.Sprintf("gauge_%d", j%3), float64(j))
 			}
 
 			// Rapid shutdown
-			err := recorder.Shutdown(ctx)
+			err := recorder.Shutdown(t.Context())
 			assert.NoError(t, err, "Cycle %d shutdown failed", i)
 		})
 	}
@@ -79,9 +76,8 @@ func TestStress_ConcurrentShutdownRace(t *testing.T) {
 	)
 
 	// Record some metrics first
-	ctx := t.Context()
 	for i := range 20 {
-		_ = recorder.IncrementCounter(ctx, fmt.Sprintf("counter_%d", i))
+		_ = recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", i))
 	}
 
 	const numGoroutines = 50
@@ -93,7 +89,7 @@ func TestStress_ConcurrentShutdownRace(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			// Should all succeed without panic (idempotent)
-			err := recorder.Shutdown(ctx)
+			err := recorder.Shutdown(t.Context())
 			// Errors are acceptable, panics are not
 			_ = err
 		}()
@@ -116,7 +112,6 @@ func TestStress_MetricRecordingDuringShutdown(t *testing.T) {
 		WithServerDisabled(),
 	)
 
-	ctx := t.Context()
 	var wg sync.WaitGroup
 
 	// Start recording goroutines
@@ -134,8 +129,8 @@ func TestStress_MetricRecordingDuringShutdown(t *testing.T) {
 					return
 				default:
 					// Continue recording even during shutdown
-					_ = recorder.IncrementCounter(ctx, fmt.Sprintf("counter_%d", id))
-					_ = recorder.RecordHistogram(ctx, fmt.Sprintf("histogram_%d", id), float64(j))
+					_ = recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", id))
+					_ = recorder.RecordHistogram(t.Context(), fmt.Sprintf("histogram_%d", id), float64(j))
 					j++
 					// Small yield to allow interleaving
 					if j%100 == 0 {
@@ -151,7 +146,7 @@ func TestStress_MetricRecordingDuringShutdown(t *testing.T) {
 
 	// Start shutdown while recording is ongoing
 	wg.Go(func() {
-		err := recorder.Shutdown(ctx)
+		err := recorder.Shutdown(t.Context())
 		_ = err // Error is acceptable, panic is not
 	})
 
@@ -224,7 +219,7 @@ func TestStress_MiddlewareThroughput(t *testing.T) {
 		WithServiceName("middleware-stress"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
 	// Create a simple handler wrapped with middleware
 	handler := Middleware(recorder)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -365,7 +360,7 @@ func TestStress_RequestMetricsLifecycle(t *testing.T) {
 		WithServiceName("lifecycle-stress"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
 	ctx := t.Context()
 	const numGoroutines = 100

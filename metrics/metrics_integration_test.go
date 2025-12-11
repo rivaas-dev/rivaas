@@ -363,7 +363,7 @@ func TestIntegration_PrometheusEndpoint(t *testing.T) {
 	resp, err := http.DefaultClient.Do(metricsReq)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		resp.Body.Close() //nolint:errcheck // Best-effort close in test cleanup
+		_ = resp.Body.Close()
 	})
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)

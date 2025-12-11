@@ -201,6 +201,7 @@ func TestMetricsMiddlewareResponseSizeCapture(t *testing.T) {
 // mockWrappedWriter is a mock implementation of an already-wrapped response writer.
 type mockWrappedWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 	size       int
 	written    bool
@@ -221,6 +222,7 @@ func (m *mockWrappedWriter) Write(b []byte) (int, error) {
 	}
 	n, err := m.ResponseWriter.Write(b)
 	m.size += n
+
 	return n, err
 }
 
@@ -228,6 +230,7 @@ func (m *mockWrappedWriter) StatusCode() int {
 	if m.statusCode == 0 {
 		return http.StatusOK
 	}
+
 	return m.statusCode
 }
 

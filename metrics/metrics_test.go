@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +42,7 @@ func TestRecorderConfig(t *testing.T) {
 		WithStrictPort(), // Require exact port for deterministic test
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	assert.True(t, recorder.IsEnabled())
@@ -62,7 +61,7 @@ func TestRecorderWithHTTP(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	// Start the metrics server
@@ -95,7 +94,7 @@ func TestRecorderProviders(t *testing.T) {
 			WithPrometheus(":9093", "/metrics"),
 		)
 		t.Cleanup(func() {
-			recorder.Shutdown(context.Background())
+			recorder.Shutdown(t.Context())
 		})
 		assert.Equal(t, PrometheusProvider, recorder.Provider())
 	})
@@ -107,7 +106,7 @@ func TestRecorderProviders(t *testing.T) {
 			WithOTLP("http://localhost:4318"),
 		)
 		t.Cleanup(func() {
-			recorder.Shutdown(context.Background())
+			recorder.Shutdown(t.Context())
 		})
 		assert.Equal(t, OTLPProvider, recorder.Provider())
 	})
@@ -118,7 +117,7 @@ func TestRecorderProviders(t *testing.T) {
 			WithStdout(),
 		)
 		t.Cleanup(func() {
-			recorder.Shutdown(context.Background())
+			recorder.Shutdown(t.Context())
 		})
 		assert.Equal(t, StdoutProvider, recorder.Provider())
 	})
@@ -132,19 +131,17 @@ func TestCustomMetrics(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
-	ctx := t.Context()
-
 	// Test custom metrics recording - now returns errors
-	err := recorder.RecordHistogram(ctx, "test_histogram", 1.5)
+	err := recorder.RecordHistogram(t.Context(), "test_histogram", 1.5)
 	require.NoError(t, err)
 
-	err = recorder.IncrementCounter(ctx, "test_counter")
+	err = recorder.IncrementCounter(t.Context(), "test_counter")
 	require.NoError(t, err)
 
-	err = recorder.SetGauge(ctx, "test_gauge", 42.0)
+	err = recorder.SetGauge(t.Context(), "test_gauge", 42.0)
 	require.NoError(t, err)
 
 	assert.True(t, recorder.IsEnabled())
@@ -158,7 +155,7 @@ func TestRecorderMiddleware(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	// Create a test handler
@@ -247,7 +244,7 @@ func TestRecorderIntegration(t *testing.T) {
 		WithServiceName("integration-test"),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	// Create HTTP mux
@@ -288,7 +285,7 @@ func TestRecorderHandler(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(context.Background())
+		recorder.Shutdown(t.Context())
 	})
 
 	// Create HTTP handler with metrics to generate some data
@@ -328,7 +325,7 @@ func TestHandlerErrors(t *testing.T) {
 			WithServiceName("test-service"),
 		)
 		t.Cleanup(func() {
-			recorder.Shutdown(context.Background())
+			recorder.Shutdown(t.Context())
 		})
 
 		handler, err := recorder.Handler()
@@ -346,7 +343,7 @@ func TestHandlerErrors(t *testing.T) {
 			WithServiceName("test-service"),
 		)
 		t.Cleanup(func() {
-			recorder.Shutdown(context.Background())
+			recorder.Shutdown(t.Context())
 		})
 
 		handler, err := recorder.Handler()
@@ -376,8 +373,7 @@ func TestShutdown(t *testing.T) {
 		require.NoError(t, err, "Metrics server should start")
 
 		// Shutdown should not error
-		ctx := t.Context()
-		err = recorder.Shutdown(ctx)
+		err = recorder.Shutdown(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -390,8 +386,7 @@ func TestShutdown(t *testing.T) {
 		)
 
 		// Shutdown may error if OTLP collector is not running (expected in tests)
-		ctx := t.Context()
-		err := recorder.Shutdown(ctx)
+		err := recorder.Shutdown(t.Context())
 		// We don't assert no error here because OTLP requires a running collector
 		// The important thing is that Shutdown() doesn't panic
 		_ = err
@@ -405,8 +400,7 @@ func TestShutdown(t *testing.T) {
 		)
 
 		// Shutdown should not error
-		ctx := t.Context()
-		err := recorder.Shutdown(ctx)
+		err := recorder.Shutdown(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -426,18 +420,16 @@ func TestShutdown(t *testing.T) {
 		err = waitForMetricsServer(t, "localhost:9106", 1*time.Second)
 		require.NoError(t, err, "Metrics server should start")
 
-		ctx := t.Context()
-
 		// First shutdown
-		err = recorder.Shutdown(ctx)
+		err = recorder.Shutdown(t.Context())
 		require.NoError(t, err)
 
 		// Second shutdown should also succeed (idempotent)
-		err = recorder.Shutdown(ctx)
+		err = recorder.Shutdown(t.Context())
 		require.NoError(t, err)
 
 		// Third shutdown for good measure
-		err = recorder.Shutdown(ctx)
+		err = recorder.Shutdown(t.Context())
 		require.NoError(t, err)
 
 		// Verify shutdown flag is still true
@@ -455,8 +447,6 @@ func TestCustomMetricsLimitRaceCondition(t *testing.T) {
 		WithMaxCustomMetrics(10), // Small limit for testing
 	)
 
-	ctx := t.Context()
-
 	// Create metrics concurrently
 	const numGoroutines = 20
 	const metricsPerGoroutine = 5
@@ -466,7 +456,7 @@ func TestCustomMetricsLimitRaceCondition(t *testing.T) {
 		go func(id int) {
 			for j := range metricsPerGoroutine {
 				metricName := fmt.Sprintf("metric_%d_%d", id, j)
-				_ = recorder.IncrementCounter(ctx, metricName)
+				_ = recorder.IncrementCounter(t.Context(), metricName)
 			}
 			done <- true
 		}(i)

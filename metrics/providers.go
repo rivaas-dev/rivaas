@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -38,7 +39,7 @@ func (r *Recorder) initializeProvider() error {
 	// If user provided a custom meter provider, skip built-in provider initialization
 	if r.customMeterProvider {
 		if r.meterProvider == nil {
-			return fmt.Errorf("custom meter provider is nil")
+			return errors.New("custom meter provider is nil")
 		}
 		r.emitDebug("Using custom user-provided meter provider")
 		r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
@@ -276,7 +277,7 @@ func (r *Recorder) startMetricsServer(ctx context.Context) {
 				"path", metricsPath)
 		}
 
-		if serveErr := server.ListenAndServe(); serveErr != nil && serveErr != http.ErrServerClosed {
+		if serveErr := server.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			// Clear the server reference on error with mutex protection
 			r.serverMutex.Lock()
 			r.metricsServer = nil

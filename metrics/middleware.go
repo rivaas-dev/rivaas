@@ -16,7 +16,7 @@ package metrics
 
 import (
 	"bufio"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 	"regexp"
@@ -228,6 +228,7 @@ func Middleware(recorder *Recorder, opts ...MiddlewareOption) func(http.Handler)
 // underlying ResponseWriter supports them.
 type responseWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 	size       int
 	written    bool
@@ -294,7 +295,7 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 		return h.Hijack()
 	}
 
-	return nil, nil, fmt.Errorf("underlying ResponseWriter doesn't support Hijack")
+	return nil, nil, errors.New("underlying ResponseWriter doesn't support Hijack")
 }
 
 // Push implements [http.Pusher] for HTTP/2 server push.

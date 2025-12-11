@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -268,17 +269,17 @@ func (r *Recorder) validate() error {
 
 	// Check for conflicting provider options
 	if r.providerSetCount > 1 {
-		return fmt.Errorf("conflicting provider options: only one of WithPrometheus, WithOTLP, or WithStdout can be used")
+		return errors.New("conflicting provider options: only one of WithPrometheus, WithOTLP, or WithStdout can be used")
 	}
 
 	// Validate service name
 	if r.serviceName == "" {
-		return fmt.Errorf("service name cannot be empty")
+		return errors.New("service name cannot be empty")
 	}
 
 	// Validate service version
 	if r.serviceVersion == "" {
-		return fmt.Errorf("service version cannot be empty")
+		return errors.New("service version cannot be empty")
 	}
 
 	// Validate max custom metrics
@@ -295,10 +296,10 @@ func (r *Recorder) validate() error {
 	switch r.provider {
 	case PrometheusProvider:
 		if r.metricsPort == "" {
-			return fmt.Errorf("metrics port cannot be empty for Prometheus provider")
+			return errors.New("metrics port cannot be empty for Prometheus provider")
 		}
 		if r.metricsPath == "" {
-			return fmt.Errorf("metrics path cannot be empty for Prometheus provider")
+			return errors.New("metrics path cannot be empty for Prometheus provider")
 		}
 	case OTLPProvider:
 		if r.otlpEndpoint == "" {
@@ -340,7 +341,7 @@ func MustNew(opts ...Option) *Recorder {
 //	}
 func (r *Recorder) Handler() (http.Handler, error) {
 	if !r.enabled {
-		return nil, fmt.Errorf("metrics not enabled")
+		return nil, errors.New("metrics not enabled")
 	}
 
 	if r.provider != PrometheusProvider || r.prometheusHandler == nil {

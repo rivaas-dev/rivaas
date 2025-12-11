@@ -170,7 +170,7 @@ func WithEventHandler(handler EventHandler) Option {
 //	metrics.New(metrics.WithLogger(slog.Default()))
 //
 //	// Use custom slog logger
-//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	:= slog.New(slog.NewJSONHandler(os.Stdout, nil))
 //	metrics.New(metrics.WithLogger(logger))
 func WithLogger(logger *slog.Logger) Option {
 	return WithEventHandler(DefaultEventHandler(logger))

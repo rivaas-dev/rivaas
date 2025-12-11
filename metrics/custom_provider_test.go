@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,9 +48,9 @@ func TestWithCustomMeterProvider(t *testing.T) {
 	assert.Equal(t, customProvider, recorder.meterProvider)
 
 	// Verify metrics work (errors are returned but we ignore them for this test)
-	_ = recorder.IncrementCounter(context.Background(), "test_counter")
-	_ = recorder.RecordHistogram(context.Background(), "test_metric", 1.5)
-	_ = recorder.SetGauge(context.Background(), "test_gauge", 42)
+	_ = recorder.IncrementCounter(t.Context(), "test_counter")
+	_ = recorder.RecordHistogram(t.Context(), "test_metric", 1.5)
+	_ = recorder.SetGauge(t.Context(), "test_gauge", 42)
 
 	// Shutdown should NOT shut down the custom provider (user manages it)
 	err = recorder.Shutdown(t.Context())

@@ -17,6 +17,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"errors"
 	"regexp"
 	"strings"
 	"sync/atomic"
@@ -66,7 +67,7 @@ func (e *limitError) Error() string {
 // Returns an error if the name is invalid.
 func validateMetricName(name string) error {
 	if name == "" {
-		return fmt.Errorf("metric name cannot be empty")
+		return errors.New("metric name cannot be empty")
 	}
 	if len(name) > maxMetricNameLength {
 		return fmt.Errorf("metric name too long: %d characters (max %d)", len(name), maxMetricNameLength)
@@ -110,6 +111,7 @@ func (r *Recorder) BeginRequest(ctx context.Context) *RequestMetrics {
 			r.emitDebug("BeginRequest called before Start() - metrics will be skipped until Start() is called",
 				"provider", r.provider)
 		})
+
 		return nil
 	}
 

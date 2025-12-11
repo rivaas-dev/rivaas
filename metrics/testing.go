@@ -125,7 +125,7 @@ func WaitForMetricsServer(tb testing.TB, address string, timeout time.Duration) 
 		conn, err := dialer.DialContext(ctx, "tcp", address)
 		cancel()
 		if err == nil {
-			conn.Close() //nolint:errcheck // Best-effort close, error not critical for test helper
+			_ = conn.Close()
 
 			return nil
 		}
@@ -145,7 +145,7 @@ func findAvailableTestPort(tb testing.TB) int {
 		tb.Fatalf("findAvailableTestPort: failed to find available port: %v", err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close() //nolint:errcheck // Best-effort close, error not critical for port discovery
+	_ = listener.Close()
 
 	return port
 }

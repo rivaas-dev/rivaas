@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -41,9 +40,8 @@ func TestProperty_MetricCountNeverExceedsLimit(t *testing.T) {
 		WithMaxCustomMetrics(limit),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
-	ctx := t.Context()
 	var violations atomic.Int64
 
 	var wg sync.WaitGroup
@@ -54,7 +52,7 @@ func TestProperty_MetricCountNeverExceedsLimit(t *testing.T) {
 			defer wg.Done()
 			for j := range metricsPerGoroutine {
 				metricName := fmt.Sprintf("metric_%d_%d", id, j)
-				_ = recorder.IncrementCounter(ctx, metricName)
+				_ = recorder.IncrementCounter(t.Context(), metricName)
 
 				// PROPERTY: Count should NEVER exceed limit
 				count := recorder.CustomMetricCount()
@@ -86,9 +84,8 @@ func TestProperty_SameMetricNameReturnsSameInstance(t *testing.T) {
 		WithServiceName("idempotent-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
-	ctx := t.Context()
 	const metricName = "shared_counter"
 	const numGoroutines = 50
 
@@ -99,7 +96,7 @@ func TestProperty_SameMetricNameReturnsSameInstance(t *testing.T) {
 	for range numGoroutines {
 		go func() {
 			defer wg.Done()
-			_ = recorder.IncrementCounter(ctx, metricName)
+			_ = recorder.IncrementCounter(t.Context(), metricName)
 		}()
 	}
 
@@ -125,15 +122,13 @@ func TestProperty_FailuresAreTracked(t *testing.T) {
 		WithMaxCustomMetrics(limit),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
-
-	ctx := t.Context()
+	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
 	// Create metrics until limit, then continue to trigger failures
 	var successCount int
 	var failureCount int
 	for i := range totalAttempts {
-		err := recorder.IncrementCounter(ctx, fmt.Sprintf("counter_%d", i))
+		err := recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", i))
 		if err != nil {
 			failureCount++
 		} else {
@@ -173,8 +168,6 @@ func TestProperty_ShutdownIsIdempotent(t *testing.T) {
 		WithServerDisabled(),
 	)
 
-	ctx := t.Context()
-
 	// Call shutdown multiple times from multiple goroutines
 	const numGoroutines = 10
 	var wg sync.WaitGroup
@@ -185,7 +178,7 @@ func TestProperty_ShutdownIsIdempotent(t *testing.T) {
 	for range numGoroutines {
 		go func() {
 			defer wg.Done()
-			err := recorder.Shutdown(ctx)
+			err := recorder.Shutdown(t.Context())
 			if err != nil {
 				errors <- err
 			}
@@ -214,24 +207,22 @@ func TestProperty_DisabledRecorderNeverRecords(t *testing.T) {
 		enabled: false,
 	}
 
-	ctx := t.Context()
-
 	// All metric operations should be no-ops
-	err := recorder.IncrementCounter(ctx, "test_counter")
+	err := recorder.IncrementCounter(t.Context(), "test_counter")
 	require.NoError(t, err, "IncrementCounter on disabled recorder should not error")
 
-	err = recorder.RecordHistogram(ctx, "test_histogram", 1.0)
+	err = recorder.RecordHistogram(t.Context(), "test_histogram", 1.0)
 	require.NoError(t, err, "RecordHistogram on disabled recorder should not error")
 
-	err = recorder.SetGauge(ctx, "test_gauge", 1.0)
+	err = recorder.SetGauge(t.Context(), "test_gauge", 1.0)
 	require.NoError(t, err, "SetGauge on disabled recorder should not error")
 
 	// Start should return nil
-	result := recorder.BeginRequest(ctx)
+	result := recorder.BeginRequest(t.Context())
 	assert.Nil(t, result, "Start on disabled recorder should return nil")
 
 	// Shutdown should succeed
-	err = recorder.Shutdown(ctx)
+	err = recorder.Shutdown(t.Context())
 	assert.NoError(t, err, "Shutdown on disabled recorder should not error")
 }
 
@@ -306,9 +297,8 @@ func TestProperty_MetricLimitEnforcementIsAtomic(t *testing.T) {
 		WithMaxCustomMetrics(limit),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(context.Background()) })
+	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
 
-	ctx := t.Context()
 	var successCount atomic.Int64
 	var maxObserved atomic.Int64
 
@@ -319,7 +309,7 @@ func TestProperty_MetricLimitEnforcementIsAtomic(t *testing.T) {
 	for i := range numGoroutines {
 		go func(id int) {
 			defer wg.Done()
-			err := recorder.IncrementCounter(ctx, fmt.Sprintf("atomic_metric_%d", id))
+			err := recorder.IncrementCounter(t.Context(), fmt.Sprintf("atomic_metric_%d", id))
 			if err == nil {
 				successCount.Add(1)
 			}
