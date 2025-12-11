@@ -203,7 +203,7 @@ func TestChaos_RandomRoutePatterns(t *testing.T) {
 					}
 				}()
 				app.GET(path, func(c *Context) {
-					c.Stringf(http.StatusOK, "route-%d", id)
+					_ = c.Stringf(http.StatusOK, "route-%d", id)
 				})
 			}()
 		}(i, route)

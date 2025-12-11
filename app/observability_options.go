@@ -15,6 +15,7 @@
 package app
 
 import (
+	stderrors "errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -162,7 +163,7 @@ func WithMetricsOnMainRouter(path string) ObservabilityOption {
 		// Check for conflict
 		if s.metricsSeparateServer {
 			s.validationErrors = append(s.validationErrors,
-				fmt.Errorf("WithMetricsOnMainRouter and WithMetricsSeparateServer are mutually exclusive; use only one to configure where metrics are served"))
+				stderrors.New("WithMetricsOnMainRouter and WithMetricsSeparateServer are mutually exclusive; use only one to configure where metrics are served"))
 		}
 		s.metricsOnMainRouter = true
 		if path == "" {
@@ -193,7 +194,7 @@ func WithMetricsSeparateServer(addr, path string) ObservabilityOption {
 		// Check for conflict
 		if s.metricsOnMainRouter {
 			s.validationErrors = append(s.validationErrors,
-				fmt.Errorf("WithMetricsOnMainRouter and WithMetricsSeparateServer are mutually exclusive; use only one to configure where metrics are served"))
+				stderrors.New("WithMetricsOnMainRouter and WithMetricsSeparateServer are mutually exclusive; use only one to configure where metrics are served"))
 		}
 		s.metricsSeparateServer = true
 		s.metricsSeparateAddr = addr

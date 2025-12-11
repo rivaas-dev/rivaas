@@ -17,7 +17,7 @@ package app
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
+	stderrors "errors"
 	"net/http"
 )
 
@@ -110,11 +110,11 @@ func WithConfigForClient(fn func(*tls.ClientHelloInfo) (*tls.Config, error)) MTL
 // validate validates the mTLS configuration and returns an error if invalid.
 func (cfg *mtlsConfig) validate() error {
 	if len(cfg.serverCert.Certificate) == 0 {
-		return fmt.Errorf("server certificate is required for mTLS")
+		return stderrors.New("server certificate is required for mTLS")
 	}
 
 	if cfg.clientCAs == nil {
-		return fmt.Errorf("ClientCAs is required for mTLS (use WithClientCAs option)")
+		return stderrors.New("ClientCAs is required for mTLS (use WithClientCAs option)")
 	}
 
 	return nil

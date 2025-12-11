@@ -15,6 +15,7 @@
 package app
 
 import (
+	stderrors "errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -898,7 +899,7 @@ func (a *App) NoRoute(handler HandlerFunc) {
 //	http.Handle("/metrics", handler)
 func (a *App) GetMetricsHandler() (http.Handler, error) {
 	if a.metrics == nil {
-		return nil, fmt.Errorf("metrics not enabled, use WithObservability(WithMetrics(...)) to enable metrics")
+		return nil, stderrors.New("metrics not enabled, use WithObservability(WithMetrics(...)) to enable metrics")
 	}
 
 	return a.metrics.Handler()

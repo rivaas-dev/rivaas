@@ -41,7 +41,7 @@ func Example() {
 		}
 	})
 
-	fmt.Println("App created successfully")
+	_, _ = fmt.Println("App created successfully")
 	// Output: App created successfully
 }
 
@@ -59,8 +59,8 @@ func Example_withObservability() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Service: %s\n", a.ServiceName())
-	fmt.Printf("Metrics: enabled\n")
+	_, _ = fmt.Printf("Service: %s\n", a.ServiceName())
+	_, _ = fmt.Printf("Metrics: enabled\n")
 	// Output:
 	// Service: example-api
 	// Metrics: enabled
@@ -82,8 +82,8 @@ func Example_testing() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Status: %d\n", resp.StatusCode)
-	resp.Body.Close()
+	_, _ = fmt.Printf("Status: %d\n", resp.StatusCode)
+	_ = resp.Body.Close()
 	// Output: Status: 200
 }
 
@@ -103,7 +103,7 @@ func Example_routing() {
 		}
 	})
 
-	fmt.Println("Routes registered")
+	_, _ = fmt.Println("Routes registered")
 	// Output: Routes registered
 }
 
@@ -123,7 +123,7 @@ func Example_middleware() {
 		}
 	})
 
-	fmt.Println("Middleware registered")
+	_, _ = fmt.Println("Middleware registered")
 	// Output: Middleware registered
 }
 
@@ -151,7 +151,7 @@ func Example_bindAndValidate() {
 		}
 	})
 
-	fmt.Println("Handler with binding and validation registered")
+	_, _ = fmt.Println("Handler with binding and validation registered")
 	// Output: Handler with binding and validation registered
 }
 
@@ -175,7 +175,7 @@ func Example_healthEndpoints() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Health endpoints configured: %s\n", a.ServiceName())
+	_, _ = fmt.Printf("Health endpoints configured: %s\n", a.ServiceName())
 	// Output: Health endpoints configured: example-api
 }
 
@@ -185,20 +185,20 @@ func Example_lifecycleHooks() {
 
 	a.OnStart(func(ctx context.Context) error {
 		// Initialize database, run migrations, etc.
-		fmt.Println("OnStart: Initializing...")
+		_, _ = fmt.Println("OnStart: Initializing...")
 		return nil
 	})
 
 	a.OnReady(func() {
 		// Register with service discovery, warmup caches, etc.
-		fmt.Println("OnReady: Server is ready")
+		_, _ = fmt.Println("OnReady: Server is ready")
 	})
 
 	a.OnShutdown(func(ctx context.Context) {
 		// Close connections, flush buffers, etc.
-		fmt.Println("OnShutdown: Cleaning up...")
+		_, _ = fmt.Println("OnShutdown: Cleaning up...")
 	})
 
-	fmt.Println("Lifecycle hooks registered")
+	_, _ = fmt.Println("Lifecycle hooks registered")
 	// Output: Lifecycle hooks registered
 }

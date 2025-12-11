@@ -63,7 +63,7 @@ func TestApp_Test(t *testing.T) {
 			makeRequest: func() *http.Request {
 				return httptest.NewRequest(http.MethodGet, "/users/123", nil)
 			},
-			wantStatus: 200,
+			wantStatus: http.StatusOK,
 		},
 		{
 			name: "POST request with body",
@@ -80,7 +80,7 @@ func TestApp_Test(t *testing.T) {
 			makeRequest: func() *http.Request {
 				return httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(`{"name":"Alice"}`))
 			},
-			wantStatus: 201,
+			wantStatus: http.StatusCreated,
 		},
 		{
 			name: "404 not found",
@@ -93,7 +93,7 @@ func TestApp_Test(t *testing.T) {
 			makeRequest: func() *http.Request {
 				return httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
 			},
-			wantStatus: 404,
+			wantStatus: http.StatusNotFound,
 		},
 		{
 			name: "route with path parameters",
@@ -113,7 +113,7 @@ func TestApp_Test(t *testing.T) {
 			makeRequest: func() *http.Request {
 				return httptest.NewRequest(http.MethodGet, "/posts/1/comments/2", nil)
 			},
-			wantStatus: 200,
+			wantStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, resp *http.Response) {
 				t.Helper()
 				body, err := io.ReadAll(resp.Body)
@@ -142,7 +142,8 @@ func TestApp_Test(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			defer resp.Body.Close()
+
+			defer func() { _ = resp.Body.Close() }()
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
 			if tt.checkResponse != nil {
@@ -220,7 +221,7 @@ func TestApp_Test_Timeout(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, resp)
 				if resp != nil {
-					resp.Body.Close()
+					_ = resp.Body.Close()
 				}
 			}
 		})
@@ -246,7 +247,7 @@ func TestApp_Test_Context(t *testing.T) {
 			wantErr: false,
 			checkValue: func(t *testing.T, resp *http.Response) {
 				t.Helper()
-				assert.Equal(t, 200, resp.StatusCode)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				assert.Equal(t, "value", string(body))
@@ -299,12 +300,13 @@ func TestApp_Test_Context(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if resp != nil {
-					resp.Body.Close()
+					_ = resp.Body.Close()
 				}
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
-				defer resp.Body.Close()
+
+				defer func() { _ = resp.Body.Close() }()
 				if tt.checkValue != nil {
 					tt.checkValue(t, resp)
 				}
@@ -348,7 +350,7 @@ func TestApp_TestJSON(t *testing.T) {
 					}
 				})
 			},
-			wantStatus: 201,
+			wantStatus: http.StatusCreated,
 			checkResp: func(t *testing.T, resp *http.Response) {
 				t.Helper()
 				contentType := resp.Header.Get("Content-Type")
@@ -367,7 +369,7 @@ func TestApp_TestJSON(t *testing.T) {
 					}
 				})
 			},
-			wantStatus: 200,
+			wantStatus: http.StatusOK,
 		},
 		{
 			name:        "invalid JSON encoding",
@@ -400,7 +402,7 @@ func TestApp_TestJSON(t *testing.T) {
 					}
 				})
 			},
-			wantStatus: 200,
+			wantStatus: http.StatusOK,
 		},
 		{
 			name:   "PATCH with JSON body",
@@ -422,7 +424,7 @@ func TestApp_TestJSON(t *testing.T) {
 					}
 				})
 			},
-			wantStatus: 200,
+			wantStatus: http.StatusOK,
 		},
 	}
 
@@ -443,7 +445,7 @@ func TestApp_TestJSON(t *testing.T) {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 				if resp != nil {
-					resp.Body.Close()
+					_ = resp.Body.Close()
 				}
 
 				return
@@ -451,7 +453,8 @@ func TestApp_TestJSON(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			defer resp.Body.Close()
+
+			defer func() { _ = resp.Body.Close() }()
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
 			if tt.checkResp != nil {
@@ -495,11 +498,12 @@ func TestExpectJSON(t *testing.T) {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusOK)
-				json.NewEncoder(rec).Encode(User{Name: "Alice", Email: "alice@example.com"})
+
+				_ = json.NewEncoder(rec).Encode(User{Name: "Alice", Email: "alice@example.com"})
 
 				return rec.Result()
 			},
-			wantStatus:  200,
+			wantStatus:  http.StatusOK,
 			out:         &User{},
 			expectError: false,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
@@ -513,11 +517,12 @@ func TestExpectJSON(t *testing.T) {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(rec).Encode(map[string]string{"error": "server error"})
+
+				_ = json.NewEncoder(rec).Encode(map[string]string{"error": "server error"})
 
 				return rec.Result()
 			},
-			wantStatus:  200,
+			wantStatus:  http.StatusOK,
 			out:         &User{},
 			expectError: true,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
@@ -532,11 +537,12 @@ func TestExpectJSON(t *testing.T) {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "text/plain")
 				rec.WriteHeader(http.StatusOK)
-				rec.WriteString("plain text")
+
+				_, _ = rec.WriteString("plain text")
 
 				return rec.Result()
 			},
-			wantStatus:  200,
+			wantStatus:  http.StatusOK,
 			out:         &User{},
 			expectError: true,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
@@ -551,11 +557,12 @@ func TestExpectJSON(t *testing.T) {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusOK)
-				rec.WriteString("{invalid json}")
+
+				_, _ = rec.WriteString("{invalid json}")
 
 				return rec.Result()
 			},
-			wantStatus:  200,
+			wantStatus:  http.StatusOK,
 			out:         &User{},
 			expectError: true,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
@@ -570,11 +577,12 @@ func TestExpectJSON(t *testing.T) {
 				rec := httptest.NewRecorder()
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusOK)
-				json.NewEncoder(rec).Encode(User{Name: "Bob", Email: "bob@example.com"})
+
+				_ = json.NewEncoder(rec).Encode(User{Name: "Bob", Email: "bob@example.com"})
 
 				return rec.Result()
 			},
-			wantStatus:  200,
+			wantStatus:  http.StatusOK,
 			out:         &User{},
 			expectError: false,
 			errorCheck: func(t *testing.T, mockT *mockTestingT) {
@@ -590,7 +598,8 @@ func TestExpectJSON(t *testing.T) {
 
 			mockT := &mockTestingT{}
 			resp := tt.makeResponse()
-			defer resp.Body.Close()
+
+			defer func() { _ = resp.Body.Close() }()
 
 			ExpectJSON(mockT, resp, tt.wantStatus, tt.out)
 
@@ -613,7 +622,7 @@ func TestTestOptions(t *testing.T) {
 
 	app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
 	app.GET("/test", func(c *Context) {
-		if err := c.String(200, "ok"); err != nil {
+		if err := c.String(http.StatusOK, "ok"); err != nil {
 			c.Logger().Error("failed to write response", "err", err)
 		}
 	})
@@ -633,7 +642,7 @@ func TestTestOptions(t *testing.T) {
 					WithContext(context.WithValue(t.Context(), contextKey("test"), "value")),
 				}
 			},
-			wantStatus: 200,
+			wantStatus: http.StatusOK,
 			wantErr:    false,
 		},
 		{
@@ -645,7 +654,7 @@ func TestTestOptions(t *testing.T) {
 					WithContext(t.Context()),
 				}
 			},
-			wantStatus: 200,
+			wantStatus: http.StatusOK,
 			wantErr:    false,
 		},
 		{
@@ -654,7 +663,7 @@ func TestTestOptions(t *testing.T) {
 				t.Helper()
 				return nil
 			},
-			wantStatus: 200,
+			wantStatus: http.StatusOK,
 			wantErr:    false,
 		},
 	}
@@ -669,12 +678,13 @@ func TestTestOptions(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if resp != nil {
-					resp.Body.Close()
+					_ = resp.Body.Close()
 				}
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
-				defer resp.Body.Close()
+
+				defer func() { _ = resp.Body.Close() }()
 				assert.Equal(t, tt.wantStatus, resp.StatusCode)
 			}
 		})
@@ -694,7 +704,7 @@ func TestApp_Test_WithTracingEnabled(t *testing.T) {
 	)
 
 	app.GET("/test", func(c *Context) {
-		if err := c.String(200, "ok"); err != nil {
+		if err := c.String(http.StatusOK, "ok"); err != nil {
 			c.Logger().Error("failed to write response", "err", err)
 		}
 	})
@@ -704,6 +714,7 @@ func TestApp_Test_WithTracingEnabled(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	defer resp.Body.Close()
-	assert.Equal(t, 200, resp.StatusCode)
+
+	defer func() { _ = resp.Body.Close() }()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }

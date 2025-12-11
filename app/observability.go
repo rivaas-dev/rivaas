@@ -17,7 +17,7 @@ package app
 import (
 	"bufio"
 	"context"
-	"fmt"
+	stderrors "errors"
 	"io"
 	"log/slog"
 	"net"
@@ -278,6 +278,7 @@ func (o *observabilityRecorder) BuildRequestLogger(ctx context.Context, req *htt
 // It implements [router.ResponseInfo] plus common optional interfaces.
 type observabilityResponseWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 	size       int64
 	written    bool
@@ -333,7 +334,7 @@ func (rw *observabilityResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, er
 		return hijacker.Hijack()
 	}
 
-	return nil, nil, fmt.Errorf("response writer does not support hijacking")
+	return nil, nil, stderrors.New("response writer does not support hijacking")
 }
 
 // Preserve http.Flusher (for streaming responses)
@@ -349,7 +350,7 @@ func (rw *observabilityResponseWriter) Push(target string, opts *http.PushOption
 		return pusher.Push(target, opts)
 	}
 
-	return fmt.Errorf("response writer does not support push")
+	return stderrors.New("response writer does not support push")
 }
 
 // Preserve io.ReaderFrom (for io.Copy)

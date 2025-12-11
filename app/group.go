@@ -234,8 +234,8 @@ func (g *Group) buildFullPath(path string) string {
 	// Both non-empty: concatenate
 	var sb strings.Builder
 	sb.Grow(len(g.prefix) + len(path))
-	sb.WriteString(g.prefix)
-	sb.WriteString(path)
+	_, _ = sb.WriteString(g.prefix)
+	_, _ = sb.WriteString(path)
 
 	return sb.String()
 }

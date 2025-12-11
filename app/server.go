@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 
+	"errors"
 	"rivaas.dev/router"
 )
 
@@ -40,7 +41,7 @@ func (a *App) logLifecycleEvent(ctx context.Context, level slog.Level, msg strin
 // This is called after the banner is printed to ensure clean terminal output.
 func (a *App) flushStartupLogs() {
 	if a.logging != nil {
-		_ = a.logging.FlushBuffer() // Ignore errors, logging is best-effort
+		_ = a.logging.FlushBuffer()
 	}
 }
 
@@ -123,7 +124,7 @@ func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serv
 		// Signal that server is ready to accept connections
 		close(serverReady)
 
-		if err := startFunc(); err != nil && err != http.ErrServerClosed {
+		if err := startFunc(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- fmt.Errorf("%s server failed to start: %w", protocol, err)
 		}
 	}()
@@ -195,7 +196,9 @@ func (a *App) registerOpenAPIEndpoints() {
 		c.Response.Header().Set("ETag", etag)
 		c.Response.Header().Set("Cache-Control", "public, max-age=3600")
 		c.Response.Header().Set("Content-Type", "application/json")
-		c.Response.Write(specJSON)
+		if _, err := c.Response.Write(specJSON); err != nil {
+			c.Logger().Error("failed to write spec response", "err", err)
+		}
 	})
 
 	// Register UI endpoint if enabled
@@ -428,7 +431,7 @@ func (a *App) StartMTLS(ctx context.Context, addr string, serverCert tls.Certifi
 	originalConnState := server.ConnState
 	server.ConnState = func(conn net.Conn, state http.ConnState) {
 		if state == http.StateActive && !authorizeMTLSConnection(conn, cfg) {
-			conn.Close()
+			_ = conn.Close()
 
 			return
 		}

@@ -23,7 +23,8 @@ import (
 
 // VersionGroup represents a version-specific route group that allows organizing
 // related routes under a specific API version.
-// VersionGroup supports app.HandlerFunc (with app.Context), providing access to binding, validation, and logging features.
+// VersionGroup supports app.HandlerFunc (with app.Context), providing access to
+// binding, validation, and logging features.
 //
 // Routes registered in a VersionGroup are automatically scoped to that version.
 // The version is detected from the request path, headers, query parameters, or other
@@ -142,7 +143,8 @@ func (vg *VersionGroup) HEAD(path string, handlers ...HandlerFunc) *RouteWrapper
 	return vg.addRoute(http.MethodHead, path, handlers)
 }
 
-// OPTIONS adds an OPTIONS route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
+// OPTIONS adds an OPTIONS route to the version group and returns a RouteWrapper
+// for constraints and OpenAPI documentation.
 // It executes any middleware added via Use() before the handler.
 //
 // Example:

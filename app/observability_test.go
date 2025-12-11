@@ -252,12 +252,12 @@ func TestObservabilityRecorder_ExcludesHealthPaths(t *testing.T) {
 
 	// Register health endpoint
 	app.GET("/health", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok")
 	})
 
 	// Register API endpoint
 	app.GET("/api/users", func(c *Context) {
-		c.String(http.StatusOK, "users")
+		_ = c.String(http.StatusOK, "users")
 	})
 
 	// Request to /health (should be excluded from observability)
@@ -487,7 +487,7 @@ func TestDoubleWrappingPrevention(t *testing.T) {
 	})
 
 	app.GET("/test", func(c *Context) {
-		c.String(http.StatusOK, "ok")
+		_ = c.String(http.StatusOK, "ok")
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -523,7 +523,7 @@ func TestNoWrappingForExcludedPaths(t *testing.T) {
 	})
 
 	app.GET("/health", func(c *Context) {
-		c.String(http.StatusOK, "healthy")
+		_ = c.String(http.StatusOK, "healthy")
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -554,7 +554,7 @@ func TestObservabilityResponseWriterImplementsMarkerInterface(t *testing.T) {
 
 	// Write some data
 	wrapped.WriteHeader(http.StatusOK)
-	wrapped.Write([]byte("test"))
+	_, _ = wrapped.Write([]byte("test"))
 
 	assert.Equal(t, http.StatusOK, ri.StatusCode())
 	assert.Equal(t, int64(4), ri.Size())

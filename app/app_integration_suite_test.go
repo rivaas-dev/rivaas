@@ -435,7 +435,7 @@ var _ = Describe("App Integration", func() {
 
 				// Verify execution order: middleware 1, middleware 2, handler
 				// Each request should have 3 entries in order
-				Expect(len(executionOrder)).To(Equal(numRequests*3), "should have 3 entries per request")
+				Expect(executionOrder).To(HaveLen(numRequests*3), "should have 3 entries per request")
 			})
 		})
 

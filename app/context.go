@@ -35,8 +35,9 @@ import (
 //
 // Context instances are pooled by the App and reused across requests.
 type Context struct {
-	*router.Context      // Embed router context for HTTP functionality
-	app             *App // Back reference to app for app-level services
+	*router.Context // Embed router context for HTTP functionality
+
+	app *App // Back reference to app for app-level services
 
 	// Binding metadata (per-request)
 	bindingMeta *bindingMetadata
