@@ -29,8 +29,8 @@ import (
 	"strings"
 	"unicode"
 
+	"rivaas.dev/openapi/internal/model"
 	"rivaas.dev/openapi/internal/schema"
-	"rivaas.dev/openapi/model"
 )
 
 // Builder builds OpenAPI specifications from enriched route information.
@@ -248,6 +248,14 @@ func (b *Builder) buildOperation(er EnrichedRoute, sg *schema.SchemaGenerator, s
 	op.Tags = doc.Tags
 	op.Deprecated = doc.Deprecated
 
+	// Copy operation extensions
+	if len(doc.Extensions) > 0 {
+		op.Extensions = make(map[string]any, len(doc.Extensions))
+		for k, v := range doc.Extensions {
+			op.Extensions[k] = v
+		}
+	}
+
 	for _, s := range doc.Security {
 		op.Security = append(op.Security, model.SecurityRequirement{s.Scheme: s.Scopes})
 	}
@@ -377,7 +385,7 @@ func paramSpecToParameter(ps schema.ParamSpec, sg *schema.SchemaGenerator) model
 		s.Format = ps.Format
 	}
 
-	return model.Parameter{
+	param := model.Parameter{
 		Name:        ps.Name,
 		In:          ps.In,
 		Description: ps.Description,
@@ -385,6 +393,18 @@ func paramSpecToParameter(ps schema.ParamSpec, sg *schema.SchemaGenerator) model
 		Schema:      s,
 		Example:     ps.Example,
 	}
+
+	// Apply style if specified
+	if ps.Style != "" {
+		param.Style = ps.Style
+	}
+
+	// Apply explode if explicitly set
+	if ps.Explode != nil {
+		param.Explode = *ps.Explode
+	}
+
+	return param
 }
 
 // extractPathParams extracts path parameters from a route path with optional type constraints.

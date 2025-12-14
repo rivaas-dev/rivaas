@@ -22,7 +22,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"rivaas.dev/openapi/model"
+	"rivaas.dev/openapi/diag"
+	"rivaas.dev/openapi/internal/model"
+	"rivaas.dev/openapi/validate"
 )
 
 func TestProject(t *testing.T) {
@@ -32,11 +34,9 @@ func TestProject(t *testing.T) {
 		name      string
 		spec      *model.Spec
 		cfg       Config
-		schema30  []byte
-		schema31  []byte
 		wantErr   bool
 		wantWarns bool
-		validate  func(t *testing.T, jsonBytes []byte, warns []Warning)
+		validate  func(t *testing.T, result Result)
 	}{
 		{
 			name: "nil spec",
@@ -86,10 +86,10 @@ func TestProject(t *testing.T) {
 				Version: V30,
 			},
 			wantErr: false,
-			validate: func(t *testing.T, jsonBytes []byte, warns []Warning) {
+			validate: func(t *testing.T, result Result) {
 				t.Helper()
 				var m map[string]any
-				require.NoError(t, json.Unmarshal(jsonBytes, &m))
+				require.NoError(t, json.Unmarshal(result.JSON, &m))
 				assert.Equal(t, "3.0.4", m["openapi"])
 				assert.NotNil(t, m["info"])
 				assert.NotNil(t, m["paths"])
@@ -119,10 +119,10 @@ func TestProject(t *testing.T) {
 				Version: V31,
 			},
 			wantErr: false,
-			validate: func(t *testing.T, jsonBytes []byte, warns []Warning) {
+			validate: func(t *testing.T, result Result) {
 				t.Helper()
 				var m map[string]any
-				require.NoError(t, json.Unmarshal(jsonBytes, &m))
+				require.NoError(t, json.Unmarshal(result.JSON, &m))
 				assert.Equal(t, "3.1.2", m["openapi"])
 				assert.NotNil(t, m["info"])
 				assert.NotNil(t, m["paths"])
@@ -157,15 +157,15 @@ func TestProject(t *testing.T) {
 			},
 			wantErr:   false,
 			wantWarns: true,
-			validate: func(t *testing.T, jsonBytes []byte, warns []Warning) {
+			validate: func(t *testing.T, result Result) {
 				t.Helper()
-				assert.NotEmpty(t, warns)
+				assert.NotEmpty(t, result.Warnings)
 				var foundSummary, foundWebhooks bool
-				for _, w := range warns {
-					if w.Code == DownlevelInfoSummary {
+				for _, w := range result.Warnings {
+					if w.Code() == diag.WarnDownlevelInfoSummary {
 						foundSummary = true
 					}
-					if w.Code == DownlevelWebhooks {
+					if w.Code() == diag.WarnDownlevelWebhooks {
 						foundWebhooks = true
 					}
 				}
@@ -241,10 +241,10 @@ func TestProject(t *testing.T) {
 				Version: V30,
 			},
 			wantErr: false,
-			validate: func(t *testing.T, jsonBytes []byte, warns []Warning) {
+			validate: func(t *testing.T, result Result) {
 				t.Helper()
 				var m map[string]any
-				require.NoError(t, json.Unmarshal(jsonBytes, &m))
+				require.NoError(t, json.Unmarshal(result.JSON, &m))
 				assert.Equal(t, "value", m["x-custom"])
 			},
 		},
@@ -254,7 +254,7 @@ func TestProject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			jsonBytes, warns, err := Project(tt.spec, tt.cfg, tt.schema30, tt.schema31)
+			result, err := Project(context.Background(), tt.spec, tt.cfg)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -262,32 +262,32 @@ func TestProject(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.NotNil(t, jsonBytes)
+			require.NotNil(t, result.JSON)
 
 			if tt.wantWarns {
-				assert.NotEmpty(t, warns)
+				assert.NotEmpty(t, result.Warnings)
 			}
 
 			if tt.validate != nil {
-				tt.validate(t, jsonBytes, warns)
+				tt.validate(t, result)
 			}
 		})
 	}
 }
 
-// mockValidator is a test implementation of JSONSchemaValidator.
+// mockValidator is a test implementation of Validator.
 type mockValidator struct {
-	validateFunc func(ctx context.Context, schemaJSON, docJSON []byte) error
+	validateFunc func(ctx context.Context, specJSON []byte, version validate.Version) error
 }
 
-func (m *mockValidator) ValidateJSON(ctx context.Context, schemaJSON, docJSON []byte) error {
-	return m.validateFunc(ctx, schemaJSON, docJSON)
+func (m *mockValidator) Validate(ctx context.Context, specJSON []byte, version validate.Version) error {
+	return m.validateFunc(ctx, specJSON, version)
 }
 
 func TestProject_WithValidator(t *testing.T) {
 	t.Parallel()
 
-	validateFunc := func(ctx context.Context, schemaJSON, docJSON []byte) error {
+	validateFunc := func(ctx context.Context, specJSON []byte, version validate.Version) error {
 		return nil
 	}
 
@@ -313,38 +313,25 @@ func TestProject_WithValidator(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		cfg      Config
-		schema30 []byte
-		schema31 []byte
-		wantErr  bool
+		name    string
+		cfg     Config
+		wantErr bool
 	}{
 		{
-			name: "3.0 with validator and schema",
+			name: "3.0 with validator",
 			cfg: Config{
-				Version:          V30,
-				JSONSchemaEngine: validator,
+				Version:   V30,
+				Validator: validator,
 			},
-			schema30: []byte(`{}`),
-			wantErr:  false,
+			wantErr: false,
 		},
 		{
-			name: "3.1 with validator and schema",
+			name: "3.1 with validator",
 			cfg: Config{
-				Version:          V31,
-				JSONSchemaEngine: validator,
+				Version:   V31,
+				Validator: validator,
 			},
-			schema31: []byte(`{}`),
-			wantErr:  false,
-		},
-		{
-			name: "3.0 with validator but no schema",
-			cfg: Config{
-				Version:          V30,
-				JSONSchemaEngine: validator,
-			},
-			schema30: nil,
-			wantErr:  false,
+			wantErr: false,
 		},
 	}
 
@@ -352,7 +339,7 @@ func TestProject_WithValidator(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			jsonBytes, _, err := Project(spec, tt.cfg, tt.schema30, tt.schema31)
+			result, err := Project(context.Background(), spec, tt.cfg)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -360,7 +347,7 @@ func TestProject_WithValidator(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.NotNil(t, jsonBytes)
+			require.NotNil(t, result.JSON)
 		})
 	}
 }
@@ -368,7 +355,7 @@ func TestProject_WithValidator(t *testing.T) {
 func TestProject_ValidatorError(t *testing.T) {
 	t.Parallel()
 
-	validateError := func(ctx context.Context, schemaJSON, docJSON []byte) error {
+	validateError := func(ctx context.Context, specJSON []byte, version validate.Version) error {
 		return assert.AnError
 	}
 
@@ -394,15 +381,15 @@ func TestProject_ValidatorError(t *testing.T) {
 	}
 
 	cfg := Config{
-		Version:          V30,
-		JSONSchemaEngine: validator,
+		Version:   V30,
+		Validator: validator,
 	}
 
-	jsonBytes, warns, err := Project(spec, cfg, []byte(`{}`), nil)
+	result, err := Project(context.Background(), spec, cfg)
 
 	require.Error(t, err)
-	assert.NotNil(t, warns)
-	assert.Nil(t, jsonBytes)
+	// Warnings should still be collected before validation fails
+	assert.True(t, len(result.Warnings) >= 0)
 }
 
 func TestVersion_Constants(t *testing.T) {

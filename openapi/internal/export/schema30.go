@@ -14,7 +14,10 @@
 
 package export
 
-import "rivaas.dev/openapi/model"
+import (
+	"rivaas.dev/openapi/diag"
+	"rivaas.dev/openapi/internal/model"
+)
 
 // SchemaV30 represents an OpenAPI 3.0.4 schema.
 type SchemaV30 struct {
@@ -28,6 +31,8 @@ type SchemaV30 struct {
 	ReadOnly         bool                  `json:"readOnly,omitempty"`
 	WriteOnly        bool                  `json:"writeOnly,omitempty"`
 	Nullable         bool                  `json:"nullable,omitempty"`
+	Discriminator    *DiscriminatorV30     `json:"discriminator,omitempty"`
+	XML              *XMLV30               `json:"xml,omitempty"`
 	Enum             []any                 `json:"enum,omitempty"`
 	MultipleOf       *float64              `json:"multipleOf,omitempty"`
 	Maximum          *float64              `json:"maximum,omitempty"`
@@ -52,6 +57,21 @@ type SchemaV30 struct {
 	Extensions       map[string]any        `json:"-"`
 }
 
+// DiscriminatorV30 is used for polymorphism in oneOf/allOf compositions.
+type DiscriminatorV30 struct {
+	PropertyName string            `json:"propertyName"`
+	Mapping      map[string]string `json:"mapping,omitempty"`
+}
+
+// XMLV30 provides XML serialization hints.
+type XMLV30 struct {
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	Prefix    string `json:"prefix,omitempty"`
+	Attribute bool   `json:"attribute,omitempty"`
+	Wrapped   bool   `json:"wrapped,omitempty"`
+}
+
 // schema30 projects a Schema to OpenAPI 3.0.4 format.
 //
 // Key transformations:
@@ -60,7 +80,7 @@ type SchemaV30 struct {
 //   - Const: converts to enum: [const] with warning
 //   - Unevaluated properties: dropped with warning
 //   - Multiple examples: uses first example only
-func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
+func schema30(s *model.Schema, p *proj30, path string) *SchemaV30 {
 	if s == nil {
 		return nil
 	}
@@ -117,7 +137,7 @@ func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
 
 	// Array constraints
 	if s.Items != nil {
-		out.Items = schema30(s.Items, warns, path+"/items")
+		out.Items = schema30(s.Items, p, path+"/items")
 	}
 	out.MinItems, out.MaxItems = s.MinItems, s.MaxItems
 	if s.UniqueItems {
@@ -128,7 +148,7 @@ func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
 	if len(s.Properties) > 0 {
 		out.Properties = make(map[string]*SchemaV30, len(s.Properties))
 		for k, v := range s.Properties {
-			out.Properties[k] = schema30(v, warns, path+"/properties/"+k)
+			out.Properties[k] = schema30(v, p, path+"/properties/"+k)
 		}
 	}
 	if len(s.Required) > 0 {
@@ -139,7 +159,7 @@ func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
 	if s.Additional != nil {
 		switch {
 		case s.Additional.Schema != nil:
-			out.AdditionalProps = schema30(s.Additional.Schema, warns, path+"/additionalProperties")
+			out.AdditionalProps = schema30(s.Additional.Schema, p, path+"/additionalProperties")
 		case s.Additional.Allow != nil:
 			out.AdditionalProps = *s.Additional.Allow
 		}
@@ -147,43 +167,34 @@ func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
 
 	// Composition
 	for _, it := range s.AllOf {
-		out.AllOf = append(out.AllOf, schema30(it, warns, path+"/allOf"))
+		out.AllOf = append(out.AllOf, schema30(it, p, path+"/allOf"))
 	}
 	for _, it := range s.AnyOf {
-		out.AnyOf = append(out.AnyOf, schema30(it, warns, path+"/anyOf"))
+		out.AnyOf = append(out.AnyOf, schema30(it, p, path+"/anyOf"))
 	}
 	for _, it := range s.OneOf {
-		out.OneOf = append(out.OneOf, schema30(it, warns, path+"/oneOf"))
+		out.OneOf = append(out.OneOf, schema30(it, p, path+"/oneOf"))
 	}
 	if s.Not != nil {
-		out.Not = schema30(s.Not, warns, path+"/not")
+		out.Not = schema30(s.Not, p, path+"/not")
 	}
 
 	// Const: 3.0 has no const → convert to enum if needed
 	if s.Const != nil {
 		if len(out.Enum) == 0 {
 			out.Enum = []any{s.Const}
-			*warns = append(*warns, Warning{
-				Code:    DownlevelConstToEnum,
-				Path:    path,
-				Message: "const keyword not supported in 3.0; converted to enum",
-			})
+			p.warn(diag.WarnDownlevelConstToEnum, path,
+				"const keyword not supported in 3.0; converted to enum")
 		} else {
-			*warns = append(*warns, Warning{
-				Code:    DownlevelConstToEnumConflict,
-				Path:    path,
-				Message: "const with enum under 3.0: kept enum, ignored const",
-			})
+			p.warn(diag.WarnDownlevelConstToEnumConflict, path,
+				"const with enum under 3.0: kept enum, ignored const")
 		}
 	}
 
 	// Unevaluated properties: 3.1-only → warn & drop
 	if s.Unevaluated != nil {
-		*warns = append(*warns, Warning{
-			Code:    DownlevelUnevaluatedProperties,
-			Path:    path,
-			Message: "unevaluatedProperties not supported in OpenAPI 3.0; dropped",
-		})
+		p.warn(diag.WarnDownlevelUnevaluatedProperties, path,
+			"unevaluatedProperties not supported in OpenAPI 3.0; dropped")
 	}
 
 	// Pattern properties: not officially in OpenAPI 3.0 (but in JSON Schema)
@@ -193,15 +204,36 @@ func schema30(s *model.Schema, warns *[]Warning, path string) *SchemaV30 {
 	if len(s.Examples) > 0 {
 		out.Example = s.Examples[0]
 		if len(s.Examples) > 1 {
-			*warns = append(*warns, Warning{
-				Code:    DownlevelMultipleExamples,
-				Path:    path,
-				Message: "Multiple examples not supported in 3.0; using first only",
-			})
+			p.warn(diag.WarnDownlevelMultipleExamples, path,
+				"Multiple examples not supported in 3.0; using first only")
 		}
 	}
 
-	out.Extensions = copyExtensions(s.Extensions, "3.0.4")
+	// Discriminator
+	if s.Discriminator != nil {
+		out.Discriminator = &DiscriminatorV30{
+			PropertyName: s.Discriminator.PropertyName,
+		}
+		if len(s.Discriminator.Mapping) > 0 {
+			out.Discriminator.Mapping = make(map[string]string, len(s.Discriminator.Mapping))
+			for k, v := range s.Discriminator.Mapping {
+				out.Discriminator.Mapping[k] = v
+			}
+		}
+	}
+
+	// XML
+	if s.XML != nil {
+		out.XML = &XMLV30{
+			Name:      s.XML.Name,
+			Namespace: s.XML.Namespace,
+			Prefix:    s.XML.Prefix,
+			Attribute: s.XML.Attribute,
+			Wrapped:   s.XML.Wrapped,
+		}
+	}
+
+	out.Extensions = p.ext(s.Extensions)
 
 	return out
 }

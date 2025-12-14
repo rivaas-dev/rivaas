@@ -94,6 +94,7 @@ type ServerVariable struct {
 
 // PathItem represents the operations available on a single path.
 type PathItem struct {
+	Ref         string // If set, this PathItem is a reference ($ref)
 	Summary     string
 	Description string
 	Get         *Operation
@@ -103,27 +104,31 @@ type PathItem struct {
 	Options     *Operation
 	Head        *Operation
 	Patch       *Operation
+	Trace       *Operation // HTTP TRACE method
 	Parameters  []Parameter
 	Extensions  map[string]any
 }
 
 // Operation describes a single API operation on a path.
 type Operation struct {
-	Tags        []string
-	Summary     string
-	Description string
-	OperationID string
-	Parameters  []Parameter
-	RequestBody *RequestBody
-	Responses   map[string]*Response
-	Callbacks   map[string]*Callback
-	Deprecated  bool
-	Security    []SecurityRequirement
-	Extensions  map[string]any
+	Tags         []string
+	Summary      string
+	Description  string
+	ExternalDocs *ExternalDocs
+	OperationID  string
+	Parameters   []Parameter
+	RequestBody  *RequestBody
+	Responses    map[string]*Response
+	Callbacks    map[string]*Callback
+	Deprecated   bool
+	Security     []SecurityRequirement
+	Servers      []Server
+	Extensions   map[string]any
 }
 
 // Parameter describes a single operation parameter.
 type Parameter struct {
+	Ref             string // If set, this is a $ref
 	Name            string
 	In              string // query, path, header, cookie
 	Description     string
@@ -142,6 +147,7 @@ type Parameter struct {
 
 // Example represents an example value with optional description.
 type Example struct {
+	Ref           string // If set, this is a $ref
 	Summary       string
 	Description   string
 	Value         any
@@ -151,6 +157,7 @@ type Example struct {
 
 // RequestBody describes a single request body.
 type RequestBody struct {
+	Ref         string // If set, this is a $ref
 	Description string
 	Required    bool
 	Content     map[string]*MediaType
@@ -159,6 +166,7 @@ type RequestBody struct {
 
 // Response describes a single response from an API operation.
 type Response struct {
+	Ref         string // If set, this is a $ref
 	Description string
 	Content     map[string]*MediaType
 	Headers     map[string]*Header
@@ -168,6 +176,7 @@ type Response struct {
 
 // Link represents a possible design-time link for a response.
 type Link struct {
+	Ref          string // If set, this is a $ref
 	OperationRef string
 	OperationID  string
 	Parameters   map[string]any
@@ -179,16 +188,18 @@ type Link struct {
 
 // Header represents a response header.
 type Header struct {
-	Description string
-	Required    bool
-	Deprecated  bool
-	Style       string
-	Explode     bool
-	Schema      *Schema
-	Example     any
-	Examples    map[string]*Example
-	Content     map[string]*MediaType
-	Extensions  map[string]any
+	Ref             string // If set, this is a $ref
+	Description     string
+	Required        bool
+	Deprecated      bool
+	AllowEmptyValue bool
+	Style           string
+	Explode         bool
+	Schema          *Schema
+	Example         any
+	Examples        map[string]*Example
+	Content         map[string]*MediaType
+	Extensions      map[string]any
 }
 
 // MediaType provides schema and examples for a specific content type.
@@ -212,6 +223,7 @@ type Encoding struct {
 
 // Callback represents a callback definition (3.0+).
 type Callback struct {
+	Ref        string // If set, this is a $ref
 	PathItems  map[string]*PathItem
 	Extensions map[string]any
 }
@@ -219,12 +231,21 @@ type Callback struct {
 // Components holds reusable components.
 type Components struct {
 	Schemas         map[string]*Schema
+	Responses       map[string]*Response
+	Parameters      map[string]*Parameter
+	Examples        map[string]*Example
+	RequestBodies   map[string]*RequestBody
+	Headers         map[string]*Header
 	SecuritySchemes map[string]*SecurityScheme
+	Links           map[string]*Link
+	Callbacks       map[string]*Callback
+	PathItems       map[string]*PathItem // 3.1 only
 	Extensions      map[string]any
 }
 
 // SecurityScheme defines a security scheme.
 type SecurityScheme struct {
+	Ref              string // If set, this is a $ref
 	Type             string // http, apiKey, oauth2, openIdConnect, mutualTLS (3.1+)
 	Description      string
 	Name             string      // for apiKey
@@ -263,4 +284,11 @@ type Tag struct {
 	Description  string
 	ExternalDocs *ExternalDocs
 	Extensions   map[string]any
+}
+
+// ExternalDocs provides external documentation links.
+type ExternalDocs struct {
+	Description string
+	URL         string
+	Extensions  map[string]any
 }

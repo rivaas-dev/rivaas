@@ -14,6 +14,8 @@
 
 package export
 
+import "encoding/json"
+
 // SpecV30 represents an OpenAPI 3.0.4 specification.
 // This type is defined here to avoid import cycles with the openapi package.
 type SpecV30 struct {
@@ -75,6 +77,7 @@ type ServerVariableV30 struct {
 
 // PathItemV30 represents the operations available on a single path.
 type PathItemV30 struct {
+	Ref         string         `json:"$ref,omitempty"`
 	Summary     string         `json:"summary,omitempty"`
 	Description string         `json:"description,omitempty"`
 	Get         *OperationV30  `json:"get,omitempty"`
@@ -84,28 +87,33 @@ type PathItemV30 struct {
 	Options     *OperationV30  `json:"options,omitempty"`
 	Head        *OperationV30  `json:"head,omitempty"`
 	Patch       *OperationV30  `json:"patch,omitempty"`
+	Trace       *OperationV30  `json:"trace,omitempty"`
 	Parameters  []ParameterV30 `json:"parameters,omitempty"`
 	Extensions  map[string]any `json:"-"`
 }
 
 // OperationV30 describes a single API operation.
 type OperationV30 struct {
-	Tags        []string                 `json:"tags,omitempty"`
-	Summary     string                   `json:"summary,omitempty"`
-	Description string                   `json:"description,omitempty"`
-	OperationID string                   `json:"operationId,omitempty"`
-	Parameters  []ParameterV30           `json:"parameters,omitempty"`
-	RequestBody *RequestBodyV30          `json:"requestBody,omitempty"`
-	Responses   map[string]*ResponseV30  `json:"responses"`
-	Deprecated  bool                     `json:"deprecated,omitempty"`
-	Security    []SecurityRequirementV30 `json:"security,omitempty"`
-	Extensions  map[string]any           `json:"-"`
+	Tags         []string                 `json:"tags,omitempty"`
+	Summary      string                   `json:"summary,omitempty"`
+	Description  string                   `json:"description,omitempty"`
+	ExternalDocs *ExternalDocsV30         `json:"externalDocs,omitempty"`
+	OperationID  string                   `json:"operationId,omitempty"`
+	Parameters   []ParameterV30           `json:"parameters,omitempty"`
+	RequestBody  *RequestBodyV30          `json:"requestBody,omitempty"`
+	Responses    map[string]*ResponseV30  `json:"responses"`
+	Callbacks    map[string]*CallbackV30  `json:"callbacks,omitempty"`
+	Deprecated   bool                     `json:"deprecated,omitempty"`
+	Security     []SecurityRequirementV30 `json:"security,omitempty"`
+	Servers      []ServerV30              `json:"servers,omitempty"`
+	Extensions   map[string]any           `json:"-"`
 }
 
 // ParameterV30 describes a single operation parameter.
 type ParameterV30 struct {
-	Name            string                   `json:"name"`
-	In              string                   `json:"in"`
+	Ref             string                   `json:"$ref,omitempty"`
+	Name            string                   `json:"name,omitempty"`
+	In              string                   `json:"in,omitempty"`
 	Description     string                   `json:"description,omitempty"`
 	Required        bool                     `json:"required,omitempty"`
 	Deprecated      bool                     `json:"deprecated,omitempty"`
@@ -122,15 +130,17 @@ type ParameterV30 struct {
 
 // RequestBodyV30 describes a single request body.
 type RequestBodyV30 struct {
+	Ref         string                   `json:"$ref,omitempty"`
 	Description string                   `json:"description,omitempty"`
 	Required    bool                     `json:"required,omitempty"`
-	Content     map[string]*MediaTypeV30 `json:"content"`
+	Content     map[string]*MediaTypeV30 `json:"content,omitempty"`
 	Extensions  map[string]any           `json:"-"`
 }
 
 // ResponseV30 describes a single response.
 type ResponseV30 struct {
-	Description string                   `json:"description"`
+	Ref         string                   `json:"$ref,omitempty"`
+	Description string                   `json:"description,omitempty"`
 	Content     map[string]*MediaTypeV30 `json:"content,omitempty"`
 	Headers     map[string]*HeaderV30    `json:"headers,omitempty"`
 	Links       map[string]*LinkV30      `json:"links,omitempty"`
@@ -139,16 +149,18 @@ type ResponseV30 struct {
 
 // HeaderV30 represents a response header.
 type HeaderV30 struct {
-	Description string                   `json:"description,omitempty"`
-	Required    bool                     `json:"required,omitempty"`
-	Deprecated  bool                     `json:"deprecated,omitempty"`
-	Style       string                   `json:"style,omitempty"`
-	Explode     bool                     `json:"explode,omitempty"`
-	Schema      *SchemaV30               `json:"schema,omitempty"`
-	Example     any                      `json:"example,omitempty"`
-	Examples    map[string]*ExampleV30   `json:"examples,omitempty"`
-	Content     map[string]*MediaTypeV30 `json:"content,omitempty"`
-	Extensions  map[string]any           `json:"-"`
+	Ref             string                   `json:"$ref,omitempty"`
+	Description     string                   `json:"description,omitempty"`
+	Required        bool                     `json:"required,omitempty"`
+	Deprecated      bool                     `json:"deprecated,omitempty"`
+	AllowEmptyValue bool                     `json:"allowEmptyValue,omitempty"`
+	Style           string                   `json:"style,omitempty"`
+	Explode         bool                     `json:"explode,omitempty"`
+	Schema          *SchemaV30               `json:"schema,omitempty"`
+	Example         any                      `json:"example,omitempty"`
+	Examples        map[string]*ExampleV30   `json:"examples,omitempty"`
+	Content         map[string]*MediaTypeV30 `json:"content,omitempty"`
+	Extensions      map[string]any           `json:"-"`
 }
 
 // MediaTypeV30 provides schema and examples for a specific content type.
@@ -162,6 +174,7 @@ type MediaTypeV30 struct {
 
 // ExampleV30 represents an example value.
 type ExampleV30 struct {
+	Ref           string         `json:"$ref,omitempty"`
 	Summary       string         `json:"summary,omitempty"`
 	Description   string         `json:"description,omitempty"`
 	Value         any            `json:"value,omitempty"`
@@ -181,6 +194,7 @@ type EncodingV30 struct {
 
 // LinkV30 represents a design-time link for a response.
 type LinkV30 struct {
+	Ref          string         `json:"$ref,omitempty"`
 	OperationRef string         `json:"operationRef,omitempty"`
 	OperationID  string         `json:"operationId,omitempty"`
 	Parameters   map[string]any `json:"parameters,omitempty"`
@@ -190,16 +204,31 @@ type LinkV30 struct {
 	Extensions   map[string]any `json:"-"`
 }
 
+// CallbackV30 represents a callback.
+type CallbackV30 struct {
+	Ref        string                  `json:"$ref,omitempty"`
+	PathItems  map[string]*PathItemV30 `json:"-"`
+	Extensions map[string]any          `json:"-"`
+}
+
 // ComponentsV30 holds reusable components.
 type ComponentsV30 struct {
 	Schemas         map[string]*SchemaV30         `json:"schemas,omitempty"`
+	Responses       map[string]*ResponseV30       `json:"responses,omitempty"`
+	Parameters      map[string]*ParameterV30      `json:"parameters,omitempty"`
+	Examples        map[string]*ExampleV30        `json:"examples,omitempty"`
+	RequestBodies   map[string]*RequestBodyV30    `json:"requestBodies,omitempty"`
+	Headers         map[string]*HeaderV30         `json:"headers,omitempty"`
 	SecuritySchemes map[string]*SecuritySchemeV30 `json:"securitySchemes,omitempty"`
+	Links           map[string]*LinkV30           `json:"links,omitempty"`
+	Callbacks       map[string]*CallbackV30       `json:"callbacks,omitempty"`
 	Extensions      map[string]any                `json:"-"`
 }
 
 // SecuritySchemeV30 defines a security scheme.
 type SecuritySchemeV30 struct {
-	Type             string         `json:"type"`
+	Ref              string         `json:"$ref,omitempty"`
+	Type             string         `json:"type,omitempty"`
 	Description      string         `json:"description,omitempty"`
 	Name             string         `json:"name,omitempty"`
 	In               string         `json:"in,omitempty"`
@@ -341,6 +370,21 @@ func (e *EncodingV30) MarshalJSON() ([]byte, error) {
 func (l *LinkV30) MarshalJSON() ([]byte, error) {
 	type linkV30 LinkV30
 	return marshalWithExtensions(linkV30(*l), l.Extensions)
+}
+
+// MarshalJSON implements json.Marshaler for CallbackV30.
+// Callbacks are maps of path expressions to PathItems, so PathItems become the top-level keys.
+func (c *CallbackV30) MarshalJSON() ([]byte, error) {
+	// Start with PathItems as the base map
+	m := make(map[string]any, len(c.PathItems)+len(c.Extensions))
+	for k, v := range c.PathItems {
+		m[k] = v
+	}
+	// Merge extensions
+	for k, v := range c.Extensions {
+		m[k] = v
+	}
+	return json.Marshal(m)
 }
 
 // MarshalJSON implements json.Marshaler for ComponentsV30 to inline extensions.

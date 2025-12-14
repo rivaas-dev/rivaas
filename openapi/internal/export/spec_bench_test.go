@@ -15,9 +15,10 @@
 package export
 
 import (
+	"context"
 	"testing"
 
-	"rivaas.dev/openapi/model"
+	"rivaas.dev/openapi/internal/model"
 )
 
 // createTestSpec creates a test spec for benchmarking.
@@ -151,8 +152,9 @@ func BenchmarkProject_30(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	ctx := context.Background()
 	for b.Loop() {
-		_, _, err := Project(spec, cfg, nil, nil)
+		_, err := Project(ctx, spec, cfg)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -166,8 +168,9 @@ func BenchmarkProject_31(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	ctx := context.Background()
 	for b.Loop() {
-		_, _, err := Project(spec, cfg, nil, nil)
+		_, err := Project(ctx, spec, cfg)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -181,9 +184,10 @@ func BenchmarkProject_30_Parallel(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	ctx := context.Background()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _, err := Project(spec, cfg, nil, nil)
+			_, err := Project(ctx, spec, cfg)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -198,9 +202,10 @@ func BenchmarkProject_31_Parallel(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	ctx := context.Background()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _, err := Project(spec, cfg, nil, nil)
+			_, err := Project(ctx, spec, cfg)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -230,8 +235,8 @@ func BenchmarkSchema30(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		var warns []Warning
-		_ = schema30(schema, &warns, "#/test")
+		p := &proj30{}
+		_ = schema30(schema, p, "#/test")
 	}
 }
 
@@ -257,8 +262,8 @@ func BenchmarkSchema31(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		var warns []Warning
-		_ = schema31(schema, &warns, "#/test")
+		p := &proj31{}
+		_ = schema31(schema, p, "#/test")
 	}
 }
 
@@ -277,8 +282,9 @@ func BenchmarkProject_30_WithExtensions(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	ctx := context.Background()
 	for b.Loop() {
-		_, _, err := Project(spec, cfg, nil, nil)
+		_, err := Project(ctx, spec, cfg)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -296,8 +302,9 @@ func BenchmarkProject_30_WithWarnings(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	ctx := context.Background()
 	for b.Loop() {
-		_, _, err := Project(spec, cfg, nil, nil)
+		_, err := Project(ctx, spec, cfg)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -312,8 +319,9 @@ func BenchmarkProject_Allocations(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	ctx := context.Background()
 	for b.Loop() {
-		_, _, err := Project(spec, cfg, nil, nil)
+		_, err := Project(ctx, spec, cfg)
 		if err != nil {
 			b.Fatal(err)
 		}

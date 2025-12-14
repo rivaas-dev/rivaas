@@ -40,11 +40,11 @@ func TestConfig_Validation(t *testing.T) {
 			name: "with all options",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithDescription("Test description"),
+				WithInfoDescription("Test description"),
 				WithContact("Support", "https://example.com", "support@example.com"),
 				WithLicense("MIT", "https://opensource.org/licenses/MIT"),
 				WithServer("https://api.example.com", "Production"),
-				WithVersion(Version31),
+				WithVersion(V31x),
 			},
 			wantError: "",
 		},
@@ -52,7 +52,7 @@ func TestConfig_Validation(t *testing.T) {
 			name: "with version 3.0.4",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithVersion(Version30),
+				WithVersion(V30x),
 			},
 			wantError: "",
 		},
@@ -60,7 +60,7 @@ func TestConfig_Validation(t *testing.T) {
 			name: "with version 3.1.2",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithVersion(Version31),
+				WithVersion(V31x),
 			},
 			wantError: "",
 		},
@@ -101,7 +101,7 @@ func TestConfig_Validation(t *testing.T) {
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
 				WithSpecPath("/api/openapi.json"),
-				WithSwaggerUI(true, "/api/docs"),
+				WithSwaggerUI("/api/docs"),
 			},
 			wantError: "",
 		},
@@ -135,7 +135,7 @@ func TestConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "/openapi.json", cfg.SpecPath)
 	assert.Equal(t, "/docs", cfg.UIPath)
 	assert.True(t, cfg.ServeUI)
-	assert.Equal(t, Version30, cfg.Version)
+	assert.Equal(t, V30x, cfg.Version)
 	assert.False(t, cfg.StrictDownlevel)
 }
 
@@ -144,11 +144,11 @@ func TestConfig_WithVersion(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		version  string
-		expected string
+		version  Version
+		expected Version
 	}{
-		{"3.0.4", Version30, Version30},
-		{"3.1.2", Version31, Version31},
+		{"3.0.x", V30x, V30x},
+		{"3.1.x", V31x, V31x},
 	}
 
 	for _, tt := range tests {
@@ -180,14 +180,12 @@ func TestConfig_WithSwaggerUI(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		enabled      bool
-		path         []string
+		path         string
 		expected     bool
 		expectedPath string
 	}{
-		{"enabled default path", true, nil, true, "/docs"},
-		{"enabled custom path", true, []string{"/swagger"}, true, "/swagger"},
-		{"disabled", false, nil, false, "/docs"},
+		{"enabled default", "/docs", true, "/docs"},
+		{"enabled custom path", "/swagger", true, "/swagger"},
 	}
 
 	for _, tt := range tests {
@@ -195,13 +193,23 @@ func TestConfig_WithSwaggerUI(t *testing.T) {
 			t.Parallel()
 			cfg := MustNew(
 				WithTitle("Test API", "1.0.0"),
-				WithSwaggerUI(tt.enabled, tt.path...),
+				WithSwaggerUI(tt.path),
 			)
 
 			assert.Equal(t, tt.expected, cfg.ServeUI)
 			assert.Equal(t, tt.expectedPath, cfg.UIPath)
 		})
 	}
+
+	// Test disabled
+	t.Run("disabled", func(t *testing.T) {
+		cfg := MustNew(
+			WithTitle("Test API", "1.0.0"),
+			WithoutSwaggerUI(),
+		)
+
+		assert.False(t, cfg.ServeUI)
+	})
 }
 
 func TestConfig_WithServers(t *testing.T) {
@@ -291,7 +299,7 @@ func TestConfig_InvalidVersion(t *testing.T) {
 		WithVersion("2.0.0"), // Not a valid OpenAPI version
 	)
 
-	assert.Equal(t, "2.0.0", cfg.Version)
+	assert.Equal(t, Version("2.0.0"), cfg.Version)
 }
 
 func TestConfig_EmptyTitle(t *testing.T) {
@@ -316,6 +324,30 @@ func TestConfig_EmptyVersion(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "version is required")
+}
+
+func TestConfig_WithValidation(t *testing.T) {
+	t.Parallel()
+
+	// Default should have validation disabled for backward compatibility
+	cfg := MustNew(
+		WithTitle("Test API", "1.0.0"),
+	)
+	assert.False(t, cfg.ValidateSpec)
+
+	// Enable validation
+	cfg2 := MustNew(
+		WithTitle("Test API", "1.0.0"),
+		WithValidation(true),
+	)
+	assert.True(t, cfg2.ValidateSpec)
+
+	// Explicitly disable validation
+	cfg3 := MustNew(
+		WithTitle("Test API", "1.0.0"),
+		WithValidation(false),
+	)
+	assert.False(t, cfg3.ValidateSpec)
 }
 
 func TestConfig_MultipleServers(t *testing.T) {
@@ -377,7 +409,7 @@ func TestConfig_AllOptions(t *testing.T) {
 
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
-		WithDescription("A comprehensive test"),
+		WithInfoDescription("A comprehensive test"),
 		WithContact("Support", "https://example.com", "support@example.com"),
 		WithLicense("MIT", "https://opensource.org/licenses/MIT"),
 		WithServer("https://api.example.com", "Production"),
@@ -385,10 +417,10 @@ func TestConfig_AllOptions(t *testing.T) {
 		WithBearerAuth("bearer", "JWT auth"),
 		WithAPIKey("apiKey", "X-API-Key", InHeader, "API key"),
 		WithDefaultSecurity("bearer"),
-		WithVersion(Version31),
+		WithVersion(V31x),
 		WithStrictDownlevel(true),
 		WithSpecPath("/api/openapi.json"),
-		WithSwaggerUI(true, "/api/docs"),
+		WithSwaggerUI("/api/docs"),
 	)
 
 	assert.Equal(t, "Test API", cfg.Info.Title)
@@ -400,7 +432,7 @@ func TestConfig_AllOptions(t *testing.T) {
 	assert.Len(t, cfg.Tags, 1)
 	assert.Len(t, cfg.SecuritySchemes, 2)
 	assert.Len(t, cfg.DefaultSecurity, 1)
-	assert.Equal(t, Version31, cfg.Version)
+	assert.Equal(t, V31x, cfg.Version)
 	assert.True(t, cfg.StrictDownlevel)
 	assert.Equal(t, "/api/openapi.json", cfg.SpecPath)
 	assert.Equal(t, "/api/docs", cfg.UIPath)
@@ -499,7 +531,7 @@ func TestConfig_ExtensionValidation(t *testing.T) {
 			name: "reserved extension key x-oai- in 3.1",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithVersion(Version31),
+				WithVersion(V31x),
 				WithExtension("x-oai-custom", "value"),
 			},
 			wantError: "reserved prefix",
@@ -508,7 +540,7 @@ func TestConfig_ExtensionValidation(t *testing.T) {
 			name: "reserved extension key x-oas- in 3.1",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithVersion(Version31),
+				WithVersion(V31x),
 				WithExtension("x-oas-custom", "value"),
 			},
 			wantError: "reserved prefix",
@@ -517,7 +549,7 @@ func TestConfig_ExtensionValidation(t *testing.T) {
 			name: "reserved extension key allowed in 3.0",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithVersion(Version30),
+				WithVersion(V30x),
 				WithExtension("x-oai-custom", "value"),
 			},
 			wantError: "",
@@ -526,7 +558,7 @@ func TestConfig_ExtensionValidation(t *testing.T) {
 			name: "valid extensions in 3.1",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithVersion(Version31),
+				WithVersion(V31x),
 				WithExtension("x-custom-field", "value"),
 			},
 			wantError: "",
@@ -549,12 +581,12 @@ func TestConfig_ExtensionValidation(t *testing.T) {
 	}
 }
 
-func TestConfig_WithSummary(t *testing.T) {
+func TestConfig_WithInfoSummary(t *testing.T) {
 	t.Parallel()
 
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
-		WithSummary("A brief summary"),
+		WithInfoSummary("A brief summary"),
 	)
 
 	assert.Equal(t, "A brief summary", cfg.Info.Summary)

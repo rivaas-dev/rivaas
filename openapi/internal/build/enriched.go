@@ -77,6 +77,7 @@ type RouteDoc struct {
 	ResponseExample       map[int]any           // Single unnamed example per status
 	ResponseNamedExamples map[int][]ExampleData // Named examples per status
 	Security              []SecurityReq
+	Extensions            map[string]any // Operation-level extensions (x-*)
 }
 
 // SecurityReq represents a security requirement for an operation.

@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"rivaas.dev/openapi/model"
+	"rivaas.dev/openapi/internal/model"
 )
 
 // SchemaGenerator generates Schema from Go types using reflection.

@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"rivaas.dev/openapi/internal/model"
 	"rivaas.dev/openapi/internal/schema"
-	"rivaas.dev/openapi/model"
 )
 
 type User struct {
@@ -726,6 +726,7 @@ func BenchmarkBuilder_Build(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
+		//nolint:errcheck // Benchmark focuses on performance, not error handling
 		_, _ = builder.Build(routes)
 	}
 }
@@ -750,6 +751,7 @@ func BenchmarkBuilder_ComplexSpec(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
+		//nolint:errcheck // Benchmark focuses on performance, not error handling
 		_, _ = builder.Build(routes)
 	}
 }

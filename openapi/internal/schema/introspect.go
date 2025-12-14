@@ -57,6 +57,8 @@ type ParamSpec struct {
 	Default     any
 	Example     any
 	Enum        []string
+	Style       string // "simple", "matrix", "label" for path params
+	Explode     *bool  // nil = use default; true/false = explicit
 }
 
 // IntrospectRequest analyzes a request struct type and extracts OpenAPI metadata.
@@ -144,6 +146,23 @@ func extractParamsFromTag(t reflect.Type, tagName, location string) []ParamSpec 
 			Required:    isParamRequired(field, tagName),
 			Example:     parseValue(field.Tag.Get("example"), field.Type),
 			Format:      inferFormat(field),
+		}
+
+		// Parse style (for path parameters: simple, matrix, label)
+		if style := field.Tag.Get("style"); style != "" {
+			spec.Style = style
+		}
+
+		// Parse explode (true/false)
+		if explode := field.Tag.Get("explode"); explode != "" {
+			switch explode {
+			case "true":
+				trueVal := true
+				spec.Explode = &trueVal
+			case "false":
+				falseVal := false
+				spec.Explode = &falseVal
+			}
 		}
 
 		if d := field.Tag.Get("default"); d != "" {

@@ -12,21 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package openapi provides OpenAPI 3.0.4 and 3.1.2 specification generation and Swagger UI integration for Rivaas.
+// Package openapi provides OpenAPI 3.0.4 and 3.1.2 specification generation for Go applications.
 //
 // This package enables automatic generation of OpenAPI specifications from Go code using struct tags
-// and reflection. It integrates seamlessly with the Rivaas router to provide comprehensive API
-// documentation with minimal boilerplate.
+// and reflection. It provides a pure, stateless API for building specifications with minimal boilerplate.
 //
 // # Features
 //
+//   - HTTP method constructors (GET, POST, PUT, etc.) for clean operation definitions
 //   - Automatic parameter discovery from struct tags (query, path, header, cookie)
 //   - Request/response body schema generation from Go types
 //   - Swagger UI integration with customizable appearance
 //   - Semantic operation ID generation based on HTTP method and path
-//   - Support for security schemes (Bearer, API Key, OAuth)
+//   - Support for security schemes (Bearer, API Key, OAuth2, OpenID Connect)
 //   - ETag-based caching for spec serving
 //   - Collision-resistant schema naming (pkgname.TypeName format)
+//   - Built-in validation against official OpenAPI meta-schemas
+//   - Standalone validator for external OpenAPI specifications
 //
 // # Quick Start
 //
@@ -38,37 +40,50 @@
 //	// Create OpenAPI configuration
 //	cfg := openapi.MustNew(
 //	    openapi.WithTitle("My API", "1.0.0"),
-//	    openapi.WithDescription("API description"),
+//	    openapi.WithInfoDescription("API description"),
 //	    openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
 //	    openapi.WithServer("http://localhost:8080", "Local development"),
-//	    openapi.WithSwaggerUI(true, "/docs"),
 //	)
 //
-//	// Create manager and register routes
-//	manager := openapi.NewManager(cfg)
-//	route := manager.Register("GET", "/users/:id")
-//	route.Doc("Get user", "Retrieves a user by ID").
-//	    Request(GetUserRequest{}).
-//	    Response(200, UserResponse{}).
-//	    Tags("users")
-//
 //	// Generate OpenAPI specification
-//	specJSON, etag, err := manager.GenerateSpec()
+//	result, err := openapi.GenerateSpec(cfg,
+//	    openapi.GET("/users/:id",
+//	        openapi.Summary("Get user"),
+//	        openapi.Description("Retrieves a user by ID"),
+//	        openapi.Response(http.StatusOK, UserResponse{}),
+//	        openapi.Tags("users"),
+//	        openapi.Security("bearerAuth"),
+//	    ),
+//	    openapi.POST("/users",
+//	        openapi.Summary("Create user"),
+//	        openapi.Request(CreateUserRequest{}),
+//	        openapi.Response(http.StatusCreated, UserResponse{}),
+//	        openapi.Tags("users"),
+//	    ),
+//	)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //
-//	// Serve the specification via HTTP (example)
-//	http.HandleFunc(cfg.SpecPath, func(w http.ResponseWriter, r *http.Request) {
-//	    w.Header().Set("Content-Type", "application/json")
-//	    w.Header().Set("ETag", etag)
-//	    w.Write(specJSON)
-//	})
+//	// Use result.JSON for the OpenAPI specification
 //
-// # Configuration
+// # Configuration vs Operations
 //
-// Configuration is done exclusively through functional options using [New] or [MustNew].
-// All UI configuration types are private to enforce this pattern and prevent direct struct initialization.
+// The package uses two distinct patterns:
+//
+//   - Config options use With* prefix: WithTitle, WithServer, WithBearerAuth
+//   - Operation options use bare names: Summary, Description, Response, Tags
+//
+// This makes the code read naturally:
+//
+//	cfg := openapi.MustNew(
+//	    openapi.WithTitle("My API", "1.0.0"),  // Config option
+//	)
+//
+//	openapi.GET("/users/:id",
+//	    openapi.Summary("Get user"),           // Operation option
+//	    openapi.Response(200, User{}),         // Operation option
+//	)
 //
 // # Auto-Discovery
 //
@@ -84,7 +99,7 @@
 // Example:
 //
 //	type GetUserRequest struct {
-//	    ID    int    `path:"id" doc:"User ID" example:"123"`
+//	    ID     int    `params:"id" doc:"User ID" example:"123"`
 //	    Expand string `query:"expand" doc:"Fields to expand" enum:"profile,settings"`
 //	}
 //
@@ -97,11 +112,6 @@
 // packages with the same name (e.g., "api.User" and "models.User") will
 // generate distinct schema names in the OpenAPI specification.
 //
-// The package name is extracted from the last component of the package path
-// (e.g., "github.com/user/api" -> "api"). This ensures that types with the
-// same name from different packages don't collide in the components/schemas
-// section of the generated OpenAPI specification.
-//
 // # Operation IDs
 //
 // Operation IDs are automatically generated from HTTP method and path using semantic naming:
@@ -112,5 +122,30 @@
 //   - PATCH /users/:id -> updateUserById
 //   - PUT /users/:id -> replaceUserById
 //
-// Custom operation IDs can be set using [RouteWrapper.OperationID].
+// Custom operation IDs can be set using the WithOperationID option.
+//
+// # Validation
+//
+// Generated specifications can be validated against the official OpenAPI meta-schemas.
+// Validation is opt-in to avoid performance overhead:
+//
+//	cfg := openapi.MustNew(
+//	    openapi.WithTitle("My API", "1.0.0"),
+//	    openapi.WithValidation(true), // Enable validation
+//	)
+//
+//	result, err := openapi.GenerateSpec(cfg, ops...)
+//	if err != nil {
+//	    log.Fatal(err) // Will fail if spec is invalid
+//	}
+//
+// The validate subpackage provides standalone validation for external OpenAPI specs:
+//
+//	import "rivaas.dev/openapi/validate"
+//
+//	// Validate any OpenAPI spec
+//	specJSON, _ := os.ReadFile("openapi.json")
+//	if err := validate.ValidateSpecJSON(specJSON); err != nil {
+//	    log.Fatal(err)
+//	}
 package openapi

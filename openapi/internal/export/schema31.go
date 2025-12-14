@@ -14,7 +14,7 @@
 
 package export
 
-import "rivaas.dev/openapi/model"
+import "rivaas.dev/openapi/internal/model"
 
 // SchemaV31 represents an OpenAPI 3.1.x schema.
 type SchemaV31 struct {
@@ -30,6 +30,8 @@ type SchemaV31 struct {
 	Deprecated        bool                  `json:"deprecated,omitempty"`
 	ReadOnly          bool                  `json:"readOnly,omitempty"`
 	WriteOnly         bool                  `json:"writeOnly,omitempty"`
+	Discriminator     *DiscriminatorV31     `json:"discriminator,omitempty"`
+	XML               *XMLV31               `json:"xml,omitempty"`
 	Enum              []any                 `json:"enum,omitempty"`
 	Const             any                   `json:"const,omitempty"`
 	MultipleOf        *float64              `json:"multipleOf,omitempty"`
@@ -59,6 +61,21 @@ type SchemaV31 struct {
 	Extensions        map[string]any        `json:"-"`
 }
 
+// DiscriminatorV31 is used for polymorphism in oneOf/allOf compositions.
+type DiscriminatorV31 struct {
+	PropertyName string            `json:"propertyName"`
+	Mapping      map[string]string `json:"mapping,omitempty"`
+}
+
+// XMLV31 provides XML serialization hints.
+type XMLV31 struct {
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	Prefix    string `json:"prefix,omitempty"`
+	Attribute bool   `json:"attribute,omitempty"`
+	Wrapped   bool   `json:"wrapped,omitempty"`
+}
+
 // schema31 projects a Schema to OpenAPI 3.1.x format.
 //
 // Key transformations:
@@ -68,7 +85,7 @@ type SchemaV31 struct {
 //   - Unevaluated properties: native support
 //   - Pattern properties: native support
 //   - Multiple examples: native support
-func schema31(s *model.Schema, warns *[]Warning, path string) *SchemaV31 {
+func schema31(s *model.Schema, p *proj31, path string) *SchemaV31 {
 	if s == nil {
 		return nil
 	}
@@ -130,7 +147,7 @@ func schema31(s *model.Schema, warns *[]Warning, path string) *SchemaV31 {
 
 	// Array constraints
 	if s.Items != nil {
-		out.Items = schema31(s.Items, warns, path+"/items")
+		out.Items = schema31(s.Items, p, path+"/items")
 	}
 	out.MinItems, out.MaxItems = s.MinItems, s.MaxItems
 	if s.UniqueItems {
@@ -141,7 +158,7 @@ func schema31(s *model.Schema, warns *[]Warning, path string) *SchemaV31 {
 	if len(s.Properties) > 0 {
 		out.Properties = make(map[string]*SchemaV31, len(s.Properties))
 		for k, v := range s.Properties {
-			out.Properties[k] = schema31(v, warns, path+"/properties/"+k)
+			out.Properties[k] = schema31(v, p, path+"/properties/"+k)
 		}
 	}
 	if len(s.Required) > 0 {
@@ -152,7 +169,7 @@ func schema31(s *model.Schema, warns *[]Warning, path string) *SchemaV31 {
 	if s.Additional != nil {
 		switch {
 		case s.Additional.Schema != nil:
-			out.AdditionalProps = schema31(s.Additional.Schema, warns, path+"/additionalProperties")
+			out.AdditionalProps = schema31(s.Additional.Schema, p, path+"/additionalProperties")
 		case s.Additional.Allow != nil:
 			out.AdditionalProps = *s.Additional.Allow
 		}
@@ -162,13 +179,13 @@ func schema31(s *model.Schema, warns *[]Warning, path string) *SchemaV31 {
 	if len(s.PatternProps) > 0 {
 		out.PatternProperties = make(map[string]*SchemaV31, len(s.PatternProps))
 		for rx, v := range s.PatternProps {
-			out.PatternProperties[rx] = schema31(v, warns, path+"/patternProperties/"+rx)
+			out.PatternProperties[rx] = schema31(v, p, path+"/patternProperties/"+rx)
 		}
 	}
 
 	// Unevaluated properties (3.1 native support)
 	if s.Unevaluated != nil {
-		out.UnevaluatedProps = schema31(s.Unevaluated, warns, path+"/unevaluatedProperties")
+		out.UnevaluatedProps = schema31(s.Unevaluated, p, path+"/unevaluatedProperties")
 	}
 
 	// Object property count constraints
@@ -176,16 +193,16 @@ func schema31(s *model.Schema, warns *[]Warning, path string) *SchemaV31 {
 
 	// Composition
 	for _, it := range s.AllOf {
-		out.AllOf = append(out.AllOf, schema31(it, warns, path+"/allOf"))
+		out.AllOf = append(out.AllOf, schema31(it, p, path+"/allOf"))
 	}
 	for _, it := range s.AnyOf {
-		out.AnyOf = append(out.AnyOf, schema31(it, warns, path+"/anyOf"))
+		out.AnyOf = append(out.AnyOf, schema31(it, p, path+"/anyOf"))
 	}
 	for _, it := range s.OneOf {
-		out.OneOf = append(out.OneOf, schema31(it, warns, path+"/oneOf"))
+		out.OneOf = append(out.OneOf, schema31(it, p, path+"/oneOf"))
 	}
 	if s.Not != nil {
-		out.Not = schema31(s.Not, warns, path+"/not")
+		out.Not = schema31(s.Not, p, path+"/not")
 	}
 
 	// Examples: prefer Examples array, fallback to Example
@@ -193,7 +210,31 @@ func schema31(s *model.Schema, warns *[]Warning, path string) *SchemaV31 {
 		out.Examples = []any{s.Example}
 	}
 
-	out.Extensions = copyExtensions(s.Extensions, "3.1.2")
+	// Discriminator
+	if s.Discriminator != nil {
+		out.Discriminator = &DiscriminatorV31{
+			PropertyName: s.Discriminator.PropertyName,
+		}
+		if len(s.Discriminator.Mapping) > 0 {
+			out.Discriminator.Mapping = make(map[string]string, len(s.Discriminator.Mapping))
+			for k, v := range s.Discriminator.Mapping {
+				out.Discriminator.Mapping[k] = v
+			}
+		}
+	}
+
+	// XML
+	if s.XML != nil {
+		out.XML = &XMLV31{
+			Name:      s.XML.Name,
+			Namespace: s.XML.Namespace,
+			Prefix:    s.XML.Prefix,
+			Attribute: s.XML.Attribute,
+			Wrapped:   s.XML.Wrapped,
+		}
+	}
+
+	out.Extensions = p.ext(s.Extensions)
 
 	return out
 }

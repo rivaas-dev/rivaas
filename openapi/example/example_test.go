@@ -55,27 +55,25 @@ func ExampleNewExternal() {
 	// Output: External: true, URL: https://api.example.com/examples/large.json
 }
 
-// ExampleRouteWrapper_Response_namedExamples demonstrates response with named examples.
+// ExampleResponse_namedExamples demonstrates response with named examples.
 func ExampleResponse_namedExamples() {
 	type UserResponse struct {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	}
 
-	cfg := openapi.MustNew(
-		openapi.WithTitle("My API", "1.0.0"),
-	)
-
-	manager := openapi.NewManager(cfg)
-	route := manager.Register(http.MethodGet, "/users/:id")
-	route.Doc("Get user", "Retrieves a user by ID").
-		Response(200, UserResponse{},
+	// Create an operation with named examples
+	op := openapi.GET("/users/:id",
+		openapi.WithSummary("Get user"),
+		openapi.WithDescription("Retrieves a user by ID"),
+		openapi.WithResponse(http.StatusOK, UserResponse{},
 			example.New("regular", UserResponse{ID: 123, Name: "John"},
 				example.WithSummary("Regular user")),
 			example.New("admin", UserResponse{ID: 1, Name: "Admin"},
 				example.WithSummary("Admin user")),
-		)
+		),
+	)
 
-	fmt.Println("Response with named examples registered")
-	// Output: Response with named examples registered
+	fmt.Printf("Operation: %s %s\n", op.Method, op.Path)
+	// Output: Operation: GET /users/:id
 }

@@ -21,7 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"rivaas.dev/openapi/model"
+	"rivaas.dev/openapi/diag"
+	"rivaas.dev/openapi/internal/model"
 )
 
 func TestSchema31(t *testing.T) {
@@ -30,12 +31,12 @@ func TestSchema31(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    *model.Schema
-		validate func(t *testing.T, result *SchemaV31, warns []Warning)
+		validate func(t *testing.T, result *SchemaV31, warns diag.Warnings)
 	}{
 		{
 			name:  "nil schema",
 			input: nil,
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				assert.Nil(t, result)
 			},
@@ -45,7 +46,7 @@ func TestSchema31(t *testing.T) {
 			input: &model.Schema{
 				Ref: "#/components/schemas/User",
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "#/components/schemas/User", result.Ref)
@@ -59,7 +60,7 @@ func TestSchema31(t *testing.T) {
 				Description: "User name",
 				Format:      "string",
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "string", result.Type)
@@ -74,7 +75,7 @@ func TestSchema31(t *testing.T) {
 				Kind:     model.KindString,
 				Nullable: true,
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				typeVal, ok := result.Type.([]string)
@@ -96,7 +97,7 @@ func TestSchema31(t *testing.T) {
 					Exclusive: true,
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "integer", result.Type)
@@ -119,7 +120,7 @@ func TestSchema31(t *testing.T) {
 					Exclusive: false,
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Minimum)
@@ -134,7 +135,7 @@ func TestSchema31(t *testing.T) {
 				Kind:  model.KindString,
 				Const: "fixed-value",
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "fixed-value", result.Const)
@@ -149,7 +150,7 @@ func TestSchema31(t *testing.T) {
 					Kind: model.KindString,
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.UnevaluatedProps)
@@ -170,7 +171,7 @@ func TestSchema31(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.PatternProperties)
@@ -184,7 +185,7 @@ func TestSchema31(t *testing.T) {
 				Kind:     model.KindString,
 				Examples: []any{"example1", "example2", "example3"},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Examples, 3)
@@ -198,7 +199,7 @@ func TestSchema31(t *testing.T) {
 				Kind:    model.KindString,
 				Example: "single-example",
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Examples, 1)
@@ -212,7 +213,7 @@ func TestSchema31(t *testing.T) {
 				MinProperties: intPtr(1),
 				MaxProperties: intPtr(10),
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.MinProperties)
@@ -231,7 +232,7 @@ func TestSchema31(t *testing.T) {
 					Kind: model.KindString,
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "array", result.Type)
@@ -257,7 +258,7 @@ func TestSchema31(t *testing.T) {
 				},
 				Required: []string{"name"},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "object", result.Type)
@@ -275,7 +276,7 @@ func TestSchema31(t *testing.T) {
 					Allow: boolPtr(false),
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, false, result.AdditionalProps)
@@ -291,7 +292,7 @@ func TestSchema31(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.AdditionalProps)
@@ -319,7 +320,7 @@ func TestSchema31(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.AllOf, 2)
@@ -334,7 +335,7 @@ func TestSchema31(t *testing.T) {
 					{Kind: model.KindInteger},
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.AnyOf, 2)
@@ -349,7 +350,7 @@ func TestSchema31(t *testing.T) {
 					{Kind: model.KindInteger},
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.OneOf, 2)
@@ -363,7 +364,7 @@ func TestSchema31(t *testing.T) {
 					Kind: model.KindString,
 				},
 			},
-			validate: func(t *testing.T, result *SchemaV31, warns []Warning) {
+			validate: func(t *testing.T, result *SchemaV31, warns diag.Warnings) {
 				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Not)
@@ -376,11 +377,11 @@ func TestSchema31(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var warns []Warning
-			result := schema31(tt.input, &warns, "#/test")
+			p := &proj31{}
+			result := schema31(tt.input, p, "#/test")
 
 			if tt.validate != nil {
-				tt.validate(t, result, warns)
+				tt.validate(t, result, p.warns)
 			}
 		})
 	}
@@ -463,8 +464,8 @@ func TestSchemaV31_TypeUnion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var warns []Warning
-			result := schema31(tt.input, &warns, "#/test")
+			p := &proj31{}
+			result := schema31(tt.input, p, "#/test")
 
 			if tt.validate != nil {
 				tt.validate(t, result)

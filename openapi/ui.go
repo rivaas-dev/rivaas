@@ -175,12 +175,22 @@ const (
 	MethodTrace HTTPMethod = "trace"
 )
 
-// uiConfig configures Swagger UI behavior and appearance.
+// Validator URL constants for Swagger UI validation.
+const (
+	// ValidatorLocal uses the embedded OpenAPI meta-schema for local validation.
+	// No external service calls are made. This is the recommended option for
+	// privacy, reliability, and offline support.
+	ValidatorLocal = "local"
+
+	// ValidatorNone disables Swagger UI validation entirely.
+	ValidatorNone = "none"
+)
+
+// UIConfig configures Swagger UI behavior and appearance.
 //
 // This type is used internally to build the JavaScript configuration object
-// that controls how Swagger UI renders and behaves. It is not exported as
-// users configure the UI through the Config type's options.
-type uiConfig struct {
+// that controls how Swagger UI renders and behaves.
+type UIConfig struct {
 	// Navigation & Deep Linking
 	DeepLinking        bool
 	DisplayOperationID bool
@@ -242,8 +252,8 @@ type RequestSnippetsConfig struct {
 //
 // These defaults provide a good balance of functionality and usability
 // for most API documentation needs.
-func defaultUIConfig() uiConfig {
-	return uiConfig{
+func defaultUIConfig() UIConfig {
+	return UIConfig{
 		DeepLinking:              true,
 		DisplayOperationID:       false,
 		DocExpansion:             DocExpansionList,
@@ -277,7 +287,7 @@ func defaultUIConfig() uiConfig {
 	}
 }
 
-// Validate checks if the uiConfig is valid and returns an error if any
+// Validate checks if the UIConfig is valid and returns an error if any
 // configuration values are invalid.
 //
 // It validates:
@@ -289,7 +299,7 @@ func defaultUIConfig() uiConfig {
 //   - RequestSnippetLanguage values (must be valid language identifiers)
 //   - HTTPMethod values (must be valid HTTP methods)
 //   - Numeric ranges (depths must be >= -1, maxDisplayedTags must be >= 0)
-func (c *uiConfig) Validate() error {
+func (c *UIConfig) Validate() error {
 	// Validate DocExpansion
 	if c.DocExpansion != "" {
 		switch c.DocExpansion {
@@ -383,7 +393,7 @@ func (c *uiConfig) Validate() error {
 	return nil
 }
 
-// ToConfigMap converts uiConfig to a map suitable for JSON serialization.
+// ToConfigMap converts UIConfig to a map suitable for JSON serialization.
 //
 // The returned map contains all configuration options in the format expected
 // by Swagger UI's JavaScript initialization. The specURL parameter specifies
@@ -391,7 +401,7 @@ func (c *uiConfig) Validate() error {
 //
 // This method is used internally to generate the JavaScript configuration
 // object that is embedded in the Swagger UI HTML page.
-func (c *uiConfig) ToConfigMap(specURL string) map[string]any {
+func (c *UIConfig) ToConfigMap(specURL string) map[string]any {
 	m := map[string]any{
 		"url":                      specURL,
 		"dom_id":                   "#swagger-ui",
@@ -427,7 +437,7 @@ func (c *uiConfig) ToConfigMap(specURL string) map[string]any {
 		m["tagsSorter"] = string(c.TagsSorter)
 	}
 
-	if c.ValidatorURL == "" || c.ValidatorURL == "none" {
+	if c.ValidatorURL == "" || c.ValidatorURL == "none" || c.ValidatorURL == "local" {
 		m["validatorUrl"] = nil
 	} else {
 		m["validatorUrl"] = c.ValidatorURL
@@ -458,14 +468,14 @@ func (c *uiConfig) ToConfigMap(specURL string) map[string]any {
 	return m
 }
 
-// ToJSON converts uiConfig to a formatted JSON string for embedding in HTML.
+// ToJSON converts UIConfig to a formatted JSON string for embedding in HTML.
 //
 // The returned JSON string is indented for readability and can be directly
 // embedded in the Swagger UI HTML template. The specURL parameter specifies
 // the URL where the OpenAPI specification JSON can be fetched.
 //
 // Returns an error if JSON serialization fails.
-func (c *uiConfig) ToJSON(specURL string) (string, error) {
+func (c *UIConfig) ToJSON(specURL string) (string, error) {
 	configMap := c.ToConfigMap(specURL)
 	bytes, err := json.MarshalIndent(configMap, "\t\t", "  ")
 	if err != nil {

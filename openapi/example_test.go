@@ -15,16 +15,18 @@
 package openapi_test
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 
 	"rivaas.dev/openapi"
 )
 
-// ExampleNew demonstrates creating a new OpenAPI configuration.
+// ExampleNew demonstrates creating a new OpenAPI API definition.
 func ExampleNew() {
-	cfg, err := openapi.New(
+	api, err := openapi.New(
 		openapi.WithTitle("My API", "1.0.0"),
-		openapi.WithDescription("API for managing users"),
+		openapi.WithInfoDescription("API for managing users"),
 		openapi.WithServer("http://localhost:8080", "Local development"),
 	)
 	if err != nil {
@@ -32,153 +34,151 @@ func ExampleNew() {
 		return
 	}
 
-	fmt.Printf("Title: %s, Version: %s\n", cfg.Info.Title, cfg.Info.Version)
+	fmt.Printf("Title: %s, Version: %s\n", api.Info.Title, api.Info.Version)
 	// Output: Title: My API, Version: 1.0.0
 }
 
-// ExampleMustNew demonstrates creating OpenAPI configuration that panics on error.
+// ExampleMustNew demonstrates creating OpenAPI API definition that panics on error.
 func ExampleMustNew() {
-	cfg := openapi.MustNew(
+	api := openapi.MustNew(
 		openapi.WithTitle("My API", "1.0.0"),
-		openapi.WithSwaggerUI(true, "/docs"),
+		openapi.WithSwaggerUI("/docs"),
 	)
 
-	fmt.Printf("UI enabled: %v\n", cfg.ServeUI)
+	fmt.Printf("UI enabled: %v\n", api.ServeUI)
 	// Output: UI enabled: true
 }
 
-// ExampleNewManager demonstrates creating an OpenAPI manager.
-func ExampleNewManager() {
-	cfg := openapi.MustNew(
-		openapi.WithTitle("My API", "1.0.0"),
-		openapi.WithDescription("API documentation"),
-	)
-
-	manager := openapi.NewManager(cfg)
-	if manager == nil {
-		fmt.Println("Manager is nil")
-		return
-	}
-
-	fmt.Println("Manager created successfully")
-	// Output: Manager created successfully
-}
-
-// ExampleManager_Register demonstrates registering routes for OpenAPI documentation.
-func ExampleManager_Register() {
-	cfg := openapi.MustNew(
+// ExampleAPI_Generate demonstrates generating an OpenAPI specification.
+func ExampleAPI_Generate() {
+	api := openapi.MustNew(
 		openapi.WithTitle("User API", "1.0.0"),
 	)
 
-	manager := openapi.NewManager(cfg)
-
-	// Register a route
-	route := manager.Register("GET", "/users/:id")
-	route.Doc("Get user", "Retrieves a user by ID").
-		Tags("users")
-
-	fmt.Println("Route registered")
-	// Output: Route registered
-}
-
-// ExampleWithBearerAuth demonstrates configuring Bearer authentication.
-func ExampleWithBearerAuth() {
-	cfg := openapi.MustNew(
-		openapi.WithTitle("My API", "1.0.0"),
-		openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
+	// Generate the spec using HTTP method constructors
+	result, err := api.Generate(context.Background(),
+		openapi.GET("/users/:id",
+			openapi.WithSummary("Get user"),
+			openapi.WithDescription("Retrieves a user by ID"),
+			openapi.WithTags("users"),
+		),
 	)
-
-	fmt.Printf("Security schemes: %d\n", len(cfg.SecuritySchemes))
-	// Output: Security schemes: 1
-}
-
-// ExampleWithSwaggerUI demonstrates enabling Swagger UI.
-func ExampleWithSwaggerUI() {
-	cfg := openapi.MustNew(
-		openapi.WithTitle("My API", "1.0.0"),
-		openapi.WithSwaggerUI(true, "/docs"),
-	)
-
-	fmt.Printf("UI enabled: %v, UI path: %s\n", cfg.ServeUI, cfg.UIPath)
-	// Output: UI enabled: true, UI path: /docs
-}
-
-// ExampleWithServer demonstrates adding server URLs.
-func ExampleWithServer() {
-	cfg := openapi.MustNew(
-		openapi.WithTitle("My API", "1.0.0"),
-		openapi.WithServer("http://localhost:8080", "Local development"),
-		openapi.WithServer("https://api.example.com", "Production"),
-	)
-
-	fmt.Printf("Servers: %d\n", len(cfg.Servers))
-	// Output: Servers: 2
-}
-
-// ExampleWithTag demonstrates adding API tags.
-func ExampleWithTag() {
-	cfg := openapi.MustNew(
-		openapi.WithTitle("My API", "1.0.0"),
-		openapi.WithTag("users", "User management operations"),
-		openapi.WithTag("orders", "Order management operations"),
-	)
-
-	fmt.Printf("Tags: %d\n", len(cfg.Tags))
-	// Output: Tags: 2
-}
-
-// ExampleRouteWrapper_Doc demonstrates documenting a route.
-func ExampleRouteWrapper_Doc() {
-	cfg := openapi.MustNew(
-		openapi.WithTitle("My API", "1.0.0"),
-	)
-
-	manager := openapi.NewManager(cfg)
-	route := manager.Register("POST", "/users")
-	route.Doc("Create user", "Creates a new user account").
-		Tags("users")
-
-	fmt.Println("Route documented")
-	// Output: Route documented
-}
-
-// ExampleRouteWrapper_Request demonstrates documenting request body.
-func ExampleRouteWrapper_Request() {
-	type CreateUserRequest struct {
-		Name  string `json:"name"`
-		Email string `json:"email"`
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
 	}
 
-	cfg := openapi.MustNew(
-		openapi.WithTitle("My API", "1.0.0"),
-	)
-
-	manager := openapi.NewManager(cfg)
-	route := manager.Register("POST", "/users")
-	route.Doc("Create user", "Creates a new user").
-		Request(CreateUserRequest{})
-
-	fmt.Println("Request body documented")
-	// Output: Request body documented
+	fmt.Printf("Generated spec: %v\n", len(result.JSON) > 0)
+	// Output: Generated spec: true
 }
 
-// ExampleRouteWrapper_Response demonstrates documenting responses.
-func ExampleRouteWrapper_Response() {
-	type User struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
-	}
-
-	cfg := openapi.MustNew(
-		openapi.WithTitle("My API", "1.0.0"),
+// ExampleGET demonstrates creating a GET operation.
+func ExampleGET() {
+	op := openapi.GET("/users/:id",
+		openapi.WithSummary("Get user"),
+		openapi.WithDescription("Retrieves a user by ID"),
+		openapi.WithResponse(http.StatusOK, User{}),
 	)
 
-	manager := openapi.NewManager(cfg)
-	route := manager.Register("GET", "/users/:id")
-	route.Doc("Get user", "Retrieves a user by ID").
-		Response(200, User{}).
-		Response(404, map[string]string{"error": "User not found"})
+	fmt.Printf("Method: %s, Path: %s\n", op.Method, op.Path)
+	// Output: Method: GET, Path: /users/:id
+}
 
-	fmt.Println("Responses documented")
-	// Output: Responses documented
+// ExamplePOST demonstrates creating a POST operation.
+func ExamplePOST() {
+	op := openapi.POST("/users",
+		openapi.WithSummary("Create user"),
+		openapi.WithRequest(CreateUserRequest{}),
+		openapi.WithResponse(http.StatusCreated, User{}),
+	)
+
+	fmt.Printf("Method: %s, Path: %s\n", op.Method, op.Path)
+	// Output: Method: POST, Path: /users
+}
+
+// ExampleDELETE demonstrates creating a DELETE operation.
+func ExampleDELETE() {
+	op := openapi.DELETE("/users/:id",
+		openapi.WithSummary("Delete user"),
+		openapi.WithResponse(http.StatusNoContent, nil),
+	)
+
+	fmt.Printf("Method: %s, Path: %s\n", op.Method, op.Path)
+	// Output: Method: DELETE, Path: /users/:id
+}
+
+// ExampleWithSummary demonstrates setting an operation summary.
+func ExampleWithSummary() {
+	op := openapi.GET("/users",
+		openapi.WithSummary("List all users"),
+	)
+
+	fmt.Printf("Method: %s, Path: %s\n", op.Method, op.Path)
+	// Output: Method: GET, Path: /users
+}
+
+// ExampleWithTags demonstrates adding tags to an operation.
+func ExampleWithTags() {
+	op := openapi.GET("/users/:id",
+		openapi.WithTags("users", "admin"),
+	)
+
+	fmt.Printf("Method: %s, Path: %s\n", op.Method, op.Path)
+	// Output: Method: GET, Path: /users/:id
+}
+
+// ExampleWithSecurity demonstrates adding security requirements.
+func ExampleWithSecurity() {
+	op := openapi.GET("/users/:id",
+		openapi.WithSecurity("bearerAuth"),
+		openapi.WithSecurity("oauth2", "read:users", "write:users"),
+	)
+
+	fmt.Printf("Method: %s, Path: %s\n", op.Method, op.Path)
+	// Output: Method: GET, Path: /users/:id
+}
+
+// ExampleWithDeprecated demonstrates marking an operation as deprecated.
+func ExampleWithDeprecated() {
+	op := openapi.GET("/old-endpoint",
+		openapi.WithSummary("Old endpoint"),
+		openapi.WithDeprecated(),
+	)
+
+	fmt.Printf("Method: %s, Path: %s\n", op.Method, op.Path)
+	// Output: Method: GET, Path: /old-endpoint
+}
+
+// User is an example type for documentation.
+type User struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// ExampleWithResponse demonstrates setting response schemas.
+func ExampleWithResponse() {
+	op := openapi.GET("/users/:id",
+		openapi.WithSummary("Get user"),
+		openapi.WithResponse(200, User{}),
+	)
+
+	fmt.Printf("Method: %s, Path: %s\n", op.Method, op.Path)
+	// Output: Method: GET, Path: /users/:id
+}
+
+// CreateUserRequest is an example request type.
+type CreateUserRequest struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+// ExampleWithRequest demonstrates setting request schemas.
+func ExampleWithRequest() {
+	op := openapi.POST("/users",
+		openapi.WithSummary("Create user"),
+		openapi.WithRequest(CreateUserRequest{}),
+	)
+
+	fmt.Printf("Method: %s, Path: %s\n", op.Method, op.Path)
+	// Output: Method: POST, Path: /users
 }

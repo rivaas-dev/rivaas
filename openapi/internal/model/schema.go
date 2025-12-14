@@ -176,10 +176,3 @@ type XML struct {
 	Attribute bool
 	Wrapped   bool
 }
-
-// ExternalDocs provides external documentation links.
-type ExternalDocs struct {
-	Description string
-	URL         string
-	Extensions  map[string]any
-}

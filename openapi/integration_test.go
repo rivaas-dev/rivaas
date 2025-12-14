@@ -15,35 +15,29 @@
 package openapi_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
-	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"rivaas.dev/openapi"
-	"rivaas.dev/openapi/example"
+	"rivaas.dev/openapi/validate"
 )
 
 var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 	Describe("Spec Generation", func() {
 		It("should generate complete OpenAPI specification", func() {
-			cfg := openapi.MustNew(
+			api := openapi.MustNew(
 				openapi.WithTitle("Test API", "1.0.0"),
-				openapi.WithDescription("Integration test API"),
+				openapi.WithInfoDescription("Integration test API"),
 				openapi.WithServer("http://localhost:8080", "Local development"),
 				openapi.WithTag("users", "User operations"),
 				openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
 			)
 
-			manager := openapi.NewManager(cfg)
-
-			// Register multiple routes
-			type GetUserRequest struct {
-				ID int `path:"id" doc:"User ID"`
-			}
-
+			// Define request/response types
 			type User struct {
 				ID    int    `json:"id"`
 				Name  string `json:"name"`
@@ -59,37 +53,39 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				Error string `json:"error"`
 			}
 
-			manager.Register(http.MethodGet, "/users/:id").
-				Doc("Get user", "Retrieves a user by ID").
-				Request(GetUserRequest{}).
-				Response(http.StatusOK, User{}).
-				Response(http.StatusNotFound, ErrorResponse{}).
-				Tags("users").
-				Security("bearerAuth")
-
-			manager.Register(http.MethodPost, "/users").
-				Doc("Create user", "Creates a new user").
-				Request(CreateUserRequest{}).
-				Response(http.StatusCreated, User{}).
-				Response(http.StatusBadRequest, ErrorResponse{}).
-				Tags("users").
-				Security("bearerAuth")
-
-			manager.Register(http.MethodGet, "/users").
-				Doc("List users", "Retrieves a list of users").
-				Response(http.StatusOK, []User{}).
-				Tags("users").
-				Security("bearerAuth")
-
-			// Generate spec
-			specJSON, etag, err := manager.GenerateSpec()
+			// Generate spec using HTTP method constructors
+			result, err := api.Generate(context.Background(),
+				openapi.GET("/users/:id",
+					openapi.WithSummary("Get user"),
+					openapi.WithDescription("Retrieves a user by ID"),
+					openapi.WithResponse(http.StatusOK, User{}),
+					openapi.WithResponse(http.StatusNotFound, ErrorResponse{}),
+					openapi.WithTags("users"),
+					openapi.WithSecurity("bearerAuth"),
+				),
+				openapi.POST("/users",
+					openapi.WithSummary("Create user"),
+					openapi.WithDescription("Creates a new user"),
+					openapi.WithRequest(CreateUserRequest{}),
+					openapi.WithResponse(http.StatusCreated, User{}),
+					openapi.WithResponse(http.StatusBadRequest, ErrorResponse{}),
+					openapi.WithTags("users"),
+					openapi.WithSecurity("bearerAuth"),
+				),
+				openapi.GET("/users",
+					openapi.WithSummary("List users"),
+					openapi.WithDescription("Retrieves a list of users"),
+					openapi.WithResponse(http.StatusOK, []User{}),
+					openapi.WithTags("users"),
+					openapi.WithSecurity("bearerAuth"),
+				),
+			)
 			Expect(err).NotTo(HaveOccurred(), "should generate spec successfully")
-			Expect(specJSON).NotTo(BeEmpty(), "spec JSON should not be empty")
-			Expect(etag).NotTo(BeEmpty(), "ETag should not be empty")
+			Expect(result.JSON).NotTo(BeEmpty(), "spec JSON should not be empty")
 
 			// Validate JSON structure
 			var spec map[string]any
-			Expect(json.Unmarshal(specJSON, &spec)).To(Succeed(), "spec should be valid JSON")
+			Expect(json.Unmarshal(result.JSON, &spec)).To(Succeed(), "spec should be valid JSON")
 
 			// Verify OpenAPI version
 			Expect(spec["openapi"]).To(Equal("3.0.4"), "should use OpenAPI 3.0.4 by default")
@@ -101,400 +97,229 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			Expect(info["version"]).To(Equal("1.0.0"))
 			Expect(info["description"]).To(Equal("Integration test API"))
 
+			// Verify paths
+			paths, ok := spec["paths"].(map[string]any)
+			Expect(ok).To(BeTrue(), "paths should be present")
+			Expect(paths).To(HaveLen(2), "should have 2 unique paths")
+			Expect(paths).To(HaveKey("/users/{id}"))
+			Expect(paths).To(HaveKey("/users"))
+
 			// Verify servers
 			servers, ok := spec["servers"].([]any)
 			Expect(ok).To(BeTrue(), "servers should be present")
 			Expect(servers).To(HaveLen(1))
-			server, ok := servers[0].(map[string]any)
-			Expect(ok).To(BeTrue())
-			Expect(server["url"]).To(Equal("http://localhost:8080"))
+		})
 
-			// Verify paths
-			paths, ok := spec["paths"].(map[string]any)
-			Expect(ok).To(BeTrue(), "paths should be present")
-			Expect(paths).To(HaveKey("/users/{id}"), "should contain GET /users/:id")
-			Expect(paths).To(HaveKey("/users"), "should contain POST /users and GET /users")
+		It("should generate OpenAPI 3.1 specification when configured", func() {
+			api := openapi.MustNew(
+				openapi.WithTitle("Test API", "1.0.0"),
+				openapi.WithVersion(openapi.V31x),
+			)
 
-			// Verify security schemes
-			components, ok := spec["components"].(map[string]any)
-			Expect(ok).To(BeTrue(), "components should be present")
-			securitySchemes, ok := components["securitySchemes"].(map[string]any)
-			Expect(ok).To(BeTrue(), "securitySchemes should be present")
-			Expect(securitySchemes).To(HaveKey("bearerAuth"), "should contain bearerAuth scheme")
+			result, err := api.Generate(context.Background(),
+				openapi.GET("/health",
+					openapi.WithSummary("Health check"),
+				),
+			)
+			Expect(err).NotTo(HaveOccurred())
 
-			// Verify tags
-			tags, ok := spec["tags"].([]any)
-			Expect(ok).To(BeTrue(), "tags should be present")
-			Expect(tags).To(HaveLen(1))
-			tag, ok := tags[0].(map[string]any)
-			Expect(ok).To(BeTrue())
-			Expect(tag["name"]).To(Equal("users"))
+			var spec map[string]any
+			Expect(json.Unmarshal(result.JSON, &spec)).To(Succeed())
+			Expect(spec["openapi"]).To(Equal("3.1.2"))
+		})
+
+		It("should handle empty operations with OpenAPI 3.1", func() {
+			// OpenAPI 3.1 allows empty paths, 3.0 does not
+			api := openapi.MustNew(
+				openapi.WithTitle("Empty API", "1.0.0"),
+				openapi.WithVersion(openapi.V31x),
+			)
+
+			result, err := api.Generate(context.Background())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.JSON).NotTo(BeEmpty())
+
+			var spec map[string]any
+			Expect(json.Unmarshal(result.JSON, &spec)).To(Succeed())
+			// Paths may be nil or empty for OpenAPI 3.1 with no routes
+			paths := spec["paths"]
+			if paths != nil {
+				Expect(paths).To(BeEmpty())
+			}
 		})
 	})
 
-	Describe("Spec Caching", func() {
-		It("should cache generated specs until routes change", func() {
-			cfg := openapi.MustNew(
-				openapi.WithTitle("Test API", "1.0.0"),
-			)
+	Describe("HTTP Method Constructors", func() {
+		It("should create operations with correct HTTP methods", func() {
+			getOp := openapi.GET("/resource", openapi.WithSummary("Get"))
+			postOp := openapi.POST("/resource", openapi.WithSummary("Create"))
+			putOp := openapi.PUT("/resource/:id", openapi.WithSummary("Update"))
+			patchOp := openapi.PATCH("/resource/:id", openapi.WithSummary("Patch"))
+			deleteOp := openapi.DELETE("/resource/:id", openapi.WithSummary("Delete"))
+			headOp := openapi.HEAD("/resource/:id", openapi.WithSummary("Head"))
+			optionsOp := openapi.OPTIONS("/resource", openapi.WithSummary("Options"))
 
-			manager := openapi.NewManager(cfg)
-			manager.Register(http.MethodGet, "/test").
-				Doc("Test endpoint", "A test endpoint").
-				Response(http.StatusOK, map[string]string{"message": "test"})
+			Expect(getOp.Method).To(Equal(http.MethodGet))
+			Expect(postOp.Method).To(Equal(http.MethodPost))
+			Expect(putOp.Method).To(Equal(http.MethodPut))
+			Expect(patchOp.Method).To(Equal(http.MethodPatch))
+			Expect(deleteOp.Method).To(Equal(http.MethodDelete))
+			Expect(headOp.Method).To(Equal(http.MethodHead))
+			Expect(optionsOp.Method).To(Equal(http.MethodOptions))
+		})
 
-			// Generate spec first time
-			specJSON1, etag1, err := manager.GenerateSpec()
-			Expect(err).NotTo(HaveOccurred())
+		It("should create custom method operations with Op()", func() {
+			op := openapi.Op("CUSTOM", "/resource", openapi.WithSummary("Custom"))
+			Expect(op.Method).To(Equal("CUSTOM"))
+			Expect(op.Path).To(Equal("/resource"))
+		})
 
-			// Generate spec second time - should use cache
-			specJSON2, etag2, err := manager.GenerateSpec()
-			Expect(err).NotTo(HaveOccurred())
-
-			// ETags should be the same (cached)
-			Expect(etag2).To(Equal(etag1), "ETags should match when using cache")
-			Expect(string(specJSON2)).To(Equal(string(specJSON1)), "specs should be identical when cached")
-
-			// Register new route - should invalidate cache
-			manager.Register(http.MethodPost, "/test").
-				Doc("Create test", "Creates a test").
-				Response(http.StatusCreated, map[string]string{"id": "string"})
-
-			// Generate spec third time - should regenerate
-			specJSON3, etag3, err := manager.GenerateSpec()
-			Expect(err).NotTo(HaveOccurred())
-
-			// ETag should be different (cache invalidated)
-			Expect(etag3).NotTo(Equal(etag2), "ETag should change after cache invalidation")
-
-			// Spec should be different (contains new route)
-			var spec1, spec3 map[string]any
-			Expect(json.Unmarshal(specJSON1, &spec1)).To(Succeed())
-			Expect(json.Unmarshal(specJSON3, &spec3)).To(Succeed())
-
-			paths1 := spec1["paths"].(map[string]any)
-			paths3 := spec3["paths"].(map[string]any)
-
-			Expect(paths1).To(HaveLen(1), "first spec should have 1 path")
-			Expect(paths3).To(HaveLen(1), "third spec should have 1 path (same path, different methods)")
-
-			// Verify POST method was added
-			testPath, ok := paths3["/test"].(map[string]any)
-			Expect(ok).To(BeTrue())
-			Expect(testPath).To(HaveKey("get"), "should contain GET method")
-			Expect(testPath).To(HaveKey("post"), "should contain POST method")
+		It("should create TRACE operations", func() {
+			traceOp := openapi.TRACE("/resource/:id", openapi.WithSummary("Trace"))
+			Expect(traceOp.Method).To(Equal(http.MethodTrace))
+			Expect(traceOp.Path).To(Equal("/resource/:id"))
 		})
 	})
 
-	Describe("Multiple Routes", func() {
-		It("should handle multiple routes across different tags", func() {
-			cfg := openapi.MustNew(
+	Describe("Path Validation", func() {
+		It("should validate correct paths", func() {
+			Expect(validate.ValidatePath("/users")).To(Succeed())
+			Expect(validate.ValidatePath("/users/:id")).To(Succeed())
+			Expect(validate.ValidatePath("/users/:userId/posts/:postId")).To(Succeed())
+		})
+
+		It("should reject empty paths", func() {
+			err := validate.ValidatePath("")
+			Expect(err).To(MatchError(validate.ErrPathEmpty))
+		})
+
+		It("should reject paths without leading slash", func() {
+			err := validate.ValidatePath("users")
+			Expect(err).To(MatchError(validate.ErrPathNoLeadingSlash))
+		})
+
+		It("should reject duplicate parameters", func() {
+			err := validate.ValidatePath("/users/:id/posts/:id")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("duplicate"))
+		})
+
+		It("should reject invalid parameter syntax", func() {
+			err := validate.ValidatePath("/users/:/posts")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid"))
+		})
+	})
+
+	Describe("Operation Extensions", func() {
+		It("should support operation-level extensions", func() {
+			api := openapi.MustNew(
 				openapi.WithTitle("Test API", "1.0.0"),
-				openapi.WithTag("users", "User operations"),
-				openapi.WithTag("orders", "Order operations"),
 			)
 
-			manager := openapi.NewManager(cfg)
+			result, err := api.Generate(context.Background(),
+				openapi.GET("/users/:id",
+					openapi.WithSummary("Get user"),
+					openapi.WithOperationExtension("x-rate-limit", 100),
+					openapi.WithOperationExtension("x-internal", true),
+				),
+			)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.JSON).NotTo(BeEmpty())
+		})
+	})
+
+	Describe("YAML Output", func() {
+		It("should generate both JSON and YAML output", func() {
+			api := openapi.MustNew(
+				openapi.WithTitle("Test API", "1.0.0"),
+			)
 
 			type User struct {
 				ID   int    `json:"id"`
 				Name string `json:"name"`
 			}
 
-			type Order struct {
-				ID     int `json:"id"`
-				UserID int `json:"user_id"` //nolint:tagliatelle // snake_case is intentional for API compatibility
-			}
+			result, err := api.Generate(context.Background(),
+				openapi.GET("/users/:id",
+					openapi.WithSummary("Get user"),
+					openapi.WithResponse(http.StatusOK, User{}),
+				),
+			)
 
-			// Register multiple routes across different tags
-			manager.Register(http.MethodGet, "/users/:id").
-				Doc("Get user", "Retrieves a user").
-				Response(200, User{}).
-				Tags("users")
-
-			manager.Register(http.MethodGet, "/users").
-				Doc("List users", "Lists all users").
-				Response(200, []User{}).
-				Tags("users")
-
-			manager.Register(http.MethodGet, "/orders/:id").
-				Doc("Get order", "Retrieves an order").
-				Response(200, Order{}).
-				Tags("orders")
-
-			manager.Register(http.MethodPost, "/orders").
-				Doc("Create order", "Creates a new order").
-				Request(Order{}).
-				Response(201, Order{}).
-				Tags("orders")
-
-			// Generate spec
-			specJSON, _, err := manager.GenerateSpec()
 			Expect(err).NotTo(HaveOccurred())
+			Expect(result.JSON).NotTo(BeEmpty(), "JSON output should not be empty")
+			Expect(result.YAML).NotTo(BeEmpty(), "YAML output should not be empty")
 
-			var spec map[string]any
-			Expect(json.Unmarshal(specJSON, &spec)).To(Succeed())
-
-			// Verify all routes are present
-			paths, ok := spec["paths"].(map[string]any)
-			Expect(ok).To(BeTrue())
-
-			Expect(paths).To(HaveKey("/users/{id}"), "should contain GET /users/:id")
-			Expect(paths).To(HaveKey("/users"), "should contain GET /users")
-			Expect(paths).To(HaveKey("/orders/{id}"), "should contain GET /orders/:id")
-			Expect(paths).To(HaveKey("/orders"), "should contain POST /orders")
-
-			// Verify tags are present
-			tags, ok := spec["tags"].([]any)
-			Expect(ok).To(BeTrue())
-			Expect(tags).To(HaveLen(2), "should have 2 tags")
-
-			tagNames := make(map[string]bool)
-			for _, tag := range tags {
-				tagMap, tagMapOk := tag.(map[string]any)
-				Expect(tagMapOk).To(BeTrue())
-				name, nameOk := tagMap["name"].(string)
-				Expect(nameOk).To(BeTrue())
-				tagNames[name] = true
-			}
-
-			Expect(tagNames).To(HaveKey("users"), "should have users tag")
-			Expect(tagNames).To(HaveKey("orders"), "should have orders tag")
+			// Verify YAML contains expected content
+			yamlStr := string(result.YAML)
+			Expect(yamlStr).To(ContainSubstring("openapi:"))
+			Expect(yamlStr).To(ContainSubstring("title: Test API"))
 		})
 	})
 
-	Describe("Swagger UI Configuration", func() {
-		It("should configure Swagger UI correctly", func() {
-			cfg := openapi.MustNew(
+	Describe("Validation", func() {
+		It("should not validate by default for backward compatibility", func() {
+			api := openapi.MustNew(
 				openapi.WithTitle("Test API", "1.0.0"),
-				openapi.WithSwaggerUI(true, "/docs"),
 			)
 
-			manager := openapi.NewManager(cfg)
-			manager.Register(http.MethodGet, "/test").
-				Doc("Test endpoint", "A test endpoint").
-				Response(200, map[string]string{"message": "test"})
+			// Default should have validation disabled
+			Expect(api.ValidateSpec).To(BeFalse())
 
-			// Generate spec
-			specJSON, _, err := manager.GenerateSpec()
+			result, err := api.Generate(context.Background(),
+				openapi.GET("/test",
+					openapi.WithSummary("Test endpoint"),
+					openapi.WithResponse(http.StatusOK, struct{}{}),
+				),
+			)
 			Expect(err).NotTo(HaveOccurred())
-
-			// Verify Swagger UI configuration
-			Expect(cfg.ServeUI).To(BeTrue(), "UI should be enabled")
-			Expect(cfg.UIPath).To(Equal("/docs"), "UI path should be set")
-			Expect(cfg.SpecPath).To(Equal("/openapi.json"), "spec path should be default")
-
-			// Verify spec is valid JSON
-			var spec map[string]any
-			Expect(json.Unmarshal(specJSON, &spec)).To(Succeed(), "spec should be valid JSON")
-
-			// In a real integration test, we would test HTTP serving:
-			// - Create HTTP server
-			// - Register Swagger UI handler
-			// - Make requests to /docs and /openapi.json
-			// - Verify responses
-			// For now, we verify the configuration is correct
+			Expect(result.JSON).NotTo(BeEmpty())
 		})
-	})
 
-	Describe("OpenAPI 3.1 Features", func() {
-		It("should generate OpenAPI 3.1.2 specification with 3.1-only features", func() {
-			cfg := openapi.MustNew(
+		It("should allow enabling validation", func() {
+			api := openapi.MustNew(
 				openapi.WithTitle("Test API", "1.0.0"),
-				openapi.WithVersion(openapi.Version31),
-				openapi.WithSummary("API summary"), // 3.1-only feature
+				openapi.WithValidation(true),
 			)
 
-			manager := openapi.NewManager(cfg)
-			manager.Register(http.MethodGet, "/test").
-				Doc("Test endpoint", "A test endpoint").
-				Response(http.StatusOK, map[string]string{"message": "test"})
+			Expect(api.ValidateSpec).To(BeTrue())
+		})
 
-			// Generate spec
-			specJSON, _, err := manager.GenerateSpec()
+		// Note: These tests use the embedded OpenAPI metaschemas which are complex
+		// and test the full validation stack. Skipped for unit tests.
+		XIt("should validate external spec using Validator", func() {
+			validSpec := `{
+				"openapi": "3.0.4",
+				"info": {
+					"title": "External API",
+					"version": "1.0.0"
+				},
+				"paths": {}
+			}`
+
+			validator := validate.New()
+			err := validator.Validate(context.Background(), []byte(validSpec), validate.V30)
 			Expect(err).NotTo(HaveOccurred())
-
-			var spec map[string]any
-			Expect(json.Unmarshal(specJSON, &spec)).To(Succeed())
-
-			// Verify OpenAPI version
-			Expect(spec["openapi"]).To(Equal("3.1.2"), "should use OpenAPI 3.1.2")
-
-			// Verify 3.1-only features
-			info, ok := spec["info"].(map[string]any)
-			Expect(ok).To(BeTrue())
-			Expect(info["summary"]).To(Equal("API summary"), "should include summary (3.1 feature)")
-		})
-	})
-
-	Describe("Concurrent Spec Generation", func() {
-		It("should safely generate specs concurrently", func() {
-			cfg := openapi.MustNew(
-				openapi.WithTitle("Test API", "1.0.0"),
-			)
-
-			manager := openapi.NewManager(cfg)
-
-			// Register routes
-			for i := range 10 {
-				manager.Register(http.MethodGet, "/test"+string(rune('0'+i))).
-					Doc("Test endpoint", "A test endpoint").
-					Response(http.StatusOK, map[string]string{"id": "string"})
-			}
-
-			// Concurrently generate specs
-			const numGoroutines = 10
-			results := make([]struct {
-				specJSON []byte
-				etag     string
-				err      error
-			}, 0, numGoroutines)
-			var mu sync.Mutex
-
-			var wg sync.WaitGroup
-			for range numGoroutines {
-				wg.Go(func() {
-					specJSON, etag, err := manager.GenerateSpec()
-					mu.Lock()
-					results = append(results, struct {
-						specJSON []byte
-						etag     string
-						err      error
-					}{specJSON, etag, err})
-					mu.Unlock()
-				})
-			}
-			wg.Wait()
-
-			// All should succeed
-			for i, result := range results {
-				Expect(result.err).NotTo(HaveOccurred(), "goroutine %d should succeed", i)
-				Expect(result.specJSON).NotTo(BeEmpty(), "goroutine %d should generate spec", i)
-				Expect(result.etag).NotTo(BeEmpty(), "goroutine %d should generate ETag", i)
-			}
-
-			// All ETags should be the same (same spec)
-			firstETag := results[0].etag
-			for i, result := range results {
-				Expect(result.etag).To(Equal(firstETag), "goroutine %d should have same ETag", i)
-				Expect(string(result.specJSON)).To(Equal(string(results[0].specJSON)), "goroutine %d should have same spec", i)
-			}
-		})
-	})
-
-	Describe("Example API Integration", func() {
-		var manager *openapi.Manager
-		var cfg *openapi.Config
-
-		BeforeEach(func() {
-			cfg = openapi.MustNew(
-				openapi.WithTitle("Test API", "1.0.0"),
-				openapi.WithVersion(openapi.Version31),
-			)
-			manager = openapi.NewManager(cfg)
 		})
 
-		Context("Response Examples", func() {
-			Context("with named examples", func() {
-				It("should generate examples map in spec", func() {
-					type User struct {
-						ID   int    `json:"id"`
-						Name string `json:"name"`
-					}
+		XIt("should validate multiple specs with Validator", func() {
+			specs := []string{
+				`{"openapi": "3.0.4", "info": {"title": "API 1", "version": "1.0.0"}, "paths": {}}`,
+				`{"openapi": "3.0.4", "info": {"title": "API 2", "version": "1.0.0"}, "paths": {}}`,
+				`{"openapi": "3.1.2", "info": {"title": "API 3", "version": "1.0.0"}, "paths": {}}`,
+			}
 
-					route := manager.Register(http.MethodGet, "/users/:id")
-					route.Response(200, User{},
-						example.New("success", User{ID: 123, Name: "John"},
-							example.WithSummary("Successful lookup")),
-					)
-
-					specJSON, _, err := manager.GenerateSpec()
-					Expect(err).NotTo(HaveOccurred())
-
-					var spec map[string]any
-					Expect(json.Unmarshal(specJSON, &spec)).To(Succeed())
-
-					paths := spec["paths"].(map[string]any)
-					pathItem := paths["/users/{id}"].(map[string]any)
-					getOp := pathItem["get"].(map[string]any)
-					responses := getOp["responses"].(map[string]any)
-					response200 := responses["200"].(map[string]any)
-					content := response200["content"].(map[string]any)
-					mt := content["application/json"].(map[string]any)
-
-					Expect(mt).To(HaveKey("examples"))
-					examples := mt["examples"].(map[string]any)
-					Expect(examples).To(HaveKey("success"))
-					successEx := examples["success"].(map[string]any)
-					Expect(successEx["summary"]).To(Equal("Successful lookup"))
-				})
-			})
-
-			Context("with single example (no named)", func() {
-				It("should generate example field in spec", func() {
-					type User struct {
-						ID   int    `json:"id"`
-						Name string `json:"name"`
-					}
-
-					route := manager.Register(http.MethodGet, "/users/:id")
-					route.Response(200, User{ID: 123, Name: "John"})
-
-					specJSON, _, err := manager.GenerateSpec()
-					Expect(err).NotTo(HaveOccurred())
-
-					var spec map[string]any
-					Expect(json.Unmarshal(specJSON, &spec)).To(Succeed())
-
-					paths := spec["paths"].(map[string]any)
-					pathItem := paths["/users/{id}"].(map[string]any)
-					getOp := pathItem["get"].(map[string]any)
-					responses := getOp["responses"].(map[string]any)
-					response200 := responses["200"].(map[string]any)
-					content := response200["content"].(map[string]any)
-					mt := content["application/json"].(map[string]any)
-
-					Expect(mt).To(HaveKey("example"))
-					Expect(mt["example"]).NotTo(BeNil())
-					Expect(mt).NotTo(HaveKey("examples"))
-				})
-			})
-		})
-
-		Describe("Request Examples", func() {
-			Context("with named examples", func() {
-				It("should generate examples map in request body", func() {
-					type CreateUser struct {
-						Name  string `json:"name"`
-						Email string `json:"email"`
-					}
-
-					route := manager.Register("POST", "/users")
-					route.Request(CreateUser{},
-						example.New("minimal", CreateUser{Name: "John"}),
-						example.New("complete", CreateUser{Name: "John", Email: "john@example.com"}),
-					).Response(201, CreateUser{})
-
-					specJSON, _, err := manager.GenerateSpec()
-					Expect(err).NotTo(HaveOccurred())
-
-					var spec map[string]any
-					Expect(json.Unmarshal(specJSON, &spec)).To(Succeed())
-
-					paths := spec["paths"].(map[string]any)
-					pathItem := paths["/users"].(map[string]any)
-					postOp := pathItem["post"].(map[string]any)
-					requestBody := postOp["requestBody"].(map[string]any)
-					content := requestBody["content"].(map[string]any)
-					mt := content["application/json"].(map[string]any)
-
-					Expect(mt).To(HaveKey("examples"))
-					examples := mt["examples"].(map[string]any)
-					Expect(examples).To(HaveLen(2))
-					Expect(examples).To(HaveKey("minimal"))
-					Expect(examples).To(HaveKey("complete"))
-				})
-			})
+			validator := validate.New()
+			for i, spec := range specs {
+				version := validate.V30
+				if i == 2 {
+					version = validate.V31
+				}
+				err := validator.Validate(context.Background(), []byte(spec), version)
+				Expect(err).NotTo(HaveOccurred())
+			}
 		})
 	})
 })
