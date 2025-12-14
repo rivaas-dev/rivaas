@@ -16,9 +16,9 @@ package tracing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
-	"errors"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"

@@ -17,10 +17,10 @@ package tracing
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"errors"
 	"regexp"
 	"slices"
 	"strings"
