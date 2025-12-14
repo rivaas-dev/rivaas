@@ -16,12 +16,13 @@ package errors_test
 
 import (
 	"encoding/json"
-	stderrors "errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 
 	"rivaas.dev/errors"
+
+	stderrors "errors"
 )
 
 // ExampleRFC9457 demonstrates how to use the RFC9457 formatter.
