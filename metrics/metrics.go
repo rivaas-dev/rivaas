@@ -16,12 +16,12 @@ package metrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
 	"sync/atomic"
-	"errors"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"

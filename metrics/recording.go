@@ -16,8 +16,8 @@ package metrics
 
 import (
 	"context"
-	"fmt"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync/atomic"

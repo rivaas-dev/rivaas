@@ -16,10 +16,10 @@ package metrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"errors"
 	"strconv"
 	"strings"
 	"time"
