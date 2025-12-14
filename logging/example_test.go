@@ -17,12 +17,12 @@ package logging_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
-	"errors"
 
 	"rivaas.dev/logging"
 )
