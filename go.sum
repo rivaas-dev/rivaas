@@ -473,8 +473,8 @@ github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 gitlab.ci.fdmg.org/ci-api/cigourn v0.1.6 h1:TsSFZTYdRDzicRxGk3TkY4gd2mQBCIzZMcf4+8xe2iw=
 gitlab.ci.fdmg.org/ci-api/cigourn v0.1.6/go.mod h1:I8yycdQA99Ujv3A9b496fxRjhBF4nzrd1lWD+x2hHrQ=
-gitlab.ci.fdmg.org/ci-api/go-pkgs/customer v0.2.2 h1:FMmyTiwYBwZW1bfnTlDin/J2EfbmzOvfk/4gNcNNYPs=
-gitlab.ci.fdmg.org/ci-api/go-pkgs/customer v0.2.2/go.mod h1:vPlWllN85cmz2wQpgYwVARJYYjnyyYfIcuwlMfqUGNU=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/customer v1.2.3 h1:xFZytgGWzJgjydWhuN6FeT7eCYB9SUKin9mR/o/WzDE=
+gitlab.ci.fdmg.org/ci-api/go-pkgs/customer v1.2.3/go.mod h1:vPlWllN85cmz2wQpgYwVARJYYjnyyYfIcuwlMfqUGNU=
 gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.9.0 h1:eajAlFGKi+yG235Vuubyc3IaySRJ+if8v98mhHppfME=
 gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon v0.9.0/go.mod h1:5bbrbGcESjgn7U6gS2uqGdKkn0NcaYzsO6jmmoshBS4=
 gitlab.ci.fdmg.org/ci-api/oma v0.4.1 h1:nfjq3E6HLMJICE9+xjuq73V7yBtS/cjhWX0UzWGkweQ=
