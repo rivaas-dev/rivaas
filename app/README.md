@@ -40,8 +40,13 @@ The `app` package adds approximately 1-2% latency overhead compared to using `ro
 package main
 
 import (
+    "context"
     "log"
     "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+    
     "rivaas.dev/app"
 )
 
@@ -59,8 +64,12 @@ func main() {
         })
     })
 
+    // Setup graceful shutdown
+    ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer cancel()
+
     // Start server with graceful shutdown
-    if err := a.Run(":8080"); err != nil {
+    if err := a.Start(ctx, ":8080"); err != nil {
         log.Fatalf("Server error: %v", err)
     }
 }
@@ -76,6 +85,8 @@ import (
     "log"
     "net/http"
     "os"
+    "os/signal"
+    "syscall"
     "time"
     
     "rivaas.dev/app"
@@ -159,10 +170,14 @@ func main() {
         })
     })
 
+    // Setup graceful shutdown
+    ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer cancel()
+
     // Start server
     // Health: GET /healthz, GET /readyz
     // Debug: GET /debug/pprof/* (if enabled)
-    if err := a.Run(":8080"); err != nil {
+    if err := a.Start(ctx, ":8080"); err != nil {
         log.Fatalf("Server error: %v", err)
     }
 }
@@ -650,20 +665,50 @@ app.Static("/static", "./public")
 ### HTTP Server
 
 ```go
+// Setup signal handling for graceful shutdown
+ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer cancel()
+
 // Start HTTP server
-app.Run(":8080")
+if err := app.Start(ctx, ":8080"); err != nil {
+    log.Fatal(err)
+}
 ```
 
 ### HTTPS Server
 
 ```go
+// Setup signal handling
+ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer cancel()
+
 // Start HTTPS server
-app.RunTLS(":8443", "cert.pem", "key.pem")
+if err := app.StartTLS(ctx, ":8443", "cert.pem", "key.pem"); err != nil {
+    log.Fatal(err)
+}
 ```
 
 ### Graceful Shutdown
 
-The app automatically handles graceful shutdown on SIGINT or SIGTERM signals.
+The app supports graceful shutdown via context cancellation. When the context is canceled
+(e.g., via OS signals), the server:
+
+1. Stops accepting new connections
+2. Executes OnShutdown hooks in LIFO order
+3. Waits for in-flight requests to complete (up to shutdown timeout)
+4. Shuts down observability components (metrics, tracing)
+5. Executes OnStop hooks in best-effort mode
+
+Use `signal.NotifyContext` to trigger shutdown on OS signals (SIGINT, SIGTERM):
+
+```go
+ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer cancel()
+
+if err := app.Start(ctx, ":8080"); err != nil {
+    log.Fatal(err)
+}
+```
 
 **Architecture:** HTTP and HTTPS servers share the same lifecycle implementation through `runServer`, which provides:
 
@@ -792,6 +837,11 @@ r := router.New(
 
 ```go
 import (
+    "context"
+    "os"
+    "os/signal"
+    "syscall"
+    
     "rivaas.dev/app"
     "rivaas.dev/logging"
     "rivaas.dev/metrics"
@@ -809,6 +859,15 @@ a, err := app.New(
 )
 if err != nil {
     log.Fatalf("Failed to create app: %v", err)
+}
+
+// Setup graceful shutdown
+ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer cancel()
+
+// Start server
+if err := a.Start(ctx, ":8080"); err != nil {
+    log.Fatal(err)
 }
 // Configuration is validated at creation time
 ```
@@ -977,9 +1036,9 @@ app.WithServerConfig(
 
 | Method | Description | Returns |
 |--------|-------------|---------|
-| `Run(addr string)` | Start HTTP server with graceful shutdown | `error` |
-| `RunTLS(addr, certFile, keyFile string)` | Start HTTPS server | `error` |
-| `RunMTLS(addr string, cert tls.Certificate, opts ...MTLSOption)` | Start mTLS server | `error` |
+| `Start(ctx context.Context, addr string)` | Start HTTP server with graceful shutdown | `error` |
+| `StartTLS(ctx context.Context, addr, certFile, keyFile string)` | Start HTTPS server | `error` |
+| `StartMTLS(ctx context.Context, addr string, cert tls.Certificate, opts ...MTLSOption)` | Start mTLS server | `error` |
 | `GET(path string, handler HandlerFunc)` | Register GET route | - |
 | `POST(path string, handler HandlerFunc)` | Register POST route | - |
 | `PUT(path string, handler HandlerFunc)` | Register PUT route | - |
@@ -1066,6 +1125,7 @@ app.WithServerConfig(
 | `OnReady(fn func())` | Called when server is ready | Async, non-blocking |
 | `OnShutdown(fn func(context.Context))` | Called during shutdown | LIFO order |
 | `OnStop(fn func())` | Called after shutdown | Best-effort |
+| `OnRoute(fn func(*route.Route))` | Called when route is registered | Synchronous, during registration |
 
 ## Architecture
 
