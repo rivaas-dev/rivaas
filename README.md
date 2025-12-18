@@ -97,8 +97,8 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 
 | Package | Description | Docs |
 |---------|-------------|------|
-| [binding](./binding/) | Request binding (query, form, JSON, headers) | [doc.go](./binding/doc.go) |
-| [validation](./validation/) | Struct validation with tags and JSON Schema | [doc.go](./validation/doc.go) |
+| [binding](./binding/) | Request binding (query, form, JSON, headers) | [README](./binding/README.md) |
+| [validation](./validation/) | Struct validation with tags and JSON Schema | [README](./validation/README.md) |
 
 ### Observability
 
@@ -154,7 +154,7 @@ See [App Documentation](./app/README.md) for complete configuration options.
 
 ## Middleware
 
-Built-in production-ready middleware: `accesslog`, `recovery`, `cors`, `requestid`, `timeout`, `ratelimit`, `basicauth`, `bodylimit`, `compression`, `security`.
+Built-in production-ready middleware: `accesslog`, `recovery`, `cors`, `requestid`, `timeout`, `ratelimit`, `basicauth`, `bodylimit`, `compression`, `security`, `methodoverride`, `trailingslash`.
 
 See [Middleware Documentation](./router/middleware/README.md) for usage and configuration.
 
