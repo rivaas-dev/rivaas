@@ -23,13 +23,13 @@
 // providers without code changes (e.g., migrating from ELK to Datadog, or adding
 // sampling in high-traffic systems).
 //
-// Basic usage:
+// # Basic Usage
 //
 //	logger := logging.MustNew(logging.WithConsoleHandler())
 //	defer logger.Shutdown(context.Background())
 //	logger.Info("service started", "port", 8080)
 //
-// With structured logging:
+// # Structured Logging
 //
 //	logger := logging.MustNew(
 //	    logging.WithJSONHandler(),
@@ -43,6 +43,44 @@
 //	    "status", 200,
 //	)
 //
+// # Convenience Methods
+//
+// The package provides helper methods for common logging patterns:
+//
+//	// HTTP request logging
+//	logger.LogRequest(r, "status", 200, "duration_ms", 45)
+//
+//	// Error logging with context
+//	logger.LogError(err, "operation failed", "user_id", userID)
+//
+//	// Duration tracking
+//	start := time.Now()
+//	logger.LogDuration("processing completed", start, "items", count)
+//
+// # Log Sampling
+//
+// Reduce log volume in high-traffic scenarios:
+//
+//	logger := logging.MustNew(
+//	    logging.WithJSONHandler(),
+//	    logging.WithSampling(logging.SamplingConfig{
+//	        Initial:    100,          // Log first 100 entries
+//	        Thereafter: 100,          // Then log 1 in 100
+//	        Tick:       time.Minute,  // Reset every minute
+//	    }),
+//	)
+//
+// Note: Errors (level >= ERROR) always bypass sampling.
+//
+// # Dynamic Log Levels
+//
+// Change log levels at runtime:
+//
+//	logger.SetLevel(logging.LevelDebug)  // Enable debug logging
+//	logger.SetLevel(logging.LevelWarn)   // Reduce to warnings only
+//
+// # Global Logger Registration
+//
 // To register as the global slog default (for use with slog.Info(), etc.):
 //
 //	logger := logging.MustNew(
@@ -50,9 +88,22 @@
 //	    logging.WithGlobalLogger(), // Sets slog.SetDefault()
 //	)
 //
+// By default, loggers are NOT registered globally to allow multiple independent
+// logger instances in the same process.
+//
+// # Sensitive Data Redaction
+//
 // Sensitive data (password, token, secret, api_key, authorization) is
 // automatically redacted from all log output. Additional sanitization can be
 // configured using WithReplaceAttr.
+//
+// # Context-Aware Logging
+//
+// For automatic trace correlation with OpenTelemetry:
+//
+//	cl := logging.NewContextLogger(ctx, logger)
+//	cl.Info("processing request", "user_id", userID)
+//	// Automatically includes trace_id and span_id if context has active span
 //
 // See the README for more examples and configuration options.
 package logging

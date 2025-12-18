@@ -7,6 +7,9 @@ Structured logging for Rivaas using Go's standard `log/slog` package.
 - **Multiple Output Formats**: JSON, text, and human-friendly console output
 - **Context-Aware Logging**: Automatic trace correlation with OpenTelemetry
 - **Sensitive Data Redaction**: Automatic sanitization of passwords, tokens, and secrets
+- **Log Sampling**: Reduce log volume in high-traffic scenarios
+- **Convenience Methods**: HTTP request logging, error logging with context, duration tracking
+- **Dynamic Log Levels**: Change log levels at runtime without restart
 - **Functional Options API**: Clean, composable configuration
 - **Router Integration**: Seamless integration following metrics/tracing patterns
 - **Zero External Dependencies**: Uses only Go standard library (except OpenTelemetry for trace correlation)
@@ -184,6 +187,11 @@ This is useful when:
 - You prefer using `slog.Info()` directly instead of `logger.Info()`
 - You're migrating from direct `slog` usage to Rivaas logging
 
+**Default behavior**: Loggers are **not** registered globally. This allows multiple independent logger instances in the same process, which is useful for:
+- Testing with isolated loggers
+- Libraries that shouldn't affect global state
+- Applications with multiple logging configurations
+
 ## Sensitive Data Redaction
 
 The logger automatically redacts sensitive fields:
@@ -206,6 +214,184 @@ Automatically redacted fields:
 - `secret`
 - `api_key`
 - `authorization`
+
+## Convenience Methods
+
+The logger provides helper methods for common logging patterns.
+
+### LogRequest - HTTP Request Logging
+
+Automatically logs HTTP requests with standard fields:
+
+```go
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+    start := time.Now()
+    
+    // Process request...
+    status := 200
+    bytesWritten := 1024
+    
+    logger.LogRequest(r, 
+        "status", status,
+        "duration_ms", time.Since(start).Milliseconds(),
+        "bytes", bytesWritten,
+    )
+}
+// Output includes: method, path, remote, user_agent, query (if present)
+```
+
+### LogError - Error Logging with Context
+
+Convenient error logging with automatic error field:
+
+```go
+if err := db.Insert(user); err != nil {
+    logger.LogError(err, "database operation failed",
+        "operation", "INSERT",
+        "table", "users",
+        "retry_count", 3,
+    )
+    return err
+}
+```
+
+### LogDuration - Operation Timing
+
+Track operation duration automatically:
+
+```go
+start := time.Now()
+result, err := processData(data)
+logger.LogDuration("data processing completed", start,
+    "rows_processed", result.Count,
+    "errors", result.Errors,
+)
+// Automatically includes: duration_ms (for filtering) and duration (human-readable)
+```
+
+### ErrorWithStack - Error Logging with Stack Traces
+
+For critical errors that need debugging context:
+
+```go
+logger.ErrorWithStack("critical payment failure", err, true,
+    "user_id", userID,
+    "amount", amount,
+    "payment_method", method,
+)
+```
+
+**When to use stack traces:**
+- ✓ Critical errors requiring debugging
+- ✓ Unexpected conditions (panics, invariant violations)
+- ✗ Expected errors (validation failures, not found)
+- ✗ High-frequency errors where capture cost matters
+
+## Log Sampling
+
+Reduce log volume in high-traffic scenarios while maintaining visibility:
+
+```go
+logger := logging.MustNew(
+    logging.WithJSONHandler(),
+    logging.WithSampling(logging.SamplingConfig{
+        Initial:    100,           // Log first 100 entries unconditionally
+        Thereafter: 100,           // After that, log 1 in every 100
+        Tick:       time.Minute,   // Reset counter every minute
+    }),
+)
+```
+
+**How it works:**
+1. Logs the first `Initial` entries (e.g., first 100)
+2. After that, logs 1 in every `Thereafter` entries (e.g., 1%)
+3. Resets counter every `Tick` interval to ensure recent activity visibility
+
+**Important notes:**
+- Errors (level >= ERROR) **always bypass sampling** to ensure critical issues are never dropped
+- Useful for high-throughput services (>1000 logs/sec)
+- Helps prevent log storage costs from spiraling
+- Maintains statistical sampling for debugging
+
+Example for production API:
+
+```go
+// Log all errors, but only 1% of info/debug in steady state
+logger := logging.MustNew(
+    logging.WithJSONHandler(),
+    logging.WithLevel(logging.LevelInfo),
+    logging.WithSampling(logging.SamplingConfig{
+        Initial:    1000,          // First 1000 requests fully logged
+        Thereafter: 100,           // Then 1% sampling
+        Tick:       5 * time.Minute, // Reset every 5 minutes
+    }),
+)
+```
+
+## Dynamic Log Level Changes
+
+Change log levels at runtime without restarting your application:
+
+```go
+logger := logging.MustNew(logging.WithJSONHandler())
+
+// Enable debug logging temporarily for troubleshooting
+if err := logger.SetLevel(logging.LevelDebug); err != nil {
+    log.Printf("failed to change level: %v", err)
+}
+
+// Reduce to warnings only during high traffic
+if err := logger.SetLevel(logging.LevelWarn); err != nil {
+    log.Printf("failed to change level: %v", err)
+}
+
+// Check current level
+currentLevel := logger.Level()
+```
+
+**Use cases:**
+- Enable debug logging temporarily for troubleshooting
+- Reduce log volume during traffic spikes
+- Runtime configuration via HTTP endpoint or signal handler
+
+**Limitations:**
+- Not supported with custom loggers (returns `ErrCannotChangeLevel`)
+- Brief window where old/new levels may race during transition
+
+**Example with HTTP endpoint:**
+
+```go
+http.HandleFunc("/admin/loglevel", func(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+    
+    levelStr := r.URL.Query().Get("level")
+    var level logging.Level
+    switch levelStr {
+    case "debug":
+        level = logging.LevelDebug
+    case "info":
+        level = logging.LevelInfo
+    case "warn":
+        level = logging.LevelWarn
+    case "error":
+        level = logging.LevelError
+    default:
+        http.Error(w, "Invalid level", http.StatusBadRequest)
+        return
+    }
+    
+    if err := logger.SetLevel(level); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    w.WriteHeader(http.StatusOK)
+    fmt.Fprintf(w, "Log level changed to %s\n", levelStr)
+})
+```
 
 ## Context-Aware Logging
 
@@ -812,6 +998,11 @@ go test -bench=. -benchmem ./logging
 - `Error(msg string, args ...any)` - Log error message
 - `SetLevel(level Level) error` - Change log level dynamically
 - `Level() Level` - Get current log level
+- `ServiceName() string` - Get configured service name
+- `ServiceVersion() string` - Get configured service version
+- `Environment() string` - Get configured environment
+- `IsEnabled() bool` - Check if logger is active (not shut down)
+- `DebugInfo() map[string]any` - Get diagnostic information about logger state
 - `Shutdown(ctx context.Context) error` - Graceful shutdown
 
 ### Convenience Methods
@@ -819,6 +1010,18 @@ go test -bench=. -benchmem ./logging
 - `LogRequest(r *http.Request, extra ...any)` - Log HTTP request with standard fields
 - `LogError(err error, msg string, extra ...any)` - Log error with context
 - `LogDuration(msg string, start time.Time, extra ...any)` - Log operation duration
+- `ErrorWithStack(msg string, err error, includeStack bool, extra ...any)` - Log error with optional stack trace
+
+### ContextLogger Methods
+
+- `Logger() *slog.Logger` - Get underlying slog logger
+- `TraceID() string` - Get trace ID if available
+- `SpanID() string` - Get span ID if available
+- `With(args ...any) *slog.Logger` - Create logger with additional attributes
+- `Debug(msg string, args ...any)` - Log debug message with context
+- `Info(msg string, args ...any)` - Log info message with context
+- `Warn(msg string, args ...any)` - Log warning message with context
+- `Error(msg string, args ...any)` - Log error message with context
 
 ### Configuration Functions
 
@@ -837,13 +1040,49 @@ go test -bench=. -benchmem ./logging
 - `WithGlobalLogger()` - Register as global slog default
 - `WithSampling(cfg SamplingConfig)` - Configure log sampling
 
+### Types
+
+- `HandlerType` - Log output format type (JSONHandler, TextHandler, ConsoleHandler)
+- `Level` - Log level type (LevelDebug, LevelInfo, LevelWarn, LevelError)
+- `SamplingConfig` - Log sampling configuration
+  - `Initial int` - Log first N entries unconditionally
+  - `Thereafter int` - After Initial, log 1 of every M entries
+  - `Tick time.Duration` - Reset sampling counter every interval
+
 ### Error Types
 
-- `ErrNilLogger` - Custom logger is nil
-- `ErrInvalidHandler` - Invalid handler type
-- `ErrLoggerShutdown` - Logger is shut down
-- `ErrInvalidLevel` - Invalid log level
-- `ErrCannotChangeLevel` - Cannot change level on custom logger
+The package defines sentinel errors for better error handling:
+
+- `ErrNilLogger` - Custom logger is nil (returned by `New()` with `WithCustomLogger(nil)`)
+- `ErrInvalidHandler` - Invalid handler type specified
+- `ErrLoggerShutdown` - Logger has been shut down (operations fail gracefully)
+- `ErrInvalidLevel` - Invalid log level provided
+- `ErrCannotChangeLevel` - Cannot change level on custom logger (returned by `SetLevel()`)
+
+**Error handling example:**
+
+```go
+logger, err := logging.New(
+    logging.WithCustomLogger(customSlog),
+)
+if err != nil {
+    if errors.Is(err, logging.ErrNilLogger) {
+        // Handle nil logger case
+        log.Fatal("custom logger cannot be nil")
+    }
+    log.Fatalf("failed to create logger: %v", err)
+}
+
+// Later, trying to change level
+if err := logger.SetLevel(logging.LevelDebug); err != nil {
+    if errors.Is(err, logging.ErrCannotChangeLevel) {
+        // Expected when using custom logger
+        log.Println("cannot change level on custom logger")
+    } else {
+        log.Printf("unexpected error: %v", err)
+    }
+}
+```
 
 ## License
 
