@@ -15,7 +15,6 @@
 package app
 
 import (
-	stderrors "errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -23,6 +22,8 @@ import (
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
 	"rivaas.dev/tracing"
+
+	stderrors "errors"
 )
 
 // ObservabilityOption configures unified observability settings.

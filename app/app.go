@@ -15,12 +15,15 @@
 package app
 
 import (
-	stderrors "errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"strings"
 	"time"
 
 	"rivaas.dev/errors"
@@ -31,6 +34,8 @@ import (
 	"rivaas.dev/router/middleware/recovery"
 	"rivaas.dev/router/route"
 	"rivaas.dev/tracing"
+
+	stderrors "errors"
 )
 
 // Default configuration values.
@@ -70,7 +75,7 @@ type App struct {
 	config      *config
 	hooks       *Hooks
 	readiness   *ReadinessManager
-	openapi     *openapi.Manager
+	openapi     *openapiState // OpenAPI state (nil if disabled)
 	contextPool *contextPool
 }
 
@@ -292,12 +297,14 @@ func shouldApplyDefaultMiddleware(cfg *config) bool {
 // applyDefaultMiddleware applies default router middleware (recovery).
 // These are router middleware, applied directly to the router,
 // not through [App.Use] to ensure they run at the correct position in the chain.
-func applyDefaultMiddleware(r *router.Router, _ string) {
+// If logger is non-nil, it will be used by the recovery middleware for panic logging.
+func applyDefaultMiddleware(r *router.Router, logger *slog.Logger) {
 	// Always include recovery middleware by default (router middleware)
-	r.Use(recovery.New())
-
-	// NOTE: Access logging is now handled by the unified ObservabilityRecorder
-	// (see app.New() for configuration)
+	var recoveryOpts []recovery.Option
+	if logger != nil {
+		recoveryOpts = append(recoveryOpts, recovery.WithLogger(logger))
+	}
+	r.Use(recovery.New(recoveryOpts...))
 }
 
 // defaultConfig returns a configuration with default values.
@@ -377,9 +384,9 @@ func New(opts ...Option) (*App, error) {
 	}
 
 	// Create app
-	var openapiMgr *openapi.Manager
+	var openapiSt *openapiState
 	if cfg.openapi != nil && cfg.openapi.enabled && cfg.openapi.config != nil {
-		openapiMgr = openapi.NewManager(cfg.openapi.config)
+		openapiSt = newOpenapiState(cfg.openapi.config)
 	}
 
 	app := &App{
@@ -389,13 +396,8 @@ func New(opts ...Option) (*App, error) {
 		readiness: &ReadinessManager{
 			gates: make(map[string]Gate),
 		},
-		openapi:     openapiMgr,
+		openapi:     openapiSt,
 		contextPool: newContextPool(),
-	}
-
-	// Apply default router middleware if not explicitly set
-	if shouldApplyDefaultMiddleware(cfg) {
-		applyDefaultMiddleware(r, cfg.environment)
 	}
 
 	// Get observability settings (use defaults if not configured)
@@ -404,7 +406,7 @@ func New(opts ...Option) (*App, error) {
 		obsSettings = defaultObservabilitySettings()
 	}
 
-	// Initialize logging if configured
+	// Initialize logging FIRST (before default middleware, so recovery can use it)
 	var loggingCfg *logging.Logger
 	if obsSettings.logging != nil && obsSettings.logging.enabled {
 		// Prepend service metadata to user options (same pattern as metrics/tracing)
@@ -424,6 +426,17 @@ func New(opts ...Option) (*App, error) {
 		// Start buffering logs during initialization.
 		// Logs will be flushed after the startup banner is printed for cleaner DX.
 		loggingCfg.StartBuffering()
+	}
+
+	// Get the slog.Logger (may be nil if logging not enabled)
+	var slogger *slog.Logger
+	if loggingCfg != nil {
+		slogger = loggingCfg.Logger()
+	}
+
+	// Apply default router middleware with the logger
+	if shouldApplyDefaultMiddleware(cfg) {
+		applyDefaultMiddleware(r, slogger)
 	}
 
 	// Initialize observability components (metrics, tracing)
@@ -554,18 +567,123 @@ func (a *App) Readiness() *ReadinessManager {
 	return a.readiness
 }
 
-// wrapRouteWithOpenAPI creates a [RouteWrapper] combining route and OpenAPI metadata.
-func (a *App) wrapRouteWithOpenAPI(rt *route.Route, _, _ string) *RouteWrapper {
-	var oapi *openapi.RouteWrapper
-	if a.openapi != nil {
-		// Register route with OpenAPI and get wrapper
-		oapi = a.openapi.OnRouteAdded(rt)
+// getCallerLocation captures the caller's file and line for display in route tables.
+// skip specifies how many stack frames to skip (caller of caller, etc.)
+func getCallerLocation(skip int) string {
+	_, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return "unknown"
+	}
+	return fmt.Sprintf("%s:%d", filepath.Base(file), line)
+}
+
+// getHandlerFuncName extracts the function name from a HandlerFunc using reflection.
+// Returns the full qualified name (e.g., "example.com/pkg/handlers.CreateOrder").
+func getHandlerFuncName(handler HandlerFunc) string {
+	if handler == nil {
+		return "nil"
 	}
 
-	return &RouteWrapper{
-		route:   rt,
-		openapi: oapi,
+	funcPtr := runtime.FuncForPC(reflect.ValueOf(handler).Pointer())
+	if funcPtr == nil {
+		return "unknown"
 	}
+
+	fullName := funcPtr.Name()
+
+	// Clean up the function name - remove argument patterns
+	argPatterns := []string{"(0x", "(...)", "({", "()"}
+	for _, pattern := range argPatterns {
+		if idx := strings.LastIndex(fullName, pattern); idx > 0 {
+			fullName = fullName[:idx]
+			break
+		}
+	}
+
+	// Simplify anonymous functions (e.g., "pkg.Func.func1" -> "pkg.Func(λ)")
+	if idx := strings.Index(fullName, ".func"); idx > 0 {
+		suffix := fullName[idx+5:]
+		isAnon := len(suffix) > 0
+		for _, c := range suffix {
+			if c != '.' && (c < '0' || c > '9') {
+				isAnon = false
+				break
+			}
+		}
+		if isAnon {
+			fullName = fullName[:idx] + "(λ)"
+		}
+	}
+
+	// Ensure function names end with () for consistency (except lambda)
+	if len(fullName) > 0 && !strings.HasSuffix(fullName, ")") {
+		fullName += "()"
+	}
+
+	return fullName
+}
+
+// registerRoute is the internal implementation for all HTTP method shortcuts.
+// It applies route options, builds the handler chain, registers with the router,
+// and registers OpenAPI documentation if enabled.
+func (a *App) registerRoute(method, path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	// Capture handler name and caller location before any other operations
+	handlerName := getHandlerFuncName(handler)
+	// Skip: registerRoute(1) → GET/POST/etc(2) → user code(3)
+	callerLoc := getCallerLocation(3)
+
+	// Apply options to build configuration
+	cfg := &routeConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	// Build handler chain: before → handler → after
+	handlers := make([]router.HandlerFunc, 0, len(cfg.before)+1+len(cfg.after))
+	for _, h := range cfg.before {
+		handlers = append(handlers, a.wrapHandler(h))
+	}
+	handlers = append(handlers, a.wrapHandler(handler))
+	for _, h := range cfg.after {
+		handlers = append(handlers, a.wrapHandler(h))
+	}
+
+	// Register with router
+	var rt *route.Route
+	switch method {
+	case http.MethodGet:
+		rt = a.router.GET(path, handlers...)
+	case http.MethodPost:
+		rt = a.router.POST(path, handlers...)
+	case http.MethodPut:
+		rt = a.router.PUT(path, handlers...)
+	case http.MethodDelete:
+		rt = a.router.DELETE(path, handlers...)
+	case http.MethodPatch:
+		rt = a.router.PATCH(path, handlers...)
+	case http.MethodHead:
+		rt = a.router.HEAD(path, handlers...)
+	case http.MethodOptions:
+		rt = a.router.OPTIONS(path, handlers...)
+	default:
+		// Fallback - shouldn't happen in normal use
+		rt = a.router.GET(path, handlers...)
+	}
+
+	// Update route info with actual handler name and caller location
+	a.router.UpdateRouteInfo(method, path, "", func(info *route.Info) {
+		info.HandlerName = fmt.Sprintf("%s (%s)", handlerName, callerLoc)
+	})
+
+	// Fire route registration hooks
+	a.fireRouteHook(rt)
+
+	// Register OpenAPI documentation if enabled and not explicitly skipped
+	if a.openapi != nil && !cfg.skipDoc && len(cfg.docOpts) > 0 {
+		a.openapi.AddOperation(openapi.Op(method, path, cfg.docOpts...))
+	}
+
+	return rt
 }
 
 // WrapHandler wraps an app.HandlerFunc to convert it to a router.HandlerFunc.
@@ -618,138 +736,113 @@ func (a *App) wrapHandler(handler HandlerFunc) router.HandlerFunc {
 	}
 }
 
-// GET registers a GET route and returns a RouteWrapper for constraints and OpenAPI documentation.
+// GET registers a GET route with optional middleware and OpenAPI documentation.
 //
-// If OpenAPI is enabled, the RouteWrapper can be used for fluent documentation.
-// If OpenAPI is disabled, the RouteWrapper still supports route constraints.
-//
-// Example:
-//
-//	app.GET("/users/:id", handler).
-//	    Doc("Get user", "Retrieves a user by ID").
-//	    Response(200, UserResponse{}).
-//	    WhereInt("id")
-//
-//	// With inline middleware
-//	app.GET("/users/:id", Auth(), GetUser)
-func (a *App) GET(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
-	for _, h := range handlers {
-		routerHandlers = append(routerHandlers, a.wrapHandler(h))
-	}
-	route := a.router.GET(path, routerHandlers...)
-	a.fireRouteHook(route)
-
-	return a.wrapRouteWithOpenAPI(route, http.MethodGet, path)
-}
-
-// POST registers a POST route and returns a RouteWrapper for constraints and OpenAPI documentation.
+// The first parameter is the main handler. Additional options can configure:
+// - Pre-handler middleware (WithBefore)
+// - Post-handler middleware (WithAfter)
+// - OpenAPI documentation (WithDoc)
 //
 // Example:
 //
-//	app.POST("/users", handler).
-//	    Doc("Create user", "Creates a new user").
-//	    Request(CreateUserRequest{}).
-//	    Response(201, UserResponse{})
+//	app.GET("/users/:id", getUser,
+//	    app.WithBefore(authMiddleware, rateLimitMiddleware),
+//	    app.WithAfter(auditLogMiddleware),
+//	    app.WithDoc(
+//	        openapi.WithSummary("Get user"),
+//	        openapi.WithDescription("Retrieves a user by ID"),
+//	        openapi.WithResponse(200, UserResponse{}),
+//	        openapi.WithResponse(404, ErrorResponse{}),
+//	        openapi.WithTags("users"),
+//	    ),
+//	)
 //
-//	// With inline middleware
-//	app.POST("/users", Validate(), CreateUser)
-func (a *App) POST(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
-	for _, h := range handlers {
-		routerHandlers = append(routerHandlers, a.wrapHandler(h))
-	}
-	route := a.router.POST(path, routerHandlers...)
-	a.fireRouteHook(route)
-
-	return a.wrapRouteWithOpenAPI(route, http.MethodPost, path)
+// Returns the underlying router.Route for setting constraints:
+//
+//	app.GET("/users/:id", getUser, opts...).WhereInt("id")
+func (a *App) GET(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return a.registerRoute(http.MethodGet, path, handler, opts...)
 }
 
-// PUT registers a PUT route and returns a RouteWrapper for constraints and OpenAPI documentation.
+// POST registers a POST route with optional middleware and OpenAPI documentation.
 //
 // Example:
 //
-//	app.PUT("/users/:id", handler).
-//	    Doc("Update user", "Updates an existing user").
-//	    WhereInt("id")
-func (a *App) PUT(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
-	for _, h := range handlers {
-		routerHandlers = append(routerHandlers, a.wrapHandler(h))
-	}
-	route := a.router.PUT(path, routerHandlers...)
-	a.fireRouteHook(route)
-
-	return a.wrapRouteWithOpenAPI(route, http.MethodPut, path)
+//	app.POST("/users", createUser,
+//	    app.WithBefore(authMiddleware),
+//	    app.WithDoc(
+//	        openapi.WithSummary("Create user"),
+//	        openapi.WithRequest(CreateUserRequest{}),
+//	        openapi.WithResponse(201, UserResponse{}),
+//	    ),
+//	)
+func (a *App) POST(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return a.registerRoute(http.MethodPost, path, handler, opts...)
 }
 
-// DELETE registers a DELETE route and returns a RouteWrapper for constraints and OpenAPI documentation.
+// PUT registers a PUT route with optional middleware and OpenAPI documentation.
 //
 // Example:
 //
-//	app.DELETE("/users/:id", handler).
-//	    Doc("Delete user", "Deletes a user by ID").
-//	    WhereInt("id")
-func (a *App) DELETE(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
-	for _, h := range handlers {
-		routerHandlers = append(routerHandlers, a.wrapHandler(h))
-	}
-	route := a.router.DELETE(path, routerHandlers...)
-	a.fireRouteHook(route)
-
-	return a.wrapRouteWithOpenAPI(route, http.MethodDelete, path)
+//	app.PUT("/users/:id", updateUser,
+//	    app.WithBefore(authMiddleware),
+//	    app.WithDoc(
+//	        openapi.WithSummary("Update user"),
+//	        openapi.WithRequest(UpdateUserRequest{}),
+//	        openapi.WithResponse(200, UserResponse{}),
+//	    ),
+//	)
+func (a *App) PUT(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return a.registerRoute(http.MethodPut, path, handler, opts...)
 }
 
-// PATCH registers a PATCH route and returns a RouteWrapper for constraints and OpenAPI documentation.
+// DELETE registers a DELETE route with optional middleware and OpenAPI documentation.
 //
 // Example:
 //
-//	app.PATCH("/users/:id", handler).
-//	    Doc("Partially update user", "Updates specific user fields").
-//	    WhereInt("id")
-func (a *App) PATCH(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
-	for _, h := range handlers {
-		routerHandlers = append(routerHandlers, a.wrapHandler(h))
-	}
-	route := a.router.PATCH(path, routerHandlers...)
-	a.fireRouteHook(route)
-
-	return a.wrapRouteWithOpenAPI(route, http.MethodPatch, path)
+//	app.DELETE("/users/:id", deleteUser,
+//	    app.WithBefore(authMiddleware),
+//	    app.WithDoc(
+//	        openapi.WithSummary("Delete user"),
+//	        openapi.WithResponse(204, nil),
+//	    ),
+//	)
+func (a *App) DELETE(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return a.registerRoute(http.MethodDelete, path, handler, opts...)
 }
 
-// HEAD registers a HEAD route and returns a RouteWrapper for constraints and OpenAPI documentation.
+// PATCH registers a PATCH route with optional middleware and OpenAPI documentation.
 //
 // Example:
 //
-//	app.HEAD("/users/:id", handler).
-//	    WhereInt("id")
-func (a *App) HEAD(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
-	for _, h := range handlers {
-		routerHandlers = append(routerHandlers, a.wrapHandler(h))
-	}
-	route := a.router.HEAD(path, routerHandlers...)
-	a.fireRouteHook(route)
-
-	return a.wrapRouteWithOpenAPI(route, http.MethodHead, path)
+//	app.PATCH("/users/:id", patchUser,
+//	    app.WithBefore(authMiddleware),
+//	    app.WithDoc(
+//	        openapi.WithSummary("Partially update user"),
+//	        openapi.WithRequest(PatchUserRequest{}),
+//	        openapi.WithResponse(200, UserResponse{}),
+//	    ),
+//	)
+func (a *App) PATCH(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return a.registerRoute(http.MethodPatch, path, handler, opts...)
 }
 
-// OPTIONS registers an OPTIONS route and returns a RouteWrapper for constraints and OpenAPI documentation.
+// HEAD registers a HEAD route with optional middleware and OpenAPI documentation.
+//
+// Example:
+//
+//	app.HEAD("/users/:id", handler).WhereInt("id")
+func (a *App) HEAD(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return a.registerRoute(http.MethodHead, path, handler, opts...)
+}
+
+// OPTIONS registers an OPTIONS route with optional middleware and OpenAPI documentation.
 //
 // Example:
 //
 //	app.OPTIONS("/users", handler)
-func (a *App) OPTIONS(path string, handlers ...HandlerFunc) *RouteWrapper {
-	routerHandlers := make([]router.HandlerFunc, 0, len(handlers))
-	for _, h := range handlers {
-		routerHandlers = append(routerHandlers, a.wrapHandler(h))
-	}
-	route := a.router.OPTIONS(path, routerHandlers...)
-	a.fireRouteHook(route)
-
-	return a.wrapRouteWithOpenAPI(route, http.MethodOptions, path)
+func (a *App) OPTIONS(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return a.registerRoute(http.MethodOptions, path, handler, opts...)
 }
 
 // Use adds middleware to the app.
@@ -824,24 +917,24 @@ func (a *App) Static(prefix, root string) {
 // PATCH, HEAD, OPTIONS). For endpoints that only need specific methods,
 // use individual method registrations (GET, POST, etc.).
 //
-// Returns the RouteWrapper for the GET route (most common for docs/constraints).
+// Returns the GET route (most common for docs/constraints).
 //
 // Example:
 //
 //	app.Any("/health", healthCheckHandler)
 //	app.Any("/webhook/*", webhookProxyHandler)
-func (a *App) Any(path string, handlers ...HandlerFunc) *RouteWrapper {
+func (a *App) Any(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
 	// Register the handler for all standard HTTP methods
 	// Use the individual method helpers to ensure hooks and OpenAPI integration
-	rw := a.GET(path, handlers...)
-	a.POST(path, handlers...)
-	a.PUT(path, handlers...)
-	a.DELETE(path, handlers...)
-	a.PATCH(path, handlers...)
-	a.HEAD(path, handlers...)
-	a.OPTIONS(path, handlers...)
+	rt := a.GET(path, handler, opts...)
+	a.POST(path, handler, opts...)
+	a.PUT(path, handler, opts...)
+	a.DELETE(path, handler, opts...)
+	a.PATCH(path, handler, opts...)
+	a.HEAD(path, handler, opts...)
+	a.OPTIONS(path, handler, opts...)
 
-	return rw
+	return rt
 }
 
 // File serves a single file at the given path.

@@ -28,6 +28,7 @@ import (
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
+	"rivaas.dev/router/middleware/recovery"
 	"rivaas.dev/tracing"
 )
 
@@ -549,6 +550,10 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 			WithEnvironment(EnvironmentDevelopment),
 		)
 		require.NoError(t, err)
+
+		// Disable logging to prevent race condition from concurrent log output
+		app.router.Use(recovery.New(recovery.WithoutLogging()))
+
 		// Default middleware (recovery and accesslog) are router-level, not app-level.
 		// They are applied directly to the router, not stored in app.config.middleware.functions.
 		// Verify that defaults are enabled by checking disableDefaults is false.
@@ -573,6 +578,10 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 			WithEnvironment(EnvironmentProduction),
 		)
 		require.NoError(t, err)
+
+		// Disable logging to prevent race condition from concurrent log output
+		app.router.Use(recovery.New(recovery.WithoutLogging()))
+
 		// Default middleware (recovery) is router-level, not app-level.
 		// Verify that defaults are enabled by checking disableDefaults is false.
 		assert.False(t, app.config.middleware.disableDefaults)
@@ -600,6 +609,10 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 			WithMiddleware(customMiddleware), // Adds middleware, keeps defaults
 		)
 		require.NoError(t, err)
+
+		// Disable logging to prevent race condition from concurrent log output
+		app.router.Use(recovery.New(recovery.WithoutLogging()))
+
 		// Should have the custom middleware
 		assert.Len(t, app.config.middleware.functions, 1)
 		// Defaults should still be enabled
@@ -622,6 +635,10 @@ func TestNew_MiddlewareConfiguration(t *testing.T) {
 			WithServiceVersion("1.0.0"),
 		)
 		require.NoError(t, err)
+
+		// Disable logging to prevent race condition from concurrent log output
+		app.router.Use(recovery.New(recovery.WithoutLogging()))
+
 		// Default middleware (recovery) is router-level, not app-level.
 		// Verify that defaults are enabled by checking disableDefaults is false.
 		assert.False(t, app.config.middleware.disableDefaults)

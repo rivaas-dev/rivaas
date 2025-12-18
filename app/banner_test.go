@@ -79,7 +79,7 @@ func TestRenderRoutesTable_EmptyRoutes(t *testing.T) {
 	require.NoError(t, err)
 
 	var buf bytes.Buffer
-	app.renderRoutesTable(&buf, 80)
+	app.renderRoutesTable(&buf)
 
 	// Should produce no output for empty routes
 	assert.Empty(t, buf.String())
@@ -100,7 +100,7 @@ func TestRenderRoutesTable_WithRoutes(t *testing.T) {
 	})
 
 	var buf bytes.Buffer
-	app.renderRoutesTable(&buf, 120)
+	app.renderRoutesTable(&buf)
 
 	output := buf.String()
 	assert.Contains(t, output, http.MethodGet)

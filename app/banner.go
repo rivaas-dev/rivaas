@@ -15,7 +15,6 @@
 package app
 
 import (
-	stderrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,7 +25,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/common-nighthawk/go-figure"
-	"golang.org/x/term"
+
+	"rivaas.dev/router/route"
 )
 
 // getColorWriter returns a colorprofile.Writer configured for the app's environment.
@@ -181,7 +181,7 @@ func (a *App) printStartupBanner(addr, protocol string) {
 		routes := a.router.Routes()
 		if len(routes) > 0 {
 			_, _ = fmt.Fprintln(w)
-			a.renderRoutesTable(w, 80)
+			a.renderRoutesTable(w)
 		}
 	}
 
@@ -190,8 +190,8 @@ func (a *App) printStartupBanner(addr, protocol string) {
 
 // renderRoutesTable renders the routes table to the given writer.
 // renderRoutesTable is an internal helper method used by both PrintRoutes and the startup banner.
-// width specifies the table width (80 for banner, 120 for standalone).
-func (a *App) renderRoutesTable(w io.Writer, width int) {
+// Columns are dynamically sized based on content.
+func (a *App) renderRoutesTable(w io.Writer) {
 	routes := a.router.Routes()
 	if len(routes) == 0 {
 		return
@@ -214,14 +214,22 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 	// Determine if we should use colors (only in development, Writer checks terminal)
 	useColors := a.config.environment == EnvironmentDevelopment
 
-	// Build table rows and calculate content width
-	rows := make([][]string, 0, len(routes))
-	maxMethodWidth := len("Method")
-	maxVersionWidth := len("Version")
-	maxPathWidth := len("Path")
-	maxHandlerWidth := len("Handler")
+	// Separate builtin and user routes
+	var builtinRoutes, userRoutes []route.Info
+	for _, r := range routes {
+		if strings.HasPrefix(r.HandlerName, "[builtin]") {
+			builtinRoutes = append(builtinRoutes, r)
+		} else {
+			userRoutes = append(userRoutes, r)
+		}
+	}
 
-	for _, route := range routes {
+	// Build table rows: builtin routes first, then user routes
+	rows := make([][]string, 0, len(routes))
+	dimStyle := lipgloss.NewStyle().Faint(true) // Dim style for builtin routes
+
+	// Add builtin routes first
+	for _, route := range builtinRoutes {
 		method := route.Method
 		if useColors {
 			if style, ok := methodStyles[method]; ok {
@@ -229,7 +237,6 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 			}
 		}
 
-		// Format version field (show "-" if empty, style if present)
 		version := route.Version
 		if version == "" {
 			version = "-"
@@ -237,17 +244,34 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 			version = versionStyle.Render(version)
 		}
 
-		// Calculate content widths (use original values, not styled ones, for accurate measurement)
-		maxMethodWidth = max(maxMethodWidth, len(route.Method))
-
-		versionLen := len(route.Version)
-		if versionLen == 0 {
-			versionLen = 1 // "-" is 1 char
+		handlerName := route.HandlerName
+		if useColors {
+			handlerName = dimStyle.Render(handlerName)
 		}
-		maxVersionWidth = max(maxVersionWidth, versionLen)
 
-		maxPathWidth = max(maxPathWidth, len(route.Path))
-		maxHandlerWidth = max(maxHandlerWidth, len(route.HandlerName))
+		rows = append(rows, []string{
+			method,
+			version,
+			route.Path,
+			handlerName,
+		})
+	}
+
+	// Add user routes
+	for _, route := range userRoutes {
+		method := route.Method
+		if useColors {
+			if style, ok := methodStyles[method]; ok {
+				method = style.Render(method)
+			}
+		}
+
+		version := route.Version
+		if version == "" {
+			version = "-"
+		} else if useColors {
+			version = versionStyle.Render(version)
+		}
 
 		rows = append(rows, []string{
 			method,
@@ -257,34 +281,8 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 		})
 	}
 
-	// Calculate minimum width needed: borders + separators + padding + content
-	// Border chars: left (1) + right (1) = 2
-	// Separators: 3 vertical bars between 4 columns = 3
-	// Padding: 2 chars per column (left + right) * 4 columns = 8
-	// Content: sum of max widths for each column
-	minWidth := 2 + 3 + 8 + maxMethodWidth + maxVersionWidth + maxPathWidth + maxHandlerWidth
-
-	// Try to get terminal width if available
-	// Only check terminal size if writer is an *os.File (avoids race with tests)
-	terminalWidth := width // Use provided width as fallback
-
-	if file, ok := w.(*os.File); ok {
-		if termWidth, _, err := getTerminalSize(file); err == nil && termWidth > 0 {
-			terminalWidth = termWidth
-		}
-	}
-
-	// Determine final table width:
-	// - Use calculated minimum if it's larger than provided width
-	// - But don't exceed terminal width
-	// - Ensure minimum of 60 characters
-	tableWidth := max(minWidth, width)
-	if terminalWidth > 0 {
-		tableWidth = min(tableWidth, terminalWidth)
-	}
-	tableWidth = max(60, tableWidth)
-
 	// Create table with lipgloss/table
+	// Let columns auto-size based on content (no fixed width)
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(func() lipgloss.Style {
@@ -295,52 +293,19 @@ func (a *App) renderRoutesTable(w io.Writer, width int) {
 			return lipgloss.NewStyle() // No color for border
 		}()).
 		StyleFunc(func(row, _ int) lipgloss.Style {
+			// Note: In lipgloss/table, row indexing starts at 0 for the first DATA row
+			// Headers are handled separately by the Headers() method
 			style := lipgloss.NewStyle().
 				Align(lipgloss.Left).
 				Padding(0, 1)
 
-			// Header row styling
-			if row == 0 && useColors {
-				style = style.
-					Bold(true).
-					Foreground(lipgloss.Color("230")) // Light yellow/white
-			}
-
 			return style
 		}).
 		Headers("Method", "Version", "Path", "Handler").
-		Rows(rows...).
-		Width(tableWidth)
+		Rows(rows...)
 
 	// Write to writer
 	_, _ = fmt.Fprintln(w, t.Render())
-}
-
-// getTerminalSize attempts to get the terminal size using the golang.org/x/term package.
-//
-// getTerminalSize uses a cross-platform API that works on Unix-like systems (Linux, macOS, BSD)
-// and Windows. The package handles platform-specific syscalls internally.
-//
-// Platform behavior:
-//   - Unix/Linux/macOS: Uses TIOCGWINSZ ioctl
-//   - Windows: Uses GetConsoleScreenBufferInfo
-//   - Non-TTY (pipes, redirects): Returns error (no terminal attached)
-//
-// getTerminalSize is suitable for synchronous use during startup banner rendering.
-// No caching needed as it's called once per startup.
-//
-// getTerminalSize returns width, height in character cells, or error if terminal size unavailable.
-func getTerminalSize(file *os.File) (int, int, error) {
-	if file == nil {
-		return 0, 0, stderrors.New("file is nil")
-	}
-
-	width, height, err := term.GetSize(int(file.Fd()))
-	if err != nil {
-		return 0, 0, fmt.Errorf("unable to get terminal size: %w", err)
-	}
-
-	return width, height, nil
 }
 
 // PrintRoutes prints all registered routes to stdout in a formatted table.
@@ -376,5 +341,5 @@ func (a *App) PrintRoutes() {
 	w := a.getColorWriter(os.Stdout)
 
 	// Use internal helper with wider table for standalone use
-	a.renderRoutesTable(w, 120)
+	a.renderRoutesTable(w)
 }

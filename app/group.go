@@ -15,9 +15,11 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
+	"rivaas.dev/openapi"
 	"rivaas.dev/router/route"
 )
 
@@ -32,7 +34,7 @@ import (
 //
 //	api := app.Group("/api/v1", AuthMiddleware())
 //	api.GET("/users", handler)    // handler receives *app.Context
-//	api.POST("/users", handler)    // handler receives *app.Context
+//	api.POST("/users", handler)   // handler receives *app.Context
 type Group struct {
 	app        *App
 	router     *route.Group
@@ -83,14 +85,29 @@ func (g *Group) Group(prefix string, middleware ...HandlerFunc) *Group {
 }
 
 // addRoute adds a route to the group by combining the group's middleware with handlers.
-// addRoute returns a [RouteWrapper] for route configuration and OpenAPI documentation.
-func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *RouteWrapper {
-	// Combine group middleware with route handlers
-	allHandlers := make([]route.Handler, 0, len(g.middleware)+len(handlers))
+// It returns the underlying route.Route for constraint configuration.
+func (g *Group) addRoute(method, path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	// Capture handler name and caller location before any other operations
+	handlerName := getHandlerFuncName(handler)
+	// Skip: getCallerLocation(1) → addRoute(2) → GET/POST/etc(3) → user code(4)
+	callerLoc := getCallerLocation(3)
+
+	// Apply route options
+	cfg := &routeConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	// Build handler chain: group middleware → before options → handler → after options
+	allHandlers := make([]route.Handler, 0, len(g.middleware)+len(cfg.before)+1+len(cfg.after))
 	for _, m := range g.middleware {
 		allHandlers = append(allHandlers, g.app.wrapHandler(m))
 	}
-	for _, h := range handlers {
+	for _, h := range cfg.before {
+		allHandlers = append(allHandlers, g.app.wrapHandler(h))
+	}
+	allHandlers = append(allHandlers, g.app.wrapHandler(handler))
+	for _, h := range cfg.after {
 		allHandlers = append(allHandlers, g.app.wrapHandler(h))
 	}
 
@@ -113,89 +130,99 @@ func (g *Group) addRoute(method, path string, handlers []HandlerFunc) *RouteWrap
 		rt = g.router.OPTIONS(path, allHandlers...)
 	}
 
-	g.app.fireRouteHook(rt)
+	// Update route info with actual handler name and caller location
 	fullPath := g.buildFullPath(path)
+	g.app.router.UpdateRouteInfo(method, fullPath, "", func(info *route.Info) {
+		info.HandlerName = fmt.Sprintf("%s (%s)", handlerName, callerLoc)
+	})
 
-	return g.app.wrapRouteWithOpenAPI(rt, method, fullPath)
+	// Fire route hook
+	g.app.fireRouteHook(rt)
+
+	// Register OpenAPI documentation if enabled
+	if g.app.openapi != nil && !cfg.skipDoc && len(cfg.docOpts) > 0 {
+		g.app.openapi.AddOperation(openapi.Op(method, fullPath, cfg.docOpts...))
+	}
+
+	return rt
 }
 
 // GET adds a GET route to the group with the group's prefix.
-// It combines the group prefix with the provided path.
 //
 // Example:
 //
 //	api := app.Group("/api/v1")
-//	api.GET("/users", handler)                    // Single handler
-//	api.GET("/users/:id", Auth(), GetUser)        // With inline middleware
-func (g *Group) GET(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return g.addRoute(http.MethodGet, path, handlers)
+//	api.GET("/users", handler)
+//	api.GET("/users/:id", getUser,
+//	    app.WithDoc(openapi.WithSummary("Get user")),
+//	)
+func (g *Group) GET(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return g.addRoute(http.MethodGet, path, handler, opts...)
 }
 
 // POST adds a POST route to the group with the group's prefix.
-// It combines the group prefix with the provided path.
 //
 // Example:
 //
 //	api := app.Group("/api/v1")
-//	api.POST("/users", handler)                   // Single handler
-//	api.POST("/users", Validate(), CreateUser)    // With inline middleware
-func (g *Group) POST(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return g.addRoute(http.MethodPost, path, handlers)
+//	api.POST("/users", createUser,
+//	    app.WithDoc(
+//	        openapi.WithSummary("Create user"),
+//	        openapi.WithRequest(CreateUserRequest{}),
+//	    ),
+//	)
+func (g *Group) POST(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return g.addRoute(http.MethodPost, path, handler, opts...)
 }
 
 // PUT adds a PUT route to the group with the group's prefix.
-// It combines the group prefix with the provided path.
 //
 // Example:
 //
 //	api := app.Group("/api/v1")
-//	api.PUT("/users/:id", handler)                // Single handler
-func (g *Group) PUT(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return g.addRoute(http.MethodPut, path, handlers)
+//	api.PUT("/users/:id", updateUser)
+func (g *Group) PUT(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return g.addRoute(http.MethodPut, path, handler, opts...)
 }
 
 // DELETE adds a DELETE route to the group with the group's prefix.
-// It combines the group prefix with the provided path.
 //
 // Example:
 //
 //	api := app.Group("/api/v1")
-//	api.DELETE("/users/:id", handler)             // Single handler
-func (g *Group) DELETE(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return g.addRoute(http.MethodDelete, path, handlers)
+//	api.DELETE("/users/:id", deleteUser)
+func (g *Group) DELETE(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return g.addRoute(http.MethodDelete, path, handler, opts...)
 }
 
 // PATCH adds a PATCH route to the group with the group's prefix.
-// It combines the group prefix with the provided path.
 //
 // Example:
 //
 //	api := app.Group("/api/v1")
-//	api.PATCH("/users/:id", handler)              // Single handler
-func (g *Group) PATCH(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return g.addRoute(http.MethodPatch, path, handlers)
+//	api.PATCH("/users/:id", patchUser)
+func (g *Group) PATCH(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return g.addRoute(http.MethodPatch, path, handler, opts...)
 }
 
 // HEAD adds a HEAD route to the group with the group's prefix.
-// It combines the group prefix with the provided path.
 //
 // Example:
 //
 //	api := app.Group("/api/v1")
-//	api.HEAD("/users/:id", handler)               // Single handler
-func (g *Group) HEAD(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return g.addRoute(http.MethodHead, path, handlers)
+//	api.HEAD("/users/:id", handler)
+func (g *Group) HEAD(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return g.addRoute(http.MethodHead, path, handler, opts...)
 }
 
 // OPTIONS adds an OPTIONS route to the group with the group's prefix.
-// It combines the group prefix with the provided path.
 //
 // Example:
 //
 //	api := app.Group("/api/v1")
-//	api.OPTIONS("/users", handler)                // Single handler
-func (g *Group) OPTIONS(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return g.addRoute(http.MethodOptions, path, handlers)
+//	api.OPTIONS("/users", handler)
+func (g *Group) OPTIONS(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return g.addRoute(http.MethodOptions, path, handler, opts...)
 }
 
 // Any registers a route that matches all HTTP methods.
@@ -205,22 +232,22 @@ func (g *Group) OPTIONS(path string, handlers ...HandlerFunc) *RouteWrapper {
 // PATCH, HEAD, OPTIONS). For endpoints that only need specific methods,
 // use individual method registrations (GET, POST, etc.).
 //
-// Returns the RouteWrapper for the GET route (most common for docs/constraints).
+// Returns the GET route (most common for docs/constraints).
 //
 // Example:
 //
 //	api := app.Group("/api/v1")
 //	api.Any("/health", healthCheckHandler)
-func (g *Group) Any(path string, handlers ...HandlerFunc) *RouteWrapper {
-	rw := g.GET(path, handlers...)
-	g.POST(path, handlers...)
-	g.PUT(path, handlers...)
-	g.DELETE(path, handlers...)
-	g.PATCH(path, handlers...)
-	g.HEAD(path, handlers...)
-	g.OPTIONS(path, handlers...)
+func (g *Group) Any(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	rt := g.GET(path, handler, opts...)
+	g.POST(path, handler, opts...)
+	g.PUT(path, handler, opts...)
+	g.DELETE(path, handler, opts...)
+	g.PATCH(path, handler, opts...)
+	g.HEAD(path, handler, opts...)
+	g.OPTIONS(path, handler, opts...)
 
-	return rw
+	return rt
 }
 
 // buildFullPath builds the full path by combining group prefix with the route path.
@@ -239,3 +266,6 @@ func (g *Group) buildFullPath(path string) string {
 
 	return sb.String()
 }
+
+// Ensure Group uses openapi package (used in addRoute)
+var _ = openapi.Op

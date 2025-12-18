@@ -25,7 +25,7 @@
 //   - Graceful shutdown handling
 //   - Server configuration management
 //   - Request binding and validation
-//   - OpenAPI/Swagger documentation
+//   - OpenAPI/Swagger documentation with ETag-based caching
 //   - Health check endpoints
 //   - Development and production modes
 //

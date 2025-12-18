@@ -264,7 +264,7 @@ func WithRouterOptions(opts ...router.Option) Option {
 // openapiConfig stores OpenAPI settings and initialization state.
 type openapiConfig struct {
 	enabled bool
-	config  *openapi.Config
+	config  *openapi.API
 	initErr error // Stores initialization error to be checked during validation
 }
 

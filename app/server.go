@@ -17,13 +17,14 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 
-	"errors"
 	"rivaas.dev/router"
+	"rivaas.dev/router/route"
 )
 
 // serverStartFunc defines the function type for starting a server.
@@ -178,7 +179,7 @@ func (a *App) registerOpenAPIEndpoints() {
 
 	// Register spec endpoint
 	a.router.GET(a.openapi.SpecPath(), func(c *router.Context) {
-		specJSON, etag, err := a.openapi.GenerateSpec()
+		specJSON, etag, err := a.openapi.GenerateSpec(c.Request.Context())
 		if err != nil {
 			if writeErr := c.Stringf(http.StatusInternalServerError, "Failed to generate OpenAPI specification: %v", err); writeErr != nil {
 				c.Logger().Error("failed to write error response", "err", writeErr)
@@ -199,6 +200,11 @@ func (a *App) registerOpenAPIEndpoints() {
 		if _, err := c.Response.Write(specJSON); err != nil {
 			c.Logger().Error("failed to write spec response", "err", err)
 		}
+	})
+
+	// Update route info to show builtin handler name
+	a.router.UpdateRouteInfo("GET", a.openapi.SpecPath(), "", func(info *route.Info) {
+		info.HandlerName = "[builtin] openapi-spec"
 	})
 
 	// Register UI endpoint if enabled
@@ -234,6 +240,11 @@ func (a *App) registerOpenAPIEndpoints() {
 			if htmlErr := c.HTML(http.StatusOK, html); htmlErr != nil {
 				c.Logger().Error("failed to write HTML response", "err", htmlErr)
 			}
+		})
+
+		// Update route info to show builtin handler name
+		a.router.UpdateRouteInfo("GET", a.openapi.UIPath(), "", func(info *route.Info) {
+			info.HandlerName = "[builtin] openapi-ui"
 		})
 	}
 }

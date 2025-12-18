@@ -15,8 +15,10 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 
+	"rivaas.dev/openapi"
 	"rivaas.dev/router"
 	"rivaas.dev/router/route"
 )
@@ -44,13 +46,28 @@ type VersionGroup struct {
 
 // addRoute adds a route to the version group by combining the group's middleware with handlers.
 // addRoute is an internal method used by the HTTP method functions.
-func (vg *VersionGroup) addRoute(method, path string, handlers []HandlerFunc) *RouteWrapper {
-	// Combine group middleware with route handlers
-	allHandlers := make([]router.HandlerFunc, 0, len(vg.middleware)+len(handlers))
+func (vg *VersionGroup) addRoute(method, path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	// Capture handler name and caller location before any other operations
+	handlerName := getHandlerFuncName(handler)
+	// Skip: getCallerLocation(1) → addRoute(2) → GET/POST/etc(3) → user code(4)
+	callerLoc := getCallerLocation(3)
+
+	// Apply route options
+	cfg := &routeConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	// Build handler chain: group middleware → before options → handler → after options
+	allHandlers := make([]router.HandlerFunc, 0, len(vg.middleware)+len(cfg.before)+1+len(cfg.after))
 	for _, m := range vg.middleware {
 		allHandlers = append(allHandlers, vg.app.wrapHandler(m))
 	}
-	for _, h := range handlers {
+	for _, h := range cfg.before {
+		allHandlers = append(allHandlers, vg.app.wrapHandler(h))
+	}
+	allHandlers = append(allHandlers, vg.app.wrapHandler(handler))
+	for _, h := range cfg.after {
 		allHandlers = append(allHandlers, vg.app.wrapHandler(h))
 	}
 
@@ -76,82 +93,90 @@ func (vg *VersionGroup) addRoute(method, path string, handlers []HandlerFunc) *R
 		rt = vg.versionRouter.OPTIONS(fullPath, allHandlers...)
 	}
 
+	// Update route info with actual handler name and caller location
+	vg.app.router.UpdateRouteInfo(method, fullPath, vg.versionRouter.Version(), func(info *route.Info) {
+		info.HandlerName = fmt.Sprintf("%s (%s)", handlerName, callerLoc)
+	})
+
 	vg.app.fireRouteHook(rt)
 
-	return vg.app.wrapRouteWithOpenAPI(rt, method, fullPath)
+	// Register OpenAPI documentation if enabled
+	if vg.app.openapi != nil && !cfg.skipDoc && len(cfg.docOpts) > 0 {
+		vg.app.openapi.AddOperation(openapi.Op(method, fullPath, cfg.docOpts...))
+	}
+
+	return rt
 }
 
-// GET adds a GET route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// It executes any middleware added via Use() before the handler.
+// GET adds a GET route to the version group.
 //
 // Example:
 //
 //	v1.GET("/users/:id", handler).WhereInt("id")
-//	v1.GET("/users/:id", Auth(), GetUser)  // With inline middleware
-func (vg *VersionGroup) GET(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return vg.addRoute(http.MethodGet, path, handlers)
+//	v1.GET("/users/:id", getUser,
+//	    app.WithDoc(openapi.WithSummary("Get user")),
+//	)
+func (vg *VersionGroup) GET(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return vg.addRoute(http.MethodGet, path, handler, opts...)
 }
 
-// POST adds a POST route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// It executes any middleware added via Use() before the handler.
+// POST adds a POST route to the version group.
 //
 // Example:
 //
-//	v1.POST("/users", handler).Request(CreateUserRequest{})
-//	v1.POST("/users", Validate(), CreateUser)  // With inline middleware
-func (vg *VersionGroup) POST(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return vg.addRoute(http.MethodPost, path, handlers)
+//	v1.POST("/users", createUser,
+//	    app.WithDoc(
+//	        openapi.WithSummary("Create user"),
+//	        openapi.WithRequest(CreateUserRequest{}),
+//	    ),
+//	)
+func (vg *VersionGroup) POST(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return vg.addRoute(http.MethodPost, path, handler, opts...)
 }
 
-// PUT adds a PUT route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// It executes any middleware added via Use() before the handler.
+// PUT adds a PUT route to the version group.
 //
 // Example:
 //
-//	v1.PUT("/users/:id", handler).WhereInt("id")
-func (vg *VersionGroup) PUT(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return vg.addRoute(http.MethodPut, path, handlers)
+//	v1.PUT("/users/:id", updateUser).WhereInt("id")
+func (vg *VersionGroup) PUT(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return vg.addRoute(http.MethodPut, path, handler, opts...)
 }
 
-// DELETE adds a DELETE route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// It executes any middleware added via Use() before the handler.
+// DELETE adds a DELETE route to the version group.
 //
 // Example:
 //
-//	v1.DELETE("/users/:id", handler).WhereInt("id")
-func (vg *VersionGroup) DELETE(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return vg.addRoute(http.MethodDelete, path, handlers)
+//	v1.DELETE("/users/:id", deleteUser).WhereInt("id")
+func (vg *VersionGroup) DELETE(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return vg.addRoute(http.MethodDelete, path, handler, opts...)
 }
 
-// PATCH adds a PATCH route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// It executes any middleware added via Use() before the handler.
+// PATCH adds a PATCH route to the version group.
 //
 // Example:
 //
-//	v1.PATCH("/users/:id", handler).WhereInt("id")
-func (vg *VersionGroup) PATCH(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return vg.addRoute(http.MethodPatch, path, handlers)
+//	v1.PATCH("/users/:id", patchUser).WhereInt("id")
+func (vg *VersionGroup) PATCH(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return vg.addRoute(http.MethodPatch, path, handler, opts...)
 }
 
-// HEAD adds a HEAD route to the version group and returns a RouteWrapper for constraints and OpenAPI documentation.
-// It executes any middleware added via Use() before the handler.
+// HEAD adds a HEAD route to the version group.
 //
 // Example:
 //
 //	v1.HEAD("/users/:id", handler).WhereInt("id")
-func (vg *VersionGroup) HEAD(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return vg.addRoute(http.MethodHead, path, handlers)
+func (vg *VersionGroup) HEAD(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return vg.addRoute(http.MethodHead, path, handler, opts...)
 }
 
-// OPTIONS adds an OPTIONS route to the version group and returns a RouteWrapper
-// for constraints and OpenAPI documentation.
-// It executes any middleware added via Use() before the handler.
+// OPTIONS adds an OPTIONS route to the version group.
 //
 // Example:
 //
 //	v1.OPTIONS("/users", handler)
-func (vg *VersionGroup) OPTIONS(path string, handlers ...HandlerFunc) *RouteWrapper {
-	return vg.addRoute(http.MethodOptions, path, handlers)
+func (vg *VersionGroup) OPTIONS(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	return vg.addRoute(http.MethodOptions, path, handler, opts...)
 }
 
 // Use adds middleware to the version group that will be executed for all routes in this group.
@@ -176,21 +201,21 @@ func (vg *VersionGroup) Use(middleware ...HandlerFunc) {
 // PATCH, HEAD, OPTIONS). For endpoints that only need specific methods,
 // use individual method registrations (GET, POST, etc.).
 //
-// Returns the RouteWrapper for the GET route (most common for docs/constraints).
+// Returns the GET route (most common for docs/constraints).
 //
 // Example:
 //
 //	v1.Any("/health", healthCheckHandler)
-func (vg *VersionGroup) Any(path string, handlers ...HandlerFunc) *RouteWrapper {
-	rw := vg.GET(path, handlers...)
-	vg.POST(path, handlers...)
-	vg.PUT(path, handlers...)
-	vg.DELETE(path, handlers...)
-	vg.PATCH(path, handlers...)
-	vg.HEAD(path, handlers...)
-	vg.OPTIONS(path, handlers...)
+func (vg *VersionGroup) Any(path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	rt := vg.GET(path, handler, opts...)
+	vg.POST(path, handler, opts...)
+	vg.PUT(path, handler, opts...)
+	vg.DELETE(path, handler, opts...)
+	vg.PATCH(path, handler, opts...)
+	vg.HEAD(path, handler, opts...)
+	vg.OPTIONS(path, handler, opts...)
 
-	return rw
+	return rt
 }
 
 // Group creates a nested version group under the current version group.

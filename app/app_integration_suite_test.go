@@ -16,6 +16,7 @@ package app_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -486,54 +487,94 @@ var _ = Describe("App Integration", func() {
 		})
 
 		Describe("Route Registration Concurrent", func() {
-			It("should register routes concurrently while handling requests", func() {
+			It("should handle concurrent requests safely after routes are registered", func() {
+				// This test verifies the two-phase design:
+				// Phase 1: Configuration (single-threaded route registration)
+				// Phase 2: Serving (concurrent request handling)
+				//
+				// After the first ServeHTTP call, routes are frozen and immutable.
+				// Concurrent reads from the route tree are safe without locking.
+
 				a := app.MustNew(
 					app.WithServiceName("test"),
 					app.WithServiceVersion("1.0.0"),
 				)
 
-				// Pre-register some routes
-				a.GET("/existing", func(c *app.Context) {
-					if err := c.String(http.StatusOK, "existing"); err != nil {
-						c.Logger().Error("failed to write response", "err", err)
-					}
-				})
-
-				const numNewRoutes = 50
-				var wg sync.WaitGroup
-
-				// Register new routes concurrently
-				for i := range numNewRoutes {
-					wg.Add(1)
-					go func(id int) {
-						defer wg.Done()
-						path := "/route" + string(rune('0'+id%10))
-						a.GET(path, func(c *app.Context) {
-							if err := c.Stringf(http.StatusOK, "route-%d", id); err != nil {
-								c.Logger().Error("failed to write response", "err", err)
-							}
-						})
-					}(i)
+				// Phase 1: Register all routes (single-threaded configuration)
+				const numRoutes = 50
+				for i := range numRoutes {
+					path := fmt.Sprintf("/route%d", i)
+					routeID := i // capture for closure
+					a.GET(path, func(c *app.Context) {
+						if err := c.Stringf(http.StatusOK, "route-%d", routeID); err != nil {
+							c.Logger().Error("failed to write response", "err", err)
+						}
+					})
 				}
 
-				// Also handle requests concurrently
-				requestDone := make(chan bool, 100)
-				for range 100 {
-					(&wg).Go(func() {
-						req := httptest.NewRequest(http.MethodGet, "/existing", nil)
-						w := httptest.NewRecorder()
-						a.Router().ServeHTTP(w, req)
-						requestDone <- (w.Code == http.StatusOK)
-					})
+				// Explicitly freeze the router (this happens automatically on first ServeHTTP)
+				a.Router().Freeze()
+
+				// Phase 2: Handle requests concurrently (routes are now immutable)
+				var wg sync.WaitGroup
+				requestDone := make(chan bool, numRoutes*10)
+
+				for i := range numRoutes {
+					// Each route gets 10 concurrent requests
+					for range 10 {
+						routeID := i
+						wg.Add(1)
+						go func() {
+							defer wg.Done()
+							req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/route%d", routeID), nil)
+							w := httptest.NewRecorder()
+							a.Router().ServeHTTP(w, req)
+							requestDone <- (w.Code == http.StatusOK)
+						}()
+					}
 				}
 
 				wg.Wait()
 				close(requestDone)
 
 				// Verify all requests succeeded
+				successCount := 0
 				for success := range requestDone {
-					Expect(success).To(BeTrue(), "all concurrent requests should succeed")
+					if success {
+						successCount++
+					}
 				}
+				Expect(successCount).To(Equal(numRoutes*10), "all concurrent requests should succeed")
+			})
+
+			It("should panic when registering routes after serving starts", func() {
+				// This test verifies the fail-fast behavior:
+				// Attempting to register routes after serving starts should panic.
+
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+				)
+
+				// Register a route
+				a.GET("/existing", func(c *app.Context) {
+					if err := c.String(http.StatusOK, "existing"); err != nil {
+						c.Logger().Error("failed to write response", "err", err)
+					}
+				})
+
+				// Start serving (this triggers auto-freeze)
+				req := httptest.NewRequest(http.MethodGet, "/existing", nil)
+				w := httptest.NewRecorder()
+				a.Router().ServeHTTP(w, req)
+				Expect(w.Code).To(Equal(http.StatusOK))
+
+				// Attempting to register a new route after serving should panic
+				Expect(func() {
+					a.GET("/new-route", func(c *app.Context) {
+						c.String(http.StatusOK, "new")
+					})
+				}).To(Panic())
 			})
 		})
 

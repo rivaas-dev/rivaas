@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"rivaas.dev/router"
+	"rivaas.dev/router/route"
 )
 
 // registerHealthEndpoints registers health endpoints based on the provided settings.
@@ -71,6 +72,11 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		}
 	})
 
+	// Update route info to show builtin handler name
+	a.router.UpdateRouteInfo("GET", healthzPath, "", func(info *route.Info) {
+		info.HandlerName = "[builtin] health"
+	})
+
 	// GET /readyz - Readiness probe (external deps: db, cache, otel)
 	a.Router().GET(readyzPath, func(c *router.Context) {
 		c.Header("Cache-Control", "no-store")
@@ -91,6 +97,11 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		}
 
 		c.NoContent()
+	})
+
+	// Update route info to show builtin handler name
+	a.router.UpdateRouteInfo("GET", readyzPath, "", func(info *route.Info) {
+		info.HandlerName = "[builtin] readiness"
 	})
 
 	return nil

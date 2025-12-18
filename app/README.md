@@ -588,12 +588,17 @@ Adds unique request IDs to each request for distributed tracing.
 ```go
 import "rivaas.dev/router/middleware/timeout"
 
-// Basic timeout
-app.Use(timeout.New(30 * time.Second))
+// Basic timeout (uses 30s default)
+app.Use(timeout.New())
+
+// With custom duration
+app.Use(timeout.New(timeout.WithDuration(5 * time.Second)))
 
 // With options
-app.Use(timeout.New(30*time.Second,
-    timeout.WithSkipPaths([]string{"/stream"}),
+app.Use(timeout.New(
+    timeout.WithDuration(30*time.Second),
+    timeout.WithSkipPaths("/stream"),
+    timeout.WithSkipPrefix("/admin"),
 ))
 ```
 

@@ -41,20 +41,11 @@ func (s *AppLifecycleSuite) SetupTest() {
 }
 
 func (s *AppLifecycleSuite) TearDownTest() {
-	// Cleanup - app doesn't need explicit cleanup, but we can verify it's usable
-	if s.testApp != nil {
-		// Verify app is still functional
-		s.testApp.GET("/cleanup-check", func(c *Context) {
-			if err := c.String(http.StatusOK, "ok"); err != nil {
-				c.Logger().Error("failed to write response", "err", err)
-			}
-		})
-		req := httptest.NewRequest(http.MethodGet, "/cleanup-check", nil)
-		resp, err := s.testApp.Test(req)
-		s.NoError(err)
-		s.Equal(http.StatusOK, resp.StatusCode)
-		_ = resp.Body.Close()
-	}
+	// Note: In the two-phase router design, we cannot register new routes after
+	// serving has started. The app is still functional for serving existing routes,
+	// but we cannot dynamically add new routes after the first ServeHTTP call.
+	// This is by design to prevent data races.
+	s.testApp = nil
 }
 
 func (s *AppLifecycleSuite) TestHooksExecutionOrder() {

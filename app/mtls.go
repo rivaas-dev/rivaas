@@ -17,8 +17,9 @@ package app
 import (
 	"crypto/tls"
 	"crypto/x509"
-	stderrors "errors"
 	"net/http"
+
+	stderrors "errors"
 )
 
 // mtlsConfig configures mutual TLS (mTLS) authentication.

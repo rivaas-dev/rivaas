@@ -124,12 +124,14 @@ func main() {
 		),
 		app.WithOpenAPI(
 			openapi.WithTitle(serviceName, serviceVersion),
-			openapi.WithDescription("API description"),
+			openapi.WithInfoDescription("API description"),
 			openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
 			openapi.WithServer("http://localhost:8080", "Local development"),
-			openapi.WithSwaggerUI(true, "/docs"),
-			openapi.WithUIDocExpansion(openapi.DocExpansionList),
-			openapi.WithUIRequestSnippets(true, openapi.SnippetCurlBash, openapi.SnippetCurlPowerShell, openapi.SnippetCurlCmd),
+			openapi.WithSwaggerUI(
+				"/docs",
+				openapi.WithUIExpansion(openapi.DocExpansionList),
+				openapi.WithUITryItOut(true),
+				openapi.WithUIRequestSnippets(true, openapi.SnippetCurlBash, openapi.SnippetCurlPowerShell, openapi.SnippetCurlCmd)),
 		),
 	)
 	if err != nil {
@@ -138,7 +140,7 @@ func main() {
 
 	a.Router().Use(requestid.New())
 	a.Router().Use(cors.New(cors.WithAllowAllOrigins(true)))
-	a.Router().Use(timeout.New(30 * time.Second))
+	a.Router().Use(timeout.New(timeout.WithDuration(30 * time.Second)))
 
 	// Root endpoint
 	a.GET("/", func(c *app.Context) {
@@ -157,38 +159,55 @@ func main() {
 
 	// User endpoints with typed constraints and OpenAPI documentation
 	// The unified API allows chaining both constraints and OpenAPI docs
-	a.GET("/users/:id", handlers.GetUserByID).
-		WhereInt("id").
-		Doc("Get user", "Retrieves a user by ID").
-		Response(http.StatusOK, handlers.UserResponse{}).
-		Response(http.StatusNotFound, handlers.APIError{}).
-		Tags("users")
+	a.GET("/users/:id", handlers.GetUserByID,
+		app.WithDoc(
+			openapi.WithSummary("Get user"),
+			openapi.WithDescription("Retrieves a user by ID"),
+			openapi.WithResponse(http.StatusOK, handlers.UserResponse{}),
+			openapi.WithResponse(http.StatusNotFound, handlers.APIError{}),
+			openapi.WithTags("users"),
+		),
+	).WhereInt("id")
 
-	a.POST("/users", handlers.CreateUser).
-		Doc("Create user", "Creates a new user").
-		Request(handlers.CreateUserRequest{}).
-		Response(http.StatusCreated, handlers.UserResponse{}).
-		Tags("users")
+	a.POST("/users", handlers.CreateUser,
+		app.WithDoc(
+			openapi.WithSummary("Create user"),
+			openapi.WithDescription("Creates a new user"),
+			openapi.WithRequest(handlers.CreateUserRequest{}),
+			openapi.WithResponse(http.StatusCreated, handlers.UserResponse{}),
+			openapi.WithTags("users"),
+		),
+	)
 
-	a.GET("/users/:id/orders", handlers.GetUserOrders).
-		WhereInt("id").
-		Doc("Get user orders", "Retrieves all orders for a user").
-		Response(http.StatusOK, []handlers.OrderResponse{}).
-		Tags("users", "orders")
+	a.GET("/users/:id/orders", handlers.GetUserOrders,
+		app.WithDoc(
+			openapi.WithSummary("Get user orders"),
+			openapi.WithDescription("Retrieves all orders for a user"),
+			openapi.WithResponse(http.StatusOK, []handlers.OrderResponse{}),
+			openapi.WithTags("users", "orders"),
+		),
+	).WhereInt("id")
 
 	// Order endpoints with typed constraints
-	a.POST("/orders", handlers.CreateOrder).
-		Doc("Create order", "Creates a new order").
-		Request(handlers.CreateOrderRequest{}).
-		Response(http.StatusCreated, handlers.OrderResponse{}).
-		Tags("orders")
+	a.POST("/orders", handlers.CreateOrder,
+		app.WithDoc(
+			openapi.WithSummary("Create order"),
+			openapi.WithDescription("Creates a new order"),
+			openapi.WithRequest(handlers.CreateOrderRequest{}),
+			openapi.WithResponse(http.StatusCreated, handlers.OrderResponse{}),
+			openapi.WithTags("orders"),
+		),
+	)
 
-	a.GET("/orders/:id", handlers.GetOrderByID).
-		WhereInt("id").
-		Doc("Get order", "Retrieves an order by ID").
-		Response(http.StatusOK, handlers.OrderResponse{}).
-		Response(http.StatusNotFound, handlers.APIError{}).
-		Tags("orders")
+	a.GET("/orders/:id", handlers.GetOrderByID,
+		app.WithDoc(
+			openapi.WithSummary("Get order"),
+			openapi.WithDescription("Retrieves an order by ID"),
+			openapi.WithResponse(http.StatusOK, handlers.OrderResponse{}),
+			openapi.WithResponse(http.StatusNotFound, handlers.APIError{}),
+			openapi.WithTags("orders"),
+		),
+	).WhereInt("id")
 
 	// Error handling example - MOVED BEFORE VERSIONED ROUTES
 	a.GET("/error", func(c *app.Context) {
@@ -217,6 +236,7 @@ func main() {
 	// The router automatically detects version from URL path like /v1/test
 	// Now using proper app.Version() which provides full app.Context support
 	v1.GET("/test", func(c *app.Context) {
+		panic("test panic")
 		if err := c.JSON(http.StatusOK, map[string]any{
 			"message": "v1 test route works",
 			"version": c.Version(),
@@ -239,29 +259,35 @@ func main() {
 	})
 
 	// Products with typed constraints - showcasing the unified API
-	v1.GET("/products/:id", handlers.GetProductByID).
-		WhereRegex("id", `[a-zA-Z0-9-]+`). // Custom pattern for product IDs
-		Doc("Get product", "Retrieves a product by ID").
-		Response(http.StatusOK, map[string]any{
-			"id":    "string",
-			"name":  "string",
-			"price": 0.0,
-		}).
-		Tags("products")
+	v1.GET("/products/:id", handlers.GetProductByID,
+		app.WithDoc(
+			openapi.WithSummary("Get product"),
+			openapi.WithDescription("Retrieves a product by ID"),
+			openapi.WithResponse(http.StatusOK, map[string]any{
+				"id":    "string",
+				"name":  "string",
+				"price": 0.0,
+			}),
+			openapi.WithTags("products"),
+		),
+	).WhereRegex("id", `[a-zA-Z0-9-]+`)
 
 	// Search endpoint with advanced query binding and OpenAPI docs
-	v1.GET("/search", handlers.Search).
-		Doc("Search", "Search endpoint with query parameters").
-		Request(handlers.SearchParams{}).
-		Deprecated().
-		Response(http.StatusOK, map[string]any{
-			"query":     "string",
-			"page":      0,
-			"page_size": 0,
-			"results":   []string{},
-			"total":     0,
-		}).
-		Tags("search")
+	v1.GET("/search", handlers.Search,
+		app.WithDoc(
+			openapi.WithSummary("Search"),
+			openapi.WithDescription("Search endpoint with query parameters"),
+			openapi.WithRequest(handlers.SearchParams{}),
+			openapi.WithResponse(http.StatusOK, map[string]any{
+				"query":     "string",
+				"page":      0,
+				"page_size": 0,
+				"results":   []string{},
+				"total":     0,
+			}),
+			openapi.WithTags("search"),
+		),
+	)
 
 	// Example: You can easily add v2 when ready
 	// v2 := a.Version("v2")

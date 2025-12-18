@@ -17,7 +17,6 @@ package app
 import (
 	"bufio"
 	"context"
-	stderrors "errors"
 	"io"
 	"log/slog"
 	"net"
@@ -29,6 +28,8 @@ import (
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
 	"rivaas.dev/tracing"
+
+	stderrors "errors"
 )
 
 // observabilityRecorder implements [router.ObservabilityRecorder] by unifying
