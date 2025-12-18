@@ -225,11 +225,6 @@ func TestAccessLog_ExcludePrefixes(t *testing.T) { //nolint:paralleltest // Subt
 }
 
 func TestAccessLog_StatusCodes(t *testing.T) { //nolint:paralleltest // Shares handler state between subtests
-	handler := newTestHandler()
-	logger := slog.New(handler)
-	r := router.MustNew()
-	r.Use(New(WithLogger(logger)))
-
 	testCases := []struct {
 		name          string
 		statusCode    int
@@ -245,7 +240,13 @@ func TestAccessLog_StatusCodes(t *testing.T) { //nolint:paralleltest // Shares h
 
 	for _, tc := range testCases { //nolint:paralleltest // Subtests share handler state
 		t.Run(tc.name, func(t *testing.T) {
-			handler.reset()
+			// Create a new router for each test case to comply with the two-phase design
+			// (routes must be registered before serving starts)
+			handler := newTestHandler()
+			logger := slog.New(handler)
+			r := router.MustNew()
+			r.Use(New(WithLogger(logger)))
+
 			r.GET("/test", func(c *router.Context) {
 				c.Status(tc.statusCode)
 				c.JSON(tc.statusCode, map[string]string{"status": "test"})
@@ -741,11 +742,6 @@ func TestAccessLog_ResponseWriterPreservation(t *testing.T) { //nolint:parallelt
 }
 
 func TestAccessLog_StatusCodeTracking(t *testing.T) { //nolint:paralleltest // Shares handler state between subtests
-	handler := newTestHandler()
-	logger := slog.New(handler)
-	r := router.MustNew()
-	r.Use(New(WithLogger(logger)))
-
 	testCases := []struct {
 		statusCode int
 		desc       string
@@ -760,7 +756,12 @@ func TestAccessLog_StatusCodeTracking(t *testing.T) { //nolint:paralleltest // S
 
 	for _, tc := range testCases { //nolint:paralleltest // Subtests share handler state
 		t.Run(tc.desc, func(t *testing.T) {
-			handler.reset()
+			// Create a new router for each test case to comply with the two-phase design
+			handler := newTestHandler()
+			logger := slog.New(handler)
+			r := router.MustNew()
+			r.Use(New(WithLogger(logger)))
+
 			r.GET("/test", func(c *router.Context) {
 				c.Status(tc.statusCode)
 				c.Response.Write([]byte("test response"))

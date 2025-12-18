@@ -103,7 +103,7 @@ func main() {
     
     // Reliability
     r.Use(recovery.New())
-    r.Use(timeout.New(timeout.WithTimeout(30 * time.Second)))
+    r.Use(timeout.New(timeout.WithDuration(30 * time.Second)))
     
     // Security
     r.Use(security.New())

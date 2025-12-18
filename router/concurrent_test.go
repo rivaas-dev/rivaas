@@ -506,47 +506,77 @@ func TestAtomicRouteLookup(t *testing.T) {
 	wg.Wait()
 }
 
-// TestConcurrentRegistrationAndLookup tests that route registration and lookup
-// can happen concurrently without issues.
-func TestConcurrentRegistrationAndLookup(t *testing.T) {
+// TestConcurrentLookupAfterRegistration tests that concurrent route lookups
+// can happen safely after routes are registered and the router is frozen.
+//
+// Note: The router uses a two-phase design where routes are registered first
+// (single-threaded configuration phase), then frozen before serving. After
+// freezing, the route tree is immutable and safe for concurrent reads.
+func TestConcurrentLookupAfterRegistration(t *testing.T) {
 	t.Parallel()
 	r := MustNew()
 
+	// Phase 1: Register routes (single-threaded)
+	for i := range 100 {
+		path := "/concurrent" + string(rune('0'+i%10))
+		r.GET(path, func(c *Context) {
+			c.String(http.StatusOK, "OK")
+		})
+	}
+
+	// Freeze the router (happens automatically on first ServeHTTP, but we can be explicit)
+	r.Freeze()
+
+	// Phase 2: Concurrent lookups (routes are now immutable)
 	var wg sync.WaitGroup
-	done := make(chan bool)
-
-	// Start route registration goroutine
-	wg.Go(func() {
-		for i := range 100 {
-			path := "/concurrent" + string(rune('0'+i%10))
-			r.GET(path, func(c *Context) {
-				c.String(http.StatusOK, "OK")
-			})
-			time.Sleep(time.Millisecond) // Small delay to allow lookups
-		}
-		close(done)
-	})
-
-	// Start route lookup goroutine
-	wg.Go(func() {
-		for {
-			select {
-			case <-done:
-				return
-			default:
-				req := httptest.NewRequest(http.MethodGet, "/", nil)
+	for range 100 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range 10 {
+				path := "/concurrent" + string(rune('0'+i%10))
+				req := httptest.NewRequest(http.MethodGet, path, nil)
 				w := httptest.NewRecorder()
 				r.ServeHTTP(w, req)
-				// Don't check status as routes are being added
+				// All should succeed now that routes are registered
+				assert.Equal(t, http.StatusOK, w.Code)
 			}
-		}
-	})
+		}()
+	}
 
 	wg.Wait()
 
-	// Verify final state
+	// Verify routes exist
 	routes := r.Routes()
 	assert.NotEmpty(t, routes, "No routes were registered")
+}
+
+// TestRouteRegistrationAfterServeHTTPPanics tests that attempting to register
+// routes after ServeHTTP has been called will panic.
+//
+// This is a design constraint to prevent data races: the router has two phases:
+// 1. Configuration phase: register routes (single-threaded)
+// 2. Serving phase: handle requests (concurrent, immutable routes)
+func TestRouteRegistrationAfterServeHTTPPanics(t *testing.T) {
+	t.Parallel()
+	r := MustNew()
+
+	// Register a route
+	r.GET("/test", func(c *Context) {
+		c.String(http.StatusOK, "OK")
+	})
+
+	// Start serving (this triggers freeze)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	// Attempting to register a new route should panic
+	assert.Panics(t, func() {
+		r.GET("/new-route", func(c *Context) {
+			c.String(http.StatusOK, "NEW")
+		})
+	}, "should panic when registering route after ServeHTTP")
 }
 
 // TestAtomicTreeConsistency tests that the atomic tree updates maintain consistency.

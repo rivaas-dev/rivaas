@@ -21,44 +21,73 @@
 //
 // # Basic Usage
 //
-//	import (
-//	    "time"
-//	    "rivaas.dev/router/middleware/timeout"
-//	)
+//	import "rivaas.dev/router/middleware/timeout"
 //
 //	r := router.MustNew()
-//	r.Use(timeout.New(
-//	    timeout.WithTimeout(30 * time.Second),
-//	))
+//	r.Use(timeout.New())  // Uses 30s default timeout
+//
+// # With Custom Duration
+//
+//	r.Use(timeout.New(timeout.WithDuration(5 * time.Second)))
 //
 // # Configuration Options
 //
-//   - Timeout: Maximum duration for request processing (required)
-//   - ErrorHandler: Custom handler for timeout errors
-//   - SkipPaths: Paths to exclude from timeout (e.g., long-running endpoints)
+//   - Duration: Maximum duration for request processing (default: 30s)
+//   - Logger: Custom slog.Logger for timeout events (default: slog.Default())
+//   - Handler: Custom handler for timeout errors
+//   - SkipPaths: Exact paths to exclude from timeout
+//   - SkipPrefix: Path prefixes to exclude from timeout
+//   - SkipSuffix: Path suffixes to exclude from timeout
+//   - Skip: Custom function to determine if timeout should be skipped
 //
 // # Timeout Behavior
 //
 // When a timeout occurs:
 //
 //   - The request context is canceled
+//   - A warning is logged (unless disabled with WithoutLogging())
+//   - A 408 Request Timeout response is sent
 //   - Handlers should check ctx.Done() and return early
-//   - A 504 Gateway Timeout response is sent
-//   - The error handler can customize the response
+//
+// # Skip Paths
+//
+//	// Skip exact paths
+//	r.Use(timeout.New(
+//	    timeout.WithSkipPaths("/stream", "/webhook"),
+//	))
+//
+//	// Skip by prefix (all /admin/* routes)
+//	r.Use(timeout.New(
+//	    timeout.WithSkipPrefix("/admin", "/internal"),
+//	))
+//
+//	// Skip by suffix (all streaming endpoints)
+//	r.Use(timeout.New(
+//	    timeout.WithSkipSuffix("/stream", "/events"),
+//	))
+//
+//	// Skip with custom logic
+//	r.Use(timeout.New(
+//	    timeout.WithSkip(func(c *router.Context) bool {
+//	        return c.Request.Method == "OPTIONS"
+//	    }),
+//	))
 //
 // # Custom Error Handler
 //
-//	import "rivaas.dev/router/middleware/timeout"
-//
 //	r.Use(timeout.New(
-//	    timeout.WithTimeout(30 * time.Second),
-//	    timeout.WithErrorHandler(func(c *router.Context) {
-//	        c.JSON(http.StatusGatewayTimeout, map[string]string{
-//	            "error": "Request timeout",
-//	            "timeout": "30s",
+//	    timeout.WithDuration(30 * time.Second),
+//	    timeout.WithHandler(func(c *router.Context, timeout time.Duration) {
+//	        c.JSON(http.StatusRequestTimeout, map[string]any{
+//	            "error":   "Request timeout",
+//	            "timeout": timeout.String(),
 //	        })
 //	    }),
 //	))
+//
+// # Disable Logging
+//
+//	r.Use(timeout.New(timeout.WithoutLogging()))
 //
 // # Handler Implementation
 //

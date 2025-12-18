@@ -15,7 +15,10 @@
 package recovery
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -102,16 +105,12 @@ func TestRecovery_CustomHandler(t *testing.T) {
 func TestRecovery_CustomLogger(t *testing.T) {
 	r := router.MustNew()
 
-	var loggedError any
-	var loggedStack []byte
-	loggerCalled := false
+	// Create a buffer to capture log output
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
 
 	r.Use(New(
-		WithLogger(func(_ *router.Context, err any, stack []byte) {
-			loggerCalled = true
-			loggedError = err
-			loggedStack = stack
-		}),
+		WithLogger(logger),
 	))
 
 	r.GET("/panic", func(_ *router.Context) {
@@ -123,21 +122,22 @@ func TestRecovery_CustomLogger(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	assert.True(t, loggerCalled, "Custom logger should be called")
-	assert.Equal(t, "logger test panic", loggedError)
-	assert.NotEmpty(t, loggedStack, "Expected stack trace to be captured")
+	logOutput := buf.String()
+	assert.Contains(t, logOutput, "panic recovered")
+	assert.Contains(t, logOutput, "logger test panic")
+	assert.Contains(t, logOutput, "stack")
 }
 
 //nolint:paralleltest // Tests panic recovery behavior
 func TestRecovery_DisableStackTrace(t *testing.T) {
 	r := router.MustNew()
 
-	var loggedStack []byte
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
 	r.Use(New(
 		WithStackTrace(false),
-		WithLogger(func(_ *router.Context, _ any, stack []byte) {
-			loggedStack = stack
-		}),
+		WithLogger(logger),
 	))
 
 	r.GET("/panic", func(_ *router.Context) {
@@ -149,19 +149,24 @@ func TestRecovery_DisableStackTrace(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	assert.Empty(t, loggedStack, "Stack trace should not be captured when disabled")
+	logOutput := buf.String()
+	assert.Contains(t, logOutput, "panic recovered")
+	assert.Contains(t, logOutput, "no stack trace")
+	// Stack trace should not be present when disabled
+	assert.NotContains(t, logOutput, "Stack trace:")
+	assert.NotContains(t, logOutput, "goroutine")
 }
 
 //nolint:paralleltest // Tests panic recovery behavior with shared state
 func TestRecovery_CustomStackSize(t *testing.T) {
 	r := router.MustNew()
 
-	var loggedStack []byte
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
 	r.Use(New(
 		WithStackSize(1024), // 1KB
-		WithLogger(func(_ *router.Context, _ any, stack []byte) {
-			loggedStack = stack
-		}),
+		WithLogger(logger),
 	))
 
 	r.GET("/panic", func(_ *router.Context) {
@@ -173,11 +178,11 @@ func TestRecovery_CustomStackSize(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	// Stack should be captured but within size limit
-	assert.NotEmpty(t, loggedStack, "Stack trace should be captured")
-
-	// Note: Stack size might be less than buffer size depending on actual stack depth
-	assert.LessOrEqual(t, len(loggedStack), 8192)
+	logOutput := buf.String()
+	assert.Contains(t, logOutput, "panic recovered")
+	assert.Contains(t, logOutput, "stack")
+	// Stack should be captured but within size limit (1KB)
+	assert.LessOrEqual(t, len(logOutput), 8192)
 }
 
 //nolint:paralleltest // Tests panic recovery behavior
@@ -243,11 +248,11 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := router.MustNew()
 
-			var capturedPanic any
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&buf, nil))
+
 			r.Use(New(
-				WithLogger(func(_ *router.Context, err any, _ []byte) {
-					capturedPanic = err
-				}),
+				WithLogger(logger),
 			))
 
 			r.GET("/panic", func(_ *router.Context) {
@@ -259,12 +264,12 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 
 			r.ServeHTTP(w, req)
 
-			// When panic(nil) is called, Go converts it to a runtime.PanicNilError
-			// We can't compare nil panics directly, so just check that something was captured
-			if tt.panicValue == nil {
-				assert.NotNil(t, capturedPanic, "Expected to capture a panic")
-			} else {
-				assert.Equal(t, tt.panicValue, capturedPanic)
+			logOutput := buf.String()
+			assert.Contains(t, logOutput, "panic recovered")
+
+			// Verify panic value is logged
+			if tt.panicValue != nil {
+				assert.Contains(t, logOutput, fmt.Sprintf("%v", tt.panicValue))
 			}
 
 			assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -273,15 +278,11 @@ func TestRecovery_DifferentPanicTypes(t *testing.T) {
 }
 
 //nolint:paralleltest // Tests panic recovery behavior
-func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
+func TestRecovery_WithoutLogging(t *testing.T) {
 	r := router.MustNew()
 
-	loggerCalled := false
 	r.Use(New(
-		WithLogger(func(_ *router.Context, _ any, _ []byte) {
-			loggerCalled = true
-			// Custom logger - doesn't print to stderr
-		}),
+		WithoutLogging(),
 	))
 
 	r.GET("/panic", func(_ *router.Context) {
@@ -293,7 +294,7 @@ func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	assert.True(t, loggerCalled, "Custom logger should be called")
+	// With WithoutLogging(), no logs should be produced
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
@@ -301,11 +302,11 @@ func TestRecovery_CustomLoggerDisablesPrint(t *testing.T) {
 func TestRecovery_StackTraceContent(t *testing.T) {
 	r := router.MustNew()
 
-	var stackTrace []byte
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
 	r.Use(New(
-		WithLogger(func(_ *router.Context, _ any, stack []byte) {
-			stackTrace = stack
-		}),
+		WithLogger(logger),
 	))
 
 	r.GET("/panic", func(_ *router.Context) {
@@ -317,11 +318,11 @@ func TestRecovery_StackTraceContent(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	stackStr := string(stackTrace)
+	logOutput := buf.String()
 
 	// Verify stack trace contains expected information
-	assert.Contains(t, stackStr, "panic")
-	assert.Contains(t, stackStr, "recovery_test.go")
+	assert.Contains(t, logOutput, "panic")
+	assert.Contains(t, logOutput, "recovery_test.go")
 }
 
 //nolint:paralleltest // Tests panic recovery behavior
@@ -346,15 +347,14 @@ func TestRecovery_RouteGroups(t *testing.T) {
 func TestRecovery_MultipleOptions(t *testing.T) {
 	r := router.MustNew()
 
-	loggerCalled := false
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	handlerCalled := false
 
 	r.Use(New(
 		WithStackTrace(true),
 		WithStackSize(2048),
-		WithLogger(func(_ *router.Context, _ any, _ []byte) {
-			loggerCalled = true
-		}),
+		WithLogger(logger),
 		WithHandler(func(c *router.Context, _ any) {
 			handlerCalled = true
 			c.JSON(http.StatusInternalServerError, map[string]string{"error": "recovered"})
@@ -370,7 +370,8 @@ func TestRecovery_MultipleOptions(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	assert.True(t, loggerCalled, "Logger should be called")
+	logOutput := buf.String()
+	assert.Contains(t, logOutput, "panic recovered")
 	assert.True(t, handlerCalled, "Handler should be called")
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

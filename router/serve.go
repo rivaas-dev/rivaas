@@ -54,9 +54,19 @@ import (
 //
 // Static routes and dynamic routes both use context pooling.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	// Lazy warmup: ensure routes are registered on first request
-	// This is safe to call multiple times due to sync.Once
-	r.Warmup()
+	// Auto-freeze on first request: ensures routes are immutable during serving.
+	// This is a one-time operation that:
+	// 1. Registers all pending routes
+	// 2. Compiles routes for optimal lookups
+	// 3. Freezes routes to prevent further modifications
+	//
+	// After this point, any attempt to register new routes will panic immediately.
+	// This design eliminates data races by making configuration and serving
+	// mutually exclusive phases.
+	//
+	// Note: We use Freeze() which calls Warmup() internally via sync.Once,
+	// ensuring route compilation happens exactly once even with concurrent requests.
+	r.Freeze()
 
 	path := req.URL.Path
 	ctx := req.Context()

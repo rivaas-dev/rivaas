@@ -96,6 +96,11 @@ type VersionRouter struct {
 	lifecycle *version.LifecycleConfig
 }
 
+// Version returns the version string for this VersionRouter.
+func (vr *VersionRouter) Version() string {
+	return vr.version
+}
+
 // selectRoutingTree selects the appropriate route tree based on version and method.
 // Returns nil if no version-specific tree exists, indicating standard routing should be used.
 //

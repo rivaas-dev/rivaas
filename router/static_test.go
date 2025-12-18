@@ -30,8 +30,6 @@ import (
 func TestStaticFileServing(t *testing.T) {
 	t.Parallel()
 
-	r := MustNew()
-
 	// Create a temporary directory with test files
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.txt")
@@ -40,6 +38,7 @@ func TestStaticFileServing(t *testing.T) {
 
 	t.Run("Static directory serving", func(t *testing.T) {
 		t.Parallel()
+		r := MustNew()
 		r.Static("/static", tmpDir)
 
 		req := httptest.NewRequest(http.MethodGet, "/static/test.txt", nil)
@@ -53,6 +52,7 @@ func TestStaticFileServing(t *testing.T) {
 
 	t.Run("StaticFile serving", func(t *testing.T) {
 		t.Parallel()
+		r := MustNew()
 		r.StaticFile("/file", testFile)
 
 		req := httptest.NewRequest(http.MethodGet, "/file", nil)
@@ -66,6 +66,7 @@ func TestStaticFileServing(t *testing.T) {
 
 	t.Run("ServeFile method", func(t *testing.T) {
 		t.Parallel()
+		r := MustNew()
 		r.GET("/download", func(c *Context) {
 			c.ServeFile(testFile)
 		})

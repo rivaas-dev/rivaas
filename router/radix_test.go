@@ -205,11 +205,10 @@ func TestRadixSuite(t *testing.T) {
 func TestEdgeCasesInRadixTree(t *testing.T) {
 	t.Parallel()
 
-	r := MustNew()
-
 	t.Run("Empty segments", func(t *testing.T) {
 		t.Parallel()
 
+		r := MustNew()
 		r.GET("/a//b", func(c *Context) {
 			c.String(http.StatusOK, "ok")
 		})
@@ -225,6 +224,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 	t.Run("Trailing slash handling", func(t *testing.T) {
 		t.Parallel()
 
+		r := MustNew()
 		r.GET("/users/", func(c *Context) {
 			c.String(http.StatusOK, "users with slash")
 		})
@@ -250,6 +250,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 	t.Run("Multiple parameters in path", func(t *testing.T) {
 		t.Parallel()
 
+		r := MustNew()
 		r.GET("/a/:p1/b/:p2/c/:p3", func(c *Context) {
 			c.Stringf(http.StatusOK, "%s-%s-%s", c.Param("p1"), c.Param("p2"), c.Param("p3"))
 		})
@@ -266,6 +267,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 	t.Run("Parameter at end of path", func(t *testing.T) {
 		t.Parallel()
 
+		r := MustNew()
 		r.GET("/items/:id", func(c *Context) {
 			c.Stringf(http.StatusOK, "item %s", c.Param("id"))
 		})
@@ -282,6 +284,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 	t.Run("More than 8 parameters uses map fallback", func(t *testing.T) {
 		t.Parallel()
 
+		r := MustNew()
 		// Create route with 9 parameters to trigger map fallback
 		// NOTE: We must COPY params inside the handler because the context is pooled
 		// and will be reset after ServeHTTP returns. Holding a reference to c.Params
@@ -340,6 +343,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 	t.Run("More than 8 parameters - all in map", func(t *testing.T) {
 		t.Parallel()
 
+		r := MustNew()
 		// Test with 10 parameters to ensure all beyond 8th are in map
 		var paramsMapCreated bool
 		var p9Value, p10Value string

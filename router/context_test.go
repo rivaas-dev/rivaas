@@ -29,10 +29,9 @@ import (
 func TestContextHelpers(t *testing.T) {
 	t.Parallel()
 
-	r := MustNew()
-
 	t.Run("PostForm", func(t *testing.T) {
 		t.Parallel()
+		r := MustNew()
 		r.POST("/form", func(c *Context) {
 			username := c.FormValue("username")
 			password := c.FormValue("password")
@@ -117,6 +116,7 @@ func TestContextHelpers(t *testing.T) {
 
 	t.Run("SetCookie and GetCookie", func(t *testing.T) {
 		t.Parallel()
+		r := MustNew()
 		r.GET("/set-cookie", func(c *Context) {
 			c.SetCookie("session", "abc123", 3600, "/", "", false, true)
 			c.String(http.StatusOK, "cookie set")
@@ -572,28 +572,37 @@ func TestContextPool_ResetBeforeReuse(t *testing.T) {
 
 	r := MustNew()
 
+	// Register all routes before serving (two-phase design)
+	var secondRequestCtxAborted bool
+	var secondRequestCtxVersion string
+
 	// First request sets some data
 	r.GET("/first", func(c *Context) {
 		c.Header("X-Custom", "value")
 		c.Status(http.StatusOK)
 	})
 
-	req1 := httptest.NewRequest(http.MethodGet, "/first", nil)
-	w1 := httptest.NewRecorder()
-	r.ServeHTTP(w1, req1)
-
 	// Second request should not have data from first
 	r.GET("/second", func(c *Context) {
 		// Context should be clean
-		assert.False(t, c.IsAborted(), "context should not be aborted from previous request")
-		assert.Empty(t, c.version, "version should be empty for new request")
+		secondRequestCtxAborted = c.IsAborted()
+		secondRequestCtxVersion = c.version
 
 		c.Status(http.StatusOK)
 	})
 
+	// Now test both routes
+	req1 := httptest.NewRequest(http.MethodGet, "/first", nil)
+	w1 := httptest.NewRecorder()
+	r.ServeHTTP(w1, req1)
+
 	req2 := httptest.NewRequest(http.MethodGet, "/second", nil)
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
+
+	// Verify second request had clean context
+	assert.False(t, secondRequestCtxAborted, "context should not be aborted from previous request")
+	assert.Empty(t, secondRequestCtxVersion, "version should be empty for new request")
 }
 
 // TestContext_Next_NestedCalls tests nested Next calls

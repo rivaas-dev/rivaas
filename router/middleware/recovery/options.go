@@ -16,9 +16,53 @@
 // preventing server crashes and returning proper error responses.
 package recovery
 
-import "rivaas.dev/router"
+import (
+	"log/slog"
 
-// WithStackTrace enables or disables stack trace printing.
+	"rivaas.dev/router"
+)
+
+// WithoutLogging disables panic logging.
+// Useful for tests to avoid noisy output and race conditions.
+//
+// Example:
+//
+//	recovery.New(recovery.WithoutLogging())
+func WithoutLogging() Option {
+	return func(cfg *config) {
+		cfg.logger = nil
+	}
+}
+
+// WithLogger sets a custom slog.Logger for panic logging.
+//
+// Example:
+//
+//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	recovery.New(recovery.WithLogger(logger))
+func WithLogger(logger *slog.Logger) Option {
+	return func(cfg *config) {
+		cfg.logger = logger
+	}
+}
+
+// WithHandler sets a custom recovery handler for sending error responses.
+//
+// Example:
+//
+//	recovery.New(recovery.WithHandler(func(c *router.Context, err any) {
+//	    c.JSON(http.StatusInternalServerError, map[string]any{
+//	        "error":      "Something went wrong",
+//	        "request_id": c.Header("X-Request-ID"),
+//	    })
+//	}))
+func WithHandler(handler func(c *router.Context, err any)) Option {
+	return func(cfg *config) {
+		cfg.handler = handler
+	}
+}
+
+// WithStackTrace enables or disables stack trace capture.
 // Default: true
 //
 // Example:
@@ -30,8 +74,8 @@ func WithStackTrace(enabled bool) Option {
 	}
 }
 
-// WithStackSize sets the maximum size of the stack trace buffer in bytes.
-// Default: 4KB (4 << 10)
+// WithStackSize sets the maximum size of the stack trace in bytes.
+// Default: 4KB
 //
 // Example:
 //
@@ -42,43 +86,20 @@ func WithStackSize(size int) Option {
 	}
 }
 
-// WithLogger sets a custom logger function for panic messages.
-// The logger receives the context, error, and stack trace.
+// WithPrettyStack controls whether stack traces are pretty-printed.
+// By default (nil), stack traces are auto-detected:
+//   - Pretty-printed to stderr when running in a terminal (TTY)
+//   - Compact JSON when piped/redirected (production logs)
 //
 // Example:
 //
-//	recovery.New(recovery.WithLogger(func(c *router.Context, err any, stack []byte) {
-//	    myLogger.Error("panic recovered", "error", err, "stack", string(stack))
-//	}))
-func WithLogger(logger func(c *router.Context, err any, stack []byte)) Option {
+//	// Force pretty printing (useful for development)
+//	recovery.New(recovery.WithPrettyStack(true))
+//
+//	// Force compact output (useful for CI/testing)
+//	recovery.New(recovery.WithPrettyStack(false))
+func WithPrettyStack(enabled bool) Option {
 	return func(cfg *config) {
-		cfg.logger = logger
-	}
-}
-
-// WithHandler sets a custom recovery handler function.
-// The handler receives the context and error, and is responsible for sending the response.
-//
-// Example:
-//
-//	recovery.New(recovery.WithHandler(func(c *router.Context, err any) {
-//	    c.JSON(http.StatusInternalServerError, map[string]string{"error": "Something went wrong"})
-//	}))
-func WithHandler(handler func(c *router.Context, err any)) Option {
-	return func(cfg *config) {
-		cfg.handler = handler
-	}
-}
-
-// WithDisableStackAll disables capturing full stack trace from all goroutines.
-// When enabled, only the current goroutine's stack is captured.
-// Default: true
-//
-// Example:
-//
-//	recovery.New(recovery.WithDisableStackAll(false)) // Capture all goroutines
-func WithDisableStackAll(disabled bool) Option {
-	return func(cfg *config) {
-		cfg.disableStackAll = disabled
+		cfg.prettyStack = &enabled
 	}
 }

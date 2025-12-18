@@ -68,16 +68,16 @@ func main() {
 	logger.Fatal(http.ListenAndServe(":8080", r))
 }
 
-// Example 1: Basic timeout
+// Example 1: Basic timeout (uses 30s default)
 func basicTimeoutExample(r *router.Router) {
-	r.Use(timeout.New(2 * time.Second))
+	r.Use(timeout.New())
 
 	r.GET("/basic", func(c *router.Context) {
 		// Simulate work that completes quickly
 		time.Sleep(500 * time.Millisecond)
 		c.JSON(http.StatusOK, map[string]string{
 			"message": "Request completed within timeout",
-			"timeout": "2 seconds",
+			"timeout": "30 seconds (default)",
 		})
 	})
 }
@@ -87,13 +87,13 @@ func customHandlerExample(r *router.Router) {
 	custom := r.Group("/custom")
 
 	custom.Use(timeout.New(
-		3*time.Second,
-		timeout.WithHandler(func(c *router.Context) {
+		timeout.WithDuration(3*time.Second),
+		timeout.WithHandler(func(c *router.Context, timeout time.Duration) {
 			c.JSON(http.StatusRequestTimeout, map[string]any{
 				"error":   "Request timeout",
 				"code":    "TIMEOUT",
 				"message": "The request took too long to process",
-				"timeout": "3 seconds",
+				"timeout": timeout.String(),
 			})
 		}),
 	))
@@ -110,11 +110,13 @@ func customHandlerExample(r *router.Router) {
 // Example 3: Skip paths for long-running operations
 func skipPathsExample(r *router.Router) {
 	r.Use(timeout.New(
-		2*time.Second,
+		timeout.WithDuration(2*time.Second),
 		timeout.WithSkipPaths("/stream", "/webhook"),
+		timeout.WithSkipPrefix("/admin"),
+		timeout.WithSkipSuffix("/ws"),
 	))
 
-	// This endpoint won't have timeout applied
+	// This endpoint won't have timeout applied (exact path match)
 	r.GET("/stream", func(c *router.Context) {
 		// Simulate long-running operation (streaming, webhooks, etc.)
 		time.Sleep(5 * time.Second)
@@ -122,13 +124,25 @@ func skipPathsExample(r *router.Router) {
 			"message": "Long operation completed (no timeout)",
 		})
 	})
+
+	// These won't have timeout (prefix match)
+	r.GET("/admin/users", func(c *router.Context) {
+		time.Sleep(5 * time.Second)
+		c.JSON(http.StatusOK, map[string]string{"message": "Admin route - no timeout"})
+	})
+
+	// This won't have timeout (suffix match)
+	r.GET("/chat/ws", func(c *router.Context) {
+		time.Sleep(5 * time.Second)
+		c.JSON(http.StatusOK, map[string]string{"message": "WebSocket route - no timeout"})
+	})
 }
 
 // Example 4: Context-aware handler that respects timeout
 func contextAwareExample(r *router.Router) {
 	slow := r.Group("/slow")
 
-	slow.Use(timeout.New(2 * time.Second))
+	slow.Use(timeout.New(timeout.WithDuration(2 * time.Second)))
 
 	slow.GET("", func(c *router.Context) {
 		// Simulate slow work with context checking

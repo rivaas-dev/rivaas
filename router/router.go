@@ -183,6 +183,8 @@ type Router struct {
 
 	// Route freezing and naming
 	frozen             atomic.Bool             // Routes are frozen (immutable) after freeze
+	serving            atomic.Bool             // True after first ServeHTTP (triggers auto-freeze)
+	freezeOnce         sync.Once               // Ensures freeze logic runs exactly once
 	namedRoutes        map[string]*route.Route // name -> route mapping
 	routeSnapshot      []*route.Route          // Immutable snapshot built at freeze time
 	routeSnapshotMutex sync.RWMutex            // Protects routeSnapshot

@@ -45,8 +45,12 @@ type CompiledRouteTable struct {
 //   - Static routes use map lookups
 //   - Parameter routes use segment-based traversal
 //   - Full path storage for exact matching
-//   - Thread-safe operations for concurrent route registration
 //   - Route table for static route matching
+//
+// Thread safety:
+// Routes are registered during a single-threaded configuration phase (before
+// ServeHTTP/Start is called). After Freeze(), the tree is immutable and safe
+// for concurrent reads without locking.
 type node struct {
 	handlers    []HandlerFunc       // Handler chain for this route
 	children    map[string]*node    // Static child routes
@@ -55,7 +59,6 @@ type node struct {
 	constraints []route.Constraint  // Parameter constraints for this route
 	path        string              // Full path for this node
 	compiled    *CompiledRouteTable // Route table for static route matching
-	mu          sync.RWMutex        // Protects concurrent access to this node
 }
 
 // param represents a parameter node in the route tree.
@@ -73,7 +76,11 @@ type wildcard struct {
 }
 
 // addRouteWithConstraints adds a route with parameter constraints.
-// This method is thread-safe and can be called concurrently.
+//
+// Thread safety: This method must only be called during the configuration phase,
+// before any calls to ServeHTTP or Freeze. After the router starts serving,
+// routes are immutable. This design eliminates the need for per-node locks
+// and prevents data races between route registration and request serving.
 //
 // The tree structure supports three types of nodes:
 // 1. Static nodes: Exact string match (e.g., "users", "api")
@@ -85,9 +92,6 @@ type wildcard struct {
 // - "/users/:id" → root.children["users"].param.node
 // - "/static/*" → root.children["static"].wildcard.node
 func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, constraints []route.Constraint) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
 	// NOTE: We store handlers directly without copying.
 	// Callers MUST NOT modify the handler slice after registration.
 	// This is safe because:
@@ -233,6 +237,9 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 // getRoute finds a route and extracts parameters into context arrays.
 // Returns both the handlers and the route pattern for observability.
 //
+// Thread safety: This method is safe for concurrent use after Freeze().
+// The route tree is immutable after Freeze, so no locking is required.
+//
 // Returns:
 //   - handlers: The handler chain for the matched route (nil if no match)
 //   - pattern: The original route pattern (e.g., "/users/:id", "/posts/:pid/comments", "")
@@ -242,9 +249,6 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 //
 //go:noinline
 func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
 	// Handle root path specially (common case)
 	if path == "/" {
 		return n.handlers, n.path
@@ -423,10 +427,9 @@ func validateConstraints(constraints []route.Constraint, ctx *Context) bool {
 
 // countStaticRoutes recursively counts the number of static routes (no parameters) in this node and its children.
 // Static routes are those without ':' parameters or '*' wildcards.
+//
+// Thread safety: Called during Freeze(), before serving begins.
 func (n *node) countStaticRoutes() int {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
 	count := 0
 	// Count this node if it has handlers and is static (no parameters in path)
 	if n.handlers != nil && n.path != "" && !strings.Contains(n.path, ":") && !strings.HasSuffix(n.path, "*") {
@@ -446,11 +449,11 @@ func (n *node) countStaticRoutes() int {
 
 // compileStaticRoutes compiles all static routes in this node and its children
 // into a lookup table with bloom filter for matching.
-// This method should only be called after all routes are registered.
+// This method should only be called during Freeze(), after all routes are registered.
 // The bloomFilterSize and numHashFuncs parameters control the bloom filter configuration.
+//
+// Thread safety: Called during Freeze(), before serving begins.
 func (n *node) compileStaticRoutes(bloomFilterSize uint64, numHashFuncs int) *CompiledRouteTable {
-	n.mu.Lock()
-
 	// Initialize compiled table if not exists
 	if n.compiled == nil {
 		// Use configured bloom filter size, with a minimum of 100
@@ -462,24 +465,20 @@ func (n *node) compileStaticRoutes(bloomFilterSize uint64, numHashFuncs int) *Co
 	}
 
 	table := n.compiled
-	n.mu.Unlock()
 
-	// Compile routes recursively without holding the parent lock
-	// This prevents deadlocks when acquiring child node locks
+	// Compile routes recursively
 	n.compileStaticRoutesRecursive(table, "")
 
 	return table
 }
 
-// compileStaticRoutesRecursive recursively compiles static routes with proper locking.
-// Takes snapshots of node state to avoid holding locks during recursion.
+// compileStaticRoutesRecursive recursively compiles static routes.
+//
+// Thread safety: Called during Freeze(), before serving begins.
+// No locking needed as route tree is not accessed concurrently during compilation.
 func (n *node) compileStaticRoutesRecursive(table *CompiledRouteTable, prefix string) {
-	// Take snapshot of node state with read lock
-	n.mu.RLock()
 	handlers := n.handlers
-	children := make(map[string]*node, len(n.children))
-	maps.Copy(children, n.children)
-	n.mu.RUnlock()
+	children := n.children
 
 	// If this node has handlers and is a static route (no parameters), compile it
 	if handlers != nil && !strings.Contains(prefix, ":") && prefix != "" {

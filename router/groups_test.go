@@ -151,53 +151,50 @@ func TestGroupNestedGroups(t *testing.T) {
 	users := v1.Group("/users")
 
 	tests := []struct {
-		method  string
-		path    string
-		handler HandlerFunc
-		action  string
+		method         string
+		path           string
+		action         string
+		expectedStatus int
 	}{
-		{http.MethodGet, "", func(c *Context) {
-			c.JSON(http.StatusOK, map[string]string{"action": "list"})
-		}, "list"},
-		{http.MethodPost, "", func(c *Context) {
-			c.JSON(http.StatusCreated, map[string]string{"action": "created"})
-		}, "created"},
-		{http.MethodPut, "/:id", func(c *Context) {
-			c.JSON(http.StatusOK, map[string]string{"action": "updated", "id": c.Param("id")})
-		}, "updated"},
-		{http.MethodDelete, "/:id", func(c *Context) {
-			c.JSON(http.StatusOK, map[string]string{"action": "deleted", "id": c.Param("id")})
-		}, "deleted"},
-		{http.MethodPatch, "/:id", func(c *Context) {
-			c.JSON(http.StatusOK, map[string]string{"action": "patched", "id": c.Param("id")})
-		}, "patched"},
-		{http.MethodOptions, "", func(c *Context) {
-			c.Status(http.StatusOK)
-		}, "options"},
-		{http.MethodHead, "/:id", func(c *Context) {
-			c.Status(http.StatusOK)
-		}, "head"},
+		{http.MethodGet, "", "list", http.StatusOK},
+		{http.MethodPost, "", "created", http.StatusCreated},
+		{http.MethodPut, "/:id", "updated", http.StatusOK},
+		{http.MethodDelete, "/:id", "deleted", http.StatusOK},
+		{http.MethodPatch, "/:id", "patched", http.StatusOK},
+		{http.MethodOptions, "", "options", http.StatusOK},
+		{http.MethodHead, "/:id", "head", http.StatusOK},
 	}
 
+	// Register all routes first (configuration phase)
+	users.GET("", func(c *Context) {
+		c.JSON(http.StatusOK, map[string]string{"action": "list"})
+	})
+	users.POST("", func(c *Context) {
+		c.JSON(http.StatusCreated, map[string]string{"action": "created"})
+	})
+	users.PUT("/:id", func(c *Context) {
+		c.JSON(http.StatusOK, map[string]string{"action": "updated", "id": c.Param("id")})
+	})
+	users.DELETE("/:id", func(c *Context) {
+		c.JSON(http.StatusOK, map[string]string{"action": "deleted", "id": c.Param("id")})
+	})
+	users.PATCH("/:id", func(c *Context) {
+		c.JSON(http.StatusOK, map[string]string{"action": "patched", "id": c.Param("id")})
+	})
+	users.OPTIONS("", func(c *Context) {
+		c.Status(http.StatusOK)
+	})
+	users.HEAD("/:id", func(c *Context) {
+		c.Status(http.StatusOK)
+	})
+
+	// Freeze before running parallel tests
+	r.Freeze()
+
+	// Now run tests (serving phase - can be parallel)
 	for _, tt := range tests {
 		t.Run(tt.method+tt.path, func(t *testing.T) {
 			t.Parallel()
-			switch tt.method {
-			case http.MethodGet:
-				users.GET(tt.path, tt.handler)
-			case http.MethodPost:
-				users.POST(tt.path, tt.handler)
-			case http.MethodPut:
-				users.PUT(tt.path, tt.handler)
-			case http.MethodDelete:
-				users.DELETE(tt.path, tt.handler)
-			case http.MethodPatch:
-				users.PATCH(tt.path, tt.handler)
-			case http.MethodOptions:
-				users.OPTIONS(tt.path, tt.handler)
-			case http.MethodHead:
-				users.HEAD(tt.path, tt.handler)
-			}
 
 			var url string
 			if tt.path == "" {
@@ -210,12 +207,7 @@ func TestGroupNestedGroups(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			expectedStatus := http.StatusOK
-			if tt.method == http.MethodPost {
-				expectedStatus = http.StatusCreated
-			}
-
-			assert.Equal(t, expectedStatus, w.Code, "expected status %d", expectedStatus)
+			assert.Equal(t, tt.expectedStatus, w.Code, "expected status %d", tt.expectedStatus)
 		})
 	}
 }
@@ -503,30 +495,26 @@ func TestGroupEmptyPath(t *testing.T) {
 		http.MethodDelete, http.MethodPatch, http.MethodOptions, http.MethodHead,
 	}
 
+	handler := func(c *Context) {
+		c.Status(http.StatusOK)
+	}
+
+	// Register all routes first (configuration phase)
+	group.GET("", handler)
+	group.POST("", handler)
+	group.PUT("", handler)
+	group.DELETE("", handler)
+	group.PATCH("", handler)
+	group.OPTIONS("", handler)
+	group.HEAD("", handler)
+
+	// Freeze the router before running parallel subtests
+	r.Freeze()
+
+	// Now test each method (serving phase - can run in parallel)
 	for _, method := range methods {
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
-			handler := func(c *Context) {
-				c.Status(http.StatusOK)
-			}
-
-			switch method {
-			case http.MethodGet:
-				group.GET("", handler)
-			case http.MethodPost:
-				group.POST("", handler)
-			case http.MethodPut:
-				group.PUT("", handler)
-			case http.MethodDelete:
-				group.DELETE("", handler)
-			case http.MethodPatch:
-				group.PATCH("", handler)
-			case http.MethodOptions:
-				group.OPTIONS("", handler)
-			case http.MethodHead:
-				group.HEAD("", handler)
-			}
-
 			req := httptest.NewRequest(method, "/api", nil)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
@@ -542,39 +530,45 @@ func TestGroupMethodsWithConstraints(t *testing.T) {
 	r := MustNew()
 	api := r.Group("/api")
 
+	// Register all routes before serving (two-phase design)
 	// Test PUT with numeric constraint
 	api.PUT("/users/:id", func(c *Context) {
 		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 	}).WhereInt("id")
-
-	// Valid numeric ID
-	req := httptest.NewRequest(http.MethodPut, "/api/users/123", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code, "numeric ID should match")
-
-	// Invalid non-numeric ID should 404
-	req = httptest.NewRequest(http.MethodPut, "/api/users/abc", nil)
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusNotFound, w.Code, "non-numeric ID should not match")
 
 	// Test DELETE with UUID constraint
 	api.DELETE("/items/:uuid", func(c *Context) {
 		c.NoContent()
 	}).WhereUUID("uuid")
 
-	// Valid UUID
-	req = httptest.NewRequest(http.MethodDelete, "/api/items/550e8400-e29b-41d4-a716-446655440000", nil)
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusNoContent, w.Code, "valid UUID should match")
+	// Now test the routes
+	t.Run("PUT with valid numeric ID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPut, "/api/users/123", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code, "numeric ID should match")
+	})
 
-	// Invalid UUID should 404
-	req = httptest.NewRequest(http.MethodDelete, "/api/items/not-a-uuid", nil)
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusNotFound, w.Code, "invalid UUID should not match")
+	t.Run("PUT with invalid non-numeric ID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPut, "/api/users/abc", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code, "non-numeric ID should not match")
+	})
+
+	t.Run("DELETE with valid UUID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/items/550e8400-e29b-41d4-a716-446655440000", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNoContent, w.Code, "valid UUID should match")
+	})
+
+	t.Run("DELETE with invalid UUID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/items/not-a-uuid", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code, "invalid UUID should not match")
+	})
 }
 
 // TestGroup_EmptyPrefix tests creating group with empty prefix
@@ -662,21 +656,24 @@ func TestGroup_EmptyPrefixOnNestedGroup(t *testing.T) {
 		c.JSON(http.StatusOK, map[string]string{"path": "users"})
 	})
 
-	// Route should match with parent's prefix
-	req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code, "expected status 200")
-
 	// Test that routes added to nested group work correctly
+	// Note: All routes must be registered before the first ServeHTTP call
 	nested.POST("/posts", func(c *Context) {
 		c.JSON(http.StatusCreated, map[string]string{"path": "posts"})
 	})
 
-	req = httptest.NewRequest(http.MethodPost, "/api/posts", nil)
-	w = httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	// Now test both routes after all registration is complete
+	t.Run("GET /api/users", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code, "expected status 200")
+	})
 
-	assert.Equal(t, http.StatusCreated, w.Code, "expected status 201")
+	t.Run("POST /api/posts", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code, "expected status 201")
+	})
 }

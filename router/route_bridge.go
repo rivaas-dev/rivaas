@@ -16,7 +16,6 @@ package router
 
 import (
 	"fmt"
-	"maps"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -190,8 +189,17 @@ func (r *Router) AddRouteWithConstraints(method, path string, handlers []route.H
 
 // addRouteInternal is the internal implementation that creates a route.Route.
 func (r *Router) addRouteInternal(method, path string, handlers []HandlerFunc) *route.Route {
+	// Fail-fast: prevent route registration after server has started serving.
+	// This design ensures routes are registered during a single-threaded configuration
+	// phase, eliminating data races between route registration and request serving.
+	if r.serving.Load() {
+		panic(fmt.Sprintf("router: cannot register route %s %s after server has started serving requests.\n"+
+			"Routes must be registered before calling ServeHTTP, Start, or Freeze.\n"+
+			"This is a design constraint to prevent data races.", method, path))
+	}
 	if r.frozen.Load() {
-		panic("cannot register routes after router is frozen (call Freeze() before serving)")
+		panic(fmt.Sprintf("router: cannot register route %s %s after router has been frozen.\n"+
+			"Routes must be registered before calling Freeze.", method, path))
 	}
 
 	handlerName := "anonymous"
@@ -265,19 +273,67 @@ func getHandlerName(handler HandlerFunc) string {
 	fullName := funcPtr.Name()
 	file, line := funcPtr.FileLine(funcPtr.Entry())
 
-	lastSlash := strings.LastIndex(fullName, "/")
-	if lastSlash >= 0 {
-		fullName = fullName[lastSlash+1:]
+	// Clean the function name (strip arguments, simplify anonymous)
+	cleanName := cleanHandlerFuncName(fullName)
+
+	// Shorten file path for readability
+	shortFile := shortenFilePath(file)
+
+	return fmt.Sprintf("%s (%s:%d)", cleanName, shortFile, line)
+}
+
+// cleanHandlerFuncName strips argument info and simplifies anonymous functions.
+func cleanHandlerFuncName(fn string) string {
+	// Strip "created by " prefix if present
+	fn = strings.TrimPrefix(fn, "created by ")
+
+	// Strip argument patterns (e.g., "(0x...", "(...)", "({...}")
+	argPatterns := []string{"(0x", "(...)", "({", "()"}
+	for _, pattern := range argPatterns {
+		if idx := strings.LastIndex(fn, pattern); idx > 0 {
+			fn = fn[:idx]
+			break
+		}
 	}
 
-	fileName := filepath.Base(file)
+	// Simplify anonymous functions (FuncName.func1.2 -> FuncName(λ))
+	fn = simplifyAnonFuncName(fn)
 
-	if idx := strings.Index(fullName, ".func"); idx >= 0 {
-		funcNum := fullName[idx+5:]
-		return fmt.Sprintf("anonymous#%s (%s:%d)", funcNum, fileName, line)
+	// Ensure function names end with () for consistency (except lambda)
+	if len(fn) > 0 && !strings.HasSuffix(fn, ")") {
+		fn += "()"
 	}
 
-	return fmt.Sprintf("%s (%s:%d)", fullName, fileName, line)
+	return fn
+}
+
+// simplifyAnonFuncName converts Go's anonymous function names to cleaner format.
+// e.g., "package.Func.func1.2" -> "package.Func(λ)"
+func simplifyAnonFuncName(fn string) string {
+	idx := strings.Index(fn, ".func")
+	if idx <= 0 {
+		return fn
+	}
+
+	// Verify suffix is only digits and dots (valid anonymous function pattern)
+	suffix := fn[idx+5:]
+	if len(suffix) == 0 {
+		return fn
+	}
+	for _, c := range suffix {
+		if c != '.' && (c < '0' || c > '9') {
+			return fn
+		}
+	}
+
+	return fn[:idx] + "(λ)"
+}
+
+// shortenFilePath shortens a file path for readability.
+// Prioritizes showing the most relevant parts: package/file.go
+func shortenFilePath(path string) string {
+	// Just return the base filename for simplicity
+	return filepath.Base(path)
 }
 
 // Group creates a new route group with the specified prefix and optional middleware.
@@ -426,15 +482,14 @@ func (r *Router) extractAndMountFromNode(prefix, method, currentPath string, n *
 		return
 	}
 
-	n.mu.RLock()
+	// No locking needed - this is called during the configuration phase (before serving)
+	// when route registration is single-threaded.
 	handlers := n.handlers
 	nodePath := n.path
 	constraints := n.constraints
-	children := make(map[string]*node, len(n.children))
-	maps.Copy(children, n.children)
+	children := n.children
 	paramNode := n.param
 	wildcardNode := n.wildcard
-	n.mu.RUnlock()
 
 	if len(handlers) > 0 && nodePath != "" {
 		fullPath := prefix + nodePath
@@ -526,8 +581,26 @@ func (r *Router) Frozen() bool {
 }
 
 // Freeze freezes the router, making all routes immutable.
+// After Freeze is called:
+//   - All pending routes are registered
+//   - Routes are compiled for optimal lookups
+//   - Any attempt to register new routes will panic
+//
+// Freeze is automatically called on the first ServeHTTP call.
+// Call it explicitly for testing or when you need to access route information
+// before serving requests.
+//
+// Freeze is safe to call from multiple goroutines concurrently.
+// All callers will block until the freeze is complete.
 func (r *Router) Freeze() {
-	if r.frozen.CompareAndSwap(false, true) {
+	r.freezeOnce.Do(func() {
+		// Mark as serving to prevent new route registrations
+		r.serving.Store(true)
+		r.frozen.Store(true)
+
+		// First, register all pending routes (this is what Warmup does)
+		r.Warmup()
+
 		r.routeTree.routesMutex.Lock()
 		for _, rt := range r.namedRoutes {
 			if rt.ReversePattern() == nil {
@@ -546,8 +619,9 @@ func (r *Router) Freeze() {
 
 		r.routeTree.routesMutex.Unlock()
 
-		r.CompileAllRoutes()
-	}
+		// Note: CompileAllRoutes is also called by Warmup, but it's safe to call again
+		// (idempotent operation - routes are already compiled)
+	})
 }
 
 // GetRoute retrieves a route by name.

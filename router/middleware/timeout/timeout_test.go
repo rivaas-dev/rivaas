@@ -53,7 +53,7 @@ func TestTimeout_Behavior(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			r := router.MustNew()
-			r.Use(New(tt.timeout))
+			r.Use(New(WithDuration(tt.timeout)))
 			r.GET("/test", func(c *router.Context) {
 				if tt.handlerDelay > 0 {
 					// Properly respect context cancellation
@@ -82,7 +82,7 @@ func TestTimeout_Behavior(t *testing.T) {
 func TestTimeout_RespectsContextCancellation(t *testing.T) {
 	t.Parallel()
 	r := router.MustNew()
-	r.Use(New(50 * time.Millisecond))
+	r.Use(New(WithDuration(50 * time.Millisecond)))
 
 	contextCancelled := make(chan bool, 1)
 	r.GET("/test", func(c *router.Context) {
@@ -128,7 +128,7 @@ func TestTimeout_RespectsContextCancellation(t *testing.T) {
 func TestTimeout_SkipPaths(t *testing.T) {
 	t.Parallel()
 	r := router.MustNew()
-	r.Use(New(50*time.Millisecond, WithSkipPaths("/long-running")))
+	r.Use(New(WithDuration(50*time.Millisecond), WithSkipPaths("/long-running")))
 
 	r.GET("/long-running", func(c *router.Context) {
 		time.Sleep(100 * time.Millisecond)
@@ -171,12 +171,13 @@ func TestTimeout_CustomHandler(t *testing.T) {
 	customHandlerCalled := false
 
 	r := router.MustNew()
-	r.Use(New(30*time.Millisecond,
-		WithHandler(func(c *router.Context) {
+	r.Use(New(
+		WithDuration(30*time.Millisecond),
+		WithHandler(func(c *router.Context, timeout time.Duration) {
 			customHandlerCalled = true
 			c.JSON(http.StatusRequestTimeout, map[string]any{
 				"error":   "Custom timeout message",
-				"timeout": "30ms",
+				"timeout": timeout.String(),
 			})
 		}),
 	))
@@ -206,7 +207,7 @@ func TestTimeout_CustomHandler(t *testing.T) {
 func TestTimeout_ContextPropagation(t *testing.T) {
 	t.Parallel()
 	r := router.MustNew()
-	r.Use(New(100 * time.Millisecond))
+	r.Use(New(WithDuration(100 * time.Millisecond)))
 
 	var ctxWithTimeout context.Context
 	r.GET("/test", func(c *router.Context) {
@@ -229,7 +230,7 @@ func TestTimeout_ContextPropagation(t *testing.T) {
 func TestTimeout_MultipleRequests(t *testing.T) {
 	t.Parallel()
 	r := router.MustNew()
-	r.Use(New(100 * time.Millisecond))
+	r.Use(New(WithDuration(100 * time.Millisecond)))
 
 	fastPath := func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "fast"})

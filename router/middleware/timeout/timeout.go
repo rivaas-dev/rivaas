@@ -17,7 +17,9 @@ package timeout
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"rivaas.dev/router"
@@ -28,32 +30,80 @@ type Option func(*config)
 
 // config holds the configuration for the timeout middleware.
 type config struct {
-	// timeout is the duration after which requests are canceled
-	timeout time.Duration
+	// duration is the timeout duration after which requests are canceled
+	duration time.Duration
 
-	// errorHandler is called when a timeout occurs
-	errorHandler func(c *router.Context)
+	// logger is used to log timeout events
+	logger *slog.Logger
 
-	// skipPaths are paths that should not have timeout applied
+	// handler is called when a timeout occurs
+	handler func(c *router.Context, timeout time.Duration)
+
+	// skipPaths are exact paths that should not have timeout applied
 	skipPaths map[string]bool
+
+	// skipPrefixes are path prefixes that should not have timeout applied
+	skipPrefixes []string
+
+	// skipSuffixes are path suffixes that should not have timeout applied
+	skipSuffixes []string
+
+	// skipFunc is a custom function to determine if timeout should be skipped
+	skipFunc func(c *router.Context) bool
 }
 
 // defaultConfig returns the default configuration for timeout middleware.
-func defaultConfig(timeout time.Duration) *config {
+func defaultConfig() *config {
 	return &config{
-		timeout:      timeout,
-		errorHandler: defaultErrorHandler,
+		duration:     30 * time.Second, // Sensible default
+		logger:       slog.Default(),   // Logging enabled by default
+		handler:      defaultHandler,
 		skipPaths:    make(map[string]bool),
+		skipPrefixes: nil,
+		skipSuffixes: nil,
+		skipFunc:     nil,
 	}
 }
 
-// defaultErrorHandler is the default timeout error handler.
-func defaultErrorHandler(c *router.Context) {
-	c.Status(http.StatusRequestTimeout)
+// defaultHandler is the default timeout error handler.
+func defaultHandler(c *router.Context, timeout time.Duration) {
 	c.JSON(http.StatusRequestTimeout, map[string]any{
-		"error": "Request timeout",
-		"code":  "TIMEOUT",
+		"error":   "Request timeout",
+		"code":    "TIMEOUT",
+		"timeout": timeout.String(),
+		"path":    c.Request.URL.Path,
 	})
+}
+
+// shouldSkip determines if timeout should be skipped for the given request.
+func shouldSkip(cfg *config, c *router.Context) bool {
+	path := c.Request.URL.Path
+
+	// Check exact paths
+	if cfg.skipPaths[path] {
+		return true
+	}
+
+	// Check prefixes
+	for _, prefix := range cfg.skipPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+
+	// Check suffixes
+	for _, suffix := range cfg.skipSuffixes {
+		if strings.HasSuffix(path, suffix) {
+			return true
+		}
+	}
+
+	// Check custom function
+	if cfg.skipFunc != nil && cfg.skipFunc(c) {
+		return true
+	}
+
+	return false
 }
 
 // New returns a middleware that adds a timeout to requests.
@@ -63,27 +113,46 @@ func defaultErrorHandler(c *router.Context) {
 // The middleware creates a new context with timeout and passes it to the handler.
 // Handlers should respect context cancellation to properly handle timeouts.
 //
-// Basic usage:
+// Basic usage (uses 30s default):
 //
 //	r := router.MustNew()
-//	r.Use(timeout.New(30 * time.Second))
+//	r.Use(timeout.New())
+//
+// With custom duration:
+//
+//	r.Use(timeout.New(timeout.WithDuration(5 * time.Second)))
 //
 // With custom error handler:
 //
-//	r.Use(timeout.New(30*time.Second,
-//	    timeout.WithHandler(func(c *router.Context) {
+//	r.Use(timeout.New(
+//	    timeout.WithDuration(30 * time.Second),
+//	    timeout.WithHandler(func(c *router.Context, timeout time.Duration) {
 //	        c.JSON(http.StatusRequestTimeout, map[string]any{
-//	            "error": "Operation timed out",
-//	            "timeout": "30s",
+//	            "error":   "Operation timed out",
+//	            "timeout": timeout.String(),
 //	        })
 //	    }),
 //	))
 //
 // Skip certain paths:
 //
-//	r.Use(timeout.New(30*time.Second,
+//	r.Use(timeout.New(
 //	    timeout.WithSkipPaths("/stream", "/events"),
+//	    timeout.WithSkipPrefix("/admin"),
+//	    timeout.WithSkipSuffix("/ws"),
 //	))
+//
+// Skip based on custom logic:
+//
+//	r.Use(timeout.New(
+//	    timeout.WithSkip(func(c *router.Context) bool {
+//	        return c.Request.Method == "OPTIONS"
+//	    }),
+//	))
+//
+// Disable logging:
+//
+//	r.Use(timeout.New(timeout.WithoutLogging()))
 //
 // Respecting timeouts in handlers:
 //
@@ -114,46 +183,76 @@ func defaultErrorHandler(c *router.Context) {
 //	until it naturally completes or checks c.Request.Context().Done().
 //	This is expected behavior and handlers must be designed to respect context
 //	cancellation to avoid goroutine leaks and unnecessary work.
-func New(timeout time.Duration, opts ...Option) router.HandlerFunc {
+//
+// Panic handling:
+//
+//	Panics that occur within the handler goroutine are caught and re-thrown
+//	in the main goroutine. This ensures the recovery middleware (which runs
+//	in the main goroutine) can properly catch and handle panics.
+func New(opts ...Option) router.HandlerFunc {
 	// Apply options to default config
-	cfg := defaultConfig(timeout)
+	cfg := defaultConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
 	return func(c *router.Context) {
-		// Check if path should skip timeout
-		if cfg.skipPaths[c.Request.URL.Path] {
+		// Check if timeout should be skipped
+		if shouldSkip(cfg, c) {
 			c.Next()
 			return
 		}
 
 		// Create a context with timeout
-		ctx, cancel := context.WithTimeout(c.Request.Context(), cfg.timeout)
+		ctx, cancel := context.WithTimeout(c.Request.Context(), cfg.duration)
 		defer cancel()
 
 		// Update request context
 		c.Request = c.Request.WithContext(ctx)
 
-		// Create a channel to signal completion
+		// Create channels for completion and panic propagation
 		done := make(chan struct{})
+		panicChan := make(chan any, 1)
 		timedOut := false
 
 		// Run the handler in a goroutine
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					panicChan <- r
+				}
+				close(done)
+			}()
 			c.Next()
-			close(done)
 		}()
 
 		// Wait for either completion or timeout
 		select {
 		case <-done:
-			// Request completed normally
+			// Check if there was a panic in the goroutine
+			select {
+			case p := <-panicChan:
+				// Re-panic in main goroutine so recovery middleware can catch it
+				panic(p)
+			default:
+				// Request completed normally
+			}
 		case <-ctx.Done():
 			// Request timed out or was canceled
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				timedOut = true
-				cfg.errorHandler(c)
+
+				// Log timeout event
+				if cfg.logger != nil {
+					cfg.logger.Warn("request timeout",
+						"method", c.Request.Method,
+						"path", c.Request.URL.Path,
+						"timeout", cfg.duration.String(),
+					)
+				}
+
+				// Call timeout handler
+				cfg.handler(c, cfg.duration)
 			}
 		}
 
@@ -162,6 +261,14 @@ func New(timeout time.Duration, opts ...Option) router.HandlerFunc {
 		// We must wait for it to finish before allowing the context to be returned to pool
 		if timedOut {
 			<-done
+			// Check if handler panicked after timeout
+			select {
+			case p := <-panicChan:
+				// Re-panic so recovery middleware can handle it
+				panic(p)
+			default:
+				// No panic
+			}
 		}
 	}
 }

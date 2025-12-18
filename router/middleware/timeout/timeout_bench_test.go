@@ -25,7 +25,7 @@ import (
 
 func BenchmarkTimeout_NoTimeout(b *testing.B) {
 	r := router.MustNew()
-	r.Use(New(1 * time.Second))
+	r.Use(New(WithDuration(1 * time.Second)))
 	r.GET("/test", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
@@ -43,7 +43,7 @@ func BenchmarkTimeout_NoTimeout(b *testing.B) {
 
 func BenchmarkTimeout_WithContextCheck(b *testing.B) {
 	r := router.MustNew()
-	r.Use(New(1 * time.Second))
+	r.Use(New(WithDuration(1 * time.Second)))
 	r.GET("/test", func(c *router.Context) {
 		// Simulate handler checking context
 		select {

@@ -128,8 +128,8 @@ func main() {
 	})
 
 	// Middleware with Configuration
-	timeout := timeout.New(5 * time.Second)
-	r.GET("/slow", timeout, func(c *router.Context) {
+	timeoutMiddleware := timeout.New(timeout.WithDuration(5 * time.Second))
+	r.GET("/slow", timeoutMiddleware, func(c *router.Context) {
 		time.Sleep(2 * time.Second)
 		c.JSON(http.StatusOK, map[string]string{"message": "Completed"})
 	})
