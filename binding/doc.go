@@ -244,4 +244,235 @@
 //	    binding.WithMaxSliceLen(1000),
 //	    binding.WithMaxMapSize(500),
 //	)
+//
+// # Configuration Options
+//
+// The package provides extensive configuration through functional options:
+//
+// ## Security Limits
+//
+//	WithMaxDepth(n int)        // Max struct nesting depth (default: 32)
+//	WithMaxSliceLen(n int)     // Max slice elements (default: 10,000)
+//	WithMaxMapSize(n int)      // Max map entries (default: 1,000)
+//
+// ## Unknown Fields
+//
+//	WithUnknownFields(policy UnknownFieldPolicy)
+//	  - UnknownIgnore: Ignore unknown fields (default)
+//	  - UnknownWarn:   Log warnings via events
+//	  - UnknownError:  Return error on unknown fields
+//
+// ## Required Fields
+//
+//	WithRequired()  // Enforce required:"true" tags
+//
+// ## Slice Parsing
+//
+//	WithSliceMode(mode SliceParseMode)
+//	  - SliceRepeat: Parse "tags=go&tags=rust" (default)
+//	  - SliceCSV:    Parse "tags=go,rust,python"
+//
+// ## Time Formats
+//
+//	WithTimeLayouts(layouts ...string)  // Custom time.Time parsing formats
+//	// Default layouts: RFC3339, RFC3339Nano, DateOnly, DateTime
+//
+// ## Type Converters
+//
+//	WithConverter[T any](converter TypeConverter[T])
+//	// Register custom type conversion function
+//
+// ## Validation
+//
+//	WithValidator(validator Validator)  // Integrate external validator
+//
+// ## Error Handling
+//
+//	WithAllErrors()  // Collect all errors instead of failing on first
+//
+// ## Observability
+//
+//	WithEvents(events Events)  // Add hooks for monitoring
+//	  - FieldBound:    Called when field is bound
+//	  - UnknownField:  Called when unknown field detected
+//	  - Done:          Called when binding completes
+//
+// ## Key Normalization
+//
+//	WithKeyNormalizer(normalizer KeyNormalizer)
+//	// Custom key transformation for lookups
+//
+// # Advanced Tag Syntax
+//
+// ## Tag Aliases
+//
+// Provide multiple lookup names for a field:
+//
+//	type Request struct {
+//	    UserID int `query:"user_id,id"` // Looks for "user_id" or "id"
+//	}
+//
+// ## Nested Structs
+//
+// Use dot notation for nested fields:
+//
+//	type Address struct {
+//	    Street string `query:"street"`
+//	    City   string `query:"city"`
+//	}
+//
+//	type User struct {
+//	    Address Address `query:"address"`
+//	}
+//
+//	// Query: ?address.street=123+Main&address.city=Boston
+//
+// ## Bracket Notation
+//
+// Arrays can use bracket notation:
+//
+//	type Request struct {
+//	    Tags []string `query:"tags"`
+//	}
+//
+//	// Both work: ?tags=go&tags=rust or ?tags[]=go&tags[]=rust
+//
+// # Streaming with io.Reader
+//
+// For large payloads, use Reader variants to avoid loading entire body into memory:
+//
+//	// JSON from reader
+//	user, err := binding.JSONReader[User](r.Body)
+//
+//	// XML from reader
+//	doc, err := binding.XMLReader[Document](r.Body)
+//
+// Reader variants are available for all body-based sources (JSON, XML, and sub-packages).
+//
+// # Performance Characteristics
+//
+// ## Caching
+//
+// Struct reflection information is cached automatically:
+//
+//   - First binding of a type: ~500ns overhead for reflection
+//   - Subsequent bindings: ~50ns overhead (cache lookup)
+//   - Cache is thread-safe and has no size limit
+//   - Cache key includes both struct type and tag name
+//
+// ## Memory Allocation
+//
+//   - Query/Path/Form/Header/Cookie: Zero allocations for primitive types
+//   - JSON/XML: Allocations depend on encoding/json and encoding/xml
+//   - Nested structs: One allocation per nesting level
+//   - Slices/Maps: Pre-allocated with capacity hints when possible
+//
+// ## Multi-Source Binding Precedence
+//
+// When using [Bind] with multiple sources, later sources override earlier ones:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromPath(pathParams),    // Applied first
+//	    binding.FromQuery(r.URL.Query()), // Overrides path params
+//	    binding.FromJSON(body),           // Overrides query params
+//	)
+//
+// This allows for flexible request handling where body data takes precedence
+// over URL parameters.
+//
+// # Custom ValueGetter
+//
+// Implement the [ValueGetter] interface for custom binding sources:
+//
+//	type CustomGetter struct {
+//	    data map[string]string
+//	}
+//
+//	func (g *CustomGetter) Get(key string) string {
+//	    return g.data[key]
+//	}
+//
+//	func (g *CustomGetter) GetAll(key string) []string {
+//	    if val, ok := g.data[key]; ok {
+//	        return []string{val}
+//	    }
+//	    return nil
+//	}
+//
+//	func (g *CustomGetter) Has(key string) bool {
+//	    _, ok := g.data[key]
+//	    return ok
+//	}
+//
+//	// Use with Raw/RawInto
+//	result, err := binding.Raw[MyStruct](&CustomGetter{data: myData}, "custom")
+//
+// Alternatively, use [GetterFunc] for a function-based adapter:
+//
+//	getter := binding.GetterFunc(func(key string) ([]string, bool) {
+//	    if val, ok := myMap[key]; ok {
+//	        return []string{val}, true
+//	    }
+//	    return nil, false
+//	})
+//
+// # Integration Examples
+//
+// ## With net/http
+//
+//	func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
+//	    body, _ := io.ReadAll(r.Body)
+//	    defer r.Body.Close()
+//
+//	    user, err := binding.JSON[CreateUserRequest](body)
+//	    if err != nil {
+//	        http.Error(w, err.Error(), http.StatusBadRequest)
+//	        return
+//	    }
+//	    // Process user...
+//	}
+//
+// ## With rivaas.dev/router
+//
+//	func CreateUserHandler(c *router.Context) {
+//	    user, err := binding.JSON[CreateUserRequest](c.Body())
+//	    if err != nil {
+//	        c.Error(err, http.StatusBadRequest)
+//	        return
+//	    }
+//	    c.JSON(http.StatusCreated, user)
+//	}
+//
+// ## With rivaas.dev/app
+//
+//	func CreateUserHandler(c *app.Context) {
+//	    var user CreateUserRequest
+//	    if err := c.Bind(&user); err != nil {
+//	        return // Error automatically handled
+//	    }
+//	    c.JSON(http.StatusCreated, user)
+//	}
+//
+// # Best Practices
+//
+//   - Use generic API ([JSON], [Query], etc.) for compile-time type safety
+//   - Create reusable [Binder] instances for shared configuration
+//   - Set security limits ([WithMaxDepth], [WithMaxSliceLen], [WithMaxMapSize])
+//   - Use Reader variants for large payloads (>1MB)
+//   - Validate enum values with enum:"value1,value2,value3" tags
+//   - Integrate external validators with [WithValidator]
+//   - Add observability hooks with [WithEvents] for monitoring
+//   - Use [WithRequired] to enforce required:"true" tags
+//   - Collect all errors with [WithAllErrors] for better UX
+//
+// # Error Types
+//
+// The package provides detailed error types for different failure scenarios:
+//
+//   - [BindError]: Field-level binding errors with context
+//   - [UnknownFieldError]: Unknown fields in strict JSON mode
+//   - [MultiError]: Multiple errors collected with [WithAllErrors]
+//
+// All error types implement standard error interfaces and integrate with
+// rivaas.dev/errors for HTTP status code mapping.
 package binding
