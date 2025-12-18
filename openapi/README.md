@@ -47,7 +47,7 @@ type CreateUserRequest struct {
 func main() {
     api := openapi.MustNew(
         openapi.WithTitle("My API", "1.0.0"),
-        openapi.WithDescription("API for managing users"),
+        openapi.WithInfoDescription("API for managing users"),
         openapi.WithServer("http://localhost:8080", "Local development"),
         openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
     )
@@ -60,7 +60,7 @@ func main() {
         ),
         openapi.POST("/users",
             openapi.WithSummary("Create user"),
-            openapi.WithRequestBody(CreateUserRequest{}),
+            openapi.WithRequest(CreateUserRequest{}),
             openapi.WithResponse(201, User{}),
         ),
         openapi.DELETE("/users/:id",
@@ -91,7 +91,7 @@ Configuration is done exclusively through functional options with `With*` prefix
 ```go
 api := openapi.MustNew(
     openapi.WithTitle("My API", "1.0.0"),
-    openapi.WithDescription("API description"),
+    openapi.WithInfoDescription("API description"),
     openapi.WithInfoSummary("Short summary"), // 3.1.x only
     openapi.WithTermsOfService("https://example.com/terms"),
     openapi.WithVersion(openapi.V31x), // or openapi.V30x
@@ -192,7 +192,7 @@ Swagger UI options are nested under `WithSwaggerUI()` for cleaner namespacing:
 openapi.MustNew(
     openapi.WithTitle("API", "1.0.0"),
     openapi.WithSwaggerUI("/docs",
-        openapi.WithUIExpansion(openapi.ExpandList),
+        openapi.WithUIExpansion(openapi.DocExpansionList),
         openapi.WithUITryItOut(true),
         openapi.WithUIRequestSnippets(true, 
             openapi.SnippetCurlBash,
@@ -234,14 +234,14 @@ All operation options follow the `With*` naming convention for consistency:
 | `WithSummary(s)` | Set operation summary |
 | `WithDescription(s)` | Set operation description |
 | `WithOperationID(id)` | Set custom operation ID |
-| `WithRequestBody(type, opts...)` | Set request body type |
-| `WithResponse(status, type, opts...)` | Set response type for status code |
-| `WithQuery(name, example, opts...)` | Add query parameter |
-| `WithPath(name, example, opts...)` | Add path parameter |
-| `WithHeader(name, example, opts...)` | Add header parameter |
+| `WithRequest(type, examples...)` | Set request body type |
+| `WithResponse(status, type, examples...)` | Set response type for status code |
 | `WithTags(tags...)` | Add tags to operation |
 | `WithSecurity(scheme, scopes...)` | Add security requirement |
-| `WithDeprecated(bool)` | Mark operation as deprecated |
+| `WithDeprecated()` | Mark operation as deprecated |
+| `WithConsumes(types...)` | Set accepted content types |
+| `WithProduces(types...)` | Set returned content types |
+| `WithOperationExtension(key, value)` | Add operation extension |
 
 ### Complete Operation Example
 
@@ -250,13 +250,13 @@ openapi.PUT("/users/:id",
     openapi.WithSummary("Update user"),
     openapi.WithDescription("Updates an existing user"),
     openapi.WithOperationID("updateUser"),
-    openapi.WithRequestBody(UpdateUserRequest{}),
+    openapi.WithRequest(UpdateUserRequest{}),
     openapi.WithResponse(200, User{}),
     openapi.WithResponse(404, ErrorResponse{}),
     openapi.WithResponse(400, ErrorResponse{}),
     openapi.WithTags("users"),
     openapi.WithSecurity("bearerAuth"),
-    openapi.WithDeprecated(true),
+    openapi.WithDeprecated(),
 )
 ```
 
@@ -290,7 +290,7 @@ openapi.GET("/users/:id",
 openapi.POST("/users",
     UserEndpoint,
     openapi.WithSummary("Create user"),
-    openapi.WithRequestBody(CreateUser{}),
+    openapi.WithRequest(CreateUser{}),
     openapi.WithResponse(201, User{}),
 )
 ```
@@ -441,7 +441,7 @@ result, err := api.Generate(context.Background(),
     ),
     openapi.POST("/users",
         openapi.WithSummary("Create user"),
-        openapi.WithRequestBody(CreateUserRequest{}),
+        openapi.WithRequest(CreateUserRequest{}),
         openapi.WithResponse(201, User{}),
     ),
 )
@@ -603,40 +603,40 @@ openapi.WithSwaggerUI("/docs",
 ### Common Options
 
 ```go
-openapi.WithSwaggerUI(true, "/docs"),
+openapi.WithSwaggerUI("/docs",
+    // Document expansion
+    openapi.WithUIExpansion(openapi.DocExpansionList),     // list, full, none
+    openapi.WithUIModelsExpandDepth(1),                    // How deep to expand models
+    openapi.WithUIModelExpandDepth(1),                     // How deep to expand model
 
-// Document expansion
-openapi.WithUIDocExpansion(openapi.DocExpansionList),     // list, full, none
-openapi.WithUIModelsExpandDepth(1),                       // How deep to expand models
-openapi.WithUIModelExpandDepth(1),                        // How deep to expand model
+    // Display options
+    openapi.WithUIDisplayOperationID(true),                   // Show operation IDs
+    openapi.WithUIDefaultModelRendering(openapi.ModelRenderingExample), // example, model
 
-// Display options
-openapi.WithUIDisplayOperationID(true),                   // Show operation IDs
-openapi.WithUIDefaultModelRendering(openapi.ModelRenderingExample), // example, model
+    // Try it out
+    openapi.WithUITryItOut(true),                            // Enable "Try it out"
+    openapi.WithUIRequestSnippets(true,                      // Show request snippets
+        openapi.SnippetCurlBash,
+        openapi.SnippetCurlPowerShell,
+        openapi.SnippetCurlCmd,
+    ),
+    openapi.WithUIRequestSnippetsExpanded(true),             // Expand snippets by default
+    openapi.WithUIDisplayRequestDuration(true),              // Show request duration
 
-// Try it out
-openapi.WithUITryItOut(true),                            // Enable "Try it out"
-openapi.WithUIRequestSnippets(true,                      // Show request snippets
-    openapi.SnippetCurlBash,
-    openapi.SnippetCurlPowerShell,
-    openapi.SnippetCurlCmd,
-),
-openapi.WithUIRequestSnippetsExpanded(true),             // Expand snippets by default
-openapi.WithUIDisplayRequestDuration(true),              // Show request duration
+    // Filtering and sorting
+    openapi.WithUIFilter(true),                              // Enable filter box
+    openapi.WithUIMaxDisplayedTags(10),                      // Limit displayed tags
+    openapi.WithUIOperationsSorter(openapi.OperationsSorterAlpha), // alpha, method
+    openapi.WithUITagsSorter(openapi.TagsSorterAlpha),      // alpha
 
-// Filtering and sorting
-openapi.WithUIFilter(true),                              // Enable filter box
-openapi.WithUIMaxDisplayedTags(10),                      // Limit displayed tags
-openapi.WithUIOperationsSorter(openapi.OperationsSorterAlpha), // alpha, method
-openapi.WithUITagsSorter(openapi.TagsSorterAlpha),      // alpha
+    // Syntax highlighting
+    openapi.WithUISyntaxHighlight(true),                     // Enable syntax highlighting
+    openapi.WithUISyntaxTheme(openapi.SyntaxThemeMonokai),  // agate, monokai, etc.
 
-// Syntax highlighting
-openapi.WithUISyntaxHighlight(true),                     // Enable syntax highlighting
-openapi.WithUISyntaxTheme(openapi.SyntaxThemeMonokai),  // agate, monokai, etc.
-
-// Authentication persistence
-openapi.WithUIPersistAuth(true),                         // Persist auth across refreshes
-openapi.WithUIWithCredentials(true),                    // Send credentials with requests
+    // Authentication persistence
+    openapi.WithUIPersistAuth(true),                         // Persist auth across refreshes
+    openapi.WithUIWithCredentials(true),                    // Send credentials with requests
+)
 ```
 
 ## Complete Example
@@ -677,7 +677,7 @@ type ErrorResponse struct {
 func main() {
     api := openapi.MustNew(
         openapi.WithTitle("User API", "1.0.0"),
-        openapi.WithDescription("API for managing users"),
+        openapi.WithInfoDescription("API for managing users"),
         openapi.WithServer("http://localhost:8080", "Local development"),
         openapi.WithServer("https://api.example.com", "Production"),
         openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
@@ -696,7 +696,7 @@ func main() {
         openapi.POST("/users",
             openapi.WithSummary("Create user"),
             openapi.WithDescription("Creates a new user"),
-            openapi.WithRequestBody(CreateUserRequest{}),
+            openapi.WithRequest(CreateUserRequest{}),
             openapi.WithResponse(201, User{}),
             openapi.WithResponse(400, ErrorResponse{}),
             openapi.WithTags("users"),

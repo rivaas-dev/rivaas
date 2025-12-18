@@ -27,9 +27,9 @@ type UIOption func(*UIConfig)
 //	openapi.MustNew(
 //	    openapi.WithTitle("API", "1.0.0"),
 //	    openapi.WithSwaggerUI("/docs",
-//	        openapi.WithUIExpansion(openapi.ExpandList),
+//	        openapi.WithUIExpansion(openapi.DocExpansionList),
 //	        openapi.WithUITryItOut(true),
-//	        openapi.WithUISyntaxTheme(openapi.Monokai),
+//	        openapi.WithUISyntaxTheme(openapi.SyntaxThemeMonokai),
 //	    ),
 //	)
 func WithSwaggerUI(path string, opts ...UIOption) Option {
@@ -91,14 +91,14 @@ func WithUIDisplayOperationID(show bool) UIOption {
 // WithUIExpansion sets the default expansion level for operations and tags.
 //
 // Valid modes:
-//   - ExpandList: Expand only tags (default)
-//   - ExpandFull: Expand tags and operations
-//   - ExpandNone: Collapse everything
+//   - DocExpansionList: Expand only tags (default)
+//   - DocExpansionFull: Expand tags and operations
+//   - DocExpansionNone: Collapse everything
 //
 // Example:
 //
 //	openapi.WithSwaggerUI("/docs",
-//	    openapi.WithUIExpansion(openapi.ExpandFull),
+//	    openapi.WithUIExpansion(openapi.DocExpansionFull),
 //	)
 func WithUIExpansion(mode DocExpansionMode) UIOption {
 	return func(c *UIConfig) {

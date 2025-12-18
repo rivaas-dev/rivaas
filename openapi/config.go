@@ -117,7 +117,7 @@ const (
 //
 //	api, err := openapi.New(
 //	    openapi.WithTitle("My API", "1.0.0"),
-//	    openapi.WithDescription("API description"),
+//	    openapi.WithInfoDescription("API description"),
 //	    openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
 //	)
 //	if err != nil {
@@ -160,7 +160,7 @@ func New(opts ...Option) (*API, error) {
 //
 //	api := openapi.MustNew(
 //	    openapi.WithTitle("My API", "1.0.0"),
-//	    openapi.WithDescription("API description"),
+//	    openapi.WithInfoDescription("API description"),
 //	)
 func MustNew(opts ...Option) *API {
 	api, err := New(opts...)

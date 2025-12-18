@@ -94,7 +94,7 @@
 // the binding package:
 //
 //   - query: Query parameters
-//   - params: Path parameters
+//   - path: Path parameters
 //   - header: Header parameters
 //   - cookie: Cookie parameters
 //   - json: Request body fields
@@ -102,7 +102,7 @@
 // Example:
 //
 //	type GetUserRequest struct {
-//	    ID     int    `params:"id" doc:"User ID" example:"123"`
+//	    ID     int    `path:"id" doc:"User ID" example:"123"`
 //	    Expand string `query:"expand" doc:"Fields to expand" enum:"profile,settings"`
 //	}
 //
