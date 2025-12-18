@@ -25,7 +25,6 @@
 //   - Swagger UI integration with customizable appearance
 //   - Semantic operation ID generation based on HTTP method and path
 //   - Support for security schemes (Bearer, API Key, OAuth2, OpenID Connect)
-//   - ETag-based caching for spec serving
 //   - Collision-resistant schema naming (pkgname.TypeName format)
 //   - Built-in validation against official OpenAPI meta-schemas
 //   - Standalone validator for external OpenAPI specifications
@@ -33,6 +32,7 @@
 // # Quick Start
 //
 //	import (
+//	    "context"
 //	    "net/http"
 //	    "rivaas.dev/openapi"
 //	)
@@ -45,22 +45,25 @@
 //	    openapi.WithServer("http://localhost:8080", "Local development"),
 //	)
 //
-//	// Generate OpenAPI specification
-//	result, err := openapi.GenerateSpec(cfg,
+//	// Define operations
+//	ops := []openapi.Operation{
 //	    openapi.GET("/users/:id",
-//	        openapi.Summary("Get user"),
-//	        openapi.Description("Retrieves a user by ID"),
-//	        openapi.Response(http.StatusOK, UserResponse{}),
-//	        openapi.Tags("users"),
-//	        openapi.Security("bearerAuth"),
+//	        openapi.WithSummary("Get user"),
+//	        openapi.WithDescription("Retrieves a user by ID"),
+//	        openapi.WithResponse(http.StatusOK, UserResponse{}),
+//	        openapi.WithTags("users"),
+//	        openapi.WithSecurity("bearerAuth"),
 //	    ),
 //	    openapi.POST("/users",
-//	        openapi.Summary("Create user"),
-//	        openapi.Request(CreateUserRequest{}),
-//	        openapi.Response(http.StatusCreated, UserResponse{}),
-//	        openapi.Tags("users"),
+//	        openapi.WithSummary("Create user"),
+//	        openapi.WithRequest(CreateUserRequest{}),
+//	        openapi.WithResponse(http.StatusCreated, UserResponse{}),
+//	        openapi.WithTags("users"),
 //	    ),
-//	)
+//	}
+//
+//	// Generate OpenAPI specification
+//	result, err := cfg.Generate(context.Background(), ops...)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -69,20 +72,20 @@
 //
 // # Configuration vs Operations
 //
-// The package uses two distinct patterns:
+// The package uses two distinct types of options, both with the With* prefix:
 //
-//   - Config options use With* prefix: WithTitle, WithServer, WithBearerAuth
-//   - Operation options use bare names: Summary, Description, Response, Tags
+//   - API options configure the spec: WithTitle, WithServer, WithBearerAuth
+//   - Operation options configure routes: WithSummary, WithDescription, WithResponse, WithTags
 //
-// This makes the code read naturally:
+// Example:
 //
 //	cfg := openapi.MustNew(
-//	    openapi.WithTitle("My API", "1.0.0"),  // Config option
+//	    openapi.WithTitle("My API", "1.0.0"),  // API option
 //	)
 //
 //	openapi.GET("/users/:id",
-//	    openapi.Summary("Get user"),           // Operation option
-//	    openapi.Response(200, User{}),         // Operation option
+//	    openapi.WithSummary("Get user"),       // Operation option
+//	    openapi.WithResponse(200, User{}),     // Operation option
 //	)
 //
 // # Auto-Discovery
@@ -134,7 +137,7 @@
 //	    openapi.WithValidation(true), // Enable validation
 //	)
 //
-//	result, err := openapi.GenerateSpec(cfg, ops...)
+//	result, err := cfg.Generate(context.Background(), ops...)
 //	if err != nil {
 //	    log.Fatal(err) // Will fail if spec is invalid
 //	}
