@@ -17,14 +17,21 @@
 //
 // # Basic Usage
 //
+//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+//	defer cancel()
+//
 //	recorder := metrics.MustNew(
 //	    metrics.WithPrometheus(":9090", "/metrics"),
 //	    metrics.WithServiceName("my-service"),
 //	)
+//
+//	// Start metrics server (required for Prometheus, OTLP)
+//	if err := recorder.Start(ctx); err != nil {
+//	    log.Fatal(err)
+//	}
 //	defer recorder.Shutdown(context.Background())
 //
 //	// Record custom metrics
-//	ctx := context.Background()
 //	_ = recorder.IncrementCounter(ctx, "requests_total",
 //	    attribute.String("method", "GET"),
 //	    attribute.String("status", "200"),
@@ -48,6 +55,13 @@
 //   - [OTLPProvider]: Sends metrics to OTLP collector
 //   - [StdoutProvider]: Prints metrics to stdout (for development/testing)
 //
+// Provider initialization timing:
+//   - Prometheus: Initialized in New(), server starts in Start()
+//   - OTLP: Deferred to Start() for lifecycle context
+//   - Stdout: Initialized in New(), works without Start()
+//
+// For OTLP provider, you must call Start(ctx) before recording metrics.
+//
 // # Custom Metrics
 //
 // Record custom metrics using the provided methods. All methods return errors
@@ -66,6 +80,20 @@
 //
 // See [Recorder.RecordHistogram], [Recorder.IncrementCounter], and [Recorder.SetGauge]
 // for custom metric recording.
+//
+// # Lifecycle Management
+//
+// For proper initialization and shutdown:
+//
+//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+//	defer cancel()
+//
+//	recorder, _ := metrics.New(metrics.WithOTLP("http://localhost:4318"))
+//	recorder.Start(ctx)  // Required for OTLP, starts server for Prometheus
+//	defer recorder.Shutdown(context.Background())
+//
+// Use [Recorder.ForceFlush] to immediately export pending metrics before
+// critical operations or deployments (useful for push-based providers).
 //
 // # Security
 //

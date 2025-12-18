@@ -24,12 +24,17 @@ import (
     "context"
     "log"
     "net/http"
+    "os/signal"
     "time"
     
     "rivaas.dev/metrics"
 )
 
 func main() {
+    // Create context for application lifecycle
+    ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+    defer cancel()
+
     // Create metrics recorder with Prometheus
     recorder, err := metrics.New(
         metrics.WithPrometheus(":9090", "/metrics"),
@@ -40,11 +45,16 @@ func main() {
         log.Fatal(err)
     }
     
+    // Start metrics server (required for Prometheus, OTLP)
+    if err := recorder.Start(ctx); err != nil {
+        log.Fatal(err)
+    }
+    
     // Ensure metrics are flushed on exit
     defer func() {
-        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
-        if err := recorder.Shutdown(ctx); err != nil {
+        shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+        defer shutdownCancel()
+        if err := recorder.Shutdown(shutdownCtx); err != nil {
             log.Printf("Metrics shutdown error: %v", err)
         }
     }()
@@ -73,20 +83,29 @@ package main
 import (
     "context"
     "log"
+    "os/signal"
     
     "rivaas.dev/metrics"
     "go.opentelemetry.io/otel/attribute"
 )
 
 func main() {
+    // Create context for application lifecycle
+    ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+    defer cancel()
+
     // Create metrics recorder with Prometheus
     recorder := metrics.MustNew(
         metrics.WithPrometheus(":9090", "/metrics"),
         metrics.WithServiceName("my-service"),
     )
-    defer recorder.Shutdown(context.Background())
     
-    ctx := context.Background()
+    // Start metrics server
+    if err := recorder.Start(ctx); err != nil {
+        log.Fatal(err)
+    }
+    
+    defer recorder.Shutdown(context.Background())
 
     // Record custom metrics with error handling
     if err := recorder.RecordHistogram(ctx, "processing_duration", 1.5,
@@ -131,6 +150,16 @@ recorder := metrics.MustNew(
 ```
 
 **Note**: Only one provider option can be used. Using multiple provider options (e.g., `WithPrometheus` and `WithStdout` together) will result in a validation error.
+
+#### Provider Initialization Timing
+
+Different providers initialize at different times:
+
+- **Prometheus**: Initialized immediately in `New()`, HTTP server starts when `Start(ctx)` is called
+- **OTLP**: Initialization deferred to `Start(ctx)` to use lifecycle context for network connections
+- **Stdout**: Initialized immediately in `New()`, works without calling `Start()`
+
+**Important for OTLP**: You must call `Start(ctx)` before recording metrics, or metrics will be silently dropped until `Start()` is called. The lifecycle context enables proper graceful shutdown of network connections to the OTLP collector.
 
 ### Service Configuration
 
@@ -203,8 +232,68 @@ metrics.WithEventHandler(func(e metrics.Event) {
     slog.Default().Info(e.Message, e.Args...)
 })
 
-metrics.WithMaxCustomMetrics(1000)  // Set custom metrics limit
+// Set custom metrics limit (default: 1000)
+metrics.WithMaxCustomMetrics(1000)
+
+// Set export interval for OTLP and stdout (default: 30s)
+// Note: Only affects push-based providers, not Prometheus
+metrics.WithExportInterval(10 * time.Second)
 ```
+
+#### Lifecycle Management
+
+For proper initialization and shutdown, especially with OTLP provider:
+
+```go
+// Create context for application lifecycle
+ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+defer cancel()
+
+recorder, err := metrics.New(
+    metrics.WithOTLP("http://localhost:4318"),
+    metrics.WithServiceName("my-api"),
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Start with lifecycle context (required for OTLP)
+if err := recorder.Start(ctx); err != nil {
+    log.Fatal(err)
+}
+
+// Ensure graceful shutdown
+defer func() {
+    shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer shutdownCancel()
+    if err := recorder.Shutdown(shutdownCtx); err != nil {
+        log.Printf("Metrics shutdown error: %v", err)
+    }
+}()
+```
+
+**Why `Start()` is important:**
+- **OTLP provider**: Requires lifecycle context for network connections and graceful shutdown
+- **Prometheus provider**: Starts the HTTP metrics server
+- **Stdout provider**: Works without `Start()`, but calling it is harmless
+
+#### Force Flush Metrics
+
+For push-based providers (OTLP, stdout), you can force immediate export of pending metrics:
+
+```go
+// Before critical operation or deployment
+if err := recorder.ForceFlush(ctx); err != nil {
+    log.Printf("Failed to flush metrics: %v", err)
+}
+```
+
+This is useful for:
+- Ensuring metrics are exported before deployment
+- Checkpointing during long-running operations
+- Guaranteeing metrics visibility before shutdown
+
+**Note**: For Prometheus (pull-based), this is typically a no-op as metrics are collected on-demand when scraped.
 
 ## Built-in Metrics
 
@@ -261,6 +350,20 @@ _ = recorder.SetGauge(ctx, "active_connections", 42,
     attribute.String("service", "api"),
 )
 ```
+
+### Monitoring Custom Metrics
+
+Track how many custom metrics have been created:
+
+```go
+count := recorder.CustomMetricCount()
+log.Printf("Custom metrics created: %d/%d", count, maxLimit)
+```
+
+This is useful for:
+- Monitoring metric cardinality
+- Debugging metric limit issues
+- Capacity planning
 
 ### Naming Best Practices
 
@@ -394,6 +497,81 @@ recorder := metrics.MustNew(
     metrics.WithGlobalMeterProvider(),  // ✅ Explicit opt-in
 )
 ```
+
+**When to use `WithGlobalMeterProvider()`:**
+- You want OpenTelemetry instrumentation libraries to use your metrics provider
+- You need `otel.GetMeterProvider()` to return your provider
+- You're integrating with third-party libraries that expect a global meter provider
+
+**When NOT to use it:**
+- You have multiple services in the same process (e.g., microservices in tests)
+- You want to avoid global state
+- You're managing your own meter provider lifecycle
+
+## Testing
+
+The package provides testing utilities for unit tests:
+
+```go
+import "rivaas.dev/metrics"
+
+func TestMyHandler(t *testing.T) {
+    t.Parallel()
+    
+    // Create test recorder (uses stdout, avoids port conflicts)
+    recorder := metrics.TestingRecorder(t, "test-service")
+    
+    // Use recorder in tests...
+    // Cleanup is automatic via t.Cleanup()
+}
+
+func TestWithPrometheus(t *testing.T) {
+    t.Parallel()
+    
+    // Create test recorder with Prometheus (dynamic port)
+    recorder := metrics.TestingRecorderWithPrometheus(t, "test-service")
+    
+    // Wait for server to be ready
+    err := metrics.WaitForMetricsServer(t, recorder.ServerAddress(), 5*time.Second)
+    if err != nil {
+        t.Fatal(err)
+    }
+    
+    // Test metrics endpoint...
+}
+```
+
+See `testing.go` for more utilities.
+
+## Troubleshooting
+
+### Metrics not appearing (OTLP)
+
+- Ensure you called `recorder.Start(ctx)` before recording metrics
+- Check OTLP collector is reachable at the configured endpoint
+- Verify export interval hasn't expired (default: 30s)
+- Use `recorder.ForceFlush(ctx)` to immediately export pending metrics
+
+### Port conflicts (Prometheus)
+
+- Use `WithStrictPort()` to fail fast instead of auto-discovering alternative ports
+- Check if another service is using the port: `lsof -i :9090`
+- Use `recorder.ServerAddress()` to see the actual port used
+- In tests, use `TestingRecorderWithPrometheus()` for automatic port allocation
+
+### Custom metric limit reached
+
+- Increase limit with `WithMaxCustomMetrics(n)` (default: 1000)
+- Review metric cardinality - too many unique label combinations create separate metrics
+- Use `recorder.CustomMetricCount()` to monitor current usage
+- Consider using fewer labels or more general label values
+
+### Metrics server not starting
+
+- Check if `Start(ctx)` was called (required for Prometheus and OTLP)
+- Verify the context passed to `Start()` is not already canceled
+- Check logs via `WithLogger(slog.Default())` for detailed error messages
+- For Prometheus, ensure the port is available or use `WithStrictPort()` for explicit errors
 
 ## Examples
 
