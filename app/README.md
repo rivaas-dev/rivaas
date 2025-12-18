@@ -30,7 +30,7 @@ A high-level, batteries-included web framework built on top of the Rivaas router
 - **Need complete flexibility** - Don't want any opinions or defaults imposed
 - **Integrating into existing systems** - Need to fit into established patterns
 
-The `app` package adds approximately 1-2% latency overhead compared to using `router` directly, but provides significant development speed and maintainability benefits through integrated observability and sensible defaults.
+The `app` package adds approximately 1-2% latency overhead compared to using `router` directly (119ns → ~121-122ns), but provides significant development speed and maintainability benefits through integrated observability and sensible defaults.
 
 ## Quick Start
 
