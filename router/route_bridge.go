@@ -601,6 +601,12 @@ func (r *Router) Freeze() {
 		// First, register all pending routes (this is what Warmup does)
 		r.Warmup()
 
+		// Freeze the route compiler to bypass mutex in hot path
+		// This must happen after Warmup() which adds routes to the compiler
+		if r.routeCompiler != nil {
+			r.routeCompiler.Freeze()
+		}
+
 		r.routeTree.routesMutex.Lock()
 		for _, rt := range r.namedRoutes {
 			if rt.ReversePattern() == nil {

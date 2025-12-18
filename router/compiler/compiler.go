@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -93,8 +94,16 @@ type RouteCompiler struct {
 	firstSegmentIndex    [128][]*CompiledRoute // ASCII lookup (0-127)
 	hasFirstSegmentIndex bool                  // Whether index is built
 
-	// Mutex protects route compiler during updates
+	// Mutex protects route compiler during updates (only needed before freeze)
 	mu sync.RWMutex
+
+	// Frozen flag - when true, routes are immutable and mutex is bypassed
+	// This eliminates lock overhead in the hot path after warmup
+	frozen atomic.Bool
+
+	// Cached flag indicating if there are any static routes (set during Freeze)
+	// This allows skipping LookupStatic entirely when there are no static routes
+	hasStatic bool
 }
 
 // NewRouteCompiler creates a new route compiler
@@ -285,4 +294,49 @@ func (rc *RouteCompiler) sortRoutesBySpecificity() {
 		}
 		routes[j+1] = key
 	}
+}
+
+// Freeze marks the route compiler as immutable.
+// After calling Freeze, the mutex is bypassed in lookup operations
+// since the data can no longer change. This eliminates lock overhead
+// in the hot path.
+//
+// Freeze also builds the first-segment index if there are enough routes.
+// This should be called after all routes are registered.
+func (rc *RouteCompiler) Freeze() {
+	// Build first-segment index before freezing if we have enough routes
+	if !rc.hasFirstSegmentIndex && len(rc.dynamicRoutes) >= minRoutesForIndexing {
+		rc.buildFirstSegmentIndex()
+	}
+
+	// Cache whether there are static routes for fast path check
+	rc.hasStatic = len(rc.staticRoutes) > 0
+
+	rc.frozen.Store(true)
+}
+
+// HasStatic returns true if any static routes are registered.
+// This is a cheap check that avoids calling LookupStatic entirely.
+func (rc *RouteCompiler) HasStatic() bool {
+	if rc.frozen.Load() {
+		return rc.hasStatic
+	}
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	return len(rc.staticRoutes) > 0
+}
+
+// IsFrozen returns true if the route compiler has been frozen.
+func (rc *RouteCompiler) IsFrozen() bool {
+	return rc.frozen.Load()
+}
+
+// HasStaticRoutes returns true if there are any static routes registered.
+// This can be used to skip LookupStatic entirely when there are no static routes.
+// After Freeze(), this returns a cached value for maximum performance.
+func (rc *RouteCompiler) HasStaticRoutes() bool {
+	if rc.frozen.Load() {
+		return rc.hasStatic
+	}
+	return len(rc.staticRoutes) > 0
 }

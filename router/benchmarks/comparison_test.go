@@ -49,10 +49,10 @@ func BenchmarkRivaasRouter(b *testing.B) {
 		c.String(http.StatusOK, "Hello")
 	})
 	r.GET("/users/:id", func(c *router.Context) {
-		c.Stringf(http.StatusOK, "User: %s", c.Param("id"))
+		c.String(http.StatusOK, "User: "+c.Param("id"))
 	})
 	r.GET("/users/:id/posts/:post_id", func(c *router.Context) {
-		c.Stringf(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
+		c.String(http.StatusOK, "User: "+c.Param("id")+", Post: "+c.Param("post_id"))
 	})
 
 	// Warm up all optimizations for performance

@@ -587,8 +587,12 @@ func decodeRuneInJSON(b []byte) (rune, int) {
 //	c.Response.WriteHeader(200)
 //	c.Response.Write(staticBytes)
 func (c *Context) String(code int, value string) error {
-	if c.Response.Header().Get("Content-Type") == "" {
-		c.Response.Header().Set("Content-Type", "text/plain")
+	// Check if Content-Type is already set (avoid expensive map lookup overhead)
+	// Using direct map key access is faster than Header().Get() which involves
+	// canonicalization via textproto.CanonicalMIMEHeaderKey
+	h := c.Response.Header()
+	if _, ok := h["Content-Type"]; !ok {
+		h["Content-Type"] = []string{"text/plain"}
 	}
 
 	// Check if headers have already been written
@@ -624,8 +628,12 @@ func (c *Context) String(code int, value string) error {
 //	    return err
 //	}
 func (c *Context) Stringf(code int, format string, values ...any) error {
-	if c.Response.Header().Get("Content-Type") == "" {
-		c.Response.Header().Set("Content-Type", "text/plain")
+	// Check if Content-Type is already set (avoid expensive map lookup overhead)
+	// Using direct map key access is faster than Header().Get() which involves
+	// canonicalization via textproto.CanonicalMIMEHeaderKey
+	h := c.Response.Header()
+	if _, ok := h["Content-Type"]; !ok {
+		h["Content-Type"] = []string{"text/plain"}
 	}
 
 	// Check if headers have already been written
@@ -658,23 +666,28 @@ var errFastPathNotApplicable = errors.New("fast path not applicable")
 // tryFastStringFormat attempts to write a single %s format without fmt.Sprintf allocation.
 // Returns nil on success, errFastPathNotApplicable if fast path doesn't apply.
 func (c *Context) tryFastStringFormat(format string, values []any) error {
-	// Only applies when: 1 value, value is string, exactly 1 %s in format
+	// Only applies when: 1 value, value is string
 	if len(values) != 1 {
 		return errFastPathNotApplicable
 	}
 
 	v, ok := values[0].(string)
-	if !ok || strings.Count(format, "%s") != 1 {
+	if !ok {
 		return errFastPathNotApplicable
 	}
 
+	// Find %s position - single scan instead of Count + Index
 	idx := strings.Index(format, "%s")
 	if idx == -1 {
 		return errFastPathNotApplicable
 	}
+	// Ensure there's not a second %s (search only remaining part)
+	if idx+2 < len(format) && strings.Contains(format[idx+2:], "%s") {
+		return errFastPathNotApplicable
+	}
 
-	// Write directly to response in chunks
-	// Use unsafe zero-copy string->bytes conversion (read-only, safe in this context)
+	// Write directly to response using zero-copy string->bytes conversion
+	// 3 writes is faster than pooled buffer because unsafeStringToBytes avoids copying
 	if idx > 0 {
 		if _, err := c.Response.Write(unsafeStringToBytes(format[:idx])); err != nil {
 			return fmt.Errorf("writing formatted string response: %w", err)

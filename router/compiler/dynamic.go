@@ -14,6 +14,14 @@
 
 package compiler
 
+import "strings"
+
+// indexByte is a thin wrapper around strings.IndexByte for readability.
+// strings.IndexByte is assembly-optimized on amd64/arm64.
+func indexByte(s string, c byte) int {
+	return strings.IndexByte(s, c)
+}
+
 // ContextParamWriter is an interface for writing route parameters to a context.
 // This avoids import cycles by not importing router.Context directly.
 type ContextParamWriter interface {
@@ -24,15 +32,20 @@ type ContextParamWriter interface {
 
 // MatchDynamic attempts to match path against dynamic routes.
 // Uses first-segment index for filtering.
+// After Freeze() is called, this method bypasses the mutex for better performance.
 func (rc *RouteCompiler) MatchDynamic(method, path string, ctx ContextParamWriter) *CompiledRoute {
-	rc.mu.RLock()
-
-	// Build first-segment index if not exists (lazy initialization)
-	if !rc.hasFirstSegmentIndex && len(rc.dynamicRoutes) > minRoutesForIndexing {
-		// Only build index if we have enough routes to benefit
-		rc.mu.RUnlock()
-		rc.buildFirstSegmentIndex()
+	// Fast path: skip mutex when frozen (data is immutable)
+	frozen := rc.frozen.Load()
+	if !frozen {
 		rc.mu.RLock()
+
+		// Build first-segment index if not exists (lazy initialization)
+		// Note: After Freeze(), index is already built if needed
+		if !rc.hasFirstSegmentIndex && len(rc.dynamicRoutes) > minRoutesForIndexing {
+			rc.mu.RUnlock()
+			rc.buildFirstSegmentIndex()
+			rc.mu.RLock()
+		}
 	}
 
 	// Try first-segment index for filtering
@@ -47,12 +60,15 @@ func (rc *RouteCompiler) MatchDynamic(method, path string, ctx ContextParamWrite
 			for _, route := range candidates {
 				// Check method before matching path
 				if route.method == method && route.matchAndExtract(path, ctx) {
-					rc.mu.RUnlock()
+					if !frozen {
+						rc.mu.RUnlock()
+					}
 					return route
 				}
 			}
-			rc.mu.RUnlock()
-
+			if !frozen {
+				rc.mu.RUnlock()
+			}
 			return nil
 		}
 	}
@@ -61,13 +77,16 @@ func (rc *RouteCompiler) MatchDynamic(method, path string, ctx ContextParamWrite
 	for _, route := range rc.dynamicRoutes {
 		// Check method before matching path
 		if route.method == method && route.matchAndExtract(path, ctx) {
-			rc.mu.RUnlock()
+			if !frozen {
+				rc.mu.RUnlock()
+			}
 			return route
 		}
 	}
 
-	rc.mu.RUnlock()
-
+	if !frozen {
+		rc.mu.RUnlock()
+	}
 	return nil
 }
 
@@ -132,24 +151,17 @@ func (r *CompiledRoute) matchAndExtract(path string, ctx ContextParamWriter) boo
 			return false // Too short or invalid
 		}
 
-		// Find first segment boundary
-		firstSlash := -1
-		for i := 1; i < len(path); i++ {
-			if path[i] == '/' {
-				firstSlash = i
-				break
-			}
-		}
-
+		// Find first segment boundary using strings.IndexByte (assembly-optimized)
+		firstSlash := indexByte(path[1:], '/')
 		if firstSlash == -1 {
 			return false // No second segment
 		}
+		firstSlash++ // Adjust for the offset we started at
 
 		// Check if there's a third segment (shouldn't be)
-		for i := firstSlash + 1; i < len(path); i++ {
-			if path[i] == '/' {
-				return false // Too many segments
-			}
+		// Using indexByte is faster than a loop
+		if indexByte(path[firstSlash+1:], '/') != -1 {
+			return false // Too many segments
 		}
 
 		// Validate static segment

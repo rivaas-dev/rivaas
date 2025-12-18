@@ -99,3 +99,19 @@ func (bf *BloomFilter) Test(data []byte) bool {
 
 	return true
 }
+
+// TestWithPrecomputedHash checks if an element might be in the bloom filter
+// using a pre-computed FNV-1a hash. This avoids recomputing the hash when
+// the caller has already computed it.
+//
+// Uses early-exit loop for handling of miss cases (common in routing).
+func (bf *BloomFilter) TestWithPrecomputedHash(baseHash uint64) bool {
+	for _, seed := range bf.seeds {
+		pos := bf.hashWithSeed(baseHash, seed)
+		if bf.bits[pos/64]&(1<<(pos%64)) == 0 {
+			return false // Early exit - definitely not present
+		}
+	}
+
+	return true
+}

@@ -96,10 +96,13 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Try compiled routes from main tree (if enabled)
 	if r.useCompiledRoutes && r.routeCompiler != nil {
-		// Try static route table first
-		if route := r.routeCompiler.LookupStatic(req.Method, path); route != nil {
-			r.serveCompiledRoute(w, req, route, obsState)
-			return
+		// Try static route table first (only if static routes exist)
+		// Checking hasStatic avoids the function call overhead entirely
+		if r.routeCompiler.HasStatic() {
+			if route := r.routeCompiler.LookupStatic(req.Method, path); route != nil {
+				r.serveCompiledRoute(w, req, route, obsState)
+				return
+			}
 		}
 
 		// Try dynamic routes (pre-compiled patterns with bloom filter)

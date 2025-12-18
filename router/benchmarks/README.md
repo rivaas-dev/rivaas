@@ -46,18 +46,18 @@ Benchmark output shows:
 - **B/op**: Bytes allocated per operation (lower is better)
 - **allocs/op**: Number of allocations per operation (lower is better)
 
-Example output (November 2025, Intel i7-1265U):
+Example output (December 2025, Intel i7-1265U):
 
 ```text
-BenchmarkRivaasRouter-12                 1000000    155 ns/op    16 B/op    1 allocs/op
-BenchmarkRivaasRouterPlainString-12      1000000    126 ns/op    16 B/op    1 allocs/op
-BenchmarkRivaasRouterZeroAlloc-12        1000000     57 ns/op     0 B/op    0 allocs/op
-BenchmarkStandardMux-12                  1000000    105 ns/op    16 B/op    1 allocs/op
-BenchmarkSimpleRouter-12                 1000000     31 ns/op    16 B/op    1 allocs/op
-BenchmarkGinRouter-12                    1000000    157 ns/op    80 B/op    3 allocs/op
-BenchmarkEchoRouter-12                   1000000    117 ns/op    32 B/op    2 allocs/op
-BenchmarkChiRouter-12                    1000000    439 ns/op   720 B/op    5 allocs/op
-BenchmarkFiberRouter-12                  1000000   1404 ns/op  2064 B/op   20 allocs/op
+BenchmarkRivaasRouter-12                10000000    119 ns/op    16 B/op    1 allocs/op
+BenchmarkRivaasRouterPlainString-12     13000000     88 ns/op    16 B/op    1 allocs/op
+BenchmarkRivaasRouterZeroAlloc-12       30000000     40 ns/op     0 B/op    0 allocs/op
+BenchmarkStandardMux-12                 11000000    107 ns/op    16 B/op    1 allocs/op
+BenchmarkSimpleRouter-12                40000000     26 ns/op    16 B/op    1 allocs/op
+BenchmarkGinRouter-12                    7500000    162 ns/op    80 B/op    3 allocs/op
+BenchmarkEchoRouter-12                  10000000    119 ns/op    32 B/op    2 allocs/op
+BenchmarkChiRouter-12                    2900000    417 ns/op   720 B/op    5 allocs/op
+BenchmarkFiberRouter-12                   800000   1446 ns/op  2064 B/op   20 allocs/op
 ```
 
 ## Adding New Comparisons

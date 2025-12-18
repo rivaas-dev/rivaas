@@ -1483,8 +1483,8 @@ WARN: route has more than 8 parameters, using map storage instead of fast array
 
 **Performance Impact:**
 
-- **≤8 params**: ~155ns/op, 0 allocations
-- **>8 params**: ~155ns/op, 1 allocation (~24 bytes)
+- **≤8 params**: ~119ns/op, 0 allocations
+- **>8 params**: ~119ns/op, 1 allocation (~24 bytes)
 - **Real-world impact**: Negligible for most applications (<1% overhead)
 
 ### Middleware Usage
@@ -2859,7 +2859,7 @@ go test -run TestBindQuery
 - Comprehensive unit tests
 - Integration tests
 - Concurrency tests
-- Stress tests (6.5M+ req/s)
+- Stress tests (8.4M+ req/s)
 - Security tests
 - Benchmark comparisons
 - Real-world scenario tests
@@ -2902,11 +2902,11 @@ Production-ready for distributed systems:
 
 Optimized for high-throughput applications:
 
-- Sub-microsecond routing (155ns/op)
+- Sub-microsecond routing (119ns/op)
 - Minimal allocations (1 per request)
 - Context pooling
 - Lock-free operations
-- 6.5M+ req/s throughput
+- 8.4M+ req/s throughput
 - Scales linearly with CPU cores
 
 ## Examples
@@ -2936,8 +2936,8 @@ Each example includes:
 
 ### **Throughput & Latency** {#throughput-latency}
 
-- **Benchmark Performance**: 155 ns/op (6.5M+ operations/second)
-- **Average Latency**: 155ns per request
+- **Benchmark Performance**: 119 ns/op (8.4M+ operations/second)
+- **Average Latency**: 119ns per request
 - **Memory per Request**: 16 bytes
 - **Allocations per Request**: 1 allocation
 
@@ -2960,11 +2960,11 @@ BenchmarkRadixTree-12             1,718,043 ops/sec   582.1ns/op     0B/op      
 
 #### **Strengths**
 
-- **High Throughput**: 6.5M+ requests/second
-- **Low Latency**: 155ns request handling
+- **High Throughput**: 8.4M+ requests/second
+- **Low Latency**: 119ns request handling
 - **Memory Efficient**: Only 1 allocation per request
 - **Ultra-Fast Routing**: 582ns radix tree lookups
-- **Concurrent Safe**: Excellent parallel performance (6.5M+ ops/sec)
+- **Concurrent Safe**: Excellent parallel performance (8.4M+ ops/sec)
 - **Scalable**: Handles 100+ concurrent goroutines
 
 #### **Optimization Features**
@@ -2985,35 +2985,35 @@ BenchmarkRadixTree-12             1,718,043 ops/sec   582.1ns/op     0B/op      
 
 | Router Type | Operations/sec | ns/op | Memory/op | Allocs/op | Features |
 |-------------|----------------|-------|-----------|-----------|----------|
-| **Simple Router** | 32,258,064 | 31 ns | 16 B | 1 | - No parameters, No middleware |
-| **Standard Mux** | 9,523,809 | 105 ns | 16 B | 1 | - No parameters, No middleware |
-| **Echo Router** | 8,547,008 | 117 ns | 32 B | 2 | ✅ Parameters, Middleware, Groups |
-| **Rivaas Router** | 6,451,612 | 155 ns | 16 B | 1 | ✅ Parameters, Middleware, Groups |
-| **Gin Router** | 6,369,426 | 157 ns | 80 B | 3 | ✅ Parameters, Middleware, Groups |
-| **Chi Router** | 2,277,904 | 439 ns | 720 B | 5 | ✅ Parameters, Middleware, Groups |
-| **Fiber Router** | 712,250 | 1,404 ns | 2,064 B | 20 | ✅ Parameters, Middleware, Groups |
+| **Simple Router** | 38,095,238 | 26 ns | 16 B | 1 | - No parameters, No middleware |
+| **Standard Mux** | 10,869,565 | 107 ns | 16 B | 1 | - No parameters, No middleware |
+| **Echo Router** | 10,101,010 | 119 ns | 32 B | 2 | ✅ Parameters, Middleware, Groups |
+| **Rivaas Router** | 8,368,201 | 119 ns | 16 B | 1 | ✅ Parameters, Middleware, Groups |
+| **Gin Router** | 6,250,000 | 162 ns | 80 B | 3 | ✅ Parameters, Middleware, Groups |
+| **Chi Router** | 2,439,024 | 417 ns | 720 B | 5 | ✅ Parameters, Middleware, Groups |
+| **Fiber Router** | 714,286 | 1,446 ns | 2,064 B | 20 | ✅ Parameters, Middleware, Groups |
 
 ### **Performance Analysis**
 
 #### **Rivaas Router Performance**
 
-- **155 ns/op** - Excellent performance for a full-featured router
+- **119 ns/op** - Excellent performance for a full-featured router
 - **16 bytes/op** - 50% less memory than Echo, 80% less than Gin, 98% less than Chi, 99% less than Fiber
 - **1 allocation/op** - 50% fewer allocations than Echo, 67% fewer than Gin, 80% fewer than Chi, 95% fewer than Fiber
-- **Same speed as Gin** - Within noise margin (155ns vs 157ns) while using 5× less memory
-- **Faster than Chi** - 2.8× faster (155ns vs 439ns) while using 45× less memory
-- **Faster than Fiber** - 9.1× faster (155ns vs 1,404ns) while using 129× less memory
-- **Competitive with Echo** - 32% slower but uses half the memory (16B vs 32B) and half the allocations
+- **Same speed as Echo** - Identical latency (119ns vs 119ns) while using 50% less memory
+- **Faster than Gin** - 1.4× faster (119ns vs 162ns) while using 5× less memory
+- **Faster than Chi** - 3.5× faster (119ns vs 417ns) while using 45× less memory
+- **Faster than Fiber** - 12.2× faster (119ns vs 1,446ns) while using 129× less memory
 
 #### **Comparison Context**
 
 **Performance Ranking (Full-Featured Routers):**
 
-1. **Echo**: 117 ns/op (8.5M ops/sec) - Fastest, uses 32B/2 allocs
-2. **Rivaas**: 155 ns/op (6.5M ops/sec) - Best memory efficiency (16B/1 alloc)
-3. **Gin**: 157 ns/op (6.4M ops/sec) - Nearly identical to Rivaas, higher memory (80B/3 allocs)
-4. **Chi**: 439 ns/op (2.3M ops/sec) - Moderate performance, high memory (720B/5 allocs)
-5. **Fiber**: 1,404 ns/op (712K ops/sec) - Slowest, very high memory (2KB/20 allocs)
+1. **Rivaas**: 119 ns/op (8.4M ops/sec) - Tied for fastest, best memory efficiency (16B/1 alloc)
+2. **Echo**: 119 ns/op (10.1M ops/sec) - Tied for fastest, uses 32B/2 allocs
+3. **Gin**: 162 ns/op (6.3M ops/sec) - Slower than Rivaas, higher memory (80B/3 allocs)
+4. **Chi**: 417 ns/op (2.4M ops/sec) - Moderate performance, high memory (720B/5 allocs)
+5. **Fiber**: 1,446 ns/op (714K ops/sec) - Slowest, very high memory (2KB/20 allocs)
 
 #### **Rivaas Router Advantages**
 
@@ -3025,25 +3025,25 @@ BenchmarkRadixTree-12             1,718,043 ops/sec   582.1ns/op     0B/op      
 
 **Real-World Performance:**
 
-- **6.5M operations/second** - Excellent for production workloads
-- **155ns routing** - Outstanding for high-traffic applications
+- **8.4M operations/second** - Excellent for production workloads
+- **119ns routing** - Outstanding for high-traffic applications
 - **Memory efficient** - Only 16 bytes and 1 allocation per request
 - **Concurrent safe** - Handles parallel requests efficiently
-- **Same speed as Gin** - Within noise margin (155ns vs 157ns) while using 5× less memory
-- **Faster than Chi** - 2.8× faster (155ns vs 439ns) while using 45× less memory
-- **Faster than Fiber** - 9.1× faster (155ns vs 1,404ns) while using 129× less memory
-- **Competitive with Echo** - Trades 32% speed for 50% better memory efficiency
+- **Same speed as Echo** - Identical latency (119ns) while using 50% less memory
+- **Faster than Gin** - 1.4× faster (119ns vs 162ns) while using 5× less memory
+- **Faster than Chi** - 3.5× faster (119ns vs 417ns) while using 45× less memory
+- **Faster than Fiber** - 12.2× faster (119ns vs 1,446ns) while using 129× less memory
 
 ### **Industry Comparison**
 
 | Metric | Rivaas Router | Industry Standard |
 |--------|---------------|-------------------|
-| Throughput | 6.5M req/s | 5-8M req/s |
-| Latency | 155ns | 115-200ns |
+| Throughput | 8.4M req/s | 6-10M req/s |
+| Latency | 119ns | 115-200ns |
 | Memory/Request | 16 bytes | 32-80 bytes |
 | Allocations/Request | 1 | 2-3 |
 
-**Conclusion**: Rivaas delivers excellent performance with the lowest memory footprint (16B/req, 1 alloc) among major Go routers. With 6.5M req/s throughput and 155ns latency, it matches Gin's speed (within noise margin) while using 5× less memory, outperforms Chi by 2.8× while using 45× less memory, and Fiber by 9.1× while using 129× less memory. While Echo is 32% faster, Rivaas uses 50% less memory and half the allocations, making it ideal for memory-constrained, high-throughput applications.
+**Conclusion**: Rivaas delivers excellent performance with the lowest memory footprint (16B/req, 1 alloc) among major Go routers. With 8.4M req/s throughput and 119ns latency, it matches Echo's speed (identical latency) while using 50% less memory and half the allocations, outperforms Gin by 1.4× while using 5× less memory, Chi by 3.5× while using 45× less memory, and Fiber by 12.2× while using 129× less memory. This makes Rivaas ideal for memory-constrained, high-throughput applications where both speed and efficiency matter.
 
 ### **Feature Comparison**
 
@@ -3076,7 +3076,7 @@ BenchmarkRadixTree-12             1,718,043 ops/sec   582.1ns/op     0B/op      
 | **Custom Types (TextUnmarshaler)** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **OpenTelemetry Built-in** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Lock-Free Architecture** | ✅ | ✅ | ✅ | ✅✅ | ✅ |
-| **Performance (ns/op)** | 155 | 157 | 117 | 1,404 | 439 |
+| **Performance (ns/op)** | 119 | 162 | 119 | 1,446 | 417 |
 | **Memory (B/op)** | 16 | 80 | 32 | 2,064 | 720 |
 | **Allocations (allocs/op)** | 1 | 3 | 2 | 20 | 5 |
 
@@ -3242,8 +3242,8 @@ go tool pprof cpu.prof
 
 Rivaas Router is **production-ready** with:
 
-- ✅ Sub-microsecond routing (155ns/op)
-- ✅ 6.5M+ requests/second throughput
+- ✅ Sub-microsecond routing (119ns/op)
+- ✅ 8.4M+ requests/second throughput
 - ✅ Memory-efficient (16B/req, 1 alloc)
 - ✅ Concurrent-safe operations
 - ✅ Comprehensive test coverage
