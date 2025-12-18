@@ -43,6 +43,7 @@ pkgs.mkShell {
 
     # Build tools
     gnumake
+    graphviz     # Graph visualization tool
 
     # Version control
     git

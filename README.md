@@ -9,8 +9,8 @@ A high-performance, modular web framework for Go with integrated observability.
 
 | Metric | Value |
 |--------|-------|
-| Throughput | 6.5M+ req/sec |
-| Latency | 155ns average |
+| Throughput | 8.4M+ req/sec |
+| Latency | 119ns average |
 | Memory | 16 bytes/request |
 
 ## Quick Start
@@ -70,7 +70,7 @@ This plant grows at high altitudes (1,500–3,000 meters) in harsh, rocky terrai
 That's the philosophy behind Rivaas:
 
 - **Resilient** — Built for production from day one, with graceful shutdown, health checks, and panic recovery
-- **Lightweight** — Minimal overhead (155ns latency, 16 bytes/request) without sacrificing features
+- **Lightweight** — Minimal overhead (119ns latency, 16 bytes/request) without sacrificing features
 - **Adaptive** — Works locally, in containers, or across distributed systems with the same code
 - **Self-sufficient** — Integrated observability (metrics, tracing, logging) instead of bolted-on dependencies
 
@@ -79,7 +79,7 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 ## Why Rivaas?
 
 - **Production-Ready** — Graceful shutdown, health endpoints, panic recovery
-- **High Performance** — 6.5M+ req/sec, 155ns latency, 16 bytes/request
+- **High Performance** — 8.4M+ req/sec, 119ns latency, 16 bytes/request
 - **Flexible** — Use `app` for batteries-included or `router` for full control
 - **Cloud-Native** — OpenTelemetry-native with Prometheus, OTLP, Jaeger support
 - **Modular** — Each package works standalone without the full framework
@@ -169,8 +169,8 @@ See [Middleware Documentation](./router/middleware/README.md) for usage and conf
 
 | Metric | Value |
 |--------|-------|
-| Throughput | 6.5M+ req/sec |
-| Latency | 155ns average |
+| Throughput | 8.4M+ req/sec |
+| Latency | 119ns average |
 | Memory | 16 bytes/request |
 | Allocations | 1 per request |
 
