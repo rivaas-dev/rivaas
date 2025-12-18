@@ -33,15 +33,13 @@ pkgs.mkShell {
 
   buildInputs = with pkgs; [
     # Go toolchain
-    go
-    gotools
-    go-tools
-
-    # Linting and code quality
-    golangci-lint
-
-    # Testing and benchmarking tools
+    go           # Go compiler
+    gopls        # Go language server
+    gotools      # Go tools (e.g., godoc, goimports, callgraph, digraph, etc.)
+    go-tools   # Go tools (e.g., goimports, govet, etc.)
+    golangci-lint # Linting and code quality
     delve        # Go debugger
+    ginkgo       # Testing and benchmarking tools
 
     # Build tools
     gnumake
@@ -50,13 +48,13 @@ pkgs.mkShell {
     git
 
     # Optional: useful development tools
-    gopls        # Go language server
-
     # Shell utilities
-    jq           # JSON processing (useful for API testing)
-    curl         # HTTP client
-    gum          # Glamorous shell scripts (charmbracelet/gum)
+    jq           # JSON processing
+    yq           # YAML processing
+    curl        # HTTP client
+    gum         # Glamorous shell scripts (charmbracelet/gum)
 
+    # AI-powered tool for generating commit messages
     cursor-cli
   ];
 
