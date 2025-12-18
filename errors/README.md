@@ -15,18 +15,54 @@ This package provides a clean, extensible way to format errors for HTTP APIs, su
 ## Quick Start
 
 ```go
-import "rivaas.dev/errors"
+package main
 
-// Create a formatter
-formatter := errors.NewRFC9457("https://api.example.com/problems")
+import (
+    "encoding/json"
+    "fmt"
+    "net/http"
+    
+    "rivaas.dev/errors"
+)
 
-// Format an error
-response := formatter.Format(req, err)
+func main() {
+    http.HandleFunc("/api/users", handleGetUser)
+    http.ListenAndServe(":8080", nil)
+}
 
-// Write response
-w.WriteHeader(response.Status)
-w.Header().Set("Content-Type", response.ContentType)
-json.NewEncoder(w).Encode(response.Body)
+func handleGetUser(w http.ResponseWriter, req *http.Request) {
+    // Your business logic
+    user, err := getUser(req.URL.Query().Get("id"))
+    if err != nil {
+        // Create a formatter
+        formatter := errors.NewRFC9457("https://api.example.com/problems")
+        
+        // Format the error
+        response := formatter.Format(req, err)
+        
+        // Write response (set headers before status)
+        w.Header().Set("Content-Type", response.ContentType)
+        w.WriteHeader(response.Status)
+        json.NewEncoder(w).Encode(response.Body)
+        return
+    }
+    
+    // Success response
+    json.NewEncoder(w).Encode(user)
+}
+
+func getUser(id string) (*User, error) {
+    if id == "" {
+        return nil, fmt.Errorf("user ID is required")
+    }
+    // ... fetch user logic
+    return &User{ID: id, Name: "John"}, nil
+}
+
+type User struct {
+    ID   string `json:"id"`
+    Name string `json:"name"`
+}
 ```
 
 ## Formatters
@@ -60,25 +96,85 @@ response := formatter.Format(req, err)
 ```go
 formatter := &errors.RFC9457{
     BaseURL: "https://api.example.com/problems",
+    
+    // TypeResolver maps errors to problem type URIs
+    // If nil, uses ErrorCode interface or defaults to "about:blank"
     TypeResolver: func(err error) string {
         // Custom type resolution logic
         return "https://api.example.com/problems/custom-type"
     },
+    
+    // StatusResolver determines HTTP status from error
+    // If nil, uses ErrorType interface or defaults to 500
     StatusResolver: func(err error) int {
         // Custom status resolution logic
         return http.StatusBadRequest
     },
+    
+    // ErrorIDGenerator generates unique IDs for error tracking
+    // If nil, uses default cryptographically secure random ID
     ErrorIDGenerator: func() string {
         // Custom error ID generation
         return "custom-id-" + uuid.New().String()
     },
+    
+    // DisableErrorID disables automatic error ID generation
     DisableErrorID: false, // Set to true to disable error IDs
+}
+```
+
+**Example with custom resolvers:**
+
+```go
+import (
+    "errors"
+    "net/http"
+    "strings"
+)
+
+var (
+    ErrNotFound      = errors.New("not found")
+    ErrUnauthorized  = errors.New("unauthorized")
+    ErrValidation    = errors.New("validation failed")
+)
+
+formatter := &errors.RFC9457{
+    BaseURL: "https://api.example.com/problems",
+    
+    StatusResolver: func(err error) int {
+        // Map specific errors to status codes
+        switch {
+        case errors.Is(err, ErrNotFound):
+            return http.StatusNotFound
+        case errors.Is(err, ErrUnauthorized):
+            return http.StatusUnauthorized
+        case errors.Is(err, ErrValidation):
+            return http.StatusBadRequest
+        default:
+            return http.StatusInternalServerError
+        }
+    },
+    
+    TypeResolver: func(err error) string {
+        // Map errors to problem type URIs
+        errMsg := strings.ToLower(err.Error())
+        switch {
+        case strings.Contains(errMsg, "not found"):
+            return "https://api.example.com/problems/not-found"
+        case strings.Contains(errMsg, "unauthorized"):
+            return "https://api.example.com/problems/unauthorized"
+        case strings.Contains(errMsg, "validation"):
+            return "https://api.example.com/problems/validation-error"
+        default:
+            return "about:blank"
+        }
+    },
 }
 ```
 
 ### JSON:API
 
-JSON:API compliant error responses.
+JSON:API compliant error responses. The formatter automatically generates unique error IDs for tracking and converts field paths to JSON Pointer format (`/data/attributes/...`).
 
 ```go
 formatter := errors.NewJSONAPI()
@@ -104,6 +200,13 @@ response := formatter.Format(req, err)
 }
 ```
 
+**Field Path Conversion:**
+
+When errors implement `ErrorDetails` with field paths, they're automatically converted to JSON Pointer format:
+- `"email"` → `"/data/attributes/email"`
+- `"items.0.price"` → `"/data/attributes/items/0/price"`
+- `"user.name"` → `"/data/attributes/user/name"`
+
 **Customization:**
 
 ```go
@@ -117,7 +220,7 @@ formatter := &errors.JSONAPI{
 
 ### Simple JSON
 
-Simple, straightforward JSON error responses.
+Simple, straightforward JSON error responses. The `code` and `details` fields are optional and only included if the error implements the respective interfaces.
 
 ```go
 formatter := errors.NewSimple()
@@ -133,6 +236,11 @@ response := formatter.Format(req, err)
   "details": {...}
 }
 ```
+
+**Field presence:**
+- `error`: Always present (from `error.Error()`)
+- `code`: Only if error implements `ErrorCode` interface
+- `details`: Only if error implements `ErrorDetails` interface
 
 **Customization:**
 
@@ -221,8 +329,19 @@ func errorHandler(w http.ResponseWriter, req *http.Request, err error) {
     formatter := errors.NewRFC9457("https://api.example.com/problems")
     response := formatter.Format(req, err)
     
-    w.WriteHeader(response.Status)
+    // Set headers before writing status
     w.Header().Set("Content-Type", response.ContentType)
+    
+    // Set any additional headers if present
+    if response.Headers != nil {
+        for key, values := range response.Headers {
+            for _, value := range values {
+                w.Header().Add(key, value)
+            }
+        }
+    }
+    
+    w.WriteHeader(response.Status)
     json.NewEncoder(w).Encode(response.Body)
 }
 ```
@@ -239,8 +358,9 @@ func (c *MyContext) Error(err error) {
     formatter := errors.NewRFC9457("https://api.example.com/problems")
     response := formatter.Format(c.Request, err)
     
-    c.Response.WriteHeader(response.Status)
+    // Set headers before status
     c.Response.Header().Set("Content-Type", response.ContentType)
+    c.Response.WriteHeader(response.Status)
     json.NewEncoder(c.Response).Encode(response.Body)
 }
 ```
@@ -256,12 +376,48 @@ type CustomFormatter struct {
 
 func (f *CustomFormatter) Format(req *http.Request, err error) errors.Response {
     // Your formatting logic
+    headers := make(http.Header)
+    headers.Set("X-Error-ID", generateID())
+    headers.Set("X-Request-ID", req.Header.Get("X-Request-ID"))
+    
     return errors.Response{
         Status:      http.StatusBadRequest,
         ContentType: "application/json",
         Body:        map[string]string{"error": err.Error()},
+        Headers:     headers, // Optional: additional headers
     }
 }
+```
+
+### Response Structure
+
+The `Response` struct returned by formatters contains:
+
+- **Status** (int): HTTP status code to return
+- **ContentType** (string): Content-Type header value
+- **Body** (any): Response body to be JSON-encoded
+- **Headers** (http.Header): Optional additional headers to set
+
+Example of using all fields:
+
+```go
+response := formatter.Format(req, err)
+
+// Set content type
+w.Header().Set("Content-Type", response.ContentType)
+
+// Set any additional headers
+if response.Headers != nil {
+    for key, values := range response.Headers {
+        for _, value := range values {
+            w.Header().Add(key, value)
+        }
+    }
+}
+
+// Write status and body
+w.WriteHeader(response.Status)
+json.NewEncoder(w).Encode(response.Body)
 ```
 
 ## Testing
