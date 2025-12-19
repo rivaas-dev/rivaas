@@ -1,5 +1,10 @@
 # Validation
 
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/validation.svg)](https://pkg.go.dev/rivaas.dev/validation)
+[![Go Report Card](https://goreportcard.com/badge/rivaas.dev/validation)](https://goreportcard.com/report/rivaas.dev/validation)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
+
 Flexible, multi-strategy validation for Go structs with support for struct tags, JSON Schema, and custom interfaces.
 
 ## Features
@@ -19,6 +24,8 @@ Flexible, multi-strategy validation for Go structs with support for struct tags,
 ```bash
 go get rivaas.dev/validation
 ```
+
+Requires Go 1.25+
 
 ## Quick Start
 
@@ -372,13 +379,6 @@ err := validator.Validate(ctx, &user,
 | Built-in redaction | ✅ | ❌ | ❌ |
 | Thread-safe | ✅ | ✅ | Varies |
 
-## Documentation
-
-For complete API documentation, see:
-- [Go package documentation](https://pkg.go.dev/rivaas.dev/validation)
-- [Package doc.go](./doc.go) - Comprehensive package overview
-- [Examples](./example_test.go) - Runnable examples
-
 ## Testing
 
 The package includes comprehensive tests:
@@ -397,11 +397,19 @@ go test -bench=. -benchmem
 go test -fuzz=FuzzValidate -fuzztime=30s
 ```
 
+## API Reference
+
+For detailed API documentation, see [pkg.go.dev/rivaas.dev/validation](https://pkg.go.dev/rivaas.dev/validation).
+
 ## Contributing
 
-See the main [Rivaas contributing guide](../docs/) for development standards and practices.
+Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
 
 ## License
 
-Apache License 2.0 - See [LICENSE](../LICENSE) for details.
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+
+---
+
+Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework ecosystem.
 
