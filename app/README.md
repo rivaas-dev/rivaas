@@ -1,4 +1,9 @@
-# Rivaas App
+# App
+
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/app.svg)](https://pkg.go.dev/rivaas.dev/app)
+[![Go Report Card](https://goreportcard.com/badge/rivaas.dev/app)](https://goreportcard.com/report/rivaas.dev/app)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
 A high-level, batteries-included web framework built on top of the Rivaas router. This package provides a simple, opinionated API for building web applications with integrated observability, middleware, and graceful shutdown.
 
@@ -11,6 +16,14 @@ A high-level, batteries-included web framework built on top of the Rivaas router
 - **Environment-Aware**: Development and production modes
 - **Functional Options**: Clean, extensible configuration API
 - **Type-Safe Configuration**: Validated configuration with clear error messages
+
+## Installation
+
+```bash
+go get rivaas.dev/app
+```
+
+Requires Go 1.25+
 
 ## When to Use
 
@@ -1168,6 +1181,18 @@ The `app` package is built on top of the `router` package and adds:
 3. **Graceful Degradation**: Works with or without observability components
 4. **Environment Awareness**: Different defaults for development vs production
 
+## API Reference
+
+For detailed API documentation, see [pkg.go.dev/rivaas.dev/app](https://pkg.go.dev/rivaas.dev/app).
+
+## Contributing
+
+Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+
 ## License
 
-MIT License - see LICENSE file for details.
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+
+---
+
+Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework ecosystem.
