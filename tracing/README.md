@@ -1,4 +1,9 @@
-# Rivaas Tracing
+# Tracing
+
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/tracing.svg)](https://pkg.go.dev/rivaas.dev/tracing)
+[![Go Report Card](https://goreportcard.com/badge/rivaas.dev/tracing)](https://goreportcard.com/report/rivaas.dev/tracing)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
 A distributed tracing package for Go applications using OpenTelemetry. This package provides easy-to-use tracing functionality with support for various exporters and seamless integration with HTTP frameworks.
 
@@ -11,6 +16,14 @@ A distributed tracing package for Go applications using OpenTelemetry. This pack
 - **Custom Attributes**: Add custom attributes and events to spans
 - **Path Filtering**: Exclude specific paths from tracing (via middleware options)
 - **Consistent API**: Same design patterns as the metrics package
+
+## Installation
+
+```bash
+go get rivaas.dev/tracing
+```
+
+Requires Go 1.25+
 
 ## Quick Start
 
@@ -403,6 +416,18 @@ defer func() {
 }()
 ```
 
+## API Reference
+
+For detailed API documentation, see [pkg.go.dev/rivaas.dev/tracing](https://pkg.go.dev/rivaas.dev/tracing).
+
+## Contributing
+
+Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+
 ## License
 
-Apache License 2.0 - see LICENSE file for details.
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+
+---
+
+Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework ecosystem.
