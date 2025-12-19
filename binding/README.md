@@ -2,6 +2,8 @@
 
 [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/binding.svg)](https://pkg.go.dev/rivaas.dev/binding)
 [![Go Report Card](https://goreportcard.com/badge/rivaas.dev/binding)](https://goreportcard.com/report/rivaas.dev/binding)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
 High-performance request data binding for Go web applications. Maps values from various sources (query parameters, form data, JSON bodies, headers, cookies, path parameters) into Go structs using struct tags.
 
@@ -22,7 +24,7 @@ High-performance request data binding for Go web applications. Maps values from 
 go get rivaas.dev/binding
 ```
 
-Requires Go 1.25.0 or higher.
+Requires Go 1.25+
 
 ## Quick Start
 
@@ -617,25 +619,17 @@ func CreateUserHandler(c *app.Context) {
 | Zero allocation | ✅ | ❌ | ❌ |
 | Nested structs | ✅ | ✅ | ✅ |
 
-## Documentation
+## API Reference
 
-- [Package Documentation](https://pkg.go.dev/rivaas.dev/binding) - Full API reference
-- [Examples](./example_test.go) - Runnable examples
-- [Tests](.) - Comprehensive test suite
+For detailed API documentation, see [pkg.go.dev/rivaas.dev/binding](https://pkg.go.dev/rivaas.dev/binding).
 
 ## Contributing
 
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Write tests for your changes
-4. Ensure all tests pass: `go test ./...`
-5. Submit a pull request
+Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
 
 ## License
 
-Apache License 2.0 — see [LICENSE](../LICENSE) for details.
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
 
 ---
 
