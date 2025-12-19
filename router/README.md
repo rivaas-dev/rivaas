@@ -1,9 +1,11 @@
-# Rivaas Router
+# Router
+
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router.svg)](https://pkg.go.dev/rivaas.dev/router)
+[![Go Report Card](https://goreportcard.com/badge/rivaas.dev/router)](https://goreportcard.com/report/rivaas.dev/router)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
 An HTTP router for Go, designed for cloud-native applications with comprehensive routing, middleware, and observability features.
-
-[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue.svg)](https://go.dev/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 ## Table of Contents
 
@@ -753,7 +755,7 @@ func CORS() router.HandlerFunc {
 go get rivaas.dev/router
 ```
 
-**Requirements**: Go 1.25.0 or higher
+Requires Go 1.25+
 
 ## Quick Start
 
@@ -3248,16 +3250,18 @@ Rivaas Router is **production-ready** with:
 - ✅ Concurrent-safe operations
 - ✅ Comprehensive test coverage
 
+## API Reference
+
+For detailed API documentation, see [pkg.go.dev/rivaas.dev/router](https://pkg.go.dev/rivaas.dev/router).
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](../LICENSE) file for details.
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
 
-## Links
+---
 
-- [Examples](examples/)
-- [Go Package Documentation](https://pkg.go.dev/rivaas.dev/router)
-- [GitHub Repository](https://github.com/rivaas-dev/rivaas)
+Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework ecosystem.
