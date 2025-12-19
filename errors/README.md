@@ -1,4 +1,9 @@
-# errors
+# Errors
+
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/errors.svg)](https://pkg.go.dev/rivaas.dev/errors)
+[![Go Report Card](https://goreportcard.com/badge/rivaas.dev/errors)](https://goreportcard.com/report/rivaas.dev/errors)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
 Framework-agnostic error formatting for HTTP responses.
 
@@ -11,6 +16,14 @@ This package provides a clean, extensible way to format errors for HTTP APIs, su
 - **Extensible**: Add custom formatters by implementing the `Formatter` interface
 - **Framework-agnostic**: Works with any HTTP handler (net/http, Gin, Echo, etc.)
 - **Type-safe**: Domain errors can implement optional interfaces to control formatting
+
+## Installation
+
+```bash
+go get rivaas.dev/errors
+```
+
+Requires Go 1.25+
 
 ## Quick Start
 
@@ -428,6 +441,18 @@ The package includes comprehensive tests. Run them with:
 go test ./errors/...
 ```
 
+## API Reference
+
+For detailed API documentation, see [pkg.go.dev/rivaas.dev/errors](https://pkg.go.dev/rivaas.dev/errors).
+
+## Contributing
+
+Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+
 ## License
 
-See the main project license.
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+
+---
+
+Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework ecosystem.
