@@ -1,4 +1,9 @@
-# logging
+# Logging
+
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/logging.svg)](https://pkg.go.dev/rivaas.dev/logging)
+[![Go Report Card](https://goreportcard.com/badge/rivaas.dev/logging)](https://goreportcard.com/report/rivaas.dev/logging)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
 Structured logging for Rivaas using Go's standard `log/slog` package.
 
@@ -19,6 +24,8 @@ Structured logging for Rivaas using Go's standard `log/slog` package.
 ```bash
 go get rivaas.dev/logging
 ```
+
+Requires Go 1.25+
 
 ## Dependencies
 
@@ -971,8 +978,6 @@ go test ./logging -race
 go test -bench=. -benchmem ./logging
 ```
 
-## API Reference
-
 ### Core Types
 
 - `Logger` - Main logging type (created via `New()` or `MustNew()`)
@@ -1084,13 +1089,9 @@ if err := logger.SetLevel(logging.LevelDebug); err != nil {
 }
 ```
 
-## License
+## API Reference
 
-MIT License - see LICENSE file for details
-
-## Contributing
-
-Contributions are welcome! Please see the main repository for contribution guidelines.
+For detailed API documentation, see [pkg.go.dev/rivaas.dev/logging](https://pkg.go.dev/rivaas.dev/logging).
 
 ## Related Packages
 
@@ -1098,3 +1099,15 @@ Contributions are welcome! Please see the main repository for contribution guide
 - [metrics](../metrics/) - OpenTelemetry metrics
 - [tracing](../tracing/) - Distributed tracing
 - [app](../app/) - Batteries-included framework
+
+## Contributing
+
+Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+
+## License
+
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+
+---
+
+Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework ecosystem.
