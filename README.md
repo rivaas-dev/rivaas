@@ -5,13 +5,15 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/rivaas.dev)](https://goreportcard.com/report/rivaas.dev)
 
-A high-performance, modular web framework for Go with integrated observability.
+> A high-performance, modular web framework for Go with **observability built-in, not bolted-on**.
 
 | Metric | Value |
 |--------|-------|
-| Throughput | 8.4M+ req/sec |
-| Latency | 119ns average |
-| Memory | 16 bytes/request |
+| Throughput | **8.4M+ req/sec** |
+| Latency | **119ns** average |
+| Memory | **16 bytes/request** |
+
+<sup>Benchmarked on Intel i7-1265U. See [benchmarks](./router/benchmarks/) for methodology and comparisons.</sup>
 
 ## Quick Start
 
@@ -19,8 +21,13 @@ A high-performance, modular web framework for Go with integrated observability.
 package main
 
 import (
+    "context"
     "log"
     "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+
     "rivaas.dev/app"
 )
 
@@ -34,7 +41,12 @@ func main() {
         c.JSON(http.StatusOK, map[string]string{"message": "Hello from Rivaas!"})
     })
 
-    a.Run(":8080")
+    ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer cancel()
+
+    if err := a.Start(ctx, ":8080"); err != nil {
+        log.Fatal(err)
+    }
 }
 ```
 
@@ -59,7 +71,7 @@ See [full-featured example](./app/examples/02-full-featured/) for a complete pro
 go get rivaas.dev/app
 ```
 
-Requires Go 1.25.0 or higher.
+Requires Go 1.25+
 
 ## Philosophy
 
@@ -69,17 +81,19 @@ This plant grows at high altitudes (1,500–3,000 meters) in harsh, rocky terrai
 
 That's the philosophy behind Rivaas:
 
-- **Resilient** — Built for production from day one, with graceful shutdown, health checks, and panic recovery
-- **Lightweight** — Minimal overhead (119ns latency, 16 bytes/request) without sacrificing features
-- **Adaptive** — Works locally, in containers, or across distributed systems with the same code
-- **Self-sufficient** — Integrated observability (metrics, tracing, logging) instead of bolted-on dependencies
+| Principle | Description |
+|-----------|-------------|
+| 🛡️ **Resilient** | Built for production with graceful shutdown, health checks, and panic recovery |
+| ⚡ **Lightweight** | Minimal overhead (119ns latency, 16 bytes/request) without sacrificing features |
+| 🔧 **Adaptive** | Works locally, in containers, or across distributed systems with the same code |
+| 📦 **Self-sufficient** | Integrated observability (metrics, tracing, logging) instead of bolted-on dependencies |
 
 Like its namesake growing in the mountains, Rivaas is designed to thrive in dynamic, cloud-native environments — **lightweight yet powerful, modular yet simple**.
 
 ## Why Rivaas?
 
-- **Production-Ready** — Graceful shutdown, health endpoints, panic recovery
-- **High Performance** — 8.4M+ req/sec, 119ns latency, 16 bytes/request
+- **Production-Ready** — Graceful shutdown, health endpoints, panic recovery, mTLS
+- **High Performance** — Radix tree router with Bloom filter optimization
 - **Flexible** — Use `app` for batteries-included or `router` for full control
 - **Cloud-Native** — OpenTelemetry-native with Prometheus, OTLP, Jaeger support
 - **Modular** — Each package works standalone without the full framework
@@ -88,32 +102,32 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 
 ### Core
 
-| Package | Description | Docs |
-|---------|-------------|------|
-| [app](./app/) | Batteries-included web framework | [README](./app/README.md) |
-| [router](./router/) | High-performance HTTP router | [README](./router/README.md) |
+| Package | Description |
+|---------|-------------|
+| [app](./app/) | Batteries-included web framework |
+| [router](./router/) | High-performance HTTP router |
 
 ### Data Handling
 
-| Package | Description | Docs |
-|---------|-------------|------|
-| [binding](./binding/) | Request binding (query, form, JSON, headers) | [README](./binding/README.md) |
-| [validation](./validation/) | Struct validation with tags and JSON Schema | [README](./validation/README.md) |
+| Package | Description |
+|---------|-------------|
+| [binding](./binding/) | Request binding (query, form, JSON, headers, XML, YAML, MsgPack, Proto) |
+| [validation](./validation/) | Struct validation with tags and JSON Schema |
 
 ### Observability
 
-| Package | Description | Docs |
-|---------|-------------|------|
-| [logging](./logging/) | Structured logging with slog | [README](./logging/README.md) |
-| [metrics](./metrics/) | OpenTelemetry metrics (Prometheus, OTLP) | [README](./metrics/README.md) |
-| [tracing](./tracing/) | Distributed tracing with OpenTelemetry | [README](./tracing/README.md) |
+| Package | Description |
+|---------|-------------|
+| [logging](./logging/) | Structured logging with slog |
+| [metrics](./metrics/) | OpenTelemetry metrics (Prometheus, OTLP) |
+| [tracing](./tracing/) | Distributed tracing (OTLP, Jaeger, stdout) |
 
 ### API & Errors
 
-| Package | Description | Docs |
-|---------|-------------|------|
-| [openapi](./openapi/) | Automatic OpenAPI 3.0/3.1 generation | [README](./openapi/README.md) |
-| [errors](./errors/) | Error formatting (RFC 9457, JSON:API) | [README](./errors/README.md) |
+| Package | Description |
+|---------|-------------|
+| [openapi](./openapi/) | Automatic OpenAPI 3.0/3.1 generation with Swagger UI |
+| [errors](./errors/) | Error formatting (RFC 9457, JSON:API) |
 
 ## Architecture
 
@@ -131,7 +145,7 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 └───────────────┴───────────────┴─────────────────────────────┘
 ```
 
-Each package is independently usable. The `app` package integrates them with automatic service metadata propagation and lifecycle management.
+Each package is independently usable with its own `go.mod`. The `app` package integrates them with automatic service metadata propagation and lifecycle management.
 
 ## Configuration
 
@@ -154,27 +168,28 @@ See [App Documentation](./app/README.md) for complete configuration options.
 
 ## Middleware
 
-Built-in production-ready middleware: `accesslog`, `recovery`, `cors`, `requestid`, `timeout`, `ratelimit`, `basicauth`, `bodylimit`, `compression`, `security`, `methodoverride`, `trailingslash`.
+12 production-ready middleware included: `accesslog`, `recovery`, `cors`, `requestid`, `timeout`, `ratelimit`, `basicauth`, `bodylimit`, `compression`, `security`, `methodoverride`, `trailingslash`.
 
-See [Middleware Documentation](./router/middleware/README.md) for usage and configuration.
+→ [Middleware Documentation](./router/middleware/README.md)
 
 ## Examples
 
-- **[App Examples](./app/examples/)** — Quick start and full-featured apps
-- **[Router Examples](./router/examples/)** — Routing, middleware, versioning
-- **[Logging Examples](./logging/examples/)** — Structured logging patterns
-- **[Middleware Examples](./router/middleware/examples/)** — All middleware usage
+| Directory | Description |
+|-----------|-------------|
+| [App Examples](./app/examples/) | Quick start and full-featured apps |
+| [Router Examples](./router/examples/) | Routing, middleware, versioning, static files |
+| [Middleware Examples](./router/middleware/examples/) | All middleware usage with curl commands |
 
 ## Performance
 
 | Metric | Value |
 |--------|-------|
-| Throughput | 8.4M+ req/sec |
-| Latency | 119ns average |
-| Memory | 16 bytes/request |
-| Allocations | 1 per request |
+| Throughput | **8.4M+ req/sec** |
+| Latency | **119ns** average |
+| Memory | **16 bytes/request** |
+| Allocations | **1 per request** |
 
-See [benchmarks](./router/benchmarks/) for detailed comparisons.
+→ [Benchmarks](./router/benchmarks/) — detailed comparisons with Gin, Echo, Chi, Fiber
 
 ## Repository Structure
 
@@ -191,18 +206,18 @@ rivaas/
 ├── tracing/      → rivaas.dev/tracing
 ├── openapi/      → rivaas.dev/openapi
 ├── errors/       → rivaas.dev/errors
-└── go.work
+└── go.work       → workspace configuration
 ```
 
 ## Documentation
 
 | Resource | Description |
 |----------|-------------|
-| [App Guide](./app/README.md) | Framework documentation |
-| [Router Guide](./router/README.md) | HTTP routing and binding |
-| [Middleware](./router/middleware/README.md) | Middleware catalog |
-| [Design Principles](./docs/DESIGN_PRINCIPLES.md) | Architecture decisions |
-| [Testing Standards](./docs/TESTING_STANDARDS.md) | Testing guidelines |
+| [App Guide](./app/README.md) | Complete framework documentation |
+| [Router Guide](./router/README.md) | HTTP routing and request handling |
+| [Middleware Catalog](./router/middleware/README.md) | All 12 middleware with examples |
+| [Design Principles](./docs/DESIGN_PRINCIPLES.md) | Architecture and design decisions |
+| [Testing Standards](./docs/TESTING_STANDARDS.md) | Testing guidelines and patterns |
 
 ## Contributing
 
