@@ -1,4 +1,9 @@
-# OpenAPI Package
+# OpenAPI
+
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/openapi.svg)](https://pkg.go.dev/rivaas.dev/openapi)
+[![Go Report Card](https://goreportcard.com/badge/rivaas.dev/openapi)](https://goreportcard.com/report/rivaas.dev/openapi)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
 Automatic OpenAPI 3.0.4 and 3.1.2 specification generation for Go applications.
 
@@ -19,6 +24,14 @@ This package enables automatic generation of OpenAPI specifications from Go code
 - **Collision-Resistant Naming** - Schema names use `pkgname.TypeName` format to prevent collisions
 - **Built-in Validation** - Validates generated specs against official OpenAPI meta-schemas
 - **Standalone Validator** - Validate external OpenAPI specs with pre-compiled schemas
+
+## Installation
+
+```bash
+go get rivaas.dev/openapi
+```
+
+Requires Go 1.25+
 
 ## Quick Start
 
@@ -797,6 +810,18 @@ api := openapi.MustNew(
 )
 ```
 
+## API Reference
+
+For detailed API documentation, see [pkg.go.dev/rivaas.dev/openapi](https://pkg.go.dev/rivaas.dev/openapi).
+
+## Contributing
+
+Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+
 ## License
 
-Apache License 2.0
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+
+---
+
+Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework ecosystem.
