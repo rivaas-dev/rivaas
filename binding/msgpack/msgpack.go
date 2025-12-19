@@ -32,7 +32,6 @@ package msgpack
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 
 	"github.com/vmihailenco/msgpack/v5"
@@ -45,17 +44,8 @@ type Option func(*config)
 
 // config holds MessagePack-specific binding configuration.
 type config struct {
-	validator      binding.Validator
 	useJSONTag     bool // Use json tag for field names instead of msgpack
 	disallowUnknow bool // Disallow unknown fields
-}
-
-// WithValidator integrates external validation.
-// The validator is called after successful binding.
-func WithValidator(v binding.Validator) Option {
-	return func(c *config) {
-		c.validator = v
-	}
 }
 
 // WithJSONTag enables using JSON struct tags for field names.
@@ -140,17 +130,11 @@ func MsgPackReaderTo(r io.Reader, out any, opts ...Option) error {
 
 func bindMsgPackBytes(out any, body []byte, cfg *config) error {
 	// If we need custom options, use decoder; otherwise use simple unmarshal
-	var err error
 	if cfg.useJSONTag || cfg.disallowUnknow {
-		err = decodeWithOptions(bytes.NewReader(body), out, cfg)
-	} else {
-		err = msgpack.Unmarshal(body, out)
-	}
-	if err != nil {
-		return err
+		return decodeWithOptions(bytes.NewReader(body), out, cfg)
 	}
 
-	return runValidator(out, cfg)
+	return msgpack.Unmarshal(body, out)
 }
 
 // decodeWithOptions creates a decoder with custom options and decodes.
@@ -166,30 +150,8 @@ func decodeWithOptions(r io.Reader, out any, cfg *config) error {
 	return dec.Decode(out)
 }
 
-// runValidator runs the configured validator if present.
-func runValidator(out any, cfg *config) error {
-	if cfg.validator == nil {
-		return nil
-	}
-
-	if err := cfg.validator.Validate(out); err != nil {
-		return &binding.BindError{
-			Field:  "",
-			Source: binding.SourceMsgPack,
-			Reason: fmt.Sprintf("validation failed: %v", err),
-			Err:    err,
-		}
-	}
-
-	return nil
-}
-
 func bindMsgPackReader(out any, r io.Reader, cfg *config) error {
-	if err := decodeWithOptions(r, out, cfg); err != nil {
-		return err
-	}
-
-	return runValidator(out, cfg)
+	return decodeWithOptions(r, out, cfg)
 }
 
 // sourceGetter is a marker type for MessagePack body source.

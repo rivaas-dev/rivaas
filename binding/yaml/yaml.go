@@ -33,7 +33,6 @@ package yaml
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 
 	"gopkg.in/yaml.v3"
@@ -46,16 +45,7 @@ type Option func(*config)
 
 // config holds YAML-specific binding configuration.
 type config struct {
-	validator binding.Validator
-	strict    bool
-}
-
-// WithValidator integrates external validation.
-// The validator is called after successful binding.
-func WithValidator(v binding.Validator) Option {
-	return func(c *config) {
-		c.validator = v
-	}
+	strict bool
 }
 
 // WithStrict enables strict YAML parsing.
@@ -143,18 +133,6 @@ func bindYAMLBytes(out any, body []byte, cfg *config) error {
 		}
 	}
 
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			return &binding.BindError{
-				Field:  "",
-				Source: binding.SourceYAML,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -166,18 +144,6 @@ func bindYAMLReader(out any, r io.Reader, cfg *config) error {
 
 	if err := decoder.Decode(out); err != nil {
 		return err
-	}
-
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			return &binding.BindError{
-				Field:  "",
-				Source: binding.SourceYAML,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-		}
 	}
 
 	return nil

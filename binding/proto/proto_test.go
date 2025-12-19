@@ -23,7 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"rivaas.dev/binding"
 	"rivaas.dev/binding/proto/testdata"
 )
 
@@ -263,35 +262,6 @@ func TestProto_WithRecursionLimit(t *testing.T) {
 	assert.Equal(t, "John", result.GetName())
 }
 
-func TestProto_WithValidator(t *testing.T) {
-	t.Parallel()
-
-	user := &testdata.User{
-		Name:   "John",
-		Email:  "john@example.com",
-		Age:    30,
-		Active: true,
-	}
-	body, err := proto.Marshal(user)
-	require.NoError(t, err)
-
-	// With passing validator
-	passingValidator := &testValidator{shouldFail: false}
-	result, err := Proto[*testdata.User](body, WithValidator(passingValidator))
-	require.NoError(t, err)
-	assert.Equal(t, "John", result.GetName())
-
-	// With failing validator
-	failingValidator := &testValidator{shouldFail: true, errMsg: "validation failed"}
-	_, err = Proto[*testdata.User](body, WithValidator(failingValidator))
-	require.Error(t, err)
-
-	// Verify it's a BindError
-	var bindErr *binding.BindError
-	require.ErrorAs(t, err, &bindErr)
-	assert.Equal(t, binding.SourceProto, bindErr.Source)
-}
-
 func TestProto_MultipleOptions(t *testing.T) {
 	t.Parallel()
 
@@ -370,7 +340,6 @@ func TestApplyOptions_DefaultValues(t *testing.T) {
 	assert.Equal(t, 10000, cfg.recursionLimit)
 	assert.False(t, cfg.allowPartial)
 	assert.False(t, cfg.discardUnknown)
-	assert.Nil(t, cfg.validator)
 }
 
 func TestConfig_ToUnmarshalOptions(t *testing.T) {

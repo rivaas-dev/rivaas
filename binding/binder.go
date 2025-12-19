@@ -37,7 +37,6 @@ import (
 //	binder := binding.MustNew(
 //	    binding.WithConverter[uuid.UUID](uuid.Parse),
 //	    binding.WithTimeLayouts("2006-01-02"),
-//	    binding.WithRequired(),
 //	)
 //
 //	// Generic usage with helper function
@@ -57,7 +56,6 @@ type Binder struct {
 //
 //	binder, err := binding.New(
 //	    binding.WithMaxDepth(16),
-//	    binding.WithRequired(),
 //	)
 //	if err != nil {
 //	    return fmt.Errorf("failed to create binder: %w", err)

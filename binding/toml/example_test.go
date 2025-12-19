@@ -237,35 +237,3 @@ unknown = "ignored"
 	// Output: Name: myapp
 	// Undecoded keys: [unknown]
 }
-
-// ExampleTOML_withValidator demonstrates TOML binding with validation.
-func ExampleTOML_withValidator() {
-	type Config struct {
-		Title string `toml:"title"`
-		Port  int    `toml:"port"`
-	}
-
-	body := []byte(`
-title = "My App"
-port = 8080
-`)
-
-	// Create a simple validator
-	validator := &simpleValidator{}
-
-	config, err := toml.TOML[Config](body, toml.WithValidator(validator))
-	if err != nil {
-		_, _ = fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	_, _ = fmt.Printf("Title: %s, Port: %d\n", config.Title, config.Port)
-	// Output: Title: My App, Port: 8080
-}
-
-// simpleValidator is a test validator for examples.
-type simpleValidator struct{}
-
-func (v *simpleValidator) Validate(data any) error {
-	return nil
-}

@@ -33,7 +33,6 @@ package toml
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 
 	"github.com/BurntSushi/toml"
@@ -45,17 +44,7 @@ import (
 type Option func(*config)
 
 // config holds TOML-specific binding configuration.
-type config struct {
-	validator binding.Validator
-}
-
-// WithValidator integrates external validation.
-// The validator is called after successful binding.
-func WithValidator(v binding.Validator) Option {
-	return func(c *config) {
-		c.validator = v
-	}
-}
+type config struct{}
 
 func applyOptions(opts []Option) *config {
 	cfg := &config{}
@@ -141,42 +130,18 @@ func TOMLReaderTo(r io.Reader, out any, opts ...Option) error {
 	return bindTOMLReader(out, r, cfg)
 }
 
-func bindTOMLBytes(out any, body []byte, cfg *config) error {
+func bindTOMLBytes(out any, body []byte, _ *config) error {
 	if _, err := toml.Decode(string(body), out); err != nil {
 		return err
-	}
-
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			return &binding.BindError{
-				Field:  "",
-				Source: binding.SourceTOML,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-		}
 	}
 
 	return nil
 }
 
-func bindTOMLBytesWithMeta(out any, body []byte, cfg *config) (Metadata, error) {
+func bindTOMLBytesWithMeta(out any, body []byte, _ *config) (Metadata, error) {
 	meta, err := toml.Decode(string(body), out)
 	if err != nil {
 		return meta, err
-	}
-
-	// Run validator if configured
-	if cfg.validator != nil {
-		if validateErr := cfg.validator.Validate(out); validateErr != nil {
-			return meta, &binding.BindError{
-				Field:  "",
-				Source: binding.SourceTOML,
-				Reason: fmt.Sprintf("validation failed: %v", validateErr),
-				Err:    validateErr,
-			}
-		}
 	}
 
 	return meta, nil

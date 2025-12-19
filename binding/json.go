@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -33,12 +32,10 @@ import (
 //	// With options
 //	user, err := binding.JSON[CreateUserRequest](body,
 //	    binding.WithUnknownFields(binding.UnknownError),
-//	    binding.WithRequired(),
 //	)
 //
 // Errors:
 //   - [ErrOutMustBePointer]: T is not a struct type
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [UnknownFieldError]: when [WithUnknownFields] is [UnknownError] and unknown fields are present
 //   - [BindError]: field-level binding errors with detailed context
@@ -62,7 +59,6 @@ func JSON[T any](body []byte, opts ...Option) (T, error) {
 //
 // Errors:
 //   - [ErrOutMustBePointer]: T is not a struct type
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [UnknownFieldError]: when [WithUnknownFields] is [UnknownError] and unknown fields are present
 //   - [BindError]: field-level binding errors with detailed context
@@ -127,19 +123,6 @@ func bindJSONReaderInternal(out any, r io.Reader, cfg *config) error {
 		return err
 	}
 
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			cfg.trackError()
-			return &BindError{
-				Field:  "",
-				Source: SourceJSON,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -187,19 +170,6 @@ func bindJSONBytesInternal(out any, body []byte, cfg *config) error {
 		if err := decoder.Decode(out); err != nil {
 			cfg.trackError()
 			return err
-		}
-	}
-
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			cfg.trackError()
-			return &BindError{
-				Field:  "",
-				Source: SourceJSON,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
 		}
 	}
 

@@ -254,23 +254,6 @@ func FuzzJSONBinding(f *testing.F) {
 	})
 }
 
-// FuzzValidateEnum tests enum validation with fuzz input
-func FuzzValidateEnum(f *testing.F) {
-	// Seed corpus
-	f.Add("active", "active,inactive,pending")
-	f.Add("invalid", "active,inactive,pending")
-	f.Add("", "active,inactive,pending")
-	f.Add("active", "")
-	f.Add("", "")
-	f.Add("a,b,c", "a,b,c")
-	f.Add("value", "value")
-
-	f.Fuzz(func(t *testing.T, value, enumValues string) {
-		// Should never panic
-		_ = validateEnum(value, enumValues)
-	})
-}
-
 // FuzzMapBinding tests map binding with various key patterns
 func FuzzMapBinding(f *testing.F) {
 	// Seed corpus with map key patterns

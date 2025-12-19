@@ -232,42 +232,6 @@ func ExampleProto_mapFields() {
 	// Environment: production
 }
 
-// ExampleProto_withValidator demonstrates Protocol Buffers binding with validation.
-func ExampleProto_withValidator() {
-	// Create a test user message
-	user := &testdata.User{
-		Name:   "Charlie",
-		Email:  "charlie@example.com",
-		Age:    28,
-		Active: true,
-	}
-
-	// Marshal to proto bytes
-	body, err := goproto.Marshal(user)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Create a simple validator
-	validator := &simpleValidator{}
-
-	// Bind with validation
-	result, err := proto.Proto[*testdata.User](body, proto.WithValidator(validator))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	_, _ = fmt.Printf("Name: %s, Validated: true\n", result.GetName())
-	// Output: Name: Charlie, Validated: true
-}
-
-// simpleValidator is a test validator for examples.
-type simpleValidator struct{}
-
-func (v *simpleValidator) Validate(data any) error {
-	return nil
-}
-
 // ExampleProto_multipleOptions demonstrates using multiple options together.
 func ExampleProto_multipleOptions() {
 	// Create a test user message

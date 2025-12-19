@@ -31,7 +31,7 @@ type Metadata struct {
 }
 
 // fieldInfo stores cached information about a struct field.
-// It contains parsed tag information, type metadata, and validation rules
+// It contains parsed tag information and type metadata
 // that are computed once and reused across binding operations.
 type fieldInfo struct {
 	index           []int        // Field index path (supports nested structs)
@@ -45,11 +45,9 @@ type fieldInfo struct {
 	isMap           bool         // Whether field is a map type
 	isStruct        bool         // Whether field is a nested struct
 	elemKind        reflect.Kind // Element type for slices
-	enumValues      string       // Comma-separated enum values from tag
 	defaultValue    string       // Raw default value from tag
 	typedDefault    any          // Converted default value (nil if invalid or not set)
 	hasTypedDefault bool         // Whether typedDefault is valid
-	isRequired      bool         // Whether field has required:"true" tag
 }
 
 // structInfo holds cached parsing information for a struct type.

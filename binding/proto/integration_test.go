@@ -327,49 +327,6 @@ func TestIntegration_ProtoWithDiscardUnknown(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-// TestIntegration_ProtoWithValidator tests Protocol Buffers binding with validation
-func TestIntegration_ProtoWithValidator(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-	t.Parallel()
-
-	validator := &ageValidator{minAge: 18}
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "failed to read body", http.StatusInternalServerError)
-			return
-		}
-
-		user, err := proto.Proto[*testdata.User](body, proto.WithValidator(validator))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		assert.Equal(t, "Adult", user.GetName())
-		w.WriteHeader(http.StatusOK)
-	})
-
-	// Create Protocol Buffers encoded body with valid age
-	user := &testdata.User{
-		Name:  "Adult",
-		Email: "adult@example.com",
-		Age:   25,
-	}
-	body, err := goproto.Marshal(user)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/user", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/x-protobuf")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
 // TestIntegration_ProtoLargePayload tests Protocol Buffers binding with larger payloads
 func TestIntegration_ProtoLargePayload(t *testing.T) {
 	if testing.Short() {

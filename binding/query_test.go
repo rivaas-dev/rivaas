@@ -924,87 +924,6 @@ func TestBind_QueryNestedStructs(t *testing.T) {
 	assert.Equal(t, "10001", params.Address.ZipCode)
 }
 
-// TestBind_QueryEnumValidation tests enum validation
-func TestBind_QueryEnumValidation(t *testing.T) {
-	t.Parallel()
-
-	type StatusParams struct {
-		Status   string `query:"status" enum:"active,inactive,pending"`
-		Role     string `query:"role" enum:"admin,user,guest"`
-		Priority string `query:"priority" enum:"low,medium,high"`
-	}
-
-	tests := []struct {
-		name     string
-		values   url.Values
-		wantErr  bool
-		validate func(t *testing.T, params StatusParams)
-	}{
-		{
-			name: "valid enum values",
-			values: func() url.Values {
-				v := url.Values{}
-				v.Set("status", "active")
-				v.Set("role", "admin")
-				v.Set("priority", "high")
-
-				return v
-			}(),
-			wantErr: false,
-			validate: func(t *testing.T, params StatusParams) {
-				t.Helper()
-				assert.Equal(t, "active", params.Status)
-				assert.Equal(t, "admin", params.Role)
-				assert.Equal(t, "high", params.Priority)
-			},
-		},
-		{
-			name: "invalid enum value",
-			values: func() url.Values {
-				v := url.Values{}
-				v.Set("status", "invalid-status")
-
-				return v
-			}(),
-			wantErr:  true,
-			validate: func(t *testing.T, params StatusParams) { t.Helper() },
-		},
-		{
-			name: "empty value passes enum validation",
-			values: func() url.Values {
-				v := url.Values{}
-				v.Set("role", "admin")
-
-				return v
-			}(),
-			wantErr: false,
-			validate: func(t *testing.T, params StatusParams) {
-				t.Helper()
-				assert.Equal(t, "admin", params.Role)
-				assert.Empty(t, params.Status, "Status should be empty")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			getter := NewQueryGetter(tt.values)
-			var params StatusParams
-			err := Raw(getter, TagQuery, &params)
-
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.ErrorContains(t, err, "not in allowed values")
-			} else {
-				require.NoError(t, err)
-				tt.validate(t, params)
-			}
-		})
-	}
-}
-
 // TestBind_QueryDefaultValues tests default values
 func TestBind_QueryDefaultValues(t *testing.T) {
 	t.Parallel()
@@ -1825,8 +1744,8 @@ func TestBind_QueryAllComplexTypes(t *testing.T) {
 			City   string `query:"city"`
 		} `query:"address"`
 
-		// Enum validation
-		Status string `query:"status" enum:"active,inactive"`
+		// Status field
+		Status string `query:"status"`
 
 		// Slices of complex types
 		Dates []time.Time `query:"dates"`
@@ -1862,7 +1781,7 @@ func TestBind_QueryAllComplexTypes(t *testing.T) {
 				// Nested struct
 				v.Set("address.street", "Main St")
 				v.Set("address.city", "NYC")
-				// Enum
+				// Status
 				v.Set("status", "active")
 				// Slices
 				v.Add("dates", "2024-01-15")

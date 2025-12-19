@@ -135,13 +135,11 @@ var (
 	ErrUnableToParseTime       = errors.New("unable to parse time")
 	ErrOnlyMapStringTSupported = errors.New("only map[string]T is supported")
 	ErrInvalidBracketNotation  = errors.New("invalid bracket notation in key")
-	ErrValueNotInAllowedValues = errors.New("value not in allowed values")
 	ErrMaxDepthExceeded        = errors.New("exceeded maximum nesting depth")
 	ErrSliceExceedsMaxLength   = errors.New("slice exceeds max length")
 	ErrMapExceedsMaxSize       = errors.New("map exceeds max size")
 	ErrInvalidStructTag        = errors.New("invalid struct tag")
 	ErrInvalidUUIDFormat       = errors.New("invalid UUID format")
-	ErrRequiredField           = errors.New("required field is missing")
 	ErrNoSourcesProvided       = errors.New("no binding sources provided")
 )
 
@@ -193,25 +191,9 @@ func (e *BindError) Code() string {
 	return "binding_error"
 }
 
-// IsRequired returns true if the error is due to a missing required field.
-func (e *BindError) IsRequired() bool {
-	return errors.Is(e.Err, ErrRequiredField)
-}
-
 // IsType returns true if the error is due to a type conversion failure.
 func (e *BindError) IsType() bool {
-	return e.Err != nil && !e.IsRequired() && !e.IsValidation() && !e.IsEnum()
-}
-
-// IsValidation returns true if the error is a validation error.
-func (e *BindError) IsValidation() bool {
-	// Check if it's from the validator
-	return e.Reason != "" && strings.Contains(e.Reason, "validation")
-}
-
-// IsEnum returns true if the error is due to an invalid enum value.
-func (e *BindError) IsEnum() bool {
-	return errors.Is(e.Err, ErrValueNotInAllowedValues)
+	return e.Err != nil
 }
 
 // UnknownFieldError is returned when strict JSON decoding encounters unknown fields.

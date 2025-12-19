@@ -222,39 +222,6 @@ func ExampleMsgPack_maps() {
 	// Output: Log Level: debug
 }
 
-// ExampleMsgPack_withValidator demonstrates MessagePack binding with validation.
-func ExampleMsgPack_withValidator() {
-	type Config struct {
-		Name string `msgpack:"name"`
-		Port int    `msgpack:"port"`
-	}
-
-	original := Config{Name: "myapp", Port: 8080}
-	body, err := mp.Marshal(&original)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Create a simple validator
-	validator := &simpleValidator{}
-
-	config, err := msgpack.MsgPack[Config](body, msgpack.WithValidator(validator))
-	if err != nil {
-		_, _ = fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	_, _ = fmt.Printf("Name: %s, Port: %d\n", config.Name, config.Port)
-	// Output: Name: myapp, Port: 8080
-}
-
-// simpleValidator is a test validator for examples.
-type simpleValidator struct{}
-
-func (v *simpleValidator) Validate(data any) error {
-	return nil
-}
-
 // ExampleMsgPack_withDisallowUnknown demonstrates strict unknown field handling.
 func ExampleMsgPack_withDisallowUnknown() {
 	type Config struct {

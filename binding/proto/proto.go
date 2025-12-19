@@ -32,7 +32,6 @@
 package proto
 
 import (
-	"fmt"
 	"io"
 
 	"google.golang.org/protobuf/proto"
@@ -48,18 +47,9 @@ type Option func(*config)
 
 // config holds Proto-specific binding configuration.
 type config struct {
-	validator      binding.Validator
 	allowPartial   bool
 	discardUnknown bool
 	recursionLimit int
-}
-
-// WithValidator integrates external validation.
-// The validator is called after successful binding.
-func WithValidator(v binding.Validator) Option {
-	return func(c *config) {
-		c.validator = v
-	}
 }
 
 // WithAllowPartial allows messages that have missing required fields to unmarshal
@@ -176,24 +166,7 @@ func ProtoReaderTo(r io.Reader, out Message, opts ...Option) error {
 
 func bindProtoBytes(out Message, body []byte, cfg *config) error {
 	unmarshalOpts := cfg.toUnmarshalOptions()
-
-	if err := unmarshalOpts.Unmarshal(body, out); err != nil {
-		return err
-	}
-
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			return &binding.BindError{
-				Field:  "",
-				Source: binding.SourceProto,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-		}
-	}
-
-	return nil
+	return unmarshalOpts.Unmarshal(body, out)
 }
 
 func bindProtoReader(out Message, r io.Reader, cfg *config) error {

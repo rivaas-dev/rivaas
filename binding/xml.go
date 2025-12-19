@@ -16,7 +16,6 @@ package binding
 
 import (
 	"encoding/xml"
-	"fmt"
 	"io"
 )
 
@@ -26,14 +25,8 @@ import (
 //
 //	user, err := binding.XML[CreateUserRequest](body)
 //
-//	// With options
-//	user, err := binding.XML[CreateUserRequest](body,
-//	    binding.WithRequired(),
-//	)
-//
 // Errors:
 //   - [ErrOutMustBePointer]: T is not a struct type
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [BindError]: field-level binding errors with detailed context
 func XML[T any](body []byte, opts ...Option) (T, error) {
@@ -55,7 +48,6 @@ func XML[T any](body []byte, opts ...Option) (T, error) {
 //
 // Errors:
 //   - [ErrOutMustBePointer]: T is not a struct type
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [BindError]: field-level binding errors with detailed context
 func XMLReader[T any](r io.Reader, opts ...Option) (T, error) {
@@ -107,19 +99,6 @@ func bindXMLReaderInternal(out any, r io.Reader, cfg *config) error {
 		return err
 	}
 
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			cfg.trackError()
-			return &BindError{
-				Field:  "",
-				Source: SourceXML,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -128,19 +107,6 @@ func bindXMLBytesInternal(out any, body []byte, cfg *config) error {
 	if err := xml.Unmarshal(body, out); err != nil {
 		cfg.trackError()
 		return err
-	}
-
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			cfg.trackError()
-			return &BindError{
-				Field:  "",
-				Source: SourceXML,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-		}
 	}
 
 	return nil

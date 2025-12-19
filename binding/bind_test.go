@@ -476,22 +476,6 @@ func TestBind_NestedStructError(t *testing.T) {
 			validate:      func(t *testing.T, bindErr *BindError) { t.Helper() },
 		},
 		{
-			name: "nested struct with invalid enum",
-			values: func() url.Values {
-				v := url.Values{}
-				v.Set("config.status", "invalid")
-
-				return v
-			}(),
-			params: &struct {
-				Config struct {
-					Status string `query:"status" enum:"active,inactive"`
-				} `query:"config"`
-			}{},
-			expectedField: "Config",
-			validate:      func(_ *testing.T, _ *BindError) {},
-		},
-		{
 			name: "deeply nested struct error",
 			values: func() url.Values {
 				v := url.Values{}
@@ -1128,17 +1112,16 @@ func TestBindTo(t *testing.T) {
 
 		type Request struct {
 			ID   int `path:"id"`
-			Page int `query:"page" enum:"1,2,3"` // Invalid value
+			Page int `query:"page"` // test type error
 		}
 
 		var req Request
 		err := BindTo(&req,
 			FromPath(map[string]string{"id": "123"}),
-			FromQuery(url.Values{"page": {"99"}}), // Invalid enum value
+			FromQuery(url.Values{"page": {"not-a-number"}}), // Type conversion error
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "query")
-		assert.Contains(t, err.Error(), "allowed values")
 	})
 
 	t.Run("handles embedded structs", func(t *testing.T) {
@@ -1190,4 +1173,122 @@ func TestBindTo(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil")
 	})
+}
+
+// TestBind_UnsupportedTypes tests binding with unsupported Go types
+func TestBind_UnsupportedTypes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		values         url.Values
+		params         any
+		wantErr        bool
+		expectedErrMsg string
+		validate       func(t *testing.T, err error)
+	}{
+		{
+			name: "unsupported type - Array",
+			values: func() url.Values {
+				v := url.Values{}
+				v.Set("data", "1,2,3")
+
+				return v
+			}(),
+			params: &struct {
+				Data [5]int `query:"data"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate: func(t *testing.T, err error) {
+				t.Helper()
+				assert.ErrorContains(t, err, "array", "Error should mention 'array'")
+			},
+		},
+		{
+			name: "unsupported type - Chan",
+			values: func() url.Values {
+				v := url.Values{}
+				v.Set("channel", "test")
+
+				return v
+			}(),
+			params: &struct {
+				Channel chan int `query:"channel"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate: func(t *testing.T, err error) {
+				t.Helper()
+				assert.ErrorContains(t, err, "Chan", "Error should mention 'Chan'")
+			},
+		},
+		{
+			name: "unsupported type - Func",
+			values: func() url.Values {
+				v := url.Values{}
+				v.Set("handler", "test")
+
+				return v
+			}(),
+			params: &struct {
+				Handler func() `query:"handler"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate: func(t *testing.T, err error) {
+				t.Helper()
+				assert.ErrorContains(t, err, "func", "Error should mention 'func'")
+			},
+		},
+		{
+			name: "unsupported type - Complex64",
+			values: func() url.Values {
+				v := url.Values{}
+				v.Set("complex", "1+2i")
+
+				return v
+			}(),
+			params: &struct {
+				Complex complex64 `query:"complex"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate:       func(t *testing.T, err error) { t.Helper() },
+		},
+		{
+			name: "unsupported type - Complex128",
+			values: func() url.Values {
+				v := url.Values{}
+				v.Set("complex", "1+2i")
+
+				return v
+			}(),
+			params: &struct {
+				Complex complex128 `query:"complex"`
+			}{},
+			wantErr:        true,
+			expectedErrMsg: "unsupported type",
+			validate:       func(t *testing.T, err error) { t.Helper() },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := Raw(NewQueryGetter(tt.values), TagQuery, tt.params)
+
+			if tt.wantErr {
+				require.Error(t, err, "Expected error for %s", tt.name)
+				if tt.expectedErrMsg != "" {
+					require.ErrorContains(t, err, tt.expectedErrMsg, "Error should contain %q", tt.expectedErrMsg)
+				}
+				tt.validate(t, err)
+			} else {
+				// May or may not error, just test the path
+				_ = err
+			}
+		})
+	}
 }

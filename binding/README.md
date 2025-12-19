@@ -11,9 +11,10 @@ High-performance request data binding for Go web applications. Maps values from 
 - **Type Safe** - Generic API for compile-time type safety
 - **Zero Allocation** - Struct reflection info cached for performance
 - **Flexible** - Nested structs, slices, maps, pointers, custom types
-- **Validation** - Built-in enum validation, required fields, custom validators
 - **Error Context** - Detailed field-level error information
 - **Extensible** - Custom type converters and value getters
+
+> **Note:** For validation (required fields, enum constraints, etc.), use the `rivaas.dev/validation` package separately after binding.
 
 ## Installation
 
@@ -31,8 +32,8 @@ Requires Go 1.25.0 or higher.
 import "rivaas.dev/binding"
 
 type CreateUserRequest struct {
-    Name  string `json:"name" required:"true"`
-    Email string `json:"email" required:"true"`
+    Name  string `json:"name"`
+    Email string `json:"email"`
     Age   int    `json:"age"`
 }
 
@@ -54,7 +55,7 @@ type ListParams struct {
     Page   int      `query:"page" default:"1"`
     Limit  int      `query:"limit" default:"20"`
     Tags   []string `query:"tags"`
-    SortBy string   `query:"sort_by" enum:"name,date,popularity"`
+    SortBy string   `query:"sort_by"`
 }
 
 params, err := binding.Query[ListParams](r.URL.Query())
@@ -98,7 +99,6 @@ import "github.com/google/uuid"
 binder := binding.MustNew(
     binding.WithConverter[uuid.UUID](uuid.Parse),
     binding.WithTimeLayouts("2006-01-02", "01/02/2006"),
-    binding.WithRequired(),
     binding.WithMaxDepth(16),
 )
 
@@ -155,16 +155,12 @@ type Config struct {
     // Default value when field is not present
     Port int `query:"port" default:"8080"`
     
-    // Enum validation
-    Status string `query:"status" enum:"active,pending,disabled"`
-    
-    // Required field (when WithRequired() is used)
-    APIKey string `header:"X-API-Key" required:"true"`
-    
     // Tag aliases for multiple lookup names
     UserID int `query:"user_id,id"`
 }
 ```
+
+> **Note:** For validation constraints (required, enum, etc.), use the `rivaas.dev/validation` package with the `validate` struct tag.
 
 ## Type Support
 
@@ -232,19 +228,6 @@ user, err := binding.JSON[User](body,
 )
 ```
 
-### Required Fields
-
-```go
-type User struct {
-    Name  string `json:"name" required:"true"`
-    Email string `json:"email" required:"true"`
-}
-
-user, err := binding.JSON[User](body,
-    binding.WithRequired(), // Enforce required:"true" tags
-)
-```
-
 ### Slice Parsing
 
 ```go
@@ -284,17 +267,6 @@ if err != nil {
 }
 ```
 
-### Validation Integration
-
-```go
-binder := binding.MustNew(
-    binding.WithValidator(myValidator),
-)
-
-user, err := binder.JSON[User](body)
-// Validator is called after successful binding
-```
-
 ### Observability
 
 ```go
@@ -332,14 +304,8 @@ if err != nil {
         fmt.Printf("Reason: %s\n", bindErr.Reason)
         
         // Check error type
-        if bindErr.IsRequired() {
-            // Missing required field
-        }
         if bindErr.IsType() {
             // Type conversion failed
-        }
-        if bindErr.IsEnum() {
-            // Invalid enum value
         }
     }
 }
@@ -623,7 +589,6 @@ func CreateUserHandler(c *app.Context) {
 | Multi-source | ✅ | ❌ | ❌ |
 | JSON/XML | ✅ | ❌ | ❌ |
 | Custom converters | ✅ | ✅ | ✅ |
-| Enum validation | ✅ | ❌ | ❌ |
 | Error context | ✅ | ⚠️ | ⚠️ |
 | Zero allocation | ✅ | ❌ | ❌ |
 | Nested structs | ✅ | ✅ | ✅ |

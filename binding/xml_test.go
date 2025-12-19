@@ -99,34 +99,6 @@ func TestXML_InvalidXML(t *testing.T) {
 	require.Error(t, err)
 }
 
-// mockValidator implements Validator for testing
-type mockValidator struct {
-	validateFunc func(v any) error
-}
-
-func (m *mockValidator) Validate(v any) error {
-	if m.validateFunc != nil {
-		return m.validateFunc(v)
-	}
-
-	return nil
-}
-
-func TestXML_WithValidator(t *testing.T) {
-	t.Parallel()
-	body := []byte(`<XMLUser><name>John</name><email>john@example.com</email><age>30</age></XMLUser>`)
-
-	validator := &mockValidator{
-		validateFunc: func(v any) error {
-			return nil
-		},
-	}
-
-	user, err := XML[XMLUser](body, WithValidator(validator))
-	require.NoError(t, err)
-	assert.Equal(t, "John", user.Name)
-}
-
 func TestXML_WithStrict(t *testing.T) {
 	t.Parallel()
 	// Test with strict mode enabled

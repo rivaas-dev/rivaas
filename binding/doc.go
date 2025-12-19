@@ -17,7 +17,10 @@
 // The binding package maps values from various sources (query parameters,
 // form data, JSON bodies, headers, cookies, path parameters) into Go structs
 // using struct tags. It supports nested structs, slices, maps, pointers,
-// custom types, default values, enum validation, and type conversion.
+// custom types, default values, and type conversion.
+//
+// Note: For validation (required fields, enum constraints, etc.), use the
+// rivaas.dev/validation package separately after binding.
 //
 // # Quick Start
 //
@@ -72,7 +75,6 @@
 //
 //	user, err := binding.JSON[User](body,
 //	    binding.WithUnknownFields(binding.UnknownError),
-//	    binding.WithRequired(),
 //	    binding.WithMaxDepth(16),
 //	)
 //
@@ -83,7 +85,6 @@
 //	binder := binding.MustNew(
 //	    binding.WithConverter[uuid.UUID](uuid.Parse),
 //	    binding.WithTimeLayouts("2006-01-02", "01/02/2006"),
-//	    binding.WithRequired(),
 //	)
 //
 //	// Use across handlers
@@ -106,11 +107,11 @@
 //	    Auth   string `header:"Authorization"`
 //
 //	    // JSON body fields
-//	    Name   string `json:"name" required:"true"`
-//	    Email  string `json:"email" required:"true"`
+//	    Name   string `json:"name"`
+//	    Email  string `json:"email"`
 //
-//	    // Enum validation
-//	    Status string `json:"status" enum:"active,pending,disabled"`
+//	    // For validation, use the validation package
+//	    Status string `json:"status" validate:"required,oneof=active pending disabled"`
 //	}
 //
 // # Supported Tag Types
@@ -159,8 +160,9 @@
 // # Special Tags
 //
 //   - default:"value": Default value when field is not present
-//   - enum:"a,b,c": Validate value is one of the allowed values
-//   - required:"true": Field must be present (when WithRequired() is used)
+//
+// For validation constraints (required, enum, etc.), use the rivaas.dev/validation
+// package with the `validate` struct tag.
 //
 // # Type Conversion
 //
@@ -205,14 +207,6 @@
 //	        }
 //	    }
 //	}
-//
-// # Validation Integration
-//
-// Integrate external validators:
-//
-//	binder := binding.MustNew(
-//	    binding.WithValidator(myValidator),
-//	)
 //
 // # Observability
 //
@@ -262,10 +256,6 @@
 //	  - UnknownWarn:   Log warnings via events
 //	  - UnknownError:  Return error on unknown fields
 //
-// ## Required Fields
-//
-//	WithRequired()  // Enforce required:"true" tags
-//
 // ## Slice Parsing
 //
 //	WithSliceMode(mode SliceParseMode)
@@ -281,10 +271,6 @@
 //
 //	WithConverter[T any](converter TypeConverter[T])
 //	// Register custom type conversion function
-//
-// ## Validation
-//
-//	WithValidator(validator Validator)  // Integrate external validator
 //
 // ## Error Handling
 //
@@ -459,10 +445,8 @@
 //   - Create reusable [Binder] instances for shared configuration
 //   - Set security limits ([WithMaxDepth], [WithMaxSliceLen], [WithMaxMapSize])
 //   - Use Reader variants for large payloads (>1MB)
-//   - Validate enum values with enum:"value1,value2,value3" tags
-//   - Integrate external validators with [WithValidator]
+//   - Use rivaas.dev/validation package for validation (required, enum, etc.)
 //   - Add observability hooks with [WithEvents] for monitoring
-//   - Use [WithRequired] to enforce required:"true" tags
 //   - Collect all errors with [WithAllErrors] for better UX
 //
 // # Error Types

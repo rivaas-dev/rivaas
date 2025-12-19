@@ -178,38 +178,6 @@ ports:
 	// Output: Hosts: [host1.example.com host2.example.com], Ports: [8080 8081]
 }
 
-// ExampleYAML_withValidator demonstrates YAML binding with validation.
-func ExampleYAML_withValidator() {
-	type Config struct {
-		Name string `yaml:"name"`
-		Port int    `yaml:"port"`
-	}
-
-	body := []byte(`
-name: myapp
-port: 8080
-`)
-
-	// Create a simple validator
-	validator := &simpleValidator{}
-
-	config, err := yaml.YAML[Config](body, yaml.WithValidator(validator))
-	if err != nil {
-		_, _ = fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	_, _ = fmt.Printf("Name: %s, Port: %d\n", config.Name, config.Port)
-	// Output: Name: myapp, Port: 8080
-}
-
-// simpleValidator is a test validator for examples.
-type simpleValidator struct{}
-
-func (v *simpleValidator) Validate(data any) error {
-	return nil
-}
-
 // ExampleYAML_maps demonstrates binding YAML maps.
 func ExampleYAML_maps() {
 	type Config struct {

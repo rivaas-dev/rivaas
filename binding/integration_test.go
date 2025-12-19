@@ -43,7 +43,7 @@ func TestIntegration_QueryParameterBinding(t *testing.T) {
 		Page     int      `query:"page" default:"1"`
 		PageSize int      `query:"page_size" default:"20"`
 		Tags     []string `query:"tags"`
-		Sort     string   `query:"sort" enum:"asc,desc"`
+		Sort     string   `query:"sort"`
 	}
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -273,12 +273,6 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 			wantStatusCode: http.StatusBadRequest,
 			wantErrMsg:     "Page",
 		},
-		{
-			name:           "invalid enum value",
-			url:            "/search?sort=invalid",
-			wantStatusCode: http.StatusBadRequest,
-			wantErrMsg:     "allowed values",
-		},
 	}
 
 	for _, tt := range tests {
@@ -287,7 +281,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 
 			type SearchParams struct {
 				Page int    `query:"page"`
-				Sort string `query:"sort" enum:"asc,desc"`
+				Sort string `query:"sort"`
 			}
 
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

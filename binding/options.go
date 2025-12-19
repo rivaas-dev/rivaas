@@ -79,11 +79,6 @@ type TypeConverter func(string) (any, error)
 // Common uses include case-folding and canonicalization.
 type KeyNormalizer func(string) string
 
-// Validator validates a struct after binding.
-type Validator interface {
-	Validate(v any) error
-}
-
 // Events provides hooks for observability without coupling.
 type Events struct {
 	// FieldBound is called after successfully binding a field.
@@ -135,10 +130,6 @@ type config struct {
 
 	// Type conversion
 	typeConverters map[reflect.Type]TypeConverter // Custom type converters
-
-	// Validation
-	required  bool      // Check required tags
-	validator Validator // External validator
 
 	// Error handling
 	allErrors bool // Collect all errors instead of returning on first
@@ -479,35 +470,6 @@ func WithTypeConverter(targetType reflect.Type, converter TypeConverter) Option 
 			c.typeConverters = make(map[reflect.Type]TypeConverter)
 		}
 		c.typeConverters[targetType] = converter
-	}
-}
-
-// WithRequired enables checking of `required` struct tags.
-// When enabled, missing required fields return ErrRequiredField.
-//
-// Example:
-//
-//	type User struct {
-//	    Name  string `json:"name" required:"true"`
-//	    Email string `json:"email" required:"true"`
-//	}
-//
-//	user, err := binding.JSON[User](body, binding.WithRequired())
-func WithRequired() Option {
-	return func(c *config) {
-		c.required = true
-	}
-}
-
-// WithValidator integrates external validation via a [Validator] implementation.
-// The validator is called after successful binding.
-//
-// Example:
-//
-//	binding.MustNew(binding.WithValidator(myValidator))
-func WithValidator(v Validator) Option {
-	return func(c *config) {
-		c.validator = v
 	}
 }
 

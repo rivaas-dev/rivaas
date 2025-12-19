@@ -355,22 +355,6 @@ func convertToType(value string, targetType reflect.Type, opts *config) (reflect
 	return temp, nil
 }
 
-// validateEnum validates that a value is in the allowed enum list.
-// Empty values skip validation. The enumValues string is comma-separated.
-func validateEnum(value, enumValues string) error {
-	if value == "" {
-		return nil // Empty values skip enum validation
-	}
-
-	for a := range strings.SplitSeq(enumValues, ",") {
-		if strings.TrimSpace(a) == value {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("%w %q: %s", ErrValueNotInAllowedValues, value, enumValues)
-}
-
 // setMapField handles binding data to map fields using dot or bracket notation.
 //
 // SUPPORTED SYNTAXES:

@@ -29,14 +29,8 @@ import (
 //
 //	params, err := binding.Query[ListParams](r.URL.Query())
 //
-//	// With options
-//	params, err := binding.Query[ListParams](r.URL.Query(),
-//	    binding.WithRequired(),
-//	)
-//
 // Errors:
 //   - [ErrOutMustBePointer]: T is not a struct type
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [ErrSliceExceedsMaxLength]: slice length exceeds maximum
 //   - [ErrMapExceedsMaxSize]: map size exceeds maximum
@@ -76,7 +70,6 @@ func Path[T any](params map[string]string, opts ...Option) (T, error) {
 //
 // Errors:
 //   - [ErrOutMustBePointer]: T is not a struct type
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [ErrSliceExceedsMaxLength]: slice length exceeds maximum
 //   - [ErrMapExceedsMaxSize]: map size exceeds maximum
@@ -116,7 +109,6 @@ func Header[T any](h http.Header, opts ...Option) (T, error) {
 //
 // Errors:
 //   - [ErrOutMustBePointer]: T is not a struct type
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [BindError]: field-level binding errors with detailed context
 func Cookie[T any](cookies []*http.Cookie, opts ...Option) (T, error) {
@@ -138,13 +130,11 @@ func Cookie[T any](cookies []*http.Cookie, opts ...Option) (T, error) {
 //	    binding.FromPath(pathParams),
 //	    binding.FromQuery(r.URL.Query()),
 //	    binding.FromJSON(body),
-//	    binding.WithRequired(),
 //	)
 //
 // Errors:
 //   - [ErrNoSourcesProvided]: no binding sources provided via From* options
 //   - [ErrOutMustBePointer]: T is not a struct type
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [UnknownFieldError]: when [WithUnknownFields] is [UnknownError] and unknown fields are present
 //   - [BindError]: field-level binding errors with detailed context
@@ -254,7 +244,6 @@ func BindTo(out any, opts ...Option) error {
 //
 // Errors:
 //   - [ErrOutMustBePointer]: out is not a pointer to struct
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [BindError]: field-level binding errors with detailed context
 func Raw(getter ValueGetter, tag string, out any, opts ...Option) error {
@@ -273,7 +262,6 @@ func Raw(getter ValueGetter, tag string, out any, opts ...Option) error {
 //
 // Errors:
 //   - [ErrOutMustBePointer]: T is not a struct type
-//   - [ErrRequiredField]: when [WithRequired] is used and a required field is missing
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [BindError]: field-level binding errors with detailed context
 func RawInto[T any](getter ValueGetter, tag string, opts ...Option) (T, error) {
@@ -322,24 +310,7 @@ func bindFromSource(out any, getter ValueGetter, tag string, cfg *config) error 
 	info := getStructInfo(elem.Type(), tag)
 
 	// Bind fields with depth tracking
-	if err := bindFieldsWithDepth(elem, getter, tag, info, cfg, 0); err != nil {
-		return err
-	}
-
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			cfg.trackError()
-			return &BindError{
-				Field:  "",
-				Source: sourceFromTag(tag),
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-		}
-	}
-
-	return nil
+	return bindFieldsWithDepth(elem, getter, tag, info, cfg, 0)
 }
 
 // bindMultiSource binds from multiple sources configured via From* options.
@@ -436,24 +407,6 @@ func bindMultiSource(out any, cfg *config) error {
 		}
 	}
 
-	// Run validator if configured
-	if cfg.validator != nil {
-		if err := cfg.validator.Validate(out); err != nil {
-			cfg.trackError()
-			validationErr := &BindError{
-				Field:  "",
-				Source: SourceUnknown,
-				Reason: fmt.Sprintf("validation failed: %v", err),
-				Err:    err,
-			}
-			if cfg.allErrors {
-				errs = append(errs, validationErr)
-			} else {
-				return validationErr
-			}
-		}
-	}
-
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
@@ -462,8 +415,7 @@ func bindMultiSource(out any, cfg *config) error {
 }
 
 // bindFieldsWithDepth binds all fields in a struct with depth enforcement.
-// It handles maps, nested structs, slices, and single-value fields, applying
-// defaults, validating required fields, and checking enum constraints.
+// It handles maps, nested structs, slices, and single-value fields, applying defaults.
 func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 	info *structInfo, cfg *config, depth int,
 ) error {
@@ -566,23 +518,6 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 			hasValue = true
 		}
 
-		// Check required field
-		if !hasValue && cfg.required && field.isRequired {
-			bindErr := &BindError{
-				Field:  field.name,
-				Source: sourceFromTag(tagName),
-				Reason: "required field is missing",
-				Err:    ErrRequiredField,
-			}
-			if cfg.allErrors {
-				multiErr.Add(bindErr)
-				continue
-			}
-			cfg.trackError()
-
-			return bindErr
-		}
-
 		// Skip fields without values and no defaults
 		if !hasValue {
 			continue
@@ -613,27 +548,6 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 		}
 
 		// Handle single value fields (value already retrieved above)
-
-		// Enum validation
-		if field.enumValues != "" {
-			if err := validateEnum(value, field.enumValues); err != nil {
-				bindErr := &BindError{
-					Field:  field.name,
-					Source: sourceFromTag(tagName),
-					Value:  value,
-					Type:   fieldValue.Type(),
-					Err:    err,
-				}
-				if cfg.allErrors {
-					multiErr.Add(bindErr)
-					continue
-				}
-				cfg.trackError()
-
-				return bindErr
-			}
-		}
-
 		if err := setField(fieldValue, value, field.isPtr, cfg); err != nil {
 			bindErr := &BindError{
 				Field:  field.name,
@@ -662,19 +576,14 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 }
 
 // parseStructInfo parses struct fields and extracts binding information.
-// It validates enum tags and default values, and computes typed defaults
-// when possible. The result is cached by getStructInfo.
+// It validates default values and computes typed defaults when possible.
+// The result is cached by getStructInfo.
 func parseStructInfo(t reflect.Type, tagName string) *structInfo {
 	info := parseStructType(t, tagName, nil)
 
 	// Validate tags and pre-compute expensive operations
 	for i := range info.fields {
 		field := &info.fields[i]
-
-		// Validate enum tag: split once, check for duplicates
-		if field.enumValues != "" {
-			validateEnumTag(field.name, field.enumValues)
-		}
 
 		// Validate default tag: ensure it's compatible with field type
 		if field.defaultValue != "" {
@@ -777,14 +686,8 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 		// Handle nested struct types (non-embedded)
 		isStruct := kind == reflect.Struct && fieldType != timeType && fieldType != urlType && fieldType != ipNetType && fieldType != regexpType
 
-		// Get enum validation values from tag
-		enumValues := field.Tag.Get("enum")
-
 		// Get default value from tag
 		defaultValue := field.Tag.Get("default")
-
-		// Check required tag
-		isRequired := field.Tag.Get("required") == "true"
 
 		// Compute typed default value
 		var typedDefault any
@@ -820,11 +723,9 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 			isMap:           isMap,
 			isStruct:        isStruct,
 			elemKind:        elemKind,
-			enumValues:      enumValues,
 			defaultValue:    defaultValue,
 			typedDefault:    typedDefault,
 			hasTypedDefault: hasTypedDefault,
-			isRequired:      isRequired,
 		})
 	}
 
@@ -893,7 +794,7 @@ func hasStructTagRecursive(t reflect.Type, tag string, visited map[reflect.Type]
 }
 
 // parseTagWithAliases parses a struct tag value and extracts the primary name and aliases.
-// For JSON/Form tags, it filters out modifiers like "omitempty" and "required".
+// For JSON/Form tags, it filters out modifiers like "omitempty".
 // Returns the primary name (or fieldName if empty) and slice of aliases.
 func parseTagWithAliases(tag, fieldName string, isJSONOrForm bool) (string, []string) {
 	parts := strings.Split(tag, ",")
@@ -906,7 +807,7 @@ func parseTagWithAliases(tag, fieldName string, isJSONOrForm bool) (string, []st
 			continue
 		}
 		// Skip JSON-style modifiers for JSON/Form tags
-		if isJSONOrForm && (part == "omitempty" || part == "required") {
+		if isJSONOrForm && part == "omitempty" {
 			continue
 		}
 		aliases = append(aliases, part)
@@ -918,31 +819,6 @@ func parseTagWithAliases(tag, fieldName string, isJSONOrForm bool) (string, []st
 	}
 
 	return primaryName, aliases
-}
-
-// validateEnumTag validates enum tag values for a field.
-// It checks for empty values and duplicates, reporting errors via invalidTagf.
-func validateEnumTag(fieldName, enumValues string) {
-	enums := strings.Split(enumValues, ",")
-	seen := make(map[string]bool)
-
-	for i, e := range enums {
-		enums[i] = strings.TrimSpace(e)
-		if enums[i] == "" {
-			// Use invalidTagf which panics in debug builds, returns error in prod
-			if err := invalidTagf("field %s: empty enum value in tag %q",
-				fieldName, enumValues); err != nil {
-				continue
-			}
-		}
-		if seen[enums[i]] {
-			if err := invalidTagf("field %s: duplicate enum value %q",
-				fieldName, enums[i]); err != nil {
-				continue
-			}
-		}
-		seen[enums[i]] = true
-	}
 }
 
 // applyTypedDefault applies a pre-converted typed default value to the field.
