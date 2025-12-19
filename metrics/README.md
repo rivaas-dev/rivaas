@@ -1,4 +1,9 @@
-# Rivaas Metrics
+# Metrics
+
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/metrics.svg)](https://pkg.go.dev/rivaas.dev/metrics)
+[![Go Report Card](https://goreportcard.com/badge/rivaas.dev/metrics)](https://goreportcard.com/report/rivaas.dev/metrics)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
 A metrics collection package for Go applications using OpenTelemetry. This package provides metrics functionality with support for multiple exporters including Prometheus, OTLP, and stdout.
 
@@ -12,6 +17,14 @@ A metrics collection package for Go applications using OpenTelemetry. This packa
 - **Structured Logging**: Pluggable logger interface for error and warning messages
 - **HTTP Middleware**: Integration with any HTTP framework
 - **Security**: Automatic filtering of sensitive headers
+
+## Installation
+
+```bash
+go get rivaas.dev/metrics
+```
+
+Requires Go 1.25+
 
 ## Quick Start
 
@@ -580,6 +593,18 @@ See the `examples/` directory for complete working examples:
 - `standalone/` - Standalone metrics usage
 - Integration examples in the main router examples
 
+## API Reference
+
+For detailed API documentation, see [pkg.go.dev/rivaas.dev/metrics](https://pkg.go.dev/rivaas.dev/metrics).
+
+## Contributing
+
+Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+
 ## License
 
-MIT License - see LICENSE file for details.
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+
+---
+
+Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework ecosystem.
