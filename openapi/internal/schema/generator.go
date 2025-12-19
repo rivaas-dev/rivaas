@@ -279,17 +279,8 @@ func applyValidationConstraints(s *model.Schema, f reflect.StructField) {
 	}
 
 	// Handle pattern-based validators
-	switch {
-	case strings.Contains(v, "alphanum"):
+	if strings.Contains(v, "alphanum") {
 		s.Pattern = "^[a-zA-Z0-9]+$"
-	case strings.Contains(v, "username"):
-		s.Pattern = "^[a-zA-Z0-9_]{3,20}$"
-		minLen := 3
-		maxLen := 20
-		s.MinLength = &minLen
-		s.MaxLength = &maxLen
-	case strings.Contains(v, "slug"):
-		s.Pattern = "^[a-z0-9-]+$"
 	}
 
 	// Parse all validation parts
