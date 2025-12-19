@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package app provides a high-level, batteries-included web framework built on top
-// of the Rivaas router. It offers integrated observability, lifecycle management,
-// and sensible defaults for building production-ready web applications.
+// Package app provides a batteries-included, cloud-native web framework built on top
+// of the Rivaas router. It features high-performance routing, comprehensive request
+// binding & validation, automatic OpenAPI generation, and OpenTelemetry-native observability,
+// along with lifecycle management and sensible defaults for building production-ready web applications.
 //
 // # Overview
 //
