@@ -251,10 +251,11 @@
 //
 // ## Unknown Fields
 //
+//	WithStrictJSON()  // Convenience: fail on unknown fields
 //	WithUnknownFields(policy UnknownFieldPolicy)
 //	  - UnknownIgnore: Ignore unknown fields (default)
 //	  - UnknownWarn:   Log warnings via events
-//	  - UnknownError:  Return error on unknown fields
+//	  - UnknownError:  Return error on unknown fields (same as WithStrictJSON)
 //
 // ## Slice Parsing
 //
@@ -265,7 +266,8 @@
 // ## Time Formats
 //
 //	WithTimeLayouts(layouts ...string)  // Custom time.Time parsing formats
-//	// Default layouts: RFC3339, RFC3339Nano, DateOnly, DateTime
+//	// Default layouts exported as DefaultTimeLayouts: RFC3339, RFC3339Nano, DateOnly, DateTime
+//	// Extend defaults: WithTimeLayouts(append(DefaultTimeLayouts, "01/02/2006")...)
 //
 // ## Type Converters
 //
@@ -368,7 +370,17 @@
 //
 // # Custom ValueGetter
 //
-// Implement the [ValueGetter] interface for custom binding sources:
+// For simple map-based sources, use the convenience helpers:
+//
+//	// Single-value map
+//	getter := binding.MapGetter(map[string]string{"name": "Alice", "age": "30"})
+//	result, err := binding.RawInto[User](getter, "custom")
+//
+//	// Multi-value map (for slices)
+//	getter := binding.MultiMapGetter(map[string][]string{"tags": {"go", "rust"}})
+//	result, err := binding.RawInto[User](getter, "custom")
+//
+// For more complex sources, implement the [ValueGetter] interface:
 //
 //	type CustomGetter struct {
 //	    data map[string]string
@@ -390,8 +402,8 @@
 //	    return ok
 //	}
 //
-//	// Use with Raw/RawInto
-//	result, err := binding.Raw[MyStruct](&CustomGetter{data: myData}, "custom")
+//	// Use with RawInto
+//	result, err := binding.RawInto[MyStruct](&CustomGetter{data: myData}, "custom")
 //
 // Alternatively, use [GetterFunc] for a function-based adapter:
 //

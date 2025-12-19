@@ -70,6 +70,21 @@ const (
 	DefaultMaxBodySize = 10 << 20
 )
 
+// DefaultTimeLayouts contains the default time parsing layouts used by binding.
+// These are tried in order when parsing time values from strings.
+// Use [WithTimeLayouts] to override or extend these defaults.
+//
+// Example (extending defaults):
+//
+//	binding.WithTimeLayouts(append(binding.DefaultTimeLayouts, "01/02/2006")...)
+var DefaultTimeLayouts = []string{
+	time.RFC3339,
+	time.RFC3339Nano,
+	time.DateOnly,
+	time.DateTime,
+	"2006-01-02T15:04:05",
+}
+
 // TypeConverter converts a string value to a custom type.
 // Registered converters are checked before built-in type handling.
 // If a converter returns an error, binding fails for that field.
@@ -407,6 +422,18 @@ func WithUnknownFields(policy UnknownFieldPolicy) Option {
 	}
 }
 
+// WithStrictJSON is a convenience option that fails binding when unknown JSON fields
+// are present. Equivalent to WithUnknownFields(UnknownError).
+//
+// Use this in production APIs that want to reject unexpected input fields.
+//
+// Example:
+//
+//	user, err := binding.JSON[User](body, binding.WithStrictJSON())
+func WithStrictJSON() Option {
+	return WithUnknownFields(UnknownError)
+}
+
 // WithJSONUseNumber configures the JSON decoder to use json.Number instead of float64.
 // This preserves numeric precision for large integers that would otherwise be
 // represented as floats.
@@ -538,16 +565,14 @@ var (
 //   - maxSliceLen: [DefaultMaxSliceLen] (10,000)
 //   - unknownFields: [UnknownIgnore]
 //   - sliceMode: [SliceRepeat]
-//   - timeLayouts: RFC3339, RFC3339Nano, and common date formats
+//   - timeLayouts: [DefaultTimeLayouts]
 func defaultConfig() *config {
+	// Copy DefaultTimeLayouts to avoid mutation
+	layouts := make([]string, len(DefaultTimeLayouts))
+	copy(layouts, DefaultTimeLayouts)
+
 	return &config{
-		timeLayouts: []string{
-			time.RFC3339,
-			time.RFC3339Nano,
-			time.DateOnly,
-			time.DateTime,
-			"2006-01-02T15:04:05",
-		},
+		timeLayouts:   layouts,
 		maxDepth:      DefaultMaxDepth,
 		unknownFields: UnknownIgnore,
 		sliceMode:     SliceRepeat,

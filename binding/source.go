@@ -194,6 +194,30 @@ func (p *PathGetter) Has(key string) bool {
 	return ok
 }
 
+// MapGetter creates a [ValueGetter] from a simple map[string]string.
+// This is a convenience function for custom binding sources.
+//
+// Example:
+//
+//	data := map[string]string{"name": "Alice", "age": "30"}
+//	getter := binding.MapGetter(data)
+//	result, err := binding.RawInto[User](getter, "custom")
+func MapGetter(m map[string]string) ValueGetter {
+	return NewPathGetter(m)
+}
+
+// MultiMapGetter creates a [ValueGetter] from a map[string][]string.
+// This supports multiple values per key, useful for repeated parameters.
+//
+// Example:
+//
+//	data := map[string][]string{"tags": {"go", "rust"}, "name": {"Alice"}}
+//	getter := binding.MultiMapGetter(data)
+//	result, err := binding.RawInto[User](getter, "custom")
+func MultiMapGetter(m map[string][]string) ValueGetter {
+	return NewQueryGetter(m)
+}
+
 // FormGetter implements [ValueGetter] for form data.
 type FormGetter struct {
 	values url.Values

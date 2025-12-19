@@ -222,9 +222,10 @@ user, err := binding.JSON[User](body,
 
 ```go
 user, err := binding.JSON[User](body,
-    binding.WithUnknownFields(binding.UnknownError), // Fail on unknown fields
-    // Or: binding.UnknownWarn  - Log warnings
-    // Or: binding.UnknownIgnore - Ignore (default)
+    binding.WithStrictJSON(), // Fail on unknown fields (convenience)
+    // Or: binding.WithUnknownFields(binding.UnknownError) - same as above
+    // Or: binding.WithUnknownFields(binding.UnknownWarn)  - Log warnings
+    // Or: binding.WithUnknownFields(binding.UnknownIgnore) - Ignore (default)
 )
 ```
 
@@ -240,12 +241,21 @@ params, err := binding.Query[Params](values,
 ### Time Formats
 
 ```go
+// Default time layouts are exported for extension
+// binding.DefaultTimeLayouts contains: RFC3339, RFC3339Nano, DateOnly, DateTime, etc.
+
 binder := binding.MustNew(
+    // Override with custom formats
     binding.WithTimeLayouts(
         "2006-01-02",           // Date only
         "01/02/2006",           // US format
-        time.RFC3339,           // ISO 8601
-        "2006-01-02 15:04:05",  // Custom format
+    ),
+)
+
+// Or extend the defaults
+binder := binding.MustNew(
+    binding.WithTimeLayouts(
+        append(binding.DefaultTimeLayouts, "01/02/2006", "02-Jan-2006")...,
     ),
 )
 ```
@@ -348,7 +358,21 @@ if err != nil {
 
 ### Custom ValueGetter
 
-Implement custom binding sources:
+For simple map-based sources, use the convenience helpers:
+
+```go
+// Single-value map
+data := map[string]string{"name": "Alice", "age": "30"}
+getter := binding.MapGetter(data)
+result, err := binding.RawInto[User](getter, "custom")
+
+// Multi-value map (for slices)
+multi := map[string][]string{"tags": {"go", "rust"}, "name": {"Alice"}}
+getter := binding.MultiMapGetter(multi)
+result, err := binding.RawInto[User](getter, "custom")
+```
+
+For more complex sources, implement the ValueGetter interface:
 
 ```go
 type CustomGetter struct {
@@ -371,9 +395,9 @@ func (g *CustomGetter) Has(key string) bool {
     return ok
 }
 
-// Use with Raw/RawInto
+// Use with RawInto
 getter := &CustomGetter{data: myData}
-result, err := binding.Raw[MyStruct](getter, "custom")
+result, err := binding.RawInto[MyStruct](getter, "custom")
 ```
 
 ### GetterFunc Adapter
