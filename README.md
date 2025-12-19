@@ -1,9 +1,7 @@
 # Rivaas
 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
-[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/app.svg)](https://pkg.go.dev/rivaas.dev/app)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/rivaas.dev)](https://goreportcard.com/report/rivaas.dev)
 
 > A high-performance, modular web framework for Go with **observability built-in, not bolted-on**.
 
@@ -102,32 +100,32 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 
 ### Core
 
-| Package | Description |
-|---------|-------------|
-| [app](./app/) | Batteries-included web framework |
-| [router](./router/) | High-performance HTTP router |
+| Package | Description | Docs |
+|---------|-------------|------|
+| [app](./app/) | Batteries-included web framework | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/app.svg)](https://pkg.go.dev/rivaas.dev/app) [![Go Report](https://goreportcard.com/badge/rivaas.dev/app)](https://goreportcard.com/report/rivaas.dev/app) |
+| [router](./router/) | High-performance HTTP router | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router.svg)](https://pkg.go.dev/rivaas.dev/router) [![Go Report](https://goreportcard.com/badge/rivaas.dev/router)](https://goreportcard.com/report/rivaas.dev/router) |
 
 ### Data Handling
 
-| Package | Description |
-|---------|-------------|
-| [binding](./binding/) | Request binding (query, form, JSON, headers, XML, YAML, MsgPack, Proto) |
-| [validation](./validation/) | Struct validation with tags and JSON Schema |
+| Package | Description | Docs |
+|---------|-------------|------|
+| [binding](./binding/) | Request binding (query, form, JSON, headers, XML, YAML, MsgPack, Proto) | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/binding.svg)](https://pkg.go.dev/rivaas.dev/binding) [![Go Report](https://goreportcard.com/badge/rivaas.dev/binding)](https://goreportcard.com/report/rivaas.dev/binding) |
+| [validation](./validation/) | Struct validation with tags and JSON Schema | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/validation.svg)](https://pkg.go.dev/rivaas.dev/validation) [![Go Report](https://goreportcard.com/badge/rivaas.dev/validation)](https://goreportcard.com/report/rivaas.dev/validation) |
 
 ### Observability
 
-| Package | Description |
-|---------|-------------|
-| [logging](./logging/) | Structured logging with slog |
-| [metrics](./metrics/) | OpenTelemetry metrics (Prometheus, OTLP) |
-| [tracing](./tracing/) | Distributed tracing (OTLP, Jaeger, stdout) |
+| Package | Description | Docs |
+|---------|-------------|------|
+| [logging](./logging/) | Structured logging with slog | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/logging.svg)](https://pkg.go.dev/rivaas.dev/logging) [![Go Report](https://goreportcard.com/badge/rivaas.dev/logging)](https://goreportcard.com/report/rivaas.dev/logging) |
+| [metrics](./metrics/) | OpenTelemetry metrics (Prometheus, OTLP) | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/metrics.svg)](https://pkg.go.dev/rivaas.dev/metrics) [![Go Report](https://goreportcard.com/badge/rivaas.dev/metrics)](https://goreportcard.com/report/rivaas.dev/metrics) |
+| [tracing](./tracing/) | Distributed tracing (OTLP, Jaeger, stdout) | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/tracing.svg)](https://pkg.go.dev/rivaas.dev/tracing) [![Go Report](https://goreportcard.com/badge/rivaas.dev/tracing)](https://goreportcard.com/report/rivaas.dev/tracing) |
 
 ### API & Errors
 
-| Package | Description |
-|---------|-------------|
-| [openapi](./openapi/) | Automatic OpenAPI 3.0/3.1 generation with Swagger UI |
-| [errors](./errors/) | Error formatting (RFC 9457, JSON:API) |
+| Package | Description | Docs |
+|---------|-------------|------|
+| [openapi](./openapi/) | Automatic OpenAPI 3.0/3.1 generation with Swagger UI | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/openapi.svg)](https://pkg.go.dev/rivaas.dev/openapi) [![Go Report](https://goreportcard.com/badge/rivaas.dev/openapi)](https://goreportcard.com/report/rivaas.dev/openapi) |
+| [errors](./errors/) | Error formatting (RFC 9457, JSON:API) | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/errors.svg)](https://pkg.go.dev/rivaas.dev/errors) [![Go Report](https://goreportcard.com/badge/rivaas.dev/errors)](https://goreportcard.com/report/rivaas.dev/errors) |
 
 ## Architecture
 
@@ -229,7 +227,7 @@ rivaas/
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE) for details.
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
 ---
 
