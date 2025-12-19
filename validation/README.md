@@ -12,7 +12,7 @@ Flexible, multi-strategy validation for Go structs with support for struct tags,
 - **Thread-Safe** - Safe for concurrent use by multiple goroutines
 - **Security** - Built-in protections against deep nesting, memory exhaustion, and sensitive data exposure
 - **Standalone** - Can be used independently without the full Rivaas framework
-- **Built-in Validators** - Includes `username`, `slug`, and `strong_password` validators
+- **Custom Validators** - Easy registration of custom validation tags
 
 ## Installation
 
@@ -83,16 +83,13 @@ Use struct tags with go-playground/validator syntax:
 
 ```go
 type User struct {
-    Email    string `validate:"required,email"`
-    Age      int    `validate:"min=18,max=120"`
-    Username string `validate:"required,username"` // Built-in custom validator
+    Email string `validate:"required,email"`
+    Age   int    `validate:"min=18,max=120"`
+    Name  string `validate:"required,min=2,max=100"`
 }
 ```
 
-**Built-in Custom Validators:**
-- `username` - Alphanumeric and underscores, 3-20 characters
-- `slug` - Lowercase alphanumeric and hyphens
-- `strong_password` - Minimum 8 characters
+See [Custom Tag Validator](#custom-tag-validator) for registering your own validation tags.
 
 ### 2. JSON Schema
 
@@ -251,18 +248,74 @@ The package includes protections against:
 
 ### Custom Tag Validator
 
-```go
-phoneRegex := regexp.MustCompile(`^\+?[1-9]\d{1,14}$`)
+Register custom validation tags using `WithCustomTag`. This is the recommended way to add domain-specific validation rules:
 
+```go
+import (
+    "regexp"
+    "unicode"
+    
+    "github.com/go-playground/validator/v10"
+    "rivaas.dev/validation"
+)
+
+// Define your regex patterns
+var (
+    phoneRegex    = regexp.MustCompile(`^\+?[1-9]\d{1,14}$`)
+    usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,20}$`)
+    slugRegex     = regexp.MustCompile(`^[a-z0-9-]+$`)
+)
+
+// Create validator with custom tags
 validator := validation.MustNew(
     validation.WithCustomTag("phone", func(fl validator.FieldLevel) bool {
         return phoneRegex.MatchString(fl.Field().String())
     }),
+    validation.WithCustomTag("username", func(fl validator.FieldLevel) bool {
+        return usernameRegex.MatchString(fl.Field().String())
+    }),
+    validation.WithCustomTag("slug", func(fl validator.FieldLevel) bool {
+        return slugRegex.MatchString(fl.Field().String())
+    }),
 )
 
-type Contact struct {
-    Phone string `validate:"phone"`
+type User struct {
+    Phone    string `validate:"phone"`
+    Username string `validate:"username"`
+    Slug     string `validate:"slug"`
 }
+```
+
+**Example: Password Strength Validator**
+
+```go
+// strongPassword validates password complexity
+func strongPassword(fl validator.FieldLevel) bool {
+    password := fl.Field().String()
+    if len(password) < 8 {
+        return false
+    }
+    
+    var hasUpper, hasLower, hasDigit, hasSpecial bool
+    for _, c := range password {
+        switch {
+        case unicode.IsUpper(c):
+            hasUpper = true
+        case unicode.IsLower(c):
+            hasLower = true
+        case unicode.IsDigit(c):
+            hasDigit = true
+        case unicode.IsPunct(c) || unicode.IsSymbol(c):
+            hasSpecial = true
+        }
+    }
+    
+    return hasUpper && hasLower && hasDigit && hasSpecial
+}
+
+validator := validation.MustNew(
+    validation.WithCustomTag("strong_password", strongPassword),
+)
 ```
 
 ### Field Name Mapping

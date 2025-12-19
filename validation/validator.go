@@ -17,7 +17,6 @@ package validation
 import (
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -147,11 +146,6 @@ func (v *Validator) initTagValidator() error {
 			return name
 		})
 
-		if err := v.registerBuiltinValidators(); err != nil {
-			v.tagValidatorErr = fmt.Errorf("register built-in validators: %w", err)
-			return
-		}
-
 		for _, ct := range v.cfg.customTags {
 			if err := v.tagValidator.RegisterValidation(ct.name, ct.fn); err != nil {
 				v.tagValidatorErr = fmt.Errorf("register custom tag %q: %w", ct.name, err)
@@ -161,35 +155,6 @@ func (v *Validator) initTagValidator() error {
 	})
 
 	return v.tagValidatorErr
-}
-
-// Built-in regex patterns for custom validators (username, slug).
-var (
-	reUsername = regexp.MustCompile(`^[a-zA-Z0-9_]{3,20}$`)
-	reSlug     = regexp.MustCompile(`^[a-z0-9-]+$`)
-)
-
-// registerBuiltinValidators registers the built-in custom validators: username, slug, strong_password.
-func (v *Validator) registerBuiltinValidators() error {
-	if err := v.tagValidator.RegisterValidation("username", func(fl validator.FieldLevel) bool {
-		return reUsername.MatchString(fl.Field().String())
-	}); err != nil {
-		return fmt.Errorf("failed to register username validator: %w", err)
-	}
-
-	if err := v.tagValidator.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
-		return reSlug.MatchString(fl.Field().String())
-	}); err != nil {
-		return fmt.Errorf("failed to register slug validator: %w", err)
-	}
-
-	if err := v.tagValidator.RegisterValidation("strong_password", func(fl validator.FieldLevel) bool {
-		return len(fl.Field().String()) >= 8
-	}); err != nil {
-		return fmt.Errorf("failed to register strong_password validator: %w", err)
-	}
-
-	return nil
 }
 
 // typeImplementsValidator checks if a type implements [ValidatorInterface].

@@ -163,7 +163,7 @@ func ExampleValidator_Validate() {
 // ExampleValidate_withOptions demonstrates validation with various options.
 func ExampleValidate_withOptions() {
 	type User struct {
-		Password string `json:"password" validate:"required,strong_password"`
+		Password string `json:"password" validate:"required,min=8"`
 		Token    string `json:"token" validate:"required"`
 	}
 

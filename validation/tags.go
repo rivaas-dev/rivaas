@@ -333,12 +333,6 @@ func getTagErrorMessage(e validator.FieldError) string {
 		return "must be at most " + e.Param()
 	case "oneof":
 		return fmt.Sprintf("must be one of [%s]", e.Param())
-	case "username":
-		return "must be 3-20 alphanumeric characters or underscore"
-	case "slug":
-		return "must be lowercase letters, numbers, and hyphens"
-	case "strong_password":
-		return "must be at least 8 characters"
 	default:
 		return fmt.Sprintf("failed validation (%s)", e.Tag())
 	}
