@@ -103,7 +103,7 @@ func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 				// Format with proper path context
 				for _, e := range verrs {
 					code := "tag." + e.Tag()
-					msg := getTagErrorMessage(e)
+					msg := getTagErrorMessage(e, cfg)
 
 					// Redact if needed
 					value := fmt.Sprint(e.Value())
@@ -245,7 +245,7 @@ func (v *Validator) formatTagErrors(errs validator.ValidationErrors, structValue
 
 		// Stable code
 		code := "tag." + e.Tag()
-		msg := getTagErrorMessage(e)
+		msg := getTagErrorMessage(e, cfg)
 
 		// Redact
 		value := fmt.Sprint(e.Value())
@@ -311,8 +311,33 @@ func namespaceToJSONPath(ns string, structType reflect.Type) string {
 }
 
 // getTagErrorMessage returns a human-readable error message for a tag error.
-func getTagErrorMessage(e validator.FieldError) string {
-	switch e.Tag() {
+// Resolution order: static messages → dynamic message funcs → defaults.
+func getTagErrorMessage(e validator.FieldError, cfg *config) string {
+	tag := e.Tag()
+	param := e.Param()
+	kind := e.Type().Kind()
+
+	// Check static messages
+	if cfg.messages != nil {
+		if msg, ok := cfg.messages[tag]; ok {
+			return msg
+		}
+	}
+
+	// Check dynamic message functions
+	if cfg.messageFuncs != nil {
+		if fn, ok := cfg.messageFuncs[tag]; ok {
+			return fn(param, kind)
+		}
+	}
+
+	// Built-in defaults
+	return defaultTagMessage(tag, param, kind)
+}
+
+// defaultTagMessage returns the built-in English message for a tag.
+func defaultTagMessage(tag, param string, kind reflect.Kind) string {
+	switch tag {
 	case "required":
 		return "is required"
 	case "email":
@@ -320,20 +345,20 @@ func getTagErrorMessage(e validator.FieldError) string {
 	case "url":
 		return "must be a valid URL"
 	case "min":
-		if e.Type().Kind() == reflect.String {
-			return fmt.Sprintf("must be at least %s characters", e.Param())
+		if kind == reflect.String {
+			return fmt.Sprintf("must be at least %s characters", param)
 		}
 
-		return "must be at least " + e.Param()
+		return "must be at least " + param
 	case "max":
-		if e.Type().Kind() == reflect.String {
-			return fmt.Sprintf("must be at most %s characters", e.Param())
+		if kind == reflect.String {
+			return fmt.Sprintf("must be at most %s characters", param)
 		}
 
-		return "must be at most " + e.Param()
+		return "must be at most " + param
 	case "oneof":
-		return fmt.Sprintf("must be one of [%s]", e.Param())
+		return fmt.Sprintf("must be one of [%s]", param)
 	default:
-		return fmt.Sprintf("failed validation (%s)", e.Tag())
+		return fmt.Sprintf("failed validation (%s)", tag)
 	}
 }

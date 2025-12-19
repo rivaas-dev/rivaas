@@ -17,9 +17,19 @@ package validation
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"github.com/go-playground/validator/v10"
 )
+
+// MessageFunc generates a dynamic error message for parameterized validation tags.
+// Use [WithMessageFunc] to configure messages for tags like "min", "max", "len", "oneof"
+// that include parameters.
+//
+// The function receives the tag parameter (e.g., "3" for `min=3`) and the field's
+// reflect.Kind to enable type-aware messages (e.g., "characters" for strings vs
+// plain numbers for integers).
+type MessageFunc func(param string, kind reflect.Kind) string
 
 // Strategy defines the validation approach to use.
 // Use [WithStrategy] to set a strategy, or leave as [StrategyAuto] for automatic selection.
@@ -75,6 +85,8 @@ type config struct {
 	fieldNameMapper       func(string) string
 	redactor              Redactor
 	customTags            []customTag
+	messages              map[string]string      // tag -> static message
+	messageFuncs          map[string]MessageFunc // tag -> dynamic message function
 }
 
 // validate checks the configuration for errors.
@@ -99,6 +111,19 @@ func (c *config) clone() *config {
 	if c.customTags != nil {
 		clone.customTags = make([]customTag, 0, len(c.customTags))
 		clone.customTags = append(clone.customTags, c.customTags...)
+	}
+	// Deep copy maps
+	if c.messages != nil {
+		clone.messages = make(map[string]string, len(c.messages))
+		for k, v := range c.messages {
+			clone.messages[k] = v
+		}
+	}
+	if c.messageFuncs != nil {
+		clone.messageFuncs = make(map[string]MessageFunc, len(c.messageFuncs))
+		for k, v := range c.messageFuncs {
+			clone.messageFuncs[k] = v
+		}
 	}
 
 	return &clone
@@ -319,6 +344,51 @@ func WithMaxCachedSchemas(maxCachedSchemas int) Option {
 func WithCustomTag(name string, fn validator.Func) Option {
 	return func(c *config) {
 		c.customTags = append(c.customTags, customTag{name: name, fn: fn})
+	}
+}
+
+// WithMessages sets static error messages for validation tags.
+// Messages override the default English messages for specified tags.
+// Unspecified tags continue to use defaults.
+//
+// Example:
+//
+//	validator := validation.MustNew(
+//	    validation.WithMessages(map[string]string{
+//	        "required": "cannot be empty",
+//	        "email":    "invalid email format",
+//	    }),
+//	)
+func WithMessages(messages map[string]string) Option {
+	return func(c *config) {
+		if c.messages == nil {
+			c.messages = make(map[string]string)
+		}
+		for tag, msg := range messages {
+			c.messages[tag] = msg
+		}
+	}
+}
+
+// WithMessageFunc sets a dynamic message generator for a parameterized tag.
+// Use for tags like "min", "max", "len", "oneof" that include parameters.
+//
+// Example:
+//
+//	validator := validation.MustNew(
+//	    validation.WithMessageFunc("min", func(param string, kind reflect.Kind) string {
+//	        if kind == reflect.String {
+//	            return fmt.Sprintf("too short (min %s chars)", param)
+//	        }
+//	        return fmt.Sprintf("too small (min %s)", param)
+//	    }),
+//	)
+func WithMessageFunc(tag string, fn MessageFunc) Option {
+	return func(c *config) {
+		if c.messageFuncs == nil {
+			c.messageFuncs = make(map[string]MessageFunc)
+		}
+		c.messageFuncs[tag] = fn
 	}
 }
 

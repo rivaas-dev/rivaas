@@ -15,6 +15,7 @@
 package validation
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -928,4 +929,188 @@ func TestRedaction_AllErrorTypes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWithMessages(t *testing.T) {
+	t.Parallel()
+	type User struct {
+		Name  string `json:"name" validate:"required"`
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	tests := []struct {
+		name        string
+		user        User
+		messages    map[string]string
+		wantMessage string
+	}{
+		{
+			name:        "custom required message",
+			user:        User{},
+			messages:    map[string]string{"required": "cannot be empty"},
+			wantMessage: "cannot be empty",
+		},
+		{
+			name:        "custom email message",
+			user:        User{Name: "John", Email: "invalid"},
+			messages:    map[string]string{"email": "invalid email format"},
+			wantMessage: "invalid email format",
+		},
+		{
+			name:        "fallback to default for unspecified tag",
+			user:        User{Name: "John", Email: "invalid"},
+			messages:    map[string]string{"required": "cannot be empty"},
+			wantMessage: "must be a valid email address",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			v := MustNew(WithMessages(tt.messages))
+			err := v.Validate(t.Context(), &tt.user)
+			require.Error(t, err)
+
+			var verr *Error
+			require.ErrorAs(t, err, &verr)
+
+			found := false
+			for _, e := range verr.Fields {
+				if e.Message == tt.wantMessage {
+					found = true
+					break
+				}
+			}
+			assert.True(t, found, "expected message %q in errors: %v", tt.wantMessage, verr.Fields)
+		})
+	}
+}
+
+func TestWithMessageFunc(t *testing.T) {
+	t.Parallel()
+	type Product struct {
+		Name  string `json:"name" validate:"min=3"`
+		Price int    `json:"price" validate:"min=1"`
+	}
+
+	v := MustNew(
+		WithMessageFunc("min", func(param string, kind reflect.Kind) string {
+			if kind == reflect.String {
+				return "too short (min " + param + " chars)"
+			}
+			return "too small (min " + param + ")"
+		}),
+	)
+
+	tests := []struct {
+		name        string
+		product     Product
+		wantMessage string
+	}{
+		{
+			name:        "string min with custom func",
+			product:     Product{Name: "ab", Price: 10},
+			wantMessage: "too short (min 3 chars)",
+		},
+		{
+			name:        "int min with custom func",
+			product:     Product{Name: "abc", Price: 0},
+			wantMessage: "too small (min 1)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := v.Validate(t.Context(), &tt.product)
+			require.Error(t, err)
+
+			var verr *Error
+			require.ErrorAs(t, err, &verr)
+
+			found := false
+			for _, e := range verr.Fields {
+				if e.Message == tt.wantMessage {
+					found = true
+					break
+				}
+			}
+			assert.True(t, found, "expected message %q in errors: %v", tt.wantMessage, verr.Fields)
+		})
+	}
+}
+
+func TestWithMessagesAndMessageFunc(t *testing.T) {
+	t.Parallel()
+	type User struct {
+		Name  string `json:"name" validate:"required,min=2"`
+		Email string `json:"email" validate:"email"`
+	}
+
+	v := MustNew(
+		WithMessages(map[string]string{
+			"required": "cannot be empty",
+			"email":    "invalid email format",
+		}),
+		WithMessageFunc("min", func(param string, kind reflect.Kind) string {
+			return "minimum length: " + param
+		}),
+	)
+
+	// Test static message
+	t.Run("static message for required", func(t *testing.T) {
+		t.Parallel()
+		err := v.Validate(t.Context(), &User{})
+		require.Error(t, err)
+
+		var verr *Error
+		require.ErrorAs(t, err, &verr)
+
+		found := false
+		for _, e := range verr.Fields {
+			if e.Message == "cannot be empty" {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected 'cannot be empty' message")
+	})
+
+	// Test dynamic message
+	t.Run("dynamic message for min", func(t *testing.T) {
+		t.Parallel()
+		err := v.Validate(t.Context(), &User{Name: "a", Email: "test@example.com"})
+		require.Error(t, err)
+
+		var verr *Error
+		require.ErrorAs(t, err, &verr)
+
+		found := false
+		for _, e := range verr.Fields {
+			if e.Message == "minimum length: 2" {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected 'minimum length: 2' message")
+	})
+
+	// Test static message takes precedence
+	t.Run("static message for email", func(t *testing.T) {
+		t.Parallel()
+		err := v.Validate(t.Context(), &User{Name: "John", Email: "invalid"})
+		require.Error(t, err)
+
+		var verr *Error
+		require.ErrorAs(t, err, &verr)
+
+		found := false
+		for _, e := range verr.Fields {
+			if e.Message == "invalid email format" {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected 'invalid email format' message")
+	})
 }
