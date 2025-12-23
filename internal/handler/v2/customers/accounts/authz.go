@@ -1,12 +1,10 @@
 package accounts
 
 import (
-	"errors"
-	"github.com/mitchellh/mapstructure"
-	"github.com/rs/zerolog/log"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
-	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"net/http"
+	"github.com/rs/zerolog/log"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/authz"
+	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
 
 type AuthorizationInput struct {
@@ -35,34 +33,16 @@ type Account struct {
 }
 
 func (h *Handler) getAuthorizationInput(ctx *goskell.Context, customer *Customer) (map[string]any, error) {
-	var authzIn map[string]any
-
-	authHeaders, err := headers.GetAuthorization(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	input := AuthorizationInput{
-		User: User{
-			ID:    authHeaders.CustomerID,
-			Roles: authHeaders.Roles,
-		},
-		Request: Request{
-			Method: ctx.Request.Method,
-			Path:   ctx.FullPath(),
-		},
-	}
-
-	if customer != nil {
-		input.Customer = *customer
-	}
-
-	err = mapstructure.Decode(input, &authzIn)
-	if err != nil {
-		return nil, err
-	}
-
-	return authzIn, nil
+	return authz.BuildInput(ctx, func(user authz.BaseUser, req authz.BaseRequest) (any, error) {
+		in := AuthorizationInput{
+			User:    User{ID: user.ID, Roles: user.Roles},
+			Request: Request{Method: req.Method, Path: req.Path},
+		}
+		if customer != nil {
+			in.Customer = *customer
+		}
+		return in, nil
+	})
 }
 
 func (h *Handler) isAuthorized(ctx *goskell.Context, customer *Customer) bool {
@@ -73,17 +53,5 @@ func (h *Handler) isAuthorized(ctx *goskell.Context, customer *Customer) bool {
 		return false
 	}
 
-	authorized, err := h.omaClient.IsAuthorized(ctx, "/admin/api/allow", authorizationInput)
-	if err != nil {
-		log.Err(err).Msg("error on checking authorization")
-		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
-		return false
-	}
-
-	if !authorized {
-		goskell.JsonAPIError(ctx, http.StatusText(http.StatusForbidden), errors.New("forbidden"), http.StatusForbidden)
-		return false
-	}
-
-	return true
+	return authz.Check(ctx, h.omaClient, authorizationInput)
 }

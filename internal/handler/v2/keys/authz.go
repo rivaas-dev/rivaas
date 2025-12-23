@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/authz"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
-	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/headers"
 	"gitlab.ci.fdmg.org/ci-api/cigourn/api"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
@@ -34,16 +33,15 @@ type NumberOfKeys struct {
 type Request struct {
 	Method string `mapstructure:"method"`
 	Path   string `mapstructure:"path"`
-	Body   *Body  `mapstructure:"body,omitempty"`
+	Key    *Key   `mapstructure:"key,omitempty"`
 }
 
 type Key struct {
-	ActorID   string `mapstructure:"actor_id"`
-	CreatorID string `mapstructure:"creator_id"`
-}
-
-type Body struct {
-	Active *bool `mapstructure:"active"`
+	ActorID     string    `mapstructure:"actor_id"`
+	CreatorID   string    `mapstructure:"creator_id"`
+	Environment string    `mapstructure:"environment"`
+	Policies    *[]string `mapstructure:"policies"`
+	Active      *bool     `mapstructure:"active"`
 }
 
 func NewKey(actorID, customerID, accountID, creatorID string) *Key {
@@ -61,6 +59,21 @@ func NewKeyActorID(actorID, creatorID string) *Key {
 	}
 }
 
+func (k *Key) WithPolicies(policies *[]string) *Key {
+	k.Policies = policies
+	return k
+}
+
+func (k *Key) WithActive(active *bool) *Key {
+	k.Active = active
+	return k
+}
+
+func (k *Key) WithEnvironment(environment string) *Key {
+	k.Environment = environment
+	return k
+}
+
 func NewKeyCustomerAccountID(customerID, accountID, creatorID string) *Key {
 	key := api.Key{CustomerID: customerID, AccountID: accountID}
 	return &Key{
@@ -69,44 +82,22 @@ func NewKeyCustomerAccountID(customerID, accountID, creatorID string) *Key {
 	}
 }
 
-func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key, body *Body) (map[string]any, error) {
-	var authzIn map[string]any
-
-	authHeaders, err := headers.GetAuthorization(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	input := AuthorizationInput{
-		User: User{
-			ID:    authHeaders.CustomerID,
-			Roles: authHeaders.Roles,
-		},
-		Request: Request{
-			Method: ctx.Request.Method,
-			Path:   ctx.FullPath(),
-			Body:   body,
-		},
-	}
-
-	if key != nil {
-		input.Key = *key
-	}
-
-	err = mapstructure.Decode(input, &authzIn)
-	if err != nil {
-		return nil, err
-	}
-
-	return authzIn, nil
+func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key) (map[string]any, error) {
+	return authz.BuildInput(ctx, func(user authz.BaseUser, req authz.BaseRequest) (any, error) {
+		in := AuthorizationInput{
+			User: User{ID: user.ID, Roles: user.Roles},
+			Request: Request{Method: req.Method, Path: req.Path, Key: key},
+		}
+		if key != nil {
+			in.Key = *key
+		}
+		return in, nil
+	})
 }
 
-func (h *Handler) getSubscriptionAuthorizationInput(ctx *goskell.Context, key *Key, subscription customers.Subscription, environment string) (map[string]any, error) {
-	var authzIn map[string]any
-
-	authHeaders, err := headers.GetAuthorization(ctx)
-	if err != nil {
-		return nil, err
+func (h *Handler) getSubscriptionAuthorizationInput(ctx *goskell.Context, key *Key, subscription customers.Subscription) (map[string]any, error) {
+	if key == nil {
+		return nil, errors.New("key is nil, required to validate subscription")
 	}
 
 	var maxKeyCount, currentKeyCount int
@@ -114,44 +105,30 @@ func (h *Handler) getSubscriptionAuthorizationInput(ctx *goskell.Context, key *K
 		return nil, errors.New("no API keys limits found")
 	}
 
-	switch environment {
+	switch key.Environment {
 	case apikey.ProdEnv:
 		maxKeyCount, currentKeyCount = subscription.APIKeys.Production.MaxCount, subscription.APIKeys.Production.CurrentCount
 	case apikey.SandboxEnv:
 		maxKeyCount, currentKeyCount = subscription.APIKeys.Sandbox.MaxCount, subscription.APIKeys.Sandbox.CurrentCount
 	default:
-		return nil, fmt.Errorf("invalid environment '%s'", environment)
+		return nil, fmt.Errorf("invalid environment '%s'", key.Environment)
 	}
 
-	input := AuthorizationInput{
-		User: User{
-			ID:    authHeaders.CustomerID,
-			Roles: authHeaders.Roles,
-			NumberOfKeys: NumberOfKeys{
-				Current: currentKeyCount,
-				Max:     maxKeyCount,
+	return authz.BuildInput(ctx, func(user authz.BaseUser, req authz.BaseRequest) (any, error) {
+		in := AuthorizationInput{
+			User: User{
+				ID:    user.ID,
+				Roles: user.Roles,
+				NumberOfKeys: NumberOfKeys{Current: currentKeyCount, Max: maxKeyCount},
 			},
-		},
-		Request: Request{
-			Method: ctx.Request.Method,
-			Path:   ctx.FullPath(),
-		},
-	}
-
-	if key != nil {
-		input.Key = *key
-	}
-
-	err = mapstructure.Decode(input, &authzIn)
-	if err != nil {
-		return nil, err
-	}
-
-	return authzIn, nil
+			Request: Request{Method: req.Method, Path: req.Path},
+		}
+		return in, nil
+	})
 }
 
 func (h *Handler) isAuthorized(ctx *goskell.Context, key *Key) bool {
-	authorizationInput, err := h.getAuthorizationInput(ctx, key, nil)
+	authorizationInput, err := h.getAuthorizationInput(ctx, key)
 	if err != nil {
 		log.Err(err).Msg("error on marshaling response")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
@@ -161,19 +138,8 @@ func (h *Handler) isAuthorized(ctx *goskell.Context, key *Key) bool {
 	return h.isInputAuthorized(ctx, authorizationInput)
 }
 
-func (h *Handler) isAuthorizedWithBody(ctx *goskell.Context, key *Key, body *Body) bool {
-	authorizationInput, err := h.getAuthorizationInput(ctx, key, body)
-	if err != nil {
-		log.Err(err).Msg("error on marshaling response")
-		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
-		return false
-	}
-
-	return h.isInputAuthorized(ctx, authorizationInput)
-}
-
-func (h *Handler) isSubscriptionAuthorized(ctx *goskell.Context, key *Key, subscription customers.Subscription, environment string) bool {
-	authorizationInput, err := h.getSubscriptionAuthorizationInput(ctx, key, subscription, environment)
+func (h *Handler) isSubscriptionAuthorized(ctx *goskell.Context, key *Key, subscription customers.Subscription) bool {
+	authorizationInput, err := h.getSubscriptionAuthorizationInput(ctx, key, subscription)
 	if err != nil {
 		log.Err(err).Msg("error on marshaling response")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
@@ -184,17 +150,5 @@ func (h *Handler) isSubscriptionAuthorized(ctx *goskell.Context, key *Key, subsc
 }
 
 func (h *Handler) isInputAuthorized(ctx *goskell.Context, authorizationInput map[string]any) bool {
-	authorized, err := h.omaClient.IsAuthorized(ctx, "/admin/api/allow", authorizationInput)
-	if err != nil {
-		log.Err(err).Msg("error on checking authorization")
-		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
-		return false
-	}
-
-	if !authorized {
-		goskell.JsonAPIError(ctx, http.StatusText(http.StatusForbidden), errors.New("forbidden"), http.StatusForbidden)
-		return false
-	}
-
-	return true
+	return authz.Check(ctx, h.omaClient, authorizationInput)
 }

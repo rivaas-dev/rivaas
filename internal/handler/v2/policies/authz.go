@@ -1,4 +1,4 @@
-package customers
+package policies
 
 import (
 	"net/http"
@@ -9,13 +9,11 @@ import (
 )
 
 type AuthorizationInput struct {
-	User     User     `mapstructure:"user"`
-	Request  Request  `mapstructure:"request"`
-	Customer Customer `mapstructure:"customer"`
+	User    User    `mapstructure:"user"`
+	Request Request `mapstructure:"request"`
 }
 
 type User struct {
-	ID    string   `mapstructure:"id"`
 	Roles []string `mapstructure:"roles"`
 }
 
@@ -24,25 +22,18 @@ type Request struct {
 	Path   string `mapstructure:"path"`
 }
 
-type Customer struct {
-	ID string `mapstructure:"id"`
-}
-
-func (h *Handler) getAuthorizationInput(ctx *goskell.Context, customer *Customer) (map[string]any, error) {
+func (h *Handler) getAuthorizationInput(ctx *goskell.Context) (map[string]any, error) {
 	return authz.BuildInput(ctx, func(user authz.BaseUser, req authz.BaseRequest) (any, error) {
 		in := AuthorizationInput{
-			User:    User{ID: user.ID, Roles: user.Roles},
+			User: User{Roles: user.Roles},
 			Request: Request{Method: req.Method, Path: req.Path},
-		}
-		if customer != nil {
-			in.Customer = *customer
 		}
 		return in, nil
 	})
 }
 
-func (h *Handler) isAuthorized(ctx *goskell.Context, customer *Customer) bool {
-	authorizationInput, err := h.getAuthorizationInput(ctx, customer)
+func (h *Handler) isAuthorized(ctx *goskell.Context) bool {
+	authorizationInput, err := h.getAuthorizationInput(ctx)
 	if err != nil {
 		log.Err(err).Msg("error on marshaling response")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)

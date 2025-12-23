@@ -1,18 +1,18 @@
 package keys
 
 import (
+	"net/http"
+
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
-	"net/http"
 )
 
 type AuthorizationInput struct {
 	User    User    `mapstructure:"user"`
 	Request Request `mapstructure:"request"`
-	Key     Key     `mapstructure:"key"`
 }
 
 type User struct {
@@ -22,6 +22,7 @@ type User struct {
 type Request struct {
 	Method string `mapstructure:"method"`
 	Path   string `mapstructure:"path"`
+	Key    Key    `mapstructure:"key"`
 }
 
 type Key struct {
@@ -43,7 +44,7 @@ func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *db.Key) (map[
 	}
 
 	if key != nil {
-		input.Key = Key{
+		input.Request.Key = Key{
 			ActorID:   key.ActorID,
 			CreatorID: key.CreatorID,
 		}
