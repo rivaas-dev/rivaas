@@ -229,7 +229,7 @@ func registerHandlers(
 		v2.DELETE("/keys/:id", keyV2Handler.DELETE)
 
 		// policies endpoints
-		policiesV2Handler := policiesV2.New(tykClient)
+		policiesV2Handler := policiesV2.New(tykClient, omaClient)
 		v2.GET("/policies", policiesV2Handler.LIST)
 
 		// customers endpoints

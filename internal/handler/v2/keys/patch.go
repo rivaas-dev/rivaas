@@ -49,12 +49,29 @@ type PatchAttributes struct {
 	Contact     *apikey.Contact    `json:"contacts,omitempty"` // Contacts information.
 	Active      *bool              `json:"active,omitempty"`   // Defines the status of the key.
 	Labels      *map[string]string `json:"labels"`             // Contains user specified labels for categorization
+	Policies    *[]string          `json:"policies"`           // The access policies to give
+}
+
+func (i *PatchInput) toAuthKey(actorID, creatorID string) *Key {
+	return NewKeyActorID(
+		actorID,
+		creatorID,
+	).
+		WithPolicies(i.Body.Attributes.Policies).
+		WithActive(i.Body.Attributes.Active)
 }
 
 // Validate validates the PATCH request body.
 func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient, existingKey *db.Key) error {
 	if i.Body.Attributes.Name != nil && len(*i.Body.Attributes.Name) > apikey.NameMaxLength {
 		return fmt.Errorf("maximum length is %d, %d given", apikey.NameMaxLength, len(*i.Body.Attributes.Name))
+	}
+
+	// Validate policies.
+	if i.Body.Attributes.Policies != nil {
+		if !validation.ValidatePolicies(ctx, tykAPI, *i.Body.Attributes.Policies) {
+			return errors.New("invalid policy")
+		}
 	}
 
 	// Validate contact emails.
@@ -141,14 +158,24 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		return
 	}
 
-	if !h.isAuthorizedWithBody(ctx, NewKeyActorID(
-		dbKey.ActorID,
-		dbKey.CreatorID,
-	), &Body{
-		Active: request.Body.Attributes.Active,
-	}) {
-		// The appropriate response is already handled in "isAuthorizedWithPatch()"
+	if !h.isAuthorized(ctx, request.toAuthKey(dbKey.ActorID, dbKey.CreatorID)) {
+		// The appropriate response is already handled in "isAuthorized()"
 		return
+	}
+
+	if request.Body.Attributes.Policies != nil {
+		policiesWithQuota, err := h.addQuotaPoliciesWithActorID(
+			ctx,
+			dbKey.ActorID,
+			*request.Body.Attributes.Policies,
+		)
+		if err != nil {
+			log.Err(err).Msg("error processing policies")
+			goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
+			return
+		}
+
+		request.Body.Attributes.Policies = &policiesWithQuota
 	}
 
 	// Call the worker.

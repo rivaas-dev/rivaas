@@ -57,11 +57,23 @@ type PostAttributes struct {
 	Active      *bool                    `json:"active"`             // Defines the status of the key.
 	Environment apikey.ApikeyEnvironment `json:"environment"`        // Defines if a key is for prod or sandbox environment. // Defines if a key is for prod or sandbox environment.'
 	Labels      *map[string]string       `json:"labels,omitempty"`   // Contains user specified labels for categorization
+	Policies    []string                 `json:"policies"`           // The access policies to give, leave empty for default.
+}
 
+func (i *PostInput) toAuthKey() *Key {
+	return NewKey(
+		i.Body.Attributes.ActorID,
+		i.Body.Attributes.CustomerID,
+		i.Body.Attributes.AccountID,
+		i.Headers.CreatorID,
+	).
+		WithPolicies(&i.Body.Attributes.Policies).
+		WithActive(i.Body.Attributes.Active).
+		WithEnvironment(i.Body.Attributes.Environment)
 }
 
 // Validate validates POST request body.
-func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
+func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient, defaultPolicies []string) error {
 	if len(i.Body.Attributes.Name) > apikey.NameMaxLength {
 		return fmt.Errorf("maximum length is %d, %d given", apikey.NameMaxLength, len(i.Body.Attributes.Name))
 	}
@@ -69,6 +81,17 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error 
 	// if not specified in the request, set prod as default environment
 	if i.Body.Attributes.Environment == "" {
 		i.Body.Attributes.Environment = apikey.ProdEnv
+	}
+
+	// Validate policies.
+	if i.Body.Attributes.Policies != nil {
+		if !validation.ValidatePolicies(ctx, tykAPI, i.Body.Attributes.Policies) {
+			return errors.New("invalid policy")
+		}
+	} else {
+		i.Body.Attributes.Policies = defaultPolicies
+		log.Warn().
+			Msg("assigned default policies to API key creation")
 	}
 
 	// Validate contact emails.
@@ -180,7 +203,7 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
-	if err := request.Validate(ctx, h.tykClient); err != nil {
+	if err := request.Validate(ctx, h.tykClient, h.apiKeyDefaults.Policies); err != nil {
 		goskell.JsonAPIError(ctx, "input validation", err, http.StatusBadRequest)
 		return
 	}
@@ -204,13 +227,7 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
-	key := NewKey(
-		request.Body.Attributes.ActorID,
-		request.Body.Attributes.CustomerID,
-		request.Body.Attributes.AccountID,
-		request.Headers.CreatorID,
-	)
-	if !h.isSubscriptionAuthorized(ctx, key, accountExt.Subscription, request.Body.Attributes.Environment) {
+	if !h.isSubscriptionAuthorized(ctx, request.toAuthKey(), accountExt.Subscription) {
 		// The appropriate response is already handled in "isAuthorized()"
 		return
 	}
@@ -277,32 +294,13 @@ func (h *Handler) POSTWorker(ctx *goskell.Context, request WorkflowPostInput) (*
 func (h *Handler) postRequestToWorkflowInput(ctx context.Context, request *PostInput) (WorkflowPostInput, error) {
 	var err error
 
-	// Get pricing plan ID from account extended info
-	accountExt, err := h.customerService.GetAccountExtended(ctx, request.Body.Attributes.CustomerID, request.Body.Attributes.AccountID)
+	keyPolicies, err := h.addQuotaPolicies(ctx,
+		request.Body.Attributes.CustomerID,
+		request.Body.Attributes.AccountID,
+		request.Body.Attributes.Policies,
+	)
 	if err != nil {
 		return WorkflowPostInput{}, err
-	}
-
-	quotaPolicyName, err := h.customerService.GetPricingPlanQuotaPolicyName(accountExt.Subscription.PricingPlanID)
-	if errors.Is(err, customers.ErrPricingPlanNotFound) {
-		return WorkflowPostInput{}, err
-	}
-	if err != nil {
-		return WorkflowPostInput{}, err
-	}
-
-	log.Info().
-		Str("pricingPlanID", accountExt.Subscription.PricingPlanID).
-		Str("quotaPolicyName", quotaPolicyName).
-		Msg("retrieved quota policy name for API key creation")
-
-	policies := h.apiKeyDefaults.Policies
-	if quotaPolicyName != "" {
-		policies = append(policies, quotaPolicyName)
-	} else {
-		log.Warn().
-			Str("pricingPlanID", accountExt.Subscription.PricingPlanID).
-			Msg("quota policy name is empty, not adding to policies")
 	}
 
 	wInput := WorkflowPostInput{
@@ -313,10 +311,9 @@ func (h *Handler) postRequestToWorkflowInput(ctx context.Context, request *PostI
 		Active:      request.Body.Attributes.Active,
 		Environment: request.Body.Attributes.Environment,
 		Labels:      request.Body.Attributes.Labels,
-
-		Policies:  policies,
-		ExpiresAt: nil,
-		RateLimit: apikey.RateLimit{}, // set to empty, no rate limit on key level
+		Policies:    keyPolicies,
+		ExpiresAt:   nil,
+		RateLimit:   apikey.RateLimit{}, // set to empty, no rate limit on key level
 	}
 
 	if request.Body.Attributes.Contact != nil {

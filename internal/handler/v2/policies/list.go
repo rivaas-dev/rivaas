@@ -2,12 +2,13 @@
 package policies
 
 import (
+	"net/http"
+
 	"github.com/google/jsonapi"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
-	"net/http"
 )
 
 type Policy struct {
@@ -21,6 +22,11 @@ func (p Policy) String() string {
 
 // LIST handles GET requests on the endpoint to get list of policies.
 func (h *Handler) LIST(ctx *goskell.Context) {
+	if !h.isAuthorized(ctx) {
+		// The appropriate response is already handled in "isAuthorized()"
+		return
+	}
+
 	// retrieve the policies list
 	_, span := goot.Span(ctx.Request.Context(), "get_from_tyk")
 	policies, err := GetPolicies(ctx.Request.Context(), h.tykClient)
