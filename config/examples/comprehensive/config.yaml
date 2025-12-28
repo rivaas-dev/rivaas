@@ -1,0 +1,76 @@
+# Web Application Configuration
+# This file provides default values that can be overridden by environment variables
+
+server:
+  host: "localhost"
+  port: 3000
+  read:
+    timeout: "30s"
+  write:
+    timeout: "30s"
+  tls:
+    enabled: false
+    cert:
+      file: "/etc/ssl/certs/server.crt"
+    key:
+      file: "/etc/ssl/private/server.key"
+
+database:
+  primary:
+    host: "localhost"
+    port: 5432
+    database: "myapp_dev"
+    username: "postgres"
+    password: "dev_password"
+    ssl:
+      mode: "disable"
+  replica:
+    host: "localhost"
+    port: 5432
+    database: "myapp_dev"
+    username: "readonly"
+    password: "readonly_password"
+    ssl:
+      mode: "disable"
+  pool:
+    max:
+      open: 10
+      idle: 5
+      lifetime: "5m"
+
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  database: 0
+  timeout: "5s"
+
+auth:
+  jwt:
+    secret: "dev-jwt-secret-change-in-production"
+  token:
+    duration: "24h"
+  refresh:
+    secret: "dev-refresh-secret-change-in-production"
+
+logging:
+  level: "debug"
+  format: "text"
+  output:
+    file: ""
+
+monitoring:
+  enabled: false
+  metrics:
+    port: 9090
+  health:
+    path: "/health"
+
+features:
+  rate:
+    limit:
+      enabled: false
+  cache:
+    enabled: false
+  debug:
+    mode: true 
