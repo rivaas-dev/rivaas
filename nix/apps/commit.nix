@@ -173,11 +173,34 @@ in
       ${cleanAiOutputScript}
       ${stripMarkdownScript}
 
+      # Ensure workspace is trusted (one-time operation)
+      ensure_workspace_trust() {
+        # Create minimal workspace config to avoid trust prompt
+        mkdir -p .cursor
+        if [ ! -f .cursor/cli.json ]; then
+          echo '{}' > .cursor/cli.json
+        fi
+        
+        # Test if cursor-agent works
+        local test_output
+        if test_output=$(timeout 5 ${pkgs.cursor-cli}/bin/cursor-agent -p --output-format text "test" 2>&1); then
+          # Check if we got actual output (not just exit 0)
+          if [ -n "$test_output" ]; then
+            return 0
+          else
+            # Exit 0 but no output - likely API/model access issue
+            return 2
+          fi
+        else
+          return 1
+        fi
+      }
+
       # Generate AI commit message with timeout and error handling
       generate_ai_message() {
         local prompt="$1"
         local output
-        if output=$(timeout ${toString cfg.aiTimeoutSec} ${pkgs.cursor-cli}/bin/cursor-agent -p --output-format text "$prompt" 2>/dev/null); then
+        if output=$(timeout ${toString cfg.aiTimeoutSec} ${pkgs.cursor-cli}/bin/cursor-agent -p --output-format text "$prompt" 2>&1); then
           echo "$output"
           return 0
         else
@@ -211,6 +234,37 @@ in
           exit 1
         fi
       fi
+
+      # Ensure workspace is trusted (auto-accept trust prompt if needed)
+      $gum style --foreground ${lib.colors.info} "Checking workspace trust..."
+      trust_result=0
+      ensure_workspace_trust || trust_result=$?
+      
+      if [ $trust_result -eq 2 ]; then
+        $gum style --foreground ${lib.colors.error} "✗ Cursor Agent API not responding"
+        $gum style --faint "  The cursor-agent CLI connects but returns no output."
+        $gum style --faint ""
+        $gum style --faint "  Possible causes:"
+        $gum style --faint "    • Account lacks CLI/API entitlements (may need subscription)"
+        $gum style --faint "    • Ghost mode enabled in ~/.cursor/cli-config.json"
+        $gum style --faint "    • API service issue or rate limiting"
+        $gum style --faint ""
+        $gum style --faint "  To diagnose:"
+        $gum style --faint "    1. Check: cursor-agent status"
+        $gum style --faint "    2. Try: cursor-agent -p --output-format text 'hello'"
+        $gum style --faint "    3. Review ~/.cursor/cli-config.json (ghostMode, privacyMode)"
+        $gum style --faint ""
+        $gum style --faint "  Falling back to manual commit messages..."
+        echo ""
+      elif [ $trust_result -ne 0 ]; then
+        $gum style --foreground ${lib.colors.error} "✗ Cursor Agent workspace trust issue"
+        $gum style --faint "  Could not establish workspace trust"
+        $gum style --faint "  Run 'cursor-agent' interactively in this directory"
+        echo ""
+      fi
+      
+      # If trust check failed, we'll continue but AI generation will fail
+      # The script will fall back to default messages
 
       $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Interactive Module Commit"
       echo ""
