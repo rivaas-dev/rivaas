@@ -8,21 +8,12 @@ coverage.lcov
 *.lcov.json
 coverage_*.out
 
-# Go build artifacts
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-
-# OS files
-.DS_Store
-Thumbs.db
 
 # Nix
 .direnv/
 .envrc.cache
 result
 result-*
+
+# Golangci-lint cache
 .golangci-cache/

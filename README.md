@@ -105,6 +105,12 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 | [app](./app/) | Batteries-included web framework | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/app.svg)](https://pkg.go.dev/rivaas.dev/app) [![Go Report](https://goreportcard.com/badge/rivaas.dev/app)](https://goreportcard.com/report/rivaas.dev/app) |
 | [router](./router/) | High-performance HTTP router | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router.svg)](https://pkg.go.dev/rivaas.dev/router) [![Go Report](https://goreportcard.com/badge/rivaas.dev/router)](https://goreportcard.com/report/rivaas.dev/router) |
 
+### Configuration
+
+| Package | Description | Docs |
+|---------|-------------|------|
+| [config](./config/) | Configuration management (files, env vars, Consul, validation) | [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/config.svg)](https://pkg.go.dev/rivaas.dev/config) [![Go Report](https://goreportcard.com/badge/rivaas.dev/config)](https://goreportcard.com/report/rivaas.dev/config) |
+
 ### Data Handling
 
 | Package | Description | Docs |
@@ -139,7 +145,7 @@ Like its namesake growing in the mountains, Rivaas is designed to thrive in dyna
 ├───────────────┬───────────────┬─────────────────────────────┤
 │   logging     │    metrics    │          tracing            │
 │   binding     │   validation  │          openapi            │
-│   errors      │               │                             │
+│   errors      │    config     │                             │
 └───────────────┴───────────────┴─────────────────────────────┘
 ```
 
@@ -199,6 +205,7 @@ rivaas/
 ├── router/       → rivaas.dev/router
 ├── binding/      → rivaas.dev/binding
 ├── validation/   → rivaas.dev/validation
+├── config/       → rivaas.dev/config
 ├── logging/      → rivaas.dev/logging
 ├── metrics/      → rivaas.dev/metrics
 ├── tracing/      → rivaas.dev/tracing
@@ -213,6 +220,7 @@ rivaas/
 |----------|-------------|
 | [App Guide](./app/README.md) | Complete framework documentation |
 | [Router Guide](./router/README.md) | HTTP routing and request handling |
+| [Config Guide](./config/README.md) | Configuration management |
 | [Middleware Catalog](./router/middleware/README.md) | All 12 middleware with examples |
 | [Design Principles](./docs/DESIGN_PRINCIPLES.md) | Architecture and design decisions |
 | [Testing Standards](./docs/TESTING_STANDARDS.md) | Testing guidelines and patterns |
