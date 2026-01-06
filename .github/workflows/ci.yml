@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel in-progress runs for the same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [fmt-check, lint, test-race, tidy]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run ${{ matrix.check }}
+        run: nix run .#${{ matrix.check }}
+
+      - name: Verify no uncommitted changes
+        if: matrix.check == 'tidy'
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::go.mod or go.sum files are not tidy. Run 'nix run .#tidy' and commit the changes."
+            git diff
+            exit 1
+          fi
+
+  flake-check:
+    name: Flake Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check flake
+        run: nix flake check
+
+  # Optional: Integration tests (only on main or when labeled)
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [ci]
+    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run-integration')
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run integration tests
+        run: nix run .#test-integration
