@@ -1,9 +1,13 @@
 # Pastel color palette for consistent UI across all scripts
+# Colors are xterm-256 codes: https://jonasjacek.github.io/colors/
 {
-  header = "183";     # Soft lavender
+  # Status colors
+  header  = "183";    # Soft lavender
   success = "158";    # Mint green
-  error = "210";      # Soft coral
-  info = "250";       # Light gray
+  error   = "210";    # Soft coral
+  warning = "222";    # Soft amber
+  info    = "250";    # Light gray
+  muted   = "245";    # Dark gray (for faint/disabled)
 
   # Accent colors for command list
   accent1 = "153";    # Sky blue

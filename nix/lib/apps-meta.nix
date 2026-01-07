@@ -2,21 +2,27 @@
 # Each entry defines the color and description for an app
 # This is the single source of truth used by both apps and devshell
 [
-  # Testing (greens/blues)
+  # Testing (green → mint → blue gradient)
   { name = "test";             color = "success"; description = "Run unit tests"; }
-  { name = "test-race";        color = "accent1"; description = "Run tests with race detector"; }
-  { name = "test-integration"; color = "accent2"; description = "Run integration tests"; }
-  { name = "test-examples";    color = "accent6"; description = "Build examples (standalone)"; }
+  { name = "test-race";        color = "accent6"; description = "Run tests with race detector"; }
+  { name = "test-integration"; color = "accent1"; description = "Run integration tests"; }
+  { name = "test-examples";    color = "accent2"; description = "Build examples (standalone)"; }
 
-  # Code quality (yellows/peach)
+  # Code quality (yellow → peach gradient)
   { name = "fmt";              color = "accent4"; description = "Format code (gofumpt + gci)"; }
-  { name = "fmt-check";        color = "accent5"; description = "Check formatting (CI)"; }
+  { name = "fmt-check";        color = "accent4"; description = "Check formatting (CI)"; }
   { name = "lint";             color = "accent5"; description = "Run golangci-lint"; }
+  { name = "lint-soft";        color = "accent5"; description = "Run optional linters (advisory)"; }
+  { name = "lint-all";         color = "accent5"; description = "Run all linters (required + optional)"; }
   { name = "bench";            color = "accent4"; description = "Run benchmarks"; }
-  { name = "tidy";             color = "header";  description = "Run go mod tidy"; }
+  { name = "tidy";             color = "accent5"; description = "Run go mod tidy"; }
 
-  # Release & examples (pinks)
+  # Release (pink → lavender gradient)
   { name = "release-check";    color = "accent3"; description = "Check for unreleased changes"; }
   { name = "release";          color = "accent3"; description = "Interactive release (create tags)"; }
-  { name = "run-example";      color = "accent1"; description = "Interactive example runner"; }
+  { name = "run-example";      color = "header";  description = "Interactive example runner"; }
+
+  # Commit tools (sky blue → pale blue gradient)
+  { name = "commit";           color = "accent1"; description = "Interactive commit with AI messages"; }
+  { name = "commit-check";     color = "accent2"; description = "Check uncommitted changes"; }
 ]

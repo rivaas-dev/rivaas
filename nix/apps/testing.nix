@@ -1,4 +1,4 @@
-# Testing-related apps: test, test-race, test-integration
+# Testing-related apps (run outside sandbox with network access)
 { pkgs, lib }:
 
 {

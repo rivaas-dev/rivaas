@@ -2,13 +2,21 @@
 { pkgs, lib }:
 
 let
-  # Calculate max name length for padding
+  # Group apps by category based on their position in apps-meta
+  categories = [
+    { name = "Testing"; apps = builtins.filter (a: builtins.elem a.name ["test" "test-race" "test-integration" "test-examples"]) lib.appsMeta; }
+    { name = "Code Quality"; apps = builtins.filter (a: builtins.elem a.name ["fmt" "fmt-check" "lint" "lint-soft" "lint-all" "bench" "tidy"]) lib.appsMeta; }
+    { name = "Release"; apps = builtins.filter (a: builtins.elem a.name ["release-check" "release" "run-example"]) lib.appsMeta; }
+    { name = "Commit Tools"; apps = builtins.filter (a: builtins.elem a.name ["commit" "commit-check"]) lib.appsMeta; }
+  ];
+
+  # Calculate max name length for padding (across all apps)
   maxNameLen = builtins.foldl' (acc: app: 
     let len = builtins.stringLength app.name; 
     in if len > acc then len else acc
   ) 0 lib.appsMeta;
 
-  # Pad a string to a given length (dynamically generates exact padding)
+  # Pad a string to a given length
   padRight = str: len:
     let
       strLen = builtins.stringLength str;
@@ -22,10 +30,22 @@ let
       paddedName = padRight app.name maxNameLen;
       colorCode = lib.colors.${app.color};
     in
-    ''printf "  %s  %s\n" "$(gum style --foreground ${colorCode} 'nix run .#${paddedName}')" "$(gum style --faint '${app.description}')"'';
+    ''printf "    %s  %s\n" "$(gum style --foreground ${colorCode} 'nix run .#${paddedName}')" "$(gum style --faint '${app.description}')"'';
 
-  # Generate all command lines
-  commandLines = builtins.concatStringsSep "\n    " (builtins.map mkCommandLine lib.appsMeta);
+  # Generate category section
+  mkCategory = category:
+    let
+      commands = builtins.map mkCommandLine category.apps;
+      commandLines = builtins.concatStringsSep "\n    " commands;
+    in
+    ''
+    echo ""
+    gum style --foreground ${lib.colors.header} --bold "${category.name}:"
+    ${commandLines}
+    '';
+
+  # Generate all categories
+  allCategories = builtins.concatStringsSep "\n    " (builtins.map mkCategory categories);
 in
 
 pkgs.mkShell {
@@ -65,8 +85,13 @@ pkgs.mkShell {
     export PATH="$GOPATH/bin:$PATH"
     export GO111MODULE=on
     export GOFLAGS="-buildvcs=true"
-    export GOLANGCI_LINT_CACHE="$PWD/.golangci-cache"
-    mkdir -p "$GOLANGCI_LINT_CACHE"
+    export GOPROXY="https://proxy.golang.org,direct"
+    export GOLANGCI_LINT_CACHE="''${XDG_CACHE_HOME:-$HOME/.cache}/golangci-lint"
+
+    # Skip banner in CI environments (CI variable is set by most CI systems)
+    if [ -n "''${CI:-}" ]; then
+      return
+    fi
 
     # Pretty welcome banner with gum (pastel colors)
     echo ""
@@ -82,13 +107,9 @@ pkgs.mkShell {
     echo ""
     gum style --foreground ${lib.colors.info} "Go version: $(go version | cut -d' ' -f3 | tr -d 'go')"
     gum style --foreground ${lib.colors.info} "Golangci-lint version: $(golangci-lint version --short 2>/dev/null || echo 'not found')"
-    echo ""
 
-    gum style --foreground ${lib.colors.header} --bold "Quick commands (flake apps):"
-    ${commandLines}
-    echo ""
-
-    gum style --foreground ${lib.colors.success} "Environment configured ✓"
+    gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Quick Commands"
+    ${allCategories}
     echo ""
   '';
 

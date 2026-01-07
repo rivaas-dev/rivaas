@@ -21,11 +21,10 @@
         # Development shell
         devShells.default = import ./nix/devshell.nix { inherit pkgs lib; };
 
-        # All apps (test, lint, release, etc.)
+        # All apps (test, lint, format, release, etc.)
+        # Run with: nix run .#<app-name>
+        # List all: nix flake show
         apps = import ./nix/apps { inherit pkgs lib; };
-
-        # CI checks - run with: nix flake check
-        checks.default = import ./nix/checks.nix { inherit pkgs lib self; };
       }
     );
 }
