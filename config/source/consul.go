@@ -113,7 +113,7 @@ func (c *Consul) Load(ctx context.Context) (map[string]any, error) {
 		return config, nil
 	}
 
-	if err := c.decoder.Decode(pair.Value, &config); err != nil {
+	if err = c.decoder.Decode(pair.Value, &config); err != nil {
 		return nil, fmt.Errorf("failed to decode consul value: %w", err)
 	}
 

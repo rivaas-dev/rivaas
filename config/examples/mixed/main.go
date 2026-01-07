@@ -216,7 +216,7 @@ func main() {
 	}
 
 	// Load configuration
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 

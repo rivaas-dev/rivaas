@@ -72,7 +72,7 @@ func (f *File) Dump(_ context.Context, values *map[string]any) error {
 		return fmt.Errorf("failed to encode values: %w", err)
 	}
 
-	if err := os.WriteFile(f.path, data, f.permissions); err != nil {
+	if err = os.WriteFile(f.path, data, f.permissions); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 

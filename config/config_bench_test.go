@@ -46,7 +46,7 @@ func BenchmarkParallelLoading(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		err := c.Load(b.Context())
+		err = c.Load(b.Context())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -81,7 +81,7 @@ func BenchmarkLoad(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		err := c.Load(b.Context())
+		err = c.Load(b.Context())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -101,7 +101,7 @@ func BenchmarkLoadWithBinding(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		err := c.Load(b.Context())
+		err = c.Load(b.Context())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -115,7 +115,7 @@ func BenchmarkGet(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	if err := c.Load(b.Context()); err != nil {
+	if err = c.Load(b.Context()); err != nil {
 		b.Fatal(err)
 	}
 
@@ -142,7 +142,7 @@ func BenchmarkGetNested(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	if err := c.Load(b.Context()); err != nil {
+	if err = c.Load(b.Context()); err != nil {
 		b.Fatal(err)
 	}
 
@@ -161,7 +161,7 @@ func BenchmarkGetString(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	if err := c.Load(b.Context()); err != nil {
+	if err = c.Load(b.Context()); err != nil {
 		b.Fatal(err)
 	}
 
@@ -180,7 +180,7 @@ func BenchmarkGetInt(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	if err := c.Load(b.Context()); err != nil {
+	if err = c.Load(b.Context()); err != nil {
 		b.Fatal(err)
 	}
 
@@ -199,7 +199,7 @@ func BenchmarkGetStringSlice(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	if err := c.Load(b.Context()); err != nil {
+	if err = c.Load(b.Context()); err != nil {
 		b.Fatal(err)
 	}
 
@@ -218,7 +218,7 @@ func BenchmarkConcurrentGet(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	if err := c.Load(b.Context()); err != nil {
+	if err = c.Load(b.Context()); err != nil {
 		b.Fatal(err)
 	}
 
@@ -245,7 +245,7 @@ func BenchmarkLargeConfig(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	if err := c.Load(b.Context()); err != nil {
+	if err = c.Load(b.Context()); err != nil {
 		b.Fatal(err)
 	}
 
@@ -278,7 +278,7 @@ func BenchmarkMultipleSources(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := c.Load(b.Context()); err != nil {
+		if err = c.Load(b.Context()); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -292,7 +292,7 @@ func BenchmarkDump(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	if err := c.Load(b.Context()); err != nil {
+	if err = c.Load(b.Context()); err != nil {
 		b.Fatal(err)
 	}
 
@@ -300,7 +300,7 @@ func BenchmarkDump(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		err := c.Dump(b.Context())
+		err = c.Dump(b.Context())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -326,7 +326,7 @@ func BenchmarkValidator(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		err := c.Load(b.Context())
+		err = c.Load(b.Context())
 		if err != nil {
 			b.Fatal(err)
 		}

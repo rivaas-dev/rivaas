@@ -128,7 +128,7 @@ func FuzzGet(f *testing.F) {
 	if err != nil {
 		f.Fatal(err)
 	}
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		f.Fatal(err)
 	}
 
@@ -163,7 +163,7 @@ func FuzzGetWithSpecialChars(f *testing.F) {
 	if err != nil {
 		f.Fatal(err)
 	}
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		f.Fatal(err)
 	}
 
@@ -267,7 +267,7 @@ func FuzzGetTypedValues(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if err := cfg.Load(context.Background()); err != nil {
+		if err = cfg.Load(context.Background()); err != nil {
 			return
 		}
 

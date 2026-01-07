@@ -67,7 +67,7 @@ func (f *File) Load(context.Context) (map[string]any, error) {
 	}
 
 	var config map[string]any
-	if err := f.decoder.Decode(f.data, &config); err != nil {
+	if err = f.decoder.Decode(f.data, &config); err != nil {
 		return nil, fmt.Errorf("failed to decode file: %w", err)
 	}
 

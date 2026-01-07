@@ -313,7 +313,7 @@ func TestDump(t *testing.T) {
 				if err != nil {
 					return nil, nil, err
 				}
-				if err := cfg.Load(context.Background()); err != nil {
+				if err = cfg.Load(context.Background()); err != nil {
 					return nil, nil, err
 				}
 				return cfg, dumper, nil
@@ -333,7 +333,7 @@ func TestDump(t *testing.T) {
 				if err != nil {
 					return nil, nil, err
 				}
-				if err := cfg.Load(context.Background()); err != nil {
+				if err = cfg.Load(context.Background()); err != nil {
 					return nil, nil, err
 				}
 				return cfg, nil, nil
@@ -350,7 +350,7 @@ func TestDump(t *testing.T) {
 				if err != nil {
 					return nil, nil, err
 				}
-				if err := cfg.Load(context.Background()); err != nil {
+				if err = cfg.Load(context.Background()); err != nil {
 					return nil, nil, err
 				}
 				return cfg, dumper, nil
@@ -368,7 +368,7 @@ func TestDump(t *testing.T) {
 				if err != nil {
 					return nil, nil, err
 				}
-				if err := cfg.Load(context.Background()); err != nil {
+				if err = cfg.Load(context.Background()); err != nil {
 					return nil, nil, err
 				}
 				// Return first dumper for verification
@@ -1139,16 +1139,8 @@ func TestContextCancellation(t *testing.T) {
 		}
 	}
 
-	// Create a wrapper that implements Source
-	src := &struct {
-		loadFn func(context.Context) (map[string]any, error)
-	}{loadFn: loadFunc}
-
-	// Implement Load method
-	type sourceWithLoad struct {
-		loadFn func(context.Context) (map[string]any, error)
-	}
-	srcWithLoad := &sourceWithLoad{loadFn: loadFunc}
+	// Use loadFunc to avoid unused variable warning
+	_ = loadFunc
 
 	cfg, err := New(WithSource(&mockSource{conf: map[string]any{"foo": "bar"}}))
 	require.NoError(t, err)
@@ -1158,8 +1150,6 @@ func TestContextCancellation(t *testing.T) {
 
 	// This test is primarily to show context handling
 	_ = cfg.Load(ctx)
-	_ = src
-	_ = srcWithLoad
 }
 
 func TestFilePermissions(t *testing.T) {

@@ -386,7 +386,7 @@ func WithJSONSchema(schema []byte) Option {
 			return err
 		}
 
-		if err := compiler.AddResource(schemaName, jsonSchema); err != nil {
+		if err = compiler.AddResource(schemaName, jsonSchema); err != nil {
 			return err
 		}
 		s, err := compiler.Compile(schemaName)
@@ -634,7 +634,7 @@ func (c *Config) loadSourcesSequential(ctx context.Context) (map[string]any, err
 		normalizedConf := normalizeMapKeys(conf)
 
 		// Use mergo to merge configuration maps with override behavior
-		if err := mergo.Map(&newValues, normalizedConf, mergo.WithOverride); err != nil {
+		if err = mergo.Map(&newValues, normalizedConf, mergo.WithOverride); err != nil {
 			return nil, NewConfigError(fmt.Sprintf("source[%d]", i), "merge", err)
 		}
 	}
@@ -668,7 +668,7 @@ func (c *Config) Load(ctx context.Context) error {
 	}
 
 	if c.jsonSchemaCompiled != nil {
-		if err := c.jsonSchemaCompiled.Validate(newValues); err != nil {
+		if err = c.jsonSchemaCompiled.Validate(newValues); err != nil {
 			return NewConfigError("json-schema", "validate", err)
 		}
 	}
@@ -697,11 +697,11 @@ func (c *Config) Load(ctx context.Context) error {
 
 	if c.binding != nil {
 		// Validate binding without modifying shared state
-		if err := c.bindAndValidate(newValues); err != nil {
+		if err = c.bindAndValidate(newValues); err != nil {
 			return NewConfigError("binding", "validate", err)
 		}
 		// Now safely update the actual binding struct
-		if err := c.bind(&newValues); err != nil {
+		if err = c.bind(&newValues); err != nil {
 			return NewConfigError("binding", "bind", err)
 		}
 	}
@@ -756,12 +756,12 @@ func (c *Config) bind(values *map[string]any) error {
 		return fmt.Errorf("failed to create decoder: %w", err)
 	}
 
-	if err := decoder.Decode(values); err != nil {
+	if err = decoder.Decode(values); err != nil {
 		return fmt.Errorf("failed to decode configuration: %w", err)
 	}
 
 	// Apply default values from struct tags
-	if err := applyDefaults(c.binding); err != nil {
+	if err = applyDefaults(c.binding); err != nil {
 		return fmt.Errorf("failed to apply defaults: %w", err)
 	}
 
@@ -788,18 +788,18 @@ func (c *Config) bindAndValidate(values map[string]any) error {
 		return fmt.Errorf("failed to create decoder: %w", err)
 	}
 
-	if err := decoder.Decode(&values); err != nil {
+	if err = decoder.Decode(&values); err != nil {
 		return fmt.Errorf("failed to decode configuration: %w", err)
 	}
 
 	// Apply default values from struct tags
-	if err := applyDefaults(tempBinding); err != nil {
+	if err = applyDefaults(tempBinding); err != nil {
 		return fmt.Errorf("failed to apply defaults: %w", err)
 	}
 
 	// Run validation if the binding implements Validator interface
 	if v, ok := tempBinding.(Validator); ok {
-		if err := v.Validate(); err != nil {
+		if err = v.Validate(); err != nil {
 			return err
 		}
 	}
@@ -852,7 +852,7 @@ func (c *Config) getValueFromMap(path string) any {
 			if i == len(segments)-1 {
 				return currentMap
 			}
-			if nestedMap, ok := currentMap.(map[string]any); ok {
+			if nestedMap, isMap := currentMap.(map[string]any); isMap {
 				current = nestedMap
 			} else {
 				return nil

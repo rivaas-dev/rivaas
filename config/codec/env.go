@@ -84,8 +84,8 @@ func (EnvVarCodec) Decode(data []byte, v any) error {
 				current = nextMap
 			} else {
 				current[part] = make(map[string]any)
-				if nextMap, ok := current[part].(map[string]any); ok {
-					current = nextMap
+				if innerMap, ok := current[part].(map[string]any); ok {
+					current = innerMap
 				} else {
 					// This should never happen, but handle it gracefully
 					return fmt.Errorf("failed to create nested map for key: %s", part)

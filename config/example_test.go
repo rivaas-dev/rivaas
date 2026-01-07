@@ -43,7 +43,7 @@ database:
 	}
 
 	// Load configuration
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -65,7 +65,7 @@ func ExampleNew() {
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -94,7 +94,7 @@ func ExampleWithFileSource() {
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -118,7 +118,7 @@ func ExampleWithContent() {
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -155,7 +155,7 @@ server:
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -181,7 +181,7 @@ func ExampleWithValidator() {
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -204,7 +204,7 @@ settings:
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -226,7 +226,7 @@ func ExampleConfig_String() {
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -248,7 +248,7 @@ func ExampleConfig_Int() {
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -270,7 +270,7 @@ func ExampleConfig_Bool() {
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -297,7 +297,7 @@ tags:
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -321,7 +321,7 @@ metadata:
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -356,7 +356,7 @@ server:
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -381,7 +381,7 @@ func Example_environmentVariables() {
 		log.Fatal(err)
 	}
 
-	if err := cfg.Load(context.Background()); err != nil {
+	if err = cfg.Load(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
