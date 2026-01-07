@@ -167,7 +167,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 
 	handler := tracing.Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		if _, err = w.Write([]byte(`{"status":"ok"}`)); err != nil {
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
 			t.Errorf("failed to write response: %v", err)
 		}
 	}))
