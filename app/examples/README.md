@@ -22,44 +22,46 @@ cd 01-quick-start
 go run main.go
 ```
 
-### 02-full-featured
+### 02-blog
 
 **What it shows:**
-- **Complete production-ready application**
-- Multi-exporter tracing (stdout for dev, OTLP for prod)
-- Metrics collection with Prometheus
-- Environment-based configuration
-- Full middleware stack (logger, recovery, CORS, timeout, request ID)
-- Custom metrics and tracing in handlers
-- RESTful API patterns with route groups
-- Graceful shutdown
+- **Real-world blog API** with posts, authors, and comments
+- **Configuration management** with `rivaas.dev/config` (YAML + env vars)
+- **Method-based validation** (proper enum handling with `IsValid()`)
+- **OpenAPI documentation** with Swagger UI
+- **Full observability** (logging, metrics, tracing)
+- **API versioning** with path-based routing (`/v1/stats`)
+- **Integration tests** using `app/testing.go`
+- **Production patterns** (slug-based URLs, status transitions, nested resources)
 
 **When to use:**
-- Building production applications
-- Need complete observability
-- Want to see all features working together
+- Building real-world RESTful APIs
+- Need configuration management
+- Want to see proper validation patterns
+- Looking for comprehensive testing examples
 - Reference implementation for your own projects
 
-**Run in different modes:**
+**Run it:**
 ```bash
-cd 02-full-featured
+cd 02-blog
 
-# Development mode (stdout tracing, logger enabled)
+# Development mode (default)
 go run main.go
 
-# Production mode (OTLP tracing to Jaeger)
-ENVIRONMENT=production OTLP_ENDPOINT=localhost:4317 go run main.go
+# Production mode with custom config
+BLOG_SERVER_PORT=3000 BLOG_OBSERVABILITY_ENVIRONMENT=production go run main.go
 
-# Testing mode (no tracing)
-ENVIRONMENT=testing go run main.go
+# Run tests
+go test -v
 ```
 
 **What you get:**
 - HTTP API on `:8080`
+- OpenAPI docs at `/docs`
 - Prometheus metrics on `:9090`
-- Traces to stdout or OTLP collector
-- Request IDs on all responses
-- Full observability stack
+- Health endpoints: `/healthz`, `/readyz`
+- Versioned API: `/v1/stats`, `/v1/popular`
+- Full CRUD operations with validation
 
 ## Example Progression
 
@@ -69,13 +71,16 @@ ENVIRONMENT=testing go run main.go
 
 ## Key Differences
 
-| Feature | 01-quick-start | 02-full-featured |
-|---------|----------------|------------------|
-| Lines of code | ~20 | ~250 |
-| Observability | ❌ | ✅ Metrics + Tracing |
+| Feature | 01-quick-start | 02-blog |
+|---------|----------------|---------|
+| Lines of code | ~20 | ~800 |
+| Configuration | ❌ | ✅ YAML + Env vars |
+| Validation | ❌ | ✅ Method-based |
+| OpenAPI Docs | ❌ | ✅ Swagger UI |
+| Observability | ❌ | ✅ Metrics + Tracing + Logging |
 | Middleware | ❌ | ✅ Full stack |
-| Environment modes | ❌ | ✅ Dev/Prod/Test |
-| Configuration | ❌ | ✅ Env vars |
+| Testing | ❌ | ✅ Integration tests |
+| API Versioning | ❌ | ✅ Path-based |
 | Production ready | ❌ | ✅ |
 
 ## Running Requirements
@@ -86,21 +91,35 @@ ENVIRONMENT=testing go run main.go
 go run main.go
 ```
 
-### 02-full-featured
+### 02-blog
 
 **Development mode:**
 ```bash
-# Just run it - traces to stdout
+# Just run it - uses config.yaml
 go run main.go
+
+# Access the API:
+# - API: http://localhost:8080
+# - Docs: http://localhost:8080/docs
+# - Metrics: http://localhost:9090/metrics
 ```
 
 **Production mode:**
 ```bash
-# Start Jaeger first:
+# Override with environment variables
+BLOG_SERVER_PORT=3000 \
+BLOG_OBSERVABILITY_ENVIRONMENT=production \
+BLOG_OBSERVABILITY_SAMPLERATE=0.1 \
+go run main.go
+```
+
+**With external services:**
+```bash
+# Start Jaeger for tracing:
 docker run -d -p 4317:4317 -p 16686:16686 jaegertracing/all-in-one:latest
 
-# Then run the app:
-ENVIRONMENT=production go run main.go
+# Run with OTLP tracing:
+BLOG_OBSERVABILITY_ENVIRONMENT=production OTLP_ENDPOINT=localhost:4317 go run main.go
 
 # View traces at: http://localhost:16686
 ```

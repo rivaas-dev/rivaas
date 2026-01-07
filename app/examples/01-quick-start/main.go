@@ -58,7 +58,7 @@ func main() {
 	// Health endpoints are available at:
 	//   GET /healthz - Liveness probe (returns 200 "ok")
 	//   GET /readyz  - Readiness probe (returns 204)
-	if err := a.Start(ctx, ":8080"); err != nil {
+	if err = a.Start(ctx, ":8080"); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
 }

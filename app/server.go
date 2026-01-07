@@ -197,7 +197,7 @@ func (a *App) registerOpenAPIEndpoints() {
 		c.Response.Header().Set("ETag", etag)
 		c.Response.Header().Set("Cache-Control", "public, max-age=3600")
 		c.Response.Header().Set("Content-Type", "application/json")
-		if _, err := c.Response.Write(specJSON); err != nil {
+		if _, err = c.Response.Write(specJSON); err != nil {
 			c.Logger().Error("failed to write spec response", "err", err)
 		}
 	})

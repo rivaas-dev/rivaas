@@ -1,0 +1,82 @@
+# Blog Application Configuration
+# This file provides default values that can be overridden by environment variables
+# Use BLOG_ prefix for environment variables (e.g., BLOG_SERVER_PORT=8080)
+
+environment: "development"
+# environment: "test"
+# environment: "production"
+
+server:
+  host: "localhost"
+  # host: "0.0.0.0"  # Listen on all interfaces
+  port: 8080
+  # port: 443  # For HTTPS
+  readTimeout: "15s"
+  # readTimeout: "30s"  # Increase for slow clients
+  writeTimeout: "15s"
+  # writeTimeout: "60s"  # Increase for large responses
+  shutdownTimeout: "30s"
+  # shutdownTimeout: "60s"  # More time for graceful shutdown in production
+
+blog:
+  postsPerPage: 10
+  # postsPerPage: 20  # Show more posts per page
+  # postsPerPage: 5   # Show fewer posts per page
+  maxTitleLength: 200
+  # maxTitleLength: 100  # Stricter title limits
+  maxContentLength: 50000
+  # maxContentLength: 100000  # Allow longer posts
+  allowedStatuses:
+    - draft
+    - published
+    - archived
+  # allowedStatuses:  # Minimal status options
+  #   - draft
+  #   - published
+  enableComments: true
+  # enableComments: false  # Disable comments entirely
+  requireModeration: false
+  # requireModeration: true  # Require approval before comments are visible
+
+observability:
+  tracing:
+    provider: "stdout"  # Development: logs traces to stdout
+    # provider: "otlp"      # Production: OpenTelemetry Protocol (gRPC)
+    # provider: "otlp-http" # Production: OpenTelemetry Protocol (HTTP)
+    # provider: "noop"      # Disable tracing entirely
+    endpoint: ""  # Leave empty for stdout/noop
+    # endpoint: "localhost:4317"        # OTLP gRPC endpoint
+    # endpoint: "http://localhost:4318" # OTLP HTTP endpoint
+    # endpoint: "jaeger:4317"           # Jaeger with OTLP
+    # endpoint: "tempo:4317"            # Grafana Tempo
+  
+  metrics:
+    provider: "prometheus"  # Expose Prometheus metrics endpoint
+    # provider: "otlp"    # Push metrics via OpenTelemetry
+    # provider: "stdout"  # Print metrics to stdout (development)
+    endpoint: ":9090"  # Prometheus scrape endpoint
+    # endpoint: ":2112"              # Alternative Prometheus port
+    # endpoint: "localhost:4318"     # OTLP HTTP endpoint
+    # endpoint: "otel-collector:4317" # OTLP gRPC to collector
+  
+  logging:
+    handler: "console"  # Human-readable console output
+    # handler: "json"   # JSON structured logging (production)
+    # handler: "file"   # Write logs to file
+    level: "info"
+    # level: "debug"  # Verbose logging for development
+    # level: "warn"   # Only warnings and errors
+    # level: "error"  # Only errors
+
+auth:
+  jwtSecret: "dev-secret-change-in-production"
+  # jwtSecret: "${JWT_SECRET}"  # Use environment variable in production
+  tokenDuration: "24h"
+  # tokenDuration: "1h"   # Short-lived tokens (more secure)
+  # tokenDuration: "168h" # Week-long tokens
+  # tokenDuration: "720h" # Month-long tokens
+
+# Alternative flat observability config (if using simplified Go struct):
+# observability:
+#   sampleRate: 1.0      # 1.0 = 100% sampling, 0.1 = 10% sampling
+#   metricsPort: ":9090"

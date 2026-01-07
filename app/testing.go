@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"time"
 )
 
@@ -157,7 +158,7 @@ func ExpectJSON(t testingT, resp *http.Response, statusCode int, out any) {
 	}
 
 	contentType := resp.Header.Get("Content-Type")
-	if contentType != "application/json" {
+	if !strings.HasPrefix(contentType, "application/json") {
 		t.Errorf("expected Content-Type application/json, got %s", contentType)
 		return
 	}

@@ -478,12 +478,6 @@ func New(opts ...Option) (*App, error) {
 			logErrorsOnly = true
 		}
 
-		// Get the *slog.Logger from logging config (if available)
-		var slogger *slog.Logger
-		if loggingCfg != nil {
-			slogger = loggingCfg.Logger()
-		}
-
 		obsRecorder := newObservabilityRecorder(&observabilityConfig{
 			Metrics:           metricsCfg,
 			Tracing:           tracingCfg,
@@ -1156,7 +1150,7 @@ func (a *App) BaseLogger() *slog.Logger {
 }
 
 // initializeMetrics creates and configures the metrics recorder based on settings.
-// Returns nil if metrics is not enabled.
+// Returns nil recorder if metrics is not enabled (with no error).
 func initializeMetrics(
 	cfg *config,
 	obsSettings *observabilitySettings,
@@ -1164,7 +1158,7 @@ func initializeMetrics(
 	r *router.Router,
 ) (*metrics.Recorder, error) {
 	if obsSettings.metrics == nil || !obsSettings.metrics.enabled {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Returning (nil, nil) is intentional when metrics is disabled
 	}
 
 	metricsOpts := buildMetricsOptions(cfg, obsSettings, loggingCfg)

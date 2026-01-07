@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package handlers provides error handling utilities and structured error types
-// for the full-featured example application.
+// for the blog API.
 package handlers
 
 import (
@@ -38,9 +38,17 @@ func (e APIError) Error() string {
 
 // Predefined error constants for consistent error handling.
 var (
-	ErrUserNotFound = APIError{
-		Code:    "USER_NOT_FOUND",
-		Message: "User not found",
+	ErrPostNotFound = APIError{
+		Code:    "POST_NOT_FOUND",
+		Message: "Post not found",
+	}
+	ErrAuthorNotFound = APIError{
+		Code:    "AUTHOR_NOT_FOUND",
+		Message: "Author not found",
+	}
+	ErrSlugTaken = APIError{
+		Code:    "SLUG_TAKEN",
+		Message: "A post with this slug already exists",
 	}
 	ErrInvalidInput = APIError{
 		Code:    "INVALID_INPUT",
@@ -50,6 +58,10 @@ var (
 		Code:    "VALIDATION_FAILED",
 		Message: "Request validation failed",
 	}
+	ErrCannotPublish = APIError{
+		Code:    "CANNOT_PUBLISH",
+		Message: "Cannot publish post",
+	}
 )
 
 // HandleError processes errors and sends appropriate HTTP responses.
@@ -58,8 +70,8 @@ var (
 //
 // Example:
 //
-//	HandleError(c, ErrUserNotFound)
-//	HandleError(c, WrapError(ErrValidationFailed, "name is required"))
+//	HandleError(c, ErrPostNotFound)
+//	HandleError(c, WrapError(ErrValidationFailed, "title is required"))
 func HandleError(c *app.Context, err error) {
 	var apiErr APIError
 	if errors.As(err, &apiErr) {
@@ -82,9 +94,11 @@ func HandleError(c *app.Context, err error) {
 // getHTTPStatusForError maps error codes to HTTP status codes.
 func getHTTPStatusForError(code string) int {
 	switch code {
-	case "USER_NOT_FOUND":
+	case "POST_NOT_FOUND", "AUTHOR_NOT_FOUND":
 		return http.StatusNotFound
-	case "INVALID_INPUT", "VALIDATION_FAILED":
+	case "SLUG_TAKEN":
+		return http.StatusConflict
+	case "INVALID_INPUT", "VALIDATION_FAILED", "CANNOT_PUBLISH":
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
@@ -96,8 +110,10 @@ func getHTTPStatusForError(code string) int {
 //
 // Example:
 //
-//	err := WrapError(ErrValidationFailed, "name must be between 2 and 100 characters")
+//	err := WrapError(ErrValidationFailed, "title must be between 2 and 200 characters")
 //	return err
 func WrapError(baseErr APIError, format string, args ...any) error {
-	return fmt.Errorf("%w: %s", baseErr, fmt.Sprintf(format, args...))
+	wrapped := baseErr
+	wrapped.Details = fmt.Sprintf(format, args...)
+	return wrapped
 }
