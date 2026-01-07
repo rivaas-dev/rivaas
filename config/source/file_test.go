@@ -16,6 +16,7 @@
 package source
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestFileSourceTestSuite(t *testing.T) {
 func (s *FileSourceTestSuite) TestLoad_ValidFile() {
 	decoder := &mockDecoderFile{decodeMap: map[string]any{"foo": "bar"}}
 	file := NewFile(s.tmpFile, decoder)
-	conf, err := file.Load(nil)
+	conf, err := file.Load(context.TODO())
 	s.NoError(err)
 	s.Equal(map[string]any{"foo": "bar"}, conf)
 }
@@ -61,21 +62,21 @@ func (s *FileSourceTestSuite) TestLoad_EmptyFile() {
 	defer os.Remove(tmp)
 	decoder := &mockDecoderFile{decodeMap: map[string]any{}}
 	file := NewFile(tmp, decoder)
-	conf, err := file.Load(nil)
+	conf, err := file.Load(context.TODO())
 	s.NoError(err)
 	s.Empty(conf)
 }
 
 func (s *FileSourceTestSuite) TestLoad_InvalidFile() {
 	file := NewFile("/invalid/path/shouldfail.json", &mockDecoderFile{})
-	_, err := file.Load(nil)
+	_, err := file.Load(context.TODO())
 	s.Error(err)
 }
 
 func (s *FileSourceTestSuite) TestLoad_Content() {
 	decoder := &mockDecoderFile{decodeMap: map[string]any{"foo": "bar"}}
 	file := NewFileContent([]byte(`{"foo": "bar"}`), decoder)
-	conf, err := file.Load(nil)
+	conf, err := file.Load(context.TODO())
 	s.NoError(err)
 	s.Equal(map[string]any{"foo": "bar"}, conf)
 }
@@ -83,7 +84,7 @@ func (s *FileSourceTestSuite) TestLoad_Content() {
 func (s *FileSourceTestSuite) TestLoad_DecodeError() {
 	decoder := &mockDecoderFile{err: true}
 	file := NewFile(s.tmpFile, decoder)
-	_, err := file.Load(nil)
+	_, err := file.Load(context.TODO())
 	s.Error(err)
 }
 

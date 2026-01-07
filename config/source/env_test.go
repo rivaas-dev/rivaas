@@ -16,6 +16,7 @@
 package source
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -38,7 +39,7 @@ func (s *OSEnvVarTestSuite) TestLoad_Simple() {
 	defer os.Unsetenv("FOO")
 	defer os.Unsetenv("BAZ")
 	loader := NewOSEnvVar("")
-	conf, err := loader.Load(nil)
+	conf, err := loader.Load(context.TODO())
 	s.NoError(err)
 	s.Equal("bar", conf["foo"])
 	s.Equal("qux", conf["baz"])
@@ -52,7 +53,7 @@ func (s *OSEnvVarTestSuite) TestLoad_Nested() {
 	defer os.Unsetenv("DATABASE_PORT")
 	defer os.Unsetenv("DATABASE_USER_NAME")
 	loader := NewOSEnvVar("")
-	conf, err := loader.Load(nil)
+	conf, err := loader.Load(context.TODO())
 	s.NoError(err)
 	db, ok := conf["database"].(map[string]any)
 	s.True(ok)
@@ -67,7 +68,7 @@ func (s *OSEnvVarTestSuite) TestLoad_Empty() {
 	// Unset all env vars that might be set by other tests
 	os.Clearenv()
 	loader := NewOSEnvVar("")
-	conf, err := loader.Load(nil)
+	conf, err := loader.Load(context.TODO())
 	s.NoError(err)
 	s.Empty(conf)
 }
@@ -80,7 +81,7 @@ func (s *OSEnvVarTestSuite) TestLoad_Prefix() {
 	defer os.Unsetenv("APP_BAR")
 	defer os.Unsetenv("OTHER")
 	loader := NewOSEnvVar("APP_")
-	conf, err := loader.Load(nil)
+	conf, err := loader.Load(context.TODO())
 	s.NoError(err)
 	s.Equal("bar", conf["foo"])
 	s.Equal("baz", conf["bar"])

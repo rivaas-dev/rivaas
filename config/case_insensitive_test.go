@@ -127,9 +127,10 @@ func TestCaseInsensitiveMerging(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if tt.getType == "string" {
+			switch tt.getType {
+			case "string":
 				assert.Equal(t, tt.wantStr, cfg.String(tt.key))
-			} else if tt.getType == "int" {
+			case "int":
 				assert.Equal(t, tt.wantInt, cfg.Int(tt.key))
 			}
 		})
