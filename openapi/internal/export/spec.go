@@ -129,7 +129,7 @@ func Project(ctx context.Context, spec *model.Spec, cfg Config) (Result, error) 
 		if cfg.Version == V31 {
 			validatorVersion = validate.V31
 		}
-		if err := cfg.Validator.Validate(ctx, jsonBytes, validatorVersion); err != nil {
+		if err = cfg.Validator.Validate(ctx, jsonBytes, validatorVersion); err != nil {
 			return Result{Warnings: warns}, fmt.Errorf("spec validation failed: %w", err)
 		}
 	}
