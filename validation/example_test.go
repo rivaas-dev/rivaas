@@ -35,7 +35,7 @@ func ExampleValidate() {
 		var verr *validation.Error
 		if errors.As(err, &verr) {
 			for _, fieldErr := range verr.Fields {
-				if _, err := fmt.Printf("%s: %s\n", fieldErr.Path, fieldErr.Message); err != nil {
+				if _, err = fmt.Printf("%s: %s\n", fieldErr.Path, fieldErr.Message); err != nil {
 					panic(err)
 				}
 			}
@@ -69,11 +69,11 @@ func ExampleNew() {
 
 	user := User{Email: "john@example.com"}
 	if validateErr := validator.Validate(context.Background(), &user); validateErr != nil {
-		if _, err := fmt.Printf("Validation failed: %v\n", validateErr); err != nil {
+		if _, err = fmt.Printf("Validation failed: %v\n", validateErr); err != nil {
 			panic(err)
 		}
 	} else {
-		if _, err := fmt.Println("Validation passed"); err != nil {
+		if _, err = fmt.Println("Validation passed"); err != nil {
 			panic(err)
 		}
 	}
@@ -222,26 +222,26 @@ func ExampleComputePresence() {
 	}
 
 	// Check if specific paths are present
-	if _, err := fmt.Printf("user.name present: %v\n", presence.Has("user.name")); err != nil {
+	if _, err = fmt.Printf("user.name present: %v\n", presence.Has("user.name")); err != nil {
 		panic(err)
 	}
-	if _, err := fmt.Printf("user.email present: %v\n", presence.Has("user.email")); err != nil {
+	if _, err = fmt.Printf("user.email present: %v\n", presence.Has("user.email")); err != nil {
 		panic(err)
 	}
-	if _, err := fmt.Printf("items.0.name present: %v\n", presence.Has("items.0.name")); err != nil {
+	if _, err = fmt.Printf("items.0.name present: %v\n", presence.Has("items.0.name")); err != nil {
 		panic(err)
 	}
-	if _, err := fmt.Printf("items.1.name present: %v\n", presence.Has("items.1.name")); err != nil {
+	if _, err = fmt.Printf("items.1.name present: %v\n", presence.Has("items.1.name")); err != nil {
 		panic(err)
 	}
 
 	// Get leaf paths (fields that aren't prefixes of others)
 	leaves := presence.LeafPaths()
 	// Sort for consistent output in example
-	if _, err := fmt.Printf("Leaf paths count: %d\n", len(leaves)); err != nil {
+	if _, err = fmt.Printf("Leaf paths count: %d\n", len(leaves)); err != nil {
 		panic(err)
 	}
-	if _, err := fmt.Printf("Sample leaf: %s\n", leaves[0]); err != nil {
+	if _, err = fmt.Printf("Sample leaf: %s\n", leaves[0]); err != nil {
 		panic(err)
 	}
 
