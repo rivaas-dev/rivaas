@@ -47,7 +47,7 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 		// the test context is canceled before cleanup runs, causing shutdown to fail.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := tracer.Shutdown(ctx); err != nil {
+		if err = tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -56,7 +56,7 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 	mux.HandleFunc("/api/users", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"users":[]}`)); err != nil {
+		if _, err = w.Write([]byte(`{"users":[]}`)); err != nil {
 			t.Errorf("failed to write response: %v", err)
 		}
 	})
@@ -89,7 +89,7 @@ func TestIntegration_PathExclusion(t *testing.T) {
 		// the test context is canceled before cleanup runs, causing shutdown to fail.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := tracer.Shutdown(ctx); err != nil {
+		if err = tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -160,14 +160,14 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 		// the test context is canceled before cleanup runs, causing shutdown to fail.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := tracer.Shutdown(ctx); err != nil {
+		if err = tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
 
 	handler := tracing.Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+		if _, err = w.Write([]byte(`{"status":"ok"}`)); err != nil {
 			t.Errorf("failed to write response: %v", err)
 		}
 	}))
@@ -213,7 +213,7 @@ func TestIntegration_TraceContextPropagation(t *testing.T) {
 		// the test context is canceled before cleanup runs, causing shutdown to fail.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := tracer.Shutdown(ctx); err != nil {
+		if err = tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -258,7 +258,7 @@ func TestIntegration_ErrorStatusCodes(t *testing.T) {
 		// the test context is canceled before cleanup runs, causing shutdown to fail.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := tracer.Shutdown(ctx); err != nil {
+		if err = tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -335,7 +335,7 @@ func TestIntegration_HeaderRecording(t *testing.T) {
 		// the test context is canceled before cleanup runs, causing shutdown to fail.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := tracer.Shutdown(ctx); err != nil {
+		if err = tracer.Shutdown(ctx); err != nil {
 			t.Errorf("failed to shutdown tracer: %v", err)
 		}
 	})
@@ -428,7 +428,7 @@ func TestIntegration_ProviderTypes(t *testing.T) {
 				// the test context is canceled before cleanup runs, causing shutdown to fail.
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				if err := tracer.Shutdown(ctx); err != nil {
+				if err = tracer.Shutdown(ctx); err != nil {
 					t.Errorf("failed to shutdown tracer: %v", err)
 				}
 			})

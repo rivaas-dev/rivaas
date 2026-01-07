@@ -39,12 +39,12 @@ func ExampleNew() {
 		return
 	}
 	defer func() {
-		if err := tracer.Shutdown(context.Background()); err != nil {
+		if err = tracer.Shutdown(context.Background()); err != nil {
 			panic(err)
 		}
 	}()
 
-	if _, err := fmt.Printf("Tracing enabled: %v\n", tracer.IsEnabled()); err != nil {
+	if _, err = fmt.Printf("Tracing enabled: %v\n", tracer.IsEnabled()); err != nil {
 		panic(err)
 	}
 	// Output: Tracing enabled: true
