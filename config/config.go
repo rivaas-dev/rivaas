@@ -51,7 +51,6 @@ type Config struct {
 	binding            any
 	tagName            string // Custom struct tag name (default: "config")
 	mu                 sync.RWMutex
-	jsonSchema         string
 	jsonSchemaCompiled *jsonschema.Schema
 	customValidators   []func(map[string]any) error
 	// decoderConfig holds the cached decoder configuration for struct binding
@@ -409,6 +408,7 @@ func WithValidator(fn func(map[string]any) error) Option {
 // New creates a new Config instance with the provided options.
 // It iterates through the options and applies each one to the Config instance.
 // If any of the options return an error, the errors are collected and returned.
+// Returns a partially initialized Config along with any errors encountered.
 func New(options ...Option) (*Config, error) {
 	var errs error
 	c := &Config{
@@ -427,7 +427,7 @@ func New(options ...Option) (*Config, error) {
 		}
 	}
 
-	return c, errs
+	return c, errs //nolint:nilnil // Returning partial config with error is intentional
 }
 
 // MustNew creates a new Config instance with the provided options.

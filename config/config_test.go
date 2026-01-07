@@ -411,8 +411,14 @@ func TestDump_NilContext(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cfg.Load(context.Background()))
 
-	//nolint:staticcheck // Testing nil context handling
-	err = cfg.Dump(nil)
+	// Testing nil context handling - we need to verify the function properly rejects nil
+	// Using a helper to call Dump with nil to avoid linter warnings in the main test code
+	callDumpWithNil := func(c *Config) error {
+		//nolint:staticcheck // SA1012: Intentionally testing nil context error handling
+		return c.Dump(nil)
+	}
+
+	err = callDumpWithNil(cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context cannot be nil")
 }
@@ -1135,7 +1141,7 @@ func TestContextCancellation(t *testing.T) {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-time.After(50 * time.Millisecond):
-			return mockCtxSource.conf, mockCtxSource.err
+			return mockCtxSource.conf, mockCtxSource.err //nolint:nilnil // Test mock intentionally returns (nil, nil) for certain test cases
 		}
 	}
 
@@ -1220,25 +1226,4 @@ type mockSlowSource struct {
 func (m *mockSlowSource) Load(_ context.Context) (map[string]any, error) {
 	time.Sleep(m.delay)
 	return m.conf, nil
-}
-
-type mockDecoder struct {
-	err error
-}
-
-func (m *mockDecoder) Decode(_ []byte, _ any) error {
-	return m.err
-}
-
-type mockFileSource struct {
-	decoder *mockDecoder
-}
-
-func (m *mockFileSource) Load(_ context.Context) (map[string]any, error) {
-	var v map[string]any
-	err := m.decoder.Decode([]byte("bad"), &v)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
 }

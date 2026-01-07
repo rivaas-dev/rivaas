@@ -31,7 +31,7 @@ type mockSource struct {
 
 // Load implements the Source interface for testing.
 func (m *mockSource) Load(_ context.Context) (map[string]any, error) {
-	return m.conf, m.err
+	return m.conf, m.err //nolint:nilnil // Test mock intentionally returns (nil, nil) for certain test cases
 }
 
 // mockDumper is a test implementation of the Dumper interface.
