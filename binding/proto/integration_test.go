@@ -410,14 +410,3 @@ func TestIntegration_ProtoEmptyBody(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 }
-
-// ageValidator is a simple validator for testing.
-type ageValidator struct {
-	minAge int32
-}
-
-func (v *ageValidator) Validate(data any) error {
-	// For this test, we just return nil (always valid)
-	// In real code, you'd cast and validate
-	return nil
-}

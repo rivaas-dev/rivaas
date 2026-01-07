@@ -16,7 +16,6 @@ package proto
 
 import (
 	"bytes"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -355,18 +354,4 @@ func TestConfig_ToUnmarshalOptions(t *testing.T) {
 	assert.True(t, unmarshalOpts.AllowPartial)
 	assert.True(t, unmarshalOpts.DiscardUnknown)
 	assert.Equal(t, 5000, unmarshalOpts.RecursionLimit)
-}
-
-// testValidator is a simple validator for testing.
-type testValidator struct {
-	shouldFail bool
-	errMsg     string
-}
-
-func (v *testValidator) Validate(data any) error {
-	if v.shouldFail {
-		return errors.New(v.errMsg)
-	}
-
-	return nil
 }
