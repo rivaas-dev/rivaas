@@ -81,9 +81,12 @@ func Example_warningsFiltering() {
 		openapi.WithLicenseIdentifier("MIT", "MIT-0"), // 3.1 feature
 	)
 
-	result, _ := api.Generate(context.Background(),
+	result, err := api.Generate(context.Background(),
 		openapi.GET("/health", openapi.WithResponse(200, map[string]string{})),
 	)
+	if err != nil {
+		panic(err)
+	}
 
 	// Get only specific warnings
 	licenseWarnings := result.Warnings.Filter(diag.WarnDownlevelLicenseIdentifier)

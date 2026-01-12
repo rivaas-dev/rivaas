@@ -67,7 +67,7 @@ func (e *ReservedExtensionKeyError) Unwrap() error {
 	return nil
 }
 
-// copyExtensions copies extensions from model to export type with validation.
+// copyExtensions copies extensions from the model to an export type with validation.
 //
 // Invalid extension keys (those that don't start with "x-" or use reserved
 // prefixes in 3.1.x) are silently filtered out rather than causing an error.
@@ -98,7 +98,7 @@ func copyExtensions(in map[string]any, version string) map[string]any {
 // This is a helper for custom MarshalJSON implementations.
 //
 // IMPORTANT: When calling this function, the caller MUST use a type alias
-// to avoid infinite recursion. For example:
+// to avoid infinite recursion. For example,
 //
 //	func (s *MyStruct) MarshalJSON() ([]byte, error) {
 //	    type myStruct MyStruct  // Type alias prevents recursion

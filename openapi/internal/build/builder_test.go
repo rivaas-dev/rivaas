@@ -341,7 +341,7 @@ func TestBuilder_Servers(t *testing.T) {
 	builder.AddServer("https://api.example.com", "Production")
 	builder.AddServer("https://staging.example.com", "Staging")
 
-	routes := []EnrichedRoute{}
+	var routes []EnrichedRoute
 
 	spec, err := builder.Build(routes)
 	require.NoError(t, err)
@@ -587,7 +587,7 @@ func TestBuilder_NilDoc(t *testing.T) {
 	// Should have default 200 response
 	assert.Contains(t, pathItem.Get.Responses, "200")
 	assert.Equal(t, "OK", pathItem.Get.Responses["200"].Description)
-	// Should have path parameters extracted from route (may be empty)
+	// Should have path parameters extracted from the route (maybe empty)
 	assert.NotNil(t, pathItem.Get.Parameters)
 }
 
@@ -690,7 +690,7 @@ func TestBuilder_MultipleContentTypes(t *testing.T) {
 	response := pathItem.Post.Responses["201"]
 	require.NotNil(t, response)
 	require.NotNil(t, response.Content)
-	// Should use first produce type
+	// Should use first a produce type
 	assert.Contains(t, response.Content, "application/json")
 }
 
