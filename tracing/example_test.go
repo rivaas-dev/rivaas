@@ -81,7 +81,7 @@ func ExampleTracer_StartSpan() {
 	}()
 
 	ctx := context.Background()
-	ctx, span := tracer.StartSpan(ctx, "database-query")
+	_, span := tracer.StartSpan(ctx, "database-query")
 	defer tracer.FinishSpan(span, http.StatusOK)
 
 	tracer.SetSpanAttribute(span, "db.query", "SELECT * FROM users")

@@ -601,7 +601,10 @@ func (t *Tracer) StartRequestSpan(ctx context.Context, req *http.Request, path s
 
 	// Build span name from method and path
 	var spanName string
-	sb, _ := t.spanNamePool.Get().(*strings.Builder)
+	sb, ok := t.spanNamePool.Get().(*strings.Builder)
+	if !ok {
+		sb = &strings.Builder{}
+	}
 	sb.Reset()
 	_, _ = sb.WriteString(req.Method)
 	_ = sb.WriteByte(' ')

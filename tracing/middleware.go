@@ -289,7 +289,7 @@ func Middleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) htt
 			}
 
 			// Start tracing with middleware-specific attribute recording
-			ctx, span := startMiddlewareSpan(tracer, cfg, r)
+			ctx, span := startMiddlewareSpan(r.Context(), tracer, cfg, r)
 
 			// Wrap response writer to capture status code
 			// Check if already wrapped to prevent double-wrapping
@@ -335,9 +335,7 @@ func MustMiddleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler)
 }
 
 // startMiddlewareSpan starts a span for HTTP request with middleware configuration.
-func startMiddlewareSpan(t *Tracer, cfg *middlewareConfig, req *http.Request) (context.Context, trace.Span) {
-	ctx := req.Context()
-
+func startMiddlewareSpan(ctx context.Context, t *Tracer, cfg *middlewareConfig, req *http.Request) (context.Context, trace.Span) {
 	// Extract trace context from headers
 	ctx = t.ExtractTraceContext(ctx, req.Header)
 
@@ -355,7 +353,10 @@ func startMiddlewareSpan(t *Tracer, cfg *middlewareConfig, req *http.Request) (c
 
 	// Build span name
 	var spanName string
-	sb, _ := t.spanNamePool.Get().(*strings.Builder)
+	sb, ok := t.spanNamePool.Get().(*strings.Builder)
+	if !ok {
+		sb = &strings.Builder{}
+	}
 	sb.Reset()
 	_, _ = sb.WriteString(req.Method)
 	_ = sb.WriteByte(' ')

@@ -56,9 +56,7 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 	mux.HandleFunc("/api/users", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		if _, err = w.Write([]byte(`{"users":[]}`)); err != nil {
-			t.Errorf("failed to write response: %v", err)
-		}
+		w.Write([]byte(`{"users":[]}`)) //nolint:errcheck // Test handler
 	})
 
 	handler := tracing.Middleware(tracer)(mux)
@@ -167,9 +165,8 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 
 	handler := tracing.Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
-			t.Errorf("failed to write response: %v", err)
-		}
+		//nolint:errcheck // Test handler
+		w.Write([]byte(`{"status":"ok"}`))
 	}))
 
 	const numRequests = 100

@@ -313,7 +313,8 @@ func TestMiddleware_BasicFunctionality(t *testing.T) {
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			handlerCalled = true
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("OK"))
+			//nolint:errcheck // Test handler
+			w.Write([]byte("OK"))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -469,9 +470,12 @@ func TestResponseWriter(t *testing.T) {
 		w := httptest.NewRecorder()
 		rw := newResponseWriter(w)
 
-		_, _ = rw.Write([]byte("Hello"))
-		_, _ = rw.Write([]byte(", "))
-		_, _ = rw.Write([]byte("World!"))
+		//nolint:errcheck // Test handler
+		rw.Write([]byte("Hello"))
+		//nolint:errcheck // Test handler
+		rw.Write([]byte(", "))
+		//nolint:errcheck // Test handler
+		rw.Write([]byte("World!"))
 
 		assert.Equal(t, 13, rw.Size()) // "Hello, World!" = 13 bytes
 	})
@@ -701,7 +705,8 @@ func TestTracingMiddlewareDoubleWrappingPrevention(t *testing.T) {
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
+		//nolint:errcheck // Test handler
+		w.Write([]byte("ok"))
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -723,9 +728,11 @@ func TestTracingMiddlewareWithExcludedPathsNoWrapping(t *testing.T) {
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if writer is wrapped
 		if _, ok := w.(router.ObservabilityWrappedWriter); ok {
-			_, _ = w.Write([]byte("wrapped"))
+			//nolint:errcheck // Test handler
+			w.Write([]byte("wrapped"))
 		} else {
-			_, _ = w.Write([]byte("not-wrapped"))
+			//nolint:errcheck // Test handler
+			w.Write([]byte("not-wrapped"))
 		}
 	}))
 

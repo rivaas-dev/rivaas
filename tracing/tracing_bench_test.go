@@ -29,7 +29,8 @@ func BenchmarkTracingOverhead(b *testing.B) {
 		tracer := MustNew(WithSampleRate(0.0))
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			//nolint:errcheck // Test handler
+			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -46,7 +47,8 @@ func BenchmarkTracingOverhead(b *testing.B) {
 		tracer := MustNew(WithSampleRate(1.0))
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			//nolint:errcheck // Test handler
+			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -63,7 +65,8 @@ func BenchmarkTracingOverhead(b *testing.B) {
 		tracer := MustNew(WithSampleRate(0.5))
 		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			//nolint:errcheck // Test handler
+			w.Write([]byte(`{"status":"ok"}`))
 		}))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -184,7 +187,8 @@ func BenchmarkResponseWriterConcurrency(b *testing.B) {
 	tracer := MustNew(WithSampleRate(1.0))
 	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
+		//nolint:errcheck // Test handler
+		w.Write([]byte(`{"status":"ok"}`))
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
