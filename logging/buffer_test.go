@@ -84,7 +84,10 @@ func TestLogger_Buffering_Multiple(t *testing.T) {
 	// First round of buffering
 	logger.StartBuffering()
 	logger.Info("first round")
-	logger.FlushBuffer()
+	err = logger.FlushBuffer()
+	if err != nil {
+		t.Fatalf("failed to flush buffer: %v", err)
+	}
 
 	firstOutput := buf.String()
 	if !strings.Contains(firstOutput, "first round") {
@@ -96,7 +99,10 @@ func TestLogger_Buffering_Multiple(t *testing.T) {
 	// Second round of buffering
 	logger.StartBuffering()
 	logger.Info("second round")
-	logger.FlushBuffer()
+	err = logger.FlushBuffer()
+	if err != nil {
+		t.Fatalf("failed to flush buffer: %v", err)
+	}
 
 	secondOutput := buf.String()
 	if !strings.Contains(secondOutput, "second round") {

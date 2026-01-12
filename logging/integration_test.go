@@ -46,6 +46,7 @@ func TestIntegration_MultiLoggerCoexistence(t *testing.T) {
 		logging.WithServiceName("service-a"),
 		logging.WithLevel(logging.LevelInfo),
 	)
+	//nolint:errcheck // Integration test: logger1.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger1.Shutdown(t.Context()) })
 
 	logger2 := logging.MustNew(
@@ -54,6 +55,7 @@ func TestIntegration_MultiLoggerCoexistence(t *testing.T) {
 		logging.WithServiceName("service-b"),
 		logging.WithLevel(logging.LevelDebug),
 	)
+	//nolint:errcheck // Integration test: logger2.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger2.Shutdown(t.Context()) })
 
 	// Log from both loggers
@@ -89,6 +91,7 @@ func TestIntegration_ConcurrentLogging(t *testing.T) {
 		logging.WithOutput(buf),
 		logging.WithLevel(logging.LevelDebug),
 	)
+	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	const goroutines = 50
@@ -131,6 +134,7 @@ func TestIntegration_BatchLoggerWithFlush(t *testing.T) {
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
 	)
+	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Create batch logger with auto-flush
@@ -167,6 +171,7 @@ func TestIntegration_SamplingUnderLoad(t *testing.T) {
 			Thereafter: 10, // Log 1 in every 10 after initial
 		}),
 	)
+	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Log 100 INFO messages
@@ -198,6 +203,7 @@ func TestIntegration_ErrorsNeverSampled(t *testing.T) {
 			Thereafter: 1000, // Aggressive sampling
 		}),
 	)
+	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Log many errors - they should all appear
@@ -231,6 +237,7 @@ func TestIntegration_ContextLoggerPropagation(t *testing.T) {
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
 	)
+	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Simulate request context with tracing
@@ -269,6 +276,7 @@ func TestIntegration_DynamicLevelChange(t *testing.T) {
 		logging.WithOutput(buf),
 		logging.WithLevel(logging.LevelInfo),
 	)
+	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Debug should not log at INFO level
@@ -333,6 +341,7 @@ func TestIntegration_SensitiveDataRedaction(t *testing.T) {
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
 	)
+	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
 	// Log with sensitive fields

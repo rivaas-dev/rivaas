@@ -72,7 +72,10 @@ func demonstrateLogAssertions() {
 	processUserSignup(logger, "alice@example.com")
 
 	// Parse and assert on logs
-	entries, _ := logging.ParseJSONLogEntries(buf)
+	entries, err := logging.ParseJSONLogEntries(buf)
+	if err != nil {
+		panic(err)
+	}
 
 	// Example assertion: verify specific log was emitted
 	found := false
@@ -111,7 +114,10 @@ func demonstrateErrorLogTesting() {
 	// Simulate code that should log errors
 	processPayment(logger, "card-expired")
 
-	entries, _ := logging.ParseJSONLogEntries(buf)
+	entries, err := logging.ParseJSONLogEntries(buf)
+	if err != nil {
+		panic(err)
+	}
 
 	// Find and verify error log
 	for _, entry := range entries {

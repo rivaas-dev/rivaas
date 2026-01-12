@@ -88,6 +88,7 @@ func (h *consoleHandler) Enabled(_ context.Context, level slog.Level) bool {
 // Handle formats and writes a log record.
 func (h *consoleHandler) Handle(_ context.Context, r slog.Record) error {
 	// Get pooled strings.Builder
+	//nolint:forcetypeassert,errcheck // Safe: consoleBuilderPool.Get always returns *strings.Builder; writing to builder cannot fail
 	b := consoleBuilderPool.Get().(*strings.Builder)
 	b.Reset()
 	defer consoleBuilderPool.Put(b)

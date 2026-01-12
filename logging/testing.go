@@ -65,9 +65,19 @@ func ParseJSONLogEntries(buf *bytes.Buffer) ([]LogEntry, error) {
 			return nil, err
 		}
 
+		// Extract required fields with type checking
+		msg, okMsg := entry["msg"].(string)
+		if !okMsg {
+			return nil, fmt.Errorf("missing or invalid 'msg' field in log entry")
+		}
+		level, okLevel := entry["level"].(string)
+		if !okLevel {
+			return nil, fmt.Errorf("missing or invalid 'level' field in log entry")
+		}
+
 		le := LogEntry{
-			Message: entry["msg"].(string),
-			Level:   entry["level"].(string),
+			Message: msg,
+			Level:   level,
 			Attrs:   make(map[string]any),
 		}
 

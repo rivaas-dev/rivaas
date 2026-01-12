@@ -55,6 +55,7 @@ func (l *Logger) LogRequest(r *http.Request, extra ...any) {
 		return
 	}
 
+	//nolint:forcetypeassert,errcheck // Safe: logAttrPool.Get always returns *[]any
 	attrsPtr := logAttrPool.Get().(*[]any)
 	attrs := (*attrsPtr)[:0]
 	defer func() {
@@ -99,6 +100,7 @@ func (l *Logger) LogError(err error, msg string, extra ...any) {
 		return
 	}
 
+	//nolint:forcetypeassert,errcheck // Safe: logAttrPool.Get always returns *[]any
 	attrsPtr := logAttrPool.Get().(*[]any)
 	attrs := (*attrsPtr)[:0]
 	defer func() {
@@ -133,6 +135,7 @@ func (l *Logger) LogDuration(msg string, start time.Time, extra ...any) {
 	}
 
 	duration := time.Since(start)
+	//nolint:forcetypeassert,errcheck // Safe: logAttrPool.Get always returns *[]any
 	attrsPtr := logAttrPool.Get().(*[]any)
 	attrs := (*attrsPtr)[:0]
 	defer func() {
@@ -163,6 +166,7 @@ func (l *Logger) ErrorWithStack(msg string, err error, includeStack bool, extra 
 		return
 	}
 
+	//nolint:forcetypeassert,errcheck // Safe: logAttrPool.Get always returns *[]any
 	attrsPtr := logAttrPool.Get().(*[]any)
 	attrs := (*attrsPtr)[:0]
 	defer func() {

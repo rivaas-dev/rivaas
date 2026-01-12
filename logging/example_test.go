@@ -41,6 +41,7 @@ func ExampleNew() {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	logger.Info("service started", "port", 8080)
@@ -65,6 +66,7 @@ func ExampleMustNew() {
 		logging.WithConsoleHandler(),
 		logging.WithDebugLevel(),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	logger.Info("application initialized")
@@ -81,6 +83,7 @@ func ExampleLogger_ServiceName() {
 		logging.WithServiceVersion("2.0.0"),
 		logging.WithEnvironment("production"),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	fmt.Printf("service: %s\n", logger.ServiceName())
@@ -99,6 +102,7 @@ func ExampleLogger_Level() {
 		logging.WithOutput(io.Discard),
 		logging.WithLevel(logging.LevelWarn),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	level := logger.Level()
@@ -113,6 +117,7 @@ func ExampleLogger_SetLevel() {
 		logging.WithOutput(io.Discard),
 		logging.WithLevel(logging.LevelInfo),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	fmt.Printf("initial: %s\n", logger.Level().String())
@@ -138,6 +143,7 @@ func ExampleLogger_IsEnabled() {
 
 	fmt.Printf("before shutdown: %v\n", logger.IsEnabled())
 
+	//nolint:errcheck // Example test cleanup
 	logger.Shutdown(context.Background())
 
 	fmt.Printf("after shutdown: %v\n", logger.IsEnabled())
@@ -153,9 +159,11 @@ func ExampleLogger_IsEnabled() {
 func ExampleLogger_LogRequest() {
 	ctx := context.Background()
 	logger := logging.MustNew(logging.WithJSONHandler())
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(ctx)
 
 	// Simulate an HTTP request
+	//nolint:errcheck // Example test - error impossible with valid inputs
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/api/users?page=1", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
 	req.Header.Set("User-Agent", "MyApp/1.0")
@@ -170,6 +178,7 @@ func ExampleLogger_LogRequest() {
 //nolint:testableexamples // Output is non-deterministic (contains timestamps and colors)
 func ExampleLogger_LogError() {
 	logger := logging.MustNew(logging.WithConsoleHandler())
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	err := errors.New("database connection failed")
@@ -187,7 +196,7 @@ func ExampleLogger_LogError() {
 //nolint:testableexamples // Output is non-deterministic (contains timestamps and duration)
 func ExampleLogger_LogDuration() {
 	logger := logging.MustNew(logging.WithJSONHandler())
-	defer logger.Shutdown(context.Background())
+	defer logger.Shutdown(context.Background()) //nolint:errcheck // Example test cleanup
 
 	start := time.Now()
 	// Simulate some work
@@ -206,7 +215,7 @@ func ExampleLogger_LogDuration() {
 //nolint:testableexamples // Output is non-deterministic (contains timestamps and stack traces)
 func ExampleLogger_ErrorWithStack() {
 	logger := logging.MustNew(logging.WithConsoleHandler())
-	defer logger.Shutdown(context.Background())
+	defer logger.Shutdown(context.Background()) //nolint:errcheck // Example test cleanup
 
 	err := errors.New("critical error occurred")
 	logger.ErrorWithStack("critical error", err, true,
@@ -228,6 +237,7 @@ func ExampleWithSampling() {
 			Tick:       time.Minute, // Reset counter every minute
 		}),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	// In high-traffic scenarios, this will sample logs
@@ -253,6 +263,7 @@ func ExampleWithReplaceAttr() {
 			return a
 		}),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	logger.Info("user login", "username", "alice", "password", "secret123")
@@ -262,10 +273,11 @@ func ExampleWithReplaceAttr() {
 // ExampleNewTestLogger demonstrates creating a logger for testing.
 func ExampleNewTestLogger() {
 	logger, buf := logging.NewTestLogger()
-	defer logger.Shutdown(context.Background())
+	defer logger.Shutdown(context.Background()) //nolint:errcheck // Example test cleanup
 
 	logger.Info("test message", "key", "value")
 
+	//nolint:errcheck // Example test - parsing test logger output
 	entries, _ := logging.ParseJSONLogEntries(buf)
 	fmt.Printf("logged %d entries\n", len(entries))
 	fmt.Printf("message: %s\n", entries[0].Message)
@@ -281,6 +293,7 @@ func ExampleParseJSONLogEntries() {
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	logger.Info("first message")
@@ -307,6 +320,7 @@ func ExampleNewBatchLogger() {
 		logging.WithJSONHandler(),
 		logging.WithOutput(io.Discard),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	// Create batch logger that flushes every 100 entries or 1 second
@@ -335,6 +349,7 @@ func ExampleNewContextLogger() {
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
 	// Create a context logger and add request-scoped fields via With()
@@ -345,6 +360,7 @@ func ExampleNewContextLogger() {
 	clWithFields := cl.With("request_id", "req-123", "user_id", "user-456")
 	clWithFields.Info("processing request")
 
+	//nolint:errcheck // Example test - parsing test logger output
 	entries, _ := logging.ParseJSONLogEntries(buf)
 	fmt.Printf("request_id: %s\n", entries[0].Attrs["request_id"])
 	fmt.Printf("user_id: %s\n", entries[0].Attrs["user_id"])

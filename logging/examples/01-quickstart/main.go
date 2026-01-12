@@ -78,11 +78,15 @@ func main() {
 
 	// Dynamic level change at runtime (useful for debugging production issues)
 	logger.Info("elevating log level to DEBUG")
-	_ = logger.SetLevel(logging.LevelDebug)
+	if err := logger.SetLevel(logging.LevelDebug); err != nil {
+		logger.Error("failed to set log level", "error", err)
+	}
 	logger.Debug("debug logging now visible", "timestamp", time.Now().Unix())
 
 	// Restore original level
-	_ = logger.SetLevel(level)
+	if err := logger.SetLevel(level); err != nil {
+		logger.Error("failed to restore log level", "error", err)
+	}
 	logger.Info("log level restored", "level", level.String())
 }
 

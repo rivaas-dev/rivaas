@@ -255,7 +255,7 @@ func BenchmarkShutdownCheck_Atomic(b *testing.B) {
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = logger.isShuttingDown.Load()
+			logger.isShuttingDown.Load()
 		}
 	})
 }
@@ -268,8 +268,7 @@ func BenchmarkPool_ContextLogger(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		cl := NewContextLogger(ctx, logger)
-		_ = cl
+		NewContextLogger(ctx, logger)
 	}
 }
 
@@ -315,7 +314,8 @@ func BenchmarkConfigValidation(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		cfg := defaultLogger()
-		_ = cfg.Validate()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		cfg.Validate()
 	}
 }
 
@@ -328,9 +328,11 @@ func BenchmarkSetLevel(b *testing.B) {
 	toggle := false
 	for b.Loop() {
 		if toggle {
-			_ = logger.SetLevel(LevelDebug)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			logger.SetLevel(LevelDebug)
 		} else {
-			_ = logger.SetLevel(LevelInfo)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			logger.SetLevel(LevelInfo)
 		}
 		toggle = !toggle
 	}
@@ -347,7 +349,8 @@ func BenchmarkDebugInfo(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = logger.DebugInfo()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		logger.DebugInfo()
 	}
 }
 
@@ -479,9 +482,8 @@ func BenchmarkNewTestLogger(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		logger, buf := NewTestLogger()
+		logger, _ := NewTestLogger()
 		logger.Info("test message")
-		_ = buf
 	}
 }
 
@@ -494,7 +496,8 @@ func BenchmarkParseLogEntries(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _ = ParseJSONLogEntries(buf)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		ParseJSONLogEntries(buf)
 	}
 }
 
@@ -504,7 +507,8 @@ func BenchmarkLoggerAccess_NoContention(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = logger.Logger()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		logger.Logger()
 	}
 }
 
@@ -514,7 +518,8 @@ func BenchmarkLoggerAccess_HighContention(b *testing.B) {
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = logger.Logger()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			logger.Logger()
 		}
 	})
 }

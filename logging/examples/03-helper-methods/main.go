@@ -60,7 +60,10 @@ func demonstrateDurationLogging(logger *logging.Logger) {
 
 	// Success path: log operation timing
 	start := time.Now()
-	processOrder("order-123")
+	if err := processOrder("order-123"); err != nil {
+		logger.Error("order processing failed", "error", err)
+		return
+	}
 	logger.LogDuration("order processed", start,
 		"order_id", "order-123",
 		"status", "completed",
@@ -96,7 +99,11 @@ func demonstrateRequestLogging(logger *logging.Logger) {
 	fmt.Println("\n--- Request Logging ---")
 
 	// Create a sample HTTP request
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://api.example.com/v1/payments", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://api.example.com/v1/payments", nil)
+	if err != nil {
+		logger.Error("failed to create request", "error", err)
+		return
+	}
 	req.Header.Set("User-Agent", "PaymentClient/2.0")
 	req.Header.Set("X-Request-ID", "req-abc123")
 	req.Header.Set("Content-Type", "application/json")
@@ -119,9 +126,21 @@ func demonstrateContextLogging(logger *logging.Logger) {
 	ctx = context.WithValue(ctx, ctxKey("trace_id"), "trace-abc")
 
 	// Extract IDs and create request-scoped logger
-	requestID, _ := ctx.Value(ctxKey("request_id")).(string)
-	userID, _ := ctx.Value(ctxKey("user_id")).(string)
-	traceID, _ := ctx.Value(ctxKey("trace_id")).(string)
+	requestID, okReq := ctx.Value(ctxKey("request_id")).(string)
+	if !okReq {
+		logger.Warn("request_id not found in context")
+		requestID = "unknown"
+	}
+	userID, okUser := ctx.Value(ctxKey("user_id")).(string)
+	if !okUser {
+		logger.Warn("user_id not found in context")
+		userID = "unknown"
+	}
+	traceID, okTrace := ctx.Value(ctxKey("trace_id")).(string)
+	if !okTrace {
+		logger.Warn("trace_id not found in context")
+		traceID = "unknown"
+	}
 
 	// Create a child logger with request context attached
 	reqLogger := logger.Logger().With(
