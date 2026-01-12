@@ -103,6 +103,7 @@ func TestDoubleWrappingPreventionInRealScenario(t *testing.T) {
 	})
 
 	r.GET("/test", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "ok")
 	})
 

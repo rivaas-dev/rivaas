@@ -49,6 +49,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentRouteRegistration() {
 			for j := range routesPerGoroutine {
 				path := fmt.Sprintf("/route-%d-%d", id, j)
 				r.GET(path, func(c *Context) {
+					//nolint:errcheck // Test handler
 					c.String(http.StatusOK, "OK")
 				})
 			}
@@ -68,15 +69,18 @@ func (suite *ConcurrentTestSuite) TestConcurrentRequestHandling() {
 
 	// Register routes
 	r.GET("/fast", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "fast")
 	})
 
 	r.GET("/slow", func(c *Context) {
 		time.Sleep(10 * time.Millisecond)
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "slow")
 	})
 
 	r.GET("/params/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "%s", c.Param("id"))
 	})
 
@@ -132,6 +136,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentRouteCompilation() {
 			defer wg.Done()
 			path := fmt.Sprintf("/route-%d", id)
 			r.GET(path, func(c *Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "OK")
 			})
 		}(id)
@@ -166,6 +171,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentContextPooling() {
 	r.GET("/test", func(c *Context) {
 		// Simulate some work
 		_ = c.Param("nonexistent")
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "OK")
 	})
 
@@ -199,6 +205,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentMiddlewareExecution() {
 	})
 
 	r.GET("/test", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "OK")
 	})
 
@@ -235,10 +242,12 @@ func (suite *ConcurrentTestSuite) TestConcurrentGroupRegistration() {
 			group := r.Group(prefix)
 
 			group.GET("/users", func(c *Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "users")
 			})
 
 			group.POST("/users", func(c *Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusCreated, "created")
 			})
 		}(id)
@@ -264,6 +273,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentParameterExtraction() {
 		postID := c.Param("postId")
 		commentID := c.Param("commentId")
 
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{
 			"id":        id,
 			"postId":    postID,
@@ -300,6 +310,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentWarmup() {
 	for i := range 100 {
 		path := fmt.Sprintf("/route-%d", i)
 		r.GET(path, func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -321,6 +332,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentConstraintValidation() {
 	r := MustNew()
 
 	r.GET("/users/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "%s", c.Param("id"))
 	}).WhereInt("id")
 
@@ -368,6 +380,7 @@ func (suite *ConcurrentTestSuite) TestConcurrentStaticRoutes() {
 	for i := range 50 {
 		path := fmt.Sprintf("/static/route/%d", i)
 		r.GET(path, func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "static")
 		})
 	}
@@ -422,6 +435,7 @@ func TestAtomicRouteRegistration(t *testing.T) {
 				path := "/test" + string(rune('0'+routeID%10)) + "/" + string(rune('0'+routeID%100))
 
 				r.GET(path, func(c *Context) {
+					//nolint:errcheck // Test handler
 					c.String(http.StatusOK, "OK")
 				})
 			}
@@ -464,6 +478,7 @@ func TestAtomicRouteLookup(t *testing.T) {
 
 	for _, route := range routes {
 		r.GET(route, func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -520,6 +535,7 @@ func TestConcurrentLookupAfterRegistration(t *testing.T) {
 	for i := range 100 {
 		path := "/concurrent" + string(rune('0'+i%10))
 		r.GET(path, func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -563,6 +579,7 @@ func TestRouteRegistrationAfterServeHTTPPanics(t *testing.T) {
 
 	// Register a route
 	r.GET("/test", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "OK")
 	})
 
@@ -574,6 +591,7 @@ func TestRouteRegistrationAfterServeHTTPPanics(t *testing.T) {
 	// Attempting to register a new route should panic
 	assert.Panics(t, func() {
 		r.GET("/new-route", func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "NEW")
 		})
 	}, "should panic when registering route after ServeHTTP")
@@ -596,6 +614,7 @@ func TestAtomicTreeConsistency(t *testing.T) {
 
 	for _, route := range routes {
 		r.GET(route, func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -624,6 +643,7 @@ func TestAtomicTreeVersioning(t *testing.T) {
 
 	// Register a route
 	r.GET("/test", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "OK")
 	})
 
@@ -636,6 +656,7 @@ func TestAtomicTreeVersioning(t *testing.T) {
 
 	// Register another route (post-warmup routes are registered immediately)
 	r.POST("/test", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "OK")
 	})
 
@@ -654,6 +675,7 @@ func TestAtomicTreeMemorySafety(t *testing.T) {
 	for i := range 1000 {
 		path := "/memory" + string(rune('0'+i%10)) + "/" + string(rune('0'+i%100))
 		r.GET(path, func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "OK")
 		})
 	}

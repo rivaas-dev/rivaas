@@ -164,7 +164,7 @@ func TestPureJSON(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			c.PureJSON(tt.expectedStatus, tt.data)
+			require.NoError(t, c.PureJSON(tt.expectedStatus, tt.data))
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
 			body := strings.TrimSpace(w.Body.String())
@@ -187,14 +187,14 @@ func TestPureJSON_vs_JSON_Escaping(t *testing.T) {
 	wJSON := httptest.NewRecorder()
 	reqJSON := httptest.NewRequest(http.MethodGet, "/", nil)
 	cJSON := NewContext(wJSON, reqJSON)
-	cJSON.JSON(http.StatusOK, data)
+	require.NoError(t, cJSON.JSON(http.StatusOK, data))
 	jsonBody := wJSON.Body.String()
 
 	// Test PureJSON (should NOT escape)
 	wPure := httptest.NewRecorder()
 	reqPure := httptest.NewRequest(http.MethodGet, "/", nil)
 	cPure := NewContext(wPure, reqPure)
-	cPure.PureJSON(http.StatusOK, data)
+	require.NoError(t, cPure.PureJSON(http.StatusOK, data))
 	pureBody := wPure.Body.String()
 
 	// Verify JSON() escapes HTML
@@ -266,9 +266,9 @@ func TestSecureJSON(t *testing.T) {
 			c := NewContext(w, req)
 
 			if len(tt.prefix) > 0 {
-				c.SecureJSON(tt.expectedStatus, tt.data, tt.prefix[0])
+				require.NoError(t, c.SecureJSON(tt.expectedStatus, tt.data, tt.prefix[0]))
 			} else {
-				c.SecureJSON(tt.expectedStatus, tt.data)
+				require.NoError(t, c.SecureJSON(tt.expectedStatus, tt.data))
 			}
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
@@ -365,7 +365,7 @@ func TestASCIIJSON(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			c.ASCIIJSON(tt.expectedStatus, tt.data)
+			require.NoError(t, c.ASCIIJSON(tt.expectedStatus, tt.data))
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
 			assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
@@ -446,7 +446,7 @@ func TestYAML(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			c.YAML(tt.expectedStatus, tt.data)
+			require.NoError(t, c.YAML(tt.expectedStatus, tt.data))
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
 			assert.Equal(t, "application/x-yaml; charset=utf-8", w.Header().Get("Content-Type"))
@@ -617,7 +617,7 @@ func TestData(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			c.Data(tt.expectedStatus, tt.contentType, tt.data)
+			require.NoError(t, c.Data(tt.expectedStatus, tt.contentType, tt.data))
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
 			assert.Equal(t, tt.expectedCT, w.Header().Get("Content-Type"))
@@ -645,6 +645,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 		{
 			name: "JSON",
 			renderFunc: func(c *Context) error {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, data)
 				return nil
 			},
@@ -653,6 +654,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 		{
 			name: "IndentedJSON",
 			renderFunc: func(c *Context) error {
+				//nolint:errcheck // Test handler
 				c.IndentedJSON(200, data)
 				return nil
 			},
@@ -661,6 +663,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 		{
 			name: "PureJSON",
 			renderFunc: func(c *Context) error {
+				//nolint:errcheck // Test handler
 				c.PureJSON(200, data)
 				return nil
 			},
@@ -669,6 +672,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 		{
 			name: "SecureJSON",
 			renderFunc: func(c *Context) error {
+				//nolint:errcheck // Test handler
 				c.SecureJSON(200, data)
 				return nil
 			},
@@ -677,6 +681,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 		{
 			name: "ASCIIJSON",
 			renderFunc: func(c *Context) error {
+				//nolint:errcheck // Test handler
 				c.ASCIIJSON(200, data)
 				return nil
 			},
@@ -691,7 +696,7 @@ func TestJSON_Variants_ContentType(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := NewContext(w, req)
 
-			_ = tt.renderFunc(c)
+			require.NoError(t, tt.renderFunc(c))
 
 			assert.Equal(t, tt.expectedCT, w.Header().Get("Content-Type"))
 		})
@@ -763,14 +768,6 @@ func TestJSON_Variants_ErrorHandling(t *testing.T) {
 func TestYAML_Error(t *testing.T) {
 	t.Parallel()
 
-	// YAML library panics for unencodable types, so we test with a recoverable panic
-	defer func() {
-		if r := recover(); r != nil {
-			// Expected panic for function types
-			t.Log("YAML correctly panics for unencodable types")
-		}
-	}()
-
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
@@ -780,28 +777,26 @@ func TestYAML_Error(t *testing.T) {
 		Func func() // Functions cannot be marshaled
 	}
 
-	// This will panic - which is expected behavior for yaml.v3
-	c.YAML(http.StatusOK, badType{Func: func() {}})
+	// This is expected to trigger a panic, as yaml.v3 panics on certain marshaling errors.
+	assert.Panics(t, func() {
+		//nolint:errcheck // Test handler
+		c.YAML(http.StatusOK, badType{Func: func() {}})
+	})
 }
 
 // TestDataFromReader_NilReader tests nil reader handling
 func TestDataFromReader_NilReader(t *testing.T) {
 	t.Parallel()
 
-	// io.Copy will panic with nil reader, so we expect a panic
-	defer func() {
-		if r := recover(); r != nil {
-			// Expected panic for nil reader
-			t.Log("DataFromReader correctly panics for nil reader (io.Copy behavior)")
-		}
-	}()
-
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
-	// This will panic - which is expected io.Copy behavior
-	_ = c.DataFromReader(http.StatusOK, 0, "text/plain", nil, nil)
+	// A panic is expected here since io.Copy will panic if provided a nil reader.
+	assert.Panics(t, func() {
+		//nolint:errcheck // Test handler
+		c.DataFromReader(http.StatusOK, 0, "text/plain", nil, nil)
+	})
 }
 
 // TestData_EmptyData tests empty data handling
@@ -812,7 +807,7 @@ func TestData_EmptyData(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := NewContext(w, req)
 
-	c.Data(http.StatusNoContent, "text/plain", []byte{})
+	require.NoError(t, c.Data(http.StatusNoContent, "text/plain", []byte{}))
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 	assert.Equal(t, 0, w.Body.Len(), "Expected empty body")
@@ -832,7 +827,7 @@ func TestData_LargeData(t *testing.T) {
 		largeData = append(largeData, byte(i%256))
 	}
 
-	c.Data(http.StatusOK, "application/octet-stream", largeData)
+	require.NoError(t, c.Data(http.StatusOK, "application/octet-stream", largeData))
 
 	assert.Equal(t, len(largeData), w.Body.Len(), "Expected %d bytes", len(largeData))
 	assert.Equal(t, largeData, w.Body.Bytes(), "Data mismatch")
@@ -851,7 +846,7 @@ func TestSecureJSON_StripPrefix(t *testing.T) {
 		"token":  "abc123",
 	}
 
-	c.SecureJSON(http.StatusOK, originalData)
+	require.NoError(t, c.SecureJSON(http.StatusOK, originalData))
 
 	body := w.Body.String()
 

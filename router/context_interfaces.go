@@ -125,7 +125,7 @@ type ContextReader interface {
 	ParameterReader
 
 	// Version returns the current API version (e.g., "v1", "v2").
-	// Returns empty string if versioning is not used.
+	// Returns an empty string if versioning is not used.
 	Version() string
 
 	// IsVersion checks if the current API version matches the specified version.

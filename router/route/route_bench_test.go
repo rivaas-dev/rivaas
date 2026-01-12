@@ -25,7 +25,7 @@ func BenchmarkParseReversePattern_Simple(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = ParseReversePattern("/users")
+		ParseReversePattern("/users")
 	}
 }
 
@@ -33,7 +33,7 @@ func BenchmarkParseReversePattern_WithParams(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = ParseReversePattern("/users/:id/posts/:postId")
+		ParseReversePattern("/users/:id/posts/:postId")
 	}
 }
 
@@ -41,7 +41,7 @@ func BenchmarkParseReversePattern_Complex(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = ParseReversePattern("/api/v1/users/:userId/organizations/:orgId/teams/:teamId/members/:memberId")
+		ParseReversePattern("/api/v1/users/:userId/organizations/:orgId/teams/:teamId/members/:memberId")
 	}
 }
 
@@ -53,8 +53,8 @@ func BenchmarkBuildURL_Simple(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
-		_, _ = pattern.BuildURL(nil, nil)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		pattern.BuildURL(nil, nil)
 	}
 }
 
@@ -68,8 +68,8 @@ func BenchmarkBuildURL_WithParams(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
-		_, _ = pattern.BuildURL(params, nil)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		pattern.BuildURL(params, nil)
 	}
 }
 
@@ -83,8 +83,8 @@ func BenchmarkBuildURL_WithQuery(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
-		_, _ = pattern.BuildURL(params, query)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		pattern.BuildURL(params, query)
 	}
 }
 
@@ -105,8 +105,8 @@ func BenchmarkBuildURL_Complex(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
-		_, _ = pattern.BuildURL(params, query)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		pattern.BuildURL(params, query)
 	}
 }
 
@@ -118,7 +118,7 @@ func BenchmarkParamConstraint_ToRegexConstraint_Int(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = pc.ToRegexConstraint("id")
+		pc.ToRegexConstraint("id")
 	}
 }
 
@@ -128,7 +128,7 @@ func BenchmarkParamConstraint_ToRegexConstraint_UUID(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = pc.ToRegexConstraint("uuid")
+		pc.ToRegexConstraint("uuid")
 	}
 }
 
@@ -141,7 +141,7 @@ func BenchmarkParamConstraint_ToRegexConstraint_Enum(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = pc.ToRegexConstraint("status")
+		pc.ToRegexConstraint("status")
 	}
 }
 
@@ -154,7 +154,7 @@ func BenchmarkParamConstraint_ToRegexConstraint_Regex(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = pc.ToRegexConstraint("slug")
+		pc.ToRegexConstraint("slug")
 	}
 }
 
@@ -178,7 +178,7 @@ func BenchmarkConstraintFromPattern_Simple(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = ConstraintFromPattern("id", `\d+`)
+		ConstraintFromPattern("id", `\d+`)
 	}
 }
 
@@ -186,7 +186,7 @@ func BenchmarkConstraintFromPattern_Complex(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = ConstraintFromPattern("uuid", `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}`)
+		ConstraintFromPattern("uuid", `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}`)
 	}
 }
 
@@ -196,7 +196,7 @@ func BenchmarkBuildMountConfig_Empty(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = BuildMountConfig()
+		BuildMountConfig()
 	}
 }
 
@@ -204,7 +204,7 @@ func BenchmarkBuildMountConfig_WithOptions(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = BuildMountConfig(
+		BuildMountConfig(
 			InheritMiddleware(),
 			NamePrefix("api.v1."),
 		)
@@ -218,7 +218,7 @@ func BenchmarkParseReversePattern_Parallel(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = ParseReversePattern("/users/:id/posts/:postId")
+			ParseReversePattern("/users/:id/posts/:postId")
 		}
 	})
 }
@@ -234,8 +234,8 @@ func BenchmarkBuildURL_Parallel(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			// Note: Error intentionally ignored in benchmark - we're measuring performance, not correctness
-			_, _ = pattern.BuildURL(params, nil)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			pattern.BuildURL(params, nil)
 		}
 	})
 }
@@ -247,7 +247,7 @@ func BenchmarkParamConstraint_ToRegexConstraint_Parallel(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = pc.ToRegexConstraint("id")
+			pc.ToRegexConstraint("id")
 		}
 	})
 }

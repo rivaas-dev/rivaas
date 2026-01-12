@@ -231,7 +231,13 @@ func WithSlidingWindow(sw SlidingWindow, opts CommonOptions) router.HandlerFunc 
 		effectiveUsage := float64(curr) + float64(prev)*prevWeight
 
 		// Increment current window
-		_ = sw.Store.Incr(c.Request.Context(), key, sw.Window)
+		err = sw.Store.Incr(c.Request.Context(), key, sw.Window)
+		if err != nil {
+			// If we can't increment the counter, we can't enforce rate limiting
+			// Allow the request but log the issue (optionally)
+			c.Next()
+			return
+		}
 
 		// Calculate remaining and reset
 		remaining := max(0, int(float64(sw.Limit)-effectiveUsage))

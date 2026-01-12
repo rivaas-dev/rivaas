@@ -60,12 +60,16 @@ func generateRandomID() string {
 		// This is extremely unlikely to happen (crypto/rand failure is rare), but when
 		// it does, we want collision resistance better than timestamp alone.
 		ts := time.Now().UnixNano()
+		//nolint:gosec // G404: Fallback only; crypto/rand is primary, math/rand for non-security collision resistance
 		rnd := mathrand.Uint64()
 		pid := os.Getpid()
 
 		// Layout: [8 bytes: timestamp][4 bytes: random][4 bytes: pid]
+		//nolint:gosec // G115: Timestamp conversion safe; UnixNano() positive for valid times
 		binary.BigEndian.PutUint64(bytes[0:8], uint64(ts))
+		//nolint:gosec // G115: Truncation intentional; only need 32 bits for uniqueness
 		binary.BigEndian.PutUint32(bytes[8:12], uint32(rnd))
+		//nolint:gosec // G115: PID conversion safe; process IDs fit in uint32
 		binary.BigEndian.PutUint32(bytes[12:16], uint32(pid))
 	}
 

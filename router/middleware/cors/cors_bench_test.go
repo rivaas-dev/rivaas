@@ -27,6 +27,7 @@ func BenchmarkCORS_SimpleRequest(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New(WithAllowAllOrigins(true)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -46,6 +47,7 @@ func BenchmarkCORS_Preflight(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New(WithAllowedOrigins("https://example.com")))
 	r.POST("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -72,6 +74,7 @@ func BenchmarkCORS_OriginValidation(b *testing.B) {
 		"https://dashboard.example.com",
 	)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -93,6 +96,7 @@ func BenchmarkCORS_OriginFunc(b *testing.B) {
 		return strings.HasSuffix(origin, ".example.com")
 	})))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 

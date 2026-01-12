@@ -26,6 +26,7 @@ func BenchmarkRequestID_Generate(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New(WithAllowClientID(false)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -44,6 +45,7 @@ func BenchmarkRequestID_UseClientID(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New(WithAllowClientID(true)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 

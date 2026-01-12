@@ -31,7 +31,8 @@ func BenchmarkRateLimit(b *testing.B) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		_ = c.String(http.StatusOK, "ok") // Error ignored: benchmark focuses on router/middleware performance, not response handling
+		//nolint:errcheck // Test handler
+		c.String(http.StatusOK, "ok")
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -54,7 +55,8 @@ func BenchmarkRateLimit_ParallelSameKey(b *testing.B) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		_ = c.String(http.StatusOK, "ok") // Error ignored: benchmark focuses on router/middleware performance, not response handling
+		//nolint:errcheck // Test handler
+		c.String(http.StatusOK, "ok")
 	})
 
 	b.ResetTimer()
@@ -82,7 +84,8 @@ func BenchmarkRateLimit_ParallelDifferentKeys(b *testing.B) {
 	))
 
 	r.GET("/test", func(c *router.Context) {
-		_ = c.String(http.StatusOK, "ok") // Error ignored: benchmark focuses on router/middleware performance, not response handling
+		//nolint:errcheck // Test handler
+		c.String(http.StatusOK, "ok")
 	})
 
 	b.ResetTimer()

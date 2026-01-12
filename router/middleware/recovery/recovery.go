@@ -74,6 +74,7 @@ func defaultConfig() *config {
 
 // defaultHandler sends a 500 Internal Server Error response.
 func defaultHandler(c *router.Context, _ any) {
+	//nolint:errcheck // Panic recovery handler; best-effort response
 	c.JSON(http.StatusInternalServerError, map[string]any{
 		"error": "Internal server error",
 		"code":  "INTERNAL_ERROR",

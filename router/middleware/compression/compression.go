@@ -228,11 +228,17 @@ func (cw *compressWriter) initCompression() {
 	// Get writer from pool
 	switch cw.encoding {
 	case "br":
-		w := cw.pool.Get().(*brotli.Writer)
+		w, ok := cw.pool.Get().(*brotli.Writer)
+		if !ok {
+			return // Invalid writer type from pool
+		}
 		w.Reset(cw.ResponseWriter)
 		cw.writer = w
 	case "gzip":
-		w := cw.pool.Get().(*gzip.Writer)
+		w, ok := cw.pool.Get().(*gzip.Writer)
+		if !ok {
+			return // Invalid writer type from pool
+		}
 		w.Reset(cw.ResponseWriter)
 		cw.writer = w
 	}
@@ -248,7 +254,10 @@ func (cw *compressWriter) Close() error {
 			if !cw.headersSent {
 				cw.ResponseWriter.WriteHeader(cw.statusCode)
 			}
-			cw.ResponseWriter.Write(cw.buffer)
+			_, err := cw.ResponseWriter.Write(cw.buffer)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -330,7 +339,11 @@ func getGzipWriterPool(level int) *sync.Pool {
 
 	pool = &sync.Pool{
 		New: func() any {
-			w, _ := gzip.NewWriterLevel(io.Discard, level)
+			w, err := gzip.NewWriterLevel(io.Discard, level)
+			if err != nil {
+				//nolint:errcheck // This should not occur with supported compression levels; fallback to the default if needed
+				w, _ = gzip.NewWriterLevel(io.Discard, gzip.DefaultCompression)
+			}
 			return w
 		},
 	}

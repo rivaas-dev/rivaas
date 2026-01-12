@@ -208,14 +208,11 @@ func TestDownload(t *testing.T) {
 	// Create a temporary test file
 	tmpfile, err := os.CreateTemp(t.TempDir(), "test-download-*.txt")
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = os.Remove(tmpfile.Name())
-	})
 
 	content := []byte("test file content")
 	_, err = tmpfile.Write(content)
 	require.NoError(t, err)
-	_ = tmpfile.Close()
+	require.NoError(t, tmpfile.Close())
 
 	t.Run("download with original filename", func(t *testing.T) {
 		t.Parallel()
@@ -328,7 +325,8 @@ func TestJSONP(t *testing.T) {
 		c := NewContext(w, req)
 
 		data := map[string]string{"message": "Hello"}
-		c.JSONP(http.StatusOK, data)
+		err := c.JSONP(http.StatusOK, data)
+		require.NoError(t, err)
 
 		body := w.Body.String()
 		assert.True(t, strings.HasPrefix(body, "callback("))
@@ -347,7 +345,8 @@ func TestJSONP(t *testing.T) {
 		c := NewContext(w, req)
 
 		data := map[string]int{"count": 42}
-		c.JSONP(http.StatusOK, data, "myCallback")
+		err := c.JSONP(http.StatusOK, data, "myCallback")
+		require.NoError(t, err)
 
 		body := w.Body.String()
 		assert.True(t, strings.HasPrefix(body, "myCallback("))
@@ -457,7 +456,8 @@ func TestWrite(t *testing.T) {
 		c := NewContext(w, req)
 
 		// Context implements io.Writer
-		_, _ = fmt.Fprintf(c, "User: %s, Count: %d", "Alice", 42)
+		_, err := fmt.Fprintf(c, "User: %s, Count: %d", "Alice", 42)
+		require.NoError(t, err)
 
 		expected := "User: Alice, Count: 42"
 		assert.Equal(t, expected, w.Body.String())
@@ -484,7 +484,7 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 		c.Vary("Accept", "Accept-Language")
 
 		// Send response
-		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		require.NoError(t, c.JSON(http.StatusOK, map[string]string{"status": "ok"}))
 
 		// Verify headers
 		link := w.Header().Get("Link")
@@ -509,7 +509,8 @@ func TestResponseHelpers_RealWorld(t *testing.T) {
 		}
 
 		// Use Format for automatic content negotiation
-		_ = c.Format(http.StatusOK, user)
+		err := c.Format(http.StatusOK, user)
+		require.NoError(t, err)
 
 		assert.Contains(t, w.Body.String(), "123")
 	})
@@ -524,7 +525,8 @@ func BenchmarkSend(b *testing.B) {
 	for b.Loop() {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
-		_ = c.Send(data)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		c.Send(data)
 	}
 }
 
@@ -536,7 +538,8 @@ func BenchmarkWrite(b *testing.B) {
 	for b.Loop() {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
-		_, _ = c.Write(data)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		c.Write(data)
 	}
 }
 
@@ -547,7 +550,8 @@ func BenchmarkWriteString(b *testing.B) {
 	for b.Loop() {
 		w := httptest.NewRecorder()
 		c := NewContext(w, req)
-		_, _ = c.WriteStringBody("response data")
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		c.WriteStringBody("response data")
 	}
 }
 
@@ -561,9 +565,7 @@ func TestFormat_XML(t *testing.T) {
 	c := NewContext(w, req)
 
 	data := map[string]string{"status": "ok"}
-	err := c.Format(http.StatusOK, data)
-
-	require.NoError(t, err)
+	require.NoError(t, c.Format(http.StatusOK, data))
 
 	assert.Contains(t, w.Header().Get("Content-Type"), "application/xml")
 
@@ -612,9 +614,7 @@ func TestFormat_MultipleAcceptTypes(t *testing.T) {
 			w := httptest.NewRecorder()
 			c := NewContext(w, req)
 
-			err := c.Format(http.StatusOK, map[string]string{"data": "value"})
-
-			require.NoError(t, err)
+			require.NoError(t, c.Format(http.StatusOK, map[string]string{"data": "value"}))
 
 			assert.Contains(t, w.Header().Get("Content-Type"), tt.expectType)
 		})

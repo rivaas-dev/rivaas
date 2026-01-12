@@ -128,6 +128,7 @@ var _ = Describe("Router Integration", func() {
 			v1.GET("/users/:id", func(c *router.Context) {
 				executionOrder = append(executionOrder, "handler")
 				id := c.Param("id")
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"id": id})
 			})
 
@@ -210,6 +211,7 @@ var _ = Describe("Router Integration", func() {
 
 				// Register and test route
 				r.GET("/test", func(c *router.Context) {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusOK, map[string]string{"status": "ok", "feature": "enabled"})
 				})
 
@@ -246,11 +248,13 @@ var _ = Describe("Router Integration", func() {
 				// Register routes
 				v1 := rVersioned.Version("v1")
 				v1.GET("/users/:id", func(c *router.Context) {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusOK, map[string]string{"id": c.Param("id"), "version": "v1"})
 				})
 
 				v2 := rVersioned.Version("v2")
 				v2.GET("/users/:id", func(c *router.Context) {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusOK, map[string]string{"id": c.Param("id"), "version": "v2"})
 				})
 
@@ -298,23 +302,28 @@ var _ = Describe("Router Integration", func() {
 
 			// Static routes
 			r.GET("/", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "home")
 			})
 
 			r.GET("/about", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "about")
 			})
 
 			r.GET("/contact", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "contact")
 			})
 
 			// Dynamic routes
 			r.GET("/users/:id", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 			})
 
 			r.GET("/posts/:id/comments/:cid", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{
 					"post":    c.Param("id"),
 					"comment": c.Param("cid"),
@@ -323,6 +332,7 @@ var _ = Describe("Router Integration", func() {
 
 			// Wildcard routes
 			r.GET("/files/*", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "file")
 			})
 
@@ -433,6 +443,7 @@ var _ = Describe("Router Integration", func() {
 			// Static file serving (using handler)
 			r.GET("/static/*", func(c *router.Context) {
 				c.Header("Content-Type", "text/plain")
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "static content")
 			})
 		})
@@ -462,6 +473,7 @@ var _ = Describe("Router Integration", func() {
 			data = map[string]string{"message": "hello"}
 
 			r.GET("/data", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.Format(http.StatusOK, data)
 			})
 		})
@@ -501,10 +513,12 @@ var _ = Describe("Router Integration", func() {
 
 				var data Data
 				if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 					return
 				}
 
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, data)
 			})
 
@@ -532,14 +546,17 @@ var _ = Describe("Router Integration", func() {
 			r = router.MustNew()
 
 			r.GET("/", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "Hello World")
 			})
 
 			r.GET("/users/:id", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.Stringf(http.StatusOK, "User: %s", c.Param("id"))
 			})
 
 			r.POST("/users", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusCreated, "User created")
 			})
 		})
@@ -573,6 +590,7 @@ var _ = Describe("Router Integration", func() {
 			})
 
 			r.GET("/", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "Hello")
 			})
 
@@ -594,10 +612,12 @@ var _ = Describe("Router Integration", func() {
 
 			api := r.Group("/api/v1")
 			api.GET("/users", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "Users")
 			})
 
 			api.GET("/users/:id", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.Stringf(http.StatusOK, "User: %s", c.Param("id"))
 			})
 		})
@@ -628,6 +648,7 @@ var _ = Describe("Router Integration", func() {
 			})
 
 			api.GET("/users", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "Users")
 			})
 
@@ -648,10 +669,12 @@ var _ = Describe("Router Integration", func() {
 			r = router.MustNew()
 
 			r.GET("/users/:id/posts/:post_id", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.Stringf(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
 			})
 
 			r.GET("/users/:id/posts/:post_id/comments/:comment_id", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.Stringf(http.StatusOK, "User: %s, Post: %s, Comment: %s",
 					c.Param("id"), c.Param("post_id"), c.Param("comment_id"))
 			})
@@ -679,14 +702,17 @@ var _ = Describe("Router Integration", func() {
 			r := router.MustNew()
 
 			r.GET("/json", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "test"})
 			})
 
 			r.GET("/string", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.Stringf(http.StatusOK, "Hello %s", "World")
 			})
 
 			r.GET("/html", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.HTML(http.StatusOK, "<h1>Hello</h1>")
 			})
 
@@ -720,21 +746,27 @@ var _ = Describe("Router Integration", func() {
 			r = router.MustNew()
 
 			r.GET("/get", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "GET")
 			})
 			r.POST("/post", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "POST")
 			})
 			r.PUT("/put", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "PUT")
 			})
 			r.DELETE("/delete", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "DELETE")
 			})
 			r.PATCH("/patch", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "PATCH")
 			})
 			r.OPTIONS("/options", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "OPTIONS")
 			})
 			r.HEAD("/head", func(c *router.Context) {
@@ -779,6 +811,7 @@ var _ = Describe("Router Integration", func() {
 
 			// Verify router works with all options
 			r.GET("/users/:id", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 			})
 
@@ -804,11 +837,13 @@ var _ = Describe("Router Integration", func() {
 
 					r.GET("/static/path", func(c *router.Context) {
 						staticCalled = true
+						//nolint:errcheck // Test handler
 						c.String(http.StatusOK, "static")
 					})
 
 					r.GET("/users/:id/posts/:postId", func(c *router.Context) {
 						dynamicCalled = true
+						//nolint:errcheck // Test handler
 						c.JSON(http.StatusOK, map[string]string{
 							"userId": c.Param("id"),
 							"postId": c.Param("postId"),
@@ -843,11 +878,13 @@ var _ = Describe("Router Integration", func() {
 
 					r.GET("/static/path", func(c *router.Context) {
 						staticCalled = true
+						//nolint:errcheck // Test handler
 						c.String(http.StatusOK, "static")
 					})
 
 					r.GET("/users/:id", func(c *router.Context) {
 						dynamicCalled = true
+						//nolint:errcheck // Test handler
 						c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 					})
 
@@ -872,6 +909,7 @@ var _ = Describe("Router Integration", func() {
 				r := router.MustNew(router.WithRouteCompilation(true))
 
 				r.GET("/test1", func(c *router.Context) {
+					//nolint:errcheck // Test handler
 					c.String(http.StatusOK, "test1")
 				})
 
@@ -924,6 +962,7 @@ var _ = Describe("Router Integration", func() {
 						hijackedConn, hijackedRW, hijackErr = hijacker.Hijack()
 						c.Status(http.StatusSwitchingProtocols)
 					} else {
+						//nolint:errcheck // Test handler
 						c.String(http.StatusInternalServerError, "Hijack not supported")
 					}
 				})
@@ -932,8 +971,10 @@ var _ = Describe("Router Integration", func() {
 
 				server, client := net.Pipe()
 				defer func() {
-					_ = server.Close()
-					_ = client.Close()
+					//nolint:errcheck // Test cleanup
+					server.Close()
+					//nolint:errcheck // Test cleanup
+					client.Close()
 				}()
 
 				mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
@@ -980,6 +1021,7 @@ var _ = Describe("Router Integration", func() {
 				r.GET("/ws", func(c *router.Context) {
 					c.Header("X-Test", "value")
 					c.Status(http.StatusSwitchingProtocols)
+					//nolint:errcheck // Test handler
 					c.Response.Write([]byte("Upgrading"))
 
 					if hijacker, ok := c.Response.(http.Hijacker); ok {
@@ -993,8 +1035,10 @@ var _ = Describe("Router Integration", func() {
 
 				server, client := net.Pipe()
 				defer func() {
-					_ = server.Close()
-					_ = client.Close()
+					//nolint:errcheck // Test cleanup
+					server.Close()
+					//nolint:errcheck // Test cleanup
+					client.Close()
 				}()
 
 				mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
@@ -1019,12 +1063,14 @@ var _ = Describe("Router Integration", func() {
 					c.Header("Cache-Control", "no-cache")
 					c.Header("Connection", "keep-alive")
 
+					//nolint:errcheck // Test handler
 					c.String(http.StatusOK, "data: chunk1\n\n")
 
 					if flusher, ok := c.Response.(http.Flusher); ok {
 						flusher.Flush()
 					}
 
+					//nolint:errcheck // Test handler
 					c.String(http.StatusOK, "data: chunk2\n\n")
 
 					if flusher, ok := c.Response.(http.Flusher); ok {
@@ -1051,6 +1097,7 @@ var _ = Describe("Router Integration", func() {
 					c.Header("Content-Type", "text/event-stream")
 
 					for i := 1; i <= 3; i++ {
+						//nolint:errcheck // Test handler
 						c.Response.Write([]byte("event: message\n"))
 
 						if flusher, ok := c.Response.(http.Flusher); ok {
@@ -1093,8 +1140,10 @@ var _ = Describe("Router Integration", func() {
 
 				server, client := net.Pipe()
 				defer func() {
-					_ = server.Close()
-					_ = client.Close()
+					//nolint:errcheck // Test cleanup
+					server.Close()
+					//nolint:errcheck // Test cleanup
+					client.Close()
 				}()
 
 				mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
@@ -1120,6 +1169,7 @@ var _ = Describe("Router Integration", func() {
 				flushed := false
 
 				r.GET("/stream", func(c *router.Context) {
+					//nolint:errcheck // Test handler
 					c.String(http.StatusOK, "chunk 1")
 
 					if flusher, ok := c.Response.(http.Flusher); ok {
@@ -1154,8 +1204,10 @@ var _ = Describe("Router Integration", func() {
 
 				server, client := net.Pipe()
 				defer func() {
-					_ = server.Close()
-					_ = client.Close()
+					//nolint:errcheck // Test cleanup
+					server.Close()
+					//nolint:errcheck // Test cleanup
+					client.Close()
 				}()
 
 				mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))

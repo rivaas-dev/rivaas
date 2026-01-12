@@ -30,6 +30,7 @@ func TestRequestID_GeneratesID(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -75,6 +76,7 @@ func TestRequestID_ClientIDHandling(t *testing.T) {
 			r := router.MustNew()
 			r.Use(New(WithAllowClientID(tt.allowClient)))
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 			})
 
@@ -155,6 +157,7 @@ func TestRequestID_Configuration(t *testing.T) {
 			r := router.MustNew()
 			r.Use(New(opts...))
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 			})
 
@@ -215,6 +218,7 @@ func TestRequestID_CombinedOptions(t *testing.T) {
 		}),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 

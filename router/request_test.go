@@ -575,8 +575,9 @@ func TestFile(t *testing.T) {
 		// Add a file
 		fileWriter, err := writer.CreateFormFile("document", "test.txt")
 		require.NoError(t, err)
-		_, _ = fileWriter.Write([]byte("test file content"))
-		_ = writer.Close()
+		_, err = fileWriter.Write([]byte("test file content"))
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		// Create request
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
@@ -597,7 +598,7 @@ func TestFile(t *testing.T) {
 		t.Parallel()
 		body := &bytes.Buffer{}
 		writer := multipart.NewWriter(body)
-		_ = writer.Close()
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -631,8 +632,9 @@ func TestFile(t *testing.T) {
 		writer := multipart.NewWriter(body)
 		fileWriter, err := writer.CreateFormFile("target", "data.txt")
 		require.NoError(t, err)
-		_, _ = fileWriter.Write([]byte("content"))
-		_ = writer.Close()
+		_, err = fileWriter.Write([]byte("content"))
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", bytes.NewReader(body.Bytes()))
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -667,8 +669,9 @@ func TestFile(t *testing.T) {
 		fileContent := []byte("hello world from file")
 		fileWriter, err := writer.CreateFormFile("data", "hello.txt")
 		require.NoError(t, err)
-		_, _ = fileWriter.Write(fileContent)
-		_ = writer.Close()
+		_, err = fileWriter.Write(fileContent)
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -692,8 +695,9 @@ func TestFile(t *testing.T) {
 		fileContent := []byte("streaming content")
 		fileWriter, err := writer.CreateFormFile("stream", "stream.bin")
 		require.NoError(t, err)
-		_, _ = fileWriter.Write(fileContent)
-		_ = writer.Close()
+		_, err = fileWriter.Write(fileContent)
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -706,7 +710,7 @@ func TestFile(t *testing.T) {
 		// Test Open()
 		reader, err := file.Open()
 		require.NoError(t, err, "Open() failed")
-		defer reader.Close()
+		defer reader.Close() //nolint:errcheck // Test cleanup
 
 		data, err := io.ReadAll(reader)
 		require.NoError(t, err)
@@ -720,8 +724,9 @@ func TestFile(t *testing.T) {
 
 		fileWriter, err := writer.CreateFormFile("image", "photo.jpg")
 		require.NoError(t, err)
-		_, _ = fileWriter.Write([]byte("fake image"))
-		_ = writer.Close()
+		_, err = fileWriter.Write([]byte("fake image"))
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -742,8 +747,9 @@ func TestFile(t *testing.T) {
 		// Try to create a file with path traversal in the name
 		fileWriter, err := writer.CreateFormFile("malicious", "../../../etc/passwd")
 		require.NoError(t, err)
-		_, _ = fileWriter.Write([]byte("fake"))
-		_ = writer.Close()
+		_, err = fileWriter.Write([]byte("fake"))
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -773,9 +779,10 @@ func TestFiles(t *testing.T) {
 		for i, name := range []string{"file1.txt", "file2.txt", "file3.txt"} {
 			fw, err := writer.CreateFormFile("documents", name)
 			require.NoError(t, err)
-			_, _ = fw.Write([]byte("content " + string(rune('A'+i))))
+			_, err = fw.Write([]byte("content " + string(rune('A'+i))))
+			require.NoError(t, err)
 		}
-		_ = writer.Close()
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -795,7 +802,7 @@ func TestFiles(t *testing.T) {
 		t.Parallel()
 		body := &bytes.Buffer{}
 		writer := multipart.NewWriter(body)
-		writer.Close()
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -813,9 +820,6 @@ func TestFileSave(t *testing.T) {
 
 	// Create temp directory for uploads
 	tmpDir := t.TempDir()
-	t.Cleanup(func() {
-		_ = os.RemoveAll(tmpDir)
-	})
 
 	t.Run("save uploaded file", func(t *testing.T) {
 		t.Parallel()
@@ -825,8 +829,9 @@ func TestFileSave(t *testing.T) {
 		fileContent := []byte("test file content for saving")
 		fw, err := writer.CreateFormFile("upload", "testfile.txt")
 		require.NoError(t, err)
-		_, _ = fw.Write(fileContent)
-		_ = writer.Close()
+		_, err = fw.Write(fileContent)
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -843,6 +848,7 @@ func TestFileSave(t *testing.T) {
 		require.NoError(t, err, "file.Save() failed")
 
 		// Verify file was saved
+		//nolint:gosec // G304: Test uses controlled temp directory path
 		savedContent, err := os.ReadFile(dstPath)
 		require.NoError(t, err, "Failed to read saved file")
 
@@ -856,8 +862,9 @@ func TestFileSave(t *testing.T) {
 
 		fw, err := writer.CreateFormFile("upload", "test.txt")
 		require.NoError(t, err)
-		_, _ = fw.Write([]byte("content"))
-		_ = writer.Close()
+		_, err = fw.Write([]byte("content"))
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -889,8 +896,9 @@ func TestFileType(t *testing.T) {
 
 		fileWriter, err := writer.CreateFormFile("noext", "README")
 		require.NoError(t, err)
-		_, _ = fileWriter.Write([]byte("no extension"))
-		_ = writer.Close()
+		_, err = fileWriter.Write([]byte("no extension"))
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -910,8 +918,9 @@ func TestFileType(t *testing.T) {
 
 		fileWriter, err := writer.CreateFormFile("archive", "data.tar.gz")
 		require.NoError(t, err)
-		_, _ = fileWriter.Write([]byte("archive content"))
-		_ = writer.Close()
+		_, err = fileWriter.Write([]byte("archive content"))
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
 		req := httptest.NewRequest(http.MethodPost, "/upload", body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())

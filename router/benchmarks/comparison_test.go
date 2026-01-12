@@ -46,12 +46,15 @@ import (
 func BenchmarkRivaasRouter(b *testing.B) {
 	r := router.MustNew()
 	r.GET("/", func(c *router.Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "Hello")
 	})
 	r.GET("/users/:id", func(c *router.Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "User: "+c.Param("id"))
 	})
 	r.GET("/users/:id/posts/:post_id", func(c *router.Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "User: "+c.Param("id")+", Post: "+c.Param("post_id"))
 	})
 
@@ -79,6 +82,7 @@ func BenchmarkRivaasRouterPlainString(b *testing.B) {
 	r := router.MustNew()
 	r.GET("/users/:id", func(c *router.Context) {
 		// Manual concatenation - avoids Stringf variadic but still allocates
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "User: "+c.Param("id"))
 	})
 
@@ -114,7 +118,8 @@ func BenchmarkRivaasRouterZeroAlloc(b *testing.B) {
 		// Don't set headers - Header.Set() allocates
 		// c.Response.Header().Set("Content-Type", "text/plain")
 		c.Response.WriteHeader(http.StatusOK)
-		c.Response.Write(staticResponse) // No allocation - reuses existing slice
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		c.Response.Write(staticResponse)
 	})
 
 	// Warm up all optimizations for performance
@@ -137,14 +142,17 @@ func BenchmarkStandardMux(b *testing.B) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		w.Write([]byte("Hello"))
 	})
 	mux.HandleFunc("/users/123", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		w.Write([]byte("User: 123"))
 	})
 	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		w.Write([]byte("User: 123, Post: 456"))
 	})
 
@@ -165,14 +173,17 @@ func BenchmarkSimpleRouter(b *testing.B) {
 	routes := map[string]http.HandlerFunc{
 		"/": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			w.Write([]byte("Hello"))
 		},
 		"/users/123": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			w.Write([]byte("User: 123"))
 		},
 		"/users/123/posts/456": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			w.Write([]byte("User: 123, Post: 456"))
 		},
 	}
@@ -297,14 +308,17 @@ func BenchmarkFasthttpRouterViaAdaptor(b *testing.B) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		w.Write([]byte("Hello"))
 	})
 	mux.HandleFunc("/users/123", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		w.Write([]byte("User: 123"))
 	})
 	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		w.Write([]byte("User: 123, Post: 456"))
 	})
 
@@ -328,17 +342,20 @@ func BenchmarkChiRouter(b *testing.B) {
 	r := chi.NewRouter()
 	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		w.Write([]byte("Hello"))
 	})
 	r.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		w.Write([]byte("User: " + id))
 	})
 	r.Get("/users/{id}/posts/{post_id}", func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		postID := chi.URLParam(r, "post_id")
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		w.Write([]byte("User: " + id + ", Post: " + postID))
 	})
 

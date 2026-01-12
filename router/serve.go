@@ -288,6 +288,7 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 		if isSunset := r.versionEngine.SetLifecycleHeaders(w, version, routePattern); isSunset {
 			// Version is past sunset date - return 410 Gone
 			w.WriteHeader(http.StatusGone)
+			//nolint:errcheck // Best-effort write; status code already set
 			w.Write(fmt.Appendf(nil, "API %s was removed. Please upgrade to a supported version.", version))
 
 			return
@@ -333,6 +334,7 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 		if isSunset := r.versionEngine.SetLifecycleHeaders(w, version, routePattern); isSunset {
 			// Version is past sunset date - return 410 Gone
 			w.WriteHeader(http.StatusGone)
+			//nolint:errcheck // Best-effort write; status code already set
 			w.Write(fmt.Appendf(nil, "API %s was removed. Please upgrade to a supported version.", version))
 
 			return
@@ -398,7 +400,9 @@ func (r *Router) serveCompiledRoute(w http.ResponseWriter, req *http.Request, ro
 		// Fallback: Convert compiler.HandlerFunc to router.HandlerFunc
 		handlers := make([]HandlerFunc, 0, len(route.Handlers()))
 		for _, h := range route.Handlers() {
-			handlers = append(handlers, h.(HandlerFunc))
+			if handler, ok := h.(HandlerFunc); ok {
+				handlers = append(handlers, handler)
+			}
 		}
 		c.initForRequest(req, w, handlers, r)
 	}
@@ -434,7 +438,9 @@ func (r *Router) serveCompiledRouteWithParams(w http.ResponseWriter, req *http.R
 		// Fallback: Convert compiler.HandlerFunc to router.HandlerFunc
 		handlers := make([]HandlerFunc, 0, len(route.Handlers()))
 		for _, h := range route.Handlers() {
-			handlers = append(handlers, h.(HandlerFunc))
+			if handler, ok := h.(HandlerFunc); ok {
+				handlers = append(handlers, handler)
+			}
 		}
 		c.initForRequestWithParams(req, w, handlers, r)
 	}

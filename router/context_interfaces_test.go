@@ -212,6 +212,7 @@ func processUserRequest(reader ParameterReader) (string, error) {
 // Example business logic function that uses ResponseWriter interface.
 // This demonstrates how interfaces enable easier testing.
 func sendUserResponse(writer ResponseWriter, userID string) {
+	//nolint:errcheck // Test helper function
 	writer.JSON(http.StatusOK, map[string]string{
 		"user_id": userID,
 		"status":  "active",
@@ -312,6 +313,7 @@ func TestContextImplementsInterfaces(t *testing.T) {
 		// Test ResponseWriter interface
 		var writer ResponseWriter = c
 		assert.NotNil(t, writer)
+		//nolint:errcheck // Test handler
 		writer.String(http.StatusOK, "test")
 
 		// Test ContextReader interface
@@ -343,12 +345,14 @@ func readParamsOnly(reader ParameterReader) {
 
 // writeResponseOnly demonstrates a function that only needs to write responses.
 func writeResponseOnly(writer ResponseWriter) {
+	//nolint:errcheck // Test helper function
 	writer.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // processRequestBoth demonstrates a function that needs both reading and writing.
 func processRequestBoth(reader ParameterReader, writer ResponseWriter) {
 	userID := reader.Param("id")
+	//nolint:errcheck // Test helper function
 	writer.JSON(http.StatusOK, map[string]string{"user_id": userID})
 }
 

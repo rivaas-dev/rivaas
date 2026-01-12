@@ -210,6 +210,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 
 		r := MustNew()
 		r.GET("/a//b", func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "ok")
 		})
 
@@ -226,9 +227,11 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 
 		r := MustNew()
 		r.GET("/users/", func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "users with slash")
 		})
 		r.GET("/posts", func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "posts without slash")
 		})
 
@@ -252,6 +255,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 
 		r := MustNew()
 		r.GET("/a/:p1/b/:p2/c/:p3", func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.Stringf(http.StatusOK, "%s-%s-%s", c.Param("p1"), c.Param("p2"), c.Param("p3"))
 		})
 
@@ -269,6 +273,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 
 		r := MustNew()
 		r.GET("/items/:id", func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.Stringf(http.StatusOK, "item %s", c.Param("id"))
 		})
 
@@ -308,6 +313,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 			p1 := c.Param("p1")
 			p8 := c.Param("p8")
 			p9 := c.Param("p9") // Should retrieve from Params map
+			//nolint:errcheck // Test handler
 			c.Stringf(http.StatusOK, "count=%d,p1=%s,p8=%s,p9=%s", c.paramCount, p1, p8, p9)
 		})
 
@@ -360,6 +366,7 @@ func TestEdgeCasesInRadixTree(t *testing.T) {
 			// Also verify via Param() method
 			p9Param := c.Param("p9")
 			p10Param := c.Param("p10")
+			//nolint:errcheck // Test handler
 			c.Stringf(http.StatusOK, "p9=%s,p10=%s,p9Param=%s,p10Param=%s", p9Value, p10Value, p9Param, p10Param)
 		})
 

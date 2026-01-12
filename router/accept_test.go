@@ -2064,14 +2064,16 @@ func BenchmarkParseQualityVsParseFloat(b *testing.B) {
 		b.Run("fast_"+tc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				_ = parseQuality(tc.input)
+				//nolint:errcheck // Benchmark measures performance; error checking would skew results
+				parseQuality(tc.input)
 			}
 		})
 
 		b.Run("stdlib_"+tc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				_, _ = strconv.ParseFloat(tc.input, 64)
+				//nolint:errcheck // Benchmark measures performance; error checking would skew results
+				strconv.ParseFloat(tc.input, 64)
 			}
 		})
 	}

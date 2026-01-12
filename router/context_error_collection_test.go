@@ -443,6 +443,7 @@ func TestContext_ErrorCollection_RealWorldScenario(t *testing.T) {
 		if c.HasErrors() {
 			// Combine errors
 			joinedErr := errors.Join(c.Errors()...)
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusBadRequest, map[string]any{
 				"error":  "validation failed",
 				"errors": c.Errors(),
@@ -453,6 +454,7 @@ func TestContext_ErrorCollection_RealWorldScenario(t *testing.T) {
 		}
 
 		// Success case
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 

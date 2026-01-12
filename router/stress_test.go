@@ -46,6 +46,7 @@ func (suite *StressTestSuite) TestRouterStress() {
 	for i := range 100 {
 		route := "/api/v1/users/" + string(rune('a'+i%26))
 		suite.router.GET(route, func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "User")
 		})
 	}
@@ -54,6 +55,7 @@ func (suite *StressTestSuite) TestRouterStress() {
 	for range 50 {
 		route := "/api/v1/users/:id/posts/:post_id"
 		suite.router.GET(route, func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.Stringf(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
 		})
 	}
@@ -91,6 +93,7 @@ func (suite *StressTestSuite) TestRouterStress() {
 func BenchmarkRouterConcurrent(b *testing.B) {
 	r := MustNew()
 	r.GET("/users/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "User: %s", c.Param("id"))
 	})
 
@@ -110,6 +113,7 @@ func BenchmarkRouterConcurrent(b *testing.B) {
 func BenchmarkRouterMemoryAllocations(b *testing.B) {
 	r := MustNew()
 	r.GET("/users/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "User: %s", c.Param("id"))
 	})
 

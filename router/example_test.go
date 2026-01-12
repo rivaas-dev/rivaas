@@ -31,6 +31,7 @@ func ExampleNew() {
 	}
 
 	r.GET("/", func(c *router.Context) {
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusOK, map[string]string{"message": "Hello World"})
 	})
 
@@ -43,6 +44,7 @@ func ExampleMustNew() {
 	r := router.MustNew()
 
 	r.GET("/health", func(c *router.Context) {
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
@@ -56,6 +58,7 @@ func ExampleRouter_GET() {
 
 	r.GET("/users/:id", func(c *router.Context) {
 		userID := c.Param("id")
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusOK, map[string]string{"user_id": userID})
 	})
 
@@ -68,6 +71,7 @@ func ExampleRouter_POST() {
 	r := router.MustNew()
 
 	r.POST("/users", func(c *router.Context) {
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusCreated, map[string]string{"message": "user created"})
 	})
 
@@ -83,9 +87,11 @@ func ExampleRouter_Group() {
 	api := r.Group("/api/v1")
 	{
 		api.GET("/users", func(c *router.Context) {
+			//nolint:errcheck // Example code, we don't care about the error here
 			c.JSON(http.StatusOK, map[string]string{"version": "v1"})
 		})
 		api.POST("/users", func(c *router.Context) {
+			//nolint:errcheck // Example code, we don't care about the error here
 			c.JSON(http.StatusCreated, map[string]string{"version": "v1"})
 		})
 	}
@@ -106,6 +112,7 @@ func ExampleRouter_Use() {
 	})
 
 	r.GET("/", func(c *router.Context) {
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusOK, map[string]string{"message": "Hello"})
 	})
 
@@ -131,6 +138,7 @@ func ExampleContext_Param() {
 	r.GET("/users/:id/posts/:postId", func(c *router.Context) {
 		userID := c.Param("id")
 		postID := c.Param("postId")
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusOK, map[string]string{
 			"user_id": userID,
 			"post_id": postID,
@@ -148,6 +156,7 @@ func ExampleContext_Query() {
 	r.GET("/search", func(c *router.Context) {
 		query := c.Query("q")
 		page := c.QueryDefault("page", "1")
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusOK, map[string]string{
 			"query": query,
 			"page":  page,
@@ -165,14 +174,17 @@ func ExampleContext_Error() {
 	r.POST("/users", func(c *router.Context) {
 		// Collect validation errors
 		if userID := c.Param("id"); userID == "" {
+			//nolint:errcheck // Example code, we don't care about the error here
 			c.Error(errors.New("user ID is required"))
 		}
 		if email := c.Query("email"); email == "" {
+			//nolint:errcheck // Example code, we don't care about the error here
 			c.Error(errors.New("email is required"))
 		}
 
 		// Check if any errors were collected
 		if c.HasErrors() {
+			//nolint:errcheck // Example code, we don't care about the error here
 			c.JSON(http.StatusBadRequest, map[string]any{
 				"errors": c.Errors(),
 			})
@@ -180,6 +192,7 @@ func ExampleContext_Error() {
 			return
 		}
 
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusOK, map[string]string{"status": "created"})
 	})
 
@@ -217,11 +230,13 @@ func ExampleContext_HasErrors() {
 	r.POST("/process", func(c *router.Context) {
 		// Perform validations
 		if c.Query("name") == "" {
+			//nolint:errcheck // Example code, we don't care about the error here
 			c.Error(errors.New("name is required"))
 		}
 
 		// Check if any errors exist
 		if c.HasErrors() {
+			//nolint:errcheck // Example code, we don't care about the error here
 			c.JSON(http.StatusBadRequest, map[string]any{
 				"error": "validation failed",
 			})
@@ -229,6 +244,7 @@ func ExampleContext_HasErrors() {
 			return
 		}
 
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusOK, map[string]string{"status": "success"})
 	})
 
@@ -242,6 +258,7 @@ func ExampleContext_JSON() {
 
 	r.GET("/data", func(c *router.Context) {
 		// JSON returns error explicitly for error handling
+		//nolint:errcheck // Example code, we don't care about the error here
 		err := c.JSON(http.StatusOK, map[string]string{"key": "value"})
 		if err != nil {
 			// Handle error explicitly
@@ -270,6 +287,7 @@ func ExampleContext_Error_withErrorsJoin() {
 		// Combine all errors using standard library
 		if c.HasErrors() {
 			joinedErr := errors.Join(c.Errors()...)
+			//nolint:errcheck // Example code, we don't care about the error here
 			c.JSON(http.StatusBadRequest, map[string]any{
 				"error": joinedErr.Error(),
 			})
@@ -277,6 +295,7 @@ func ExampleContext_Error_withErrorsJoin() {
 			return
 		}
 
+		//nolint:errcheck // Example code, we don't care about the error here
 		c.JSON(http.StatusOK, map[string]string{"status": "valid"})
 	})
 

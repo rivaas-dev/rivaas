@@ -66,8 +66,10 @@ func Example_simpleObservabilityRecorder() {
 
 		// Simulate handler writing response
 		if rw, ok := wrapped.(*observableResponseWriter); ok {
+			//nolint:errcheck // Error checking is omitted in the example test code
 			rw.WriteHeader(http.StatusOK)
-			_, _ = rw.Write([]byte(`{"status":"ok"}`))
+			//nolint:errcheck // Error checking is omitted in the example test code
+			rw.Write([]byte(`{"status":"ok"}`))
 		}
 
 		// 4. OnRequestEnd - called after request completes
@@ -145,13 +147,17 @@ func (s *SimpleObservabilityRecorder) OnRequestEnd(ctx context.Context, state an
 		return
 	}
 
-	rs := state.(*requestState)
+	rs, ok := state.(*requestState)
+	if !ok {
+		// Invalid state type - should never happen
+		return
+	}
 	duration := time.Since(rs.startTime)
 
 	// Extract response metadata
 	var status int
 	var size int64
-	if rw, ok := writer.(router.ResponseInfo); ok {
+	if rw, hasInfo := writer.(router.ResponseInfo); hasInfo {
 		status = rw.StatusCode()
 		size = rw.Size()
 	}
@@ -176,7 +182,10 @@ func (s *SimpleObservabilityRecorder) OnRequestEnd(ctx context.Context, state an
 // This logger is available to handlers for business logic logging.
 func (s *SimpleObservabilityRecorder) BuildRequestLogger(ctx context.Context, req *http.Request, routePattern string) *slog.Logger {
 	// Extract request ID from context (added in OnRequestStart)
-	requestID, _ := ctx.Value("request_id").(string)
+	requestID, ok := ctx.Value("request_id").(string)
+	if !ok {
+		requestID = "" // Fallback if not found
+	}
 
 	// Create logger with request context
 	return s.logger.With(

@@ -248,6 +248,7 @@ func (r *CompiledRoute) matchAndExtract(path string, ctx ContextParamWriter) boo
 
 	// Validate static segments with early exit
 	// Check most distinctive segments first for early rejection
+	//nolint:gosec // G115: Static segment count bounded by URL path length, overflow impossible
 	staticCount := int32(len(r.staticPos))
 	if staticCount > 0 {
 		// Unroll first check (most common case)
@@ -266,6 +267,7 @@ func (r *CompiledRoute) matchAndExtract(path string, ctx ContextParamWriter) boo
 	}
 
 	// Extract and validate parameters (by position - no search!)
+	//nolint:gosec // G115: Parameter count bounded by route definition, overflow impossible
 	paramCount := int32(len(r.paramPos))
 	for i := range int(paramCount) {
 		pos := r.paramPos[i]
@@ -276,6 +278,7 @@ func (r *CompiledRoute) matchAndExtract(path string, ctx ContextParamWriter) boo
 		value := segments[pos]
 
 		// Inline constraint validation (if constraint exists)
+		//nolint:gosec // G115: Parameter count bounded by route definition, overflow impossible
 		if int32(i) < int32(len(r.constraints)) && r.constraints[int32(i)] != nil {
 			if !r.constraints[int32(i)].MatchString(value) {
 				return false

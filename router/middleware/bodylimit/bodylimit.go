@@ -57,6 +57,7 @@ func defaultConfig() *config {
 // defaultErrorHandler is the default body limit error handler.
 func defaultErrorHandler(c *router.Context, limit int64) {
 	c.Status(http.StatusRequestEntityTooLarge)
+	//nolint:errcheck // Error response; status already set
 	c.JSON(http.StatusRequestEntityTooLarge, map[string]any{
 		"error":    "request entity too large",
 		"max_size": formatSize(limit),

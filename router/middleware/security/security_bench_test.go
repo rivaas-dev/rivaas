@@ -27,6 +27,7 @@ func BenchmarkSecurity_Default(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -45,6 +46,7 @@ func BenchmarkSecurity_HTTPS(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -74,6 +76,7 @@ func BenchmarkSecurity_AllOptions(b *testing.B) {
 		WithCustomHeader("X-Custom-2", "value2"),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 

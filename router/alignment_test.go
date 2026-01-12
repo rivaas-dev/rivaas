@@ -186,6 +186,7 @@ func TestAtomicOperationsSafety(t *testing.T) {
 
 		// Register a route (triggers atomic operations)
 		r.GET("/test", func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "OK")
 		})
 
@@ -203,6 +204,7 @@ func TestAtomicOperationsSafety(t *testing.T) {
 		// Register a versioned route
 		v1 := r.Version("v1")
 		v1.GET("/test", func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "OK")
 		})
 

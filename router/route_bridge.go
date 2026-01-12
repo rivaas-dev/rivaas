@@ -161,7 +161,9 @@ func convertHandlers(handlers []route.Handler) []HandlerFunc {
 		case func(*Context):
 			handlerFuncs = append(handlerFuncs, HandlerFunc(fn))
 		default:
-			handlerFuncs = append(handlerFuncs, h.(HandlerFunc))
+			if handler, ok := h.(HandlerFunc); ok {
+				handlerFuncs = append(handlerFuncs, handler)
+			}
 		}
 	}
 
@@ -372,24 +374,27 @@ func (r *Router) Mount(prefix string, sub *Router, opts ...route.MountOption) {
 	sub.middlewareMu.RUnlock()
 
 	for _, h := range cfg.ExtraMiddleware {
-		middlewareChain = append(middlewareChain, h.(HandlerFunc))
+		if handler, ok := h.(HandlerFunc); ok {
+			middlewareChain = append(middlewareChain, handler)
+		}
 	}
 
 	r.mergeSubrouterRoutes(prefix, sub, middlewareChain, cfg.NamePrefix)
 
 	if cfg.NotFoundHandler != nil {
-		notFoundHandler := cfg.NotFoundHandler.(HandlerFunc)
-		originalNoRoute := r.noRouteHandler
-		r.NoRoute(func(c *Context) {
-			path := c.Request.URL.Path
-			if strings.HasPrefix(path, prefix) {
-				notFoundHandler(c)
-			} else if originalNoRoute != nil {
-				originalNoRoute(c)
-			} else {
-				c.Status(http.StatusNotFound)
-			}
-		})
+		if notFoundHandler, ok := cfg.NotFoundHandler.(HandlerFunc); ok {
+			originalNoRoute := r.noRouteHandler
+			r.NoRoute(func(c *Context) {
+				path := c.Request.URL.Path
+				if strings.HasPrefix(path, prefix) {
+					notFoundHandler(c)
+				} else if originalNoRoute != nil {
+					originalNoRoute(c)
+				} else {
+					c.Status(http.StatusNotFound)
+				}
+			})
+		}
 	}
 }
 
@@ -425,7 +430,9 @@ func (r *Router) mountRoute(prefix string, rt *route.Route, middlewareChain []Ha
 	allHandlers := make([]HandlerFunc, 0, len(middlewareChain)+len(routeHandlers))
 	allHandlers = append(allHandlers, middlewareChain...)
 	for _, h := range routeHandlers {
-		allHandlers = append(allHandlers, h.(HandlerFunc))
+		if handler, ok := h.(HandlerFunc); ok {
+			allHandlers = append(allHandlers, handler)
+		}
 	}
 
 	newRoute := r.addRouteInternal(rt.Method(), fullPath, allHandlers)

@@ -31,6 +31,7 @@ func BenchmarkBasicAuth(b *testing.B) {
 		}),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "success")
 	})
 
@@ -60,6 +61,7 @@ func BenchmarkBasicAuthWithValidator(b *testing.B) {
 		}),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "success")
 	})
 

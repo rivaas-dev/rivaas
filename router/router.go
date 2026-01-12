@@ -315,7 +315,7 @@ func (r *Router) validate() error {
 	if len(r.versionOpts) > 0 {
 		engine, err := version.New(r.versionOpts...)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrVersioningConfigInvalid, err)
+			return fmt.Errorf("%w: %w", ErrVersioningConfigInvalid, err)
 		}
 		r.versionEngine = engine
 		r.versionOpts = nil // Clear pending options after successful creation

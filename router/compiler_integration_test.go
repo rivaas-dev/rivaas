@@ -74,10 +74,13 @@ func TestCompilerIntegration_StaticRoutes(t *testing.T) {
 					// Extract response from path
 					switch path {
 					case "/api/users":
+						//nolint:errcheck // Test handler
 						c.String(http.StatusOK, "users")
 					case "/api/posts":
+						//nolint:errcheck // Test handler
 						c.String(http.StatusOK, "posts")
 					case "/health":
+						//nolint:errcheck // Test handler
 						c.String(http.StatusOK, "ok")
 					}
 				})
@@ -156,6 +159,7 @@ func TestCompilerIntegration_DynamicRoutes(t *testing.T) {
 				for key := range tt.wantParams {
 					params[key] = c.Param(key)
 				}
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, params)
 			})
 
@@ -212,6 +216,7 @@ func TestCompilerIntegration_Constraints(t *testing.T) {
 
 			r := router.MustNew()
 			r.GET("/users/:id", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.Status(http.StatusOK)
 			}).WhereInt("id")
 			r.Warmup()
@@ -298,6 +303,7 @@ func TestCompilerIntegration_MatchingCorrectness(t *testing.T) {
 				for key := range tt.params {
 					capturedParams[key] = c.Param(key)
 				}
+				//nolint:errcheck // Test handler
 				c.Status(http.StatusOK)
 			})
 			r.Warmup()
@@ -332,15 +338,19 @@ func TestCompilerIntegration_FirstSegmentIndex(t *testing.T) {
 
 	// Register routes with different first segments
 	r.GET("/users/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "users")
 	})
 	r.GET("/posts/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "posts")
 	})
 	r.GET("/admin/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "admin")
 	})
 	r.GET("/api/:resource", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "api")
 	})
 
@@ -367,15 +377,19 @@ func TestCompilerIntegration_Sorting(t *testing.T) {
 
 	// Register routes in random order
 	r.GET("/api/*", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "wildcard")
 	}) // Less specific
 	r.GET("/api/users/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "user")
 	}) // More specific
 	r.GET("/api/users/:id/posts", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "posts")
 	}) // Most specific
 	r.GET("/api/:resource", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "resource")
 	}) // Medium specific
 
@@ -407,6 +421,7 @@ func TestCompilerIntegration_Concurrent(t *testing.T) {
 			defer func() { done <- true }()
 
 			r.GET("/route"+string(rune('0'+id))+"/:param", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.Status(http.StatusOK)
 			})
 		}(i)
@@ -439,9 +454,11 @@ func TestCompilerIntegration_NoStaticRoutes(t *testing.T) {
 
 	// Register only dynamic routes (no static routes)
 	r.GET("/users/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "user")
 	})
 	r.GET("/posts/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "post")
 	})
 
@@ -468,15 +485,19 @@ func TestCompilerIntegration_MixedRoutes(t *testing.T) {
 
 	// Mix of static and dynamic routes
 	r.GET("/static/path", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "static1")
 	})
 	r.GET("/users/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "dynamic1")
 	})
 	r.GET("/another/static", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "static2")
 	})
 	r.GET("/items/:id/details", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "dynamic2")
 	})
 
@@ -504,6 +525,7 @@ func TestCompilerIntegration_MixedRoutes(t *testing.T) {
 func BenchmarkCompilerIntegration_StaticRoute(b *testing.B) {
 	r := router.MustNew()
 	r.GET("/api/users", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "users")
 	})
 	r.Warmup()
@@ -525,6 +547,7 @@ func BenchmarkCompilerIntegration_StaticRoute(b *testing.B) {
 func BenchmarkCompilerIntegration_DynamicRoute(b *testing.B) {
 	r := router.MustNew()
 	r.GET("/api/users/:id/posts/:pid", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 	r.Warmup()
@@ -547,6 +570,7 @@ func BenchmarkCompilerIntegration_WithVsWithoutCompiler(b *testing.B) {
 	b.Run("WithCompiler", func(b *testing.B) {
 		r := router.MustNew(router.WithRouteCompilation(true))
 		r.GET("/api/users/:id/posts/:pid/comments/:cid", func(c *router.Context) {
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 		})
 		r.Warmup()
@@ -567,6 +591,7 @@ func BenchmarkCompilerIntegration_WithVsWithoutCompiler(b *testing.B) {
 	b.Run("WithoutCompiler", func(b *testing.B) {
 		r := router.MustNew(router.WithRouteCompilation(false))
 		r.GET("/api/users/:id/posts/:pid/comments/:cid", func(c *router.Context) {
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 		})
 		r.Warmup()
@@ -610,6 +635,7 @@ func BenchmarkCompilerIntegration_ConstrainedRoute(b *testing.B) {
 
 	// Register route with constraints
 	r.GET("/api/users/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 	}).Where("id", `^\d+$`)
 

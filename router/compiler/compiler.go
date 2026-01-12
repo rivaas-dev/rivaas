@@ -144,6 +144,7 @@ func CompileRoute(method, pattern string, handlers []HandlerFunc, constraints []
 
 	// Parse pattern into segments
 	segments := strings.Split(strings.Trim(pattern, "/"), "/")
+	//nolint:gosec // G115: URL path segments bounded by practical route limits, overflow impossible
 	route.segmentCount = int32(len(segments))
 
 	// Check for wildcard
@@ -166,6 +167,7 @@ func CompileRoute(method, pattern string, handlers []HandlerFunc, constraints []
 			// Parameter segment
 			paramName := seg[1:]
 			paramNames = append(paramNames, paramName)
+			//nolint:gosec // G115: Segment index bounded by URL path length, overflow impossible
 			paramPositions = append(paramPositions, int32(i))
 
 			// Find matching constraint
@@ -182,6 +184,7 @@ func CompileRoute(method, pattern string, handlers []HandlerFunc, constraints []
 		} else {
 			// Static segment
 			staticSegs = append(staticSegs, seg)
+			//nolint:gosec // G115: Segment index bounded by URL path length, overflow impossible
 			staticPositions = append(staticPositions, int32(i))
 		}
 	}

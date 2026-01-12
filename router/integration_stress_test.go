@@ -70,6 +70,7 @@ var _ = Describe("Router Stress Tests", func() {
 			r.GET("/test", func(c *router.Context) {
 				requestCount.Add(1)
 				time.Sleep(1 * time.Millisecond) // Simulate work
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]int64{"count": requestCount.Load()})
 			})
 
@@ -99,6 +100,7 @@ var _ = Describe("Router Stress Tests", func() {
 			r := router.MustNew()
 
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 			})
 
@@ -187,6 +189,7 @@ var _ = Describe("Router Stress Tests", func() {
 			for i := range 100 {
 				path := "/api/resource" + string(rune('0'+i%10)) + "/:id"
 				r.GET(path, func(c *router.Context) {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 				})
 			}
@@ -242,6 +245,7 @@ var _ = Describe("Router Stress Tests", func() {
 			for i := range routeCount {
 				path := "/route" + string(rune('0'+i%10)) + "/" + string(rune('a'+i%26)) + "/" + string(rune('A'+(i/26)%26))
 				r.GET(path, func(c *router.Context) {
+					//nolint:errcheck // Test handler
 					c.String(http.StatusOK, "route")
 				})
 			}

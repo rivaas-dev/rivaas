@@ -44,6 +44,7 @@ func BenchmarkJSON_Baseline(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.JSON(http.StatusOK, benchData)
 	}
 }
@@ -59,6 +60,7 @@ func BenchmarkIndentedJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.IndentedJSON(http.StatusOK, benchData)
 	}
 }
@@ -74,6 +76,7 @@ func BenchmarkPureJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.PureJSON(http.StatusOK, benchData)
 	}
 }
@@ -89,6 +92,7 @@ func BenchmarkSecureJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.SecureJSON(http.StatusOK, benchData)
 	}
 }
@@ -110,6 +114,7 @@ func BenchmarkASCIIJSON(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.ASCIIJSON(http.StatusOK, unicodeData)
 	}
 }
@@ -125,6 +130,7 @@ func BenchmarkYAML(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.YAML(http.StatusOK, benchData)
 	}
 }
@@ -144,7 +150,8 @@ func BenchmarkDataFromReader(b *testing.B) {
 	for b.Loop() {
 		w.Body.Reset()
 		reader := bytes.NewReader(data)
-		_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 	}
 }
 
@@ -163,7 +170,8 @@ func BenchmarkDataFromReader_Large(b *testing.B) {
 	for b.Loop() {
 		w.Body.Reset()
 		reader := bytes.NewReader(data)
-		_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 	}
 }
 
@@ -180,6 +188,7 @@ func BenchmarkData(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.Data(http.StatusOK, "text/plain", data)
 	}
 }
@@ -201,6 +210,7 @@ func BenchmarkData_Binary(b *testing.B) {
 
 	for b.Loop() {
 		w.Body.Reset()
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.Data(http.StatusOK, "application/octet-stream", data)
 	}
 }
@@ -217,6 +227,7 @@ func BenchmarkJSON_vs_IndentedJSON_Comparison(b *testing.B) {
 
 		for b.Loop() {
 			w.Body.Reset()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.JSON(http.StatusOK, benchData)
 		}
 	})
@@ -231,6 +242,7 @@ func BenchmarkJSON_vs_IndentedJSON_Comparison(b *testing.B) {
 
 		for b.Loop() {
 			w.Body.Reset()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.IndentedJSON(http.StatusOK, benchData)
 		}
 	})
@@ -254,6 +266,7 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 
 		for b.Loop() {
 			w.Body.Reset()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.JSON(http.StatusOK, htmlData)
 		}
 	})
@@ -268,6 +281,7 @@ func BenchmarkJSON_vs_PureJSON_Comparison(b *testing.B) {
 
 		for b.Loop() {
 			w.Body.Reset()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.PureJSON(http.StatusOK, htmlData)
 		}
 	})
@@ -285,6 +299,7 @@ func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 
 		for b.Loop() {
 			w.Body.Reset()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.JSON(http.StatusOK, benchData)
 		}
 	})
@@ -299,6 +314,7 @@ func BenchmarkJSON_vs_SecureJSON_Comparison(b *testing.B) {
 
 		for b.Loop() {
 			w.Body.Reset()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.SecureJSON(http.StatusOK, benchData)
 		}
 	})
@@ -316,6 +332,7 @@ func BenchmarkJSON_vs_YAML_Comparison(b *testing.B) {
 
 		for b.Loop() {
 			w.Body.Reset()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.JSON(http.StatusOK, benchData)
 		}
 	})
@@ -330,6 +347,7 @@ func BenchmarkJSON_vs_YAML_Comparison(b *testing.B) {
 
 		for b.Loop() {
 			w.Body.Reset()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.YAML(http.StatusOK, benchData)
 		}
 	})
@@ -361,7 +379,8 @@ func BenchmarkDataFromReader_Sizes(b *testing.B) {
 			for b.Loop() {
 				w.Body.Reset()
 				reader := bytes.NewReader(data)
-				_ = c.DataFromReader(200, int64(sz.size), "application/octet-stream", reader, nil)
+				//nolint:errcheck // Benchmark measures performance; error checking would skew results
+				c.DataFromReader(200, int64(sz.size), "application/octet-stream", reader, nil)
 			}
 		})
 	}
@@ -395,7 +414,8 @@ func BenchmarkAllRenderingMethods(b *testing.B) {
 
 			for b.Loop() {
 				w.Body.Reset()
-				_ = method.fn(c)
+				//nolint:errcheck // Benchmark measures performance; error checking would skew results
+				method.fn(c)
 			}
 		})
 	}
@@ -417,7 +437,8 @@ func BenchmarkDataFromReader_vs_Data(b *testing.B) {
 		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewReader(data)
-			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 		}
 	})
 
@@ -432,6 +453,7 @@ func BenchmarkDataFromReader_vs_Data(b *testing.B) {
 
 		for b.Loop() {
 			w.Body.Reset()
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.Data(http.StatusOK, "application/octet-stream", data)
 		}
 	})
@@ -460,6 +482,7 @@ func BenchmarkSecureJSON_PrefixSizes(b *testing.B) {
 
 			for b.Loop() {
 				w.Body.Reset()
+				//nolint:errcheck // Benchmark measures performance; error checking would skew results
 				c.SecureJSON(http.StatusOK, benchData, p.prefix)
 			}
 		})
@@ -487,7 +510,8 @@ func BenchmarkDataFromReader_WithExtraHeaders(b *testing.B) {
 		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewReader(data)
-			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "text/plain", reader, nil)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			c.DataFromReader(http.StatusOK, int64(len(data)), "text/plain", reader, nil)
 		}
 	})
 
@@ -502,7 +526,8 @@ func BenchmarkDataFromReader_WithExtraHeaders(b *testing.B) {
 		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewReader(data)
-			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "text/plain", reader, headers)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			c.DataFromReader(http.StatusOK, int64(len(data)), "text/plain", reader, headers)
 		}
 	})
 }
@@ -529,7 +554,8 @@ func BenchmarkJSON_Variants_Parallel(b *testing.B) {
 
 				for pb.Next() {
 					w.Body.Reset()
-					_ = method.fn(c)
+					//nolint:errcheck // Benchmark measures performance; error checking would skew results
+					method.fn(c)
 				}
 			})
 		})
@@ -571,6 +597,7 @@ func BenchmarkASCIIJSON_UnicodeComplexity(b *testing.B) {
 
 			for b.Loop() {
 				w.Body.Reset()
+				//nolint:errcheck // Benchmark measures performance; error checking would skew results
 				c.ASCIIJSON(http.StatusOK, tt.data)
 			}
 		})
@@ -593,7 +620,8 @@ func BenchmarkDataFromReader_ReaderTypes(b *testing.B) {
 		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewReader(data)
-			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 		}
 	})
 
@@ -609,7 +637,8 @@ func BenchmarkDataFromReader_ReaderTypes(b *testing.B) {
 		for b.Loop() {
 			w.Body.Reset()
 			reader := bytes.NewBuffer(data)
-			_ = c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			c.DataFromReader(http.StatusOK, int64(len(data)), "application/octet-stream", reader, nil)
 		}
 	})
 
@@ -626,7 +655,8 @@ func BenchmarkDataFromReader_ReaderTypes(b *testing.B) {
 		for b.Loop() {
 			w.Body.Reset()
 			reader := strings.NewReader(strData)
-			_ = c.DataFromReader(http.StatusOK, int64(len(strData)), "text/plain", reader, nil)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			c.DataFromReader(http.StatusOK, int64(len(strData)), "text/plain", reader, nil)
 		}
 	})
 }
@@ -647,6 +677,7 @@ func BenchmarkDataFromReader_ChunkedTransfer(b *testing.B) {
 		w.Body.Reset()
 		reader := bytes.NewReader(data)
 		// contentLength = -1 triggers chunked transfer
-		_ = c.DataFromReader(http.StatusOK, -1, "application/octet-stream", reader, nil)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		c.DataFromReader(http.StatusOK, -1, "application/octet-stream", reader, nil)
 	}
 }

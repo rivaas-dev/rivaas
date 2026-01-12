@@ -51,7 +51,7 @@ func (c *Context) ParamInt(name string) (int, error) {
 
 	val, err := strconv.Atoi(s)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
+		return 0, fmt.Errorf("%w: %s (%w)", ErrParamInvalid, name, err)
 	}
 
 	return val, nil
@@ -67,7 +67,7 @@ func (c *Context) ParamInt64(name string) (int64, error) {
 
 	val, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
+		return 0, fmt.Errorf("%w: %s (%w)", ErrParamInvalid, name, err)
 	}
 
 	return val, nil
@@ -83,7 +83,7 @@ func (c *Context) ParamUint(name string) (uint, error) {
 
 	val, err := strconv.ParseUint(s, 10, 32)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
+		return 0, fmt.Errorf("%w: %s (%w)", ErrParamInvalid, name, err)
 	}
 
 	return uint(val), nil
@@ -99,7 +99,7 @@ func (c *Context) ParamUint64(name string) (uint64, error) {
 
 	val, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
+		return 0, fmt.Errorf("%w: %s (%w)", ErrParamInvalid, name, err)
 	}
 
 	return val, nil
@@ -115,7 +115,7 @@ func (c *Context) ParamFloat64(name string) (float64, error) {
 
 	val, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
+		return 0, fmt.Errorf("%w: %s (%w)", ErrParamInvalid, name, err)
 	}
 
 	return val, nil
@@ -198,7 +198,7 @@ func (c *Context) ParamTime(name, layout string) (time.Time, error) {
 
 	val, err := time.Parse(layout, s)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%w: %s (%v)", ErrParamInvalid, name, err)
+		return time.Time{}, fmt.Errorf("%w: %s (%w)", ErrParamInvalid, name, err)
 	}
 
 	return val, nil

@@ -28,6 +28,7 @@ func BenchmarkCompression_Enabled(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "test data"})
 	})
 
@@ -47,6 +48,7 @@ func BenchmarkCompression_Disabled(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "test data"})
 	})
 
@@ -68,6 +70,7 @@ func BenchmarkCompression_LargeResponse(b *testing.B) {
 
 	largeData := strings.Repeat("benchmark data ", 1000)
 	r.GET("/large", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"data": largeData})
 	})
 
@@ -88,6 +91,7 @@ func BenchmarkCompression_BestSpeed(b *testing.B) {
 	r.Use(New(WithGzipLevel(gzip.BestSpeed)))
 	r.GET("/test", func(c *router.Context) {
 		data := strings.Repeat("data ", 100)
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"content": data})
 	})
 
@@ -108,6 +112,7 @@ func BenchmarkCompression_BestCompression(b *testing.B) {
 	r.Use(New(WithGzipLevel(gzip.BestCompression)))
 	r.GET("/test", func(c *router.Context) {
 		data := strings.Repeat("data ", 100)
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"content": data})
 	})
 

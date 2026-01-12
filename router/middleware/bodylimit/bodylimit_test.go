@@ -82,9 +82,11 @@ func TestBodyLimit_ContentLength(t *testing.T) {
 			r.POST("/test", func(c *router.Context) {
 				var data map[string]any
 				if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 					return
 				}
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "success"})
 			})
 
@@ -122,16 +124,19 @@ func TestBodyLimit_ActualBodyRead_ExceedsLimit(t *testing.T) {
 		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			// Body limit error should be caught here
 			if strings.Contains(err.Error(), "exceeds limit") {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
 					"error": "request body too large",
 				})
 
 				return
 			}
+			//nolint:errcheck // Test handler
 			c.JSON(400, map[string]string{"error": err.Error()})
 
 			return
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "success"})
 	})
 
@@ -156,13 +161,16 @@ func TestBodyLimit_NoContentLength_WithinLimit(t *testing.T) {
 		// Read body directly
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 		if len(body) == 0 {
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusBadRequest, map[string]string{"error": "empty body"})
 			return
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "success", "size": string(rune(len(body)))})
 	})
 
@@ -186,17 +194,21 @@ func TestBodyLimit_SkipPaths(t *testing.T) {
 	))
 	r.POST("/upload", func(c *router.Context) {
 		var data map[string]any
+		//nolint:errcheck
 		json.NewDecoder(c.Request.Body).Decode(&data)
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "uploaded"})
 	})
 	r.POST("/normal", func(c *router.Context) {
 		var data map[string]any
 		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 				return
 			}
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -229,10 +241,12 @@ func TestBodyLimit_CustomErrorHandler(t *testing.T) {
 	r.Use(New(
 		WithLimit(100),
 		WithErrorHandler(func(c *router.Context, limit int64) {
+			//nolint:errcheck // Test handler
 			c.Stringf(http.StatusRequestEntityTooLarge, "Custom: Body too large (max: %d bytes)", limit)
 		}),
 	))
 	r.POST("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -252,6 +266,7 @@ func TestBodyLimit_EmptyBody(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithLimit(1024)))
 	r.POST("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -277,9 +292,11 @@ func TestBodyLimit_FormData(t *testing.T) {
 		if strings.HasPrefix(contentType, "multipart/form-data") {
 			if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
 				if strings.Contains(err.Error(), "exceeds limit") {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 					return
 				}
+				//nolint:errcheck // Test handler
 				c.JSON(400, map[string]string{"error": err.Error()})
 
 				return
@@ -287,9 +304,11 @@ func TestBodyLimit_FormData(t *testing.T) {
 		} else {
 			if err := c.Request.ParseForm(); err != nil {
 				if strings.Contains(err.Error(), "exceeds limit") {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 					return
 				}
+				//nolint:errcheck // Test handler
 				c.JSON(400, map[string]string{"error": err.Error()})
 
 				return
@@ -297,6 +316,7 @@ func TestBodyLimit_FormData(t *testing.T) {
 		}
 		// Extract form data directly
 		form.Name = c.Request.Form.Get("name")
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"name": form.Name})
 	})
 
@@ -340,9 +360,11 @@ func TestBodyLimit_DefaultLimit(t *testing.T) {
 	r.POST("/test", func(c *router.Context) {
 		var data map[string]any
 		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
+			//nolint:errcheck // Test handler
 			c.JSON(400, map[string]string{"error": err.Error()})
 			return
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -366,13 +388,16 @@ func TestBodyLimit_InvalidContentLength(t *testing.T) {
 		var data map[string]any
 		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 				return
 			}
+			//nolint:errcheck // Test handler
 			c.JSON(400, map[string]string{"error": err.Error()})
 
 			return
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -398,16 +423,19 @@ func TestBodyLimit_ErrorTypeChecking(t *testing.T) {
 		if err != nil {
 			// Check if error is our specific error type
 			if errors.Is(err, ErrBodyLimitExceeded) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
 					"error": "body limit exceeded",
 				})
 
 				return
 			}
+			//nolint:errcheck // Test handler
 			c.JSON(400, map[string]string{"error": err.Error()})
 
 			return
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]any{"size": len(body)})
 	})
 
@@ -429,13 +457,16 @@ func TestBodyLimit_ConcurrentRequests(t *testing.T) {
 		var data map[string]any
 		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 				return
 			}
+			//nolint:errcheck // Test handler
 			c.JSON(400, map[string]string{"error": err.Error()})
 
 			return
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -496,12 +527,14 @@ func TestBodyLimit_WithErrorHandlerFirst(t *testing.T) {
 	r.Use(New(
 		WithErrorHandler(func(c *router.Context, limit int64) {
 			customHandlerCalled = true
+			//nolint:errcheck // Test handler
 			c.Stringf(http.StatusRequestEntityTooLarge, "Custom handler: limit is %d", limit)
 		}),
 		WithLimit(100),
 	))
 
 	r.POST("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -527,22 +560,27 @@ func TestBodyLimit_SkipMultiplePaths(t *testing.T) {
 	))
 
 	r.POST("/upload", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "upload ok"})
 	})
 	r.POST("/files", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "files ok"})
 	})
 	r.POST("/media", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "media ok"})
 	})
 	r.POST("/api", func(c *router.Context) {
 		var data map[string]any
 		if err := json.NewDecoder(c.Request.Body).Decode(&data); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
 				return
 			}
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "api ok"})
 	})
 

@@ -98,12 +98,16 @@ func newFile(fh *multipart.FileHeader) *File {
 //	    return err
 //	}
 //	// Process data...
-func (f *File) Bytes() ([]byte, error) {
+func (f *File) Bytes() (bytes []byte, err error) {
 	src, err := f.header.Open()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
-	defer src.Close()
+	defer func() {
+		if cerr := src.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("failed to close file: %w", cerr)
+		}
+	}()
 
 	return io.ReadAll(src)
 }
@@ -166,7 +170,7 @@ func (f *File) Save(dst string) (err error) {
 
 	// Create parent directories if needed
 	dir := filepath.Dir(dst)
-	if mkdirErr := os.MkdirAll(dir, 0o755); mkdirErr != nil {
+	if mkdirErr := os.MkdirAll(dir, 0o750); mkdirErr != nil {
 		return fmt.Errorf("failed to create directory: %w", mkdirErr)
 	}
 

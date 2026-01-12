@@ -29,7 +29,7 @@ import (
 var _ = Describe("Versioning Integration", func() {
 	Describe("Explicit versioning precedence", func() {
 		// This tests the core design principle: routes are only versioned if explicitly
-		// registered via r.Version(). Routes registered via r.GET() etc. bypass version
+		// registered via r.GET() etc. bypass version
 		// detection and always take precedence.
 
 		Describe("Main tree takes precedence over version trees", func() {
@@ -44,24 +44,24 @@ var _ = Describe("Versioning Integration", func() {
 
 				// Non-versioned routes (main tree) - always accessible
 				r.GET("/health", func(c *router.Context) {
-					c.String(http.StatusOK, "healthy")
+					Expect(c.String(http.StatusOK, "healthy")).NotTo(HaveOccurred())
 				})
 				r.GET("/metrics", func(c *router.Context) {
-					c.String(http.StatusOK, "metrics")
+					Expect(c.String(http.StatusOK, "metrics")).NotTo(HaveOccurred())
 				})
 				r.GET("/users/:id", func(c *router.Context) {
-					c.Stringf(http.StatusOK, "main-tree-user-%s", c.Param("id"))
+					Expect(c.Stringf(http.StatusOK, "main-tree-user-%s", c.Param("id"))).NotTo(HaveOccurred())
 				})
 
 				// Versioned routes (version trees) - subject to version detection
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
+					Expect(c.String(http.StatusOK, "v2 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -125,20 +125,20 @@ var _ = Describe("Versioning Integration", func() {
 					version.WithValidVersions("v1", "v2"),
 				))
 
-				// Non-versioned routes - always accessible at exact path
+				// Non-versioned routes - always accessible at the exact path
 				r.GET("/health", func(c *router.Context) {
-					c.String(http.StatusOK, "healthy")
+					Expect(c.String(http.StatusOK, "healthy")).NotTo(HaveOccurred())
 				})
 
 				// Versioned routes
 				v1 := r.Version("v1")
 				v1.GET("/data", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 data")
+					Expect(c.String(http.StatusOK, "v1 data")).NotTo(HaveOccurred())
 				})
 
 				v2 := r.Version("v2")
 				v2.GET("/data", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 data")
+					Expect(c.String(http.StatusOK, "v2 data")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -176,16 +176,16 @@ var _ = Describe("Versioning Integration", func() {
 				r.GET("/health", func(c *router.Context) {
 					ver := c.Version()
 					if ver == "" {
-						c.String(http.StatusOK, "no-version")
+						Expect(c.String(http.StatusOK, "no-version")).NotTo(HaveOccurred())
 					} else {
-						c.Stringf(http.StatusOK, "version-%s", ver)
+						Expect(c.Stringf(http.StatusOK, "version-%s", ver)).NotTo(HaveOccurred())
 					}
 				})
 
 				// Versioned route - version should be set
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.Stringf(http.StatusOK, "version-%s", c.Version())
+					Expect(c.Stringf(http.StatusOK, "version-%s", c.Version())).NotTo(HaveOccurred())
 				})
 			})
 
@@ -229,22 +229,22 @@ var _ = Describe("Versioning Integration", func() {
 				// Add v1 routes - using static routes for PUT/DELETE/PATCH to ensure they're tested
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 				v1.POST("/users", func(c *router.Context) {
-					c.String(http.StatusCreated, "v1 user created")
+					Expect(c.String(http.StatusCreated, "v1 user created")).NotTo(HaveOccurred())
 				})
 				v1.PUT("/users/123", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 updated user 123")
+					Expect(c.String(http.StatusOK, "v1 updated user 123")).NotTo(HaveOccurred())
 				})
 				v1.DELETE("/users/456", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 deleted user 456")
+					Expect(c.String(http.StatusOK, "v1 deleted user 456")).NotTo(HaveOccurred())
 				})
 				v1.PATCH("/users/789", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 patched user 789")
+					Expect(c.String(http.StatusOK, "v1 patched user 789")).NotTo(HaveOccurred())
 				})
 				v1.OPTIONS("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 options")
+					Expect(c.String(http.StatusOK, "v1 options")).NotTo(HaveOccurred())
 				})
 				v1.HEAD("/users", func(c *router.Context) {
 					c.Status(http.StatusOK)
@@ -253,10 +253,10 @@ var _ = Describe("Versioning Integration", func() {
 				// Add v2 routes
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
+					Expect(c.String(http.StatusOK, "v2 users")).NotTo(HaveOccurred())
 				})
 				v2.POST("/users", func(c *router.Context) {
-					c.String(http.StatusCreated, "v2 user created")
+					Expect(c.String(http.StatusCreated, "v2 user created")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -291,22 +291,22 @@ var _ = Describe("Versioning Integration", func() {
 				v1 := r.Version("v1")
 				v1Group := v1.Group("/api")
 				v1Group.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 api users")
+					Expect(c.String(http.StatusOK, "v1 api users")).NotTo(HaveOccurred())
 				})
 				v1Group.POST("/users", func(c *router.Context) {
-					c.String(http.StatusCreated, "v1 api user created")
+					Expect(c.String(http.StatusCreated, "v1 api user created")).NotTo(HaveOccurred())
 				})
 				v1Group.PUT("/users/123", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 api updated 123")
+					Expect(c.String(http.StatusOK, "v1 api updated 123")).NotTo(HaveOccurred())
 				})
 				v1Group.DELETE("/users/456", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 api deleted 456")
+					Expect(c.String(http.StatusOK, "v1 api deleted 456")).NotTo(HaveOccurred())
 				})
 				v1Group.PATCH("/users/789", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 api patched 789")
+					Expect(c.String(http.StatusOK, "v1 api patched 789")).NotTo(HaveOccurred())
 				})
 				v1Group.OPTIONS("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 api options")
+					Expect(c.String(http.StatusOK, "v1 api options")).NotTo(HaveOccurred())
 				})
 				v1Group.HEAD("/users", func(c *router.Context) {
 					c.Status(http.StatusOK)
@@ -340,10 +340,10 @@ var _ = Describe("Versioning Integration", func() {
 			BeforeEach(func() {
 				v1 := r.Version("v1")
 				v1.GET("/static1", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 static1")
+					Expect(c.String(http.StatusOK, "v1 static1")).NotTo(HaveOccurred())
 				})
 				v1.GET("/static2", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 static2")
+					Expect(c.String(http.StatusOK, "v1 static2")).NotTo(HaveOccurred())
 				})
 
 				// Compile routes
@@ -375,12 +375,12 @@ var _ = Describe("Versioning Integration", func() {
 
 			v1 := r.Version("v1")
 			v1.GET("/data", func(c *router.Context) {
-				c.String(http.StatusOK, "v1 data")
+				Expect(c.String(http.StatusOK, "v1 data")).NotTo(HaveOccurred())
 			})
 
 			v2 := r.Version("v2")
 			v2.GET("/data", func(c *router.Context) {
-				c.String(http.StatusOK, "v2 data")
+				Expect(c.String(http.StatusOK, "v2 data")).NotTo(HaveOccurred())
 			})
 		})
 
@@ -420,12 +420,12 @@ var _ = Describe("Versioning Integration", func() {
 
 			v1 := r.Version("v1")
 			v1.GET("/data", func(c *router.Context) {
-				c.String(http.StatusOK, "v1 data")
+				Expect(c.String(http.StatusOK, "v1 data")).NotTo(HaveOccurred())
 			})
 
 			v2 := r.Version("v2")
 			v2.GET("/data", func(c *router.Context) {
-				c.String(http.StatusOK, "v2 data")
+				Expect(c.String(http.StatusOK, "v2 data")).NotTo(HaveOccurred())
 			})
 		})
 
@@ -463,18 +463,18 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 				v1.GET("/posts", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 posts")
+					Expect(c.String(http.StatusOK, "v1 posts")).NotTo(HaveOccurred())
 				})
 
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
+					Expect(c.String(http.StatusOK, "v2 users")).NotTo(HaveOccurred())
 				})
 				v2.GET("/posts", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 posts")
+					Expect(c.String(http.StatusOK, "v2 posts")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -508,12 +508,12 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 api users")
+					Expect(c.String(http.StatusOK, "v1 api users")).NotTo(HaveOccurred())
 				})
 
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 api users")
+					Expect(c.String(http.StatusOK, "v2 api users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -545,17 +545,17 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
+					Expect(c.String(http.StatusOK, "v2 users")).NotTo(HaveOccurred())
 				})
 
 				v3 := r.Version("v3")
 				v3.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v3 users")
+					Expect(c.String(http.StatusOK, "v3 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -590,12 +590,12 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
+					Expect(c.String(http.StatusOK, "v2 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -629,13 +629,13 @@ var _ = Describe("Versioning Integration", func() {
 				v1 := r.Version("v1")
 				v1Group := v1.Group("/api")
 				v1Group.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 api users")
+					Expect(c.String(http.StatusOK, "v1 api users")).NotTo(HaveOccurred())
 				})
 
 				v2 := r.Version("v2")
 				v2Group := v2.Group("/api")
 				v2Group.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 api users")
+					Expect(c.String(http.StatusOK, "v2 api users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -665,22 +665,22 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/resource", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 GET")
+					Expect(c.String(http.StatusOK, "v1 GET")).NotTo(HaveOccurred())
 				})
 				v1.POST("/resource", func(c *router.Context) {
-					c.String(http.StatusCreated, "v1 POST")
+					Expect(c.String(http.StatusCreated, "v1 POST")).NotTo(HaveOccurred())
 				})
 				v1.PUT("/resource/123", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 PUT")
+					Expect(c.String(http.StatusOK, "v1 PUT")).NotTo(HaveOccurred())
 				})
 				v1.DELETE("/resource/456", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 DELETE")
+					Expect(c.String(http.StatusOK, "v1 DELETE")).NotTo(HaveOccurred())
 				})
 				v1.PATCH("/resource/789", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 PATCH")
+					Expect(c.String(http.StatusOK, "v1 PATCH")).NotTo(HaveOccurred())
 				})
 				v1.OPTIONS("/resource", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 OPTIONS")
+					Expect(c.String(http.StatusOK, "v1 OPTIONS")).NotTo(HaveOccurred())
 				})
 				v1.HEAD("/resource", func(c *router.Context) {
 					c.Status(http.StatusOK)
@@ -720,10 +720,10 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "users")
+					Expect(c.String(http.StatusOK, "users")).NotTo(HaveOccurred())
 				})
 
-				// Path versioning not enabled, so path should remain unchanged
+				// Path versioning isn't enabled, so the path should remain unchanged
 				// Route registered as "/users" should match "/users" (not "/v1/users")
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-Api-Version", "v1")
@@ -737,18 +737,18 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("handles no version detected", func() {
-				// Test: Empty version detected (version == "")
+				// Test: An empty version detected (version == "")
 				r := router.MustNew(router.WithVersioning(
 					version.WithPathDetection("/v{version}/"),
 					version.WithDefault("v1"),
 				))
 
-				// Register a route without version prefix
+				// Register a route without a version prefix
 				r.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "users")
+					Expect(c.String(http.StatusOK, "users")).NotTo(HaveOccurred())
 				})
 
-				// Request with no version in path
+				// Request with no version in the path
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				w := httptest.NewRecorder()
 
@@ -758,7 +758,7 @@ var _ = Describe("Versioning Integration", func() {
 			})
 
 			It("handles prefix extending beyond path", func() {
-				// Test: Invalid case where prefix extends beyond path
+				// Test: Invalid case where the prefix extends beyond path
 				// This tests the condition where versionStart >= len(path)
 				r := router.MustNew(router.WithVersioning(
 					version.WithPathDetection("/very/long/prefix/v{version}/"),
@@ -767,49 +767,49 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 
-				// Request with path that exactly matches prefix (no version segment)
+				// Request with a path that exactly matches the prefix (no version segment)
 				// This should trigger the condition where prefix length >= path length
 				req := httptest.NewRequest(http.MethodGet, "/very/long/prefix/v", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
 
-				// Should still attempt to process (path doesn't match any route)
+				// Should still attempt to process (a path doesn't match any route)
 				// The stripPathVersion returns the path unchanged in this case
 				Expect(w.Code).To(Equal(http.StatusNotFound))
 			})
 
 			It("handles version at end of path", func() {
-				// Test: Version is at end of path (e.g., "/v1")
-				// This also tests: Version at end, strip everything, return "/"
+				// Test: Version is at the end of the path (e.g., "/v1")
+				// This also tests: Version at ends, strips everything, returns "/"
 				r := router.MustNew(router.WithVersioning(
 					version.WithPathDetection("/v{version}/"),
 					version.WithDefault("v1"),
 				))
 
-				// Register route at root
+				// Register a route at root
 				v1 := r.Version("v1")
 				v1.GET("/", func(c *router.Context) {
-					c.String(http.StatusOK, "root")
+					Expect(c.String(http.StatusOK, "root")).NotTo(HaveOccurred())
 				})
 
-				// Request with version at end: "/v1"
+				// Request with a version at the end: "/v1"
 				req := httptest.NewRequest(http.MethodGet, "/v1", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
 
-				// Should strip to "/" and match root route
+				// Should strip to "/" and match the root route
 				Expect(w.Code).To(Equal(http.StatusOK))
 				Expect(w.Body.String()).To(Equal("root"))
 			})
 
 			It("handles version that doesn't match", func() {
 				// Test: Version doesn't match, don't strip
-				// This tests the condition where version segment doesn't match detected version
+				// This tests the condition where a version segment doesn't match a detected version
 				r := router.MustNew(router.WithVersioning(
 					version.WithPathDetection("/v{version}/"),
 					version.WithDefault("v1"),
@@ -817,19 +817,19 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 
-				// Request with path "/v2/users" but detected version is "v1"
-				// This happens when version detection fails but path has different version
-				// The stripPathVersion will check if version matches, and if not, return path unchanged
+				// Request with a path "/v2/users" but the detected version is "v1"
+				// This happens when version detection fails but path has a different version
+				// The stripPathVersion will check if a version matches, and if not, return a path unchanged
 				req := httptest.NewRequest(http.MethodGet, "/v2/users", nil)
 				w := httptest.NewRecorder()
 
 				r.ServeHTTP(w, req)
 
-				// Since v2 is not valid, should default to v1
-				// But the path stripping logic may still be involved
+				// Since v2 is not valid, should default to v1,
+				// But the path stripping logic may still be involved.
 				// Let's verify the behavior - should use default version v1
 				Expect(w.Code).To(Equal(http.StatusOK))
 				Expect(w.Body.String()).To(Equal("v1 users"))
@@ -845,7 +845,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/", func(c *router.Context) {
-					c.String(http.StatusOK, "root")
+					Expect(c.String(http.StatusOK, "root")).NotTo(HaveOccurred())
 				})
 
 				// Request: "/api/v1/" - after stripping prefix "/api/v" and version "1",
@@ -855,7 +855,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				r.ServeHTTP(w, req)
 
-				// Should match root route
+				// Should match the root route
 				Expect(w.Code).To(Equal(http.StatusOK))
 				Expect(w.Body.String()).To(Equal("root"))
 			})
@@ -870,7 +870,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/", func(c *router.Context) {
-					c.String(http.StatusOK, "root")
+					Expect(c.String(http.StatusOK, "root")).NotTo(HaveOccurred())
 				})
 
 				// Request "/v1/" - version at end (after trailing slash handling)
@@ -898,7 +898,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
+					Expect(c.String(http.StatusOK, "v2 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -925,7 +925,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				v3 := r.Version("v3")
 				v3.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v3 users")
+					Expect(c.String(http.StatusOK, "v3 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -960,7 +960,7 @@ var _ = Describe("Versioning Integration", func() {
 					version.Sunset(sunsetTime),
 				)
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -994,13 +994,13 @@ var _ = Describe("Versioning Integration", func() {
 					version.Sunset(sunsetTime),
 				)
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 
 				// v2 is NOT deprecated
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
+					Expect(c.String(http.StatusOK, "v2 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -1033,7 +1033,7 @@ var _ = Describe("Versioning Integration", func() {
 					version.MigrationDocs("https://docs.example.com/migrate/v1-to-v2"),
 				)
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -1061,10 +1061,10 @@ var _ = Describe("Versioning Integration", func() {
 					version.WithDefault("v1"),
 				))
 
-				// Create version first, then configure
+				// Create a version first, then configure
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 
 				// Configure lifecycle later
@@ -1111,7 +1111,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
+					Expect(c.String(http.StatusOK, "v2 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -1147,11 +1147,11 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 			})
 
-			It("calls callback when version is missing", func() {
+			It("calls the callback when version is missing", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				// No X-API-Version header set
 				w := httptest.NewRecorder()
@@ -1184,11 +1184,11 @@ var _ = Describe("Versioning Integration", func() {
 
 				v1 := r.Version("v1")
 				v1.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v1 users")
+					Expect(c.String(http.StatusOK, "v1 users")).NotTo(HaveOccurred())
 				})
 			})
 
-			It("calls callback on invalid version", func() {
+			It("calls the callback on invalid version", func() {
 				req := httptest.NewRequest(http.MethodGet, "/users", nil)
 				req.Header.Set("X-Api-Version", "v99") // Invalid version
 				w := httptest.NewRecorder()
@@ -1223,7 +1223,7 @@ var _ = Describe("Versioning Integration", func() {
 
 				v2 := r.Version("v2")
 				v2.GET("/users", func(c *router.Context) {
-					c.String(http.StatusOK, "v2 users")
+					Expect(c.String(http.StatusOK, "v2 users")).NotTo(HaveOccurred())
 				})
 			})
 
@@ -1283,12 +1283,12 @@ var _ = Describe("Versioning Integration", func() {
 		)
 
 		BeforeEach(func() {
-			// Reset shared state for each test
+			// Reset a shared state for each test
 			detectedVersions = []string{}
 			invalidVersions = []string{}
 			sunsetV1 = time.Now().Add(30 * 24 * time.Hour)
 
-			// Setup router with all versioning strategies
+			// Set up a router with all versioning strategies
 			r = router.MustNew(router.WithVersioning(
 				version.WithPathDetection("/v{version}/"),
 				version.WithHeaderDetection("X-API-Version"),
@@ -1306,14 +1306,14 @@ var _ = Describe("Versioning Integration", func() {
 				),
 			))
 
-			// Register versioned routes for all versions
+			// Set up versioned routes for all versions
 			// v1 is deprecated
 			v1 := r.Version("v1",
 				version.Deprecated(),
 				version.Sunset(sunsetV1),
 			)
 			v1.GET("/users", func(c *router.Context) {
-				c.Stringf(http.StatusOK, `version: %s`, c.Version())
+				Expect(c.Stringf(http.StatusOK, `version: %s`, c.Version())).NotTo(HaveOccurred())
 			})
 
 			// v2 and v3 are not deprecated
@@ -1321,14 +1321,14 @@ var _ = Describe("Versioning Integration", func() {
 				version := ver
 				vr := r.Version(version)
 				vr.GET("/users", func(c *router.Context) {
-					c.Stringf(http.StatusOK, `version: %s`, c.Version())
+					Expect(c.Stringf(http.StatusOK, `version: %s`, c.Version())).NotTo(HaveOccurred())
 				})
 			}
 		})
 
 		Describe("Path-based versioning", func() {
-			Context("with deprecated version", func() {
-				It("routes to correct version handler", func() {
+			Context("with a deprecated version", func() {
+				It("routes to the correct version handler", func() {
 					req := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
 					w := httptest.NewRecorder()
 					r.ServeHTTP(w, req)

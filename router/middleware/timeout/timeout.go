@@ -67,6 +67,7 @@ func defaultConfig() *config {
 
 // defaultHandler is the default timeout error handler.
 func defaultHandler(c *router.Context, timeout time.Duration) {
+	//nolint:errcheck // Timeout handler; best-effort response
 	c.JSON(http.StatusRequestTimeout, map[string]any{
 		"error":   "Request timeout",
 		"code":    "TIMEOUT",

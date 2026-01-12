@@ -152,6 +152,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 				// Verify RequestID is available
 				reqID := requestid.Get(c)
 				Expect(reqID).NotTo(BeEmpty(), "RequestID should be available in handler")
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{
 					"request_id": reqID,
 					"message":    "success",
@@ -236,6 +237,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 
 			r.GET("/protected", func(c *router.Context) {
 				username := basicauth.GetUsername(c)
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{
 					"user":    username,
 					"message": "protected resource",
@@ -278,6 +280,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 			))
 
 			r.GET("/protected", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "should not reach here"})
 			})
 
@@ -321,6 +324,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 
 			r.GET("/api/users", func(c *router.Context) {
 				reqID := requestid.Get(c)
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]any{
 					"request_id": reqID,
 					"users":      []string{"user1", "user2"},
@@ -364,6 +368,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 			r.Use(accesslog.New(accesslog.WithLogger(logger)))
 
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 			})
 
@@ -401,6 +406,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 			})
 
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "should not reach here"})
 			})
 
@@ -439,6 +445,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 			r.GET("/test", func(c *router.Context) {
 				capturedRequestID = requestid.Get(c)
 				capturedUsername = basicauth.GetUsername(c)
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{
 					"request_id": capturedRequestID,
 					"username":   capturedUsername,
@@ -475,6 +482,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 
 			// Public routes
 			r.GET("/public", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "public"})
 			})
 
@@ -487,6 +495,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 			))
 			protected.GET("/dashboard", func(c *router.Context) {
 				username := basicauth.GetUsername(c)
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{
 					"user":    username,
 					"message": "dashboard",
@@ -537,6 +546,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 
 			// Handler that returns error status
 			r.GET("/error", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusInternalServerError, map[string]string{
 					"error": "something went wrong",
 				})

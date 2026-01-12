@@ -154,6 +154,7 @@ func BenchmarkResponseWriter_Status(b *testing.B) {
 func BenchmarkResponseWriter_String(b *testing.B) {
 	r := MustNew()
 	r.GET("/test", func(c *Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "Hello, World!")
 	})
 
@@ -172,6 +173,7 @@ func BenchmarkResponseWriter_String(b *testing.B) {
 func BenchmarkResponseWriter_JSON(b *testing.B) {
 	r := MustNew()
 	r.GET("/test", func(c *Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.JSON(http.StatusOK, map[string]string{"message": "hello"})
 	})
 

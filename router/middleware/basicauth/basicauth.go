@@ -59,6 +59,7 @@ func defaultConfig() *config {
 
 // defaultUnauthorizedHandler sends a 401 Unauthorized response.
 func defaultUnauthorizedHandler(c *router.Context) {
+	//nolint:errcheck // Test helper function
 	c.JSON(http.StatusUnauthorized, map[string]string{
 		"error": "Unauthorized",
 		"code":  "UNAUTHORIZED",
@@ -117,7 +118,7 @@ func defaultUnauthorizedHandler(c *router.Context) {
 //	))
 //	admin.GET("/dashboard", dashboardHandler)
 func New(opts ...Option) router.HandlerFunc {
-	// Apply options to default config
+	// Apply options to the default config
 	cfg := defaultConfig()
 	for _, opt := range opts {
 		opt(cfg)

@@ -34,6 +34,7 @@ func TestCompression_BasicGzip(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "Hello, World!"})
 	})
 
@@ -48,7 +49,7 @@ func TestCompression_BasicGzip(t *testing.T) {
 	// Verify response is actually gzipped
 	gr, err := gzip.NewReader(w.Body)
 	require.NoError(t, err, "Failed to create gzip reader")
-	defer gr.Close()
+	defer gr.Close() //nolint:errcheck // Test cleanup
 
 	decompressed, err := io.ReadAll(gr)
 	require.NoError(t, err, "Failed to decompress response")
@@ -60,6 +61,7 @@ func TestCompression_NoGzipSupport(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "Hello"})
 	})
 
@@ -79,10 +81,12 @@ func TestCompression_ExcludePaths(t *testing.T) {
 	r.Use(New(WithExcludePaths("/metrics", "/health")))
 
 	r.GET("/metrics", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"metrics": "data"})
 	})
 
 	r.GET("/api", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"api": "response"})
 	})
 
@@ -117,10 +121,12 @@ func TestCompression_ExcludeExtensions(t *testing.T) {
 	r.Use(New(WithExcludeExtensions(".jpg", ".png", ".zip")))
 
 	r.GET("/image.jpg", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"type": "fake image data"})
 	})
 
 	r.GET("/data.json", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"data": "value"})
 	})
 
@@ -159,10 +165,12 @@ func TestCompression_ExcludeContentTypes(t *testing.T) {
 		c.Response.Header().Set("Content-Type", "image/jpeg")
 		// Explicitly call WriteHeader to trigger compression check
 		c.Response.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Test handler
 		c.Response.Write([]byte(`{"type": "image data"}`))
 	})
 
 	r.GET("/json", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"data": "value"})
 	})
 
@@ -206,6 +214,7 @@ func TestCompression_CompressionLevels(t *testing.T) {
 			r.Use(New(WithGzipLevel(level)))
 			r.GET("/test", func(c *router.Context) {
 				data := strings.Repeat("compress this ", 100)
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"data": data})
 			})
 
@@ -231,6 +240,7 @@ func TestCompression_LargeResponse(t *testing.T) {
 	largeData := strings.Repeat("This is a large response that should be compressed. ", 1000)
 
 	r.GET("/large", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"data": largeData})
 	})
 
@@ -251,7 +261,7 @@ func TestCompression_LargeResponse(t *testing.T) {
 	// Verify decompression works
 	gr, err := gzip.NewReader(w.Body)
 	require.NoError(t, err, "Failed to create gzip reader")
-	defer gr.Close()
+	defer gr.Close() //nolint:errcheck // Test cleanup
 
 	decompressed, err := io.ReadAll(gr)
 	require.NoError(t, err, "Failed to decompress")
@@ -263,6 +273,7 @@ func TestCompression_MultipleRequests(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "test"})
 	})
 
@@ -285,6 +296,7 @@ func TestCompression_ContentLengthRemoved(t *testing.T) {
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		c.Response.Header().Set("Content-Length", "100")
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"data": "test response"})
 	})
 

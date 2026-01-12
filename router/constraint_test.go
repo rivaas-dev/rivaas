@@ -62,6 +62,7 @@ func TestFastPathConstraintValidation(t *testing.T) {
 
 	// Register route with integer constraint
 	r.GET("/users/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "id=%s", c.Param("id"))
 	}).WhereInt("id")
 
@@ -87,10 +88,12 @@ func TestRouteConstraints(t *testing.T) {
 	r := MustNew()
 
 	r.GET("/alpha/:name", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "name=%s", c.Param("name"))
 	}).WhereRegex("name", `[a-zA-Z]+`)
 
 	r.GET("/uuid/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "id=%s", c.Param("id"))
 	}).WhereUUID("id")
 

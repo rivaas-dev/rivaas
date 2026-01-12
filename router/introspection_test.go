@@ -43,9 +43,18 @@ func (suite *ExtendedTestSuite) TearDownTest() {
 // TestRouteIntrospection tests route introspection functionality
 func (suite *ExtendedTestSuite) TestRouteIntrospection() {
 	// Add some routes
-	suite.router.GET("/", func(c *Context) { c.String(http.StatusOK, "home") })
-	suite.router.GET("/users/:id", func(c *Context) { c.String(http.StatusOK, "user") })
-	suite.router.POST("/users", func(c *Context) { c.String(http.StatusOK, "create") })
+	suite.router.GET("/", func(c *Context) {
+		//nolint:errcheck // Test handler
+		c.String(http.StatusOK, "home")
+	})
+	suite.router.GET("/users/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
+		c.String(http.StatusOK, "user")
+	})
+	suite.router.POST("/users", func(c *Context) {
+		//nolint:errcheck // Test handler
+		c.String(http.StatusOK, "create")
+	})
 
 	// Test Routes() method
 	routes := suite.router.Routes()
@@ -72,10 +81,13 @@ func (suite *ExtendedTestSuite) TestRequestHelpers() {
 	r.GET("/test", func(c *Context) {
 		// Test content type detection
 		if c.IsJSON() {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "json")
 		} else if c.IsXML() {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "xml")
 		} else {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "other")
 		}
 	})
@@ -106,10 +118,13 @@ func (suite *ExtendedTestSuite) TestAcceptsHelpers() {
 
 	r.GET("/test", func(c *Context) {
 		if c.AcceptsJSON() {
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{"type": "json"})
 		} else if c.AcceptsHTML() {
+			//nolint:errcheck // Test handler
 			c.HTML(http.StatusOK, "<h1>html</h1>")
 		} else {
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "other")
 		}
 	})
@@ -140,6 +155,7 @@ func (suite *ExtendedTestSuite) TestClientIP() {
 	))
 
 	r.GET("/ip", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "%s", c.ClientIP())
 	})
 
@@ -206,6 +222,7 @@ func (suite *ExtendedTestSuite) TestClientIP_CustomHeaders() {
 	))
 
 	r.GET("/ip", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "%s", c.ClientIP())
 	})
 
@@ -275,11 +292,13 @@ func (suite *ExtendedTestSuite) TestRouteConstraints() {
 
 	// Add route with integer constraint
 	r.GET("/users/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "user %s", c.Param("id"))
 	}).WhereInt("id")
 
 	// Add route with custom constraint
 	r.GET("/files/:name", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "file %s", c.Param("name"))
 	}).Where("name", `[a-zA-Z0-9._-]+`)
 
@@ -312,6 +331,7 @@ func (suite *ExtendedTestSuite) TestMultipleConstraints() {
 	r := MustNew()
 
 	r.GET("/posts/:id/:slug", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "post %s %s", c.Param("id"), c.Param("slug"))
 	}).WhereInt("id").WhereRegex("slug", `[a-zA-Z0-9]+`)
 
@@ -360,6 +380,7 @@ func (suite *ExtendedTestSuite) TestQueryDefaults() {
 		page := c.QueryDefault("page", "1")
 		query := c.QueryDefault("q", "")
 
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{
 			"limit": limit,
 			"page":  page,

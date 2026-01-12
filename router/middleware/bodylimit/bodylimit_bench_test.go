@@ -28,6 +28,7 @@ func BenchmarkBodyLimit_ContentLengthCheck(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New(WithLimit(1024 * 1024)))
 	r.POST("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -48,7 +49,9 @@ func BenchmarkBodyLimit_NoContentLength(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New(WithLimit(1024 * 1024)))
 	r.POST("/test", func(c *router.Context) {
+		//nolint:errcheck
 		io.Copy(io.Discard, c.Request.Body)
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 

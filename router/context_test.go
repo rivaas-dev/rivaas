@@ -35,6 +35,7 @@ func TestContextHelpers(t *testing.T) {
 		r.POST("/form", func(c *Context) {
 			username := c.FormValue("username")
 			password := c.FormValue("password")
+			//nolint:errcheck // Test handler
 			c.Stringf(http.StatusOK, "user=%s,pass=%s", username, password)
 		})
 
@@ -58,6 +59,7 @@ func TestContextHelpers(t *testing.T) {
 		router := MustNew()
 		router.POST("/form-default", func(c *Context) {
 			role := c.FormValueDefault("role", "guest")
+			//nolint:errcheck // Test handler
 			c.Stringf(http.StatusOK, "role=%s", role)
 		})
 
@@ -77,8 +79,10 @@ func TestContextHelpers(t *testing.T) {
 		testRouter := MustNew()
 		testRouter.GET("/secure", func(c *Context) {
 			if c.IsHTTPS() {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "secure")
 			} else {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "insecure")
 			}
 		})
@@ -119,14 +123,17 @@ func TestContextHelpers(t *testing.T) {
 		r := MustNew()
 		r.GET("/set-cookie", func(c *Context) {
 			c.SetCookie("session", "abc123", 3600, "/", "", false, true)
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "cookie set")
 		})
 
 		r.GET("/get-cookie", func(c *Context) {
 			session, err := c.GetCookie("session")
 			if err != nil {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusNotFound, "no cookie")
 			} else {
+				//nolint:errcheck // Test handler
 				c.Stringf(http.StatusOK, "session=%s", session)
 			}
 		})
@@ -180,6 +187,7 @@ func TestStatusMethod(t *testing.T) {
 		t.Parallel()
 		r.GET("/status-wrapped", func(c *Context) {
 			c.Status(http.StatusAccepted)
+			//nolint:errcheck // Test handler
 			c.String(http.StatusOK, "ok") // Should use Accepted status
 		})
 
@@ -210,6 +218,7 @@ func TestContext_String_MultipleFormatValues(t *testing.T) {
 	r := MustNew()
 
 	r.GET("/test", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "Name: %s, Age: %d, Score: %.2f", "Bob", 28, 88.5)
 	})
 
@@ -231,6 +240,7 @@ func TestContext_HTML_DifferentStatusCodes(t *testing.T) {
 		r := MustNew()
 
 		r.GET("/test", func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.HTML(code, "<div>Content</div>")
 		})
 
@@ -249,6 +259,7 @@ func TestContext_Status_WithResponseWriter(t *testing.T) {
 
 	r.GET("/test", func(c *Context) {
 		c.Status(http.StatusCreated)
+		//nolint:errcheck // Test handler
 		c.Response.Write([]byte("created"))
 	})
 
@@ -267,6 +278,7 @@ func TestContext_Status_AlreadyWritten(t *testing.T) {
 
 	r.GET("/test", func(c *Context) {
 		// Write something first (sets status to 200)
+		//nolint:errcheck // Test handler
 		c.Response.Write([]byte("data"))
 
 		// Try to set status again (should be no-op)

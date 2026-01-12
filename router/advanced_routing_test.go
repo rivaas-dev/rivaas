@@ -46,12 +46,14 @@ func (suite *AdvancedRoutingTestSuite) TestWildcardRoutes() {
 	// Test default wildcard parameter
 	r.GET("/files/*", func(c *Context) {
 		filepath := c.Param("filepath")
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"filepath": filepath})
 	})
 
 	// Test custom wildcard parameter (still uses filepath parameter name)
 	r.GET("/static/*", func(c *Context) {
 		asset := c.Param("filepath") // Still uses "filepath" parameter name
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"asset": asset})
 	})
 
@@ -93,11 +95,13 @@ func (suite *AdvancedRoutingTestSuite) TestRouteVersioning() {
 	// Register version-specific routes
 	v1 := r.Version("v1")
 	v1.GET("/users", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"version": "v1", "endpoint": "users"})
 	})
 
 	v2 := r.Version("v2")
 	v2.GET("/users", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"version": "v2", "endpoint": "users"})
 	})
 
@@ -153,6 +157,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
 		c.Next()
 	})
 	v1API.GET("/profile", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"version": "v1", "endpoint": "profile"})
 	})
 
@@ -161,6 +166,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersionGroups() {
 		c.Next()
 	})
 	v2API.GET("/profile", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"version": "v2", "endpoint": "profile"})
 	})
 
@@ -198,11 +204,13 @@ func (suite *AdvancedRoutingTestSuite) TestCustomVersionDetection() {
 	// Register version-specific routes
 	v1 := r.Version("v1")
 	v1.GET("/test", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"version": "v1"})
 	})
 
 	v2 := r.Version("v2")
 	v2.GET("/test", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"version": "v2"})
 	})
 
@@ -234,6 +242,7 @@ func (suite *AdvancedRoutingTestSuite) TestContextVersionMethods() {
 		isV1 := c.IsVersion("v1")
 		isV2 := c.IsVersion("v2")
 
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]any{
 			"version": version,
 			"is_v1":   isV1,
@@ -266,6 +275,7 @@ func (suite *AdvancedRoutingTestSuite) TestPerformance() {
 	for i := range 100 {
 		v1 := r.Version("v1")
 		v1.GET("/test"+string(rune(i)), func(c *Context) {
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{"version": "v1"})
 		})
 	}
@@ -299,6 +309,7 @@ func (suite *AdvancedRoutingTestSuite) TestWildcardParameterNames() {
 	for _, route := range routes {
 		r.GET(route.path, func(c *Context) {
 			param := c.Param(route.param)
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{route.param: param})
 		})
 	}
@@ -379,6 +390,7 @@ func (suite *AdvancedRoutingTestSuite) TestVersioningConfiguration() {
 			// Register version-specific route
 			version := r.Version(cfg.expected)
 			version.GET("/test", func(c *Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"version": c.Version()})
 			})
 

@@ -27,6 +27,7 @@ func BenchmarkRecovery_NoPanic(b *testing.B) {
 	r.Use(New())
 
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "success"})
 	})
 

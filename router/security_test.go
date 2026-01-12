@@ -96,6 +96,7 @@ func TestContext_Header_Injection(t *testing.T) {
 				}, "Expected no panic for header value: %q", tt.headerValue)
 
 				// Verify header was sanitized correctly
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "ok")
 			})
 
@@ -144,6 +145,7 @@ func TestContext_Header_InjectionRealWorldAttack(t *testing.T) {
 		// Should only contain the safe part
 		assert.Equal(t, "normal-valueX-Admin: trueX-Auth: bypass", location)
 
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "OK")
 	})
 
@@ -240,6 +242,7 @@ func TestRouter_ConcurrentVersionRegistration(t *testing.T) {
 			for j := range routesPerGoroutine {
 				path := fmt.Sprintf("/test/%d/%d", goroutineID, j)
 				vr.GET(path, func(c *Context) {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusOK, map[string]string{"ok": "true"})
 				})
 			}
@@ -278,6 +281,7 @@ func TestRouter_ConcurrentRouteRegistration(t *testing.T) {
 		go func(n int) {
 			defer wg.Done()
 			r.GET(fmt.Sprintf("/path%d", n), func(c *Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]int{"id": n})
 			})
 		}(i)
@@ -318,6 +322,7 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 		var capturedError error
 		r.GET("/test", func(c *Context) {
 			badData := BadType{Func: func() {}}
+			//nolint:errcheck // Test handler
 			capturedError = c.JSON(http.StatusOK, badData)
 		})
 
@@ -337,6 +342,7 @@ func TestContext_JSON_EncodingError(t *testing.T) {
 
 		r.GET("/test", func(c *Context) {
 			badData := BadType{Func: func() {}}
+			//nolint:errcheck // Test handler
 			if err := c.JSON(http.StatusOK, badData); err != nil {
 				// Handle error explicitly by sending 500 response
 				c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -376,6 +382,7 @@ func TestContext_JSON_ValidData(t *testing.T) {
 			Age:    30,
 			Active: true,
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, data)
 	})
 
@@ -391,6 +398,7 @@ func BenchmarkContext_Header_Validation(b *testing.B) {
 	r := MustNew()
 	r.GET("/test", func(c *Context) {
 		c.Header("X-Custom", "safe-value")
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "ok")
 	})
 

@@ -16,42 +16,64 @@ package router
 
 import "errors"
 
-// Static errors for better error handling and testing.
-// These errors should be wrapped with fmt.Errorf and %w when context is needed.
 var (
-	// Context errors
-	ErrContextResponseNil    = errors.New("context response is nil")
+	// ErrContextResponseNil indicates that the context response is nil.
+	ErrContextResponseNil = errors.New("context response is nil")
+
+	// ErrContentTypeNotAllowed indicates that the content type is not allowed.
 	ErrContentTypeNotAllowed = errors.New("content type not allowed")
 
-	// Request errors
+	// ErrFileNotFound indicates that the requested file could not be found.
 	ErrFileNotFound = errors.New("file not found")
+
+	// ErrNoFilesFound indicates that no files were found for the specified key.
 	ErrNoFilesFound = errors.New("no files found for key")
 
-	// Router errors
+	// ErrResponseWriterNotHijacker indicates that ResponseWriter does not implement the http.Hijacker interface.
 	ErrResponseWriterNotHijacker = errors.New("responseWriter does not implement http.Hijacker")
 
-	// Router configuration errors
-	ErrBloomFilterSizeZero       = errors.New("bloom filter size must be non-zero")
-	ErrBloomHashFunctionsInvalid = errors.New("bloom hash functions must be positive")
-	ErrVersioningConfigInvalid   = errors.New("versioning configuration invalid")
-	ErrServerTimeoutInvalid      = errors.New("server timeout must be positive")
+	// ErrBloomFilterSizeZero indicates that the bloom filter size must be greater than zero.
+	ErrBloomFilterSizeZero = errors.New("bloom filter size must be non-zero")
 
-	// Route errors
-	ErrRoutesNotFrozen       = errors.New("routes not frozen yet")
-	ErrRouteNotFound         = errors.New("route not found")
+	// ErrBloomHashFunctionsInvalid indicates that the number of bloom hash functions must be positive.
+	ErrBloomHashFunctionsInvalid = errors.New("bloom hash functions must be positive")
+
+	// ErrVersioningConfigInvalid indicates that the versioning configuration is invalid.
+	ErrVersioningConfigInvalid = errors.New("versioning configuration invalid")
+
+	// ErrServerTimeoutInvalid indicates that the server timeout value must be positive.
+	ErrServerTimeoutInvalid = errors.New("server timeout must be positive")
+
+	// ErrRoutesNotFrozen indicates that the routes have not been frozen yet.
+	ErrRoutesNotFrozen = errors.New("routes not frozen yet")
+
+	// ErrRouteNotFound indicates that the specified route could not be found.
+	ErrRouteNotFound = errors.New("route not found")
+
+	// ErrMissingRouteParameter indicates that a required parameter for the route is missing.
 	ErrMissingRouteParameter = errors.New("missing required parameter")
 
-	// JSON parsing errors
+	// ErrMultipleJSONValues indicates that the request body must contain only a single JSON value.
 	ErrMultipleJSONValues = errors.New("request body must contain a single JSON value")
-	ErrExpectedJSONArray  = errors.New("expected a JSON array")
-	ErrArrayExceedsMax    = errors.New("array exceeds maximum items")
 
-	// Validation errors
-	ErrCannotValidateNilValue     = errors.New("cannot validate nil value")
+	// ErrExpectedJSONArray indicates that a JSON array was expected.
+	ErrExpectedJSONArray = errors.New("expected a JSON array")
+
+	// ErrArrayExceedsMax indicates that the JSON array exceeds the maximum allowed number of items.
+	ErrArrayExceedsMax = errors.New("array exceeds maximum items")
+
+	// ErrCannotValidateNilValue indicates that a nil value cannot be validated.
+	ErrCannotValidateNilValue = errors.New("cannot validate nil value")
+
+	// ErrCannotValidateInvalidValue indicates that an invalid value cannot be validated.
 	ErrCannotValidateInvalidValue = errors.New("cannot validate invalid value")
-	ErrUnknownValidationStrategy  = errors.New("unknown validation strategy")
-	ErrCannotRegisterValidators   = errors.New("cannot register validators after first use")
 
-	// Query parameter errors
+	// ErrUnknownValidationStrategy indicates that an unknown validation strategy was encountered.
+	ErrUnknownValidationStrategy = errors.New("unknown validation strategy")
+
+	// ErrCannotRegisterValidators indicates that validators cannot be registered after the first use.
+	ErrCannotRegisterValidators = errors.New("cannot register validators after first use")
+
+	// ErrQueryInvalidInteger indicates that a query parameter contains an invalid integer.
 	ErrQueryInvalidInteger = errors.New("query: invalid integer")
 )

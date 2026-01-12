@@ -116,6 +116,7 @@ func TestAccessLog_BasicLogging(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithLogger(logger)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -157,6 +158,7 @@ func TestAccessLog_ExcludePaths(t *testing.T) {
 				WithExcludePaths("/health", "/metrics"),
 			))
 			r.GET(tt.path, func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 			})
 
@@ -187,12 +189,15 @@ func TestAccessLog_ExcludePrefixes(t *testing.T) { //nolint:paralleltest // Subt
 	))
 
 	r.GET("/metrics/prometheus", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 	r.GET("/debug/pprof/heap", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 	r.GET("/api/users", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -249,6 +254,7 @@ func TestAccessLog_StatusCodes(t *testing.T) { //nolint:paralleltest // Shares h
 
 			r.GET("/test", func(c *router.Context) {
 				c.Status(tc.statusCode)
+				//nolint:errcheck // Test handler
 				c.JSON(tc.statusCode, map[string]string{"status": "test"})
 			})
 
@@ -285,11 +291,13 @@ func TestAccessLog_SlowRequest(t *testing.T) { //nolint:paralleltest // Uses tim
 	))
 
 	r.GET("/fast", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
 	r.GET("/slow", func(c *router.Context) {
 		time.Sleep(150 * time.Millisecond)
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -323,10 +331,12 @@ func TestAccessLog_ErrorsOnly(t *testing.T) { //nolint:paralleltest // Tests spe
 	))
 
 	r.GET("/success", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
 	r.GET("/error", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusBadRequest, map[string]string{"error": "bad request"})
 	})
 
@@ -358,6 +368,7 @@ func TestAccessLog_Sampling(t *testing.T) { //nolint:paralleltest // Tests sampl
 
 	r.Use(requestid.New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -395,6 +406,7 @@ func TestAccessLog_SlowRequestBypassesSampling(t *testing.T) { //nolint:parallel
 
 	r.GET("/slow", func(c *router.Context) {
 		time.Sleep(100 * time.Millisecond)
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -416,6 +428,7 @@ func TestAccessLog_ErrorBypassesSampling(t *testing.T) { //nolint:paralleltest /
 	))
 
 	r.GET("/error", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusBadRequest, map[string]string{"error": "bad request"})
 	})
 
@@ -434,6 +447,7 @@ func TestAccessLog_RoutePattern(t *testing.T) { //nolint:paralleltest // Tests s
 	r.Use(New(WithLogger(logger)))
 
 	r.GET("/users/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"user_id": c.Param("id")})
 	})
 
@@ -461,6 +475,7 @@ func TestAccessLog_ClientIP(t *testing.T) {
 	r.Use(New(WithLogger(logger)))
 
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -505,6 +520,7 @@ func TestAccessLog_AllFields(t *testing.T) { //nolint:paralleltest // Tests spec
 	r.Use(New(WithLogger(logger)))
 
 	r.GET("/users/:id", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"user_id": c.Param("id")})
 	})
 
@@ -536,6 +552,7 @@ func TestAccessLog_NoLogger(t *testing.T) { //nolint:paralleltest // Tests speci
 	r.Use(New())          // No logger option provided
 
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -561,6 +578,7 @@ func TestAccessLog_ResponseWriterInterfaces(t *testing.T) { //nolint:paralleltes
 		if flusher, ok := c.Response.(http.Flusher); ok {
 			flusher.Flush()
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -581,6 +599,7 @@ func TestAccessLog_BytesSent(t *testing.T) {
 	responseBody := `{"message": "hello world"}`
 	r.GET("/test", func(c *router.Context) {
 		c.Response.WriteHeader(http.StatusOK)
+		//nolint:errcheck // Test handler
 		c.Response.Write([]byte(responseBody))
 	})
 
@@ -641,19 +660,24 @@ func TestAccessLog_CombinedOptions(t *testing.T) { //nolint:paralleltest // Shar
 	))
 
 	r.GET("/health", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"status": "healthy"})
 	})
 	r.GET("/metrics/prometheus", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 	r.GET("/success", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 	r.GET("/error", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusBadRequest, map[string]string{"error": "bad"})
 	})
 	r.GET("/slow", func(c *router.Context) {
 		time.Sleep(150 * time.Millisecond)
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -694,6 +718,7 @@ func TestAccessLog_Duration(t *testing.T) { //nolint:paralleltest // Uses time.S
 
 	r.GET("/test", func(c *router.Context) {
 		time.Sleep(50 * time.Millisecond)
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -731,6 +756,7 @@ func TestAccessLog_ResponseWriterPreservation(t *testing.T) { //nolint:parallelt
 		if flusher, ok := c.Response.(http.Flusher); ok {
 			flusher.Flush()
 		}
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -764,6 +790,7 @@ func TestAccessLog_StatusCodeTracking(t *testing.T) { //nolint:paralleltest // S
 
 			r.GET("/test", func(c *router.Context) {
 				c.Status(tc.statusCode)
+				//nolint:errcheck // Test handler
 				c.Response.Write([]byte("test response"))
 			})
 
@@ -802,6 +829,7 @@ func TestAccessLog_RequestIDSampling(t *testing.T) { //nolint:paralleltest // Te
 	))
 
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -837,6 +865,7 @@ func TestAccessLog_NoRequestIDSampling(t *testing.T) { //nolint:paralleltest // 
 	))
 
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -855,6 +884,7 @@ func TestAccessLog_HostAndProto(t *testing.T) { //nolint:paralleltest // Tests s
 	r.Use(New(WithLogger(logger)))
 
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 

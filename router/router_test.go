@@ -176,8 +176,10 @@ func TestResponseWriter_InterfaceAssertion(t *testing.T) {
 	// Test with hijackable writer
 	server, client := net.Pipe()
 	defer func() {
-		_ = server.Close()
-		_ = client.Close()
+		//nolint:errcheck // Test cleanup
+		server.Close()
+		//nolint:errcheck // Test cleanup
+		client.Close()
 	}()
 
 	mockRW := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
@@ -270,7 +272,8 @@ func TestResponseWriter_FlushNoOp(t *testing.T) {
 	}
 
 	// Verify we can still write after failed flush
-	wrapped.Write([]byte("test"))
+	_, err := wrapped.Write([]byte("test"))
+	require.NoError(t, err)
 	assert.Equal(t, "test", w.Body.String(), "should still be able to write after flush on non-flushable writer")
 }
 

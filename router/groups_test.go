@@ -33,6 +33,7 @@ func TestGroupPUT(t *testing.T) {
 	api.PUT("/users/:id", func(c *Context) {
 		called = true
 		id := c.Param("id")
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"id": id, "action": "updated"})
 	})
 
@@ -57,6 +58,7 @@ func TestGroupDELETE(t *testing.T) {
 	api.DELETE("/users/:id", func(c *Context) {
 		called = true
 		id := c.Param("id")
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"id": id, "action": "deleted"})
 	})
 
@@ -81,6 +83,7 @@ func TestGroupPATCH(t *testing.T) {
 	api.PATCH("/users/:id", func(c *Context) {
 		called = true
 		id := c.Param("id")
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"id": id, "action": "patched"})
 	})
 
@@ -167,18 +170,23 @@ func TestGroupNestedGroups(t *testing.T) {
 
 	// Register all routes first (configuration phase)
 	users.GET("", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"action": "list"})
 	})
 	users.POST("", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusCreated, map[string]string{"action": "created"})
 	})
 	users.PUT("/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"action": "updated", "id": c.Param("id")})
 	})
 	users.DELETE("/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"action": "deleted", "id": c.Param("id")})
 	})
 	users.PATCH("/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"action": "patched", "id": c.Param("id")})
 	})
 	users.OPTIONS("", func(c *Context) {
@@ -236,6 +244,7 @@ func TestGroupMiddlewareInheritance(t *testing.T) {
 
 	handler := func(c *Context) {
 		executionOrder = append(executionOrder, "handler")
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"ok": "true"})
 	}
 
@@ -330,6 +339,7 @@ func TestGroupPUTWithMiddleware(t *testing.T) {
 	api := r.Group("/api", middleware)
 	api.PUT("/resource/:id", func(c *Context) {
 		handlerCalled = true
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 	})
 
@@ -379,6 +389,7 @@ func TestGroupPATCHWithParams(t *testing.T) {
 	resources.PATCH("/:type/:id", func(c *Context) {
 		resourceType := c.Param("type")
 		id := c.Param("id")
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{
 			"type": resourceType,
 			"id":   id,
@@ -449,11 +460,13 @@ func TestGroupMultipleHTTPMethodsSamePath(t *testing.T) {
 
 	api.GET("/item", func(c *Context) {
 		getCalled = true
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"action": "get"})
 	})
 
 	api.PUT("/item", func(c *Context) {
 		putCalled = true
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"action": "put"})
 	})
 
@@ -533,6 +546,7 @@ func TestGroupMethodsWithConstraints(t *testing.T) {
 	// Register all routes before serving (two-phase design)
 	// Test PUT with numeric constraint
 	api.PUT("/users/:id", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"id": c.Param("id")})
 	}).WhereInt("id")
 
@@ -653,12 +667,14 @@ func TestGroup_EmptyPrefixOnNestedGroup(t *testing.T) {
 	nested := api.Group("")
 
 	nested.GET("/users", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"path": "users"})
 	})
 
 	// Test that routes added to nested group work correctly
 	// Note: All routes must be registered before the first ServeHTTP call
 	nested.POST("/posts", func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusCreated, map[string]string{"path": "posts"})
 	})
 

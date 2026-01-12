@@ -32,6 +32,7 @@ func TestCORS_NoCORSRequest(t *testing.T) {
 	require.NoError(t, err)
 	r.Use(New(WithAllowAllOrigins(true)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -50,6 +51,7 @@ func TestCORS_AllowAllOrigins(t *testing.T) {
 	require.NoError(t, err)
 	r.Use(New(WithAllowAllOrigins(true)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -68,6 +70,7 @@ func TestCORS_AllowedOrigins(t *testing.T) {
 	require.NoError(t, err)
 	r.Use(New(WithAllowedOrigins("https://example.com", "https://app.example.com")))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -116,6 +119,7 @@ func TestCORS_AllowOriginFunc(t *testing.T) {
 		return strings.HasSuffix(origin, ".example.com")
 	})))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -166,6 +170,7 @@ func TestCORS_Preflight(t *testing.T) {
 		WithMaxAge(7200),
 	))
 	r.POST("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 	// Register OPTIONS handler for preflight
@@ -193,6 +198,7 @@ func TestCORS_PreflightDisallowedOrigin(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithAllowedOrigins("https://example.com")))
 	r.POST("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 	// Register OPTIONS handler for preflight
@@ -218,6 +224,7 @@ func TestCORS_Credentials(t *testing.T) {
 		WithAllowCredentials(true),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -239,6 +246,7 @@ func TestCORS_CredentialsWithAllOrigins(t *testing.T) {
 		WithAllowCredentials(true),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -262,6 +270,7 @@ func TestCORS_ExposedHeaders(t *testing.T) {
 		WithExposedHeaders("X-Request-ID", "X-Rate-Limit"),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -279,6 +288,7 @@ func TestCORS_DefaultConfig(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New()) // Use default config
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -298,6 +308,7 @@ func TestCORS_ActualRequest(t *testing.T) {
 	require.NoError(t, err)
 	r.Use(New(WithAllowedOrigins("https://example.com")))
 	r.POST("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "created"})
 	})
 

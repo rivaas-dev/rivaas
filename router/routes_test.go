@@ -46,6 +46,7 @@ func TestGetHandlerName_NilHandler(t *testing.T) {
 func TestGetHandlerName_InvalidPointer(t *testing.T) {
 	// Create a valid function to verify normal behavior
 	var validHandler HandlerFunc = func(c *Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "test")
 	}
 

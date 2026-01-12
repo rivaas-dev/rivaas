@@ -31,6 +31,7 @@ func TestSecurity_DefaultHeaders(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -52,6 +53,7 @@ func TestSecurity_CustomFrameOptions(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithFrameOptions("SAMEORIGIN")))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -103,6 +105,7 @@ func TestSecurity_HSTS(t *testing.T) {
 			r := router.MustNew()
 			r.Use(New(WithHSTS(tt.maxAge, tt.includeSubDomains, tt.preload)))
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 			})
 
@@ -134,6 +137,7 @@ func TestSecurity_CustomCSP(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithContentSecurityPolicy(customCSP)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -160,6 +164,7 @@ func TestSecurity_ReferrerPolicy(t *testing.T) {
 			r := router.MustNew()
 			r.Use(New(WithReferrerPolicy(policy)))
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 			})
 
@@ -180,6 +185,7 @@ func TestSecurity_PermissionsPolicy(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithPermissionsPolicy(policy)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -199,6 +205,7 @@ func TestSecurity_CustomHeaders(t *testing.T) {
 		WithCustomHeader("X-Another-Header", "another-value"),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -216,6 +223,7 @@ func TestSecurity_DisableContentTypeNosniff(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(WithContentTypeNosniff(false)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -240,6 +248,7 @@ func TestSecurity_MultipleOptions(t *testing.T) {
 		WithCustomHeader("X-Custom", "value"),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -262,6 +271,7 @@ func TestSecureHeaders_Convenience(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -280,6 +290,7 @@ func TestDevelopmentSecurity(t *testing.T) {
 	r := router.MustNew()
 	r.Use(New(DevelopmentPreset()))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -307,6 +318,7 @@ func TestNoSecurityHeaders(t *testing.T) {
 	r.GET("/test", func(c *router.Context) {
 		// Manually set a security header
 		c.Response.Header().Set("X-Frame-Options", "DENY")
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -328,6 +340,7 @@ func TestSecurity_CombinedWithOtherMiddleware(t *testing.T) {
 	r.Use(requestid.New())
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -366,6 +379,7 @@ func TestSecurity_EmptyOptions(t *testing.T) {
 			r := router.MustNew()
 			r.Use(New(tt.option()))
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 			})
 

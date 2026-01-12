@@ -29,6 +29,7 @@ import (
 func TestTrailingSlash_RemovePolicy(t *testing.T) {
 	r := router.MustNew()
 	r.GET("/users", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "users")
 	})
 
@@ -86,6 +87,7 @@ func TestTrailingSlashRootPath(t *testing.T) {
 	r.Use(New())
 
 	r.GET("/", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "root")
 	})
 
@@ -150,6 +152,7 @@ func TestTrailingSlash_Policies(t *testing.T) {
 			}
 
 			r.GET(tt.route, func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "users")
 			})
 
@@ -179,6 +182,7 @@ func TestTrailingSlashTrimSuffixNotTrimRight(t *testing.T) {
 	t.Parallel()
 	r := router.MustNew()
 	r.GET("/users", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "users")
 	})
 
@@ -203,6 +207,7 @@ func TestTrailingSlashPreservesMethod(t *testing.T) {
 	t.Parallel()
 	r := router.MustNew()
 	r.POST("/users", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "created")
 	})
 

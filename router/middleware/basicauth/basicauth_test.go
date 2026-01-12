@@ -160,6 +160,7 @@ func TestBasicAuth(t *testing.T) {
 			r := router.MustNew()
 			r.Use(tt.setupAuth())
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "success")
 			})
 
@@ -199,6 +200,7 @@ func TestBasicAuthWithValidator(t *testing.T) {
 		}),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "success")
 	})
 
@@ -232,9 +234,11 @@ func TestBasicAuthSkipPaths(t *testing.T) {
 		WithSkipPaths("/health", "/public"),
 	))
 	r.GET("/health", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "healthy")
 	})
 	r.GET("/protected", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "protected")
 	})
 
@@ -261,10 +265,12 @@ func TestBasicAuthCustomUnauthorizedHandler(t *testing.T) {
 		WithUsers(map[string]string{"admin": "secret"}),
 		WithUnauthorizedHandler(func(c *router.Context) {
 			customCalled = true
+			//nolint:errcheck // Test handler
 			c.String(http.StatusUnauthorized, "custom unauthorized")
 		}),
 	))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.String(http.StatusOK, "success")
 	})
 
@@ -284,6 +290,7 @@ func TestGetAuthUsername(t *testing.T) {
 	))
 	r.GET("/test", func(c *router.Context) {
 		username := GetUsername(c)
+		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "user:%s", username)
 	})
 
@@ -324,6 +331,7 @@ func TestBasicAuth_EdgeCases(t *testing.T) {
 			r := router.MustNew()
 			r.Use(New(WithUsers(tt.users)))
 			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
 				c.String(http.StatusOK, "success")
 			})
 

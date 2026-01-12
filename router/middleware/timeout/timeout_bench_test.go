@@ -27,6 +27,7 @@ func BenchmarkTimeout_NoTimeout(b *testing.B) {
 	r := router.MustNew()
 	r.Use(New(WithDuration(1 * time.Second)))
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -50,6 +51,7 @@ func BenchmarkTimeout_WithContextCheck(b *testing.B) {
 		case <-c.Request.Context().Done():
 			return
 		default:
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 		}
 	})

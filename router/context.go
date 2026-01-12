@@ -231,13 +231,14 @@ func NewPooledContext(r *Router, preallocateMap bool) *Context {
 //	}
 func (c *Context) Next() {
 	c.index++
+	//nolint:gosec // G115: Handler count bounded by router configuration, overflow not possible in practice
 	handlersLen := int32(len(c.handlers))
 
 	// Pre-compute length, check cancellation only if enabled
 	if c.router != nil && c.router.checkCancellation {
 		// With cancellation checks (default behavior)
 		for c.index < handlersLen {
-			// Check if handler chain was aborted
+			// Check if a handler chain was aborted
 			if c.aborted {
 				return
 			}
@@ -1141,7 +1142,8 @@ func (c *Context) WriteErrorResponse(status int, message string) {
 	}
 	if message != "" {
 		c.Header("Content-Type", "text/plain; charset=utf-8")
-		_, _ = io.WriteString(c.Response, message+"\n")
+		//nolint:errcheck // Best-effort write; can't handle error during error response
+		io.WriteString(c.Response, message+"\n")
 	}
 }
 
@@ -1368,7 +1370,8 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 		return err
 
 	case errors.As(err, new(*json.UnmarshalTypeError)):
-		ute := err.(*json.UnmarshalTypeError)
+		var ute *json.UnmarshalTypeError
+		errors.As(err, &ute)
 		// Valid JSON, wrong types -> 422
 		c.WriteErrorResponse(http.StatusUnprocessableEntity, fmt.Sprintf("Invalid type for field %q: expected %s", ute.Field, ute.Type))
 

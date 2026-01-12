@@ -57,6 +57,7 @@ func TestRecovery_NoPanic(t *testing.T) {
 	r.Use(New())
 
 	r.GET("/safe", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "success"})
 	})
 
@@ -76,6 +77,7 @@ func TestRecovery_CustomHandler(t *testing.T) {
 	r.Use(New(
 		WithHandler(func(c *router.Context, err any) {
 			customHandlerCalled = true
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusInternalServerError, map[string]any{
 				"custom_error": "Custom recovery",
 				"panic_value":  err,
@@ -220,6 +222,7 @@ func TestRecovery_PanicInMiddleware(t *testing.T) {
 	})
 
 	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "success"})
 	})
 
@@ -357,6 +360,7 @@ func TestRecovery_MultipleOptions(t *testing.T) {
 		WithLogger(logger),
 		WithHandler(func(c *router.Context, _ any) {
 			handlerCalled = true
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusInternalServerError, map[string]string{"error": "recovered"})
 		}),
 	))

@@ -59,12 +59,14 @@ func TestTimeout_Behavior(t *testing.T) {
 					// Properly respect context cancellation
 					select {
 					case <-time.After(tt.handlerDelay):
+						//nolint:errcheck // Test handler
 						c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 					case <-c.Request.Context().Done():
 						// Context canceled due to timeout - don't write response
 						return
 					}
 				} else {
+					//nolint:errcheck // Test handler
 					c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 				}
 			})
@@ -105,6 +107,7 @@ func TestTimeout_RespectsContextCancellation(t *testing.T) {
 			contextCancelled <- true
 			return
 		default:
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 		}
 	})
@@ -132,6 +135,7 @@ func TestTimeout_SkipPaths(t *testing.T) {
 
 	r.GET("/long-running", func(c *router.Context) {
 		time.Sleep(100 * time.Millisecond)
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -139,6 +143,7 @@ func TestTimeout_SkipPaths(t *testing.T) {
 		// Respect context cancellation
 		select {
 		case <-time.After(100 * time.Millisecond):
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 		case <-c.Request.Context().Done():
 			return
@@ -175,6 +180,7 @@ func TestTimeout_CustomHandler(t *testing.T) {
 		WithDuration(30*time.Millisecond),
 		WithHandler(func(c *router.Context, timeout time.Duration) {
 			customHandlerCalled = true
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusRequestTimeout, map[string]any{
 				"error":   "Custom timeout message",
 				"timeout": timeout.String(),
@@ -186,6 +192,7 @@ func TestTimeout_CustomHandler(t *testing.T) {
 		// Respect context cancellation
 		select {
 		case <-time.After(150 * time.Millisecond):
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 		case <-c.Request.Context().Done():
 			return
@@ -211,7 +218,9 @@ func TestTimeout_ContextPropagation(t *testing.T) {
 
 	var ctxWithTimeout context.Context
 	r.GET("/test", func(c *router.Context) {
+		//nolint:fatcontext // Test captures context for verification
 		ctxWithTimeout = c.Request.Context()
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	})
 
@@ -233,6 +242,7 @@ func TestTimeout_MultipleRequests(t *testing.T) {
 	r.Use(New(WithDuration(100 * time.Millisecond)))
 
 	fastPath := func(c *router.Context) {
+		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "fast"})
 	}
 
@@ -240,6 +250,7 @@ func TestTimeout_MultipleRequests(t *testing.T) {
 		// Respect context cancellation
 		select {
 		case <-time.After(200 * time.Millisecond):
+			//nolint:errcheck // Test handler
 			c.JSON(http.StatusOK, map[string]string{"message": "slow"})
 		case <-c.Request.Context().Done():
 			return

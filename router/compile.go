@@ -44,6 +44,7 @@ func optimalBloomFilterSize(routeCount int) uint64 {
 	}
 	// Calculate size based on route count
 	// Minimum size of 100 to avoid degenerate cases
+	//nolint:gosec // G115: Route count bounded by practical API size, overflow not possible
 	size := uint64(routeCount * 10)
 	if size < 100 {
 		return 100

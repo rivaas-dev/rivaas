@@ -52,6 +52,7 @@ func NewBloomFilter(size uint64, numHashFuncs int) *BloomFilter {
 
 	// Initialize seeds for hash functions
 	for i := range numHashFuncs {
+		//nolint:gosec // G115: numHashFuncs is small (typically < 10), overflow impossible
 		bf.seeds[i] = uint64(i + 1)
 	}
 

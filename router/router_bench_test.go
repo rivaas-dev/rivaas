@@ -48,6 +48,7 @@ func BenchmarkRouter(b *testing.B) {
 
 	for _, route := range routes {
 		r.GET(route, func(c *Context) {
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -116,6 +117,7 @@ func BenchmarkRouterWithMiddleware(b *testing.B) {
 
 	for _, route := range routes {
 		r.GET(route, func(c *Context) {
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -154,23 +156,29 @@ func BenchmarkRouterGroup(b *testing.B) {
 	// Create groups
 	api := r.Group("/api/v1")
 	api.GET("/users", func(c *Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "OK")
 	})
 	api.GET("/users/:id", func(c *Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "OK")
 	})
 	api.GET("/posts", func(c *Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "OK")
 	})
 	api.GET("/posts/:id", func(c *Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "OK")
 	})
 
 	admin := r.Group("/admin")
 	admin.GET("/users", func(c *Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "OK")
 	})
 	admin.GET("/posts", func(c *Context) {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		c.String(http.StatusOK, "OK")
 	})
 
@@ -288,6 +296,7 @@ func BenchmarkStaticRoutes(b *testing.B) {
 
 	for _, route := range staticRoutes {
 		r.GET(route, func(c *Context) {
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -360,6 +369,7 @@ func BenchmarkContextPool(b *testing.B) {
 
 	for _, route := range routes {
 		r.GET(route, func(c *Context) {
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -437,6 +447,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 
 	for _, route := range routes {
 		r.GET(route, func(c *Context) {
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -538,6 +549,7 @@ func BenchmarkBloomFilter(b *testing.B) {
 
 	for _, route := range routes {
 		r.GET(route, func(c *Context) {
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -611,6 +623,7 @@ func BenchmarkAtomicRouteRegistration(b *testing.B) {
 		for pb.Next() {
 			path := "/benchmark" + string(rune('0'+i%10)) + "/" + string(rune('0'+i%100))
 			r.GET(path, func(c *Context) {
+				//nolint:errcheck // Benchmark measures performance; error checking would skew results
 				c.String(http.StatusOK, "OK")
 			})
 			i++
@@ -639,6 +652,7 @@ func BenchmarkAtomicRouteLookup(b *testing.B) {
 
 	for _, route := range routes {
 		r.GET(route, func(c *Context) {
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
 			c.String(http.StatusOK, "OK")
 		})
 	}
@@ -685,6 +699,7 @@ func BenchmarkConcurrentRegistrationAndLookup(b *testing.B) {
 				// Register a route
 				path := "/concurrent" + string(rune('0'+i%10)) + "/" + string(rune('0'+i%100))
 				r.GET(path, func(c *Context) {
+					//nolint:errcheck // Benchmark measures performance; error checking would skew results
 					c.String(http.StatusOK, "OK")
 				})
 			} else {
