@@ -37,7 +37,8 @@ debug = true
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = TOML[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		TOML[Config](body)
 	}
 }
 
@@ -89,7 +90,8 @@ ssl_mode = "disable"
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = TOML[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		TOML[Config](body)
 	}
 }
 
@@ -111,7 +113,8 @@ tags = ["production", "web", "api", "v2"]
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = TOML[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		TOML[Config](body)
 	}
 }
 
@@ -148,7 +151,8 @@ price = 400
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = TOML[Catalog](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		TOML[Catalog](body)
 	}
 }
 
@@ -171,7 +175,8 @@ debug = true
 
 	for b.Loop() {
 		var config Config
-		_ = TOMLTo(body, &config)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		TOMLTo(body, &config)
 	}
 }
 
@@ -194,7 +199,8 @@ debug = true
 
 	for b.Loop() {
 		reader := bytes.NewReader(body)
-		_, _ = TOMLReader[Config](reader)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		TOMLReader[Config](reader)
 	}
 }
 
@@ -215,7 +221,8 @@ unknown = "ignored"
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _, _ = TOMLWithMetadata[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		TOMLWithMetadata[Config](body)
 	}
 }
 
@@ -240,7 +247,8 @@ target = { x = 100, y = 200 }
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = TOML[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		TOML[Config](body)
 	}
 }
 
@@ -263,7 +271,8 @@ debug = true
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _ = TOML[Config](body)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			TOML[Config](body)
 		}
 	})
 }

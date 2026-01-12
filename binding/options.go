@@ -568,8 +568,7 @@ var (
 //   - timeLayouts: [DefaultTimeLayouts]
 func defaultConfig() *config {
 	// Copy DefaultTimeLayouts to avoid mutation
-	layouts := make([]string, len(DefaultTimeLayouts))
-	copy(layouts, DefaultTimeLayouts)
+	layouts := append(make([]string, 0, len(DefaultTimeLayouts)), DefaultTimeLayouts...)
 
 	return &config{
 		timeLayouts:   layouts,

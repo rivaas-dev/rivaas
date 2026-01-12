@@ -37,7 +37,8 @@ debug: true
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = YAML[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		YAML[Config](body)
 	}
 }
 
@@ -100,7 +101,8 @@ logging:
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = YAML[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		YAML[Config](body)
 	}
 }
 
@@ -136,7 +138,8 @@ tags:
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = YAML[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		YAML[Config](body)
 	}
 }
 
@@ -159,7 +162,8 @@ debug: true
 
 	for b.Loop() {
 		var config Config
-		_ = YAMLTo(body, &config)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		YAMLTo(body, &config)
 	}
 }
 
@@ -182,7 +186,8 @@ debug: true
 
 	for b.Loop() {
 		reader := bytes.NewReader(body)
-		_, _ = YAMLReader[Config](reader)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		YAMLReader[Config](reader)
 	}
 }
 
@@ -204,7 +209,8 @@ debug: true
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = YAML[Config](body, WithStrict())
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		YAML[Config](body, WithStrict())
 	}
 }
 
@@ -231,7 +237,8 @@ metadata:
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = YAML[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		YAML[Config](body)
 	}
 }
 
@@ -254,7 +261,8 @@ debug: true
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _ = YAML[Config](body)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			YAML[Config](body)
 		}
 	})
 }

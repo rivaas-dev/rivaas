@@ -42,10 +42,15 @@ func FuzzConvertValue_Int(f *testing.F) {
 	f.Fuzz(func(t *testing.T, input string) {
 		opts := defaultConfig()
 		// Should never panic, even with invalid input
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Int, opts)
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Int8, opts)
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Int16, opts)
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Int32, opts)
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Int64, opts)
 	})
 }
@@ -67,10 +72,15 @@ func FuzzConvertValue_Uint(f *testing.F) {
 	f.Fuzz(func(t *testing.T, input string) {
 		opts := defaultConfig()
 		// Should never panic, even with invalid input
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Uint, opts)
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Uint8, opts)
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Uint16, opts)
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Uint32, opts)
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Uint64, opts)
 	})
 }
@@ -96,7 +106,9 @@ func FuzzConvertValue_Float(f *testing.F) {
 	f.Fuzz(func(t *testing.T, input string) {
 		opts := defaultConfig()
 		// Should never panic, even with invalid input
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Float32, opts)
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Float64, opts)
 	})
 }
@@ -129,6 +141,7 @@ func FuzzConvertValue_Bool(f *testing.F) {
 	f.Fuzz(func(t *testing.T, input string) {
 		opts := defaultConfig()
 		// Should never panic, even with invalid input
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = convertValue(input, reflect.Bool, opts)
 	})
 }
@@ -152,6 +165,7 @@ func FuzzParseBoolGenerous(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, input string) {
 		// Should never panic
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = parseBoolGenerous(input)
 	})
 }
@@ -173,6 +187,7 @@ func FuzzParseTime(f *testing.F) {
 	f.Fuzz(func(t *testing.T, input string) {
 		opts := defaultConfig()
 		// Should never panic, even with invalid input
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_, _ = parseTime(input, opts)
 	})
 }
@@ -193,6 +208,7 @@ func FuzzExtractBracketKey(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, fullKey, prefix string) {
 		// Should never panic
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_ = extractBracketKey(fullKey, prefix)
 	})
 }
@@ -224,6 +240,7 @@ func FuzzQueryBinding(f *testing.F) {
 
 		var params Params
 		// Should never panic, even with invalid input
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_ = Raw(NewQueryGetter(values), TagQuery, &params)
 	})
 }
@@ -250,6 +267,7 @@ func FuzzJSONBinding(f *testing.F) {
 
 		var user User
 		// Should never panic, even with invalid input
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_ = JSONTo([]byte(jsonInput), &user)
 	})
 }
@@ -276,6 +294,7 @@ func FuzzMapBinding(f *testing.F) {
 
 		var params Params
 		// Should never panic
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_ = Raw(NewQueryGetter(values), TagQuery, &params)
 	})
 }
@@ -305,6 +324,7 @@ func FuzzNestedStructBinding(f *testing.F) {
 
 		var params Params
 		// Should never panic
+		//nolint:errcheck // Fuzz test intentionally ignores errors; testing panic-safety only
 		_ = Raw(NewQueryGetter(values), TagQuery, &params)
 	})
 }

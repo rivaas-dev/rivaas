@@ -15,6 +15,7 @@
 package binding
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"testing"
@@ -183,7 +184,8 @@ func AssertBindError(t *testing.T, err error, expectedField string) *BindError {
 		t.Fatalf("AssertBindError: expected BindError for field %q, got nil", expectedField)
 	}
 
-	bindErr, ok := err.(*BindError)
+	var bindErr *BindError
+	ok := errors.As(err, &bindErr)
 	if !ok {
 		t.Fatalf("AssertBindError: expected *BindError, got %T: %v", err, err)
 	}
@@ -209,7 +211,8 @@ func AssertNoBindError(t *testing.T, err error) {
 		return
 	}
 
-	if bindErr, ok := err.(*BindError); ok {
+	var bindErr *BindError
+	if errors.As(err, &bindErr) {
 		t.Fatalf("AssertNoBindError: binding failed for field %q (%s): %v",
 			bindErr.Field, bindErr.Source, bindErr.Error())
 	}
@@ -228,7 +231,8 @@ func MustBind[T any](t *testing.T, getter ValueGetter, tag string, opts ...Optio
 
 	result, err := RawInto[T](getter, tag, opts...)
 	if err != nil {
-		if bindErr, ok := err.(*BindError); ok {
+		var bindErr *BindError
+		if errors.As(err, &bindErr) {
 			t.Fatalf("MustBind[%T]: binding failed for field %q (%s): %v",
 				result, bindErr.Field, bindErr.Source, bindErr.Error())
 		}
@@ -264,7 +268,8 @@ func MustBindQuery[T any](t *testing.T, values url.Values, opts ...Option) T {
 
 	result, err := Query[T](values, opts...)
 	if err != nil {
-		if bindErr, ok := err.(*BindError); ok {
+		var bindErr *BindError
+		if errors.As(err, &bindErr) {
 			t.Fatalf("MustBindQuery[%T]: binding failed for field %q (%s): %v",
 				result, bindErr.Field, bindErr.Source, bindErr.Error())
 		}
@@ -284,7 +289,8 @@ func MustBindForm[T any](t *testing.T, values url.Values, opts ...Option) T {
 
 	result, err := Form[T](values, opts...)
 	if err != nil {
-		if bindErr, ok := err.(*BindError); ok {
+		var bindErr *BindError
+		if errors.As(err, &bindErr) {
 			t.Fatalf("MustBindForm[%T]: binding failed for field %q (%s): %v",
 				result, bindErr.Field, bindErr.Source, bindErr.Error())
 		}

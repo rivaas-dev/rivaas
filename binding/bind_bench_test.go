@@ -63,7 +63,8 @@ func BenchmarkBind(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_ = Raw(getter, TagQuery, &params)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			Raw(getter, TagQuery, &params)
 		}
 	})
 
@@ -74,7 +75,8 @@ func BenchmarkBind(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_ = Raw(getter, TagQuery, &params)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			Raw(getter, TagQuery, &params)
 		}
 	})
 }
@@ -98,7 +100,8 @@ func BenchmarkBind_Parallel(b *testing.B) {
 		var params Params
 		getter := NewQueryGetter(values)
 		for pb.Next() {
-			_ = Raw(getter, TagQuery, &params)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			Raw(getter, TagQuery, &params)
 		}
 	})
 }
@@ -120,7 +123,8 @@ func BenchmarkBindInto(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = RawInto[Params](getter, TagPath)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		RawInto[Params](getter, TagPath)
 	}
 }
 
@@ -144,7 +148,8 @@ func BenchmarkBindTo(b *testing.B) {
 
 	for b.Loop() {
 		var req Request
-		_ = BindTo(&req,
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		BindTo(&req,
 			FromPath(params),
 			FromQuery(query),
 			FromHeader(headers),
@@ -190,7 +195,8 @@ func BenchmarkBind_Allocations(b *testing.B) {
 
 	for b.Loop() {
 		var params Params
-		_ = Raw(getter, TagQuery, &params)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Raw(getter, TagQuery, &params)
 	}
 }
 
@@ -221,7 +227,8 @@ func BenchmarkBind_NestedStruct(b *testing.B) {
 
 	for b.Loop() {
 		var user User
-		_ = Raw(getter, TagQuery, &user)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Raw(getter, TagQuery, &user)
 	}
 }
 
@@ -246,7 +253,8 @@ func BenchmarkBind_Slices(b *testing.B) {
 
 	for b.Loop() {
 		var params Params
-		_ = Raw(getter, TagQuery, &params)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Raw(getter, TagQuery, &params)
 	}
 }
 
@@ -267,6 +275,7 @@ func BenchmarkBind_WithDefaults(b *testing.B) {
 
 	for b.Loop() {
 		var config Config
-		_ = Raw(getter, TagQuery, &config)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Raw(getter, TagQuery, &config)
 	}
 }

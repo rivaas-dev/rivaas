@@ -40,7 +40,8 @@ func BenchmarkProto_SmallMessage(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = Proto[*testdata.User](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Proto[*testdata.User](body)
 	}
 }
 
@@ -69,7 +70,8 @@ func BenchmarkProto_LargeMessage(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = Proto[*testdata.Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Proto[*testdata.Config](body)
 	}
 }
 
@@ -89,7 +91,8 @@ func BenchmarkProto_RepeatedFields(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = Proto[*testdata.Product](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Proto[*testdata.Product](body)
 	}
 }
 
@@ -113,7 +116,8 @@ func BenchmarkProto_MapFields(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = Proto[*testdata.Settings](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Proto[*testdata.Settings](body)
 	}
 }
 
@@ -135,7 +139,8 @@ func BenchmarkProtoTo_NonGeneric(b *testing.B) {
 
 	for b.Loop() {
 		var result testdata.User
-		_ = ProtoTo(body, &result)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		ProtoTo(body, &result)
 	}
 }
 
@@ -157,7 +162,8 @@ func BenchmarkProtoReader(b *testing.B) {
 
 	for b.Loop() {
 		reader := bytes.NewReader(body)
-		_, _ = ProtoReader[*testdata.User](reader)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		ProtoReader[*testdata.User](reader)
 	}
 }
 
@@ -178,7 +184,8 @@ func BenchmarkProto_WithOptions(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = Proto[*testdata.User](body,
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Proto[*testdata.User](body,
 			WithDiscardUnknown(),
 			WithAllowPartial(),
 			WithRecursionLimit(5000),
@@ -204,7 +211,8 @@ func BenchmarkProto_Parallel(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _ = Proto[*testdata.User](body)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			Proto[*testdata.User](body)
 		}
 	})
 }
@@ -215,6 +223,7 @@ func BenchmarkProto_LargeRepeatedFields(b *testing.B) {
 	prices := make([]int32, 0, 100)
 	for i := range 100 {
 		tags = append(tags, "tag")
+		//nolint:gosec // G115: Safe conversion - i is in range [0,99], i*10 max is 990
 		prices = append(prices, int32(i*10))
 	}
 
@@ -232,7 +241,8 @@ func BenchmarkProto_LargeRepeatedFields(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = Proto[*testdata.Product](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Proto[*testdata.Product](body)
 	}
 }
 
@@ -256,6 +266,7 @@ func BenchmarkProto_LargeMapFields(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = Proto[*testdata.Settings](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Proto[*testdata.Settings](body)
 	}
 }

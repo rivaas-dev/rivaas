@@ -423,25 +423,29 @@ func setMapField(field reflect.Value, getter ValueGetter, prefix string, fieldTy
 	// For query/form getters, check all keys for both syntaxes
 	if qg, ok := getter.(*QueryGetter); ok {
 		var err error
-		found, entryCount, err = bindMapFromValues(
+		var foundQuery bool
+		foundQuery, entryCount, err = bindMapFromValues(
 			qg.values, qg.Get, prefixDot, prefixBracket, prefix,
 			mapField, valueType, opts, entryCount,
 		)
 		if err != nil {
 			return err
 		}
+		found = found || foundQuery
 	}
 
-	// Also check formGetter for form data
+	// Also check formGetter for form data (accumulate into existing map)
 	if fg, ok := getter.(*FormGetter); ok {
 		var err error
-		found, entryCount, err = bindMapFromValues(
+		var foundForm bool
+		foundForm, _, err = bindMapFromValues(
 			fg.values, fg.Get, prefixDot, prefixBracket, prefix,
 			mapField, valueType, opts, entryCount,
 		)
 		if err != nil {
 			return err
 		}
+		found = found || foundForm // Combine the found flags
 	}
 
 	// If no dot/bracket keys found, try JSON string parsing as fallback

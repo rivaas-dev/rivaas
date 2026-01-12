@@ -43,7 +43,8 @@ func BenchmarkMsgPack_SmallStruct(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = MsgPack[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MsgPack[Config](body)
 	}
 }
 
@@ -99,7 +100,8 @@ func BenchmarkMsgPack_LargeStruct(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = MsgPack[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MsgPack[Config](body)
 	}
 }
 
@@ -128,7 +130,8 @@ func BenchmarkMsgPack_Arrays(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = MsgPack[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MsgPack[Config](body)
 	}
 }
 
@@ -155,7 +158,8 @@ func BenchmarkMsgPackTo_NonGeneric(b *testing.B) {
 
 	for b.Loop() {
 		var config Config
-		_ = MsgPackTo(body, &config)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MsgPackTo(body, &config)
 	}
 }
 
@@ -182,7 +186,8 @@ func BenchmarkMsgPackReader(b *testing.B) {
 
 	for b.Loop() {
 		reader := bytes.NewReader(body)
-		_, _ = MsgPackReader[Config](reader)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MsgPackReader[Config](reader)
 	}
 }
 
@@ -211,7 +216,8 @@ func BenchmarkMsgPack_WithJSONTag(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = MsgPack[Config](body, WithJSONTag())
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MsgPack[Config](body, WithJSONTag())
 	}
 }
 
@@ -243,7 +249,8 @@ func BenchmarkMsgPack_Maps(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = MsgPack[Config](body)
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MsgPack[Config](body)
 	}
 }
 
@@ -269,7 +276,8 @@ func BenchmarkMsgPack_DisallowUnknown(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = MsgPack[Config](body, WithDisallowUnknown())
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MsgPack[Config](body, WithDisallowUnknown())
 	}
 }
 
@@ -296,7 +304,8 @@ func BenchmarkMsgPack_Parallel(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _ = MsgPack[Config](body)
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			MsgPack[Config](body)
 		}
 	})
 }

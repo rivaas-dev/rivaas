@@ -32,6 +32,7 @@
 package proto
 
 import (
+	"fmt"
 	"io"
 
 	"google.golang.org/protobuf/proto"
@@ -108,7 +109,11 @@ func Proto[T Message](body []byte, opts ...Option) (T, error) {
 
 	// Create a new instance of T
 	// Since T is a pointer to a proto message, we need to get the element type
-	result = result.ProtoReflect().New().Interface().(T)
+	if newInstance, ok := result.ProtoReflect().New().Interface().(T); ok {
+		result = newInstance
+	} else {
+		return result, fmt.Errorf("failed to create new instance of proto message")
+	}
 
 	cfg := applyOptions(opts)
 	if err := bindProtoBytes(result, body, cfg); err != nil {
@@ -129,7 +134,11 @@ func ProtoReader[T Message](r io.Reader, opts ...Option) (T, error) {
 	var result T
 
 	// Create a new instance of T
-	result = result.ProtoReflect().New().Interface().(T)
+	if newInstance, ok := result.ProtoReflect().New().Interface().(T); ok {
+		result = newInstance
+	} else {
+		return result, fmt.Errorf("failed to create new instance of proto message")
+	}
 
 	cfg := applyOptions(opts)
 	if err := bindProtoReader(result, r, cfg); err != nil {

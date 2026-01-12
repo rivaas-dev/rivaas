@@ -357,6 +357,7 @@ func TestIntegration_ProtoLargePayload(t *testing.T) {
 	prices := make([]int32, 0, 100)
 	for i := range 100 {
 		tags = append(tags, "tag")
+		//nolint:gosec // G115: Safe conversion - i is in range [0,99], i*10 max is 990
 		prices = append(prices, int32(i*10))
 	}
 
