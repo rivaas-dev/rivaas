@@ -16,6 +16,7 @@ package errors
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -84,12 +85,14 @@ func TestSimple_Format(t *testing.T) {
 			assert.Equal(t, tt.err.Error(), body["error"], "error")
 
 			// Check code if available
-			if coded, codedOk := tt.err.(ErrorCode); codedOk {
+			var coded ErrorCode
+			if errors.As(tt.err, &coded) {
 				assert.Equal(t, coded.Code(), body["code"], "code")
 			}
 
 			// Check details if available
-			if detailed, detailedOk := tt.err.(ErrorDetails); detailedOk {
+			var detailed ErrorDetails
+			if errors.As(tt.err, &detailed) {
 				assert.NotNil(t, body["details"], "details not found in body")
 				// Details should be present
 				_ = detailed.Details()

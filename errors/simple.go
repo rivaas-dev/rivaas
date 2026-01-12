@@ -60,12 +60,14 @@ func (f *Simple) Format(req *http.Request, err error) Response {
 	}
 
 	// Add details if available
-	if detailed, ok := err.(ErrorDetails); ok {
+	var detailed ErrorDetails
+	if errors.As(err, &detailed) {
 		body["details"] = detailed.Details()
 	}
 
 	// Add code if available
-	if coded, ok := err.(ErrorCode); ok {
+	var coded ErrorCode
+	if errors.As(err, &coded) {
 		body["code"] = coded.Code()
 	}
 

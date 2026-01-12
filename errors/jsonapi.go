@@ -85,7 +85,8 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 	var apiErrors []jsonAPIError
 
 	// Handle validation errors - convert to multiple JSON:API errors
-	if detailed, ok := err.(ErrorDetails); ok {
+	var detailed ErrorDetails
+	if errors.As(err, &detailed) {
 		details := detailed.Details()
 
 		// Try to handle as a slice (validation.Error returns []FieldError)
@@ -156,7 +157,8 @@ func (f *JSONAPI) Format(req *http.Request, err error) Response {
 		}
 
 		// Add code if available
-		if coded, codedOk := err.(ErrorCode); codedOk {
+		var coded ErrorCode
+		if errors.As(err, &coded) {
 			apiErr.Code = coded.Code()
 		}
 

@@ -43,10 +43,11 @@ func ExampleRFC9457() {
 	w := httptest.NewRecorder()
 	w.WriteHeader(response.Status)
 	w.Header().Set("Content-Type", response.ContentType)
-	_ = json.NewEncoder(w).Encode(response.Body)
+	//nolint:errcheck // Example test writes to recorder; encoding cannot fail
+	json.NewEncoder(w).Encode(response.Body)
 
-	_, _ = fmt.Printf("Status: %d\n", response.Status)
-	_, _ = fmt.Printf("Content-Type: %s\n", response.ContentType)
+	fmt.Printf("Status: %d\n", response.Status)
+	fmt.Printf("Content-Type: %s\n", response.ContentType)
 	// Output:
 	// Status: 500
 	// Content-Type: application/problem+json; charset=utf-8
@@ -70,10 +71,11 @@ func ExampleJSONAPI() {
 	w := httptest.NewRecorder()
 	w.WriteHeader(response.Status)
 	w.Header().Set("Content-Type", response.ContentType)
-	_ = json.NewEncoder(w).Encode(response.Body)
+	//nolint:errcheck // Example test writes to recorder; encoding cannot fail
+	json.NewEncoder(w).Encode(response.Body)
 
-	_, _ = fmt.Printf("Status: %d\n", response.Status)
-	_, _ = fmt.Printf("Content-Type: %s\n", response.ContentType)
+	fmt.Printf("Status: %d\n", response.Status)
+	fmt.Printf("Content-Type: %s\n", response.ContentType)
 	// Output:
 	// Status: 500
 	// Content-Type: application/vnd.api+json; charset=utf-8
@@ -97,10 +99,11 @@ func ExampleSimple() {
 	w := httptest.NewRecorder()
 	w.WriteHeader(response.Status)
 	w.Header().Set("Content-Type", response.ContentType)
-	_ = json.NewEncoder(w).Encode(response.Body)
+	//nolint:errcheck // Example test writes to recorder; encoding cannot fail
+	json.NewEncoder(w).Encode(response.Body)
 
-	_, _ = fmt.Printf("Status: %d\n", response.Status)
-	_, _ = fmt.Printf("Content-Type: %s\n", response.ContentType)
+	fmt.Printf("Status: %d\n", response.Status)
+	fmt.Printf("Content-Type: %s\n", response.ContentType)
 	// Output:
 	// Status: 500
 	// Content-Type: application/json; charset=utf-8
@@ -120,8 +123,9 @@ func ExampleRFC9457_customErrorID() {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	response := formatter.Format(req, err)
 
+	//nolint:forcetypeassert,errcheck // Safe: example test, formatter always returns ProblemDetail; encoding cannot fail
 	body := response.Body.(errors.ProblemDetail)
-	_, _ = fmt.Printf("Error ID: %v\n", body.Extensions["error_id"])
+	fmt.Printf("Error ID: %v\n", body.Extensions["error_id"])
 	// Output:
 	// Error ID: custom-id-12345
 }
@@ -138,9 +142,10 @@ func ExampleRFC9457_disableErrorID() {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	response := formatter.Format(req, err)
 
+	//nolint:forcetypeassert,errcheck // Safe: example test, formatter always returns ProblemDetail; encoding cannot fail
 	body := response.Body.(errors.ProblemDetail)
 	if _, ok := body.Extensions["error_id"]; !ok {
-		_, _ = fmt.Println("Error ID is disabled")
+		fmt.Println("Error ID is disabled")
 	}
 	// Output:
 	// Error ID is disabled

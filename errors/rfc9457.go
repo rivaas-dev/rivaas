@@ -148,12 +148,14 @@ func (f *RFC9457) Format(req *http.Request, err error) Response {
 	}
 
 	// Enrich with details if available
-	if detailed, ok := err.(ErrorDetails); ok {
+	var detailed ErrorDetails
+	if errors.As(err, &detailed) {
 		p.Extensions["errors"] = detailed.Details()
 	}
 
 	// Add code if available
-	if coded, ok := err.(ErrorCode); ok {
+	var coded ErrorCode
+	if errors.As(err, &coded) {
 		p.Extensions["code"] = coded.Code()
 	}
 
