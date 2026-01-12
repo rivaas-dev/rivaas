@@ -34,10 +34,9 @@ func TestOSEnvVarTestSuite(t *testing.T) {
 }
 
 func (s *OSEnvVarTestSuite) TestLoad_Simple() {
-	os.Setenv("FOO", "bar")
-	os.Setenv("BAZ", "qux")
-	defer os.Unsetenv("FOO")
-	defer os.Unsetenv("BAZ")
+	s.T().Setenv("FOO", "bar")
+	s.T().Setenv("BAZ", "qux")
+
 	loader := NewOSEnvVar("")
 	conf, err := loader.Load(context.TODO())
 	s.NoError(err)
@@ -46,12 +45,10 @@ func (s *OSEnvVarTestSuite) TestLoad_Simple() {
 }
 
 func (s *OSEnvVarTestSuite) TestLoad_Nested() {
-	os.Setenv("DATABASE_HOST", "localhost")
-	os.Setenv("DATABASE_PORT", "5432")
-	os.Setenv("DATABASE_USER_NAME", "admin")
-	defer os.Unsetenv("DATABASE_HOST")
-	defer os.Unsetenv("DATABASE_PORT")
-	defer os.Unsetenv("DATABASE_USER_NAME")
+	s.T().Setenv("DATABASE_HOST", "localhost")
+	s.T().Setenv("DATABASE_PORT", "5432")
+	s.T().Setenv("DATABASE_USER_NAME", "admin")
+
 	loader := NewOSEnvVar("")
 	conf, err := loader.Load(context.TODO())
 	s.NoError(err)
@@ -74,12 +71,10 @@ func (s *OSEnvVarTestSuite) TestLoad_Empty() {
 }
 
 func (s *OSEnvVarTestSuite) TestLoad_Prefix() {
-	os.Setenv("APP_FOO", "bar")
-	os.Setenv("APP_BAR", "baz")
-	os.Setenv("OTHER", "skip")
-	defer os.Unsetenv("APP_FOO")
-	defer os.Unsetenv("APP_BAR")
-	defer os.Unsetenv("OTHER")
+	s.T().Setenv("APP_FOO", "bar")
+	s.T().Setenv("APP_BAR", "baz")
+	s.T().Setenv("OTHER", "skip")
+
 	loader := NewOSEnvVar("APP_")
 	conf, err := loader.Load(context.TODO())
 	s.NoError(err)

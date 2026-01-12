@@ -17,7 +17,6 @@ package main
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,17 +28,10 @@ import (
 
 func TestMixedYAMLAndEnvironmentVariables(t *testing.T) {
 	// Set up test environment variables to override YAML defaults
-	os.Setenv("WEBAPP_SERVER_PORT", "9090")
-	os.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "test-db")
-	os.Setenv("WEBAPP_AUTH_JWT_SECRET", "test-secret")
-	os.Setenv("WEBAPP_FEATURES_DEBUG_MODE", "false")
-
-	defer func() {
-		os.Unsetenv("WEBAPP_SERVER_PORT")
-		os.Unsetenv("WEBAPP_DATABASE_PRIMARY_HOST")
-		os.Unsetenv("WEBAPP_AUTH_JWT_SECRET")
-		os.Unsetenv("WEBAPP_FEATURES_DEBUG_MODE")
-	}()
+	t.Setenv("WEBAPP_SERVER_PORT", "9090")
+	t.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "test-db")
+	t.Setenv("WEBAPP_AUTH_JWT_SECRET", "test-secret")
+	t.Setenv("WEBAPP_FEATURES_DEBUG_MODE", "false")
 
 	// Create configuration with both YAML and environment variables
 	cfg, err := config.New(
@@ -82,12 +74,6 @@ func TestMixedYAMLAndEnvironmentVariables(t *testing.T) {
 }
 
 func TestYAMLOnlyConfiguration(t *testing.T) {
-	// Clear any existing environment variables
-	os.Unsetenv("WEBAPP_SERVER_PORT")
-	os.Unsetenv("WEBAPP_DATABASE_PRIMARY_HOST")
-	os.Unsetenv("WEBAPP_AUTH_JWT_SECRET")
-	os.Unsetenv("WEBAPP_FEATURES_DEBUG_MODE")
-
 	// Create configuration with only YAML file
 	cfg, err := config.New(
 		config.WithFileSource("config.yaml", codec.TypeYAML),
@@ -109,17 +95,10 @@ func TestYAMLOnlyConfiguration(t *testing.T) {
 
 func TestEnvironmentVariablesOnly(t *testing.T) {
 	// Set environment variables
-	os.Setenv("WEBAPP_SERVER_HOST", "env-host")
-	os.Setenv("WEBAPP_SERVER_PORT", "8080")
-	os.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "env-db")
-	os.Setenv("WEBAPP_AUTH_JWT_SECRET", "env-secret")
-
-	defer func() {
-		os.Unsetenv("WEBAPP_SERVER_HOST")
-		os.Unsetenv("WEBAPP_SERVER_PORT")
-		os.Unsetenv("WEBAPP_DATABASE_PRIMARY_HOST")
-		os.Unsetenv("WEBAPP_AUTH_JWT_SECRET")
-	}()
+	t.Setenv("WEBAPP_SERVER_HOST", "env-host")
+	t.Setenv("WEBAPP_SERVER_PORT", "8080")
+	t.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "env-db")
+	t.Setenv("WEBAPP_AUTH_JWT_SECRET", "env-secret")
 
 	// Create configuration with only environment variables
 	cfg, err := config.New(

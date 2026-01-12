@@ -130,7 +130,9 @@ func (s *CasterCodecTestSuite) TestDecode_AllTypes() {
 		s.NoError(err, "type %v", tt.castType)
 		// For float32, compare as string to avoid precision issues
 		if f32, ok := tt.want.(float32); ok {
-			s.Equal(strconv.FormatFloat(float64(f32), 'f', 1, 32), strconv.FormatFloat(float64(v.(float32)), 'f', 1, 32))
+			actualF32, okFloat := v.(float32)
+			s.Require().True(okFloat, "expected v to be float32, got %T", v)
+			s.Equal(strconv.FormatFloat(float64(f32), 'f', 1, 32), strconv.FormatFloat(float64(actualF32), 'f', 1, 32))
 		} else {
 			s.Equal(tt.want, v, "type %v", tt.castType)
 		}

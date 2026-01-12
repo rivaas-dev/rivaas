@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -52,7 +51,7 @@ func (s *ConsulSourceTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	// Set the Consul HTTP address environment variable to allow Config to connect to the Consul server
-	os.Setenv("CONSUL_HTTP_ADDR", endpoint)
+	s.T().Setenv("CONSUL_HTTP_ADDR", endpoint)
 
 	// Create Consul client
 	config := api.DefaultConfig()
@@ -307,7 +306,7 @@ func (s *ConsulSourceTestSuite) TestLoad_WithEmptyValue() {
 func (s *ConsulSourceTestSuite) TestLoad_WithLargeValue() {
 	// Set up test data with large value (500KB, just under Consul's 512KB limit)
 	key := "test/large-value"
-	largeValue := make([]byte, 500*1024) // 500KB
+	largeValue := make([]byte, 0, 500*1024) // 500KB
 	for i := range largeValue {
 		largeValue[i] = byte(i % 256)
 	}

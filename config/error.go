@@ -17,10 +17,10 @@ package config
 
 import "fmt"
 
-// ConfigError represents a configuration error with detailed context.
+// Error ConfigError represents a configuration error with detailed context.
 // It provides information about where the error occurred (source, field),
 // what operation was being performed, and the underlying error.
-type ConfigError struct {
+type Error struct {
 	Source    string // The source where the error occurred (e.g., "source[0]", "json-schema", "binding")
 	Field     string // The specific field where the error occurred (optional)
 	Operation string // The operation being performed (e.g., "load", "validate", "bind", "merge")
@@ -29,7 +29,7 @@ type ConfigError struct {
 
 // Error returns a formatted error message with context information.
 // If Field is provided, it includes the field in the error message.
-func (e *ConfigError) Error() string {
+func (e *Error) Error() string {
 	if e.Field != "" {
 		return fmt.Sprintf("config error in %s.%s during %s: %v",
 			e.Source, e.Field, e.Operation, e.Err)
@@ -40,24 +40,24 @@ func (e *ConfigError) Error() string {
 
 // Unwrap returns the underlying error, allowing for error chain inspection.
 // This enables the use of errors.Is() and errors.As() with ConfigError.
-func (e *ConfigError) Unwrap() error {
+func (e *Error) Unwrap() error {
 	return e.Err
 }
 
-// NewConfigError creates a new ConfigError with the provided context.
+// NewError creates a new ConfigError with the provided context.
 // This is a convenience function for creating ConfigError instances.
-func NewConfigError(source, operation string, err error) *ConfigError {
-	return &ConfigError{
+func NewError(source, operation string, err error) *Error {
+	return &Error{
 		Source:    source,
 		Operation: operation,
 		Err:       err,
 	}
 }
 
-// NewConfigFieldError creates a new ConfigError with field information.
+// NewFieldError creates a new ConfigError with field information.
 // This is useful when the error is specific to a particular configuration field.
-func NewConfigFieldError(source, field, operation string, err error) *ConfigError {
-	return &ConfigError{
+func NewFieldError(source, field, operation string, err error) *Error {
+	return &Error{
 		Source:    source,
 		Field:     field,
 		Operation: operation,

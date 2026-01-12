@@ -17,8 +17,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"testing"
 
 	"rivaas.dev/config"
@@ -27,15 +25,9 @@ import (
 
 func TestDebugEnvVars(t *testing.T) {
 	// Set a few environment variables
-	os.Setenv("WEBAPP_SERVER_HOST", "test-host")
-	os.Setenv("WEBAPP_SERVER_PORT", "8080")
-	os.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "test-db")
-
-	defer func() {
-		os.Unsetenv("WEBAPP_SERVER_HOST")
-		os.Unsetenv("WEBAPP_SERVER_PORT")
-		os.Unsetenv("WEBAPP_DATABASE_PRIMARY_HOST")
-	}()
+	t.Setenv("WEBAPP_SERVER_HOST", "test-host")
+	t.Setenv("WEBAPP_SERVER_PORT", "8080")
+	t.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "test-db")
 
 	// Create environment variable source directly
 	envSource := source.NewOSEnvVar("WEBAPP_")
@@ -46,17 +38,17 @@ func TestDebugEnvVars(t *testing.T) {
 		t.Fatalf("Failed to load environment variables: %v", err)
 	}
 
-	fmt.Printf("Loaded config: %+v\n", configMap)
+	t.Logf("Loaded config: %+v\n", configMap)
 
 	// Check specific values
 	if host, ok := configMap["server"].(map[string]any); ok {
 		if serverHost, exists := host["host"]; exists {
-			fmt.Printf("Server host: %v\n", serverHost)
+			t.Logf("Server host: %v\n", serverHost)
 		} else {
-			fmt.Printf("Server host not found in: %+v\n", host)
+			t.Logf("Server host not found in: %+v\n", host)
 		}
 	} else {
-		fmt.Printf("Server section not found or not a map: %T %+v\n", configMap["server"], configMap["server"])
+		t.Logf("Server section not found or not a map: %T %+v\n", configMap["server"], configMap["server"])
 	}
 
 	// Test with config
@@ -72,7 +64,7 @@ func TestDebugEnvVars(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	fmt.Printf("Config server host: %s\n", cfg.String("server.host"))
-	fmt.Printf("Config server port: %d\n", cfg.Int("server.port"))
-	fmt.Printf("Config database host: %s\n", cfg.String("database.primary.host"))
+	t.Logf("Config server host: %s\n", cfg.String("server.host"))
+	t.Logf("Config server port: %d\n", cfg.Int("server.port"))
+	t.Logf("Config database host: %s\n", cfg.String("database.primary.host"))
 }

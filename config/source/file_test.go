@@ -31,14 +31,16 @@ type FileSourceTestSuite struct {
 func (s *FileSourceTestSuite) SetupTest() {
 	f, err := os.CreateTemp("", "filesource_test_*.json")
 	s.Require().NoError(err)
+
 	s.tmpFile = f.Name()
-	_, _ = f.WriteString(`{"foo": "bar"}`)
-	_ = f.Close()
+	_, err = f.WriteString(`{"foo": "bar"}`)
+	s.Require().NoError(err)
+	s.Require().NoError(f.Close())
 }
 
 func (s *FileSourceTestSuite) TearDownTest() {
 	if s.tmpFile != "" {
-		_ = os.Remove(s.tmpFile)
+		s.Require().NoError(os.Remove(s.tmpFile))
 	}
 }
 
@@ -58,8 +60,10 @@ func (s *FileSourceTestSuite) TestLoad_EmptyFile() {
 	f, err := os.CreateTemp("", "filesource_empty_*.json")
 	s.Require().NoError(err)
 	tmp := f.Name()
-	_ = f.Close()
-	defer os.Remove(tmp)
+	s.Require().NoError(f.Close())
+	defer func() {
+		s.Require().NoError(os.Remove(tmp))
+	}()
 	decoder := &mockDecoderFile{decodeMap: map[string]any{}}
 	file := NewFile(tmp, decoder)
 	conf, err := file.Load(context.TODO())

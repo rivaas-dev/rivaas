@@ -42,7 +42,7 @@ func FuzzContentSourceJSON(f *testing.F) {
 		err = cfg.Load(context.Background())
 		// Invalid JSON should return an error, not panic
 		if err != nil {
-			var configErr *ConfigError
+			var configErr *Error
 			if !errors.As(err, &configErr) {
 				// Error should be wrapped in ConfigError
 				t.Logf("expected ConfigError, got %T: %v", err, err)
@@ -69,7 +69,7 @@ func FuzzContentSourceYAML(f *testing.F) {
 		// Should not panic even with invalid input
 		err = cfg.Load(context.Background())
 		if err != nil {
-			var configErr *ConfigError
+			var configErr *Error
 			if !errors.As(err, &configErr) {
 				t.Logf("expected ConfigError, got %T: %v", err, err)
 			}
@@ -94,7 +94,7 @@ func FuzzContentSourceTOML(f *testing.F) {
 		// Should not panic even with invalid input
 		err = cfg.Load(context.Background())
 		if err != nil {
-			var configErr *ConfigError
+			var configErr *Error
 			if !errors.As(err, &configErr) {
 				t.Logf("expected ConfigError, got %T: %v", err, err)
 			}
@@ -197,7 +197,10 @@ func FuzzValidator(f *testing.F) {
 		}
 
 		// Should not panic even with invalid input
-		_ = cfg.Load(context.Background())
+		err = cfg.Load(context.Background())
+		if err != nil {
+			t.Logf("expected validation error for input %q: %v", value, err)
+		}
 	})
 }
 
@@ -223,7 +226,10 @@ func FuzzBinding(f *testing.F) {
 		}
 
 		// Should not panic with any input
-		_ = cfg.Load(context.Background())
+		err = cfg.Load(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
 	})
 }
 

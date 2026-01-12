@@ -211,6 +211,60 @@ func TestLoad_MultipleSources(t *testing.T) {
 	assert.Equal(t, 3, cfg.Int("baz"))
 }
 
+func TestMustLoad(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success with valid source", func(t *testing.T) {
+		t.Parallel()
+		src := &mockSource{conf: map[string]any{"foo": "bar"}}
+		cfg := MustNew(WithSource(src))
+		assert.NotPanics(t, func() {
+			cfg.MustLoad(context.Background())
+		})
+		assert.Equal(t, "bar", cfg.String("foo"))
+	})
+
+	t.Run("success with no sources", func(t *testing.T) {
+		t.Parallel()
+		cfg := MustNew()
+		assert.NotPanics(t, func() {
+			cfg.MustLoad(context.Background())
+		})
+	})
+
+	t.Run("panics on source error", func(t *testing.T) {
+		t.Parallel()
+		src := &mockSource{err: errors.New("source failed")}
+		cfg := MustNew(WithSource(src))
+		assert.Panics(t, func() {
+			cfg.MustLoad(context.Background())
+		})
+	})
+
+	t.Run("panics on nil context", func(t *testing.T) {
+		t.Parallel()
+		cfg := MustNew()
+		assert.Panics(t, func() {
+			//nolint:staticcheck // Intentionally testing nil context error handling
+			cfg.MustLoad(nil)
+		})
+	})
+
+	t.Run("panics on validation error", func(t *testing.T) {
+		t.Parallel()
+		src := &mockSource{conf: map[string]any{"foo": "bar"}}
+		cfg := MustNew(
+			WithSource(src),
+			WithValidator(func(values map[string]any) error {
+				return errors.New("validation failed")
+			}),
+		)
+		assert.Panics(t, func() {
+			cfg.MustLoad(context.Background())
+		})
+	})
+}
+
 func TestBinding(t *testing.T) {
 	t.Parallel()
 
@@ -228,7 +282,8 @@ func TestBinding(t *testing.T) {
 				return &bindStruct{}
 			},
 			verify: func(t *testing.T, target any) {
-				bind := target.(*bindStruct)
+				bind, isBind := target.(*bindStruct)
+				require.True(t, isBind)
 				assert.Equal(t, "bar", bind.Foo)
 				assert.Equal(t, 42, bind.Bar)
 			},
@@ -241,7 +296,8 @@ func TestBinding(t *testing.T) {
 				return &bindStruct{}
 			},
 			verify: func(t *testing.T, target any) {
-				bind := target.(*bindStruct)
+				bind, isBind := target.(*bindStruct)
+				require.True(t, isBind)
 				assert.Equal(t, "bar", bind.Foo)
 				assert.Equal(t, 42, bind.Bar)
 			},
@@ -254,7 +310,8 @@ func TestBinding(t *testing.T) {
 				return &bindStruct{}
 			},
 			verify: func(t *testing.T, target any) {
-				bind := target.(*bindStruct)
+				bind, isBind := target.(*bindStruct)
+				require.True(t, isBind)
 				assert.Equal(t, "bar", bind.Foo)
 				assert.Equal(t, 0, bind.Bar)
 			},
@@ -300,15 +357,15 @@ func TestDump(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		setup   func() (*Config, *mockDumper, error)
-		verify  func(t *testing.T, dumper *mockDumper)
+		setup   func() (*Config, *MockDumper, error)
+		verify  func(t *testing.T, dumper *MockDumper)
 		wantErr bool
 	}{
 		{
 			name: "calls dumper successfully",
-			setup: func() (*Config, *mockDumper, error) {
+			setup: func() (*Config, *MockDumper, error) {
 				src := &mockSource{conf: map[string]any{"foo": "bar"}}
-				dumper := &mockDumper{}
+				dumper := &MockDumper{}
 				cfg, err := New(WithSource(src), WithDumper(dumper))
 				if err != nil {
 					return nil, nil, err
@@ -318,7 +375,7 @@ func TestDump(t *testing.T) {
 				}
 				return cfg, dumper, nil
 			},
-			verify: func(t *testing.T, dumper *mockDumper) {
+			verify: func(t *testing.T, dumper *MockDumper) {
 				assert.True(t, dumper.called)
 				require.NotNil(t, dumper.values)
 				assert.Equal(t, "bar", (*dumper.values)["foo"])
@@ -327,7 +384,7 @@ func TestDump(t *testing.T) {
 		},
 		{
 			name: "succeeds with no dumpers",
-			setup: func() (*Config, *mockDumper, error) {
+			setup: func() (*Config, *MockDumper, error) {
 				src := &mockSource{conf: map[string]any{"foo": "bar"}}
 				cfg, err := New(WithSource(src))
 				if err != nil {
@@ -343,9 +400,9 @@ func TestDump(t *testing.T) {
 		},
 		{
 			name: "error propagates from dumper",
-			setup: func() (*Config, *mockDumper, error) {
+			setup: func() (*Config, *MockDumper, error) {
 				src := &mockSource{conf: map[string]any{"foo": "bar"}}
-				dumper := &mockDumper{err: errors.New("dump error")}
+				dumper := &MockDumper{err: errors.New("dump error")}
 				cfg, err := New(WithSource(src), WithDumper(dumper))
 				if err != nil {
 					return nil, nil, err
@@ -360,10 +417,10 @@ func TestDump(t *testing.T) {
 		},
 		{
 			name: "calls multiple dumpers",
-			setup: func() (*Config, *mockDumper, error) {
+			setup: func() (*Config, *MockDumper, error) {
 				src := &mockSource{conf: map[string]any{"foo": "bar"}}
-				dumper1 := &mockDumper{}
-				dumper2 := &mockDumper{}
+				dumper1 := &MockDumper{}
+				dumper2 := &MockDumper{}
 				cfg, err := New(WithSource(src), WithDumper(dumper1), WithDumper(dumper2))
 				if err != nil {
 					return nil, nil, err
@@ -374,7 +431,7 @@ func TestDump(t *testing.T) {
 				// Return first dumper for verification
 				return cfg, dumper1, nil
 			},
-			verify: func(t *testing.T, dumper *mockDumper) {
+			verify: func(t *testing.T, dumper *MockDumper) {
 				assert.True(t, dumper.called)
 			},
 			wantErr: false,
@@ -401,6 +458,70 @@ func TestDump(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMustDump(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success with valid dumper", func(t *testing.T) {
+		t.Parallel()
+		src := &mockSource{conf: map[string]any{"foo": "bar"}}
+		dumper := &MockDumper{}
+		cfg := MustNew(WithSource(src), WithDumper(dumper))
+		cfg.MustLoad(context.Background())
+		assert.NotPanics(t, func() {
+			cfg.MustDump(context.Background())
+		})
+		assert.True(t, dumper.called)
+		require.NotNil(t, dumper.values)
+		assert.Equal(t, "bar", (*dumper.values)["foo"])
+	})
+
+	t.Run("success with no dumpers", func(t *testing.T) {
+		t.Parallel()
+		src := &mockSource{conf: map[string]any{"foo": "bar"}}
+		cfg := MustNew(WithSource(src))
+		cfg.MustLoad(context.Background())
+		assert.NotPanics(t, func() {
+			cfg.MustDump(context.Background())
+		})
+	})
+
+	t.Run("panics on dumper error", func(t *testing.T) {
+		t.Parallel()
+		src := &mockSource{conf: map[string]any{"foo": "bar"}}
+		dumper := &MockDumper{err: errors.New("dump failed")}
+		cfg := MustNew(WithSource(src), WithDumper(dumper))
+		cfg.MustLoad(context.Background())
+		assert.Panics(t, func() {
+			cfg.MustDump(context.Background())
+		})
+	})
+
+	t.Run("panics on nil context", func(t *testing.T) {
+		t.Parallel()
+		src := &mockSource{conf: map[string]any{"foo": "bar"}}
+		cfg := MustNew(WithSource(src))
+		cfg.MustLoad(context.Background())
+		assert.Panics(t, func() {
+			//nolint:staticcheck // SA1012: Intentionally testing nil context error handling
+			cfg.MustDump(nil)
+		})
+	})
+
+	t.Run("calls multiple dumpers", func(t *testing.T) {
+		t.Parallel()
+		src := &mockSource{conf: map[string]any{"foo": "bar"}}
+		dumper1 := &MockDumper{}
+		dumper2 := &MockDumper{}
+		cfg := MustNew(WithSource(src), WithDumper(dumper1), WithDumper(dumper2))
+		cfg.MustLoad(context.Background())
+		assert.NotPanics(t, func() {
+			cfg.MustDump(context.Background())
+		})
+		assert.True(t, dumper1.called)
+		assert.True(t, dumper2.called)
+	})
 }
 
 func TestDump_NilContext(t *testing.T) {
@@ -935,13 +1056,13 @@ func TestConfigError(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		err        *ConfigError
+		err        *Error
 		wantMsg    string
 		wantUnwrap error
 	}{
 		{
 			name: "error with field",
-			err: &ConfigError{
+			err: &Error{
 				Source:    "source1",
 				Field:     "field1",
 				Operation: "parse",
@@ -952,7 +1073,7 @@ func TestConfigError(t *testing.T) {
 		},
 		{
 			name: "error without field",
-			err: &ConfigError{
+			err: &Error{
 				Source:    "source2",
 				Operation: "load",
 				Err:       baseErr,
@@ -985,7 +1106,10 @@ func TestConcurrency(t *testing.T) {
 		wg := make(chan struct{})
 		for range 10 {
 			go func() {
-				_ = cfg.Load(context.Background())
+				loadErr := cfg.Load(context.Background())
+				if loadErr != nil {
+					t.Error(loadErr)
+				}
 				wg <- struct{}{}
 			}()
 		}
@@ -1006,7 +1130,10 @@ func TestConcurrency(t *testing.T) {
 		for range 10 {
 			go func() {
 				_ = cfg.Get("foo")
-				_ = cfg.Load(context.Background())
+				loadErr := cfg.Load(context.Background())
+				if loadErr != nil {
+					t.Error(loadErr)
+				}
 				wg <- struct{}{}
 			}()
 		}
@@ -1040,7 +1167,10 @@ func TestConcurrency(t *testing.T) {
 						_ = cfg.Int("bar")
 						_ = cfg.Values()
 					} else {
-						_ = cfg.Load(context.Background())
+						loadErr := cfg.Load(context.Background())
+						if loadErr != nil {
+							t.Error(loadErr)
+						}
 					}
 				}
 			}()
@@ -1063,9 +1193,10 @@ func TestConcurrency(t *testing.T) {
 		require.NoError(t, cfg.Load(context.Background()))
 
 		var wg sync.WaitGroup
+		//nolint:makezero // indexed assignment requires pre-allocated length
 		results := make([]string, 10)
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
@@ -1155,7 +1286,10 @@ func TestContextCancellation(t *testing.T) {
 	defer cancel()
 
 	// This test is primarily to show context handling
-	_ = cfg.Load(ctx)
+	err = cfg.Load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestFilePermissions(t *testing.T) {
@@ -1166,7 +1300,7 @@ func TestFilePermissions(t *testing.T) {
 	dumpFile := tmpDir + "/dump.yaml"
 
 	sourceContent := []byte("foo: bar\n")
-	err := os.WriteFile(sourceFile, sourceContent, 0o644)
+	err := os.WriteFile(sourceFile, sourceContent, 0o600)
 	require.NoError(t, err)
 
 	cfg, err := New(

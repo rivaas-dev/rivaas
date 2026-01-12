@@ -58,7 +58,7 @@ logging:
   format: json
 `)
 
-	err := os.WriteFile(configFile, yamlContent, 0o644)
+	err := os.WriteFile(configFile, yamlContent, 0o600)
 	require.NoError(t, err)
 
 	// Load configuration
@@ -105,7 +105,7 @@ func TestIntegration_FileSourceWithJSON(t *testing.T) {
 		}
 	}`)
 
-	err := os.WriteFile(configFile, jsonContent, 0o644)
+	err := os.WriteFile(configFile, jsonContent, 0o600)
 	require.NoError(t, err)
 
 	cfg, err := config.New(
@@ -145,7 +145,7 @@ driver = "mysql"
 max_connections = 100
 `)
 
-	err := os.WriteFile(configFile, tomlContent, 0o644)
+	err := os.WriteFile(configFile, tomlContent, 0o600)
 	require.NoError(t, err)
 
 	cfg, err := config.New(
@@ -183,7 +183,7 @@ database:
   pool_size: 10
   timeout: 5
 `)
-	err := os.WriteFile(baseFile, baseContent, 0o644)
+	err := os.WriteFile(baseFile, baseContent, 0o600)
 	require.NoError(t, err)
 
 	// Environment-specific override
@@ -195,7 +195,7 @@ server:
 database:
   pool_size: 50
 `)
-	err = os.WriteFile(envFile, envContent, 0o644)
+	err = os.WriteFile(envFile, envContent, 0o600)
 	require.NoError(t, err)
 
 	// Local overrides
@@ -204,7 +204,7 @@ database:
 server:
   port: 9090
 `)
-	err = os.WriteFile(localFile, localContent, 0o644)
+	err = os.WriteFile(localFile, localContent, 0o600)
 	require.NoError(t, err)
 
 	// Load all sources (later sources override earlier ones)
@@ -266,7 +266,7 @@ database:
   password: testpass
 `)
 
-	err := os.WriteFile(configFile, yamlContent, 0o644)
+	err := os.WriteFile(configFile, yamlContent, 0o600)
 	require.NoError(t, err)
 
 	var appConfig AppConfig
@@ -306,7 +306,7 @@ feature_flags:
   new_ui: false
 `)
 
-	err := os.WriteFile(configFile, initialContent, 0o644)
+	err := os.WriteFile(configFile, initialContent, 0o600)
 	require.NoError(t, err)
 
 	cfg, err := config.New(
@@ -327,7 +327,7 @@ feature_flags:
   new_ui: true
 `)
 
-	err = os.WriteFile(configFile, updatedContent, 0o644)
+	err = os.WriteFile(configFile, updatedContent, 0o600)
 	require.NoError(t, err)
 
 	// Reload configuration
@@ -355,7 +355,7 @@ app:
   version: 1.0.0
 `)
 
-	err := os.WriteFile(sourceFile, sourceContent, 0o644)
+	err := os.WriteFile(sourceFile, sourceContent, 0o600)
 	require.NoError(t, err)
 
 	cfg, err := config.New(
@@ -372,6 +372,7 @@ app:
 	require.NoError(t, err)
 
 	// Verify dumped file exists and contains correct data
+	//nolint:gosec // Test file read is safe
 	dumpedContent, err := os.ReadFile(dumpFile)
 	require.NoError(t, err)
 	assert.Contains(t, string(dumpedContent), "TestApp")
@@ -396,7 +397,7 @@ Database:
   Driver: postgres
 `)
 
-	err := os.WriteFile(configFile, yamlContent, 0o644)
+	err := os.WriteFile(configFile, yamlContent, 0o600)
 	require.NoError(t, err)
 
 	cfg, err := config.New(

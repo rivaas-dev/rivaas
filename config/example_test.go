@@ -48,8 +48,11 @@ database:
 	}
 
 	// Access values
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.String("server.host"))
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.Int("server.port"))
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.String("database.name"))
 
 	// Output:
@@ -69,6 +72,7 @@ func ExampleNew() {
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println("Config created successfully")
 	// Output: Config created successfully
 }
@@ -80,8 +84,44 @@ func ExampleMustNew() {
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println("Config created successfully")
 	// Output: Config created successfully
+}
+
+// ExampleConfig_MustLoad demonstrates loading configuration with panic on error.
+// This is useful in main() or init() where configuration loading failure should halt the program.
+func ExampleConfig_MustLoad() {
+	cfg := config.MustNew(
+		config.WithContent([]byte(`{"app": "example", "port": 8080}`), codec.TypeJSON),
+	)
+
+	// MustLoad will panic if loading fails - appropriate for startup code
+	cfg.MustLoad(context.Background())
+
+	//nolint:errcheck // Error checking is omitted in the example test code
+	fmt.Printf("App: %s, Port: %d\n", cfg.String("app"), cfg.Int("port"))
+	// Output: App: example, Port: 8080
+}
+
+// ExampleConfig_MustDump demonstrates dumping configuration with panic on error.
+func ExampleConfig_MustDump() {
+	// Create a mock dumper for demonstration
+	dumper := &config.MockDumper{}
+
+	cfg := config.MustNew(
+		config.WithContent([]byte(`{"service": "api", "version": "1.0"}`), codec.TypeJSON),
+		config.WithDumper(dumper),
+	)
+
+	cfg.MustLoad(context.Background())
+
+	// MustDump will panic if dumping fails - appropriate for startup/shutdown code
+	cfg.MustDump(context.Background())
+
+	//nolint:errcheck // Error checking is omitted in the example test code
+	fmt.Println("Configuration dumped successfully")
+	// Output: Configuration dumped successfully
 }
 
 // ExampleWithFileSource demonstrates loading configuration from a file.
@@ -98,6 +138,7 @@ func ExampleWithFileSource() {
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.String("name"))
 	// Output: example
 }
@@ -122,7 +163,9 @@ func ExampleWithContent() {
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.String("app.name"))
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.String("app.version"))
 	// Output:
 	// MyApp
@@ -159,6 +202,7 @@ server:
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Printf("%s:%d\n", appConfig.Server.Host, appConfig.Server.Port)
 	// Output: localhost:8080
 }
@@ -185,6 +229,7 @@ func ExampleWithValidator() {
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println("Validation passed")
 	// Output: Validation passed
 }
@@ -208,7 +253,9 @@ settings:
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.Get("settings.enabled"))
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.Get("settings.count"))
 	// Output:
 	// true
@@ -230,7 +277,9 @@ func ExampleConfig_String() {
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.String("name"))
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.String("env"))
 	// Output:
 	// MyApp
@@ -252,7 +301,9 @@ func ExampleConfig_Int() {
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.Int("port"))
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.Int("workers"))
 	// Output:
 	// 8080
@@ -274,7 +325,9 @@ func ExampleConfig_Bool() {
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.Bool("debug"))
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.Bool("verbose"))
 	// Output:
 	// true
@@ -301,7 +354,9 @@ tags:
 		log.Fatal(err)
 	}
 
+	//nolint:errcheck // Error checking is omitted in the example test code
 	tags := cfg.StringSlice("tags")
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Printf("%v\n", tags)
 	// Output: [web api backend]
 }
@@ -326,7 +381,9 @@ metadata:
 	}
 
 	metadata := cfg.StringMap("metadata")
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(metadata["author"])
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(metadata["version"])
 	// Output:
 	// John Doe
@@ -361,7 +418,9 @@ server:
 	}
 
 	// Later sources override earlier ones
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.String("server.host"))
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println(cfg.Int("server.port"))
 	// Output:
 	// localhost
@@ -387,6 +446,7 @@ func Example_environmentVariables() {
 
 	// Access environment variables without the prefix
 	// e.g., APP_SERVER_HOST becomes server.host
+	//nolint:errcheck // Error checking is omitted in the example test code
 	fmt.Println("Environment variables loaded")
 	// Output: Environment variables loaded
 }

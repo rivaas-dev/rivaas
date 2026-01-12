@@ -17,7 +17,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -29,30 +28,18 @@ import (
 
 func TestWebAppConfig_EnvironmentVariables(t *testing.T) {
 	// Set up test environment variables (all required fields)
-	os.Setenv("WEBAPP_SERVER_HOST", "test-host")
-	os.Setenv("WEBAPP_SERVER_PORT", "9090")
-	os.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "test-db")
-	os.Setenv("WEBAPP_DATABASE_PRIMARY_PORT", "5432")
-	os.Setenv("WEBAPP_DATABASE_PRIMARY_DATABASE", "testdb")
-	os.Setenv("WEBAPP_AUTH_JWT_SECRET", "test-secret")
-	os.Setenv("WEBAPP_AUTH_TOKEN_DURATION", "1h")
-	os.Setenv("WEBAPP_FEATURES_DEBUG_MODE", "true")
+	t.Setenv("WEBAPP_SERVER_HOST", "test-host")
+	t.Setenv("WEBAPP_SERVER_PORT", "9090")
+	t.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "test-db")
+	t.Setenv("WEBAPP_DATABASE_PRIMARY_PORT", "5432")
+	t.Setenv("WEBAPP_DATABASE_PRIMARY_DATABASE", "testdb")
+	t.Setenv("WEBAPP_AUTH_JWT_SECRET", "test-secret")
+	t.Setenv("WEBAPP_AUTH_TOKEN_DURATION", "1h")
+	t.Setenv("WEBAPP_FEATURES_DEBUG_MODE", "true")
 
 	// Debug: Check if environment variables are set
-	fmt.Printf("WEBAPP_SERVER_HOST: %s\n", os.Getenv("WEBAPP_SERVER_HOST"))
-	fmt.Printf("WEBAPP_AUTH_JWT_SECRET: %s\n", os.Getenv("WEBAPP_AUTH_JWT_SECRET"))
-
-	// Clean up environment variables after test
-	defer func() {
-		os.Unsetenv("WEBAPP_SERVER_HOST")
-		os.Unsetenv("WEBAPP_SERVER_PORT")
-		os.Unsetenv("WEBAPP_DATABASE_PRIMARY_HOST")
-		os.Unsetenv("WEBAPP_DATABASE_PRIMARY_PORT")
-		os.Unsetenv("WEBAPP_DATABASE_PRIMARY_DATABASE")
-		os.Unsetenv("WEBAPP_AUTH_JWT_SECRET")
-		os.Unsetenv("WEBAPP_AUTH_TOKEN_DURATION")
-		os.Unsetenv("WEBAPP_FEATURES_DEBUG_MODE")
-	}()
+	t.Logf("WEBAPP_SERVER_HOST: %s\n", os.Getenv("WEBAPP_SERVER_HOST"))
+	t.Logf("WEBAPP_AUTH_JWT_SECRET: %s\n", os.Getenv("WEBAPP_AUTH_JWT_SECRET"))
 
 	// Create configuration without binding to test direct access
 	cfg, err := config.New(
@@ -65,9 +52,9 @@ func TestWebAppConfig_EnvironmentVariables(t *testing.T) {
 	require.NoError(t, err)
 
 	// Debug: Check what was loaded
-	fmt.Printf("Loaded server.host: %s\n", cfg.String("server.host"))
-	fmt.Printf("Loaded auth.jwt.secret: %s\n", cfg.String("auth.jwt.secret"))
-	fmt.Printf("Loaded features.debug.mode: %t\n", cfg.Bool("features.debug.mode"))
+	t.Logf("Loaded server.host: %s\n", cfg.String("server.host"))
+	t.Logf("Loaded auth.jwt.secret: %s\n", cfg.String("auth.jwt.secret"))
+	t.Logf("Loaded features.debug.mode: %t\n", cfg.Bool("features.debug.mode"))
 
 	// Test direct configuration access
 	assert.Equal(t, "test-host", cfg.String("server.host"))
@@ -102,34 +89,18 @@ func TestWebAppConfig_EnvironmentVariables(t *testing.T) {
 
 func TestWebAppConfig_NestedStructures(t *testing.T) {
 	// Test nested environment variable mapping (including required fields)
-	os.Setenv("WEBAPP_SERVER_HOST", "test-host")
-	os.Setenv("WEBAPP_SERVER_PORT", "9090")
-	os.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "test-db")
-	os.Setenv("WEBAPP_DATABASE_PRIMARY_PORT", "5432")
-	os.Setenv("WEBAPP_DATABASE_PRIMARY_DATABASE", "testdb")
-	os.Setenv("WEBAPP_AUTH_JWT_SECRET", "test-secret")
-	os.Setenv("WEBAPP_AUTH_TOKEN_DURATION", "1h")
-
-	os.Setenv("WEBAPP_SERVER_TLS_ENABLED", "true")
-	os.Setenv("WEBAPP_SERVER_TLS_CERT_FILE", "/path/to/cert.pem")
-	os.Setenv("WEBAPP_SERVER_TLS_KEY_FILE", "/path/to/key.pem")
-	os.Setenv("WEBAPP_DATABASE_POOL_MAX_OPEN", "50")
-	os.Setenv("WEBAPP_DATABASE_POOL_MAX_IDLE", "10")
-
-	defer func() {
-		os.Unsetenv("WEBAPP_SERVER_HOST")
-		os.Unsetenv("WEBAPP_SERVER_PORT")
-		os.Unsetenv("WEBAPP_DATABASE_PRIMARY_HOST")
-		os.Unsetenv("WEBAPP_DATABASE_PRIMARY_PORT")
-		os.Unsetenv("WEBAPP_DATABASE_PRIMARY_DATABASE")
-		os.Unsetenv("WEBAPP_AUTH_JWT_SECRET")
-		os.Unsetenv("WEBAPP_AUTH_TOKEN_DURATION")
-		os.Unsetenv("WEBAPP_SERVER_TLS_ENABLED")
-		os.Unsetenv("WEBAPP_SERVER_TLS_CERT_FILE")
-		os.Unsetenv("WEBAPP_SERVER_TLS_KEY_FILE")
-		os.Unsetenv("WEBAPP_DATABASE_POOL_MAX_OPEN")
-		os.Unsetenv("WEBAPP_DATABASE_POOL_MAX_IDLE")
-	}()
+	t.Setenv("WEBAPP_SERVER_HOST", "test-host")
+	t.Setenv("WEBAPP_SERVER_PORT", "9090")
+	t.Setenv("WEBAPP_DATABASE_PRIMARY_HOST", "test-db")
+	t.Setenv("WEBAPP_DATABASE_PRIMARY_PORT", "5432")
+	t.Setenv("WEBAPP_DATABASE_PRIMARY_DATABASE", "testdb")
+	t.Setenv("WEBAPP_AUTH_JWT_SECRET", "test-secret")
+	t.Setenv("WEBAPP_AUTH_TOKEN_DURATION", "1h")
+	t.Setenv("WEBAPP_SERVER_TLS_ENABLED", "true")
+	t.Setenv("WEBAPP_SERVER_TLS_CERT_FILE", "/path/to/cert.pem")
+	t.Setenv("WEBAPP_SERVER_TLS_KEY_FILE", "/path/to/key.pem")
+	t.Setenv("WEBAPP_DATABASE_POOL_MAX_OPEN", "50")
+	t.Setenv("WEBAPP_DATABASE_POOL_MAX_IDLE", "10")
 
 	// Test direct access first
 	cfg, err := config.New(

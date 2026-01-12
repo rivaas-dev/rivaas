@@ -30,12 +30,12 @@ func TestConfigError_Error(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		err     *ConfigError
+		err     *Error
 		wantMsg string
 	}{
 		{
 			name: "error with field",
-			err: &ConfigError{
+			err: &Error{
 				Source:    "source1",
 				Field:     "field1",
 				Operation: "parse",
@@ -45,7 +45,7 @@ func TestConfigError_Error(t *testing.T) {
 		},
 		{
 			name: "error without field",
-			err: &ConfigError{
+			err: &Error{
 				Source:    "source2",
 				Operation: "load",
 				Err:       baseErr,
@@ -54,7 +54,7 @@ func TestConfigError_Error(t *testing.T) {
 		},
 		{
 			name: "error with empty source",
-			err: &ConfigError{
+			err: &Error{
 				Source:    "",
 				Operation: "validate",
 				Err:       baseErr,
@@ -79,12 +79,12 @@ func TestConfigError_Unwrap(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		err        *ConfigError
+		err        *Error
 		wantUnwrap error
 	}{
 		{
 			name: "unwraps to base error",
-			err: &ConfigError{
+			err: &Error{
 				Source:    "source1",
 				Operation: "parse",
 				Err:       baseErr,
@@ -93,7 +93,7 @@ func TestConfigError_Unwrap(t *testing.T) {
 		},
 		{
 			name: "unwraps to base error with field",
-			err: &ConfigError{
+			err: &Error{
 				Source:    "source1",
 				Field:     "field1",
 				Operation: "parse",
@@ -117,7 +117,7 @@ func TestNewConfigError(t *testing.T) {
 
 	baseErr := errors.New("test error")
 
-	err := NewConfigError("test-source", "test-operation", baseErr)
+	err := NewError("test-source", "test-operation", baseErr)
 
 	require.NotNil(t, err)
 	assert.Equal(t, "test-source", err.Source)
@@ -133,7 +133,7 @@ func TestNewConfigFieldError(t *testing.T) {
 
 	baseErr := errors.New("field error")
 
-	err := NewConfigFieldError("test-source", "test-field", "test-operation", baseErr)
+	err := NewFieldError("test-source", "test-field", "test-operation", baseErr)
 
 	require.NotNil(t, err)
 	assert.Equal(t, "test-source", err.Source)
@@ -159,7 +159,7 @@ func TestConfigError_ErrorWrapping(t *testing.T) {
 			name: "supports errors.Is",
 			setupErr: func() error {
 				originalErr := errors.New("original error")
-				return NewConfigError("source", "operation", originalErr)
+				return NewError("source", "operation", originalErr)
 			},
 			checkIs: errors.New("original error"),
 			wantIs:  false, // Different error instances
@@ -168,7 +168,7 @@ func TestConfigError_ErrorWrapping(t *testing.T) {
 			name: "supports errors.Is with same instance",
 			setupErr: func() error {
 				originalErr := errors.New("original error")
-				return NewConfigError("source", "operation", originalErr)
+				return NewError("source", "operation", originalErr)
 			},
 			checkIs: func() error {
 				// Create the same error instance
@@ -180,12 +180,12 @@ func TestConfigError_ErrorWrapping(t *testing.T) {
 			name: "supports errors.As",
 			setupErr: func() error {
 				originalErr := errors.New("original error")
-				return NewConfigError("source", "operation", originalErr)
+				return NewError("source", "operation", originalErr)
 			},
-			checkAs: &ConfigError{},
+			checkAs: &Error{},
 			wantAsMatch: func(t *testing.T, target any) {
 				t.Helper()
-				configErr, ok := target.(*ConfigError)
+				configErr, ok := target.(*Error)
 				require.True(t, ok)
 				assert.Equal(t, "source", configErr.Source)
 				assert.Equal(t, "operation", configErr.Operation)
@@ -201,12 +201,12 @@ func TestConfigError_ErrorWrapping(t *testing.T) {
 
 			if tt.checkIs != nil {
 				originalErr := errors.New("original error")
-				configErr := NewConfigError("source", "operation", originalErr)
+				configErr := NewError("source", "operation", originalErr)
 				assert.True(t, errors.Is(configErr, originalErr))
 			}
 
 			if tt.checkAs != nil {
-				var targetErr *ConfigError
+				var targetErr *Error
 				require.True(t, errors.As(err, &targetErr))
 				if tt.wantAsMatch != nil {
 					tt.wantAsMatch(t, targetErr)
@@ -220,8 +220,8 @@ func TestConfigError_Chaining(t *testing.T) {
 	t.Parallel()
 
 	originalErr := errors.New("root cause")
-	firstErr := NewConfigError("first-source", "first-op", originalErr)
-	secondErr := NewConfigError("second-source", "second-op", firstErr)
+	firstErr := NewError("first-source", "first-op", originalErr)
+	secondErr := NewError("second-source", "second-op", firstErr)
 
 	// Should be able to unwrap to the original error
 	assert.True(t, errors.Is(secondErr, originalErr))

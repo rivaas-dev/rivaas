@@ -34,15 +34,15 @@ func (m *mockSource) Load(_ context.Context) (map[string]any, error) {
 	return m.conf, m.err //nolint:nilnil // Test mock intentionally returns (nil, nil) for certain test cases
 }
 
-// mockDumper is a test implementation of the Dumper interface.
-type mockDumper struct {
+// MockDumper is a test implementation of the Dumper interface.
+type MockDumper struct {
 	called bool
 	values *map[string]any
 	err    error
 }
 
 // Dump implements the Dumper interface for testing.
-func (m *mockDumper) Dump(_ context.Context, values *map[string]any) error {
+func (m *MockDumper) Dump(_ context.Context, values *map[string]any) error {
 	m.called = true
 	m.values = values
 	return m.err
@@ -65,13 +65,13 @@ func TestSourceWithError(err error) Source {
 }
 
 // TestDumper creates a mock dumper for testing.
-func TestDumper() *mockDumper {
-	return &mockDumper{}
+func TestDumper() *MockDumper {
+	return &MockDumper{}
 }
 
 // TestDumperWithError creates a mock dumper that returns an error on Dump.
-func TestDumperWithError(err error) *mockDumper {
-	return &mockDumper{err: err}
+func TestDumperWithError(err error) *MockDumper {
+	return &MockDumper{err: err}
 }
 
 // TestConfig creates a new Config instance with the given options for testing.
@@ -106,7 +106,7 @@ func TestYAMLFile(t *testing.T, content []byte) string {
 	t.Helper()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "config.yaml")
-	err := os.WriteFile(filePath, content, 0o644)
+	err := os.WriteFile(filePath, content, 0o600)
 	require.NoError(t, err, "failed to create test YAML file")
 	return filePath
 }
@@ -117,7 +117,7 @@ func TestJSONFile(t *testing.T, content []byte) string {
 	t.Helper()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "config.json")
-	err := os.WriteFile(filePath, content, 0o644)
+	err := os.WriteFile(filePath, content, 0o600)
 	require.NoError(t, err, "failed to create test JSON file")
 	return filePath
 }
@@ -128,7 +128,7 @@ func TestTOMLFile(t *testing.T, content []byte) string {
 	t.Helper()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "config.toml")
-	err := os.WriteFile(filePath, content, 0o644)
+	err := os.WriteFile(filePath, content, 0o600)
 	require.NoError(t, err, "failed to create test TOML file")
 	return filePath
 }

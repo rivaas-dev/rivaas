@@ -83,12 +83,12 @@ func WithFileDumper(path string) Option {
 	return func(c *Config) error {
 		format, err := detectFormat(path)
 		if err != nil {
-			return NewConfigError("file-dumper", "detect-format", err)
+			return NewError("file-dumper", "detect-format", err)
 		}
 
 		encoder, err := codec.GetEncoder(format)
 		if err != nil {
-			return NewConfigError("file-dumper", "get-encoder", err)
+			return NewError("file-dumper", "get-encoder", err)
 		}
 
 		c.dumpers = append(c.dumpers, dumper.NewFile(path, encoder))
@@ -112,7 +112,7 @@ func WithFileSource(path string, codecType codec.Type) Option {
 	return func(c *Config) error {
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			return NewConfigError("file-source", "get-decoder", err)
+			return NewError("file-source", "get-decoder", err)
 		}
 
 		c.sources = append(c.sources, source.NewFile(path, decoder))
@@ -125,7 +125,7 @@ func WithContentSource(data []byte, codecType codec.Type) Option {
 	return func(c *Config) error {
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			return NewConfigError("content-source", "get-decoder", err)
+			return NewError("content-source", "get-decoder", err)
 		}
 
 		c.sources = append(c.sources, source.NewFileContent(data, decoder))
@@ -152,12 +152,12 @@ func WithConsulSource(path string, codecType codec.Type) Option {
 	return func(c *Config) error {
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			return NewConfigError("consul-source", "get-decoder", err)
+			return NewError("consul-source", "get-decoder", err)
 		}
 
 		l, err := source.NewConsul(path, decoder, nil)
 		if err != nil {
-			return NewConfigError("consul-source", "create-client", err)
+			return NewError("consul-source", "create-client", err)
 		}
 
 		c.sources = append(c.sources, l)
@@ -180,12 +180,12 @@ func WithFile(path string) Option {
 	return func(c *Config) error {
 		format, err := detectFormat(path)
 		if err != nil {
-			return NewConfigError("file-source", "detect-format", err)
+			return NewError("file-source", "detect-format", err)
 		}
 
 		decoder, err := codec.GetDecoder(format)
 		if err != nil {
-			return NewConfigError("file-source", "get-decoder", err)
+			return NewError("file-source", "get-decoder", err)
 		}
 
 		c.sources = append(c.sources, source.NewFile(path, decoder))
@@ -226,17 +226,17 @@ func WithConsul(path string) Option {
 	return func(c *Config) error {
 		format, err := detectFormat(path)
 		if err != nil {
-			return NewConfigError("consul-source", "detect-format", err)
+			return NewError("consul-source", "detect-format", err)
 		}
 
 		decoder, err := codec.GetDecoder(format)
 		if err != nil {
-			return NewConfigError("consul-source", "get-decoder", err)
+			return NewError("consul-source", "get-decoder", err)
 		}
 
 		l, err := source.NewConsul(path, decoder, nil)
 		if err != nil {
-			return NewConfigError("consul-source", "create-client", err)
+			return NewError("consul-source", "create-client", err)
 		}
 
 		c.sources = append(c.sources, l)
@@ -257,7 +257,7 @@ func WithFileAs(path string, codecType codec.Type) Option {
 	return func(c *Config) error {
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			return NewConfigError("file-source", "get-decoder", err)
+			return NewError("file-source", "get-decoder", err)
 		}
 
 		c.sources = append(c.sources, source.NewFile(path, decoder))
@@ -280,12 +280,12 @@ func WithConsulAs(path string, codecType codec.Type) Option {
 	return func(c *Config) error {
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			return NewConfigError("consul-source", "get-decoder", err)
+			return NewError("consul-source", "get-decoder", err)
 		}
 
 		l, err := source.NewConsul(path, decoder, nil)
 		if err != nil {
-			return NewConfigError("consul-source", "create-client", err)
+			return NewError("consul-source", "create-client", err)
 		}
 
 		c.sources = append(c.sources, l)
@@ -306,7 +306,7 @@ func WithContent(data []byte, codecType codec.Type) Option {
 	return func(c *Config) error {
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			return NewConfigError("content-source", "get-decoder", err)
+			return NewError("content-source", "get-decoder", err)
 		}
 
 		c.sources = append(c.sources, source.NewFileContent(data, decoder))
@@ -327,7 +327,7 @@ func WithFileDumperAs(path string, codecType codec.Type) Option {
 	return func(c *Config) error {
 		encoder, err := codec.GetEncoder(codecType)
 		if err != nil {
-			return NewConfigError("file-dumper", "get-encoder", err)
+			return NewError("file-dumper", "get-encoder", err)
 		}
 
 		c.dumpers = append(c.dumpers, dumper.NewFile(path, encoder))
@@ -377,6 +377,7 @@ func WithTag(tagName string) Option {
 func WithJSONSchema(schema []byte) Option {
 	return func(c *Config) error {
 		// Use a unique schema name to avoid caching issues
+		//nolint:gosec // rand.Int() is used for a unique schema name, not security sensitive
 		schemaName := fmt.Sprintf("inline_%d.json", rand.Int())
 		compiler := jsonschema.NewCompiler()
 
@@ -613,16 +614,16 @@ func (c *Config) loadSourcesSequential(ctx context.Context) (map[string]any, err
 		return make(map[string]any), nil
 	}
 
-	// Merge in order to maintain precedence
+	// Merge to maintain precedence
 	newValues := make(map[string]any)
-	for i, source := range c.sources {
+	for i, src := range c.sources {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 
-		conf, err := source.Load(ctx)
+		conf, err := src.Load(ctx)
 		if err != nil {
-			return nil, NewConfigError(fmt.Sprintf("source[%d]", i), "load", err)
+			return nil, NewError(fmt.Sprintf("source[%d]", i), "load", err)
 		}
 
 		// Ensure we always have a valid map, even if source returns nil
@@ -635,7 +636,7 @@ func (c *Config) loadSourcesSequential(ctx context.Context) (map[string]any, err
 
 		// Use mergo to merge configuration maps with override behavior
 		if err = mergo.Map(&newValues, normalizedConf, mergo.WithOverride); err != nil {
-			return nil, NewConfigError(fmt.Sprintf("source[%d]", i), "merge", err)
+			return nil, NewError(fmt.Sprintf("source[%d]", i), "merge", err)
 		}
 	}
 
@@ -669,7 +670,7 @@ func (c *Config) Load(ctx context.Context) error {
 
 	if c.jsonSchemaCompiled != nil {
 		if err = c.jsonSchemaCompiled.Validate(newValues); err != nil {
-			return NewConfigError("json-schema", "validate", err)
+			return NewError("json-schema", "validate", err)
 		}
 	}
 
@@ -688,7 +689,7 @@ func (c *Config) Load(ctx context.Context) error {
 			validatorErr = fn(newValues)
 		}()
 		if validatorErr != nil {
-			return NewConfigError(fmt.Sprintf("custom-validator[%d]", i), "validate", validatorErr)
+			return NewError(fmt.Sprintf("custom-validator[%d]", i), "validate", validatorErr)
 		}
 	}
 
@@ -698,17 +699,35 @@ func (c *Config) Load(ctx context.Context) error {
 	if c.binding != nil {
 		// Validate binding without modifying shared state
 		if err = c.bindAndValidate(newValues); err != nil {
-			return NewConfigError("binding", "validate", err)
+			return NewError("binding", "validate", err)
 		}
 		// Now safely update the actual binding struct
 		if err = c.bind(&newValues); err != nil {
-			return NewConfigError("binding", "bind", err)
+			return NewError("binding", "bind", err)
 		}
 	}
 
 	c.values = &newValues
 
 	return nil
+}
+
+// MustLoad loads configuration or panics on error.
+// This is a convenience wrapper around Load for use cases where configuration
+// loading failure should halt the program, typically in main() or init().
+//
+// For error handling, use Load instead.
+//
+// Example:
+//
+//	cfg := config.MustNew(
+//	    config.WithFile("config.yaml"),
+//	)
+//	cfg.MustLoad(context.Background())
+func (c *Config) MustLoad(ctx context.Context) {
+	if err := c.Load(ctx); err != nil {
+		panic(err)
+	}
 }
 
 // Dump writes the current configuration values to the registered dumpers.
@@ -744,6 +763,24 @@ func (c *Config) Dump(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// MustDump writes configuration to dumpers or panics on error.
+// This is a convenience wrapper around Dump for use cases where dump
+// failure should halt the program.
+//
+// For error handling, use Dump instead.
+//
+// Example:
+//
+//	cfg := config.MustNew(
+//	    config.WithDumper(myDumper),
+//	)
+//	cfg.MustDump(context.Background())
+func (c *Config) MustDump(ctx context.Context) {
+	if err := c.Dump(ctx); err != nil {
+		panic(err)
+	}
 }
 
 func (c *Config) bind(values *map[string]any) error {

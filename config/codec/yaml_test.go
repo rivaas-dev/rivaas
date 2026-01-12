@@ -92,7 +92,8 @@ nested:
 	s.Assert().Equal("bar", v["foo"])
 	s.Assert().EqualValues(42, v["num"])
 	s.Require().IsType(map[string]any{}, v["nested"])
-	nestedMap := v["nested"].(map[string]any)
+	nestedMap, ok := v["nested"].(map[string]any)
+	s.Require().True(ok, "nested should be map[string]any")
 	s.Assert().Equal("value", nestedMap["key"])
 }
 
@@ -172,7 +173,9 @@ func (s *YAMLCodecTestSuite) TestEncodeDecode_BoolFloatNull() {
 	err = s.codec.Decode(b, &out)
 	s.Require().NoError(err)
 	s.Assert().Equal(true, out["b"])
-	s.Assert().InDelta(3.14, out["f"].(float64), 0.0001)
+	fVal, ok := out["f"].(float64)
+	s.Require().True(ok, "f should be float64, got %T", out["f"])
+	s.Assert().InDelta(3.14, fVal, 0.0001)
 	s.Assert().Nil(out["n"])
 }
 
@@ -225,6 +228,13 @@ func (s *YAMLCodecTestSuite) TestDecode_DeeplyNested() {
 	err := s.codec.Decode([]byte(yamlStr), &v)
 	s.Require().NoError(err)
 	// Walk down the nested structure
-	m := v["a"].(map[string]any)["b"].(map[string]any)["c"].(map[string]any)["d"].(map[string]any)
-	s.Assert().EqualValues(1, m["e"])
+	a, okA := v["a"].(map[string]any)
+	s.Require().True(okA, "a should be map[string]any")
+	b, okB := a["b"].(map[string]any)
+	s.Require().True(okB, "b should be map[string]any")
+	c, okC := b["c"].(map[string]any)
+	s.Require().True(okC, "c should be map[string]any")
+	d, okD := c["d"].(map[string]any)
+	s.Require().True(okD, "d should be map[string]any")
+	s.Assert().EqualValues(1, d["e"])
 }

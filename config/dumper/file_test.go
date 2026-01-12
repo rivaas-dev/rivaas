@@ -30,16 +30,10 @@ type FileDumperTestSuite struct {
 }
 
 func (s *FileDumperTestSuite) SetupTest() {
-	f, err := os.CreateTemp("", "filedumper_test_*.json")
+	f, err := os.CreateTemp(s.T().TempDir(), "filedumper_test_*.json")
 	s.Require().NoError(err)
 	s.tmpFile = f.Name()
-	_ = f.Close()
-}
-
-func (s *FileDumperTestSuite) TearDownTest() {
-	if s.tmpFile != "" {
-		_ = os.Remove(s.tmpFile)
-	}
+	s.Require().NoError(f.Close())
 }
 
 func (s *FileDumperTestSuite) TestDump_Success() {

@@ -84,7 +84,7 @@ func (EnvVarCodec) Decode(data []byte, v any) error {
 				current = nextMap
 			} else {
 				current[part] = make(map[string]any)
-				if innerMap, ok := current[part].(map[string]any); ok {
+				if innerMap, okInner := current[part].(map[string]any); okInner {
 					current = innerMap
 				} else {
 					// This should never happen, but handle it gracefully

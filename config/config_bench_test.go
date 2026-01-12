@@ -24,8 +24,9 @@ import (
 // BenchmarkParallelLoading benchmarks parallel loading of multiple sources.
 func BenchmarkParallelLoading(b *testing.B) {
 	// Create multiple slow sources to demonstrate parallel loading benefits
+	//nolint:makezero // indexed assignment requires pre-allocated length
 	sources := make([]Source, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		sources[i] = &mockSlowSource{
 			conf:  map[string]any{fmt.Sprintf("key%d", i): fmt.Sprintf("value%d", i)},
 			delay: 10 * time.Millisecond, // Simulate I/O delay
@@ -236,7 +237,7 @@ func BenchmarkConcurrentGet(b *testing.B) {
 func BenchmarkLargeConfig(b *testing.B) {
 	// Create a large configuration map
 	largeConfig := make(map[string]any, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		largeConfig[fmt.Sprintf("key%d", i)] = fmt.Sprintf("value%d", i)
 	}
 
@@ -287,7 +288,7 @@ func BenchmarkMultipleSources(b *testing.B) {
 // BenchmarkDump benchmarks configuration dumping.
 func BenchmarkDump(b *testing.B) {
 	src := &mockSource{conf: map[string]any{"foo": "bar", "bar": 42}}
-	dumper := &mockDumper{}
+	dumper := &MockDumper{}
 	c, err := New(WithSource(src), WithDumper(dumper))
 	if err != nil {
 		b.Fatal(err)
