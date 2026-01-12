@@ -103,7 +103,7 @@ linters:
       # Check blank assignments: _, _ = funcReturningError()
       check-blank: true
       # Don't exclude common functions - be thorough
-      disable-default-exclusions: true
+      disable-default-exclusions: false
       exclude-functions: []
       verbose: true
 
