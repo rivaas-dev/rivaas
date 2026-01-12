@@ -71,7 +71,7 @@ func TestValidation(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.Equal(t, PrometheusProvider, recorder.Provider())
-		recorder.Shutdown(t.Context())
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
 
 		// WithStdout alone should work
 		recorder, err = New(
@@ -80,7 +80,7 @@ func TestValidation(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.Equal(t, StdoutProvider, recorder.Provider())
-		recorder.Shutdown(t.Context())
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
 	})
 
 	t.Run("EmptyServiceName", func(t *testing.T) {
@@ -211,7 +211,7 @@ func TestCustomMetricsLimitRaceConditionFixed(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(t.Context())
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
 	})
 
 	ctx := t.Context()
@@ -229,7 +229,7 @@ func TestCustomMetricsLimitRaceConditionFixed(t *testing.T) {
 			for j := range metricsPerGoroutine {
 				metricName := fmt.Sprintf("counter_%d_%d", id, j)
 				// This should not panic or cause data races
-				_ = recorder.IncrementCounter(ctx, metricName)
+				recorder.IncrementCounter(ctx, metricName) //nolint:errcheck // Validation test
 			}
 		}(i)
 	}
@@ -263,7 +263,7 @@ func TestCustomMetricsDoubleCheckRace(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(t.Context())
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
 	})
 
 	ctx := t.Context()
@@ -279,7 +279,7 @@ func TestCustomMetricsDoubleCheckRace(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			// All goroutines try to create the same counter
-			_ = recorder.IncrementCounter(ctx, metricName)
+			recorder.IncrementCounter(ctx, metricName) //nolint:errcheck // Validation test
 		}()
 	}
 
@@ -333,7 +333,7 @@ func TestContextCancellationInStart(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(t.Context())
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
 	})
 
 	// Create canceled context
@@ -359,7 +359,7 @@ func TestContextCancellationInCustomMetrics(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(t.Context())
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
 	})
 
 	// Create canceled context
@@ -367,9 +367,9 @@ func TestContextCancellationInCustomMetrics(t *testing.T) {
 	cancel()
 
 	// These should not panic - they will still record (OTel handles cancellation)
-	_ = recorder.RecordHistogram(ctx, "test_histogram", 1.5)
-	_ = recorder.IncrementCounter(ctx, "test_counter")
-	_ = recorder.SetGauge(ctx, "test_gauge", 42.0)
+	recorder.RecordHistogram(ctx, "test_histogram", 1.5) //nolint:errcheck // Validation test
+	recorder.IncrementCounter(ctx, "test_counter")       //nolint:errcheck // Validation test
+	recorder.SetGauge(ctx, "test_gauge", 42.0)           //nolint:errcheck // Validation test
 }
 
 // TestRWMutexOperationsSafety tests the safety of RWMutex operations
@@ -382,7 +382,7 @@ func TestRWMutexOperationsSafety(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(t.Context())
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
 	})
 
 	ctx := t.Context()
@@ -414,7 +414,7 @@ func TestRWMutexOperationsSafety(t *testing.T) {
 				defer wg.Done()
 				for j := range 10 {
 					metricName := fmt.Sprintf("metric_%d_%d", id, j)
-					_ = recorder.IncrementCounter(ctx, metricName)
+					recorder.IncrementCounter(ctx, metricName) //nolint:errcheck // Validation test
 				}
 			}(i)
 		}
@@ -434,7 +434,7 @@ func TestMetricsCreationErrorHandling(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(t.Context())
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
 	})
 
 	ctx := t.Context()
@@ -474,7 +474,7 @@ func TestMetricNameValidation(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
-		recorder.Shutdown(t.Context())
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
 	})
 
 	ctx := t.Context()
@@ -647,7 +647,9 @@ func TestErrorMessages_MetricLimitReached(t *testing.T) {
 		WithMaxCustomMetrics(3),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
+	})
 
 	ctx := t.Context()
 
@@ -808,7 +810,9 @@ func TestErrorMessages_HandlerNotAvailable(t *testing.T) {
 			WithOTLP("http://localhost:4318"),
 			WithServiceName("handler-error-test"),
 		)
-		t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+		t.Cleanup(func() {
+			recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
+		})
 
 		_, err := recorder.Handler()
 		require.Error(t, err)

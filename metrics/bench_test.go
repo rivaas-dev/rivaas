@@ -32,16 +32,21 @@ func BenchmarkRecordHistogram_Cached(b *testing.B) {
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context()) //nolint:errcheck // Benchmark cleanup - error not critical
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	// Pre-create the metric so it's cached
-	_ = recorder.RecordHistogram(b.Context(), "test.cached.metric", 1.0)
+	//nolint:errcheck // Benchmark setup
+	recorder.RecordHistogram(b.Context(), "test.cached.metric", 1.0)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = recorder.RecordHistogram(b.Context(), "test.cached.metric", 1.0)
+		//nolint:errcheck // Benchmark hot path
+		recorder.RecordHistogram(b.Context(), "test.cached.metric", 1.0)
 	}
 }
 
@@ -52,7 +57,10 @@ func BenchmarkRecordHistogram_CachedWithAttributes(b *testing.B) {
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context()) //nolint:errcheck // Benchmark cleanup - error not critical
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	attrs := []attribute.KeyValue{
 		attribute.String("endpoint", "/api/users"),
@@ -61,13 +69,15 @@ func BenchmarkRecordHistogram_CachedWithAttributes(b *testing.B) {
 	}
 
 	// Pre-create the metric
-	_ = recorder.RecordHistogram(b.Context(), "test.cached.with.attrs", 1.0, attrs...)
+	//nolint:errcheck // Benchmark setup
+	recorder.RecordHistogram(b.Context(), "test.cached.with.attrs", 1.0, attrs...)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = recorder.RecordHistogram(b.Context(), "test.cached.with.attrs", 1.0, attrs...)
+		//nolint:errcheck // Benchmark hot path
+		recorder.RecordHistogram(b.Context(), "test.cached.with.attrs", 1.0, attrs...)
 	}
 }
 
@@ -80,7 +90,10 @@ func BenchmarkRecordHistogram_New(b *testing.B) {
 		WithServerDisabled(),
 		WithMaxCustomMetrics(100000), // Allow many metrics
 	)
-	defer recorder.Shutdown(b.Context()) //nolint:errcheck // Benchmark cleanup - error not critical
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -88,7 +101,8 @@ func BenchmarkRecordHistogram_New(b *testing.B) {
 	i := 0
 	for b.Loop() {
 		// Each iteration creates a new metric
-		_ = recorder.RecordHistogram(b.Context(), "test.new.metric."+string(rune(i)), float64(i))
+		//nolint:errcheck // Benchmark hot path
+		recorder.RecordHistogram(b.Context(), "test.new.metric."+string(rune(i)), float64(i))
 		i++
 	}
 }
@@ -100,16 +114,21 @@ func BenchmarkIncrementCounter_Cached(b *testing.B) {
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context()) //nolint:errcheck // Benchmark cleanup - error not critical
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	// Pre-create the counter
-	_ = recorder.IncrementCounter(b.Context(), "test.cached.counter")
+	//nolint:errcheck // Benchmark setup
+	recorder.IncrementCounter(b.Context(), "test.cached.counter")
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = recorder.IncrementCounter(b.Context(), "test.cached.counter")
+		//nolint:errcheck // Benchmark hot path
+		recorder.IncrementCounter(b.Context(), "test.cached.counter")
 	}
 }
 
@@ -120,7 +139,10 @@ func BenchmarkIncrementCounter_CachedWithAttributes(b *testing.B) {
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context()) //nolint:errcheck // Benchmark cleanup - error not critical
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	attrs := []attribute.KeyValue{
 		attribute.String("status", "success"),
@@ -128,13 +150,15 @@ func BenchmarkIncrementCounter_CachedWithAttributes(b *testing.B) {
 	}
 
 	// Pre-create the counter
-	_ = recorder.IncrementCounter(b.Context(), "test.cached.counter.attrs", attrs...)
+	//nolint:errcheck // Benchmark setup
+	recorder.IncrementCounter(b.Context(), "test.cached.counter.attrs", attrs...)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = recorder.IncrementCounter(b.Context(), "test.cached.counter.attrs", attrs...)
+		//nolint:errcheck // Benchmark hot path
+		recorder.IncrementCounter(b.Context(), "test.cached.counter.attrs", attrs...)
 	}
 }
 
@@ -145,17 +169,22 @@ func BenchmarkSetGauge_Cached(b *testing.B) {
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context()) //nolint:errcheck // Benchmark cleanup - error not critical
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	// Pre-create the gauge
-	_ = recorder.SetGauge(b.Context(), "test.cached.gauge", 1.0)
+	//nolint:errcheck // Benchmark setup
+	recorder.SetGauge(b.Context(), "test.cached.gauge", 1.0)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	i := 0
 	for b.Loop() {
-		_ = recorder.SetGauge(b.Context(), "test.cached.gauge", float64(i))
+		//nolint:errcheck // Benchmark hot path
+		recorder.SetGauge(b.Context(), "test.cached.gauge", float64(i))
 		i++
 	}
 }
@@ -167,7 +196,10 @@ func BenchmarkStart(b *testing.B) {
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context())
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -184,7 +216,10 @@ func BenchmarkStart_WithAttributes(b *testing.B) {
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context())
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -208,7 +243,10 @@ func BenchmarkStartFinish(b *testing.B) {
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context())
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -311,13 +349,17 @@ func BenchmarkCASContention(b *testing.B) {
 			WithServerDisabled(),
 			WithMaxCustomMetrics(100000),
 		)
-		defer recorder.Shutdown(b.Context())
+		b.Cleanup(func() {
+			//nolint:errcheck // Benchmark cleanup
+			recorder.Shutdown(b.Context())
+		})
 
 		b.ResetTimer()
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_ = recorder.IncrementCounter(b.Context(), "counter.low.contention")
+			//nolint:errcheck // Benchmark hot path
+			recorder.IncrementCounter(b.Context(), "counter.low.contention")
 		}
 	})
 
@@ -328,7 +370,10 @@ func BenchmarkCASContention(b *testing.B) {
 			WithServerDisabled(),
 			WithMaxCustomMetrics(100000),
 		)
-		defer recorder.Shutdown(b.Context())
+		b.Cleanup(func() {
+			//nolint:errcheck // Benchmark cleanup
+			recorder.Shutdown(b.Context())
+		})
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -337,7 +382,8 @@ func BenchmarkCASContention(b *testing.B) {
 			i := 0
 			for pb.Next() {
 				// Each goroutine creates different metrics
-				_ = recorder.IncrementCounter(b.Context(), "counter.medium.contention."+string(rune(i%4)))
+				//nolint:errcheck // Benchmark hot path
+				recorder.IncrementCounter(b.Context(), "counter.medium.contention."+string(rune(i%4)))
 				i++
 			}
 		})
@@ -350,7 +396,10 @@ func BenchmarkCASContention(b *testing.B) {
 			WithServerDisabled(),
 			WithMaxCustomMetrics(100000),
 		)
-		defer recorder.Shutdown(b.Context())
+		b.Cleanup(func() {
+			//nolint:errcheck // Benchmark cleanup
+			recorder.Shutdown(b.Context())
+		})
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -359,7 +408,8 @@ func BenchmarkCASContention(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			i := 0
 			for pb.Next() {
-				_ = recorder.IncrementCounter(b.Context(), "counter.high.contention."+string(rune(i)))
+				//nolint:errcheck // Benchmark hot path
+				recorder.IncrementCounter(b.Context(), "counter.high.contention."+string(rune(i)))
 				i++
 			}
 		})
@@ -372,7 +422,8 @@ func BenchmarkValidateMetricName(b *testing.B) {
 		name := "http.request.duration"
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = validateMetricName(name)
+			//nolint:errcheck // Benchmark hot path
+			validateMetricName(name)
 		}
 	})
 
@@ -380,7 +431,8 @@ func BenchmarkValidateMetricName(b *testing.B) {
 		name := ""
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = validateMetricName(name)
+			//nolint:errcheck // Benchmark hot path
+			validateMetricName(name)
 		}
 	})
 
@@ -388,7 +440,8 @@ func BenchmarkValidateMetricName(b *testing.B) {
 		name := "http_reserved_metric"
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = validateMetricName(name)
+			//nolint:errcheck // Benchmark hot path
+			validateMetricName(name)
 		}
 	})
 }
@@ -401,7 +454,10 @@ func BenchmarkMetricCreation_Parallel(b *testing.B) {
 		WithServerDisabled(),
 		WithMaxCustomMetrics(1000000),
 	)
-	defer recorder.Shutdown(b.Context())
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	var counter int64
 
@@ -413,6 +469,7 @@ func BenchmarkMetricCreation_Parallel(b *testing.B) {
 			// Each goroutine creates unique metrics
 			i := counter
 			counter++
+			//nolint:errcheck // Benchmark hot path
 			recorder.RecordHistogram(b.Context(), "parallel.metric."+string(rune(i)), float64(i))
 		}
 	})
@@ -438,11 +495,17 @@ func BenchmarkNoopProvider(b *testing.B) {
 	recorder.initCommonAttributes()
 
 	// Initialize all required noop metrics
+	//nolint:errcheck // Noop metrics
 	recorder.requestDuration, _ = recorder.meter.Float64Histogram("http_request_duration_seconds")
+	//nolint:errcheck // Noop metrics
 	recorder.requestCount, _ = recorder.meter.Int64Counter("http_requests_total")
+	//nolint:errcheck // Noop metrics
 	recorder.activeRequests, _ = recorder.meter.Int64UpDownCounter("http_requests_active")
+	//nolint:errcheck // Noop metrics
 	recorder.requestSize, _ = recorder.meter.Int64Histogram("http_request_size_bytes")
+	//nolint:errcheck // Noop metrics
 	recorder.responseSize, _ = recorder.meter.Int64Histogram("http_response_size_bytes")
+	//nolint:errcheck // Noop metrics
 	recorder.errorCount, _ = recorder.meter.Int64Counter("http_errors_total")
 
 	b.ResetTimer()
@@ -511,14 +574,16 @@ func BenchmarkExcludedPath(b *testing.B) {
 	b.Run("ExcludedPath", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = pf.shouldExclude("/health")
+			//nolint:errcheck // Benchmark hot path
+			pf.shouldExclude("/health")
 		}
 	})
 
 	b.Run("NonExcludedPath", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = pf.shouldExclude("/api/users")
+			//nolint:errcheck // Benchmark hot path
+			pf.shouldExclude("/api/users")
 		}
 	})
 }
@@ -530,15 +595,20 @@ func BenchmarkRWMutexOperations(b *testing.B) {
 		WithStdout(),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context())
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	// Pre-create a counter to test the read path
-	_ = recorder.IncrementCounter(b.Context(), "rwmutex_test_counter")
+	//nolint:errcheck // Benchmark setup
+	recorder.IncrementCounter(b.Context(), "rwmutex_test_counter")
 
 	b.Run("SingleThreaded", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = recorder.IncrementCounter(b.Context(), "rwmutex_test_counter")
+			//nolint:errcheck // Benchmark hot path
+			recorder.IncrementCounter(b.Context(), "rwmutex_test_counter")
 		}
 	})
 
@@ -546,7 +616,8 @@ func BenchmarkRWMutexOperations(b *testing.B) {
 		b.ReportAllocs()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				_ = recorder.IncrementCounter(b.Context(), "rwmutex_test_counter")
+				//nolint:errcheck // Benchmark hot path
+				recorder.IncrementCounter(b.Context(), "rwmutex_test_counter")
 			}
 		})
 	})
@@ -560,14 +631,19 @@ func BenchmarkCASRetryBackoff(b *testing.B) {
 		WithServerDisabled(),
 		WithMaxCustomMetrics(1000000),
 	)
-	defer recorder.Shutdown(b.Context())
+
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	b.Run("SequentialCreation", func(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 		i := 0
 		for b.Loop() {
-			_ = recorder.IncrementCounter(b.Context(), "seq.counter."+string(rune(i)))
+			//nolint:errcheck // Benchmark hot path
+			recorder.IncrementCounter(b.Context(), "seq.counter."+string(rune(i)))
 			i++
 		}
 	})
@@ -585,7 +661,8 @@ func BenchmarkCASRetryBackoff(b *testing.B) {
 			go func(goroutineID int) {
 				defer wg.Done()
 				for i := range itemsPerGoroutine {
-					_ = recorder.IncrementCounter(b.Context(), "parallel.counter."+string(rune(goroutineID*itemsPerGoroutine+i)))
+					//nolint:errcheck // Benchmark hot path
+					recorder.IncrementCounter(b.Context(), "parallel.counter."+string(rune(goroutineID*itemsPerGoroutine+i)))
 				}
 			}(g)
 		}
@@ -601,13 +678,17 @@ func BenchmarkCustomMetricsCreation(b *testing.B) {
 		WithMaxCustomMetrics(10000),
 		WithServerDisabled(),
 	)
-	defer recorder.Shutdown(b.Context())
+	b.Cleanup(func() {
+		//nolint:errcheck // Benchmark cleanup
+		recorder.Shutdown(b.Context())
+	})
 
 	b.Run("SequentialCreation", func(b *testing.B) {
 		b.ResetTimer()
 		for i := range b.N {
 			metricName := fmt.Sprintf("counter_%d", i%1000)
-			_ = recorder.IncrementCounter(b.Context(), metricName)
+			//nolint:errcheck // Benchmark hot path
+			recorder.IncrementCounter(b.Context(), metricName)
 		}
 	})
 
@@ -617,18 +698,13 @@ func BenchmarkCustomMetricsCreation(b *testing.B) {
 			i := 0
 			for pb.Next() {
 				metricName := fmt.Sprintf("parallel_counter_%d", i%1000)
-				_ = recorder.IncrementCounter(b.Context(), metricName)
+				//nolint:errcheck // Benchmark hot path
+				recorder.IncrementCounter(b.Context(), metricName)
 				i++
 			}
 		})
 	})
 }
-
-// =============================================================================
-// Zero-Allocation Tests
-// =============================================================================
-// These tests verify that hot paths don't allocate memory, which is important
-// for high-performance metrics recording.
 
 // TestRecordHistogram_ZeroAlloc verifies that recording to a cached histogram
 // has minimal allocations.
@@ -640,13 +716,18 @@ func TestRecordHistogram_ZeroAlloc(t *testing.T) {
 		WithServiceName("alloc-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
 
 	// Pre-create the metric so it's cached
-	_ = recorder.RecordHistogram(t.Context(), "prewarmed_histogram", 1.0)
+	//nolint:errcheck // Test setup
+	recorder.RecordHistogram(t.Context(), "prewarmed_histogram", 1.0)
 
 	allocs := testing.AllocsPerRun(100, func() {
-		_ = recorder.RecordHistogram(t.Context(), "prewarmed_histogram", 1.0)
+		//nolint:errcheck // Test hot path
+		recorder.RecordHistogram(t.Context(), "prewarmed_histogram", 1.0)
 	})
 
 	// Recording to existing histogram should have minimal allocations
@@ -666,13 +747,18 @@ func TestIncrementCounter_ZeroAlloc(t *testing.T) {
 		WithServiceName("alloc-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
 
 	// Pre-create the counter
-	_ = recorder.IncrementCounter(t.Context(), "prewarmed_counter")
+	//nolint:errcheck // Test setup
+	recorder.IncrementCounter(t.Context(), "prewarmed_counter")
 
 	allocs := testing.AllocsPerRun(100, func() {
-		_ = recorder.IncrementCounter(t.Context(), "prewarmed_counter")
+		//nolint:errcheck // Test hot path
+		recorder.IncrementCounter(t.Context(), "prewarmed_counter")
 	})
 
 	// Incrementing existing counter should have minimal allocations
@@ -691,13 +777,18 @@ func TestSetGauge_ZeroAlloc(t *testing.T) {
 		WithServiceName("alloc-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
 
 	// Pre-create the gauge
-	_ = recorder.SetGauge(t.Context(), "prewarmed_gauge", 1.0)
+	//nolint:errcheck // Test setup
+	recorder.SetGauge(t.Context(), "prewarmed_gauge", 1.0)
 
 	allocs := testing.AllocsPerRun(100, func() {
-		_ = recorder.SetGauge(t.Context(), "prewarmed_gauge", 42.0)
+		//nolint:errcheck // Test hot path
+		recorder.SetGauge(t.Context(), "prewarmed_gauge", 42.0)
 	})
 
 	// Setting existing gauge should have minimal allocations
@@ -747,7 +838,8 @@ func TestValidateMetricName_ZeroAlloc(t *testing.T) {
 	validName := "my_valid_metric_name"
 
 	allocs := testing.AllocsPerRun(100, func() {
-		_ = validateMetricName(validName)
+		//nolint:errcheck // Test hot path
+		validateMetricName(validName)
 	})
 
 	// Validation of valid names should have minimal allocations
@@ -765,7 +857,10 @@ func TestStart_Allocations(t *testing.T) {
 		WithServiceName("alloc-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
 
 	allocs := testing.AllocsPerRun(100, func() {
 		m := recorder.BeginRequest(t.Context())

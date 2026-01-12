@@ -51,15 +51,15 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 	mux.HandleFunc("/api/users", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"users": []}`))
+		w.Write([]byte(`{"users": []}`)) //nolint:errcheck // Test handler
 	})
 	mux.HandleFunc("/api/error", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "internal error"}`))
+		w.Write([]byte(`{"error": "internal error"}`)) //nolint:errcheck // Test handler
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "healthy"}`))
+		w.Write([]byte(`{"status": "healthy"}`)) //nolint:errcheck // Test handler
 	})
 
 	// Wrap with metrics middleware, excluding health endpoint
@@ -127,7 +127,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 		// Simulate some work
 		time.Sleep(time.Millisecond)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		w.Write([]byte("OK")) //nolint:errcheck // Test handler
 	})
 
 	handler := metrics.Middleware(recorder)(mux)
@@ -347,7 +347,7 @@ func TestIntegration_PrometheusEndpoint(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		w.Write([]byte("OK")) //nolint:errcheck // Test handler
 	})
 	handler := metrics.Middleware(recorder)(mux)
 
@@ -363,7 +363,7 @@ func TestIntegration_PrometheusEndpoint(t *testing.T) {
 	resp, err := http.DefaultClient.Do(metricsReq)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = resp.Body.Close()
+		resp.Body.Close() //nolint:errcheck // Test cleanup
 	})
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -389,10 +389,10 @@ func TestIntegration_MultipleMethods(t *testing.T) {
 		switch r.Method {
 		case http.MethodGet:
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": "value"}`))
+			w.Write([]byte(`{"data": "value"}`)) //nolint:errcheck // Test handler
 		case http.MethodPost:
 			w.WriteHeader(http.StatusCreated)
-			w.Write([]byte(`{"id": "123"}`))
+			w.Write([]byte(`{"id": "123"}`)) //nolint:errcheck // Test handler
 		case http.MethodPut:
 			w.WriteHeader(http.StatusOK)
 		case http.MethodDelete:
@@ -450,7 +450,7 @@ func TestIntegration_RequestResponseSizes(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(body)
+		w.Write(body) //nolint:errcheck // Test handler
 	})
 
 	handler := metrics.Middleware(recorder)(mux)

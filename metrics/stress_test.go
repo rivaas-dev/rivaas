@@ -49,9 +49,9 @@ func TestStress_RapidCreateShutdownCycles(t *testing.T) {
 
 			// Rapidly record some metrics
 			for j := range 50 {
-				_ = recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", j%10))
-				_ = recorder.RecordHistogram(t.Context(), fmt.Sprintf("histogram_%d", j%5), float64(j))
-				_ = recorder.SetGauge(t.Context(), fmt.Sprintf("gauge_%d", j%3), float64(j))
+				recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", j%10))             //nolint:errcheck // Stress test
+				recorder.RecordHistogram(t.Context(), fmt.Sprintf("histogram_%d", j%5), float64(j)) //nolint:errcheck // Stress test
+				recorder.SetGauge(t.Context(), fmt.Sprintf("gauge_%d", j%3), float64(j))            //nolint:errcheck // Stress test
 			}
 
 			// Rapid shutdown
@@ -77,7 +77,7 @@ func TestStress_ConcurrentShutdownRace(t *testing.T) {
 
 	// Record some metrics first
 	for i := range 20 {
-		_ = recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", i))
+		recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", i)) //nolint:errcheck // Stress test
 	}
 
 	const numGoroutines = 50
@@ -129,8 +129,8 @@ func TestStress_MetricRecordingDuringShutdown(t *testing.T) {
 					return
 				default:
 					// Continue recording even during shutdown
-					_ = recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", id))
-					_ = recorder.RecordHistogram(t.Context(), fmt.Sprintf("histogram_%d", id), float64(j))
+					recorder.IncrementCounter(t.Context(), fmt.Sprintf("counter_%d", id))              //nolint:errcheck // Stress test
+					recorder.RecordHistogram(t.Context(), fmt.Sprintf("histogram_%d", id), float64(j)) //nolint:errcheck // Stress test
 					j++
 					// Small yield to allow interleaving
 					if j%100 == 0 {
@@ -172,7 +172,9 @@ func TestStress_HighConcurrencyMetricCreation(t *testing.T) {
 		WithMaxCustomMetrics(1000),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Stress test cleanup
+	})
 
 	ctx := t.Context()
 	const numGoroutines = 200
@@ -189,11 +191,11 @@ func TestStress_HighConcurrencyMetricCreation(t *testing.T) {
 				// Mix of operations
 				switch j % 3 {
 				case 0:
-					_ = recorder.IncrementCounter(ctx, fmt.Sprintf("counter_%d_%d", id, j%20))
+					recorder.IncrementCounter(ctx, fmt.Sprintf("counter_%d_%d", id, j%20)) //nolint:errcheck // Stress test
 				case 1:
-					_ = recorder.RecordHistogram(ctx, fmt.Sprintf("histogram_%d_%d", id, j%10), float64(j))
+					recorder.RecordHistogram(ctx, fmt.Sprintf("histogram_%d_%d", id, j%10), float64(j)) //nolint:errcheck // Stress test
 				case 2:
-					_ = recorder.SetGauge(ctx, fmt.Sprintf("gauge_%d_%d", id, j%5), float64(j))
+					recorder.SetGauge(ctx, fmt.Sprintf("gauge_%d_%d", id, j%5), float64(j)) //nolint:errcheck // Stress test
 				}
 			}
 		}(i)
@@ -219,12 +221,14 @@ func TestStress_MiddlewareThroughput(t *testing.T) {
 		WithServiceName("middleware-stress"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Stress test cleanup
+	})
 
 	// Create a simple handler wrapped with middleware
 	handler := Middleware(recorder)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		w.Write([]byte("OK")) //nolint:errcheck // Stress test handler
 	}))
 
 	const numGoroutines = 100
@@ -308,7 +312,9 @@ func TestStress_MixedReadWriteOperations(t *testing.T) {
 		WithMaxCustomMetrics(500),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Stress test cleanup
+	})
 
 	ctx := t.Context()
 	const numReaders = 50
@@ -334,7 +340,7 @@ func TestStress_MixedReadWriteOperations(t *testing.T) {
 			defer wg.Done()
 			for j := range operationsPerGoroutine {
 				metricName := fmt.Sprintf("writer_%d_metric_%d", id, j%50)
-				_ = recorder.IncrementCounter(ctx, metricName)
+				recorder.IncrementCounter(ctx, metricName) //nolint:errcheck // Stress test
 			}
 		}(i)
 	}
@@ -360,7 +366,9 @@ func TestStress_RequestMetricsLifecycle(t *testing.T) {
 		WithServiceName("lifecycle-stress"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		recorder.Shutdown(t.Context()) //nolint:errcheck // Stress test cleanup
+	})
 
 	ctx := t.Context()
 	const numGoroutines = 100

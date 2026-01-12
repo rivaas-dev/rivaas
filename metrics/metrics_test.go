@@ -42,6 +42,7 @@ func TestRecorderConfig(t *testing.T) {
 		WithStrictPort(), // Require exact port for deterministic test
 	)
 	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
 		recorder.Shutdown(t.Context())
 	})
 
@@ -61,6 +62,7 @@ func TestRecorderWithHTTP(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
 		recorder.Shutdown(t.Context())
 	})
 
@@ -75,7 +77,7 @@ func TestRecorderWithHTTP(t *testing.T) {
 	// Create HTTP handler with metrics middleware
 	handler := Middleware(recorder)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		w.Write([]byte(`{"status":"ok"}`)) //nolint:errcheck // Test handler
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -94,6 +96,7 @@ func TestRecorderProviders(t *testing.T) {
 			WithPrometheus(":9093", "/metrics"),
 		)
 		t.Cleanup(func() {
+			//nolint:errcheck // Test cleanup
 			recorder.Shutdown(t.Context())
 		})
 		assert.Equal(t, PrometheusProvider, recorder.Provider())
@@ -106,6 +109,7 @@ func TestRecorderProviders(t *testing.T) {
 			WithOTLP("http://localhost:4318"),
 		)
 		t.Cleanup(func() {
+			//nolint:errcheck // Test cleanup
 			recorder.Shutdown(t.Context())
 		})
 		assert.Equal(t, OTLPProvider, recorder.Provider())
@@ -117,6 +121,7 @@ func TestRecorderProviders(t *testing.T) {
 			WithStdout(),
 		)
 		t.Cleanup(func() {
+			//nolint:errcheck // Test cleanup
 			recorder.Shutdown(t.Context())
 		})
 		assert.Equal(t, StdoutProvider, recorder.Provider())
@@ -131,6 +136,7 @@ func TestCustomMetrics(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
 		recorder.Shutdown(t.Context())
 	})
 
@@ -155,13 +161,14 @@ func TestRecorderMiddleware(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
 		recorder.Shutdown(t.Context())
 	})
 
 	// Create a test handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		w.Write([]byte("OK")) //nolint:errcheck // Test handler
 	})
 
 	// Wrap with metrics middleware
@@ -244,6 +251,7 @@ func TestRecorderIntegration(t *testing.T) {
 		WithServiceName("integration-test"),
 	)
 	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
 		recorder.Shutdown(t.Context())
 	})
 
@@ -253,12 +261,12 @@ func TestRecorderIntegration(t *testing.T) {
 	// Add routes
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message":"Hello"}`))
+		w.Write([]byte(`{"message":"Hello"}`)) //nolint:errcheck // Test handler
 	})
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy"}`))
+		w.Write([]byte(`{"status":"healthy"}`)) //nolint:errcheck // Test handler
 	})
 
 	// Wrap with metrics middleware (path exclusion is now a middleware option)
@@ -285,13 +293,14 @@ func TestRecorderHandler(t *testing.T) {
 		WithServiceName("test-service"),
 	)
 	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
 		recorder.Shutdown(t.Context())
 	})
 
 	// Create HTTP handler with metrics to generate some data
 	handler := Middleware(recorder)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		w.Write([]byte(`{"status":"ok"}`)) //nolint:errcheck // Test handler
 	}))
 
 	// Make a request to generate metrics
@@ -325,6 +334,7 @@ func TestHandlerErrors(t *testing.T) {
 			WithServiceName("test-service"),
 		)
 		t.Cleanup(func() {
+			//nolint:errcheck // Test cleanup
 			recorder.Shutdown(t.Context())
 		})
 
@@ -343,6 +353,7 @@ func TestHandlerErrors(t *testing.T) {
 			WithServiceName("test-service"),
 		)
 		t.Cleanup(func() {
+			//nolint:errcheck // Test cleanup
 			recorder.Shutdown(t.Context())
 		})
 
@@ -456,7 +467,7 @@ func TestCustomMetricsLimitRaceCondition(t *testing.T) {
 		go func(id int) {
 			for j := range metricsPerGoroutine {
 				metricName := fmt.Sprintf("metric_%d_%d", id, j)
-				_ = recorder.IncrementCounter(t.Context(), metricName)
+				recorder.IncrementCounter(t.Context(), metricName) //nolint:errcheck // Test hot path
 			}
 			done <- true
 		}(i)

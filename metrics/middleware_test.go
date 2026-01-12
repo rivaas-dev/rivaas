@@ -53,7 +53,7 @@ func TestMetricsMiddlewareDoubleWrappingPrevention(t *testing.T) {
 	// Create a handler that returns already-wrapped writer
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		w.Write([]byte("ok")) //nolint:errcheck // Test handler
 	})
 
 	// First, create a pre-wrapped writer
@@ -86,9 +86,9 @@ func TestMetricsMiddlewareWithExcludedPaths(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if writer is wrapped
 		if _, ok := w.(router.ObservabilityWrappedWriter); ok {
-			w.Write([]byte("wrapped"))
+			w.Write([]byte("wrapped")) //nolint:errcheck // Test handler
 		} else {
-			w.Write([]byte("not-wrapped"))
+			w.Write([]byte("not-wrapped")) //nolint:errcheck // Test handler
 		}
 	})
 
@@ -137,7 +137,7 @@ func TestMetricsMiddlewareStatusCodeCapture(t *testing.T) {
 
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tc.statusCode)
-				w.Write([]byte("test"))
+				w.Write([]byte("test")) //nolint:errcheck // Test handler
 			})
 
 			middleware := Middleware(recorder)
@@ -181,7 +181,7 @@ func TestMetricsMiddlewareResponseSizeCapture(t *testing.T) {
 
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(tc.responseBody))
+				w.Write([]byte(tc.responseBody)) //nolint:errcheck // Test handler
 			})
 
 			middleware := Middleware(recorder)

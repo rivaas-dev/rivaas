@@ -63,7 +63,8 @@ func TestProviderInitialization(t *testing.T) {
 		assert.Equal(t, OTLPProvider, recorder.Provider())
 
 		// Cleanup (may error if collector not running)
-		_ = recorder.Shutdown(t.Context())
+		err = recorder.Shutdown(t.Context())
+		assert.NoError(t, err)
 	})
 
 	t.Run("OTLPProviderWithHTTPS", func(t *testing.T) {
@@ -76,7 +77,8 @@ func TestProviderInitialization(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, recorder)
 
-		_ = recorder.Shutdown(t.Context())
+		err = recorder.Shutdown(t.Context())
+		assert.NoError(t, err)
 	})
 
 	t.Run("OTLPProviderWithPath", func(t *testing.T) {
@@ -89,7 +91,8 @@ func TestProviderInitialization(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, recorder)
 
-		_ = recorder.Shutdown(t.Context())
+		err = recorder.Shutdown(t.Context())
+		assert.NoError(t, err)
 	})
 
 	t.Run("StdoutProvider", func(t *testing.T) {
@@ -105,9 +108,9 @@ func TestProviderInitialization(t *testing.T) {
 
 		// Test that metrics can be recorded
 		ctx := t.Context()
-		_ = recorder.IncrementCounter(ctx, "test_counter")
-		_ = recorder.RecordHistogram(ctx, "test_histogram", 1.5)
-		_ = recorder.SetGauge(ctx, "test_gauge", 42.0)
+		recorder.IncrementCounter(ctx, "test_counter")       //nolint:errcheck // Test hot path
+		recorder.RecordHistogram(ctx, "test_histogram", 1.5) //nolint:errcheck // Test hot path
+		recorder.SetGauge(ctx, "test_gauge", 42.0)           //nolint:errcheck // Test hot path
 
 		// Cleanup
 		err = recorder.Shutdown(t.Context())
@@ -142,7 +145,10 @@ func TestPortDiscovery(t *testing.T) {
 			WithStrictPort(),
 		)
 		require.NoError(t, err)
-		defer config1.Shutdown(t.Context())
+		t.Cleanup(func() {
+			//nolint:errcheck // Test cleanup
+			config1.Shutdown(t.Context())
+		})
 
 		// Start the first server
 		err = config1.Start(t.Context())
@@ -162,7 +168,8 @@ func TestPortDiscovery(t *testing.T) {
 		require.NoError(t, err) // New() succeeds
 
 		// Start the second server - this will fail silently (logged)
-		_ = config2.Start(t.Context())
+		err = config2.Start(t.Context())
+		require.NoError(t, err)
 
 		// Wait a bit for server start attempt
 		time.Sleep(100 * time.Millisecond)
@@ -172,7 +179,8 @@ func TestPortDiscovery(t *testing.T) {
 		// The failure is logged but doesn't prevent New() from succeeding
 		assert.Equal(t, ":19307", config2.ServerAddress())
 
-		config2.Shutdown(t.Context())
+		err = config2.Shutdown(t.Context())
+		assert.NoError(t, err)
 	})
 
 	t.Run("FlexiblePortFindsAlternative", func(t *testing.T) {
@@ -182,7 +190,10 @@ func TestPortDiscovery(t *testing.T) {
 			WithServiceName("test-service-1"),
 		)
 		require.NoError(t, err)
-		defer config1.Shutdown(t.Context())
+		t.Cleanup(func() {
+			//nolint:errcheck // Test cleanup
+			config1.Shutdown(t.Context())
+		})
 
 		// Start the first server
 		err = config1.Start(t.Context())
@@ -198,7 +209,10 @@ func TestPortDiscovery(t *testing.T) {
 			// No WithStrictPort() - should auto-discover
 		)
 		require.NoError(t, err)
-		defer config2.Shutdown(t.Context())
+		t.Cleanup(func() {
+			//nolint:errcheck // Test cleanup
+			config2.Shutdown(t.Context())
+		})
 
 		// Start the second server - should find alternative port
 		err = config2.Start(t.Context())
@@ -226,7 +240,8 @@ func TestValidationEdgeCases(t *testing.T) {
 		require.NoError(t, err) // Should succeed despite warning
 		require.NotNil(t, recorder)
 
-		recorder.Shutdown(t.Context())
+		err = recorder.Shutdown(t.Context())
+		assert.NoError(t, err)
 	})
 
 	t.Run("CustomPrometheusPath", func(t *testing.T) {
@@ -240,7 +255,8 @@ func TestValidationEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "/custom-metrics", recorder.metricsPath)
 
-		recorder.Shutdown(t.Context())
+		err = recorder.Shutdown(t.Context())
+		assert.NoError(t, err)
 	})
 
 	t.Run("ExcludeMultiplePaths_Middleware", func(t *testing.T) {
@@ -321,7 +337,8 @@ func TestShutdownEdgeCases(t *testing.T) {
 		defer cancel()
 
 		// Shutdown might timeout but shouldn't panic
-		_ = recorder.Shutdown(ctx)
+		err = recorder.Shutdown(ctx)
+		assert.NoError(t, err)
 	})
 }
 
@@ -355,6 +372,7 @@ func TestMetricNameValidationEdgeCases(t *testing.T) {
 		WithServerDisabled(),
 	)
 	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
 		recorder.Shutdown(t.Context())
 	})
 
@@ -366,7 +384,7 @@ func TestMetricNameValidationEdgeCases(t *testing.T) {
 			// instance and check a shared atomic failure counter, which would cause race conditions.
 
 			initialFailures := recorder.getAtomicCustomMetricFailures()
-			_ = recorder.IncrementCounter(ctx, tt.metricName)
+			recorder.IncrementCounter(ctx, tt.metricName) //nolint:errcheck // Test hot path
 			newFailures := recorder.getAtomicCustomMetricFailures()
 
 			if tt.shouldSucceed {
@@ -397,7 +415,7 @@ func TestResponseWriterEdgeCases(t *testing.T) {
 		// This tests that Write sets status code to 200 if not set
 		rec := httptest.NewRecorder()
 		rw := &responseWriter{ResponseWriter: rec}
-		rw.Write([]byte("test"))
+		rw.Write([]byte("test")) //nolint:errcheck // Test hot path
 		assert.Equal(t, http.StatusOK, rw.StatusCode())
 		assert.Equal(t, 4, rw.Size())
 	})
@@ -474,9 +492,9 @@ func TestMetricsWithDisabledState(t *testing.T) {
 	ctx := t.Context()
 
 	// These should all be no-ops (return nil for disabled recorder)
-	_ = recorder.IncrementCounter(ctx, "test")
-	_ = recorder.RecordHistogram(ctx, "test", 1.0)
-	_ = recorder.SetGauge(ctx, "test", 1.0)
+	recorder.IncrementCounter(ctx, "test")     //nolint:errcheck // Test hot path
+	recorder.RecordHistogram(ctx, "test", 1.0) //nolint:errcheck // Test hot path
+	recorder.SetGauge(ctx, "test", 1.0)        //nolint:errcheck // Test hot path
 
 	result := recorder.BeginRequest(ctx)
 	assert.Nil(t, result)

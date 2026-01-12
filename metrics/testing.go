@@ -125,7 +125,7 @@ func WaitForMetricsServer(tb testing.TB, address string, timeout time.Duration) 
 		conn, err := dialer.DialContext(ctx, "tcp", address)
 		cancel()
 		if err == nil {
-			_ = conn.Close()
+			conn.Close() //nolint:errcheck // Test helper - connection verified
 
 			return nil
 		}
@@ -144,8 +144,13 @@ func findAvailableTestPort(tb testing.TB) int {
 	if err != nil {
 		tb.Fatalf("findAvailableTestPort: failed to find available port: %v", err)
 	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	_ = listener.Close()
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		listener.Close() //nolint:errcheck // Test helper cleanup
+		tb.Fatal("findAvailableTestPort: listener address is not a TCP address")
+	}
+	port := tcpAddr.Port
+	listener.Close() //nolint:errcheck // Test helper - port already obtained
 
 	return port
 }

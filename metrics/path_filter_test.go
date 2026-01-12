@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPathFilter_ExactPaths(t *testing.T) {
@@ -52,8 +53,10 @@ func TestPathFilter_Patterns(t *testing.T) {
 	t.Parallel()
 
 	pf := newPathFilter()
-	pattern1, _ := regexp.Compile(`^/v[0-9]+/internal/.*`)
-	pattern2, _ := regexp.Compile(`^/admin/.*`)
+	pattern1, err := regexp.Compile(`^/v[0-9]+/internal/.*`)
+	require.NoError(t, err)
+	pattern2, err := regexp.Compile(`^/admin/.*`)
+	require.NoError(t, err)
 	pf.addPatterns(pattern1, pattern2)
 
 	assert.True(t, pf.shouldExclude("/v1/internal/status"))
@@ -70,7 +73,8 @@ func TestPathFilter_Combined(t *testing.T) {
 	pf := newPathFilter()
 	pf.addPaths("/health", "/ready")
 	pf.addPrefixes("/debug/")
-	pattern, _ := regexp.Compile(`^/v[0-9]+/internal/.*`)
+	pattern, err := regexp.Compile(`^/v[0-9]+/internal/.*`)
+	require.NoError(t, err)
 	pf.addPatterns(pattern)
 
 	// Exact paths

@@ -229,7 +229,9 @@ func (r *Recorder) startMetricsServer(ctx context.Context) {
 
 			return
 		}
-		listener.Close() // Close immediately, we'll reopen in ListenAndServe
+		if closeErr := listener.Close(); closeErr != nil {
+			r.emitError("Failed to close temporary metrics listener", "error", closeErr, "port", r.metricsPort)
+		}
 		actualPort = r.metricsPort
 	} else {
 		// Flexible mode: try to find an available port
@@ -332,7 +334,10 @@ func findAvailablePort(ctx context.Context, preferredPort string) (string, error
 		listener, listenErr := lc.Listen(ctx, "tcp", testAddr)
 		if listenErr == nil {
 			// Port is available
-			listener.Close()
+			if closeErr := listener.Close(); closeErr != nil {
+				return "", fmt.Errorf("failed to close temporary metrics listener on %s: %w", testAddr, closeErr)
+			}
+
 			return testAddr, nil
 		}
 	}

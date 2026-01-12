@@ -40,7 +40,10 @@ func TestProperty_MetricCountNeverExceedsLimit(t *testing.T) {
 		WithMaxCustomMetrics(limit),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
 
 	var violations atomic.Int64
 
@@ -52,7 +55,7 @@ func TestProperty_MetricCountNeverExceedsLimit(t *testing.T) {
 			defer wg.Done()
 			for j := range metricsPerGoroutine {
 				metricName := fmt.Sprintf("metric_%d_%d", id, j)
-				_ = recorder.IncrementCounter(t.Context(), metricName)
+				recorder.IncrementCounter(t.Context(), metricName) //nolint:errcheck // Test hot path
 
 				// PROPERTY: Count should NEVER exceed limit
 				count := recorder.CustomMetricCount()
@@ -84,7 +87,10 @@ func TestProperty_SameMetricNameReturnsSameInstance(t *testing.T) {
 		WithServiceName("idempotent-test"),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
 
 	const metricName = "shared_counter"
 	const numGoroutines = 50
@@ -96,7 +102,7 @@ func TestProperty_SameMetricNameReturnsSameInstance(t *testing.T) {
 	for range numGoroutines {
 		go func() {
 			defer wg.Done()
-			_ = recorder.IncrementCounter(t.Context(), metricName)
+			recorder.IncrementCounter(t.Context(), metricName) //nolint:errcheck // Test hot path
 		}()
 	}
 
@@ -122,7 +128,10 @@ func TestProperty_FailuresAreTracked(t *testing.T) {
 		WithMaxCustomMetrics(limit),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
 
 	// Create metrics until limit, then continue to trigger failures
 	var successCount int
@@ -297,7 +306,10 @@ func TestProperty_MetricLimitEnforcementIsAtomic(t *testing.T) {
 		WithMaxCustomMetrics(limit),
 		WithServerDisabled(),
 	)
-	t.Cleanup(func() { recorder.Shutdown(t.Context()) })
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
 
 	var successCount atomic.Int64
 	var maxObserved atomic.Int64

@@ -36,6 +36,7 @@ func ExampleNew() {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
+	//nolint:errcheck // Example test cleanup
 	defer recorder.Shutdown(context.Background())
 
 	fmt.Printf("Metrics enabled: %v\n", recorder.IsEnabled())
@@ -49,6 +50,7 @@ func ExampleMustNew() {
 		metrics.WithServiceName("my-service"),
 		metrics.WithServerDisabled(),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer recorder.Shutdown(context.Background())
 
 	fmt.Printf("Service: %s\n", recorder.ServiceName())
@@ -63,6 +65,7 @@ func ExampleRecorder_RecordHistogram() {
 		metrics.WithStdout(),
 		metrics.WithServiceName("my-service"),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
@@ -76,7 +79,7 @@ func ExampleRecorder_RecordHistogram() {
 	}
 
 	// Or fire-and-forget (ignore errors)
-	_ = recorder.RecordHistogram(ctx, "processing_duration", 2.3)
+	recorder.RecordHistogram(ctx, "processing_duration", 2.3) //nolint:errcheck // Example test cleanup
 }
 
 // ExampleRecorder_IncrementCounter demonstrates incrementing a counter.
@@ -87,6 +90,7 @@ func ExampleRecorder_IncrementCounter() {
 		metrics.WithStdout(),
 		metrics.WithServiceName("my-service"),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
@@ -100,7 +104,7 @@ func ExampleRecorder_IncrementCounter() {
 	}
 
 	// Or fire-and-forget (ignore errors)
-	_ = recorder.IncrementCounter(ctx, "events_total")
+	recorder.IncrementCounter(ctx, "events_total") //nolint:errcheck // Example test cleanup
 }
 
 // ExampleRecorder_SetGauge demonstrates setting a gauge value.
@@ -111,6 +115,7 @@ func ExampleRecorder_SetGauge() {
 		metrics.WithStdout(),
 		metrics.WithServiceName("my-service"),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer recorder.Shutdown(context.Background())
 
 	ctx := context.Background()
@@ -123,7 +128,7 @@ func ExampleRecorder_SetGauge() {
 	}
 
 	// Or fire-and-forget (ignore errors)
-	_ = recorder.SetGauge(ctx, "cache_size", 1024)
+	recorder.SetGauge(ctx, "cache_size", 1024) //nolint:errcheck // Example test cleanup
 }
 
 // ExampleWithOTLP demonstrates configuring OTLP exporter.
@@ -132,6 +137,7 @@ func ExampleWithOTLP() {
 		metrics.WithOTLP("http://localhost:4318"),
 		metrics.WithServiceName("my-service"),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer recorder.Shutdown(context.Background())
 
 	fmt.Printf("Provider: %s\n", recorder.Provider())
@@ -145,16 +151,17 @@ func ExampleMiddleware_withExcludePaths() {
 		metrics.WithPrometheus(":9090", "/metrics"),
 		metrics.WithServerDisabled(),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer recorder.Shutdown(context.Background())
 
 	// Path exclusion is now configured on the middleware
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
+		w.Write([]byte("OK")) //nolint:errcheck // Example test handler
 	})
 
 	// Apply middleware with path exclusions
-	_ = metrics.Middleware(recorder,
+	metrics.Middleware(recorder,
 		metrics.WithExcludePaths("/health", "/metrics", "/ready"),
 	)(mux)
 
@@ -170,6 +177,7 @@ func ExampleMiddleware_withHeaders() {
 		metrics.WithPrometheus(":9090", "/metrics"),
 		metrics.WithServerDisabled(),
 	)
+	//nolint:errcheck // Example test cleanup
 	defer recorder.Shutdown(context.Background())
 
 	// Header recording is now configured on the middleware

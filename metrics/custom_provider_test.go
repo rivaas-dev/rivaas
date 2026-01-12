@@ -48,9 +48,9 @@ func TestWithCustomMeterProvider(t *testing.T) {
 	assert.Equal(t, customProvider, recorder.meterProvider)
 
 	// Verify metrics work (errors are returned but we ignore them for this test)
-	_ = recorder.IncrementCounter(t.Context(), "test_counter")
-	_ = recorder.RecordHistogram(t.Context(), "test_metric", 1.5)
-	_ = recorder.SetGauge(t.Context(), "test_gauge", 42)
+	recorder.IncrementCounter(t.Context(), "test_counter")    //nolint:errcheck // Test ignores errors
+	recorder.RecordHistogram(t.Context(), "test_metric", 1.5) //nolint:errcheck // Test ignores errors
+	recorder.SetGauge(t.Context(), "test_gauge", 42)          //nolint:errcheck // Test ignores errors
 
 	// Shutdown should NOT shut down the custom provider (user manages it)
 	err = recorder.Shutdown(t.Context())
