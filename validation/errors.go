@@ -168,23 +168,26 @@ func (v *Error) AddError(err error) {
 		return
 	}
 
-	if fe, ok := err.(FieldError); ok {
+	var fe FieldError
+	if errors.As(err, &fe) {
 		v.Fields = append(v.Fields, fe)
 		return
 	}
 
-	if ve, ok := err.(Error); ok {
-		v.Fields = append(v.Fields, ve.Fields...)
-		if ve.Truncated {
+	var vePtr *Error
+	if errors.As(err, &vePtr) {
+		v.Fields = append(v.Fields, vePtr.Fields...)
+		if vePtr.Truncated {
 			v.Truncated = true
 		}
 
 		return
 	}
 
-	if ve, ok := err.(*Error); ok {
-		v.Fields = append(v.Fields, ve.Fields...)
-		if ve.Truncated {
+	var veVal Error
+	if errors.As(err, &veVal) {
+		v.Fields = append(v.Fields, veVal.Fields...)
+		if veVal.Truncated {
 			v.Truncated = true
 		}
 

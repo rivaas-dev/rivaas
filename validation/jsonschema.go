@@ -17,6 +17,7 @@ package validation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -96,7 +97,8 @@ func (v *Validator) validateWithSchema(ctx context.Context, val any, cfg *config
 
 	// Validate
 	if validateErr := schema.Validate(data); validateErr != nil {
-		if verr, verrOk := validateErr.(*jsonschema.ValidationError); verrOk {
+		var verr *jsonschema.ValidationError
+		if errors.As(validateErr, &verr) {
 			return formatSchemaErrors(verr, cfg)
 		}
 

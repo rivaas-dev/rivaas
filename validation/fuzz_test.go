@@ -128,7 +128,8 @@ func FuzzValidateJSONSchema(f *testing.F) {
 
 		// Note: Validation errors are intentionally ignored in fuzz testing.
 		// We're only checking that validation doesn't panic, not correctness.
-		_ = Validate(ctx, &data,
+		//nolint:errcheck // Fuzz testing; error checking would skew results
+		Validate(ctx, &data,
 			WithStrategy(StrategyJSONSchema),
 			WithCustomSchema("fuzz-schema", schema),
 		)
@@ -195,8 +196,8 @@ func FuzzValidationError(f *testing.F) {
 		_ = verr.HasErrors()
 		_ = verr.HasCode(code)
 		_ = verr.Has(path)
-		_ = verr.GetField(path)
-		_ = verr.Unwrap()
+		_ = verr.GetField(path) //nolint:errcheck // intentionally ignored - testing for panics
+		_ = verr.Unwrap()       //nolint:errcheck // intentionally ignored - testing for panics
 
 		verr.Sort()
 	})
@@ -217,8 +218,8 @@ func FuzzFieldError(f *testing.F) {
 
 		// Note: Return values intentionally ignored - we're testing for panics, not correctness.
 		_ = fe.Error()
-		// FieldError.Unwrap() returns nil (no wrapped error), safe to ignore in fuzz test
-		_ = fe.Unwrap()
+		//nolint:errcheck // Fuzz testing; FieldError.Unwrap() returns nil (no wrapped error), safe to ignore in fuzz test
+		fe.Unwrap()
 	})
 }
 
@@ -238,9 +239,11 @@ func isValidationError(err error) bool {
 		return true
 	}
 
-	// Check for validation.Error type (most common case)
-	switch err.(type) {
-	case *Error, Error, FieldError:
+	// Check for validation.Error type (the most common case)
+	var errPtr *Error
+	var errVal Error
+	var fieldErr FieldError
+	if errors.As(err, &errPtr) || errors.As(err, &errVal) || errors.As(err, &fieldErr) {
 		return true
 	}
 

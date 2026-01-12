@@ -15,6 +15,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -53,7 +54,8 @@ func (v *Validator) validateWithTags(val any, cfg *config) error {
 		return nil
 	}
 
-	if validationErrs, ok := err.(validator.ValidationErrors); ok {
+	var validationErrs validator.ValidationErrors
+	if errors.As(err, &validationErrs) {
 		return v.formatTagErrors(validationErrs, val, cfg)
 	}
 
@@ -99,8 +101,9 @@ func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 
 		// Validate this single field
 		if err := v.tagValidator.Var(fieldVal.Interface(), validateTag); err != nil {
-			if verrs, verrsOk := err.(validator.ValidationErrors); verrsOk {
-				// Format with proper path context
+			var verrs validator.ValidationErrors
+			if errors.As(err, &verrs) {
+				// Format with a proper path context
 				for _, e := range verrs {
 					code := "tag." + e.Tag()
 					msg := getTagErrorMessage(e, cfg)
@@ -118,8 +121,6 @@ func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 						"value": value,
 					})
 				}
-			} else {
-				result.AddError(err)
 			}
 		}
 

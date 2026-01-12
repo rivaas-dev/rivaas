@@ -203,7 +203,8 @@ func (v *Validator) coerceToValidationErrors(err error, cfg *config) error {
 	}
 
 	// Already an Error
-	if verrs, ok := err.(*Error); ok {
+	var verrs *Error
+	if errors.As(err, &verrs) {
 		if cfg.maxErrors > 0 && len(verrs.Fields) > cfg.maxErrors {
 			verrs.Fields = verrs.Fields[:cfg.maxErrors]
 			verrs.Truncated = true
@@ -214,7 +215,8 @@ func (v *Validator) coerceToValidationErrors(err error, cfg *config) error {
 	}
 
 	// Already a FieldError
-	if fe, ok := err.(FieldError); ok {
+	var fe FieldError
+	if errors.As(err, &fe) {
 		return &Error{Fields: []FieldError{fe}}
 	}
 

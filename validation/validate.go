@@ -98,6 +98,8 @@ func ValidatePartial(ctx context.Context, v any, pm PresenceMap, opts ...Option)
 //	        // Handle structured validation errors
 //	    }
 //	}
+//
+//nolint:contextcheck // intentional: WithContext option allows explicit context override
 func (v *Validator) Validate(ctx context.Context, val any, opts ...Option) error {
 	if val == nil {
 		return &Error{Fields: []FieldError{{Code: "nil", Message: ErrCannotValidateNilValue.Error()}}}

@@ -50,7 +50,8 @@ func BenchmarkValidate_Tags(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = Validate(ctx, user, WithStrategy(StrategyTags))
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Validate(ctx, user, WithStrategy(StrategyTags))
 	}
 }
 
@@ -65,7 +66,8 @@ func BenchmarkValidate_Interface(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = Validate(ctx, user, WithStrategy(StrategyInterface))
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Validate(ctx, user, WithStrategy(StrategyInterface))
 	}
 }
 
@@ -94,7 +96,8 @@ func BenchmarkValidate_JSONSchema(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = Validate(ctx, user, WithStrategy(StrategyJSONSchema), WithCustomSchema("bench-user", schema))
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Validate(ctx, user, WithStrategy(StrategyJSONSchema), WithCustomSchema("bench-user", schema))
 	}
 }
 
@@ -136,7 +139,8 @@ func BenchmarkValidate_Complex(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = Validate(ctx, order, WithStrategy(StrategyTags))
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Validate(ctx, order, WithStrategy(StrategyTags))
 	}
 }
 
@@ -151,7 +155,8 @@ func BenchmarkValidate_Auto(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = Validate(ctx, user) // Auto strategy
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Validate(ctx, user) // Auto strategy
 	}
 }
 
@@ -176,7 +181,8 @@ func BenchmarkValidate_WithMaxErrors(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = Validate(ctx, user, WithStrategy(StrategyTags), WithMaxErrors(5))
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		Validate(ctx, user, WithStrategy(StrategyTags), WithMaxErrors(5))
 	}
 }
 
@@ -197,7 +203,8 @@ func BenchmarkValidate_Concurrent(b *testing.B) {
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = Validate(ctx, user, WithStrategy(StrategyTags))
+			//nolint:errcheck // Benchmark measures performance; error checking would skew results
+			Validate(ctx, user, WithStrategy(StrategyTags))
 		}
 	})
 }
@@ -219,6 +226,7 @@ func BenchmarkValidate_Partial(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = ValidatePartial(ctx, user, pm, WithStrategy(StrategyTags))
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		ValidatePartial(ctx, user, pm, WithStrategy(StrategyTags))
 	}
 }
