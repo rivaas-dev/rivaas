@@ -10,7 +10,7 @@
       name = "test-examples";
       title = "Building Examples (standalone)";
       findPattern = lib.findPatterns.examplesOnly;
-      command = "${lib.go}/bin/go build -C ./$dir ./...";
+      command = "${pkgs.go}/bin/go build -C ./$dir ./...";
       extraEnv = "env GOWORK=off";
       spinnerTitle = "Building";
       successMsg = "All $total examples build successfully!";
@@ -51,7 +51,7 @@
 
       # Build and run the example (standalone, with GOWORK=off)
       cd "$selected"
-      GOWORK=off ${lib.go}/bin/go run .
+      GOWORK=off ${pkgs.go}/bin/go run .
     '');
   };
 }

@@ -6,14 +6,11 @@ let
   findPatterns = import ./find-patterns.nix;
   mkModuleScript = import ./module-script.nix { inherit pkgs colors; };
   appsMeta = import ./apps-meta.nix;
+  banner = import ./banner.nix { inherit colors appsMeta; };
 in
 {
-  inherit colors findPatterns mkModuleScript appsMeta;
+  inherit colors findPatterns mkModuleScript appsMeta banner;
 
-  # Re-export commonly used packages for convenience
-  go = pkgs.go;
-  gum = pkgs.gum;
-  git = pkgs.git;
-  golangci-lint = pkgs.golangci-lint;
-  findutils = pkgs.findutils;
+  # Ready-to-use banner shell hook for devshell
+  bannerShellHook = banner.shellHook;
 }

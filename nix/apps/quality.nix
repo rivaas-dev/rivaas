@@ -183,7 +183,7 @@
         current=$((current + 1))
 
         $gum style --foreground ${lib.colors.info} "[$current/$total] $dir"
-        output=$($gum spin --spinner dot --title "Benchmarking..." --show-output -- ${lib.go}/bin/go test -C "./$dir" ./... -bench=. -benchmem -run=^$ -count=1)
+        output=$($gum spin --spinner dot --title "Benchmarking..." --show-output -- ${pkgs.go}/bin/go test -C "./$dir" ./... -bench=. -benchmem -run=^$ -count=1)
         # Only show if there are actual benchmark results
         if echo "$output" | grep -q "Benchmark"; then
           echo "$output" | grep -E "(Benchmark|ns/op|B/op)"
@@ -205,7 +205,7 @@
       name = "tidy";
       title = "Tidying Go Modules";
       findPattern = lib.findPatterns.allModules;
-      command = "${lib.go}/bin/go mod tidy -C ./$dir";
+      command = "${pkgs.go}/bin/go mod tidy -C ./$dir";
       spinnerTitle = "Tidying";
       successMsg = "All $total modules tidied!";
       failMsg = "$failed/$total modules failed to tidy";

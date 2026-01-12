@@ -1,10 +1,17 @@
 # Banner generation utilities for devshell
 # Provides functions to generate the welcome banner with categorized commands
-{ colors }:
+{ colors, appsMeta }:
 
 let
-  # Category display order (preserves intended ordering)
-  categoryOrder = [ "Testing" "Code Quality" "Release" "Commit Tools" ];
+  # Read ASCII banner art from external file
+  bannerArt = builtins.readFile ./banner.txt;
+
+  # Derive category order from appsMeta (preserves definition order)
+  categoryOrder = builtins.foldl' (acc: app:
+    if builtins.elem app.category acc
+    then acc
+    else acc ++ [ app.category ]
+  ) [] appsMeta;
 
   # Group apps by their category field
   groupByCategory = apps:
@@ -48,16 +55,46 @@ let
     ${commandLines}
     '';
 
-in
-{
-  inherit groupByCategory maxNameLen padRight mkCommandLine mkCategorySection categoryOrder;
-
-  # Generate the complete banner script for all categories
-  # Usage: mkBannerScript appsMeta
-  mkBannerScript = apps:
+  # Generate the command categories script
+  mkCommandCategories = apps:
     let
       maxLen = maxNameLen apps;
       categories = groupByCategory apps;
     in
     builtins.concatStringsSep "\n    " (builtins.map (mkCategorySection maxLen) categories);
+
+  # Generate the shell hook banner script with given art and apps
+  mkShellHookBannerWith = { art, apps }:
+    let
+      commandCategories = mkCommandCategories apps;
+    in
+    ''
+    # Display banner only in interactive non-CI environments
+    if [ -z "''${CI:-}" ]; then
+      # Pretty welcome banner with gum (pastel colors)
+      echo ""
+      gum style --foreground ${colors.header} "${art}"
+
+      echo ""
+      gum style --foreground ${colors.info} "Go version: $(go version | cut -d' ' -f3 | tr -d 'go')"
+      gum style --foreground ${colors.info} "Golangci-lint version: $(golangci-lint version --short 2>/dev/null || echo 'not found')"
+
+      gum style --foreground ${colors.header} --bold --border rounded --padding "0 1" "Quick Commands"
+      ${commandCategories}
+      echo ""
+    fi
+    '';
+
+in
+{
+  inherit groupByCategory maxNameLen padRight mkCommandLine mkCategorySection categoryOrder bannerArt;
+
+  # Generate the command categories script
+  mkBannerScript = mkCommandCategories;
+
+  # Generate shell hook with custom banner art and apps
+  mkShellHookBanner = mkShellHookBannerWith;
+
+  # Ready-to-use shell hook with default banner art and appsMeta
+  shellHook = mkShellHookBannerWith { art = bannerArt; apps = appsMeta; };
 }
