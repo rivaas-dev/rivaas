@@ -103,7 +103,8 @@ func (a *App) Test(req *http.Request, opts ...TestOption) (*http.Response, error
 	done := make(chan struct{})
 	go func() {
 		defer func() {
-			_ = recover()
+			//nolint:errcheck // Intentionally ignoring panic value; test framework handles panics
+			recover()
 			// The test framework will handle it appropriately
 			close(done)
 		}()

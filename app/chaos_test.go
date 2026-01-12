@@ -16,7 +16,7 @@ package app
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -75,7 +75,8 @@ func TestChaos_ConcurrentRouteRegistration(t *testing.T) {
 		wg.Add(1)
 		go func(_ int) {
 			defer wg.Done()
-			routeID := rand.Intn(10) // Only 10 unique routes (0-9)
+			// #nosec G404 -- test code, not security-sensitive
+			routeID := rand.IntN(10) // Only 10 unique routes (0-9)
 			path := fmt.Sprintf("/route%d", routeID)
 
 			req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -117,7 +118,8 @@ func TestChaos_StressTestHighConcurrency(t *testing.T) {
 	app.GET("/stress", func(c *Context) {
 		requestCount.Add(1)
 		// Simulate variable work
-		time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
+		// #nosec G404 -- test code, not security-sensitive
+		time.Sleep(time.Duration(rand.IntN(5)) * time.Millisecond)
 		if err := c.String(http.StatusOK, "ok"); err != nil {
 			c.Logger().Error("failed to write response", "err", err)
 		}
@@ -203,6 +205,7 @@ func TestChaos_RandomRoutePatterns(t *testing.T) {
 					}
 				}()
 				app.GET(path, func(c *Context) {
+					//nolint:errcheck // chaos test handler, we don't care about the error here
 					_ = c.Stringf(http.StatusOK, "route-%d", id)
 				})
 			}()

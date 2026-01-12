@@ -139,7 +139,7 @@ func main() {
         app.WithDebugEndpoints(
             app.WithPprofIf(os.Getenv("PPROF_ENABLED") == "true"),
         ),
-        app.WithServerConfig(
+        app.WithServer(
             app.WithReadTimeout(15 * time.Second),
             app.WithWriteTimeout(15 * time.Second),
         ),
@@ -318,7 +318,7 @@ ENVIRONMENT=production OTLP_ENDPOINT=jaeger:4317 go run main.go
 Configure server timeouts and limits using functional options:
 
 ```go
-app.WithServerConfig(
+app.WithServer(
     app.WithReadTimeout(10 * time.Second),
     app.WithWriteTimeout(10 * time.Second),
     app.WithIdleTimeout(60 * time.Second),
@@ -332,7 +332,7 @@ app.WithServerConfig(
 
 ```go
 // Only override read and write timeouts
-app.WithServerConfig(
+app.WithServer(
     app.WithReadTimeout(15 * time.Second),
     app.WithWriteTimeout(15 * time.Second),
     // Other fields (IdleTimeout, etc.) will use defaults
@@ -362,7 +362,7 @@ Server configuration is automatically validated when creating the app. The valid
 ```go
 app, err := app.New(
     app.WithServiceName("my-api"),
-    app.WithServerConfig(
+    app.WithServer(
         app.WithReadTimeout(15 * time.Second),
         app.WithWriteTimeout(10 * time.Second), // ❌ Invalid: read > write
         app.WithShutdownTimeout(100 * time.Millisecond), // ❌ Invalid: too short
@@ -381,7 +381,7 @@ app, err := app.New(
 ```go
 app, err := app.New(
     app.WithServiceName("my-api"),
-    app.WithServerConfig(
+    app.WithServer(
         app.WithReadTimeout(10 * time.Second),
         app.WithWriteTimeout(15 * time.Second), // ✅ Valid: write >= read
         app.WithShutdownTimeout(5 * time.Second), // ✅ Valid: >= 1s
@@ -928,13 +928,13 @@ if err := a.Start(ctx, ":8080"); err != nil {
 
 ```go
 // ❌ Invalid
-app.WithServerConfig(
+app.WithServer(
     app.WithReadTimeout(15 * time.Second),
     app.WithWriteTimeout(10 * time.Second), // Read > Write
 )
 
 // ✅ Valid
-app.WithServerConfig(
+app.WithServer(
     app.WithReadTimeout(10 * time.Second),
     app.WithWriteTimeout(15 * time.Second), // Write >= Read
 )
@@ -969,7 +969,7 @@ app.WithServerConfig(
 
 **Solutions:**
 
-- Increase shutdown timeout: `app.WithServerConfig(app.WithShutdownTimeout(60 * time.Second))`
+- Increase shutdown timeout: `app.WithServer(app.WithShutdownTimeout(60 * time.Second))`
 - Ensure OnShutdown hooks complete quickly (they block shutdown)
 - Check for long-running requests that don't respect context cancellation
 - Verify OnStop hooks don't perform blocking operations
@@ -1079,9 +1079,9 @@ app.WithServerConfig(
 | `WithObservability(opts ...ObservabilityOption)` | Configure observability | Disabled |
 | `WithHealthEndpoints(opts ...HealthOption)` | Configure health endpoints | Disabled |
 | `WithDebugEndpoints(opts ...DebugOption)` | Configure debug endpoints | Disabled |
-| `WithServerConfig(opts ...ServerOption)` | Configure server settings | See defaults below |
+| `WithServer(opts ...ServerOption)` | Configure server settings | See defaults below |
 | `WithMiddleware(middlewares ...HandlerFunc)` | Add middleware | Auto-included in dev |
-| `WithRouterOptions(opts ...router.Option)` | Configure router | - |
+| `WithRouter(opts ...router.Option)` | Configure router | - |
 
 ### Observability Options
 

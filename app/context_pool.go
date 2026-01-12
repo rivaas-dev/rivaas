@@ -41,6 +41,7 @@ func newContextPool() *contextPool {
 
 // Get retrieves a [Context] from the pool, creating a new one if the pool is empty.
 func (cp *contextPool) Get() *Context {
+	//nolint:errcheck,forcetypeassert // Type assertion is safe: pool.New always returns *Context
 	return cp.pool.Get().(*Context)
 }
 

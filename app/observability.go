@@ -329,7 +329,7 @@ func (rw *observabilityResponseWriter) IsObservabilityWrapped() bool {
 	return true
 }
 
-// Preserve http.Hijacker (for WebSockets, HTTP/2, etc.)
+// Hijack Preserve http.Hijacker (for WebSockets, HTTP/2, etc.)
 func (rw *observabilityResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
@@ -338,14 +338,14 @@ func (rw *observabilityResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, er
 	return nil, nil, stderrors.New("response writer does not support hijacking")
 }
 
-// Preserve http.Flusher (for streaming responses)
+// Flush Preserve http.Flusher (for streaming responses)
 func (rw *observabilityResponseWriter) Flush() {
 	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
 	}
 }
 
-// Preserve http.Pusher (for HTTP/2 server push)
+// Push Preserve http.Pusher (for HTTP/2 server push)
 func (rw *observabilityResponseWriter) Push(target string, opts *http.PushOptions) error {
 	if pusher, ok := rw.ResponseWriter.(http.Pusher); ok {
 		return pusher.Push(target, opts)
@@ -354,9 +354,9 @@ func (rw *observabilityResponseWriter) Push(target string, opts *http.PushOption
 	return stderrors.New("response writer does not support push")
 }
 
-// Preserve io.ReaderFrom (for io.Copy)
+// ReadFrom Preserve io.ReaderFrom (for io.Copy)
 func (rw *observabilityResponseWriter) ReadFrom(r io.Reader) (int64, error) {
-	// Try to use underlying ReaderFrom implementation if available
+	// Try to use the underlying ReaderFrom implementation if available
 	if rf, ok := rw.ResponseWriter.(io.ReaderFrom); ok {
 		n, err := rf.ReadFrom(r)
 		rw.size += n

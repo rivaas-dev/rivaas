@@ -143,7 +143,8 @@ func TestApp_Test(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			defer func() { _ = resp.Body.Close() }()
+			//nolint:errcheck // Close error irrelevant in test; checking would skew results
+			defer resp.Body.Close()
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
 			if tt.checkResponse != nil {
@@ -205,7 +206,7 @@ func TestApp_Test_Timeout(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/slow", nil)
 			var opts []TestOption
-			// Always add timeout option, even for -1 (no timeout) and 0 (default)
+			// Always add a timeout option, even for -1 (no timeout) and 0 (default)
 			// This tests that WithTimeout properly handles all cases
 			opts = append(opts, WithTimeout(tt.timeout))
 
@@ -221,7 +222,8 @@ func TestApp_Test_Timeout(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, resp)
 				if resp != nil {
-					_ = resp.Body.Close()
+					//nolint:errcheck // Close error irrelevant in test; checking would skew results
+					resp.Body.Close()
 				}
 			}
 		})
@@ -284,8 +286,11 @@ func TestApp_Test_Context(t *testing.T) {
 
 			app.GET("/test", func(c *Context) {
 				if val := c.Request.Context().Value(contextKey("key")); val != nil {
-					if err := c.String(http.StatusOK, val.(string)); err != nil {
-						c.Logger().Error("failed to write response", "err", err)
+					str, ok := val.(string)
+					if ok {
+						if err := c.String(http.StatusOK, str); err != nil {
+							c.Logger().Error("failed to write response", "err", err)
+						}
 					}
 				} else {
 					if err := c.String(http.StatusOK, "no value"); err != nil {
@@ -300,13 +305,15 @@ func TestApp_Test_Context(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if resp != nil {
-					_ = resp.Body.Close()
+					//nolint:errcheck // Close error irrelevant in test; checking would skew results
+					resp.Body.Close()
 				}
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
 
-				defer func() { _ = resp.Body.Close() }()
+				//nolint:errcheck // Close error irrelevant in test; checking would skew results
+				defer resp.Body.Close()
 				if tt.checkValue != nil {
 					tt.checkValue(t, resp)
 				}
@@ -445,7 +452,7 @@ func TestApp_TestJSON(t *testing.T) {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 				if resp != nil {
-					_ = resp.Body.Close()
+					require.NoError(t, resp.Body.Close())
 				}
 
 				return
@@ -454,7 +461,7 @@ func TestApp_TestJSON(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			defer func() { _ = resp.Body.Close() }()
+			defer func() { require.NoError(t, resp.Body.Close()) }()
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
 			if tt.checkResp != nil {
@@ -499,7 +506,10 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusOK)
 
-				_ = json.NewEncoder(rec).Encode(User{Name: "Alice", Email: "alice@example.com"})
+				err := json.NewEncoder(rec).Encode(User{Name: "Alice", Email: "alice@example.com"})
+				if err != nil {
+					t.Fatalf("failed to encode JSON: %v", err)
+				}
 
 				return rec.Result()
 			},
@@ -518,7 +528,10 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusInternalServerError)
 
-				_ = json.NewEncoder(rec).Encode(map[string]string{"error": "server error"})
+				err := json.NewEncoder(rec).Encode(map[string]string{"error": "server error"})
+				if err != nil {
+					t.Fatalf("failed to encode JSON: %v", err)
+				}
 
 				return rec.Result()
 			},
@@ -538,7 +551,10 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "text/plain")
 				rec.WriteHeader(http.StatusOK)
 
-				_, _ = rec.WriteString("plain text")
+				_, err := rec.WriteString("plain text")
+				if err != nil {
+					t.Fatalf("failed to write response: %v", err)
+				}
 
 				return rec.Result()
 			},
@@ -558,7 +574,10 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusOK)
 
-				_, _ = rec.WriteString("{invalid json}")
+				_, err := rec.WriteString("{invalid json}")
+				if err != nil {
+					t.Fatalf("failed to write response: %v", err)
+				}
 
 				return rec.Result()
 			},
@@ -578,7 +597,10 @@ func TestExpectJSON(t *testing.T) {
 				rec.Header().Set("Content-Type", "application/json")
 				rec.WriteHeader(http.StatusOK)
 
-				_ = json.NewEncoder(rec).Encode(User{Name: "Bob", Email: "bob@example.com"})
+				err := json.NewEncoder(rec).Encode(User{Name: "Bob", Email: "bob@example.com"})
+				if err != nil {
+					t.Fatalf("failed to encode JSON: %v", err)
+				}
 
 				return rec.Result()
 			},
@@ -599,7 +621,7 @@ func TestExpectJSON(t *testing.T) {
 			mockT := &mockTestingT{}
 			resp := tt.makeResponse()
 
-			defer func() { _ = resp.Body.Close() }()
+			defer func() { require.NoError(t, resp.Body.Close()) }()
 
 			ExpectJSON(mockT, resp, tt.wantStatus, tt.out)
 
@@ -678,13 +700,13 @@ func TestTestOptions(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if resp != nil {
-					_ = resp.Body.Close()
+					require.NoError(t, resp.Body.Close())
 				}
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
 
-				defer func() { _ = resp.Body.Close() }()
+				defer func() { require.NoError(t, resp.Body.Close()) }()
 				assert.Equal(t, tt.wantStatus, resp.StatusCode)
 			}
 		})
@@ -715,6 +737,9 @@ func TestApp_Test_WithTracingEnabled(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		require.NoError(t, resp.Body.Close())
+	}()
+
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }

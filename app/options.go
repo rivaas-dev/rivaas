@@ -78,7 +78,7 @@ type ServerOption func(*serverConfig)
 // Example:
 //
 //	app.New(
-//	    app.WithServerConfig(
+//	    app.WithServer(
 //	        app.WithReadTimeout(10 * time.Second),
 //	    ),
 //	)
@@ -94,7 +94,7 @@ func WithReadTimeout(d time.Duration) ServerOption {
 // Example:
 //
 //	app.New(
-//	    app.WithServerConfig(
+//	    app.WithServer(
 //	        app.WithWriteTimeout(10 * time.Second),
 //	    ),
 //	)
@@ -110,7 +110,7 @@ func WithWriteTimeout(d time.Duration) ServerOption {
 // Example:
 //
 //	app.New(
-//	    app.WithServerConfig(
+//	    app.WithServer(
 //	        app.WithIdleTimeout(60 * time.Second),
 //	    ),
 //	)
@@ -126,7 +126,7 @@ func WithIdleTimeout(d time.Duration) ServerOption {
 // Example:
 //
 //	app.New(
-//	    app.WithServerConfig(
+//	    app.WithServer(
 //	        app.WithReadHeaderTimeout(2 * time.Second),
 //	    ),
 //	)
@@ -142,7 +142,7 @@ func WithReadHeaderTimeout(d time.Duration) ServerOption {
 // Example:
 //
 //	app.New(
-//	    app.WithServerConfig(
+//	    app.WithServer(
 //	        app.WithMaxHeaderBytes(1 << 20), // 1MB
 //	    ),
 //	)
@@ -158,7 +158,7 @@ func WithMaxHeaderBytes(n int) ServerOption {
 // Example:
 //
 //	app.New(
-//	    app.WithServerConfig(
+//	    app.WithServer(
 //	        app.WithShutdownTimeout(30 * time.Second),
 //	    ),
 //	)
@@ -168,19 +168,18 @@ func WithShutdownTimeout(d time.Duration) ServerOption {
 	}
 }
 
-// WithServerConfig configures server settings using functional options.
-// WithServerConfig applies options to the default server configuration.
+// WithServer configures server settings using functional options.
 //
 // Example:
 //
 //	app.New(
-//	    app.WithServerConfig(
+//	    app.WithServer(
 //	        app.WithReadTimeout(15 * time.Second),
 //	        app.WithWriteTimeout(15 * time.Second),
 //	        app.WithShutdownTimeout(30 * time.Second),
 //	    ),
 //	)
-func WithServerConfig(opts ...ServerOption) Option {
+func WithServer(opts ...ServerOption) Option {
 	return func(c *config) {
 		// Apply options to the existing server config (which already has defaults)
 		for _, opt := range opts {
@@ -234,15 +233,13 @@ func WithoutDefaultMiddleware() Option {
 	}
 }
 
-// WithRouterOptions passes router options through to the underlying router.
-// WithRouterOptions allows fine-tuning router settings like Bloom filter sizing,
-// cancellation checks, template routing, and versioning configuration.
+// WithRouter passes router options through to the underlying router.
 //
 // Example:
 //
 //	app := app.New(
 //	    app.WithServiceName("my-service"),
-//	    app.WithRouterOptions(
+//	    app.WithRouter(
 //	        router.WithBloomFilterSize(2000),
 //	        router.WithCancellationCheck(false),
 //	        router.WithTemplateRouting(true),
@@ -250,8 +247,8 @@ func WithoutDefaultMiddleware() Option {
 //	    ),
 //	)
 //
-// Multiple calls to WithRouterOptions accumulate options.
-func WithRouterOptions(opts ...router.Option) Option {
+// Multiple calls to WithRouter accumulate options.
+func WithRouter(opts ...router.Option) Option {
 	return func(c *config) {
 		if c.router == nil {
 			c.router = &routerConfig{}

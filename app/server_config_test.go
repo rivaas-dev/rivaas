@@ -232,7 +232,7 @@ func TestServerConfig_Validate_Integration(t *testing.T) {
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithServerConfig(
+			WithServer(
 				WithReadTimeout(15*time.Second),
 				WithWriteTimeout(10*time.Second), // Read > Write (invalid)
 			),
@@ -248,7 +248,7 @@ func TestServerConfig_Validate_Integration(t *testing.T) {
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithServerConfig(
+			WithServer(
 				WithReadTimeout(15*time.Second),
 				WithWriteTimeout(10*time.Second),          // Read > Write
 				WithMaxHeaderBytes(512),                   // Too small

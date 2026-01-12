@@ -42,7 +42,8 @@ func (a *App) logLifecycleEvent(ctx context.Context, level slog.Level, msg strin
 // This is called after the banner is printed to ensure clean terminal output.
 func (a *App) flushStartupLogs() {
 	if a.logging != nil {
-		_ = a.logging.FlushBuffer()
+		//nolint:errcheck // Best-effort flush; failure here doesn't affect server startup
+		a.logging.FlushBuffer()
 	}
 }
 
@@ -132,7 +133,7 @@ func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serv
 
 	// Wait for server to be ready, then execute OnReady hooks
 	<-serverReady
-	a.executeReadyHooks()
+	a.executeReadyHooks(ctx)
 
 	// Wait for context cancellation or server error
 	// Note: Signal handling should be done by the caller via signal.NotifyContext
@@ -144,11 +145,10 @@ func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serv
 	}
 
 	// Create a deadline for shutdown.
-	// We use context.Background() because the original ctx is already canceled (that's what triggered
-	// the shutdown). Using a canceled context as parent would give us 0 time for graceful shutdown.
-	// This is the standard Go pattern - the parent ctx signals WHEN to shutdown, the fresh context
-	// controls HOW LONG the shutdown can take.
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), a.config.server.shutdownTimeout)
+	// We use context.WithoutCancel() to preserve context values (tracing, logging) while ignoring
+	// the parent's cancellation. The parent ctx is already canceled (that's what triggered shutdown),
+	// but we want to keep its values for observability during shutdown operations.
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.config.server.shutdownTimeout)
 	defer cancel()
 
 	// Execute OnShutdown hooks (LIFO order)
@@ -163,7 +163,7 @@ func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serv
 	a.shutdownObservability(shutdownCtx)
 
 	// Execute OnStop hooks (best-effort)
-	a.executeStopHooks()
+	a.executeStopHooks(shutdownCtx)
 
 	a.logLifecycleEvent(shutdownCtx, slog.LevelInfo, "server exited", "protocol", protocol)
 
@@ -278,6 +278,7 @@ func (a *App) Start(ctx context.Context, addr string) error {
 	}
 
 	// Register OpenAPI endpoints before freezing
+	//nolint:contextcheck // Handler registration - context comes from request at runtime
 	a.registerOpenAPIEndpoints()
 
 	// Freeze router before starting (point of no return)
@@ -324,6 +325,7 @@ func (a *App) StartTLS(ctx context.Context, addr, certFile, keyFile string) erro
 	}
 
 	// Register OpenAPI endpoints before freezing
+	//nolint:contextcheck // Handler registration - context comes from request at runtime
 	a.registerOpenAPIEndpoints()
 
 	// Freeze router before starting (point of no return)
@@ -408,6 +410,7 @@ func (a *App) StartMTLS(ctx context.Context, addr string, serverCert tls.Certifi
 	}
 
 	// Register OpenAPI endpoints before freezing
+	//nolint:contextcheck // Handler registration - context comes from request at runtime
 	a.registerOpenAPIEndpoints()
 
 	// Freeze router before starting (point of no return)
@@ -425,7 +428,7 @@ func (a *App) StartMTLS(ctx context.Context, addr string, serverCert tls.Certifi
 	// Wrap listener with TLS
 	tlsListener := tls.NewListener(listener, tlsConfig)
 
-	// Create HTTP server
+	// Create an HTTP server
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           a.router,
@@ -442,7 +445,9 @@ func (a *App) StartMTLS(ctx context.Context, addr string, serverCert tls.Certifi
 	originalConnState := server.ConnState
 	server.ConnState = func(conn net.Conn, state http.ConnState) {
 		if state == http.StateActive && !authorizeMTLSConnection(conn, cfg) {
-			_ = conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				a.logLifecycleEvent(ctx, slog.LevelError, "failed to close unauthorized mTLS connection", "error", closeErr)
+			}
 
 			return
 		}
@@ -453,7 +458,7 @@ func (a *App) StartMTLS(ctx context.Context, addr string, serverCert tls.Certifi
 		}
 	}
 
-	// Use runServer helper with custom start function for TLS listener
+	// Use runServer helper with a custom start function for TLS listener
 	return a.runServer(ctx, server, func() error {
 		return server.Serve(tlsListener)
 	}, "mTLS")
@@ -462,7 +467,7 @@ func (a *App) StartMTLS(ctx context.Context, addr string, serverCert tls.Certifi
 // authorizeMTLSConnection checks if the TLS connection is authorized.
 // Returns true if authorized (or no authorization required), false if denied.
 func authorizeMTLSConnection(conn net.Conn, cfg *mtlsConfig) bool {
-	// No authorize callback means all connections are allowed
+	// No authorized callback means all connections are allowed
 	if cfg.authorize == nil {
 		return true
 	}

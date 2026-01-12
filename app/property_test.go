@@ -205,7 +205,7 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(WithReadTimeout(-1 * time.Second)),
+				WithServer(WithReadTimeout(-1 * time.Second)),
 			},
 			check: func(t *testing.T, err error) {
 				t.Helper()

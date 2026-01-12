@@ -39,7 +39,7 @@ var _ = Describe("App Integration", func() {
 			a := app.MustNew(
 				app.WithServiceName("test"),
 				app.WithServiceVersion("1.0.0"),
-				app.WithServerConfig(
+				app.WithServer(
 					app.WithShutdownTimeout(2*time.Second),
 				),
 			)
@@ -63,7 +63,7 @@ var _ = Describe("App Integration", func() {
 			a := app.MustNew(
 				app.WithServiceName("test"),
 				app.WithServiceVersion("1.0.0"),
-				app.WithServerConfig(
+				app.WithServer(
 					app.WithReadTimeout(customTimeout),
 					app.WithWriteTimeout(customTimeout),
 					app.WithIdleTimeout(customTimeout),
@@ -82,7 +82,7 @@ var _ = Describe("App Integration", func() {
 			a := app.MustNew(
 				app.WithServiceName("test"),
 				app.WithServiceVersion("1.0.0"),
-				app.WithServerConfig(
+				app.WithServer(
 					app.WithReadTimeout(5*time.Second),
 					app.WithWriteTimeout(10*time.Second),
 					app.WithIdleTimeout(30*time.Second),
@@ -572,7 +572,7 @@ var _ = Describe("App Integration", func() {
 				// Attempting to register a new route after serving should panic
 				Expect(func() {
 					a.GET("/new-route", func(c *app.Context) {
-						c.String(http.StatusOK, "new")
+						Expect(c.String(http.StatusOK, "new")).NotTo(HaveOccurred())
 					})
 				}).To(Panic())
 			})
@@ -583,7 +583,7 @@ var _ = Describe("App Integration", func() {
 				a := app.MustNew(
 					app.WithServiceName("test"),
 					app.WithServiceVersion("1.0.0"),
-					app.WithServerConfig(
+					app.WithServer(
 						app.WithReadTimeout(5*time.Second),
 						app.WithWriteTimeout(5*time.Second),
 						app.WithShutdownTimeout(2*time.Second),

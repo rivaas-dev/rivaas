@@ -64,6 +64,10 @@ func WithClientCAs(pool *x509.CertPool) MTLSOption {
 // Use TLS 1.2 or lower only if compatibility is required.
 func WithMinVersion(version uint16) MTLSOption {
 	return func(cfg *mtlsConfig) {
+		if version < tls.VersionTLS12 {
+			version = tls.VersionTLS12 // TLS 1.0/1.1 are insecure and deprecated
+		}
+
 		cfg.minVersion = version
 	}
 }
@@ -123,6 +127,7 @@ func (cfg *mtlsConfig) validate() error {
 
 // buildTLSConfig builds a TLS configuration from mtlsConfig.
 func (cfg *mtlsConfig) buildTLSConfig() *tls.Config {
+	//nolint:gosec // MinVersion defaults to TLS 1.3; TLS 1.2 allowed for legacy compatibility
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cfg.serverCert},
 		ClientCAs:    cfg.clientCAs,

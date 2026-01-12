@@ -162,7 +162,7 @@ func (a *App) executeStartHooks(ctx context.Context) error {
 
 // executeReadyHooks runs all OnReady hooks asynchronously.
 // It runs hooks in fire-and-forget mode with panic recovery to prevent silent failures.
-func (a *App) executeReadyHooks() {
+func (a *App) executeReadyHooks(ctx context.Context) {
 	a.hooks.mu.Lock()
 	hooks := make([]func(), 0, len(a.hooks.onReady))
 	hooks = append(hooks, a.hooks.onReady...)
@@ -174,7 +174,7 @@ func (a *App) executeReadyHooks() {
 				if r := recover(); r != nil {
 					// Use context.Background() because OnReady hooks are fire-and-forget goroutines
 					// that don't receive a context. During panic recovery, we just need to log the error.
-					a.logLifecycleEvent(context.Background(), slog.LevelError, "OnReady hook panic", "error", r)
+					a.logLifecycleEvent(ctx, slog.LevelError, "OnReady hook panic", "error", r)
 				}
 			}()
 			hook()
@@ -196,7 +196,7 @@ func (a *App) executeShutdownHooks(ctx context.Context) {
 }
 
 // executeStopHooks runs all OnStop hooks in best-effort mode.
-func (a *App) executeStopHooks() {
+func (a *App) executeStopHooks(ctx context.Context) {
 	a.hooks.mu.Lock()
 	hooks := make([]func(), 0, len(a.hooks.onStop))
 	hooks = append(hooks, a.hooks.onStop...)
@@ -206,7 +206,7 @@ func (a *App) executeStopHooks() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					a.logLifecycleEvent(context.Background(), slog.LevelWarn, "OnStop hook panic", "error", r)
+					a.logLifecycleEvent(ctx, slog.LevelWarn, "OnStop hook panic", "error", r)
 				}
 			}()
 			hook()

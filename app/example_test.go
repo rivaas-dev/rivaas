@@ -28,10 +28,7 @@ import (
 
 // Example demonstrates basic app usage.
 func Example() {
-	a, err := app.New()
-	if err != nil {
-		log.Fatal(err)
-	}
+	a := app.MustNew()
 
 	a.GET("/", func(c *app.Context) {
 		if jsonErr := c.JSON(http.StatusOK, map[string]string{
@@ -41,13 +38,13 @@ func Example() {
 		}
 	})
 
-	_, _ = fmt.Println("App created successfully")
+	fmt.Println("App created successfully")
 	// Output: App created successfully
 }
 
 // Example_withObservability demonstrates full observability setup.
 func Example_withObservability() {
-	a, err := app.New(
+	a := app.MustNew(
 		app.WithServiceName("example-api"),
 		app.WithServiceVersion("v1.0.0"),
 		app.WithObservability(
@@ -55,12 +52,9 @@ func Example_withObservability() {
 			app.WithTracing(tracing.WithNoop()),
 		),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	_, _ = fmt.Printf("Service: %s\n", a.ServiceName())
-	_, _ = fmt.Printf("Metrics: enabled\n")
+	fmt.Printf("Service: %s\n", a.ServiceName())
+	fmt.Printf("Metrics: enabled\n")
 	// Output:
 	// Service: example-api
 	// Metrics: enabled
@@ -68,7 +62,7 @@ func Example_withObservability() {
 
 // Example_testing demonstrates testing patterns.
 func Example_testing() {
-	a, _ := app.New()
+	a := app.MustNew()
 
 	a.GET("/health", func(c *app.Context) {
 		if err := c.String(http.StatusOK, "ok"); err != nil {
@@ -82,14 +76,15 @@ func Example_testing() {
 		log.Fatal(err)
 	}
 
-	_, _ = fmt.Printf("Status: %d\n", resp.StatusCode)
-	_ = resp.Body.Close()
+	fmt.Printf("Status: %d\n", resp.StatusCode)
+	//nolint:errcheck // example code, we don't care about the error here
+	resp.Body.Close()
 	// Output: Status: 200
 }
 
 // Example_routing demonstrates route registration.
 func Example_routing() {
-	a, _ := app.New()
+	a := app.MustNew()
 
 	a.GET("/users", func(c *app.Context) {
 		if err := c.JSON(http.StatusOK, map[string]string{"users": "list"}); err != nil {
@@ -103,13 +98,13 @@ func Example_routing() {
 		}
 	})
 
-	_, _ = fmt.Println("Routes registered")
+	fmt.Println("Routes registered")
 	// Output: Routes registered
 }
 
 // Example_middleware demonstrates middleware usage.
 func Example_middleware() {
-	a, _ := app.New()
+	a := app.MustNew()
 
 	a.Use(func(c *app.Context) {
 		// Add custom header
@@ -123,13 +118,13 @@ func Example_middleware() {
 		}
 	})
 
-	_, _ = fmt.Println("Middleware registered")
+	fmt.Println("Middleware registered")
 	// Output: Middleware registered
 }
 
 // Example_bindAndValidate demonstrates request binding and validation.
 func Example_bindAndValidate() {
-	a, _ := app.New()
+	a := app.MustNew()
 
 	type CreateUserRequest struct {
 		Name  string `json:"name" validate:"required,min=3"`
@@ -151,13 +146,13 @@ func Example_bindAndValidate() {
 		}
 	})
 
-	_, _ = fmt.Println("Handler with binding and validation registered")
+	fmt.Println("Handler with binding and validation registered")
 	// Output: Handler with binding and validation registered
 }
 
 // Example_healthEndpoints demonstrates health check endpoint configuration.
 func Example_healthEndpoints() {
-	a, err := app.New(
+	a := app.MustNew(
 		app.WithServiceName("example-api"),
 		app.WithHealthEndpoints(
 			app.WithLivenessCheck("process", func(ctx context.Context) error {
@@ -171,34 +166,31 @@ func Example_healthEndpoints() {
 			}),
 		),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	_, _ = fmt.Printf("Health endpoints configured: %s\n", a.ServiceName())
+	fmt.Printf("Health endpoints configured: %s\n", a.ServiceName())
 	// Output: Health endpoints configured: example-api
 }
 
 // Example_lifecycleHooks demonstrates lifecycle hook registration.
 func Example_lifecycleHooks() {
-	a, _ := app.New()
+	a := app.MustNew()
 
 	a.OnStart(func(ctx context.Context) error {
 		// Initialize database, run migrations, etc.
-		_, _ = fmt.Println("OnStart: Initializing...")
+		fmt.Println("OnStart: Initializing...")
 		return nil
 	})
 
 	a.OnReady(func() {
 		// Register with service discovery, warmup caches, etc.
-		_, _ = fmt.Println("OnReady: Server is ready")
+		fmt.Println("OnReady: Server is ready")
 	})
 
 	a.OnShutdown(func(ctx context.Context) {
 		// Close connections, flush buffers, etc.
-		_, _ = fmt.Println("OnShutdown: Cleaning up...")
+		fmt.Println("OnShutdown: Cleaning up...")
 	})
 
-	_, _ = fmt.Println("Lifecycle hooks registered")
+	fmt.Println("Lifecycle hooks registered")
 	// Output: Lifecycle hooks registered
 }

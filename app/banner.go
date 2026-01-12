@@ -155,7 +155,6 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	}
 	_, _ = output.WriteString(tracingLine + "\n")
 
-	// === Documentation Section ===
 	if a.openapi != nil {
 		_, _ = output.WriteString("\n" + categoryStyle.Render("Documentation") + "\n")
 
@@ -171,20 +170,26 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	}
 
 	// Print the banner
+	//nolint:errcheck // Best-effort banner display; write errors don't affect functionality
 	_, _ = fmt.Fprintln(w)
+	//nolint:errcheck // Best-effort banner display
 	_, _ = fmt.Fprint(w, styledArt.String())
+	//nolint:errcheck // Best-effort banner display
 	_, _ = fmt.Fprintln(w)
+	//nolint:errcheck // Best-effort banner display
 	_, _ = fmt.Fprint(w, output.String())
 
 	// Add routes section (only in development mode)
 	if a.config.environment == EnvironmentDevelopment {
 		routes := a.router.Routes()
 		if len(routes) > 0 {
+			//nolint:errcheck // Best-effort banner display
 			_, _ = fmt.Fprintln(w)
 			a.renderRoutesTable(w)
 		}
 	}
 
+	//nolint:errcheck // Best-effort banner display
 	_, _ = fmt.Fprintln(w)
 }
 
@@ -304,7 +309,7 @@ func (a *App) renderRoutesTable(w io.Writer) {
 		Headers("Method", "Version", "Path", "Handler").
 		Rows(rows...)
 
-	// Write to writer
+	//nolint:errcheck // Best-effort table display
 	_, _ = fmt.Fprintln(w, t.Render())
 }
 

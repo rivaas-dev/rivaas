@@ -55,7 +55,7 @@ func setupTestApp(t *testing.T) *app.App {
 		app.WithServiceName("blog-api-test"),
 		app.WithServiceVersion("v1.0.0"),
 		app.WithEnvironment("development"),
-		app.WithRouterOptions(
+		app.WithRouter(
 			router.WithVersioning(
 				version.WithPathDetection("/v{version}/"),
 				version.WithDefault("v1"),

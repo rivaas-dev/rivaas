@@ -23,7 +23,7 @@ import (
 	"rivaas.dev/router"
 )
 
-func TestWithRouterOptions(t *testing.T) {
+func TestWithRouter(t *testing.T) {
 	t.Parallel()
 
 	t.Run("creates app with router options", func(t *testing.T) {
@@ -31,7 +31,7 @@ func TestWithRouterOptions(t *testing.T) {
 		app, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("1.0.0"),
-			WithRouterOptions(
+			WithRouter(
 				router.WithBloomFilterSize(2000),
 				router.WithCancellationCheck(false),
 			),
@@ -53,16 +53,16 @@ func TestWithRouterOptions(t *testing.T) {
 		assert.NotNil(t, app.Router())
 	})
 
-	t.Run("multiple WithRouterOptions calls accumulate", func(t *testing.T) {
+	t.Run("multiple WithRouter calls accumulate", func(t *testing.T) {
 		t.Parallel()
 
 		app, err := New(
 			WithServiceName("test-service"),
 			WithServiceVersion("1.0.0"),
-			WithRouterOptions(
+			WithRouter(
 				router.WithBloomFilterSize(2000),
 			),
-			WithRouterOptions(
+			WithRouter(
 				router.WithCancellationCheck(false),
 				router.WithRouteCompilation(true),
 			),

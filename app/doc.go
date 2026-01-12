@@ -61,7 +61,7 @@
 //
 //   - All configuration options use the "With" prefix for consistency.
 //
-//   - Grouping options (e.g., WithServerConfig, WithRouterOptions) accept sub-options
+//   - Grouping options (e.g., WithServer, WithRouter) accept sub-options
 //     to organize related settings and reduce API surface.
 //
 // # Quick Start
@@ -109,7 +109,7 @@
 //	    app.WithDebugEndpoints(
 //	        app.WithPprofIf(os.Getenv("PPROF_ENABLED") == "true"),
 //	    ),
-//	    app.WithServerConfig(
+//	    app.WithServer(
 //	        app.WithReadTimeout(15 * time.Second),
 //	        app.WithWriteTimeout(15 * time.Second),
 //	    ),
@@ -198,7 +198,7 @@
 //
 // Configure server timeouts and limits using functional options:
 //
-//	app.WithServerConfig(
+//	app.WithServer(
 //	    app.WithReadTimeout(10 * time.Second),
 //	    app.WithWriteTimeout(10 * time.Second),
 //	    app.WithIdleTimeout(60 * time.Second),

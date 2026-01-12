@@ -57,7 +57,7 @@ func FuzzServerTimeouts(f *testing.F) {
 		_, err := New(
 			WithServiceName("fuzz-test"),
 			WithServiceVersion("1.0.0"),
-			WithServerConfig(
+			WithServer(
 				WithReadTimeout(duration),
 				WithWriteTimeout(duration*2),
 			),

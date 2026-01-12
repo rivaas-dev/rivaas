@@ -16,6 +16,7 @@ package app
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -24,9 +25,10 @@ import (
 	"strings"
 
 	"rivaas.dev/binding"
-	"rivaas.dev/errors"
 	"rivaas.dev/router"
 	"rivaas.dev/validation"
+
+	riverrors "rivaas.dev/errors"
 )
 
 // Context wraps router.Context with app-level features including binding and validation.
@@ -46,7 +48,7 @@ type Context struct {
 	logger *slog.Logger
 }
 
-// bindingMetadata holds per-request binding state.
+// bindingMetadata holds a per-request binding state.
 // bindingMetadata caches request body and tracks field presence for validation.
 type bindingMetadata struct {
 	bodyRead bool                   // Whether the body has been read
@@ -58,12 +60,12 @@ type bindingMetadata struct {
 // Bind introspects the struct and binds values based on the tags present.
 //
 // Supported sources based on tags:
-//   - path:"name"   - URL path parameters
-//   - query:"name"  - Query string parameters
-//   - header:"name" - HTTP headers
-//   - cookie:"name" - Cookies
-//   - json:"name"   - JSON request body
-//   - form:"name"   - Form data (application/x-www-form-urlencoded or multipart/form-data)
+//   - path: "name"   - URL path parameters
+//   - query: "name"  - Query string parameters
+//   - header: "name" - HTTP headers
+//   - cookie: "name" - Cookies
+//   - json: "name"   - JSON request body
+//   - form: "name"   - Form data (application/x-www-form-urlencoded or multipart/form-data)
 //
 // Bind only binds from sources where tags are present.
 // For body binding (json/form), Bind automatically detects the Content-Type header.
@@ -138,7 +140,7 @@ func (c *Context) Bind(out any) error {
 		case "multipart/form-data":
 			return c.bindForm(out)
 		default:
-			// For maps, default to JSON even if content-type is missing
+			// For maps, default to JSON even if the content-type is missing
 			if isMap {
 				return c.bindJSON(out)
 			}
@@ -150,7 +152,7 @@ func (c *Context) Bind(out any) error {
 	return nil
 }
 
-// hasJSONOrFormTag checks if the struct has any json or form tags.
+// hasJSONOrFormTag checks if the struct has any "json" or form tags.
 func hasJSONOrFormTag(t reflect.Type) bool {
 	return binding.HasStructTag(t, binding.TagJSON) || binding.HasStructTag(t, binding.TagForm)
 }
@@ -227,7 +229,7 @@ func (c *Context) BindJSONStrict(out any) error {
 
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
-		// Track presence using validation package
+		// Track presence using a validation package
 		if pm, presenceErr := validation.ComputePresence(body); presenceErr == nil {
 			c.bindingMeta.presence = pm
 		}
@@ -241,7 +243,8 @@ func (c *Context) BindJSONStrict(out any) error {
 	err := binding.JSONTo(c.bindingMeta.rawBody, out, binding.WithUnknownFields(binding.UnknownError))
 
 	// Translate binding.UnknownFieldError to validation.Error (only here!)
-	if unkErr, ok := err.(*binding.UnknownFieldError); ok {
+	var unkErr *binding.UnknownFieldError
+	if errors.As(err, &unkErr) {
 		return &validation.Error{
 			Fields: []validation.FieldError{{
 				Code:    "json.unknown_field",
@@ -417,7 +420,7 @@ func (c *Context) Error(err error) {
 		return
 	}
 
-	// Select formatter based on configuration
+	// Select a formatter based on configuration
 	formatter := c.selectFormatter()
 
 	// Format the error (formatter is framework-agnostic)
@@ -449,11 +452,11 @@ func (c *Context) Error(err error) {
 
 // selectFormatter chooses the appropriate formatter based on configuration.
 // selectFormatter is a private helper used by Error().
-func (c *Context) selectFormatter() errors.Formatter {
+func (c *Context) selectFormatter() riverrors.Formatter {
 	cfg := c.app.config.errors
 	if cfg == nil {
 		// Fallback to default
-		return &errors.RFC9457{}
+		return &riverrors.RFC9457{}
 	}
 
 	// Single formatter mode
@@ -484,14 +487,14 @@ func (c *Context) selectFormatter() errors.Formatter {
 			}
 		}
 
-		// Last resort: use first formatter
+		// Last resort: use the first formatter
 		for _, formatter := range cfg.formatters {
 			return formatter
 		}
 	}
 
 	// Ultimate fallback
-	return &errors.RFC9457{}
+	return &riverrors.RFC9457{}
 }
 
 // ErrorStatus responds with an error and explicit status code.

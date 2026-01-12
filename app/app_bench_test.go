@@ -56,7 +56,8 @@ func BenchmarkTestJSON(b *testing.B) {
 		if testErr != nil {
 			b.Fatal(testErr)
 		}
-		_ = resp.Body.Close()
+		//nolint:errcheck // Close error irrelevant in benchmark; checking would skew results
+		resp.Body.Close()
 	}
 }
 
@@ -81,7 +82,8 @@ func BenchmarkHealthCheckConcurrent(b *testing.B) {
 			if testErr != nil {
 				b.Fatal(testErr)
 			}
-			_ = resp.Body.Close()
+			//nolint:errcheck // Close error irrelevant in benchmark; checking would skew results
+			resp.Body.Close()
 		}
 	})
 }
@@ -125,7 +127,8 @@ func BenchmarkRequestHandling(b *testing.B) {
 		if testErr != nil {
 			b.Fatal(testErr)
 		}
-		_ = resp.Body.Close()
+		//nolint:errcheck // Close error irrelevant in benchmark; checking would skew results
+		resp.Body.Close()
 	}
 }
 
@@ -156,6 +159,7 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 		if testErr != nil {
 			b.Fatal(testErr)
 		}
-		_ = resp.Body.Close()
+		//nolint:errcheck // Close error irrelevant in benchmark; checking would skew results
+		resp.Body.Close()
 	}
 }

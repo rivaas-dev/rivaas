@@ -103,7 +103,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(WithReadTimeout(-1 * time.Second)),
+				WithServer(WithReadTimeout(-1 * time.Second)),
 			},
 			wantErr:     "server.readTimeout",
 			wantErrType: &ValidationError{},
@@ -113,7 +113,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(WithWriteTimeout(0)),
+				WithServer(WithWriteTimeout(0)),
 			},
 			wantErr:     "server.writeTimeout",
 			wantErrType: &ValidationError{},
@@ -123,7 +123,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(WithIdleTimeout(-5 * time.Second)),
+				WithServer(WithIdleTimeout(-5 * time.Second)),
 			},
 			wantErr:     "server.idleTimeout",
 			wantErrType: &ValidationError{},
@@ -133,7 +133,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(WithReadHeaderTimeout(0)),
+				WithServer(WithReadHeaderTimeout(0)),
 			},
 			wantErr:     "server.readHeaderTimeout",
 			wantErrType: &ValidationError{},
@@ -143,7 +143,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(WithMaxHeaderBytes(0)),
+				WithServer(WithMaxHeaderBytes(0)),
 			},
 			wantErr:     "server.maxHeaderBytes",
 			wantErrType: &ValidationError{},
@@ -153,7 +153,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(WithShutdownTimeout(-10 * time.Second)),
+				WithServer(WithShutdownTimeout(-10 * time.Second)),
 			},
 			wantErr:     "server.shutdownTimeout",
 			wantErrType: &ValidationError{},
@@ -163,7 +163,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(
+				WithServer(
 					WithReadTimeout(20*time.Second),
 					WithWriteTimeout(10*time.Second),
 				),
@@ -189,7 +189,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(WithShutdownTimeout(100 * time.Millisecond)),
+				WithServer(WithShutdownTimeout(100 * time.Millisecond)),
 			},
 			wantErr:     "must be at least 1 second",
 			wantErrType: &ValidationError{},
@@ -199,7 +199,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(WithMaxHeaderBytes(512)),
+				WithServer(WithMaxHeaderBytes(512)),
 			},
 			wantErr:     "must be at least 1KB",
 			wantErrType: &ValidationError{},
@@ -210,7 +210,7 @@ func TestNew_ValidationError(t *testing.T) {
 				WithServiceName(""),
 				WithServiceVersion(""),
 				WithEnvironment("invalid"),
-				WithServerConfig(WithReadTimeout(-1 * time.Second)),
+				WithServer(WithReadTimeout(-1 * time.Second)),
 			},
 			wantErr:     "validation errors",
 			wantErrType: &ValidationError{},
@@ -230,7 +230,7 @@ func TestNew_ValidationError(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(), // Should not cause error, should use defaults
+				WithServer(), // Should not cause error, should use defaults
 			},
 			wantErr: "", // Should succeed
 		},
@@ -307,7 +307,7 @@ func TestNew_ValidConfigurations(t *testing.T) {
 			opts: []Option{
 				WithServiceName("test"),
 				WithServiceVersion("1.0.0"),
-				WithServerConfig(
+				WithServer(
 					WithReadTimeout(5 * time.Second),
 					// Other fields are not set - should use defaults
 				),
@@ -926,7 +926,7 @@ func TestApp_ServerConfigCustom(t *testing.T) {
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
-		WithServerConfig(
+		WithServer(
 			WithReadTimeout(5*time.Second),
 			WithWriteTimeout(10*time.Second),
 			WithIdleTimeout(30*time.Second),
@@ -954,7 +954,7 @@ func TestApp_ServerConfigPartial(t *testing.T) {
 	app := MustNew(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
-		WithServerConfig(
+		WithServer(
 			WithReadTimeout(5*time.Second),
 			// All other fields not set - should use defaults
 		),
@@ -1275,20 +1275,20 @@ func TestApp_Tracing(t *testing.T) {
 	}
 }
 
-// TestNew_RouterOptionsAccumulation tests that multiple WithRouterOptions
+// TestNew_RouterOptionsAccumulation tests that multiple WithRouter
 // calls correctly accumulate router options.
 func TestNew_RouterOptionsAccumulation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("multiple WithRouterOptions accumulate", func(t *testing.T) {
+	t.Run("multiple WithRouter accumulate", func(t *testing.T) {
 		t.Parallel()
 		app, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
-			WithRouterOptions(
+			WithRouter(
 				router.WithBloomFilterSize(2000),
 			),
-			WithRouterOptions(
+			WithRouter(
 				router.WithCancellationCheck(false),
 				router.WithRouteCompilation(true),
 			),

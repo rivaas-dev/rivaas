@@ -55,11 +55,12 @@ func TestPrintRoutes_Output(t *testing.T) {
 	app.PrintRoutes()
 
 	// Restore stdout
-	_ = w.Close()
+	require.NoError(t, w.Close())
 	os.Stdout = originalStdout //nolint:reassign // Restore original stdout
 
 	// Read captured output
-	_, _ = buf.ReadFrom(r)
+	_, err = buf.ReadFrom(r)
+	require.NoError(t, err)
 	output := buf.String()
 
 	// Verify output contains expected elements

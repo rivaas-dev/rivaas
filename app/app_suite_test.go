@@ -108,14 +108,14 @@ func (s *AppLifecycleSuite) TestRouteRegistration() {
 	resp, err := s.testApp.Test(req)
 	s.Require().NoError(err)
 	s.Equal(http.StatusOK, resp.StatusCode)
-	_ = resp.Body.Close()
+	s.Require().NoError(resp.Body.Close())
 
 	// Test POST route
 	req = httptest.NewRequest(http.MethodPost, "/users", nil)
 	resp, err = s.testApp.Test(req)
 	s.Require().NoError(err)
 	s.Equal(http.StatusCreated, resp.StatusCode)
-	_ = resp.Body.Close()
+	s.Require().NoError(resp.Body.Close())
 }
 
 func (s *AppLifecycleSuite) TestMiddlewareChain() {
@@ -149,7 +149,7 @@ func (s *AppLifecycleSuite) TestMiddlewareChain() {
 	resp, err := s.testApp.Test(req)
 	s.Require().NoError(err)
 	s.Equal(http.StatusOK, resp.StatusCode)
-	_ = resp.Body.Close()
+	s.Require().NoError(resp.Body.Close())
 
 	// Verify execution order: middleware 1, middleware 2, handler
 	s.Equal([]int{1, 2, 3}, callOrder)

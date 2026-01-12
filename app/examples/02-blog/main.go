@@ -18,7 +18,6 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -33,23 +32,21 @@ import (
 	"rivaas.dev/app"
 	"rivaas.dev/config"
 	"rivaas.dev/logging"
-	"rivaas.dev/metrics"
 	"rivaas.dev/openapi"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/cors"
 	"rivaas.dev/router/middleware/requestid"
 	"rivaas.dev/router/middleware/timeout"
 	"rivaas.dev/router/version"
-	"rivaas.dev/tracing"
 )
 
 // BlogConfig holds the complete blog application configuration
 type BlogConfig struct {
-	Environment   string              `config:"environment"`
-	Server        ServerConfig        `config:"server"`
-	Blog          BlogSettings        `config:"blog"`
-	Observability ObservabilityConfig `config:"observability"`
-	Auth          AuthConfig          `config:"auth"`
+	Environment   string                  `config:"environment"`
+	Server        ServerConfig            `config:"server"`
+	Blog          BlogSettings            `config:"blog"`
+	Observability app.ObservabilityConfig `config:"observability"`
+	Auth          AuthConfig              `config:"auth"`
 }
 
 type ServerConfig struct {
@@ -67,31 +64,6 @@ type BlogSettings struct {
 	AllowedStatuses   []string `config:"allowedStatuses"`
 	EnableComments    bool     `config:"enableComments"`
 	RequireModeration bool     `config:"requireModeration"`
-}
-
-type ObservabilityConfig struct {
-	Tracing TracingConfig `config:"tracing"`
-	Metrics MetricsConfig `config:"metrics"`
-	Logging LoggingConfig `config:"logging"`
-	// Alternative flat config (if not using nested structure):
-	// SampleRate  float64 `config:"sampleRate"`
-	// MetricsPort string  `config:"metricsPort"`
-}
-
-type TracingConfig struct {
-	Provider string `config:"provider"` // "stdout", "otlp", "otlp-http", "noop"
-	Endpoint string `config:"endpoint"` // e.g., "localhost:4317" for gRPC, "http://localhost:4318" for HTTP
-	// SampleRate float64 `config:"sampleRate"` // Alternative: put sample rate here
-}
-
-type MetricsConfig struct {
-	Provider string `config:"provider"` // "prometheus", "otlp", "noop"
-	Endpoint string `config:"endpoint"` // e.g., ":9090" for Prometheus, "localhost:4318" for OTLP
-}
-
-type LoggingConfig struct {
-	Handler string `config:"handler"` // "console", "json", "file"
-	Level   string `config:"level"`   // "debug", "info", "warn", "error"
 }
 
 type AuthConfig struct {
@@ -124,6 +96,10 @@ func main() {
 	// Create context that listens for interrupt signal
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	// Create a logger early for initialization-phase logging
+	logger := logging.MustNew(
+		logging.WithConsoleHandler(),
+	)
 
 	// Load configuration
 	var blogConfig BlogConfig
@@ -134,51 +110,8 @@ func main() {
 	)
 
 	if err := cfg.Load(ctx); err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
-	}
-
-	// Set up tracing options based on configuration
-	var tracingOpts []tracing.Option
-	switch blogConfig.Observability.Tracing.Provider {
-	case "stdout":
-		tracingOpts = append(tracingOpts, tracing.WithStdout())
-	case "otlp":
-		endpoint := blogConfig.Observability.Tracing.Endpoint
-		if endpoint == "" {
-			endpoint = getEnv("OTLP_ENDPOINT", "localhost:4317")
-		}
-		tracingOpts = append(tracingOpts, tracing.WithOTLP(endpoint))
-	case "otlp-http":
-		endpoint := blogConfig.Observability.Tracing.Endpoint
-		if endpoint == "" {
-			endpoint = getEnv("OTLP_HTTP_ENDPOINT", "http://localhost:4318")
-		}
-		tracingOpts = append(tracingOpts, tracing.WithOTLPHTTP(endpoint))
-	case "noop":
-		tracingOpts = append(tracingOpts, tracing.WithNoop())
-	default:
-		log.Fatalf("Invalid or missing tracing provider: %q. Valid options: stdout, otlp, otlp-http, noop", blogConfig.Observability.Tracing.Provider)
-	}
-
-	// Set up metrics options based on configuration
-	var metricsOpts []metrics.Option
-	switch blogConfig.Observability.Metrics.Provider {
-	case "prometheus":
-		endpoint := blogConfig.Observability.Metrics.Endpoint
-		if endpoint == "" {
-			endpoint = getEnv("PROMETHEUS_ENDPOINT", ":9090")
-		}
-		metricsOpts = append(metricsOpts, metrics.WithPrometheus(endpoint, "/metrics"))
-	case "otlp":
-		endpoint := blogConfig.Observability.Metrics.Endpoint
-		if endpoint == "" {
-			endpoint = getEnv("OTLP_METRICS_ENDPOINT", "localhost:4318")
-		}
-		metricsOpts = append(metricsOpts, metrics.WithOTLP(endpoint))
-	case "stdout":
-		metricsOpts = append(metricsOpts, metrics.WithStdout())
-	default:
-		log.Fatalf("Invalid or missing metrics provider: %q. Valid options: prometheus, otlp, stdout", blogConfig.Observability.Metrics.Provider)
+		logger.Error("failed to load configuration", "error", err)
+		os.Exit(1)
 	}
 
 	// Create Rivaas app
@@ -187,32 +120,15 @@ func main() {
 		app.WithServiceVersion("v1.0.0"),
 		app.WithEnvironment(blogConfig.Environment),
 		// Configure router with path-based versioning
-		app.WithRouterOptions(
+		app.WithRouter(
 			router.WithVersioning(
 				version.WithPathDetection("/v{version}/"),
 				version.WithDefault("v1"),
 				version.WithValidVersions("v1"),
 			),
 		),
-		// Configure observability (logging, metrics, tracing)
-		app.WithObservability(
-			// Logging
-			app.WithLogging(
-				logging.WithConsoleHandler(),
-			),
-			// Metrics
-			app.WithMetrics(
-				// NOTE: Service name and version are automatically injected from app-level configuration
-				metricsOpts...,
-			),
-			// Tracing
-			app.WithTracing(
-				// NOTE: Service name and version are automatically injected from app-level configuration
-				tracingOpts...,
-			),
-			// Exclude health and metrics endpoints from observability (Tracing, Metrics, Logging)
-			app.WithExcludePaths("/healthz", "/readyz", "/metrics"),
-		),
+		// Configure observability from config (tracing, metrics, logging)
+		app.WithObservabilityFromConfig(blogConfig.Observability),
 		// Health endpoints
 		app.WithHealthEndpoints(
 			app.WithHealthTimeout(800*time.Millisecond),
@@ -221,7 +137,7 @@ func main() {
 			}),
 		),
 		// Server config
-		app.WithServerConfig(
+		app.WithServer(
 			app.WithReadTimeout(blogConfig.Server.ReadTimeout),
 			app.WithWriteTimeout(blogConfig.Server.WriteTimeout),
 			app.WithShutdownTimeout(blogConfig.Server.ShutdownTimeout),
@@ -240,7 +156,8 @@ func main() {
 		),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create app: %v", err)
+		logger.Error("failed to create app", "error", err)
+		os.Exit(1)
 	}
 
 	// Global middleware
@@ -415,7 +332,8 @@ func main() {
 	)
 
 	if err := a.Start(ctx, net.JoinHostPort(blogConfig.Server.Host, strconv.Itoa(blogConfig.Server.Port))); err != nil {
-		log.Fatalf("Server error: %v", err)
+		logger.Error("server error", "error", err)
+		os.Exit(1)
 	}
 }
 
