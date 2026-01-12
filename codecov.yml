@@ -1,0 +1,84 @@
+# Codecov configuration for Rivaas
+# https://docs.codecov.io/docs/codecov-yaml
+
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "60..80"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+
+parsers:
+  go:
+    partials_as_hits: true
+
+comment:
+  layout: "header, diff, flags, components"
+  behavior: default
+  require_changes: true
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+  individual_components:
+    - component_id: module_app
+      name: App
+      paths:
+        - "app/**"
+    - component_id: module_binding
+      name: Binding
+      paths:
+        - "binding/**"
+    - component_id: module_config
+      name: Config
+      paths:
+        - "config/**"
+    - component_id: module_errors
+      name: Errors
+      paths:
+        - "errors/**"
+    - component_id: module_logging
+      name: Logging
+      paths:
+        - "logging/**"
+    - component_id: module_metrics
+      name: Metrics
+      paths:
+        - "metrics/**"
+    - component_id: module_openapi
+      name: OpenAPI
+      paths:
+        - "openapi/**"
+    - component_id: module_router
+      name: Router
+      paths:
+        - "router/**"
+    - component_id: module_tracing
+      name: Tracing
+      paths:
+        - "tracing/**"
+    - component_id: module_validation
+      name: Validation
+      paths:
+        - "validation/**"
+
+flags:
+  unittests:
+    paths:
+      - "**"
+    carryforward: true
+
+ignore:
+  - "**/examples/**"
+  - "**/benchmarks/**"

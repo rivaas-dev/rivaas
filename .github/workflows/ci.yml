@@ -55,6 +55,32 @@ jobs:
             exit 1
           fi
 
+  # Coverage reporting
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    needs: [validate]
+    permissions:
+      contents: read
+      id-token: write # Required for OIDC authentication
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate coverage report
+        run: nix run .#test-coverage
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          fail_ci_if_error: true
+          flags: unittests
+          name: rivaas-coverage
+
   # Integration tests (heavier, conditional)
   integration:
     name: Integration
