@@ -2,6 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/rivaas.dev/errors.svg)](https://pkg.go.dev/rivaas.dev/errors)
 [![Go Report Card](https://goreportcard.com/badge/rivaas.dev/errors)](https://goreportcard.com/report/rivaas.dev/errors)
+[![Coverage](https://codecov.io/gh/rivaas-dev/rivaas/branch/main/graph/badge.svg?component=module_errors)](https://codecov.io/gh/rivaas-dev/rivaas)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
