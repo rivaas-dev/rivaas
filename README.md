@@ -2,6 +2,8 @@
 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![CI](https://github.com/rivaas-dev/rivaas/actions/workflows/ci.yml/badge.svg)](https://github.com/rivaas-dev/rivaas/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/rivaas-dev/rivaas/branch/main/graph/badge.svg)](https://codecov.io/gh/rivaas-dev/rivaas)
 
 > A batteries-included, cloud-native web framework for Go featuring **high-performance routing (8.4M+ req/sec), comprehensive request binding & validation, automatic OpenAPI generation, and OpenTelemetry-native observability**.
 
