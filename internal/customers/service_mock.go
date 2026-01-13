@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	customer "gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -146,19 +147,19 @@ func (mr *MockServiceInterfaceMockRecorder) GetCustomersPaginated(ctx, params an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCustomersPaginated", reflect.TypeOf((*MockServiceInterface)(nil).GetCustomersPaginated), ctx, params)
 }
 
-// GetPricingPlanQuotaPolicyName mocks base method.
-func (m *MockServiceInterface) GetPricingPlanQuotaPolicyName(pricingPlanID string) (string, error) {
+// GetPricingPlanQuotaPolicy mocks base method.
+func (m *MockServiceInterface) GetPricingPlanQuotaPolicy(pricingPlanID string) (policies.Policy, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPricingPlanQuotaPolicyName", pricingPlanID)
-	ret0, _ := ret[0].(string)
+	ret := m.ctrl.Call(m, "GetPricingPlanQuotaPolicy", pricingPlanID)
+	ret0, _ := ret[0].(policies.Policy)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetPricingPlanQuotaPolicyName indicates an expected call of GetPricingPlanQuotaPolicyName.
-func (mr *MockServiceInterfaceMockRecorder) GetPricingPlanQuotaPolicyName(pricingPlanID any) *gomock.Call {
+// GetPricingPlanQuotaPolicy indicates an expected call of GetPricingPlanQuotaPolicy.
+func (mr *MockServiceInterfaceMockRecorder) GetPricingPlanQuotaPolicy(pricingPlanID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPricingPlanQuotaPolicyName", reflect.TypeOf((*MockServiceInterface)(nil).GetPricingPlanQuotaPolicyName), pricingPlanID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPricingPlanQuotaPolicy", reflect.TypeOf((*MockServiceInterface)(nil).GetPricingPlanQuotaPolicy), pricingPlanID)
 }
 
 // GetSubscription mocks base method.

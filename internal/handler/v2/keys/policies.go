@@ -6,29 +6,30 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog/log"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/cigourn"
 	"gitlab.ci.fdmg.org/ci-api/cigourn/api"
 )
 
-func (h *Handler) addQuotaPolicies(ctx context.Context, customerID, accountID string, requestPolicies []string) ([]string, error) {
+func (h *Handler) addQuotaPolicies(ctx context.Context, customerID, accountID string, requestPolicies []*policies.Policy) ([]*policies.Policy, error) {
 	// Get pricing plan ID from account extended info
 	accountExt, err := h.customerService.GetAccountExtended(ctx, customerID, accountID)
 	if err != nil {
 		return nil, err
 	}
 
-	quotaPolicyName, err := h.customerService.GetPricingPlanQuotaPolicyName(accountExt.Subscription.PricingPlanID)
+	quotaPolicy, err := h.customerService.GetPricingPlanQuotaPolicy(accountExt.Subscription.PricingPlanID)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Info().
 		Str("pricingPlanID", accountExt.Subscription.PricingPlanID).
-		Str("quotaPolicyName", quotaPolicyName).
+		Str("quotaPolicyID", quotaPolicy.ID).
 		Msg("retrieved quota policy name for API key creation")
 
-	if quotaPolicyName != "" {
-		requestPolicies = append(requestPolicies, quotaPolicyName)
+	if quotaPolicy.ID != "" {
+		requestPolicies = append(requestPolicies, &quotaPolicy)
 	} else {
 		log.Warn().
 			Str("pricingPlanID", accountExt.Subscription.PricingPlanID).
@@ -38,7 +39,7 @@ func (h *Handler) addQuotaPolicies(ctx context.Context, customerID, accountID st
 	return requestPolicies, nil
 }
 
-func (h *Handler) addQuotaPoliciesWithActorID(ctx context.Context, actorID string, requestPolicies []string) ([]string, error) {
+func (h *Handler) addQuotaPoliciesWithActorID(ctx context.Context, actorID string, requestPolicies []*policies.Policy) ([]*policies.Policy, error) {
 	customerURN, err := cigourn.Parse(actorID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid actor id: %w", err)

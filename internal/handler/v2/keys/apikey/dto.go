@@ -2,6 +2,7 @@ package apikey
 
 import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 )
 
 // Contact represents contact points information.
@@ -34,24 +35,24 @@ const (
 )
 
 type APIKey struct {
-	ID             string            `jsonapi:"primary,keys"` // The key identifier. This is a unique identifier to each API key.
-	Name           string            `jsonapi:"attr,name"`    // name of the API Key
-	Hash           string            `jsonapi:"attr,hash,omitempty"`
-	Description    string            `jsonapi:"attr,description"`
-	Environment    ApikeyEnvironment `jsonapi:"attr,environment"`
-	CustomerName   string            `jsonapi:"attr,customerName"`
-	ActorID        string            `jsonapi:"attr,actorID"`
-	CreatorID      string            `jsonapi:"attr,creatorID"`
-	Policies       []string          `jsonapi:"attr,policies"`
-	Contact        Contact           `jsonapi:"attr,contacts"`
-	Active         bool              `jsonapi:"attr,active"`
-	RateLimit      RateLimit         `jsonapi:"attr,rateLimit"`
-	Quota          int64             `jsonapi:"attr,quota"`
-	QuotaRemaining int64             `jsonapi:"attr,quotaRemaining"`
-	Labels         map[string]string `jsonapi:"attr,labels"`
-	CreatedAt      string            `jsonapi:"attr,createdAt"`
-	ExpiresAt      *string           `jsonapi:"attr,expiresAt"`
-	DeletedAt      *string           `jsonapi:"attr,deletedAt"`
+	ID             string             `jsonapi:"primary,keys"` // The key identifier. This is a unique identifier to each API key.
+	Name           string             `jsonapi:"attr,name"`    // name of the API Key
+	Hash           string             `jsonapi:"attr,hash,omitempty"`
+	Description    string             `jsonapi:"attr,description"`
+	Environment    ApikeyEnvironment  `jsonapi:"attr,environment"`
+	CustomerName   string             `jsonapi:"attr,customerName"`
+	ActorID        string             `jsonapi:"attr,actorID"`
+	CreatorID      string             `jsonapi:"attr,creatorID"`
+	Policies       []*policies.Policy `jsonapi:"relation,policies"`
+	Contact        Contact            `jsonapi:"attr,contacts"`
+	Active         bool               `jsonapi:"attr,active"`
+	RateLimit      RateLimit          `jsonapi:"attr,rateLimit"`
+	Quota          int64              `jsonapi:"attr,quota"`
+	QuotaRemaining int64              `jsonapi:"attr,quotaRemaining"`
+	Labels         map[string]string  `jsonapi:"attr,labels"`
+	CreatedAt      string             `jsonapi:"attr,createdAt"`
+	ExpiresAt      *string            `jsonapi:"attr,expiresAt"`
+	DeletedAt      *string            `jsonapi:"attr,deletedAt"`
 }
 
 // ListOutput represents the list of key's information.
@@ -80,19 +81,6 @@ func String(str *string) string {
 	return *str
 }
 
-func ToDBContact(contact Contact) db.Contact {
-	emails := make([]db.Email, 0, len(contact.Emails))
-	for _, email := range contact.Emails {
-		emails = append(emails, db.Email{
-			Address: email.Address,
-		})
-	}
-	return db.Contact{
-		Emails: emails,
-		Users:  contact.Users,
-	}
-}
-
 func DBToContact(contact db.Contact) Contact {
 	emails := make([]Email, 0, len(contact.Emails))
 	for _, email := range contact.Emails {
@@ -104,4 +92,12 @@ func DBToContact(contact db.Contact) Contact {
 		Emails: emails,
 		Users:  contact.Users,
 	}
+}
+
+type Relationships struct {
+	Policies PolicyData `json:"policies,omitempty"`
+}
+
+type PolicyData struct {
+	Data []*policies.Policy `json:"data,omitempty"`
 }

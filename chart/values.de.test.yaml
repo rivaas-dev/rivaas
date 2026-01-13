@@ -13,3 +13,7 @@ configMap:
         briefRepresentation: false
         first: 0
         max: 500
+      tyk:
+        url: http://acc-tyk-gateway.tyk-705:9696
+        secret: kNEQscWpVpGXY8Lsdc5E5CAy7hzyqtcrXxrjNPqhe2r3P6n92jGANUxZttuuSMN6dDBR62cEyJMBjLNZEUFhyEdgBVSgFGQLHxaZeGUTgK6a5vdzPDqNMjRM48u4hGFq
+        debug: true

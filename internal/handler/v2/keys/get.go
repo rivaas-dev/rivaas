@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 	"net/http"
+
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 
 	"github.com/antihax/optional"
 	"github.com/companyinfo/jsonapi"
@@ -77,7 +78,7 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		return
 	}
 
-	key, err := h.merge(dbKey, tykResponse, customerName)
+	key, err := h.merge(ctx, dbKey, tykResponse, customerName)
 	if err != nil {
 		log.Err(err).Msg("error on preparing output")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
@@ -120,7 +121,7 @@ func (h *Handler) getTykInfo(ctx *goskell.Context, hash string) (*tyk.SessionSta
 	return &tykResponse, nil
 }
 
-func (h *Handler) merge(dbKey *db.Key, tykResponse *tyk.SessionState, customerName string) (*apikey.APIKey, error) {
+func (h *Handler) merge(ctx context.Context, dbKey *db.Key, tykResponse *tyk.SessionState, customerName string) (*apikey.APIKey, error) {
 	result := apikey.APIKey{
 		ID:           dbKey.ID,
 		Name:         dbKey.Name,
@@ -138,8 +139,13 @@ func (h *Handler) merge(dbKey *db.Key, tykResponse *tyk.SessionState, customerNa
 		Labels:       dbKey.Labels,
 	}
 
+	var err error
 	if tykResponse != nil { // if the key was deleted, we don't have tyk data
-		result.Policies = policies.FilterString(tykResponse.ApplyPolicies)
+		result.Policies, err = policies.GetPoliciesByIDs(ctx, h.tykClient, tykResponse.ApplyPolicies) // filters out quota policies
+		if err != nil {
+			return nil, err
+		}
+
 		result.Quota = tykResponse.QuotaMax
 		result.QuotaRemaining = tykResponse.QuotaRemaining
 		result.RateLimit = apikey.RateLimit{

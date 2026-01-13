@@ -9,6 +9,7 @@ import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/authz"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys/apikey"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/cigourn/api"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
@@ -16,7 +17,6 @@ import (
 type AuthorizationInput struct {
 	User    User    `mapstructure:"user"`
 	Request Request `mapstructure:"request"`
-	Key     Key     `mapstructure:"key"`
 }
 
 type User struct {
@@ -59,8 +59,13 @@ func NewKeyActorID(actorID, creatorID string) *Key {
 	}
 }
 
-func (k *Key) WithPolicies(policies *[]string) *Key {
-	k.Policies = policies
+func (k *Key) WithPolicies(policies []*policies.Policy) *Key {
+	if len(policies) == 0 {
+		return k
+	}
+
+	policyStrings := toStringSlice(policies)
+	k.Policies = &policyStrings
 	return k
 }
 
@@ -85,11 +90,8 @@ func NewKeyCustomerAccountID(customerID, accountID, creatorID string) *Key {
 func (h *Handler) getAuthorizationInput(ctx *goskell.Context, key *Key) (map[string]any, error) {
 	return authz.BuildInput(ctx, func(user authz.BaseUser, req authz.BaseRequest) (any, error) {
 		in := AuthorizationInput{
-			User: User{ID: user.ID, Roles: user.Roles},
+			User:    User{ID: user.ID, Roles: user.Roles},
 			Request: Request{Method: req.Method, Path: req.Path, Key: key},
-		}
-		if key != nil {
-			in.Key = *key
 		}
 		return in, nil
 	})
@@ -117,11 +119,15 @@ func (h *Handler) getSubscriptionAuthorizationInput(ctx *goskell.Context, key *K
 	return authz.BuildInput(ctx, func(user authz.BaseUser, req authz.BaseRequest) (any, error) {
 		in := AuthorizationInput{
 			User: User{
-				ID:    user.ID,
-				Roles: user.Roles,
+				ID:           user.ID,
+				Roles:        user.Roles,
 				NumberOfKeys: NumberOfKeys{Current: currentKeyCount, Max: maxKeyCount},
 			},
-			Request: Request{Method: req.Method, Path: req.Path},
+			Request: Request{
+				Method: req.Method,
+				Path:   req.Path,
+				Key:    key,
+			},
 		}
 		return in, nil
 	})
@@ -151,4 +157,12 @@ func (h *Handler) isSubscriptionAuthorized(ctx *goskell.Context, key *Key, subsc
 
 func (h *Handler) isInputAuthorized(ctx *goskell.Context, authorizationInput map[string]any) bool {
 	return authz.Check(ctx, h.omaClient, authorizationInput)
+}
+
+func toStringSlice[T fmt.Stringer](data []T) []string {
+	res := make([]string, 0, len(data))
+	for _, p := range data {
+		res = append(res, p.String())
+	}
+	return res
 }

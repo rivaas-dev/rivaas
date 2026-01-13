@@ -65,9 +65,17 @@ allow := true {
   input.request.method == "POST"
   input.request.path == "/v2/keys"
 
+  is_admin(input.user.roles)
+  input.user.number_of_keys.current < input.user.number_of_keys.max
+}
+
+allow := true {
+  input.request.method == "POST"
+  input.request.path == "/v2/keys"
+
   is_user_authorized(input.user.id, input.request.key.actor_id, input.user.roles)
   input.user.number_of_keys.current < input.user.number_of_keys.max
-  input.request.body.policies == null
+  input.request.key.policies == null
 }
 
 # v2 PATCH rules: only admins may modify 'active'; everyone may modify other fields (i.e., when 'active' is absent).
@@ -76,7 +84,6 @@ allow := true {
   input.request.path == "/v2/keys/:id"
 
   # If 'active' is provided, only administrators may patch it.
-  input.request.body.active != null
   is_admin(input.user.roles)
 }
 
@@ -87,8 +94,8 @@ allow := true {
   is_user_authorized(input.user.id, input.request.key.actor_id, input.user.roles)
 
   # If 'active' is not provided at all, users can patch their own keys (other attributes only).
-  input.request.body.active == null
-  input.request.body.policies == null
+  input.request.key.active == null
+  input.request.key.policies == null
 }
 
 allow := true {

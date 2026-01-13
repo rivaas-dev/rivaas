@@ -43,8 +43,9 @@ type PostInput struct {
 }
 
 type PostData struct {
-	Type       string         `json:"type" binding:"eq=keys"`
-	Attributes PostAttributes `json:"attributes" binding:"required"`
+	Type          string               `json:"type" binding:"eq=keys"`
+	Attributes    PostAttributes       `json:"attributes" binding:"required"`
+	Relationships apikey.Relationships `json:"relationships,omitempty"` // Contains relation to the access policies
 }
 
 type PostAttributes struct {
@@ -57,7 +58,6 @@ type PostAttributes struct {
 	Active      *bool                    `json:"active"`             // Defines the status of the key.
 	Environment apikey.ApikeyEnvironment `json:"environment"`        // Defines if a key is for prod or sandbox environment. // Defines if a key is for prod or sandbox environment.'
 	Labels      *map[string]string       `json:"labels,omitempty"`   // Contains user specified labels for categorization
-	Policies    []string                 `json:"policies"`           // The access policies to give, leave empty for default.
 }
 
 func (i *PostInput) toAuthKey() *Key {
@@ -67,31 +67,22 @@ func (i *PostInput) toAuthKey() *Key {
 		i.Body.Attributes.AccountID,
 		i.Headers.CreatorID,
 	).
-		WithPolicies(&i.Body.Attributes.Policies).
+		WithPolicies(i.Body.Relationships.Policies.Data).
 		WithActive(i.Body.Attributes.Active).
 		WithEnvironment(i.Body.Attributes.Environment)
 }
 
 // Validate validates POST request body.
-func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient, defaultPolicies []string) error {
+func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
 	if len(i.Body.Attributes.Name) > apikey.NameMaxLength {
 		return fmt.Errorf("maximum length is %d, %d given", apikey.NameMaxLength, len(i.Body.Attributes.Name))
 	}
 
-	// if not specified in the request, set prod as default environment
-	if i.Body.Attributes.Environment == "" {
-		i.Body.Attributes.Environment = apikey.ProdEnv
-	}
-
 	// Validate policies.
-	if i.Body.Attributes.Policies != nil {
-		if !validation.ValidatePolicies(ctx, tykAPI, i.Body.Attributes.Policies) {
+	if i.Body.Relationships.Policies.Data != nil {
+		if !validation.ValidatePolicies(ctx, tykAPI, i.Body.Relationships.Policies.Data) {
 			return errors.New("invalid policy")
 		}
-	} else {
-		i.Body.Attributes.Policies = defaultPolicies
-		log.Warn().
-			Msg("assigned default policies to API key creation")
 	}
 
 	// Validate contact emails.
@@ -126,6 +117,19 @@ func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient, defaul
 	}
 
 	return nil
+}
+
+func (i *PostInput) SetDefaults(defaultPolicies []*policies.Policy) {
+	// if not specified in the request, set prod as default environment
+	if i.Body.Attributes.Environment == "" {
+		i.Body.Attributes.Environment = apikey.ProdEnv
+	}
+
+	if len(i.Body.Relationships.Policies.Data) == 0 {
+		i.Body.Relationships.Policies.Data = defaultPolicies
+		log.Warn().
+			Msg("assigned default policies to API key creation")
+	}
 }
 
 // WorkflowPostInput represents the workflow's request body for a POST request.
@@ -203,7 +207,7 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
-	if err := request.Validate(ctx, h.tykClient, h.apiKeyDefaults.Policies); err != nil {
+	if err := request.Validate(ctx, h.tykClient); err != nil {
 		goskell.JsonAPIError(ctx, "input validation", err, http.StatusBadRequest)
 		return
 	}
@@ -231,6 +235,9 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		// The appropriate response is already handled in "isAuthorized()"
 		return
 	}
+
+	// set defaults after the request was authorized
+	request.SetDefaults(h.defaultPolicies)
 
 	workflowRequest, err := h.postRequestToWorkflowInput(ctx, &request)
 	if errors.Is(err, customers.ErrPricingPlanNotFound) {
@@ -297,7 +304,7 @@ func (h *Handler) postRequestToWorkflowInput(ctx context.Context, request *PostI
 	keyPolicies, err := h.addQuotaPolicies(ctx,
 		request.Body.Attributes.CustomerID,
 		request.Body.Attributes.AccountID,
-		request.Body.Attributes.Policies,
+		request.Body.Relationships.Policies.Data,
 	)
 	if err != nil {
 		return WorkflowPostInput{}, err
@@ -311,7 +318,7 @@ func (h *Handler) postRequestToWorkflowInput(ctx context.Context, request *PostI
 		Active:      request.Body.Attributes.Active,
 		Environment: request.Body.Attributes.Environment,
 		Labels:      request.Body.Attributes.Labels,
-		Policies:    keyPolicies,
+		Policies:    policies.ToStringSlice(keyPolicies),
 		ExpiresAt:   nil,
 		RateLimit:   apikey.RateLimit{}, // set to empty, no rate limit on key level
 	}

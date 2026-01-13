@@ -4,6 +4,8 @@ package keys
 import (
 	"errors"
 	"fmt"
+	"net/http"
+
 	"github.com/companyinfo/gourn"
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
@@ -15,7 +17,6 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell/json/problem"
 	"go.temporal.io/sdk/client"
-	"net/http"
 )
 
 // Worker addresses.
@@ -44,7 +45,7 @@ type PostInput struct {
 // Validate validates POST request body.
 func (i *PostInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
 	// Validate policies.
-	if !validation.ValidatePolicies(ctx, tykAPI, i.Policies) {
+	if !validation.ValidatePolicyIDs(ctx, tykAPI, i.Policies) {
 		return errors.New("invalid policy")
 	}
 	// Validate quota end date.

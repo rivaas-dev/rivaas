@@ -14,6 +14,7 @@ tags:
     description: Calls related to API keys
   - name: customers
   - name: accounts
+  - name: policies
 
 paths:
   /v2/keys:
@@ -251,7 +252,7 @@ paths:
   /v2/policies:
     get:
       tags:
-        - policy
+        - policies
       description: |
         Get the list of available policies
       operationId: list_policies_v2
@@ -606,6 +607,16 @@ components:
                 type: object
                 properties:
                   meta: "metadata"
+        relationships:
+          type: object
+          properties:
+            policies:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Relationship'
 
     KeyDetailsListV2Response:
       type: object
@@ -700,11 +711,6 @@ components:
                 name:
                   type: string
                   example: "name X"
-                policies:
-                  type: array
-                  items:
-                    type: string
-                  example: ["policy-1"]
                 quota:
                   type: integer
                   example: 1000
@@ -720,6 +726,20 @@ components:
                     Per:
                       type: integer
                       example: 60
+            relationships:
+              type: object
+              properties:
+                policies:
+                  type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Relationship'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Policy'
 
     CreateKeyV2UnprocessableEntityResponse:
       type: object
@@ -789,6 +809,16 @@ components:
                     type: object
                     properties:
                       meta: "metadata"
+            relationships:
+              type: object
+              properties:
+                policies:
+                  type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Relationship'
 
     UpdateKeyV2Response:
       type: object
@@ -808,11 +838,6 @@ components:
                 actorID:
                   type: string
                   example: "urn:online:user:123:456"
-                policies:
-                  type: array
-                  items:
-                    type: string
-                  example: ["policy-1", "policy-2"]
                 createdAt:
                   description: time and date when the key was created
                   example: "2025-04-22T14:50:13Z"
@@ -889,6 +914,20 @@ components:
                 key:
                   type: string
                   example: "jq3c612f1ba53837f8f8396d80eb5c8bc04280a3d3396d80eb5c8b"
+            relationships:
+              type: object
+              properties:
+                policies:
+                  type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Relationship'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Policy'
 
     Policy:
       type: object
@@ -993,11 +1032,6 @@ components:
                     type: object
                     properties:
                       meta: "metadata"
-                policies:
-                  type: array
-                  items:
-                    type: string
-                  example: ["policy-1"]
                 quota:
                   type: integer
                   example: 122
@@ -1013,6 +1047,20 @@ components:
                     per:
                       type: integer
                       example: 0
+            relationships:
+              type: object
+              properties:
+                policies:
+                  type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Relationship'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Policy'
 
     JSONAPILinksObject:
       title: "JSON:API Links Object"
@@ -1333,7 +1381,7 @@ components:
               type: string
             id:
               example: b74cd21a-c6n7-4dhd-8g18-da4a54fc11bc
-              description: customer ID that the account belongs to
+              description: ID of the resource related to the parent resource
               type: string
 
     AccountUpdateRequest:

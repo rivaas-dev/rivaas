@@ -2,6 +2,8 @@ package customers
 
 import (
 	"context"
+
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
 
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
@@ -28,7 +30,7 @@ type ServiceInterface interface {
 	// Subscription Operations
 	GetSubscription(ctx context.Context, customerID, accountID, pricingPlanID string) (Subscription, error)
 	GetCurrentAPIKeyCount(customerID, accountID string) (production int, sandbox int, err error)
-	GetPricingPlanQuotaPolicyName(pricingPlanID string) (string, error)
+	GetPricingPlanQuotaPolicy(pricingPlanID string) (policies.Policy, error)
 }
 
 // Service provides customer-related operations including subscription management,
@@ -117,7 +119,7 @@ func (s *Service) GetCurrentAPIKeyCount(customerID, accountID string) (productio
 	return s.subscriptionService.GetCurrentAPIKeyCount(customerID, accountID)
 }
 
-// GetPricingPlanQuotaPolicyName retrieves the quota policy name from a pricing plan
-func (s *Service) GetPricingPlanQuotaPolicyName(pricingPlanID string) (string, error) {
-	return s.subscriptionService.GetPricingPlanQuotaPolicyName(pricingPlanID)
+// GetPricingPlanQuotaPolicy retrieves the quota policy from a pricing plan
+func (s *Service) GetPricingPlanQuotaPolicy(pricingPlanID string) (policies.Policy, error) {
+	return s.subscriptionService.GetPricingPlanQuotaPolicy(pricingPlanID)
 }

@@ -39,8 +39,9 @@ type PatchInput struct {
 }
 
 type PatchData struct {
-	Type       string          `json:"type" binding:"eq=keys"`
-	Attributes PatchAttributes `json:"attributes" binding:"required"`
+	Type          string               `json:"type" binding:"eq=keys"`
+	Attributes    PatchAttributes      `json:"attributes" binding:"required"`
+	Relationships apikey.Relationships `json:"relationships,omitempty"` // Contains relation to the access policies
 }
 
 type PatchAttributes struct {
@@ -49,7 +50,6 @@ type PatchAttributes struct {
 	Contact     *apikey.Contact    `json:"contacts,omitempty"` // Contacts information.
 	Active      *bool              `json:"active,omitempty"`   // Defines the status of the key.
 	Labels      *map[string]string `json:"labels"`             // Contains user specified labels for categorization
-	Policies    *[]string          `json:"policies"`           // The access policies to give
 }
 
 func (i *PatchInput) toAuthKey(actorID, creatorID string) *Key {
@@ -57,7 +57,7 @@ func (i *PatchInput) toAuthKey(actorID, creatorID string) *Key {
 		actorID,
 		creatorID,
 	).
-		WithPolicies(i.Body.Attributes.Policies).
+		WithPolicies(i.Body.Relationships.Policies.Data).
 		WithActive(i.Body.Attributes.Active)
 }
 
@@ -68,8 +68,8 @@ func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient, exist
 	}
 
 	// Validate policies.
-	if i.Body.Attributes.Policies != nil {
-		if !validation.ValidatePolicies(ctx, tykAPI, *i.Body.Attributes.Policies) {
+	if i.Body.Relationships.Policies.Data != nil {
+		if !validation.ValidatePolicies(ctx, tykAPI, i.Body.Relationships.Policies.Data) {
 			return errors.New("invalid policy")
 		}
 	}
@@ -94,6 +94,7 @@ type workflowInput struct {
 	Contact     *apikey.Contact    // Contacts information.
 	Active      *bool              // Defines the status of the key.
 	Labels      *map[string]string // Contains user specified labels for categorization
+	Policies    *[]string          // The access policies to give, leave empty for none.
 }
 
 // workflowOutput represents the workflow response body.
@@ -163,11 +164,11 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		return
 	}
 
-	if request.Body.Attributes.Policies != nil {
+	if request.Body.Relationships.Policies.Data != nil {
 		policiesWithQuota, err := h.addQuotaPoliciesWithActorID(
 			ctx,
 			dbKey.ActorID,
-			*request.Body.Attributes.Policies,
+			request.Body.Relationships.Policies.Data,
 		)
 		if err != nil {
 			log.Err(err).Msg("error processing policies")
@@ -175,7 +176,7 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 			return
 		}
 
-		request.Body.Attributes.Policies = &policiesWithQuota
+		request.Body.Relationships.Policies.Data = policiesWithQuota
 	}
 
 	// Call the worker.
@@ -186,7 +187,14 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		return
 	}
 
-	jsonAPIResponse, err := jsonapi.Marshal(h.workflowOutputToPATCHResponse(ctx, dbKey, response))
+	keyResp, err := h.workflowOutputToPATCHResponse(ctx, dbKey, response)
+	if err != nil {
+		log.Err(err).Msg("error preparing response")
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
+		return
+	}
+
+	jsonAPIResponse, err := jsonapi.Marshal(keyResp)
 	if err != nil {
 		log.Err(err).Msg("error marshalling response")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
@@ -236,11 +244,15 @@ func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput
 	if request.Body.Attributes.Labels != nil {
 		wInput.Labels = request.Body.Attributes.Labels
 	}
+	if len(request.Body.Relationships.Policies.Data) != 0 {
+		pols := policies.ToStringSlice(request.Body.Relationships.Policies.Data)
+		wInput.Policies = &pols
+	}
 	return wInput
 }
 
 // workflowOutputToResponse converts the workflow response body into the API response.
-func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.Key, workflowOutput *workflowOutput) *apikey.APIKey {
+func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.Key, workflowOutput *workflowOutput) (*apikey.APIKey, error) {
 	var labels map[string]string
 	if workflowOutput.Labels != nil {
 		labels = *workflowOutput.Labels
@@ -249,6 +261,12 @@ func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.
 	customerName, err := h.getCustomerName(ctx, dbKey.ActorID)
 	if err != nil {
 		log.Err(err).Msg("failed to get customer name")
+	}
+
+	// Convert policy IDs to full policy objects (excluding quota policies)
+	pols, err := policies.GetPoliciesByIDs(ctx, h.tykClient, workflowOutput.Policies)
+	if err != nil {
+		return nil, err
 	}
 
 	return &apikey.APIKey{
@@ -261,7 +279,7 @@ func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.
 		Environment:    dbKey.Environment,
 		ActorID:        workflowOutput.ActorID,
 		CreatorID:      workflowOutput.CreatorID,
-		Policies:       policies.FilterString(workflowOutput.Policies),
+		Policies:       pols,
 		ExpiresAt:      date.FormatTimeToPtr(workflowOutput.ExpiresAt),
 		Quota:          workflowOutput.Quota,
 		QuotaRemaining: workflowOutput.QuotaRemaining,
@@ -270,5 +288,5 @@ func (h *Handler) workflowOutputToPATCHResponse(ctx *goskell.Context, dbKey *db.
 		Active:         workflowOutput.Active,
 		RateLimit:      workflowOutput.RateLimit,
 		Labels:         labels,
-	}
+	}, nil
 }
