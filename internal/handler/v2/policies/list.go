@@ -11,15 +11,6 @@ import (
 	"gitlab.ci.fdmg.org/datacluster/golibs/goskell"
 )
 
-type Policy struct {
-	ID   string `json:"id" jsonapi:"primary,policies"`
-	Name string `json:"name" jsonapi:"attr,name"`
-}
-
-func (p Policy) String() string {
-	return p.ID
-}
-
 // LIST handles GET requests on the endpoint to get list of policies.
 func (h *Handler) LIST(ctx *goskell.Context) {
 	if !h.isAuthorized(ctx) {

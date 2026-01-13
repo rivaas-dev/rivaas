@@ -3,11 +3,12 @@ package keys
 
 import (
 	"errors"
+	"net/http"
+	"time"
+
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 	"gitlab.ci.fdmg.org/datacluster/golibs/goot"
 	"go.opentelemetry.io/otel/attribute"
-	"net/http"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/date"
@@ -41,7 +42,7 @@ type PatchInput struct {
 func (i *PatchInput) Validate(ctx *goskell.Context, tykAPI *tyk.APIClient) error {
 	// Validate policies.
 	if i.Policies != nil {
-		if !validation.ValidatePolicies(ctx, tykAPI, *i.Policies) {
+		if !validation.ValidatePolicyIDs(ctx, tykAPI, *i.Policies) {
 			return errors.New("invalid policy")
 		}
 	}

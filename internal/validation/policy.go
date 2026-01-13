@@ -7,8 +7,29 @@ import (
 )
 
 // ValidatePolicies validates requested policies.
-func ValidatePolicies(ctx *goskell.Context, tykClient *tyk.APIClient, requestedPolicies []string) bool {
-	policies, err := policies.GetPolicies(ctx, tykClient)
+func ValidatePolicies(ctx *goskell.Context, tykClient *tyk.APIClient, requestedPolicies []*policies.Policy) bool {
+	policies, err := policies.GetPolicies(ctx, tykClient) // returns a list excluding quota policies
+	if err != nil {
+		return false
+	}
+
+	policymap := make(map[string]bool)
+	for _, policy := range policies {
+		policymap[policy.ID] = true
+	}
+
+	for _, requestedPolicy := range requestedPolicies {
+		if !policymap[requestedPolicy.ID] {
+			return false
+		}
+
+	}
+	return true
+}
+
+// ValidatePolicyIDs validates requested policies by ID.
+func ValidatePolicyIDs(ctx *goskell.Context, tykClient *tyk.APIClient, requestedPolicies []string) bool {
+	policies, err := policies.GetPolicies(ctx, tykClient) // returns a list excluding quota policies
 	if err != nil {
 		return false
 	}

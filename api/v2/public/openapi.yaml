@@ -235,21 +235,6 @@ paths:
         500:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
 
-  /v2/policies:
-    get:
-      tags:
-        - policy
-      description: |
-        Get the list of available policies
-      operationId: list_policies_v2
-      responses:
-        200:
-          description: list of available policies
-          content:
-            application/vnd.api+json:
-              schema:
-                $ref: '#/components/schemas/PolicyListResponse'
-
   /v2/customers:
     get:
       tags:
@@ -287,7 +272,6 @@ paths:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
         500:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
-
 
   /v2/customers/{customerID}:
     get:
@@ -678,11 +662,6 @@ components:
                 name:
                   type: string
                   example: "name X"
-                policies:
-                  type: array
-                  items:
-                    type: string
-                  example: ["policy-1"]
                 quota:
                   type: integer
                   example: 1000
@@ -698,6 +677,20 @@ components:
                     Per:
                       type: integer
                       example: 60
+            relationships:
+              type: object
+              properties:
+                policies:
+                  type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Relationship'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Policy'
 
     CreateKeyV2UnprocessableEntityResponse:
       type: object
@@ -783,11 +776,6 @@ components:
                 actorID:
                   type: string
                   example: "urn:online:user:123:456"
-                policies:
-                  type: array
-                  items:
-                    type: string
-                  example: ["policy-1", "policy-2"]
                 quota:
                   type: number
                   example: 1230
@@ -864,6 +852,20 @@ components:
                 key:
                   type: string
                   example: "jq3c612f1ba53837f8f8396d80eb5c8bc04280a3d3396d80eb5c8b"
+            relationships:
+              type: object
+              properties:
+                policies:
+                  type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Relationship'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Policy'
 
     Policy:
       type: object
@@ -968,11 +970,6 @@ components:
                     type: object
                     properties:
                       meta: "metadata"
-                policies:
-                  type: array
-                  items:
-                    type: string
-                  example: ["policy-1"]
                 quota:
                   type: integer
                   example: 122
@@ -988,6 +985,20 @@ components:
                     per:
                       type: integer
                       example: 0
+            relationships:
+              type: object
+              properties:
+                policies:
+                  type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Relationship'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Policy'
 
     JSONAPILinksObject:
       title: "JSON:API Links Object"

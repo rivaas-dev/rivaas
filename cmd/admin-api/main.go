@@ -56,7 +56,7 @@ func run(ctx context.Context) error {
 	for planID, plan := range cfg.PricingPlans {
 		log.Debug().
 			Str("planID", planID).
-			Str("quotaPolicyName", plan.QuotaPolicyName).
+			Str("quotaPolicyID", plan.QuotaPolicyID).
 			Int("numberOfAPIProductionKeys", plan.NumberOfAPIProductionKeys).
 			Int("numberOfAPISandboxKeys", plan.NumberOfAPISandboxKeys).
 			Msg("pricing plan in loaded config")
@@ -143,7 +143,13 @@ func run(ctx context.Context) error {
 	omaClient := newOMAClient(ctx, cfg.OMA)
 
 	// Register handlers.
-	registerHandlers(server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, customerClient, solvimonClient, cfg)
+	err = registerHandlers(ctx, server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, customerClient, solvimonClient, cfg)
+	if err != nil {
+		log.Fatal().
+			Err(err).
+			Msg("Unable to register handlers")
+		return err
+	}
 
 	// Run server.
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -189,6 +195,7 @@ func newOMAClient(ctx context.Context, cfg config.OMA) *oma.Client {
 }
 
 func registerHandlers(
+	ctx context.Context,
 	server *goskell.Server,
 	dbClient db.DatabaseExecer,
 	tykClient *tyk.APIClient,
@@ -199,7 +206,7 @@ func registerHandlers(
 	customerClient customer.CustomerClient,
 	solvimonClient *solvimon.Client,
 	cfg config.Config,
-) {
+) error {
 	// v1 endpoints - not JSON:API compliant
 	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, customerClient)
 	server.POST("/keys", keyHandler.POST)
@@ -218,7 +225,10 @@ func registerHandlers(
 	// group v2 endpoints
 	{
 		customerSvc := customerService.New(dbClient, *keyCloakClient, cfg.PricingPlans)
-		keyV2Handler := keysV2.New(temporalClient, tykClient, dbClient, omaClient, *keyCloakClient, keyCloakConfig, customerSvc, cfg.APIKeyDefaults, cfg.Pagination)
+		keyV2Handler, err := keysV2.New(ctx, temporalClient, tykClient, dbClient, omaClient, *keyCloakClient, keyCloakConfig, customerSvc, cfg.APIKeyDefaults, cfg.Pagination)
+		if err != nil {
+			return fmt.Errorf("failed to create v2 keys handler: %w", err)
+		}
 
 		v2 := server.GetRouter().Group("/v2")
 		// keys endpoints
@@ -243,6 +253,7 @@ func registerHandlers(
 		v2.GET("/customers/:customerID/accounts/:accountID", accountsV2Handler.GET)
 		v2.PUT("/customers/:customerID/accounts/:accountID", accountsV2Handler.PUT)
 	}
+	return nil
 }
 
 func loadConfig(ctx context.Context) (config.Config, error) {

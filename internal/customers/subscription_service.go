@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/db"
+	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
 )
 
 // SubscriptionService handles subscription-related operations
@@ -35,7 +36,7 @@ type APIKey struct {
 
 // PricingPlan represents a pricing plan configuration
 type PricingPlan struct {
-	QuotaPolicyName           string `conflex:"quota" mapstructure:"quota"`
+	QuotaPolicyID             string `conflex:"quota" mapstructure:"quota"`
 	NumberOfAPIProductionKeys int    `mapstructure:"number_of_api_production_keys"`
 	NumberOfAPISandboxKeys    int    `mapstructure:"number_of_api_sandbox_keys"`
 }
@@ -50,7 +51,7 @@ func NewSubscriptionService(keysRepository db.DatabaseExecer, pricingPlans map[s
 	for planID, plan := range pricingPlans {
 		log.Debug().
 			Str("planID", planID).
-			Str("quotaPolicyName", plan.QuotaPolicyName).
+			Str("quotaPolicyName", plan.QuotaPolicyID).
 			Int("numberOfAPIProductionKeys", plan.NumberOfAPIProductionKeys).
 			Int("numberOfAPISandboxKeys", plan.NumberOfAPISandboxKeys).
 			Msg("loaded pricing plan from config")
@@ -134,10 +135,10 @@ func (s *SubscriptionService) GetCurrentAPIKeyCount(customerID, accountID string
 	return production, sandbox, nil
 }
 
-// GetPricingPlanQuotaPolicyName retrieves the quota policy name from a pricing plan.
-func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string) (string, error) {
+// GetPricingPlanQuotaPolicy retrieves the quota policy from a pricing plan.
+func (s *SubscriptionService) GetPricingPlanQuotaPolicy(pricingPlanID string) (policies.Policy, error) {
 	if pricingPlanID == "" {
-		return "", fmt.Errorf("%w: pricing plan ID cannot be empty", ErrPricingPlanNotFound)
+		return policies.Policy{}, fmt.Errorf("%w: pricing plan ID cannot be empty", ErrPricingPlanNotFound)
 	}
 
 	// Debug logging: Show what we're looking for and what's available
@@ -155,35 +156,37 @@ func (s *SubscriptionService) GetPricingPlanQuotaPolicyName(pricingPlanID string
 			log.Error().
 				Str("pricingPlanID", pricingPlanID).
 				Msg("'custom' pricing plan not found in Consul configuration")
-			return "", fmt.Errorf("%w: 'custom' pricing plan not available in configuration", ErrPricingPlanNotFound)
+			return policies.Policy{}, fmt.Errorf("%w: 'custom' pricing plan not available in configuration", ErrPricingPlanNotFound)
 		}
 
 		log.Error().
 			Str("pricingPlanID", pricingPlanID).
 			Msg("pricing plan from Keycloak not found in Consul configuration")
-		return "", fmt.Errorf("%w: pricing plan '%s' is not configured in Consul", ErrPricingPlanNotFound, pricingPlanID)
+		return policies.Policy{}, fmt.Errorf("%w: pricing plan '%s' is not configured in Consul", ErrPricingPlanNotFound, pricingPlanID)
 	}
 
 	// Debug logging: Show the exact structure of the found pricing plan
 	log.Debug().
 		Str("pricingPlanID", pricingPlanID).
-		Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
+		Str("quotaPolicyName", pricingPlan.QuotaPolicyID).
 		Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
 		Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
-		Bool("quotaIsEmpty", pricingPlan.QuotaPolicyName == "").
+		Bool("quotaIsEmpty", pricingPlan.QuotaPolicyID == "").
 		Msg("retrieved pricing plan from map - checking quota policy name")
 
-	if pricingPlan.QuotaPolicyName == "" {
+	if pricingPlan.QuotaPolicyID == "" {
 		log.Error().
 			Str("pricingPlanID", pricingPlanID).
-			Str("quotaPolicyName", pricingPlan.QuotaPolicyName).
+			Str("quotaPolicyName", pricingPlan.QuotaPolicyID).
 			Int("numberOfAPIProductionKeys", pricingPlan.NumberOfAPIProductionKeys).
 			Int("numberOfAPISandboxKeys", pricingPlan.NumberOfAPISandboxKeys).
 			Msg("pricing plan has empty quota policy name - check Consul configuration")
-		return "", fmt.Errorf("%w: quota policy name is not configured for pricing plan '%s'", ErrPricingPlanNotFound, pricingPlanID)
+		return policies.Policy{}, fmt.Errorf("%w: quota policy name is not configured for pricing plan '%s'", ErrPricingPlanNotFound, pricingPlanID)
 	}
 
-	return pricingPlan.QuotaPolicyName, nil
+	return policies.Policy{
+		ID: pricingPlan.QuotaPolicyID,
+	}, nil
 }
 
 // getMaxAPIKeyCount retrieves the maximum allowed API key counts for production and sandbox
