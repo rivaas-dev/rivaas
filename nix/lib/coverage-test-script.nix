@@ -24,7 +24,8 @@ pkgs.writeShellScript "rivaas-${name}" ''
 
   ROOT_DIR=$(pwd)
 
-  modules=$($find . ${findPatterns.nonExamples} | sort)
+  # Find root-level modules only (excludes examples/benchmarks modules)
+  modules=$($find . ${findPatterns.rootModules} | sort)
   total=$(echo "$modules" | grep -c . || echo 0)
 
   if [ "$total" -eq 0 ]; then
@@ -45,10 +46,15 @@ pkgs.writeShellScript "rivaas-${name}" ''
 
     $gum style --foreground ${colors.info} "[$current/$total] $dir"
 
+    # Filter packages to exclude examples and benchmarks sub-packages
     if ! $gum spin --spinner dot --title "${spinnerTitle}..." --show-error -- \
-      sh -c "cd '$dir' && $go test ./... ${testFlags} \
-        -coverprofile='$ROOT_DIR/${coverageDir}/$module_name.out' \
-        -covermode=atomic -count=1 2>&1"; then
+      sh -c "cd '$dir' && \
+        packages=\$($go list ./... | grep -v '/examples/' | grep -v '/benchmarks/') && \
+        if [ -n \"\$packages\" ]; then \
+          $go test \$packages ${testFlags} \
+            -coverprofile='$ROOT_DIR/${coverageDir}/$module_name.out' \
+            -covermode=atomic -count=1 2>&1; \
+        fi"; then
       failed=$((failed + 1))
     fi
   done
