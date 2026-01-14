@@ -26,6 +26,26 @@ comment:
   behavior: default
   require_changes: true
 
+# Automatic Flag Management (recommended)
+flag_management:
+  default_rules:
+    carryforward: true
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+      - type: patch
+        target: 80%
+  individual_flags:
+    - name: unittests
+      paths:
+        - "**"
+      carryforward: true
+    - name: integration
+      paths:
+        - "**"
+      carryforward: true  # Retains coverage when integration doesn't run
+
 component_management:
   default_rules:
     statuses:
@@ -72,12 +92,6 @@ component_management:
       name: Validation
       paths:
         - "validation/**"
-
-flags:
-  unittests:
-    paths:
-      - "**"
-    carryforward: true
 
 ignore:
   - "**/examples/**"

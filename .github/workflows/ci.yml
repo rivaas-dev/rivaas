@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        check: [fmt-check, tidy, lint, test-race]
+        check: [fmt-check, tidy, lint]
     steps:
       - uses: actions/checkout@v5
 
@@ -55,14 +55,11 @@ jobs:
             exit 1
           fi
 
-  # Coverage reporting
-  coverage:
-    name: Coverage
+  # Unit tests with race detector - generates coverage.out
+  unit-test:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    needs: [validate]
-    permissions:
-      contents: read
-      id-token: write # Required for OIDC authentication
+    needs: [check]
     steps:
       - uses: actions/checkout@v5
 
@@ -70,23 +67,21 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate coverage report
-        run: nix run .#test-coverage
+      - name: Run unit tests with race detector
+        run: nix run .#test-race
 
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
         with:
-          use_oidc: true
-          fail_ci_if_error: true
-          flags: unittests
-          name: rivaas-coverage
+          name: coverage-unit
+          path: coverage.out
+          retention-days: 1
 
-  # Integration tests (heavier, conditional)
-  integration:
-    name: Integration
+  # Integration tests - generates coverage-integration.out (runs in parallel)
+  integration-test:
+    name: Integration Tests
     runs-on: ubuntu-latest
     needs: [check]
-    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run-integration')
     steps:
       - uses: actions/checkout@v5
 
@@ -96,3 +91,54 @@ jobs:
 
       - name: Run integration tests
         run: nix run .#test-integration
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: coverage-integration.out
+          retention-days: 1
+
+  # Report - downloads artifacts and publishes to Codecov
+  report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: [unit-test, integration-test]
+    if: always() && (needs.unit-test.result == 'success' || needs.integration-test.result == 'success')
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download unit test coverage
+        if: needs.unit-test.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-unit
+
+      - name: Download integration coverage
+        if: needs.integration-test.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-integration
+
+      - name: Upload unit coverage to Codecov
+        if: needs.unit-test.result == 'success'
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          fail_ci_if_error: true
+          files: ./coverage.out
+          flags: unittests
+          name: rivaas-unit
+
+      - name: Upload integration coverage to Codecov
+        if: needs.integration-test.result == 'success'
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          fail_ci_if_error: true
+          files: ./coverage-integration.out
+          flags: integration
+          name: rivaas-integration
