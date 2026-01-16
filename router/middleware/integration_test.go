@@ -35,6 +35,9 @@
 //
 // See middleware_integration_suite_test.go for detailed instructions on running
 // integration tests separately from unit tests.
+
+//go:build integration
+
 package middleware_test
 
 import (

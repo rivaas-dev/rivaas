@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package router_test
 
 import (
@@ -28,9 +30,6 @@ import (
 //
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestCompilerIntegration_StaticRoutes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tests := []struct {
@@ -105,9 +104,6 @@ func TestCompilerIntegration_StaticRoutes(t *testing.T) {
 //
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestCompilerIntegration_DynamicRoutes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tests := []struct {
@@ -183,9 +179,6 @@ func TestCompilerIntegration_DynamicRoutes(t *testing.T) {
 //
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestCompilerIntegration_Constraints(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tests := []struct {
@@ -238,9 +231,6 @@ func TestCompilerIntegration_Constraints(t *testing.T) {
 //
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestCompilerIntegration_MatchingCorrectness(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tests := []struct {
@@ -329,9 +319,6 @@ func TestCompilerIntegration_MatchingCorrectness(t *testing.T) {
 
 // TestCompilerIntegration_FirstSegmentIndex tests first segment optimization.
 func TestCompilerIntegration_FirstSegmentIndex(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	r := router.MustNew()
@@ -368,9 +355,6 @@ func TestCompilerIntegration_FirstSegmentIndex(t *testing.T) {
 
 // TestCompilerIntegration_Sorting tests route sorting by specificity.
 func TestCompilerIntegration_Sorting(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	r := router.MustNew()
@@ -407,9 +391,6 @@ func TestCompilerIntegration_Sorting(t *testing.T) {
 // TestCompilerIntegration_Concurrent tests concurrent route compilation operations.
 func TestCompilerIntegration_Concurrent(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 
 	r := router.MustNew()
 
@@ -445,9 +426,6 @@ func TestCompilerIntegration_Concurrent(t *testing.T) {
 
 // TestCompilerIntegration_NoStaticRoutes tests compiling with no static routes.
 func TestCompilerIntegration_NoStaticRoutes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	r := router.MustNew()
@@ -476,9 +454,6 @@ func TestCompilerIntegration_NoStaticRoutes(t *testing.T) {
 
 // TestCompilerIntegration_MixedRoutes tests compiling mixed static and dynamic routes.
 func TestCompilerIntegration_MixedRoutes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	r := router.MustNew()

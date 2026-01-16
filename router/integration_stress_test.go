@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package router_test
 
 import (
@@ -19,7 +21,6 @@ import (
 	"net/http/httptest"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -179,10 +180,6 @@ var _ = Describe("Router Stress Tests", func() {
 
 	Describe("High load stress test", func() {
 		It("should handle high concurrent load", func() {
-			if testing.Short() {
-				Skip("skipping stress test in short mode")
-			}
-
 			r := router.MustNew()
 
 			// Register routes
@@ -234,10 +231,6 @@ var _ = Describe("Router Stress Tests", func() {
 
 	Describe("Route compilation with many routes", func() {
 		It("should compile and optimize routes efficiently with large number of routes", func() {
-			if testing.Short() {
-				Skip("skipping stress test in short mode")
-			}
-
 			r := router.MustNew()
 
 			// Register 1000+ routes to test compilation performance
@@ -274,10 +267,6 @@ var _ = Describe("Router Stress Tests", func() {
 
 	Describe("Cancellation check performance", func() {
 		It("should handle concurrent requests efficiently with cancellation checking enabled", func() {
-			if testing.Short() {
-				Skip("skipping stress test in short mode")
-			}
-
 			for _, enabled := range []bool{true, false} {
 				By("testing with cancellation check " + map[bool]string{true: "enabled", false: "disabled"}[enabled])
 
@@ -326,10 +315,6 @@ var _ = Describe("Router Stress Tests", func() {
 
 	Describe("Bloom filter with large size and concurrent requests", func() {
 		It("should handle large bloom filter size with concurrent requests", func() {
-			if testing.Short() {
-				Skip("skipping stress test in short mode")
-			}
-
 			r := router.MustNew(router.WithBloomFilterSize(100000))
 
 			// Register many routes

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !integration
+
 package router_test
 
 import (
@@ -23,9 +25,6 @@ import (
 
 //nolint:paralleltest // Ginkgo test suite manages its own parallelization
 func TestRouter(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Router Suite")
 }

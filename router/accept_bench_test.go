@@ -44,6 +44,8 @@
 //   - Quality parsing: Tests parseQuality behavior
 //
 // See accept.go for implementation details.
+//go:build !integration
+
 package router
 
 import (

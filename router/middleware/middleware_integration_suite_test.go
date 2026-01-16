@@ -62,6 +62,9 @@
 //   - Unit tests: See *_test.go files in individual middleware packages
 //   - Middleware docs: See middleware/README.md
 //   - Testing standards: See docs/TESTING_STANDARDS.md
+
+//go:build integration
+
 package middleware_test
 
 import (
@@ -78,9 +81,6 @@ import (
 //
 //nolint:paralleltest // Integration test suite
 func TestMiddlewareIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Middleware Integration Suite")
 }
