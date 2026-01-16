@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package app_test
 
 import (
@@ -701,9 +703,6 @@ var _ = Describe("App Integration", func() {
 
 //nolint:paralleltest // Ginkgo test suite manages its own parallelization
 func TestAppIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "App Integration Suite")
 }

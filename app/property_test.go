@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !integration
+
 package app
 
 import (
@@ -31,9 +33,6 @@ import (
 func TestProperty_RouteMatchingCommutativity(t *testing.T) {
 	t.Parallel()
 
-	if testing.Short() {
-		t.Skip("skipping property test in short mode")
-	}
 
 	// Generate test routes
 	routes := []struct {
@@ -115,9 +114,6 @@ func TestProperty_RouteMatchingCommutativity(t *testing.T) {
 // TestProperty_MiddlewareIdempotency tests that adding the same middleware
 // multiple times produces consistent results (idempotency property).
 func TestProperty_MiddlewareIdempotency(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping property test in short mode")
-	}
 	t.Parallel()
 
 	app := MustNew(

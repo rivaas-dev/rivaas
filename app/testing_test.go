@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !integration
+
 package app
 
 import (
@@ -167,7 +169,7 @@ func TestApp_Test_Timeout(t *testing.T) {
 	}{
 		{
 			name:         "request completes within timeout",
-			timeout:      100 * time.Millisecond,
+			timeout:      500 * time.Millisecond, // Use larger margin for race detector overhead
 			handlerDelay: 10 * time.Millisecond,
 			wantErr:      false,
 		},

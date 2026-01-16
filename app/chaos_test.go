@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !integration
+
 package app
 
 import (
@@ -32,9 +34,6 @@ import (
 // Note: Route registration during serving is not a supported pattern.
 // Routes should be registered before serving begins.
 func TestChaos_ConcurrentRouteRegistration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping chaos test in short mode")
-	}
 	t.Parallel()
 
 	app := MustNew(
@@ -102,9 +101,6 @@ func TestChaos_ConcurrentRouteRegistration(t *testing.T) {
 // TestChaos_StressTestHighConcurrency tests the app under extreme
 // concurrency conditions to find performance issues and race conditions.
 func TestChaos_StressTestHighConcurrency(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	app := MustNew(
@@ -159,9 +155,6 @@ func TestChaos_StressTestHighConcurrency(t *testing.T) {
 // TestChaos_RandomRoutePatterns tests with random route patterns to
 // ensure the router handles edge cases correctly.
 func TestChaos_RandomRoutePatterns(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping chaos test in short mode")
-	}
 	t.Parallel()
 
 	app := MustNew(
@@ -230,9 +223,6 @@ func TestChaos_RandomRoutePatterns(t *testing.T) {
 // TestChaos_MiddlewareChainStress tests middleware chains under stress
 // to ensure correct execution order and no race conditions.
 func TestChaos_MiddlewareChainStress(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	app := MustNew(
@@ -283,9 +273,6 @@ func TestChaos_MiddlewareChainStress(t *testing.T) {
 // TestChaos_ContextPoolExhaustion tests that context pooling works correctly
 // even under extreme load where contexts might be exhausted.
 func TestChaos_ContextPoolExhaustion(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	app := MustNew(
@@ -330,9 +317,6 @@ func TestChaos_ContextPoolExhaustion(t *testing.T) {
 // Phase 2: concurrent request handling
 // Note: Route registration during serving is not a supported pattern.
 func TestChaos_MixedOperations(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping chaos test in short mode")
-	}
 	t.Parallel()
 
 	app := MustNew(
