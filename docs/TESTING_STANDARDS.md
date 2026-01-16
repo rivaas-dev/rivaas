@@ -865,31 +865,48 @@ Use suite tests when:
 
 ## Integration Tests
 
-Integration tests should be in `integration_test.go` or `{feature}_integration_test.go`:
+Integration tests should be in `integration_test.go` or `{feature}_integration_test.go`.
+
+### Build Tags for Test Separation
+
+We use Go build tags to separate unit tests from integration tests at compile time:
+
+| Test Type | Build Tag | Run Command |
+|-----------|-----------|-------------|
+| Unit tests | `//go:build !integration` | `go test ./...` |
+| Integration tests | `//go:build integration` | `go test -tags=integration ./...` |
+
+**Why build tags instead of `testing.Short()`?**
+
+- **Compile-time separation**: Tests are excluded at build time, not skipped at runtime
+- **Cleaner coverage reports**: Unit and integration coverage are truly separate
+- **Faster unit test runs**: Integration test code isn't even compiled
+- **CI/CD friendly**: Easy to run different test suites in parallel pipelines
 
 ### Standard Integration Tests
 
-For simple integration scenarios, use standard testing:
+For simple integration scenarios, use standard testing with the `integration` build tag:
 
 ```go
+//go:build integration
+
 package package_test
 
 import (
     "net/http"
     "net/http/httptest"
     "testing"
+
     "rivaas.dev/package"
 )
 
 func TestIntegration(t *testing.T) {
-    if testing.Short() {
-        t.Skip("skipping integration test in short mode")
-    }
-    
     r := package.MustNew()
     // Integration test code
 }
 ```
+
+**Important**: The `//go:build integration` tag must appear after the license header and before the `package` declaration, with a blank line before and after.
 
 ### Ginkgo Integration Tests
 
@@ -903,19 +920,19 @@ Create a single `{package}_integration_suite_test.go` file as the entry point:
 
 ```go
 // {package}_integration_suite_test.go
+
+//go:build integration
+
 package package_test
 
 import (
     "testing"
-    
+
     . "github.com/onsi/ginkgo/v2"
     . "github.com/onsi/gomega"
 )
 
 func TestPackageIntegration(t *testing.T) {
-    if testing.Short() {
-        t.Skip("skipping integration test in short mode")
-    }
     RegisterFailHandler(Fail)
     RunSpecs(t, "Package Integration Suite")
 }
@@ -927,31 +944,35 @@ All other integration test files should **only** contain `var _ = Describe(...)`
 
 ```go
 // integration_test.go
+
+//go:build integration
+
 package package_test
 
 import (
     "net/http"
     "net/http/httptest"
-    
+
     . "github.com/onsi/ginkgo/v2"
     . "github.com/onsi/gomega"
+
     "rivaas.dev/package"
 )
 
 var _ = Describe("Feature Integration", func() {
     var r *package.Router
-    
+
     BeforeEach(func() {
         r = package.MustNew()
     })
-    
+
     Describe("Scenario A", func() {
         Context("with condition X", func() {
             It("should behave correctly", func() {
                 req := httptest.NewRequest("GET", "/path", nil)
                 w := httptest.NewRecorder()
                 r.ServeHTTP(w, req)
-                
+
                 Expect(w.Code).To(Equal(http.StatusOK))
             })
         })
@@ -963,37 +984,55 @@ var _ = Describe("Feature Integration", func() {
 
 #### Multiple Test Files Example
 
-You can organize tests across multiple files, each with their own `Describe` blocks:
+You can organize tests across multiple files, each with their own `Describe` blocks. All files must have the `//go:build integration` tag:
 
 ```go
 // integration_test.go
+//go:build integration
+
 package package_test
 
 var _ = Describe("Router Integration", func() {
     // Integration tests here
 })
+```
 
+```go
 // integration_stress_test.go
+//go:build integration
+
 package package_test
 
 var _ = Describe("Router Stress Tests", Label("stress"), func() {
     // Stress tests here
 })
+```
 
+```go
 // versioning_integration_test.go
+//go:build integration
+
 package package_test
 
-var _ = Describe("Versioning Integration", Label("integration", "versioning"), func() {
+var _ = Describe("Versioning Integration", Label("versioning"), func() {
     // Versioning tests here
 })
+```
 
+```go
 // {package}_integration_suite_test.go - ONLY file with RunSpecs
+//go:build integration
+
 package package_test
 
+import (
+    "testing"
+
+    . "github.com/onsi/ginkgo/v2"
+    . "github.com/onsi/gomega"
+)
+
 func TestPackageIntegration(t *testing.T) {
-    if testing.Short() {
-        t.Skip("skipping integration test in short mode")
-    }
     RegisterFailHandler(Fail)
     RunSpecs(t, "Package Integration Suite")
 }
@@ -1041,7 +1080,7 @@ go test -ginkgo.label-filter=stress ./package
 ### Integration Test Guidelines
 
 - **Package**: Use external package (`package {package}_test`) for black-box testing
-- **Skip behavior**: Use runtime skip with `testing.Short()` instead of build tags
+- **Build tag**: All integration test files must have `//go:build integration` tag
 - **Framework choice**:
   - Use standard `testing` for simple integration tests
   - Use **Ginkgo/Gomega** for complex scenarios with:
@@ -1049,11 +1088,12 @@ go test -ginkgo.label-filter=stress ./package
     - Nested contexts and shared setup
     - BDD-style organization
     - Complex assertions with Gomega matchers
-- **Suite structure**:
+- **Suite structure** (for Ginkgo tests):
   - **Exactly one** `{package}_integration_suite_test.go` file with `TestXxx` function calling `RunSpecs`
   - **Multiple** test files allowed (e.g., `integration_test.go`, `integration_stress_test.go`), each with `var _ = Describe(...)` blocks
+  - **All files** must have `//go:build integration` tag
   - **Never** call `RunSpecs` more than once per package
-  - Use **labels** (`Label("stress")`, `Label("integration")`) to categorize tests for filtering
+  - Use **labels** (`Label("stress")`, `Label("versioning")`) to further categorize tests for filtering within integration tests
 - **Test real interactions**: Test full request/response cycles, not just function calls
 - **Documentation**: Document required setup in test comments
 - **Isolation**: Each test should be independent and clean up after itself
@@ -1651,30 +1691,33 @@ Flaky tests pass and fail intermittently without code changes. Common causes:
 ## Running Tests
 
 ```bash
-# Run all tests
+# Run unit tests only (default, excludes integration tests)
 go test ./...
 
-# Run tests with verbose output
+# Run unit tests with verbose output
 go test -v ./...
 
-# Run tests with race detection (REQUIRED in CI)
+# Run unit tests with race detection (REQUIRED in CI)
 go test -race ./...
 
-# Run tests with coverage
+# Run integration tests (with race detection)
+go test -tags=integration -race ./...
+
+# Run unit tests with coverage
 go test -cover ./...
 
-# Run tests with coverage report
+# Run unit tests with coverage report
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out -o coverage.html
+
+# Run integration tests with coverage report
+go test -tags=integration -coverprofile=coverage-integration.out ./...
 
 # Run benchmarks
 go test -bench=. -benchmem ./...
 
 # Run benchmarks with count for statistical significance
 go test -bench=. -benchmem -count=10 ./...
-
-# Skip integration tests (short mode)
-go test -short ./...
 
 # Run specific test by name
 go test -run TestFunctionName ./...
@@ -1704,14 +1747,32 @@ go test -list ".*" ./...
 ### CI Pipeline Commands
 
 ```bash
-# Full test suite for CI
+# Unit tests with race detection and coverage (CI)
 go test -race -coverprofile=coverage.out -timeout 10m ./...
+
+# Integration tests with race detection and coverage (CI)
+go test -tags=integration -race -coverprofile=coverage-integration.out -timeout 10m ./...
 
 # Verify coverage threshold
 go tool cover -func=coverage.out | grep total
 
 # Generate coverage badge data
 go tool cover -func=coverage.out | grep total | awk '{print $3}'
+```
+
+### Nix Commands (Recommended)
+
+If using the Nix development environment:
+
+```bash
+# Run unit tests (fast, no coverage)
+nix run .#test
+
+# Run unit tests with race detection and coverage
+nix run .#test-race
+
+# Run integration tests with race detection and coverage
+nix run .#test-integration
 ```
 
 ## Continuous Integration
@@ -1728,9 +1789,9 @@ All tests must pass in CI:
 
 | Check | Command | Required |
 |-------|---------|----------|
-| Unit tests | `go test ./...` | ✅ Yes |
-| Race detection | `go test -race ./...` | ✅ Yes |
-| Coverage | `go test -cover ./...` | ✅ Yes |
+| Unit tests | `go test -race ./...` | ✅ Yes |
+| Integration tests | `go test -tags=integration -race ./...` | ✅ Yes |
+| Coverage | `go test -coverprofile=coverage.out ./...` | ✅ Yes |
 | Benchmarks | `go test -bench=. ./...` | ⚠️ Recommended |
 | Lint | `golangci-lint run` | ✅ Yes |
 | Fuzz (seed corpus) | `go test -run=Fuzz ./...` | ⚠️ Recommended |
@@ -1738,26 +1799,51 @@ All tests must pass in CI:
 ### Example CI Workflow
 
 ```yaml
-test:
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version: '1.23'
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
 
-    - name: Run tests with race detection
-      run: go test -race -coverprofile=coverage.out -timeout 10m ./...
+      - name: Run unit tests with race detection
+        run: go test -race -coverprofile=coverage.out -timeout 10m ./...
 
-    - name: Check coverage threshold
-      run: |
-        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-        echo "Coverage: $COVERAGE%"
-        if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-          echo "Coverage below 80% threshold"
-          exit 1
-        fi
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage.out
 
-    - name: Run benchmarks
-      run: go test -bench=. -benchmem -run=^$ ./...
+  integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Run integration tests with race detection
+        run: go test -tags=integration -race -coverprofile=coverage-integration.out -timeout 10m ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: coverage-integration.out
+
+  coverage-report:
+    needs: [unit-test, integration-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage-unit/coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Unit test coverage: $COVERAGE%"
 ```

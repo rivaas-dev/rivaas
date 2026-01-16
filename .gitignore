@@ -1,12 +1,15 @@
 # Coverage files (all formats)
 coverage.txt
 coverage.out
+coverage-*.out
 coverage.html
 coverage.json
 coverage.lcov
 *.lcov.html
 *.lcov.json
 coverage_*.out
+.coverage/
+.coverage-integration/
 
 
 # Nix

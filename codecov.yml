@@ -44,7 +44,7 @@ flag_management:
     - name: integration
       paths:
         - "**"
-      carryforward: true  # Retains coverage when integration doesn't run
+      carryforward: true
 
 component_management:
   default_rules:
