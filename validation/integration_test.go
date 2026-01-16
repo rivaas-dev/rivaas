@@ -615,7 +615,6 @@ func TestIntegration_MaxErrorsTruncation(t *testing.T) {
 func TestIntegration_ComputePresenceNestedJSON(t *testing.T) {
 	t.Parallel()
 
-
 	tests := []struct {
 		name           string
 		jsonInput      string

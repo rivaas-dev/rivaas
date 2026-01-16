@@ -389,7 +389,6 @@ func TestStress_RequestMetricsLifecycle(t *testing.T) {
 //
 //nolint:paralleltest // Cannot use t.Parallel() - test binds to a specific port
 func TestStress_PrometheusServerStability(t *testing.T) {
-
 	recorder := MustNew(
 		WithPrometheus(":0", "/metrics"), // Use port 0 to get random available port
 		WithServiceName("prometheus-stress"),

@@ -33,7 +33,6 @@ import (
 func TestProperty_RouteMatchingCommutativity(t *testing.T) {
 	t.Parallel()
 
-
 	// Generate test routes
 	routes := []struct {
 		method string

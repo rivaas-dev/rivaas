@@ -420,7 +420,6 @@ func TestIntegration_ProviderTypes(t *testing.T) {
 func TestIntegration_ShutdownBehavior(t *testing.T) {
 	t.Parallel()
 
-
 	t.Run("graceful shutdown", func(t *testing.T) {
 		t.Parallel()
 
