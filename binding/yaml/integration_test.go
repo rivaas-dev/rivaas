@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package yaml_test
 
 import (
@@ -28,9 +30,6 @@ import (
 
 // TestIntegration_YAMLBodyBinding tests YAML body binding from HTTP requests
 func TestIntegration_YAMLBodyBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {
@@ -76,9 +75,6 @@ debug: true
 
 // TestIntegration_YAMLNestedStructBinding tests nested YAML struct binding from HTTP requests
 func TestIntegration_YAMLNestedStructBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Database struct {
@@ -144,9 +140,6 @@ database:
 
 // TestIntegration_YAMLArrayBinding tests YAML array binding from HTTP requests
 func TestIntegration_YAMLArrayBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type ServiceConfig struct {
@@ -198,9 +191,6 @@ ports:
 
 // TestIntegration_YAMLMapBinding tests YAML map binding from HTTP requests
 func TestIntegration_YAMLMapBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type EnvConfig struct {
@@ -249,9 +239,6 @@ settings:
 //
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_YAMLErrorHandling(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tests := []struct {
@@ -307,9 +294,6 @@ func TestIntegration_YAMLErrorHandling(t *testing.T) {
 
 // TestIntegration_YAMLWithStrict tests strict mode YAML binding
 func TestIntegration_YAMLWithStrict(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {
@@ -348,9 +332,6 @@ unknown_field: should_error
 
 // TestIntegration_YAMLReaderBinding tests YAML binding from io.Reader
 func TestIntegration_YAMLReaderBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {

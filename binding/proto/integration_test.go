@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package proto_test
 
 import (
@@ -32,9 +34,6 @@ import (
 
 // TestIntegration_ProtoBodyBinding tests Protocol Buffers body binding from HTTP requests
 func TestIntegration_ProtoBodyBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -77,9 +76,6 @@ func TestIntegration_ProtoBodyBinding(t *testing.T) {
 
 // TestIntegration_ProtoNestedStructBinding tests nested Protocol Buffers binding
 func TestIntegration_ProtoNestedStructBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,9 +128,6 @@ func TestIntegration_ProtoNestedStructBinding(t *testing.T) {
 
 // TestIntegration_ProtoRepeatedFieldsBinding tests Protocol Buffers repeated field binding
 func TestIntegration_ProtoRepeatedFieldsBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -175,9 +168,6 @@ func TestIntegration_ProtoRepeatedFieldsBinding(t *testing.T) {
 
 // TestIntegration_ProtoMapFieldsBinding tests Protocol Buffers map field binding
 func TestIntegration_ProtoMapFieldsBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -220,9 +210,6 @@ func TestIntegration_ProtoMapFieldsBinding(t *testing.T) {
 
 // TestIntegration_ProtoErrorHandling tests error handling for invalid Protocol Buffers
 func TestIntegration_ProtoErrorHandling(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -251,9 +238,6 @@ func TestIntegration_ProtoErrorHandling(t *testing.T) {
 
 // TestIntegration_ProtoReaderBinding tests Protocol Buffers binding from io.Reader
 func TestIntegration_ProtoReaderBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -287,9 +271,6 @@ func TestIntegration_ProtoReaderBinding(t *testing.T) {
 
 // TestIntegration_ProtoWithDiscardUnknown tests Protocol Buffers binding with unknown field handling
 func TestIntegration_ProtoWithDiscardUnknown(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -329,9 +310,6 @@ func TestIntegration_ProtoWithDiscardUnknown(t *testing.T) {
 
 // TestIntegration_ProtoLargePayload tests Protocol Buffers binding with larger payloads
 func TestIntegration_ProtoLargePayload(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -379,9 +357,6 @@ func TestIntegration_ProtoLargePayload(t *testing.T) {
 
 // TestIntegration_ProtoEmptyBody tests Protocol Buffers binding with empty body
 func TestIntegration_ProtoEmptyBody(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package binding_test
 
 import (
@@ -33,9 +35,6 @@ import (
 
 // TestIntegration_QueryParameterBinding tests binding from real HTTP requests
 func TestIntegration_QueryParameterBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type SearchParams struct {
@@ -70,9 +69,6 @@ func TestIntegration_QueryParameterBinding(t *testing.T) {
 
 // TestIntegration_JSONBodyBinding tests JSON body binding from HTTP requests
 func TestIntegration_JSONBodyBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type CreateUserRequest struct {
@@ -113,9 +109,6 @@ func TestIntegration_JSONBodyBinding(t *testing.T) {
 
 // TestIntegration_FormDataBinding tests form data binding from HTTP requests
 func TestIntegration_FormDataBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type LoginRequest struct {
@@ -155,9 +148,6 @@ func TestIntegration_FormDataBinding(t *testing.T) {
 
 // TestIntegration_MultiSourceBinding tests binding from multiple sources
 func TestIntegration_MultiSourceBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type GetUserRequest struct {
@@ -209,9 +199,6 @@ func TestIntegration_MultiSourceBinding(t *testing.T) {
 
 // TestIntegration_HeaderAndCookieBinding tests header and cookie binding
 func TestIntegration_HeaderAndCookieBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type RequestMetadata struct {
@@ -256,9 +243,6 @@ func TestIntegration_HeaderAndCookieBinding(t *testing.T) {
 //
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ErrorHandling(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tests := []struct {
@@ -305,9 +289,6 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 
 // TestIntegration_BinderReuse tests that Binder instances can be reused across multiple requests
 func TestIntegration_BinderReuse(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {
@@ -345,9 +326,6 @@ func TestIntegration_BinderReuse(t *testing.T) {
 
 // TestIntegration_NestedStructs tests nested struct binding from HTTP requests
 func TestIntegration_NestedStructs(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Address struct {
@@ -387,9 +365,6 @@ func TestIntegration_NestedStructs(t *testing.T) {
 
 // TestIntegration_DefaultValues tests default value application
 func TestIntegration_DefaultValues(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type PaginationParams struct {
@@ -423,9 +398,6 @@ func TestIntegration_DefaultValues(t *testing.T) {
 
 // TestIntegration_XMLBodyBinding tests XML body binding from HTTP requests
 func TestIntegration_XMLBodyBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Product struct {
@@ -462,9 +434,6 @@ func TestIntegration_XMLBodyBinding(t *testing.T) {
 
 // TestIntegration_ComplexTypesBinding tests binding of complex types (time, duration)
 func TestIntegration_ComplexTypesBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type EventParams struct {
@@ -496,9 +465,6 @@ func TestIntegration_ComplexTypesBinding(t *testing.T) {
 
 // TestIntegration_MapBinding tests map binding from query parameters
 func TestIntegration_MapBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type FilterParams struct {

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package toml_test
 
 import (
@@ -28,9 +30,6 @@ import (
 
 // TestIntegration_TOMLBodyBinding tests TOML body binding from HTTP requests
 func TestIntegration_TOMLBodyBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {
@@ -79,9 +78,6 @@ debug = true
 
 // TestIntegration_TOMLNestedStructBinding tests nested TOML struct binding from HTTP requests
 func TestIntegration_TOMLNestedStructBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Database struct {
@@ -149,9 +145,6 @@ password = "secret"
 
 // TestIntegration_TOMLArrayBinding tests TOML array binding from HTTP requests
 func TestIntegration_TOMLArrayBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type ServiceConfig struct {
@@ -197,9 +190,6 @@ ports = [8080, 8081, 8082]
 
 // TestIntegration_TOMLArrayOfTables tests TOML array of tables binding
 func TestIntegration_TOMLArrayOfTables(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Product struct {
@@ -259,9 +249,6 @@ price = 300
 
 // TestIntegration_TOMLInlineTable tests TOML inline table binding
 func TestIntegration_TOMLInlineTable(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Point struct {
@@ -309,9 +296,6 @@ origin = { x = 10, y = 20 }
 //
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_TOMLErrorHandling(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tests := []struct {
@@ -367,9 +351,6 @@ func TestIntegration_TOMLErrorHandling(t *testing.T) {
 
 // TestIntegration_TOMLWithMetadata tests TOML binding with metadata for undecoded keys
 func TestIntegration_TOMLWithMetadata(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {
@@ -415,9 +396,6 @@ unknown_field = "should be detected"
 
 // TestIntegration_TOMLReaderBinding tests TOML binding from io.Reader
 func TestIntegration_TOMLReaderBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {

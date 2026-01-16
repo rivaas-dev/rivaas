@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package msgpack_test
 
 import (
@@ -31,9 +33,6 @@ import (
 
 // TestIntegration_MsgPackBodyBinding tests MessagePack body binding from HTTP requests
 func TestIntegration_MsgPackBodyBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {
@@ -83,9 +82,6 @@ func TestIntegration_MsgPackBodyBinding(t *testing.T) {
 
 // TestIntegration_MsgPackNestedStructBinding tests nested MessagePack struct binding
 func TestIntegration_MsgPackNestedStructBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Database struct {
@@ -157,9 +153,6 @@ func TestIntegration_MsgPackNestedStructBinding(t *testing.T) {
 
 // TestIntegration_MsgPackArrayBinding tests MessagePack array binding
 func TestIntegration_MsgPackArrayBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type ServiceConfig struct {
@@ -209,9 +202,6 @@ func TestIntegration_MsgPackArrayBinding(t *testing.T) {
 
 // TestIntegration_MsgPackMapBinding tests MessagePack map binding
 func TestIntegration_MsgPackMapBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type EnvConfig struct {
@@ -263,9 +253,6 @@ func TestIntegration_MsgPackMapBinding(t *testing.T) {
 
 // TestIntegration_MsgPackErrorHandling tests error handling for invalid MessagePack
 func TestIntegration_MsgPackErrorHandling(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {
@@ -299,9 +286,6 @@ func TestIntegration_MsgPackErrorHandling(t *testing.T) {
 
 // TestIntegration_MsgPackWithJSONTag tests MessagePack binding with JSON tags
 func TestIntegration_MsgPackWithJSONTag(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {
@@ -348,9 +332,6 @@ func TestIntegration_MsgPackWithJSONTag(t *testing.T) {
 
 // TestIntegration_MsgPackWithDisallowUnknown tests MessagePack binding with unknown field rejection
 func TestIntegration_MsgPackWithDisallowUnknown(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Source struct {
@@ -398,9 +379,6 @@ func TestIntegration_MsgPackWithDisallowUnknown(t *testing.T) {
 
 // TestIntegration_MsgPackReaderBinding tests MessagePack binding from io.Reader
 func TestIntegration_MsgPackReaderBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Config struct {
@@ -438,9 +416,6 @@ func TestIntegration_MsgPackReaderBinding(t *testing.T) {
 
 // TestIntegration_MsgPackLargePayload tests MessagePack binding with larger payloads
 func TestIntegration_MsgPackLargePayload(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Item struct {
