@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package config_test
 
 import (
@@ -30,9 +32,6 @@ import (
 
 // TestIntegration_FileSourceWithYAML tests end-to-end YAML file loading.
 func TestIntegration_FileSourceWithYAML(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	// Create temporary YAML file
@@ -85,9 +84,6 @@ logging:
 
 // TestIntegration_FileSourceWithJSON tests end-to-end JSON file loading.
 func TestIntegration_FileSourceWithJSON(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -125,9 +121,6 @@ func TestIntegration_FileSourceWithJSON(t *testing.T) {
 
 // TestIntegration_FileSourceWithTOML tests end-to-end TOML file loading.
 func TestIntegration_FileSourceWithTOML(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -165,9 +158,6 @@ max_connections = 100
 
 // TestIntegration_MultipleSources tests merging configurations from multiple sources.
 func TestIntegration_MultipleSources(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -228,9 +218,6 @@ server:
 
 // TestIntegration_BindingWithValidation tests struct binding with validation.
 func TestIntegration_BindingWithValidation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type ServerConfig struct {
@@ -291,9 +278,6 @@ database:
 
 // TestIntegration_ReloadConfiguration tests reloading configuration.
 func TestIntegration_ReloadConfiguration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -340,9 +324,6 @@ feature_flags:
 
 // TestIntegration_FileDumper tests dumping configuration to a file.
 func TestIntegration_FileDumper(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -381,9 +362,6 @@ app:
 
 // TestIntegration_CaseInsensitiveKeys tests case-insensitive key access.
 func TestIntegration_CaseInsensitiveKeys(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -420,9 +398,6 @@ Database:
 
 // TestIntegration_EnvironmentVariables tests environment variable source.
 func TestIntegration_EnvironmentVariables(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	// NOTE: Cannot use t.Parallel() with t.Setenv()
 
 	// Set test environment variables

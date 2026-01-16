@@ -14,6 +14,8 @@
 // limitations under the License.
 
 // Package codec provides functionality for encoding and decoding data.
+//go:build !integration
+
 package codec
 
 import (
