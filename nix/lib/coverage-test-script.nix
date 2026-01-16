@@ -19,6 +19,10 @@ pkgs.writeShellScript "rivaas-${name}" ''
   go="${pkgs.go}/bin/go"
   find="${pkgs.findutils}/bin/find"
 
+  # Fix for Go toolchain auto-switching bug causing "no such tool covdata" errors
+  # See: https://github.com/golang/go/issues/75031#issuecomment-3195256688
+  export GOTOOLCHAIN=local
+
   $gum style --foreground ${colors.header} --bold --border rounded --padding "0 1" "${title}"
   echo ""
 
