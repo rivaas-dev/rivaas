@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package logging_test
 
 import (
@@ -31,9 +33,6 @@ import (
 // These tests verify behavior across multiple components and real-world scenarios.
 
 func TestIntegration_MultiLoggerCoexistence(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	// Create multiple independent loggers with different configurations
@@ -80,9 +79,6 @@ func TestIntegration_MultiLoggerCoexistence(t *testing.T) {
 }
 
 func TestIntegration_ConcurrentLogging(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -124,9 +120,6 @@ func TestIntegration_ConcurrentLogging(t *testing.T) {
 }
 
 func TestIntegration_BatchLoggerWithFlush(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -157,9 +150,6 @@ func TestIntegration_BatchLoggerWithFlush(t *testing.T) {
 }
 
 func TestIntegration_SamplingUnderLoad(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -189,9 +179,6 @@ func TestIntegration_SamplingUnderLoad(t *testing.T) {
 }
 
 func TestIntegration_ErrorsNeverSampled(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -227,9 +214,6 @@ func TestIntegration_ErrorsNeverSampled(t *testing.T) {
 }
 
 func TestIntegration_ContextLoggerPropagation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -265,9 +249,6 @@ func TestIntegration_ContextLoggerPropagation(t *testing.T) {
 }
 
 func TestIntegration_DynamicLevelChange(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -298,9 +279,6 @@ func TestIntegration_DynamicLevelChange(t *testing.T) {
 }
 
 func TestIntegration_GracefulShutdown(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -331,9 +309,6 @@ func TestIntegration_GracefulShutdown(t *testing.T) {
 }
 
 func TestIntegration_SensitiveDataRedaction(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
