@@ -24,6 +24,7 @@
     program = toString (lib.mkCoverageTestScript {
       name = "test-race";
       title = "Running Unit Tests with Race Detector";
+      listFlags = "";
       testFlags = "-race";
       coverageDir = ".coverage";
       outputFile = "coverage.out";
@@ -40,6 +41,7 @@
     program = toString (lib.mkCoverageTestScript {
       name = "test-integration";
       title = "Running Integration Tests";
+      listFlags = "-tags=integration";  # Must match testFlags tags for go list to see integration test files
       testFlags = "-tags=integration -race";
       coverageDir = ".coverage-integration";
       outputFile = "coverage-integration.out";

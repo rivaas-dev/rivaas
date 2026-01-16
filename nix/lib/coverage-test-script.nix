@@ -4,7 +4,8 @@
 {
   name,
   title,
-  testFlags ? "",       # e.g., "-race" or "-tags=integration"
+  listFlags ? "",       # Flags for go list, e.g., "-tags=integration" (must match testFlags tags)
+  testFlags ? "",       # Flags for go test, e.g., "-race" or "-tags=integration -race"
   coverageDir,          # e.g., ".coverage" or ".coverage-integration"
   outputFile,           # e.g., "coverage.out" or "coverage-integration.out"
   spinnerTitle ? "Testing",
@@ -52,10 +53,11 @@ pkgs.writeShellScript "rivaas-${name}" ''
 
     # Filter packages: only those with test files, exclude examples and benchmarks
     # Using -f template to filter packages with TestGoFiles prevents "no such tool covdata" errors
+    # The listFlags must match testFlags build tags so go list sees the same test files as go test
     # See: https://github.com/golang/go/issues/75031
     if ! $gum spin --spinner dot --title "${spinnerTitle}..." --show-error -- \
       sh -c "cd '$dir' && \
-        packages=\$($go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... 2>/dev/null | \
+        packages=\$($go list ${listFlags} -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... 2>/dev/null | \
           grep -v '/examples/' | grep -v '/benchmarks/' | tr '\n' ' ') && \
         if [ -n \"\$packages\" ]; then \
           $go test \$packages ${testFlags} \
