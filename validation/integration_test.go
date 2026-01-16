@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package validation_test
 
 import (
@@ -32,9 +34,6 @@ import (
 
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_FullValidationWorkflow(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Address struct {
@@ -177,9 +176,6 @@ func TestIntegration_FullValidationWorkflow(t *testing.T) {
 
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_PartialValidationWorkflow(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type User struct {
@@ -282,9 +278,6 @@ func TestIntegration_PartialValidationWorkflow(t *testing.T) {
 
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ValidatorInstance(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type SensitiveUser struct {
@@ -373,9 +366,6 @@ func TestIntegration_ValidatorInstance(t *testing.T) {
 }
 
 func TestIntegration_ConcurrentValidation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type User struct {
@@ -434,9 +424,6 @@ func TestIntegration_ConcurrentValidation(t *testing.T) {
 
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_JSONSchemaWithCustomSchema(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type Product struct {
@@ -536,9 +523,6 @@ func TestIntegration_JSONSchemaWithCustomSchema(t *testing.T) {
 }
 
 func TestIntegration_ErrorChaining(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type User struct {
@@ -566,9 +550,6 @@ func TestIntegration_ErrorChaining(t *testing.T) {
 
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_MaxErrorsTruncation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	type ManyFields struct {
@@ -634,9 +615,6 @@ func TestIntegration_MaxErrorsTruncation(t *testing.T) {
 func TestIntegration_ComputePresenceNestedJSON(t *testing.T) {
 	t.Parallel()
 
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 
 	tests := []struct {
 		name           string
