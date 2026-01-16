@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package tracing_test
 
 import (
@@ -31,9 +33,6 @@ import (
 // TestIntegration_FullRequestCycle tests the complete request/response cycle with tracing.
 func TestIntegration_FullRequestCycle(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 
 	tracer, err := tracing.New(
 		tracing.WithServiceName("integration-test"),
@@ -72,9 +71,6 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 
 // TestIntegration_PathExclusion tests that excluded paths bypass tracing.
 func TestIntegration_PathExclusion(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tracer, err := tracing.New(
@@ -142,9 +138,6 @@ func TestIntegration_PathExclusion(t *testing.T) {
 
 // TestIntegration_ConcurrentRequests tests tracing under concurrent load.
 func TestIntegration_ConcurrentRequests(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tracer, err := tracing.New(
@@ -194,9 +187,6 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 
 // TestIntegration_TraceContextPropagation tests trace context propagation across services.
 func TestIntegration_TraceContextPropagation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tracer, err := tracing.New(
@@ -239,9 +229,6 @@ func TestIntegration_TraceContextPropagation(t *testing.T) {
 //
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ErrorStatusCodes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tracer, err := tracing.New(
@@ -316,9 +303,6 @@ func TestIntegration_ErrorStatusCodes(t *testing.T) {
 
 // TestIntegration_HeaderRecording tests that specified headers are recorded in spans.
 func TestIntegration_HeaderRecording(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tracer, err := tracing.New(
@@ -357,9 +341,6 @@ func TestIntegration_HeaderRecording(t *testing.T) {
 //
 //nolint:tparallel // False positive: t.Parallel() is called at both top level and in subtests
 func TestIntegration_ProviderTypes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	tests := []struct {
@@ -439,9 +420,6 @@ func TestIntegration_ProviderTypes(t *testing.T) {
 func TestIntegration_ShutdownBehavior(t *testing.T) {
 	t.Parallel()
 
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 
 	t.Run("graceful shutdown", func(t *testing.T) {
 		t.Parallel()
