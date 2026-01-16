@@ -50,10 +50,13 @@ pkgs.writeShellScript "rivaas-${name}" ''
 
     $gum style --foreground ${colors.info} "[$current/$total] $dir"
 
-    # Filter packages to exclude examples and benchmarks sub-packages
+    # Filter packages: only those with test files, exclude examples and benchmarks
+    # Using -f template to filter packages with TestGoFiles prevents "no such tool covdata" errors
+    # See: https://github.com/golang/go/issues/75031
     if ! $gum spin --spinner dot --title "${spinnerTitle}..." --show-error -- \
       sh -c "cd '$dir' && \
-        packages=\$($go list ./... | grep -v '/examples/' | grep -v '/benchmarks/') && \
+        packages=\$($go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... 2>/dev/null | \
+          grep -v '/examples/' | grep -v '/benchmarks/' | tr '\n' ' ') && \
         if [ -n \"\$packages\" ]; then \
           $go test \$packages ${testFlags} \
             -coverprofile='$ROOT_DIR/${coverageDir}/$module_name.out' \
