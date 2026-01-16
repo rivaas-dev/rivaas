@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !integration
+
 package metrics
 
 import (
@@ -32,9 +34,6 @@ import (
 //
 //nolint:paralleltest // Subtests run sequentially to test rapid create/shutdown cycles
 func TestStress_RapidCreateShutdownCycles(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	const cycles = 20
@@ -64,9 +63,6 @@ func TestStress_RapidCreateShutdownCycles(t *testing.T) {
 // TestStress_ConcurrentShutdownRace tests that concurrent shutdown calls
 // don't cause race conditions or panics.
 func TestStress_ConcurrentShutdownRace(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	recorder := MustNew(
@@ -101,9 +97,6 @@ func TestStress_ConcurrentShutdownRace(t *testing.T) {
 // TestStress_MetricRecordingDuringShutdown tests that metric recording
 // during shutdown doesn't cause panics or undefined behavior.
 func TestStress_MetricRecordingDuringShutdown(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	recorder := MustNew(
@@ -161,9 +154,6 @@ func TestStress_MetricRecordingDuringShutdown(t *testing.T) {
 // TestStress_HighConcurrencyMetricCreation tests metric creation under
 // very high concurrency to detect race conditions.
 func TestStress_HighConcurrencyMetricCreation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	recorder := MustNew(
@@ -211,9 +201,6 @@ func TestStress_HighConcurrencyMetricCreation(t *testing.T) {
 
 // TestStress_MiddlewareThroughput tests middleware under high request volume.
 func TestStress_MiddlewareThroughput(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	recorder := MustNew(
@@ -258,9 +245,6 @@ func TestStress_MiddlewareThroughput(t *testing.T) {
 
 // TestStress_PathFilterHighVolume tests path filter performance under high volume.
 func TestStress_PathFilterHighVolume(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	pf := newPathFilter()
@@ -301,9 +285,6 @@ func TestStress_PathFilterHighVolume(t *testing.T) {
 // TestStress_MixedReadWriteOperations tests mixed read/write operations
 // to verify RWMutex behavior under stress.
 func TestStress_MixedReadWriteOperations(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	recorder := MustNew(
@@ -356,9 +337,6 @@ func TestStress_MixedReadWriteOperations(t *testing.T) {
 // TestStress_RequestMetricsLifecycle tests the full request metrics lifecycle
 // under stress conditions.
 func TestStress_RequestMetricsLifecycle(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 	t.Parallel()
 
 	recorder := MustNew(
@@ -411,9 +389,6 @@ func TestStress_RequestMetricsLifecycle(t *testing.T) {
 //
 //nolint:paralleltest // Cannot use t.Parallel() - test binds to a specific port
 func TestStress_PrometheusServerStability(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
-	}
 
 	recorder := MustNew(
 		WithPrometheus(":0", "/metrics"), // Use port 0 to get random available port

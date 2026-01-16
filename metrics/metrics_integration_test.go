@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
+
 package metrics_test
 
 import (
@@ -32,9 +34,6 @@ import (
 
 // TestIntegration_FullRequestCycle tests the complete request/response cycle with metrics.
 func TestIntegration_FullRequestCycle(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	recorder := metrics.TestingRecorderWithPrometheus(t, "integration-test",
@@ -110,9 +109,6 @@ func TestIntegration_FullRequestCycle(t *testing.T) {
 
 // TestIntegration_ConcurrentRequests tests metrics under concurrent load.
 func TestIntegration_ConcurrentRequests(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	recorder := metrics.TestingRecorderWithPrometheus(t, "concurrent-test")
@@ -165,9 +161,6 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 
 // TestIntegration_CustomMetrics tests custom metric recording in an integration scenario.
 func TestIntegration_CustomMetrics(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	recorder := metrics.TestingRecorderWithPrometheus(t, "custom-metrics-test",
@@ -215,9 +208,6 @@ func TestIntegration_CustomMetrics(t *testing.T) {
 
 // TestIntegration_MiddlewareWithHeaders tests header recording functionality.
 func TestIntegration_MiddlewareWithHeaders(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	recorder := metrics.TestingRecorderWithPrometheus(t, "header-test")
@@ -255,9 +245,6 @@ func TestIntegration_MiddlewareWithHeaders(t *testing.T) {
 
 // TestIntegration_PathFiltering tests that excluded paths don't generate metrics.
 func TestIntegration_PathFiltering(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	recorder := metrics.TestingRecorder(t, "path-filter-test")
@@ -298,9 +285,6 @@ func TestIntegration_PathFiltering(t *testing.T) {
 
 // TestIntegration_GracefulShutdown tests graceful shutdown of metrics recorder.
 func TestIntegration_GracefulShutdown(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	recorder, err := metrics.New(
@@ -331,9 +315,6 @@ func TestIntegration_GracefulShutdown(t *testing.T) {
 
 // TestIntegration_PrometheusEndpoint tests the Prometheus metrics endpoint directly.
 func TestIntegration_PrometheusEndpoint(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	recorder := metrics.TestingRecorderWithPrometheus(t, "prometheus-endpoint-test")
@@ -377,9 +358,6 @@ func TestIntegration_PrometheusEndpoint(t *testing.T) {
 
 // TestIntegration_MultipleMethods tests metrics for different HTTP methods.
 func TestIntegration_MultipleMethods(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	recorder := metrics.TestingRecorderWithPrometheus(t, "methods-test")
@@ -434,9 +412,6 @@ func TestIntegration_MultipleMethods(t *testing.T) {
 
 // TestIntegration_RequestResponseSizes tests request and response size tracking.
 func TestIntegration_RequestResponseSizes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
 	t.Parallel()
 
 	recorder := metrics.TestingRecorderWithPrometheus(t, "size-test")
