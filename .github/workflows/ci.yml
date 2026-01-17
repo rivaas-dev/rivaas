@@ -132,6 +132,7 @@ jobs:
           files: ./coverage.out
           flags: unittests
           name: rivaas-unit
+          disable_search: true
 
       - name: Upload integration tests coverage to Codecov
         if: needs.integration-test.result == 'success'
@@ -142,3 +143,4 @@ jobs:
           files: ./coverage-integration.out
           flags: integration
           name: rivaas-integration
+          disable_search: true
