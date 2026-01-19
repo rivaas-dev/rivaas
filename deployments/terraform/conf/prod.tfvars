@@ -1,0 +1,6 @@
+assume_role_arn          = "arn:aws:iam::220845518108:role/vpc-ci-ireland-ci-api-terraform-pipeline-role"
+assume_role_session_name = "admin-api-prod-tf-pipeline"
+environment              = "prod"
+prefix                   = "info-company-nl-ci-api"
+service_account          = "admin-api-831:prod-admin-api"
+event_bus_arn            = "arn:aws:events:eu-west-1:220845518108:event-bus/info-company-nl-prod-events"

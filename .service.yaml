@@ -1,0 +1,21 @@
+version: "1.0.0"
+metadata:
+  name: admin-api
+  title: Admin API
+  description: Admin API, which is responsible for managing API Keys.
+spec:
+  internal: true
+  events:
+    api-key-quota-exceeded:
+      description: "API Key Quota Exceeded Event"
+      pattern:
+        detail:
+          did:
+            - "quota-exceeded"
+          what:
+            - prefix: "urn:api:key:"
+          where:
+            - "urn:admin:api:admin-api"
+  notification:
+    events:
+      - ref: "api-key-quota-exceeded"

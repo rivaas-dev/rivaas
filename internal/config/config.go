@@ -2,6 +2,7 @@ package config
 
 import (
 	"gitlab.ci.fdmg.org/ci-api/admin-api/internal/customers"
+	gomesconfig "gitlab.ci.fdmg.org/ci-api/go-pkgs/gomes/config"
 	"go.companyinfo.dev/keycloak"
 )
 
@@ -20,6 +21,15 @@ type Config struct {
 	Pagination     Pagination
 	PricingPlans   map[string]customers.PricingPlan
 	APIKeyDefaults APIKeyDefaults
+	Publisher      Publisher
+}
+
+// Publisher represents EventBridge publisher configuration.
+type Publisher struct {
+	AWS            gomesconfig.Config // AWS configuration for EventBridge
+	EventBusName   string             // EventBridge event bus name
+	Enabled        bool               // Whether publishing is enabled
+	EmailRecipient string             // Alert recipient email (e.g., support-ws, PM)
 }
 
 // Database represents Database configuration.
@@ -34,9 +44,10 @@ type Database struct {
 
 // Tyk represents Tyk configuration.
 type Tyk struct {
-	URL    string
-	Secret string
-	Debug  bool
+	URL           string
+	Secret        string
+	Debug         bool
+	WebhookSecret string // Secret used to validate incoming Tyk monitor webhook requests
 }
 
 // Temporal represents Temporal configuration.

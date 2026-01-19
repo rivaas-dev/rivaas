@@ -45,6 +45,16 @@ func (s DBClient) GetKey(hash string) (*Key, error) {
 	return &row, res.Error
 }
 
+// GetKeyByHash returns a key by its key_hash column value.
+func (s DBClient) GetKeyByHash(keyHash string) (*Key, error) {
+	var row Key
+	res := s.client.First(&row, "key_hash = ?", keyHash)
+	if res.Error != nil && errors.Is(res.Error, gorm.ErrRecordNotFound) {
+		return nil, ErrKeyNotFound
+	}
+	return &row, res.Error
+}
+
 // GetKeys gets all the keys with optional filters.
 func (s DBClient) GetKeys(actorID, description, customerID, accountID string) ([]*Key, error) {
 	var keyList []*Key

@@ -1,2 +1,5 @@
 chart/charts
 vendor
+.direnv/
+
+deployments/terraform/.terraform/

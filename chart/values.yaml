@@ -130,6 +130,12 @@ configMap:
           quota: medium
           numberOfAPIProductionKeys: 3
           numberOfAPISandboxKeys: 1
+      publisher:
+        enabled: false
+        eventBusName: ""
+        emailRecipient: "support-ws@company.info"
+        aws:
+          region: "eu-west-1"
     opa_config.yaml:
       services:
         - name: oma
@@ -196,3 +202,6 @@ envVars:
     value: "{{ .Values.global.consul.app_key }}"
   - name: CONSUL_PRICING_PLANS_KEY
     value: "{{ .Values.global.consul.pricing_plans_key }}"
+
+serviceAccount:
+  create: true

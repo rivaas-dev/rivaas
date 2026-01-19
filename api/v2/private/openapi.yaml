@@ -15,6 +15,8 @@ tags:
   - name: customers
   - name: accounts
   - name: policies
+  - name: tyk
+    description: Tyk Gateway webhook events
 
 paths:
   /v2/keys:
@@ -436,6 +438,38 @@ paths:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/Unauthorized"
         404:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/NotFound"
+        500:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
+
+  /v2/tyk/events:
+    post:
+      tags:
+        - tyk
+      description: |
+        Webhook endpoint for Tyk Gateway events.
+        Handles quota exceeded, rate limit, auth failures, key lifecycle, and other events.
+        This endpoint is called by Tyk Gateway when configured events are triggered.
+      operationId: handle_tyk_events
+      parameters:
+        - in: header
+          name: x-tyk-monitor-secret
+          required: true
+          description: Secret token to authenticate the webhook request from Tyk Gateway
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TykEventRequest'
+      responses:
+        200:
+          description: Event processed successfully
+        400:
+          "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/BadRequest"
+        401:
+          description: Invalid or missing webhook secret
         500:
           "$ref": "https://s3.eu-central-1.amazonaws.com/de.company.info.prod.api.resource.bucket/schema/JSONAPI.yaml#/components/responses/InternalServerError"
 
@@ -1417,6 +1451,46 @@ components:
                       type: array
                       items:
                         $ref: '#/components/schemas/ContactDetail'
+
+    TykEventRequest:
+      type: object
+      description: Tyk Gateway webhook event payload
+      required:
+        - event
+      properties:
+        event:
+          type: string
+          description: Type of the Tyk event
+          example: QuotaExceeded
+          enum:
+            - QuotaExceeded
+            - OrgQuotaExceeded
+            - RatelimitExceeded
+            - OrgRateLimitExceeded
+        message:
+          type: string
+          description: Human-readable message from Tyk Gateway
+          example: Quota trigger reached
+        org:
+          type: string
+          description: Organization ID
+          example: 53ac07777cbb8c2d53000002
+        key:
+          type: string
+          description: Raw API key (empty for org-level events)
+          example: ""
+        trigger_limit:
+          type: string
+          description: Percentage threshold that triggered the event
+          example: "80"
+        path:
+          type: string
+          description: API path that triggered the event
+          example: /api/v1/users
+        origin:
+          type: string
+          description: Origin IP address of the request
+          example: 192.168.1.100
 
   responses:
     BadRequest:

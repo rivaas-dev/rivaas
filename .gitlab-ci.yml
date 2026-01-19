@@ -3,7 +3,7 @@ include:
     file: 'golang-templates.yaml'
 
 variables:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25"
   GO_BUILD_MAIN_PKG: "./cmd/admin-api/"
   SWAGGER_VALIDATE_DISABLED: "true"
   SWAGGER_VALIDATE_SWAGGER_SPEC: "api/swagger.yaml"
@@ -75,3 +75,24 @@ deploy:production:de:
       --set global.consul.token="${CONSUL_TOKEN}"
   environment:
     name: de/prod
+
+terraform:trigger:
+  stage: infrastructure
+  trigger:
+    strategy: depend
+    include:
+      - project: 'datacluster/gitlab-templates'
+        file: 'api/terraform-new-template.yml'
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^release-.*$/
+      changes:
+        - "deployments/terraform/*"
+        - "deployments/terraform/**/*"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - "deployments/terraform/*"
+        - "deployments/terraform/**/*"
+    - if: $CI_COMMIT_TAG
+      changes:
+        - "deployments/terraform/*"
+        - "deployments/terraform/**/*"
