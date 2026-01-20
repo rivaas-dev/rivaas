@@ -160,7 +160,7 @@ type PostOutput struct {
 	Environment    apikey.ApikeyEnvironment `jsonapi:"attr,environment"`
 	ActorID        string                   `jsonapi:"attr,actorID"`
 	CreatorID      string                   `jsonapi:"attr,creatorID"`
-	Policies       []string                 `jsonapi:"attr,policies"`
+	Policies       []*policies.Policy       `jsonapi:"relation,policies"`
 	ExpiresAt      *time.Time               `jsonapi:"attr,expiresAt"`
 	CreatedAt      time.Time                `jsonapi:"attr,createdAt,omitempty"`
 	Quota          int64                    `jsonapi:"attr,quota"`
@@ -263,7 +263,14 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
-	jsonAPIResp, err := jsonapi.Marshal(h.workflowOutputToPostResponse(ctx, response))
+	keyResp, err := h.workflowOutputToPostResponse(ctx, response)
+	if err != nil {
+		log.Err(err).Msg("error preparing response")
+		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
+		return
+	}
+
+	jsonAPIResp, err := jsonapi.Marshal(keyResp)
 	if err != nil {
 		log.Err(err).Msg("error marshalling json response")
 		goskell.JsonAPIError(ctx, http.StatusText(http.StatusInternalServerError), err, http.StatusInternalServerError)
@@ -342,7 +349,7 @@ func (h *Handler) postRequestToWorkflowInput(ctx context.Context, request *PostI
 }
 
 // workflowOutputToResponse converts workflow response into API response.
-func (h *Handler) workflowOutputToPostResponse(ctx context.Context, workflowOutput *WorkflowPostOutput) *PostOutput {
+func (h *Handler) workflowOutputToPostResponse(ctx context.Context, workflowOutput *WorkflowPostOutput) (*PostOutput, error) {
 	var labels map[string]string
 	if workflowOutput.Labels != nil {
 		labels = *workflowOutput.Labels
@@ -351,6 +358,12 @@ func (h *Handler) workflowOutputToPostResponse(ctx context.Context, workflowOutp
 	customerName, err := h.getCustomerName(ctx, workflowOutput.ActorID)
 	if err != nil {
 		log.Err(err).Msg("failed to get customer name")
+	}
+
+	// Convert policy IDs to full policy objects (excluding quota policies)
+	pols, err := policies.GetPoliciesByIDs(ctx, h.tykClient, workflowOutput.Policies)
+	if err != nil {
+		return nil, err
 	}
 
 	return &PostOutput{
@@ -362,7 +375,7 @@ func (h *Handler) workflowOutputToPostResponse(ctx context.Context, workflowOutp
 		Environment:    workflowOutput.Environment,
 		ActorID:        workflowOutput.ActorID,
 		CreatorID:      workflowOutput.CreatorID,
-		Policies:       policies.FilterString(workflowOutput.Policies),
+		Policies:       pols,
 		ExpiresAt:      workflowOutput.ExpiresAt,
 		CreatedAt:      workflowOutput.CreationDate,
 		Quota:          workflowOutput.Quota,
@@ -372,5 +385,5 @@ func (h *Handler) workflowOutputToPostResponse(ctx context.Context, workflowOutp
 		Active:         workflowOutput.Active,
 		RateLimit:      workflowOutput.RateLimit,
 		Labels:         labels, // todo add more data like in get and patch endpoints
-	}
+	}, nil
 }
