@@ -1,4 +1,11 @@
-# Rivaas
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-alpine-light.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./docs/images/logo-alpine-dark.svg">
+    <img src="./docs/images/logo-alpine.svg" alt="Rivaas" width="200">
+  </picture>
+  <h1>Rivaas</h1>
+</div>
 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
