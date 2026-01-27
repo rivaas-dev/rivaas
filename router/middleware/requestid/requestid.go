@@ -17,15 +17,14 @@ package requestid
 import (
 	"context"
 	"crypto/rand"
-	"encoding/binary"
-	"encoding/hex"
-	"os"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware"
-
-	mathrand "math/rand/v2"
 )
 
 // Option defines functional options for requestid middleware configuration.
@@ -47,47 +46,52 @@ type config struct {
 func defaultConfig() *config {
 	return &config{
 		headerName:    "X-Request-ID",
-		generator:     generateRandomID,
+		generator:     generateUUIDv7,
 		allowClientID: true,
 	}
 }
 
-// generateRandomID generates a random hex string for request IDs.
-func generateRandomID() string {
-	bytes := make([]byte, 16) //nolint:makezero // crypto/rand.Read requires pre-allocated buffer
-	if _, err := rand.Read(bytes); err != nil {
-		// Fallback: combine timestamp + random number + process ID for better entropy
-		// This is extremely unlikely to happen (crypto/rand failure is rare), but when
-		// it does, we want collision resistance better than timestamp alone.
-		ts := time.Now().UnixNano()
-		//nolint:gosec // G404: Fallback only; crypto/rand is primary, math/rand for non-security collision resistance
-		rnd := mathrand.Uint64()
-		pid := os.Getpid()
+// generateUUIDv7 generates a UUID v7 string for request IDs.
+// UUID v7 is time-ordered and lexicographically sortable (RFC 9562).
+func generateUUIDv7() string {
+	return uuid.Must(uuid.NewV7()).String()
+}
 
-		// Layout: [8 bytes: timestamp][4 bytes: random][4 bytes: pid]
-		//nolint:gosec // G115: Timestamp conversion safe; UnixNano() positive for valid times
-		binary.BigEndian.PutUint64(bytes[0:8], uint64(ts))
-		//nolint:gosec // G115: Truncation intentional; only need 32 bits for uniqueness
-		binary.BigEndian.PutUint32(bytes[8:12], uint32(rnd))
-		//nolint:gosec // G115: PID conversion safe; process IDs fit in uint32
-		binary.BigEndian.PutUint32(bytes[12:16], uint32(pid))
-	}
+// ulidEntropy is a thread-safe entropy source for ULID generation.
+// It provides monotonic ordering within the same millisecond.
+var (
+	ulidEntropy     = ulid.Monotonic(rand.Reader, 0)
+	ulidEntropyLock sync.Mutex
+)
 
-	return hex.EncodeToString(bytes)
+// generateULID generates a ULID string for request IDs.
+// ULID is time-ordered, lexicographically sortable, and has a compact 26-character representation.
+func generateULID() string {
+	ulidEntropyLock.Lock()
+	defer ulidEntropyLock.Unlock()
+	return ulid.MustNew(ulid.Timestamp(time.Now()), ulidEntropy).String()
 }
 
 // New returns a middleware that adds a unique request ID to each request.
 // The request ID can be used for distributed tracing and log correlation.
+//
+// By default, UUID v7 is used for request ID generation. UUID v7 is time-ordered
+// and lexicographically sortable (RFC 9562), making it ideal for debugging and
+// log correlation.
 //
 // The middleware will:
 // 1. Check if a request ID is already present in the configured header
 // 2. Use the existing ID if allowed, or generate a new one
 // 3. Set the request ID in the response header
 //
-// Basic usage:
+// Basic usage (UUID v7 by default):
 //
 //	r := router.MustNew()
 //	r.Use(requestid.New())
+//
+// Using ULID (shorter, 26 characters):
+//
+//	r.Use(requestid.New(requestid.WithULID()))
 //
 // Custom header name:
 //
@@ -95,13 +99,11 @@ func generateRandomID() string {
 //	    requestid.WithHeader("X-Correlation-ID"),
 //	))
 //
-// With UUID generator:
-//
-//	import "github.com/google/uuid"
+// Custom generator:
 //
 //	r.Use(requestid.New(
 //	    requestid.WithGenerator(func() string {
-//	        return uuid.New().String()
+//	        return fmt.Sprintf("req-%d", time.Now().UnixNano())
 //	    }),
 //	))
 //

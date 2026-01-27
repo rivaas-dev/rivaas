@@ -44,8 +44,10 @@ func TestRequestID_GeneratesID(t *testing.T) {
 	requestID := w.Header().Get("X-Request-ID")
 	assert.NotEmpty(t, requestID, "Expected X-Request-ID header to be set")
 
-	// Default generator produces 32 character hex string (16 bytes * 2)
-	assert.Len(t, requestID, 32)
+	// Default generator produces UUID v7 (36 characters with dashes)
+	// Format: xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx
+	assert.Len(t, requestID, 36, "UUID v7 should be 36 characters")
+	assert.Contains(t, requestID, "-", "UUID v7 should contain dashes")
 }
 
 func TestRequestID_ClientIDHandling(t *testing.T) {
@@ -233,4 +235,52 @@ func TestRequestID_CombinedOptions(t *testing.T) {
 
 	requestID := w.Header().Get("X-Trace-Id")
 	assert.Equal(t, "generated-123", requestID)
+}
+
+func TestRequestID_ULID(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(WithULID()))
+	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	requestID := w.Header().Get("X-Request-ID")
+	assert.NotEmpty(t, requestID, "Expected X-Request-ID header to be set")
+
+	// ULID is 26 characters, uppercase alphanumeric (Crockford Base32)
+	assert.Len(t, requestID, 26, "ULID should be 26 characters")
+	assert.NotContains(t, requestID, "-", "ULID should not contain dashes")
+}
+
+func TestRequestID_ULID_Uniqueness(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(WithULID()))
+	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	})
+
+	ids := make(map[string]bool)
+	count := 100
+
+	for range count {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		requestID := w.Header().Get("X-Request-ID")
+		assert.NotEmpty(t, requestID, "Request ID should be generated")
+		assert.False(t, ids[requestID], "Duplicate ULID: %s", requestID)
+		ids[requestID] = true
+	}
+
+	assert.Len(t, ids, count, "Expected %d unique ULIDs", count)
 }

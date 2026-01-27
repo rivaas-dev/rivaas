@@ -28,16 +28,29 @@ func WithHeader(headerName string) Option {
 	}
 }
 
+// WithULID uses ULID for request ID generation instead of UUID v7.
+// ULID provides time-ordered, lexicographically sortable identifiers
+// with a compact 26-character representation.
+//
+// ULID format: 01ARZ3NDEKTSV4RRFFQ69G5FAV (26 characters)
+// UUID v7 format: 018f3e9a-1b2c-7def-8000-abcdef123456 (36 characters)
+//
+// Use ULID when you need shorter IDs or case-insensitive identifiers.
+//
+// Example:
+//
+//	requestid.New(requestid.WithULID())
+func WithULID() Option {
+	return func(cfg *config) {
+		cfg.generator = generateULID
+	}
+}
+
 // WithGenerator sets a custom function to generate request IDs.
 // The generator function should return a unique string for each call.
 //
-// Example with UUID:
-//
-//	import "github.com/google/uuid"
-//
-//	requestid.New(requestid.WithGenerator(func() string {
-//	    return uuid.New().String()
-//	}))
+// By default, UUID v7 is used (time-ordered, RFC 9562 compliant).
+// Use this option when you need a custom format.
 //
 // Example with custom format:
 //

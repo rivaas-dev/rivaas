@@ -18,13 +18,13 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/charmbracelet/log"
 
-	"rivaas.dev/logging"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/accesslog"
 	"rivaas.dev/router/middleware/requestid"
@@ -33,26 +33,22 @@ import (
 func main() {
 	r := router.MustNew()
 
-	// Set up logging for accesslog middleware
-	logCfg := logging.MustNew(
-		logging.WithConsoleHandler(),
-		logging.WithDebugLevel(),
-	)
-	r.SetLogger(logCfg)
-
-	// Example 1: Default request ID
+	// Example 1: Default request ID (UUID v7)
 	defaultRequestIDExample(r)
 
-	// Example 2: Custom header name
+	// Example 2: ULID format
+	ulidExample(r)
+
+	// Example 3: Custom header name
 	customHeaderExample(r)
 
-	// Example 3: Custom ID generator
+	// Example 4: Custom ID generator
 	customGeneratorExample(r)
 
-	// Example 4: Integration with logger
+	// Example 5: Integration with logger
 	loggerIntegrationExample(r)
 
-	// Example 5: Reject client-provided IDs
+	// Example 6: Reject client-provided IDs
 	rejectClientIDExample(r)
 
 	// Create a logger with clean, colorful output
@@ -64,40 +60,61 @@ func main() {
 	logger.Info("🚀 Server starting on http://localhost:8080")
 	logger.Print("")
 	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET /default      - Default request ID (X-Request-ID)")
+	logger.Print("  GET /default      - UUID v7 (default, 36 chars)")
+	logger.Print("  GET /ulid         - ULID format (26 chars)")
 	logger.Print("  GET /custom       - Custom header name (X-Trace-ID)")
 	logger.Print("  GET /generator    - Custom ID generator")
 	logger.Print("  GET /logged       - With logger integration")
 	logger.Print("  GET /secure       - Reject client-provided IDs")
 	logger.Print("")
 	logger.Print("📋 Example commands:")
-	logger.Print("  curl http://localhost:8080/default")
-	logger.Print("  curl http://localhost:8080/custom")
+	logger.Print("  curl -i http://localhost:8080/default")
+	logger.Print("  curl -i http://localhost:8080/ulid")
 	logger.Print("  curl -H 'X-Request-ID: my-custom-id' http://localhost:8080/default")
 	logger.Print("  curl http://localhost:8080/logged")
 	logger.Print("")
-	logger.Print("💡 Tip: Request IDs are included in response headers and context")
+	logger.Print("💡 Tip: UUID v7 and ULID are time-ordered and sortable")
 	logger.Print("   Use requestid.Get(c) to retrieve the ID in handlers")
 	logger.Print("")
 
 	logger.Fatal(http.ListenAndServe(":8080", r))
 }
 
-// Example 1: Default request ID
+// Example 1: Default request ID (UUID v7)
 func defaultRequestIDExample(r *router.Router) {
 	r.Use(requestid.New())
 
 	r.GET("/default", func(c *router.Context) {
 		reqID := requestid.Get(c)
 		c.JSON(http.StatusOK, map[string]any{
-			"message":    "Request with default ID",
+			"message":    "Request with UUID v7 (default)",
 			"request_id": reqID,
+			"format":     "UUID v7 (36 chars, RFC 9562)",
 			"header":     "X-Request-ID",
 		})
 	})
 }
 
-// Example 2: Custom header name
+// Example 2: ULID format (shorter, 26 chars)
+func ulidExample(r *router.Router) {
+	ulid := r.Group("/ulid")
+
+	ulid.Use(requestid.New(
+		requestid.WithULID(),
+	))
+
+	ulid.GET("", func(c *router.Context) {
+		reqID := requestid.Get(c)
+		c.JSON(http.StatusOK, map[string]any{
+			"message":    "Request with ULID format",
+			"request_id": reqID,
+			"format":     "ULID (26 chars, time-ordered)",
+			"header":     "X-Request-ID",
+		})
+	})
+}
+
+// Example 3: Custom header name
 func customHeaderExample(r *router.Router) {
 	custom := r.Group("/custom")
 
@@ -115,7 +132,7 @@ func customHeaderExample(r *router.Router) {
 	})
 }
 
-// Example 3: Custom ID generator
+// Example 4: Custom ID generator
 func customGeneratorExample(r *router.Router) {
 	generator := r.Group("/generator")
 
@@ -136,13 +153,18 @@ func customGeneratorExample(r *router.Router) {
 	})
 }
 
-// Example 4: Integration with accesslog
+// Example 5: Integration with accesslog
 func loggerIntegrationExample(r *router.Router) {
 	logged := r.Group("/logged")
 
+	// Create a logger for accesslog middleware
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
 	// RequestID must come before accesslog
 	logged.Use(requestid.New())
-	logged.Use(accesslog.New())
+	logged.Use(accesslog.New(accesslog.WithLogger(logger)))
 
 	logged.GET("", func(c *router.Context) {
 		reqID := requestid.Get(c)
@@ -153,7 +175,7 @@ func loggerIntegrationExample(r *router.Router) {
 	})
 }
 
-// Example 5: Reject client-provided IDs (more secure)
+// Example 6: Reject client-provided IDs (more secure)
 func rejectClientIDExample(r *router.Router) {
 	secure := r.Group("/secure")
 

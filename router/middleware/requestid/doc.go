@@ -28,18 +28,33 @@
 //
 // # Request ID Generation
 //
+// By default, UUID v7 is used for request ID generation. UUID v7 is time-ordered
+// and lexicographically sortable (RFC 9562), making it ideal for debugging and
+// log correlation. Generated IDs are 36-character UUID strings.
+//
 // The middleware generates request IDs using:
 //
 //   - X-Request-ID header: Uses existing header if present (for request tracing)
-//   - Random generation: Cryptographically secure random ID if no header present
+//   - UUID v7 generation: Time-ordered UUID if no header present (default)
+//   - ULID generation: Compact 26-character alternative via [WithULID]
 //
-// Generated IDs are 16-byte values encoded as hexadecimal strings (32 characters).
+// # ID Format Comparison
+//
+//   - UUID v7 (default): 018f3e9a-1b2c-7def-8000-abcdef123456 (36 chars)
+//   - ULID: 01ARZ3NDEKTSV4RRFFQ69G5FAV (26 chars)
 //
 // # Configuration Options
 //
-//   - HeaderName: Custom header name for request ID (default: X-Request-ID)
-//   - Generator: Custom function for generating request IDs
-//   - SkipPaths: Paths to exclude from request ID generation (e.g., /health)
+//   - [WithHeader]: Custom header name for request ID (default: X-Request-ID)
+//   - [WithULID]: Use ULID instead of UUID v7 for shorter IDs
+//   - [WithGenerator]: Custom function for generating request IDs
+//   - [WithAllowClientID]: Control whether to accept client-provided IDs
+//
+// # Using ULID
+//
+// For shorter request IDs, use ULID:
+//
+//	r.Use(requestid.New(requestid.WithULID()))
 //
 // # Accessing Request ID
 //
