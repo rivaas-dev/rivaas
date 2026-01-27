@@ -325,9 +325,9 @@ func (h *Handler) postRequestToWorkflowInput(ctx context.Context, request *PostI
 		Active:      request.Body.Attributes.Active,
 		Environment: request.Body.Attributes.Environment,
 		Labels:      request.Body.Attributes.Labels,
-		Policies:    policies.ToStringSlice(keyPolicies),
-		ExpiresAt:   nil,
-		RateLimit:   apikey.RateLimit{}, // set to empty, no rate limit on key level
+		Policies:  policies.ToStringSlice(keyPolicies),
+		ExpiresAt: nil,
+		RateLimit: apikey.RateLimit{}, // set to empty, no rate limit on key level
 	}
 
 	if request.Body.Attributes.Contact != nil {

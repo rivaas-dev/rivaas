@@ -18,8 +18,10 @@ import (
 	accountsV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/customers/accounts"
 	keysV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/keys"
 	policiesV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/policies"
+	tykV2 "gitlab.ci.fdmg.org/ci-api/admin-api/internal/handler/v2/tyk"
 	"gitlab.ci.fdmg.org/ci-api/admin-api/policies"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/customer"
+	"gitlab.ci.fdmg.org/ci-api/go-pkgs/gomes/publisher"
 	"gitlab.ci.fdmg.org/ci-api/go-pkgs/solvimon"
 	oma "gitlab.ci.fdmg.org/ci-api/oma/pkg/client"
 	"gitlab.ci.fdmg.org/ci-api/tyk-sdk-go"
@@ -142,8 +144,26 @@ func run(ctx context.Context) error {
 	// Connect to OMA and OPA
 	omaClient := newOMAClient(ctx, cfg.OMA)
 
+	// Initialize EventBridge publisher
+	var messagePublisher publisher.Publisher
+	if cfg.Publisher.Enabled {
+		publisherCfg := publisher.Config{
+			Config:       cfg.Publisher.AWS,
+			EventBusName: cfg.Publisher.EventBusName,
+		}
+		messagePublisher, err = publisher.New(ctx, publisher.EventBridgeAdapter, publisherCfg)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to initialize EventBridge publisher")
+		}
+		log.Info().
+			Str("eventBusName", cfg.Publisher.EventBusName).
+			Msg("EventBridge publisher initialized")
+	} else {
+		log.Info().Msg("EventBridge publisher is disabled")
+	}
+
 	// Register handlers.
-	err = registerHandlers(ctx, server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, customerClient, solvimonClient, cfg)
+	err = registerHandlers(ctx, server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, customerClient, solvimonClient, messagePublisher, cfg)
 	if err != nil {
 		log.Fatal().
 			Err(err).
@@ -205,6 +225,7 @@ func registerHandlers(
 	keyCloakConfig config.KeyCloakConfig,
 	customerClient customer.CustomerClient,
 	solvimonClient *solvimon.Client,
+	messagePublisher publisher.Publisher,
 	cfg config.Config,
 ) error {
 	// v1 endpoints - not JSON:API compliant
@@ -252,6 +273,10 @@ func registerHandlers(
 		v2.GET("/customers/:customerID/accounts", accountsV2Handler.LIST)
 		v2.GET("/customers/:customerID/accounts/:accountID", accountsV2Handler.GET)
 		v2.PUT("/customers/:customerID/accounts/:accountID", accountsV2Handler.PUT)
+
+		// Tyk events webhook endpoint
+		tykEventsHandler := tykV2.New(dbClient, messagePublisher, cfg.Tyk.WebhookSecret, cfg.Publisher.Enabled, cfg.Publisher.EmailRecipient)
+		v2.POST("/tyk/events", tykEventsHandler.POST)
 	}
 	return nil
 }

@@ -7,3 +7,12 @@ configMap:
         endpoint: "prod-tyk-gateway.tyk-402:9696"
       database:
         host: "prod-postgresql-12-cluster.cluster-ct6gy97ncd1k.eu-west-1.rds.amazonaws.com"
+      publisher:
+        enabled: true
+        eventBusName: "info-company-nl-prod-events"
+        aws:
+          region: "eu-west-1"
+
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::220845518108:role/info-company-nl-ci-api/prod-admin-api
