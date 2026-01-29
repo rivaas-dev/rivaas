@@ -15,6 +15,9 @@
 package router
 
 import (
+	"embed"
+	"fmt"
+	"io/fs"
 	"net/http"
 	"strings"
 )
@@ -105,4 +108,33 @@ func (r *Router) StaticFile(relativePath, filepath string) {
 	// HEAD must be supported for any resource that supports GET
 	r.GET(relativePath, handler)
 	r.HEAD(relativePath, handler)
+}
+
+// StaticEmbed serves embedded files from an embed.FS under the URL prefix.
+// The subdir parameter specifies which embedded directory to serve (strips the prefix).
+// Registers both GET and HEAD routes per HTTP/1.1 requirements (RFC 7231).
+//
+// This is a convenience method for serving files embedded with Go's embed package.
+// It eliminates boilerplate code for using fs.Sub and http.FS.
+//
+// Example:
+//
+//	//go:embed web/dist/*
+//	var webAssets embed.FS
+//
+//	r.StaticEmbed("/", webAssets, "web/dist")      // Serve web/dist/* at /*
+//	r.StaticEmbed("/assets", staticFS, "static")  // Serve static/* at /assets/*
+//
+// For serving embedded files without a subdirectory prefix:
+//
+//	//go:embed public/*
+//	var publicFS embed.FS
+//
+//	r.StaticEmbed("/public", publicFS, "public")
+func (r *Router) StaticEmbed(relativePath string, embedFS embed.FS, subdir string) {
+	subFS, err := fs.Sub(embedFS, subdir)
+	if err != nil {
+		panic(fmt.Sprintf("StaticEmbed: invalid subdirectory %q: %v", subdir, err))
+	}
+	r.StaticFS(relativePath, http.FS(subFS))
 }

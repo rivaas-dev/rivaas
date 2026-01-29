@@ -17,6 +17,7 @@
 package router
 
 import (
+	"embed"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+//go:embed testdata/embed/*
+var testEmbedFS embed.FS
 
 // TestStaticFileServing tests static file serving
 func TestStaticFileServing(t *testing.T) {
@@ -106,4 +110,45 @@ func TestStaticFSWithCustomFileSystem(t *testing.T) {
 	body, err := io.ReadAll(w.Body)
 	require.NoError(t, err)
 	assert.Equal(t, "<h1>Hello</h1>", string(body))
+}
+
+// TestStaticEmbed tests serving files from embedded filesystem
+func TestStaticEmbed(t *testing.T) {
+	t.Parallel()
+
+	r := MustNew()
+	r.StaticEmbed("/embedded", testEmbedFS, "testdata/embed")
+
+	t.Run("GET embedded file", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodGet, "/embedded/hello.txt", nil)
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Hello from embedded filesystem!")
+	})
+
+	t.Run("HEAD embedded file", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodHead, "/embedded/hello.txt", nil)
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		// HEAD should not return body
+		assert.Empty(t, w.Body.String())
+	})
+
+	t.Run("404 for non-existent embedded file", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodGet, "/embedded/notfound.txt", nil)
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
 }
