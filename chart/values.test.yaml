@@ -19,6 +19,12 @@ configMap:
         clientID: temporal-provisioning
         clientSecret: 2rgkbgTanrw7OJFxU0qHs90WIap2iaDj
         pageSize: 50
+      databaseDE:
+        host: "{{ .Release.Name }}-postgresql"
+        port: "5432"
+        username: "{{ .Values.postgresql.global.postgresql.auth.username }}"
+        password: "{{ .Values.postgresql.global.postgresql.auth.password }}"
+        name: "{{ .Values.postgresql.global.postgresql.auth.database }}"
     opa_config.yaml:
       services:
         - name: oma

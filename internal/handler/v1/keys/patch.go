@@ -73,6 +73,7 @@ type workflowInput struct {
 	Active      *bool              // Defines the status of the key.
 	RateLimit   *RateLimit         // Defines rate limit of the key.
 	Labels      *map[string]string // Contains user specified labels for categorization
+	Region      string             // Region identifier (e.g., "de", or empty for default)
 }
 
 // output represents response body.
@@ -135,7 +136,13 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 		)
 		return
 	}
-	if err := request.Validate(ctx, h.tykClient); err != nil {
+
+	// Get the region from the header
+	region := h.getRegion(ctx)
+	tykClient := h.getTykClient(region)
+	keysRepository := h.getKeysRepository(region)
+
+	if err := request.Validate(ctx, tykClient); err != nil {
 		goskell.ProblemJSON(
 			ctx,
 			problem.Details{
@@ -151,7 +158,7 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 	_, span := goot.Span(ctx.Request.Context(), "get_from_database",
 		attribute.String("id", request.ID),
 	)
-	dbKey, err := h.keysRepository.GetKey(request.ID)
+	dbKey, err := keysRepository.GetKey(request.ID)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
@@ -179,7 +186,7 @@ func (h *Handler) PATCH(ctx *goskell.Context) {
 	}
 
 	// Call the worker.
-	response, err := h.callPATCHWorker(ctx, h.patchRequestToWorkflowInput(&request))
+	response, err := h.callPATCHWorker(ctx, h.patchRequestToWorkflowInput(&request, region))
 	if err != nil {
 		log.Err(err).Msg("error on calling worker")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
@@ -214,13 +221,14 @@ func (h *Handler) callPATCHWorker(ctx *goskell.Context, request workflowInput) (
 }
 
 // requestToWorkflowInput converts request body into workflow's input.
-func (h *Handler) patchRequestToWorkflowInput(request *PatchInput) workflowInput {
+func (h *Handler) patchRequestToWorkflowInput(request *PatchInput, region string) workflowInput {
 	wInput := workflowInput{
 		ID:          request.ID,
 		Policies:    request.Policies,
 		ExpiresAt:   request.ExpiresAt,
 		Quota:       request.Quota,
 		Description: request.Description,
+		Region:      region,
 	}
 	if request.Active != nil {
 		wInput.Active = request.Active

@@ -55,9 +55,13 @@ func (h *Handler) LIST(ctx *goskell.Context) {
 		return
 	}
 
+	// Get the region from the header
+	region := h.getRegion(ctx)
+	keysRepository := h.getKeysRepository(region)
+
 	// Fetch keys from the database.
 	_, span := goot.Span(ctx.Request.Context(), "get_from_database")
-	keys, err := h.keysRepository.GetKeys(request.ActorID, request.Description, request.CustomerID, request.AccountID)
+	keys, err := keysRepository.GetKeys(request.ActorID, request.Description, request.CustomerID, request.AccountID)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")

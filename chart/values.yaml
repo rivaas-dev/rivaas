@@ -136,6 +136,17 @@ configMap:
         emailRecipient: "support-ws@company.info"
         aws:
           region: "eu-west-1"
+      tykDE:
+        scheme: "http"
+        endpoint: "agw-api-tyk:8081"
+        debug: "true"
+        secret: "secret"
+      databaseDE:
+        host: "localhost"
+        port: "5432"
+        username: "key-management-api"
+        password: "password"
+        name: "key_management"
     opa_config.yaml:
       services:
         - name: oma

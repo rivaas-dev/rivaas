@@ -109,6 +109,7 @@ type WorkflowPostInput struct {
 	RateLimit   RateLimit          // Defines rate limit of the key.
 	Environment ApikeyEnvironment  // Defines if a key is for prod or sandbox environment.
 	Labels      *map[string]string // Contains user specified labels for categorization
+	Region      string             // Region identifier (e.g., "de", or empty for default)
 }
 
 // PostOutput represents POST response body.
@@ -149,7 +150,11 @@ func (h *Handler) POST(ctx *goskell.Context) {
 			})
 	}
 
-	if err := request.Validate(ctx, h.tykClient); err != nil {
+	// Get the region from the header
+	region := h.getRegion(ctx)
+	tykClient := h.getTykClient(region)
+
+	if err := request.Validate(ctx, tykClient); err != nil {
 		goskell.ProblemJSON(
 			ctx,
 			problem.Details{
@@ -166,7 +171,7 @@ func (h *Handler) POST(ctx *goskell.Context) {
 		return
 	}
 
-	workflowRequest, err := h.postRequestToWorkflowInput(&request)
+	workflowRequest, err := h.postRequestToWorkflowInput(&request, region)
 	if err != nil {
 		goskell.ProblemJSON(
 			ctx,
@@ -215,7 +220,7 @@ func (h *Handler) POSTWorker(ctx *goskell.Context, request WorkflowPostInput) (*
 }
 
 // requestToWorkflowInput converts request body into workflow's input.
-func (h *Handler) postRequestToWorkflowInput(request *PostInput) (WorkflowPostInput, error) {
+func (h *Handler) postRequestToWorkflowInput(request *PostInput, region string) (WorkflowPostInput, error) {
 	var err error
 	wInput := WorkflowPostInput{
 		CustomerID:  &request.CustomerID,
@@ -226,6 +231,7 @@ func (h *Handler) postRequestToWorkflowInput(request *PostInput) (WorkflowPostIn
 		Active:      request.Active,
 		Environment: request.Environment,
 		Labels:      request.Labels,
+		Region:      region,
 	}
 
 	if request.Contact != nil {
