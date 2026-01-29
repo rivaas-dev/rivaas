@@ -58,11 +58,15 @@ func (h *Handler) GET(ctx *goskell.Context) {
 		return
 	}
 
+	// Get the region from the header
+	region := h.getRegion(ctx)
+	keysRepository := h.getKeysRepository(region)
+
 	_, span := goot.Span(ctx.Request.Context(), "get_from_database",
 		attribute.String("id", request.ID),
 	)
 	// Find the key in database.
-	dbKey, err := h.keysRepository.GetKey(request.ID)
+	dbKey, err := keysRepository.GetKey(request.ID)
 	if err != nil {
 		if errors.Is(err, db.ErrKeyNotFound) {
 			goot.EndSpanWithError(span, err, "key not found")
@@ -90,7 +94,8 @@ func (h *Handler) GET(ctx *goskell.Context) {
 	}
 
 	// Get more info of the key.
-	response, err := h.getKeyInfo(ctx, dbKey)
+	tykClient := h.getTykClient(region)
+	response, err := h.getKeyInfo(ctx, dbKey, tykClient)
 	if err != nil {
 		log.Err(err).Msg("error on calling worker")
 		goskell.ProblemJSON(
@@ -108,12 +113,12 @@ func (h *Handler) GET(ctx *goskell.Context) {
 }
 
 // getKeyInfo gets more info of the key by calling Tyk API.
-func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key) (*GetOutput, error) {
+func (h *Handler) getKeyInfo(ctx *goskell.Context, dbKey *db.Key, tykClient *tyk.APIClient) (*GetOutput, error) {
 	// Get Key info.
 	_, span := goot.Span(ctx.Request.Context(), "get_from_tyk",
 		attribute.String("hash", dbKey.Hash),
 	)
-	tykResponse, resp, err := h.tykClient.KeysApi.GetKey(
+	tykResponse, resp, err := tykClient.KeysApi.GetKey(
 		ctx,
 		dbKey.Hash,
 		&tyk.GetKeyOpts{Hashed: optional.NewBool(true)},

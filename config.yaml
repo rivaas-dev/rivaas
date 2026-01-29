@@ -60,3 +60,15 @@ apiKeyDefaults:
   policies:
     - "api-hub-full-access"
   quota: 100
+
+databaseDE:
+  host: 127.0.0.1
+  port: 5433
+  username: user
+  password: secret
+  name: admin_api_de
+
+tykDE:
+  url: http://127.0.0.1:8082
+  secret: secret
+  debug: true

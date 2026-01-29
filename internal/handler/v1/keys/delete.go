@@ -21,7 +21,8 @@ const (
 
 // WorkflowDeleteInput represents the workflow input for a DELETE request.
 type WorkflowDeleteInput struct {
-	ID string
+	ID     string // Key ID
+	Region string // Region identifier (e.g., "de", or empty for default)
 }
 
 // DELETE handles DELETE requests on the endpoint.
@@ -39,11 +40,15 @@ func (h *Handler) DELETE(ctx *goskell.Context) {
 		return
 	}
 
+	// Get the region from the header
+	region := h.getRegion(ctx)
+	keysRepository := h.getKeysRepository(region)
+
 	// Find the key in database.
 	_, span := goot.Span(ctx.Request.Context(), "get_from_database",
 		attribute.String("id", request.ID),
 	)
-	dbKey, err := h.keysRepository.GetKey(request.ID)
+	dbKey, err := keysRepository.GetKey(request.ID)
 	if err != nil {
 		goot.EndSpanWithError(span, err, "failed to call database")
 		log.Err(err).Msg("error while communicating with DB")
@@ -71,7 +76,7 @@ func (h *Handler) DELETE(ctx *goskell.Context) {
 	}
 
 	// Call the worker.
-	err = h.callDeleteWorker(ctx, h.deleteRequestToWorkflowInput(&request))
+	err = h.callDeleteWorker(ctx, h.deleteRequestToWorkflowInput(&request, region))
 	if err != nil {
 		log.Err(err).Msg("error on calling worker")
 		goskell.ProblemJSON(ctx, problem.Details{Status: http.StatusInternalServerError})
@@ -104,8 +109,9 @@ func (h *Handler) callDeleteWorker(ctx *goskell.Context, request WorkflowDeleteI
 }
 
 // requestToWorkflowInput converts request body into workflow's input.
-func (h *Handler) deleteRequestToWorkflowInput(request *KeyID) WorkflowDeleteInput {
+func (h *Handler) deleteRequestToWorkflowInput(request *KeyID, region string) WorkflowDeleteInput {
 	return WorkflowDeleteInput{
-		ID: request.ID,
+		ID:     request.ID,
+		Region: region,
 	}
 }

@@ -162,8 +162,27 @@ func run(ctx context.Context) error {
 		log.Info().Msg("EventBridge publisher is disabled")
 	}
 
+	// Init the DE configs
+	// Connect to the DE database.
+	keysRepositoryDE, err := db.New(
+		cfg.DatabaseDE.Host,
+		cfg.DatabaseDE.Port,
+		cfg.DatabaseDE.Username,
+		cfg.DatabaseDE.Password,
+		cfg.DatabaseDE.Name,
+		cfg.DatabaseDE.SSLMode,
+	)
+	if err != nil {
+		log.Err(err).Msg("could not connect to DE database")
+		return err
+	}
+
+	// Connect to DE Tyk client.
+	tykClientDE := newTykClient(cfg.TykDE)
+
 	// Register handlers.
-	err = registerHandlers(ctx, server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, customerClient, solvimonClient, messagePublisher, cfg)
+	err = registerHandlers(ctx, server, keysRepository, tykClient, temporalClient, omaClient, keyCloakClient, keyCloakConfig, customerClient, solvimonClient, messagePublisher, cfg,
+		keysRepositoryDE, tykClientDE)
 	if err != nil {
 		log.Fatal().
 			Err(err).
@@ -227,16 +246,19 @@ func registerHandlers(
 	solvimonClient *solvimon.Client,
 	messagePublisher publisher.Publisher,
 	cfg config.Config,
+	dbClientDE db.DatabaseExecer,
+	tykClientDE *tyk.APIClient,
 ) error {
 	// v1 endpoints - not JSON:API compliant
-	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, customerClient)
+	keyHandler := keys.New(temporalClient, tykClient, dbClient, omaClient, customerClient,
+		dbClientDE, tykClientDE)
 	server.POST("/keys", keyHandler.POST)
 	server.GET("/keys", keyHandler.LIST)
 	server.GET("/keys/:id", keyHandler.GET)
 	server.PATCH("/keys/:id", keyHandler.PATCH)
 	server.DELETE("/keys/:id", keyHandler.DELETE)
 
-	policiesHandler := policiesHandler.New(tykClient)
+	policiesHandler := policiesHandler.New(tykClient, tykClientDE)
 	server.GET("/policies", policiesHandler.LIST)
 
 	accountHandler := accounts.New(customerClient, solvimonClient)

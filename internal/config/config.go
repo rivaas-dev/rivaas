@@ -22,6 +22,8 @@ type Config struct {
 	PricingPlans   map[string]customers.PricingPlan
 	APIKeyDefaults APIKeyDefaults
 	Publisher      Publisher
+	DatabaseDE     Database
+	TykDE          Tyk
 }
 
 // Publisher represents EventBridge publisher configuration.
