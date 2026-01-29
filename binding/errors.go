@@ -162,18 +162,90 @@ type BindError struct {
 	Err    error        // Underlying error
 }
 
-// Error returns a formatted error message.
+// Error returns a formatted error message with contextual hints.
 func (e *BindError) Error() string {
+	var base string
 	if e.Reason != "" {
-		return fmt.Sprintf("binding field %q (%s): %s", e.Field, e.Source, e.Reason)
-	}
-	typeName := "unknown"
-	if e.Type != nil {
-		typeName = e.Type.String()
+		base = fmt.Sprintf("binding field %q (%s): %s", e.Field, e.Source, e.Reason)
+	} else {
+		typeName := "unknown"
+		if e.Type != nil {
+			typeName = e.Type.String()
+		}
+		base = fmt.Sprintf("binding field %q (%s): failed to convert %q to %s: %v",
+			e.Field, e.Source, e.Value, typeName, e.Err)
 	}
 
-	return fmt.Sprintf("binding field %q (%s): failed to convert %q to %s: %v",
-		e.Field, e.Source, e.Value, typeName, e.Err)
+	// Add contextual hints for common mistakes
+	if hint := e.hint(); hint != "" {
+		base += " (hint: " + hint + ")"
+	}
+
+	return base
+}
+
+// hint returns a contextual hint for common binding mistakes.
+// It analyzes the error context and suggests fixes based on the field type
+// and value that failed to bind.
+func (e *BindError) hint() string {
+	if e.Type == nil {
+		return ""
+	}
+
+	// Decimal point in integer field
+	if isIntType(e.Type) && strings.Contains(e.Value, ".") {
+		return "use float type for decimal values"
+	}
+
+	// Time parsing failed
+	if e.Type == timeType {
+		return "use RFC3339 format (2006-01-02T15:04:05Z07:00) or configure custom layouts with TimeConverter"
+	}
+
+	// Duration parsing failed
+	if e.Type == durationType {
+		return "use Go duration format (e.g., '1h30m', '500ms') or configure aliases with DurationConverter"
+	}
+
+	// Boolean with unexpected value
+	if e.Type.Kind() == reflect.Bool {
+		return "accepted values: true/false, yes/no, 1/0, on/off, or configure custom values with BoolConverter"
+	}
+
+	// Slice parsing issues
+	if e.Type.Kind() == reflect.Slice {
+		if strings.Contains(e.Value, ",") {
+			return "for CSV values, use comma-separated list; for repeated params, send multiple query parameters"
+		}
+		return "ensure value is properly formatted for slice type"
+	}
+
+	// Map parsing issues
+	if e.Type.Kind() == reflect.Map {
+		return "use dot notation (key.subkey=value) or bracket notation (key[subkey]=value)"
+	}
+
+	// Pointer type issues
+	if e.Type.Kind() == reflect.Ptr {
+		elemType := e.Type.Elem()
+		if isIntType(elemType) && strings.Contains(e.Value, ".") {
+			return "use float pointer type for decimal values"
+		}
+	}
+
+	return ""
+}
+
+// isIntType returns true if the type is any integer type.
+func isIntType(t reflect.Type) bool {
+	if t == nil {
+		return false
+	}
+	kind := t.Kind()
+	return kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 ||
+		kind == reflect.Int32 || kind == reflect.Int64 ||
+		kind == reflect.Uint || kind == reflect.Uint8 || kind == reflect.Uint16 ||
+		kind == reflect.Uint32 || kind == reflect.Uint64
 }
 
 // Unwrap returns the underlying error for errors.Is/As compatibility.

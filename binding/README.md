@@ -26,7 +26,8 @@ This README provides a quick overview. For comprehensive guides, tutorials, and 
 - **Type Safe** - Generic API for compile-time type safety
 - **Zero Allocation** - Struct reflection info cached for performance
 - **Flexible** - Nested structs, slices, maps, pointers, custom types
-- **Error Context** - Detailed field-level error information
+- **Error Context** - Detailed field-level error information with contextual hints
+- **Converter Factories** - Built-in factories for common patterns (time, duration, enum, bool)
 - **Extensible** - Custom type converters and value getters
 
 > **Note:** For validation (required fields, enum constraints, etc.), use the `rivaas.dev/validation` package separately after binding.
@@ -86,6 +87,26 @@ req, err := binding.Bind[CreateOrderRequest](
     binding.FromHeader(r.Header),
     binding.FromJSON(body),
 )
+```
+
+### Custom Type Converters
+
+```go
+import "github.com/google/uuid"
+
+type Request struct {
+    ID       uuid.UUID `query:"id"`
+    Status   Status    `query:"status"`
+    Deadline time.Time `query:"deadline"`
+}
+
+binder := binding.MustNew(
+    binding.WithConverter[uuid.UUID](uuid.Parse),
+    binding.WithConverter(binding.TimeConverter("01/02/2006")),
+    binding.WithConverter(binding.EnumConverter("active", "pending", "disabled")),
+)
+
+req, err := binder.Query[Request](r.URL.Query())
 ```
 
 **[See more examples →](https://rivaas.dev/docs/guides/binding/examples/)**

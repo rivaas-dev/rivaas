@@ -183,6 +183,112 @@
 //	    binding.WithConverter[decimal.Decimal](decimal.NewFromString),
 //	)
 //
+// # Common Converter Patterns
+//
+// The package provides factory functions for common converter patterns:
+//
+// ## Custom Time Layouts
+//
+// Use [TimeConverter] to parse times in non-standard formats:
+//
+//	binder := binding.MustNew(
+//	    binding.WithConverter(binding.TimeConverter(
+//	        "01/02/2006",        // US format
+//	        "02/01/2006",        // European format
+//	        "2006-01-02 15:04",  // Custom datetime
+//	    )),
+//	)
+//
+// ## Duration Aliases
+//
+// Use [DurationConverter] to provide user-friendly duration names:
+//
+//	binder := binding.MustNew(
+//	    binding.WithConverter(binding.DurationConverter(map[string]time.Duration{
+//	        "fast":    100 * time.Millisecond,
+//	        "normal":  1 * time.Second,
+//	        "slow":    5 * time.Second,
+//	        "default": 30 * time.Second,
+//	    })),
+//	)
+//
+//	// Query: ?timeout=fast  -> 100ms
+//	// Query: ?timeout=1h30m -> 1h30m (standard duration strings still work)
+//
+// ## Enum Validation
+//
+// Use [EnumConverter] to validate against allowed values:
+//
+//	type Status string
+//	const (
+//	    StatusActive   Status = "active"
+//	    StatusPending  Status = "pending"
+//	    StatusDisabled Status = "disabled"
+//	)
+//
+//	binder := binding.MustNew(
+//	    binding.WithConverter(binding.EnumConverter(
+//	        StatusActive, StatusPending, StatusDisabled,
+//	    )),
+//	)
+//
+//	// Query: ?status=ACTIVE   -> StatusActive (case-insensitive)
+//	// Query: ?status=unknown  -> error
+//
+// ## Custom Boolean Values
+//
+// Use [BoolConverter] to accept non-standard boolean representations:
+//
+//	binder := binding.MustNew(
+//	    binding.WithConverter(binding.BoolConverter(
+//	        []string{"enabled", "active", "on"},    // truthy values
+//	        []string{"disabled", "inactive", "off"}, // falsy values
+//	    )),
+//	)
+//
+//	// Query: ?feature=enabled  -> true
+//	// Query: ?feature=off      -> false
+//
+// ## Combining Multiple Converters
+//
+// You can use multiple converter factories together:
+//
+//	binder := binding.MustNew(
+//	    binding.WithConverter(binding.TimeConverter("01/02/2006")),
+//	    binding.WithConverter(binding.DurationConverter(map[string]time.Duration{
+//	        "fast": 100 * time.Millisecond,
+//	        "slow": 5 * time.Second,
+//	    })),
+//	    binding.WithConverter(binding.EnumConverter(StatusActive, StatusInactive)),
+//	    binding.WithConverter(binding.BoolConverter(
+//	        []string{"yes", "on"},
+//	        []string{"no", "off"},
+//	    )),
+//	)
+//
+// ## Third-Party Type Examples
+//
+// For types from third-party packages, use [WithConverter]:
+//
+//	import (
+//	    "github.com/google/uuid"
+//	    "github.com/shopspring/decimal"
+//	)
+//
+//	binder := binding.MustNew(
+//	    binding.WithConverter[uuid.UUID](uuid.Parse),
+//	    binding.WithConverter[decimal.Decimal](decimal.NewFromString),
+//	)
+//
+// Or with a custom wrapper for error handling:
+//
+//	binder := binding.MustNew(
+//	    binding.WithConverter[MyCustomType](func(s string) (MyCustomType, error) {
+//	        // Custom parsing logic
+//	        return parseMyCustomType(s)
+//	    }),
+//	)
+//
 // # Error Handling
 //
 // Errors provide detailed context:
