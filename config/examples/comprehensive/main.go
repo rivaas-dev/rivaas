@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"rivaas.dev/config"
-	"rivaas.dev/config/codec"
 )
 
 // WebAppConfig represents a complete web application configuration
@@ -216,9 +215,9 @@ func main() {
 	// Create configuration with multiple sources
 	cfg := config.MustNew(
 		// First, load from YAML file (default values)
-		config.WithFileSource("config.yaml", codec.TypeYAML),
+		config.WithFile("config.yaml"),
 		// Then, override with environment variables (higher precedence)
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithEnv("WEBAPP_"),
 		// Bind to our struct
 		config.WithBinding(&wc),
 	)

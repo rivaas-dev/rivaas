@@ -43,7 +43,7 @@ func TestWebAppConfig_EnvironmentVariables(t *testing.T) {
 
 	// Create configuration without binding to test direct access
 	cfg, err := config.New(
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithEnv("WEBAPP_"),
 	)
 	require.NoError(t, err)
 
@@ -68,7 +68,7 @@ func TestWebAppConfig_EnvironmentVariables(t *testing.T) {
 	// Now test with binding
 	var wc WebAppConfig
 	cfgWithBinding, err := config.New(
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithEnv("WEBAPP_"),
 		config.WithBinding(&wc),
 	)
 	require.NoError(t, err)
@@ -104,7 +104,7 @@ func TestWebAppConfig_NestedStructures(t *testing.T) {
 
 	// Test direct access first
 	cfg, err := config.New(
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithEnv("WEBAPP_"),
 	)
 	require.NoError(t, err)
 
@@ -121,7 +121,7 @@ func TestWebAppConfig_NestedStructures(t *testing.T) {
 	// Now test with binding
 	var wc WebAppConfig
 	cfgWithBinding, err := config.New(
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithEnv("WEBAPP_"),
 		config.WithBinding(&wc),
 	)
 	require.NoError(t, err)

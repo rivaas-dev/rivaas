@@ -950,7 +950,7 @@ func TestJSONSchemaValidation(t *testing.T) {
 	}
 }
 
-func TestWithFileSource(t *testing.T) {
+func TestWithFileAs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -977,7 +977,7 @@ func TestWithFileSource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg, err := New(WithFileSource(tt.path, tt.codecType))
+			cfg, err := New(WithFileAs(tt.path, tt.codecType))
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -991,7 +991,7 @@ func TestWithFileSource(t *testing.T) {
 	}
 }
 
-func TestWithContentSource(t *testing.T) {
+func TestWithContent(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1018,7 +1018,7 @@ func TestWithContentSource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg, err := New(WithContentSource(tt.data, tt.codecType))
+			cfg, err := New(WithContent(tt.data, tt.codecType))
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -1032,13 +1032,51 @@ func TestWithContentSource(t *testing.T) {
 	}
 }
 
-func TestWithOSEnvVarSource(t *testing.T) {
+func TestWithEnv(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := New(WithOSEnvVarSource("TESTPREFIX_"))
+	cfg, err := New(WithEnv("TESTPREFIX_"))
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 	assert.Len(t, cfg.sources, 1)
+}
+
+func TestWithConsul_SkipsWithoutEnvVar(t *testing.T) {
+	t.Parallel()
+
+	// Ensure CONSUL_HTTP_ADDR is not set
+	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
+	os.Unsetenv("CONSUL_HTTP_ADDR")
+	defer func() {
+		if originalAddr != "" {
+			os.Setenv("CONSUL_HTTP_ADDR", originalAddr)
+		}
+	}()
+
+	cfg, err := New(WithConsul("production/service.yaml"))
+	require.NoError(t, err)
+	assert.NotNil(t, cfg)
+	// Should have no sources since Consul was skipped
+	assert.Len(t, cfg.sources, 0)
+}
+
+func TestWithConsulAs_SkipsWithoutEnvVar(t *testing.T) {
+	t.Parallel()
+
+	// Ensure CONSUL_HTTP_ADDR is not set
+	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
+	os.Unsetenv("CONSUL_HTTP_ADDR")
+	defer func() {
+		if originalAddr != "" {
+			os.Setenv("CONSUL_HTTP_ADDR", originalAddr)
+		}
+	}()
+
+	cfg, err := New(WithConsulAs("production/service", codec.TypeJSON))
+	require.NoError(t, err)
+	assert.NotNil(t, cfg)
+	// Should have no sources since Consul was skipped
+	assert.Len(t, cfg.sources, 0)
 }
 
 func TestWithFileDumper(t *testing.T) {
@@ -1306,7 +1344,7 @@ func TestFilePermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg, err := New(
-		WithFileSource(sourceFile, codec.TypeYAML),
+		WithFileAs(sourceFile, codec.TypeYAML),
 		WithFileDumperAs(dumpFile, codec.TypeYAML),
 	)
 	require.NoError(t, err)

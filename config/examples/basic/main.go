@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"rivaas.dev/config"
-	"rivaas.dev/config/codec"
 )
 
 // Config is the configuration for the application.
@@ -49,7 +48,7 @@ func main() {
 	var cfg Config
 
 	c := config.MustNew(
-		config.WithFileSource("./config.yaml", codec.TypeYAML),
+		config.WithFile("./config.yaml"),
 		config.WithBinding(&cfg),
 	)
 

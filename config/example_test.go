@@ -126,8 +126,8 @@ func ExampleConfig_MustDump() {
 	// Output: Configuration dumped successfully
 }
 
-// ExampleWithFileSource demonstrates loading configuration from a file.
-func ExampleWithFileSource() {
+// ExampleWithFile demonstrates loading configuration from a file.
+func ExampleWithFile() {
 	// Create a temporary config file (in real code, use an actual file path)
 	cfg, err := config.New(
 		config.WithContent([]byte(`{"name": "example"}`), codec.TypeJSON),
@@ -436,7 +436,7 @@ func Example_environmentVariables() {
 	// export APP_SERVER_PORT=8080
 
 	cfg, err := config.New(
-		config.WithOSEnvVarSource("APP_"),
+		config.WithEnv("APP_"),
 	)
 	if err != nil {
 		log.Fatal(err)

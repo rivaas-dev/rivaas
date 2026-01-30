@@ -23,7 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"rivaas.dev/config"
-	"rivaas.dev/config/codec"
 )
 
 func TestMixedYAMLAndEnvironmentVariables(t *testing.T) {
@@ -35,8 +34,8 @@ func TestMixedYAMLAndEnvironmentVariables(t *testing.T) {
 
 	// Create configuration with both YAML and environment variables
 	cfg, err := config.New(
-		config.WithFileSource("config.yaml", codec.TypeYAML),
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithFile("config.yaml"),
+		config.WithEnv("WEBAPP_"),
 	)
 	require.NoError(t, err)
 
@@ -55,8 +54,8 @@ func TestMixedYAMLAndEnvironmentVariables(t *testing.T) {
 	// Test struct binding
 	var wc WebAppConfig
 	cfgWithBinding, err := config.New(
-		config.WithFileSource("config.yaml", codec.TypeYAML),
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithFile("config.yaml"),
+		config.WithEnv("WEBAPP_"),
 		config.WithBinding(&wc),
 	)
 	require.NoError(t, err)
@@ -76,7 +75,7 @@ func TestMixedYAMLAndEnvironmentVariables(t *testing.T) {
 func TestYAMLOnlyConfiguration(t *testing.T) {
 	// Create configuration with only YAML file
 	cfg, err := config.New(
-		config.WithFileSource("config.yaml", codec.TypeYAML),
+		config.WithFile("config.yaml"),
 	)
 	require.NoError(t, err)
 
@@ -102,7 +101,7 @@ func TestEnvironmentVariablesOnly(t *testing.T) {
 
 	// Create configuration with only environment variables
 	cfg, err := config.New(
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithEnv("WEBAPP_"),
 	)
 	require.NoError(t, err)
 

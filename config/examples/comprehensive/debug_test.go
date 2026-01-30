@@ -53,7 +53,7 @@ func TestDebugEnvVars(t *testing.T) {
 
 	// Test with config
 	cfg, err := config.New(
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithEnv("WEBAPP_"),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)

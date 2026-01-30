@@ -53,8 +53,8 @@ func TestCaseInsensitiveMerging(t *testing.T) {
 
 	// Create configuration with both sources
 	cfg, err := New(
-		WithContentSource(config1, codec.TypeJSON),
-		WithContentSource(config2, codec.TypeJSON),
+		WithContent(config1, codec.TypeJSON),
+		WithContent(config2, codec.TypeJSON),
 	)
 	require.NoError(t, err)
 

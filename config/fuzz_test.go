@@ -35,7 +35,7 @@ func FuzzContentSourceJSON(f *testing.F) {
 	f.Add([]byte(`{}`))
 
 	f.Fuzz(func(t *testing.T, input []byte) {
-		cfg, err := New(WithContentSource(input, codec.TypeJSON))
+		cfg, err := New(WithContent(input, codec.TypeJSON))
 		if err != nil {
 			return
 		}
@@ -63,7 +63,7 @@ func FuzzContentSourceYAML(f *testing.F) {
 	f.Add([]byte("{}"))
 
 	f.Fuzz(func(t *testing.T, input []byte) {
-		cfg, err := New(WithContentSource(input, codec.TypeYAML))
+		cfg, err := New(WithContent(input, codec.TypeYAML))
 		if err != nil {
 			return
 		}
@@ -88,7 +88,7 @@ func FuzzContentSourceTOML(f *testing.F) {
 	f.Add([]byte("bool = true\nnumber = 42"))
 
 	f.Fuzz(func(t *testing.T, input []byte) {
-		cfg, err := New(WithContentSource(input, codec.TypeTOML))
+		cfg, err := New(WithContent(input, codec.TypeTOML))
 		if err != nil {
 			return
 		}

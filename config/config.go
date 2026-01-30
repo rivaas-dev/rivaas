@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -107,65 +108,6 @@ func WithDumper(dumper Dumper) Option {
 	}
 }
 
-// WithFileSource returns an Option that configures the Config instance to load configuration data from a file.
-func WithFileSource(path string, codecType codec.Type) Option {
-	return func(c *Config) error {
-		decoder, err := codec.GetDecoder(codecType)
-		if err != nil {
-			return NewError("file-source", "get-decoder", err)
-		}
-
-		c.sources = append(c.sources, source.NewFile(path, decoder))
-		return nil
-	}
-}
-
-// WithContentSource returns an Option that configures the Config instance to load configuration data from a byte slice.
-func WithContentSource(data []byte, codecType codec.Type) Option {
-	return func(c *Config) error {
-		decoder, err := codec.GetDecoder(codecType)
-		if err != nil {
-			return NewError("content-source", "get-decoder", err)
-		}
-
-		c.sources = append(c.sources, source.NewFileContent(data, decoder))
-		return nil
-	}
-}
-
-// WithOSEnvVarSource returns an Option that configures the Config instance to load configuration data from environment variables.
-// The prefix parameter specifies the prefix for the environment variables to be loaded.
-func WithOSEnvVarSource(prefix string) Option {
-	return func(c *Config) error {
-		c.sources = append(c.sources, source.NewOSEnvVar(prefix))
-		return nil
-	}
-}
-
-// WithConsulSource returns an Option that configures the Config instance to load configuration data from a Consul server.
-// The path parameter specifies the key path in Consul's key-value store to load configuration from.
-// The codecType parameter specifies the codec type (e.g., JSON, YAML) to use for decoding the configuration data.
-// Required environment variables:
-//   - CONSUL_HTTP_ADDR: The address of the Consul server (e.g., "http://localhost:8500")
-//   - CONSUL_HTTP_TOKEN: The access token for authentication with Consul (optional)
-func WithConsulSource(path string, codecType codec.Type) Option {
-	return func(c *Config) error {
-		decoder, err := codec.GetDecoder(codecType)
-		if err != nil {
-			return NewError("consul-source", "get-decoder", err)
-		}
-
-		l, err := source.NewConsul(path, decoder, nil)
-		if err != nil {
-			return NewError("consul-source", "create-client", err)
-		}
-
-		c.sources = append(c.sources, l)
-
-		return nil
-	}
-}
-
 // WithFile returns an Option that configures the Config instance to load configuration data from a file.
 // The format is automatically detected from the file extension (.yaml, .yml, .json, .toml).
 // For files without extensions or custom formats, use WithFileAs instead.
@@ -213,17 +155,26 @@ func WithEnv(prefix string) Option {
 // WithConsul returns an Option that configures the Config instance to load configuration data from a Consul server.
 // The format is automatically detected from the path extension.
 // For custom formats, use WithConsulAs instead.
-// Required environment variables:
+//
+// If CONSUL_HTTP_ADDR is not set, this option is silently skipped, allowing
+// development without Consul while requiring it in production environments.
+//
+// Required environment variables (production only):
 //   - CONSUL_HTTP_ADDR: The address of the Consul server (e.g., "http://localhost:8500")
 //   - CONSUL_HTTP_TOKEN: The access token for authentication with Consul (optional)
 //
 // Example:
 //
 //	cfg := config.MustNew(
-//	    config.WithConsul("production/service.yaml"),  // Auto-detects YAML
+//	    config.WithConsul("production/service.yaml"),  // Auto-detects YAML, skipped without CONSUL_HTTP_ADDR
 //	)
 func WithConsul(path string) Option {
 	return func(c *Config) error {
+		// Silently skip if Consul is not configured
+		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
+			return nil
+		}
+
 		format, err := detectFormat(path)
 		if err != nil {
 			return NewError("consul-source", "detect-format", err)
@@ -267,7 +218,11 @@ func WithFileAs(path string, codecType codec.Type) Option {
 
 // WithConsulAs returns an Option that configures the Config instance to load configuration data from a Consul server with explicit format.
 // Use this when you need to override the format detection.
-// Required environment variables:
+//
+// If CONSUL_HTTP_ADDR is not set, this option is silently skipped, allowing
+// development without Consul while requiring it in production environments.
+//
+// Required environment variables (production only):
 //   - CONSUL_HTTP_ADDR: The address of the Consul server (e.g., "http://localhost:8500")
 //   - CONSUL_HTTP_TOKEN: The access token for authentication with Consul (optional)
 //
@@ -278,6 +233,11 @@ func WithFileAs(path string, codecType codec.Type) Option {
 //	)
 func WithConsulAs(path string, codecType codec.Type) Option {
 	return func(c *Config) error {
+		// Silently skip if Consul is not configured
+		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
+			return nil
+		}
+
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
 			return NewError("consul-source", "get-decoder", err)

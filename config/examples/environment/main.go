@@ -84,7 +84,7 @@ func main() {
 
 	// Create configuration with environment variable source
 	cfg := config.MustNew(
-		config.WithOSEnvVarSource("WEBAPP_"),
+		config.WithEnv("WEBAPP_"),
 		config.WithBinding(&sc),
 	)
 

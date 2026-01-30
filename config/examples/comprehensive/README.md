@@ -136,8 +136,8 @@ For production deployments, you might want to:
 1. **Use the mixed approach (recommended)**:
    ```go
    cfg, err := config.New(
-       config.WithFileSource("config.yaml", codec.TypeYAML),     // Defaults
-       config.WithOSEnvVarSource("WEBAPP_"),                    // Overrides
+       config.WithFile("config.yaml"),     // Defaults
+       config.WithEnv("WEBAPP_"),                    // Overrides
        config.WithBinding(&config),
    )
    ```
@@ -145,8 +145,8 @@ For production deployments, you might want to:
 2. **Environment-specific YAML files**:
    ```go
    cfg, err := config.New(
-       config.WithFileSource("config.production.yaml", codec.TypeYAML),
-       config.WithOSEnvVarSource("WEBAPP_"),
+       config.WithFile("config.production.yaml"),
+       config.WithEnv("WEBAPP_"),
        config.WithBinding(&config),
    )
    ```

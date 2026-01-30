@@ -62,7 +62,7 @@ logging:
 
 	// Load configuration
 	cfg, err := config.New(
-		config.WithFileSource(configFile, codec.TypeYAML),
+		config.WithFileAs(configFile, codec.TypeYAML),
 	)
 	require.NoError(t, err)
 
@@ -105,7 +105,7 @@ func TestIntegration_FileSourceWithJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg, err := config.New(
-		config.WithFileSource(configFile, codec.TypeJSON),
+		config.WithFileAs(configFile, codec.TypeJSON),
 	)
 	require.NoError(t, err)
 
@@ -142,7 +142,7 @@ max_connections = 100
 	require.NoError(t, err)
 
 	cfg, err := config.New(
-		config.WithFileSource(configFile, codec.TypeTOML),
+		config.WithFileAs(configFile, codec.TypeTOML),
 	)
 	require.NoError(t, err)
 
@@ -199,9 +199,9 @@ server:
 
 	// Load all sources (later sources override earlier ones)
 	cfg, err := config.New(
-		config.WithFileSource(baseFile, codec.TypeYAML),
-		config.WithFileSource(envFile, codec.TypeYAML),
-		config.WithFileSource(localFile, codec.TypeYAML),
+		config.WithFileAs(baseFile, codec.TypeYAML),
+		config.WithFileAs(envFile, codec.TypeYAML),
+		config.WithFileAs(localFile, codec.TypeYAML),
 	)
 	require.NoError(t, err)
 
@@ -258,7 +258,7 @@ database:
 
 	var appConfig AppConfig
 	cfg, err := config.New(
-		config.WithFileSource(configFile, codec.TypeYAML),
+		config.WithFileAs(configFile, codec.TypeYAML),
 		config.WithBinding(&appConfig),
 	)
 	require.NoError(t, err)
@@ -294,7 +294,7 @@ feature_flags:
 	require.NoError(t, err)
 
 	cfg, err := config.New(
-		config.WithFileSource(configFile, codec.TypeYAML),
+		config.WithFileAs(configFile, codec.TypeYAML),
 	)
 	require.NoError(t, err)
 
@@ -340,7 +340,7 @@ app:
 	require.NoError(t, err)
 
 	cfg, err := config.New(
-		config.WithFileSource(sourceFile, codec.TypeYAML),
+		config.WithFileAs(sourceFile, codec.TypeYAML),
 		config.WithFileDumperAs(dumpFile, codec.TypeYAML),
 	)
 	require.NoError(t, err)
@@ -379,7 +379,7 @@ Database:
 	require.NoError(t, err)
 
 	cfg, err := config.New(
-		config.WithFileSource(configFile, codec.TypeYAML),
+		config.WithFileAs(configFile, codec.TypeYAML),
 	)
 	require.NoError(t, err)
 
@@ -406,7 +406,7 @@ func TestIntegration_EnvironmentVariables(t *testing.T) {
 	t.Setenv("TESTAPP_DEBUG", "true")
 
 	cfg, err := config.New(
-		config.WithOSEnvVarSource("TESTAPP_"),
+		config.WithEnv("TESTAPP_"),
 	)
 	require.NoError(t, err)
 
