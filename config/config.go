@@ -74,6 +74,9 @@ func WithSource(loader Source) Option {
 // The format is automatically detected from the file extension (.yaml, .yml, .json, .toml).
 // For files without extensions or custom formats, use WithFileDumperAs instead.
 //
+// Paths support environment variable expansion using ${VAR} or $VAR syntax.
+// Example: "${LOG_DIR}/config.yaml" expands to "/var/log/config.yaml" when LOG_DIR=/var/log
+//
 // Example:
 //
 //	cfg := config.MustNew(
@@ -82,6 +85,8 @@ func WithSource(loader Source) Option {
 //	)
 func WithFileDumper(path string) Option {
 	return func(c *Config) error {
+		path = os.ExpandEnv(path)
+
 		format, err := detectFormat(path)
 		if err != nil {
 			return NewError("file-dumper", "detect-format", err)
@@ -112,6 +117,9 @@ func WithDumper(dumper Dumper) Option {
 // The format is automatically detected from the file extension (.yaml, .yml, .json, .toml).
 // For files without extensions or custom formats, use WithFileAs instead.
 //
+// Paths support environment variable expansion using ${VAR} or $VAR syntax.
+// Example: "${CONFIG_DIR}/app.yaml" expands to "/etc/myapp/app.yaml" when CONFIG_DIR=/etc/myapp
+//
 // Example:
 //
 //	cfg := config.MustNew(
@@ -120,6 +128,8 @@ func WithDumper(dumper Dumper) Option {
 //	)
 func WithFile(path string) Option {
 	return func(c *Config) error {
+		path = os.ExpandEnv(path)
+
 		format, err := detectFormat(path)
 		if err != nil {
 			return NewError("file-source", "detect-format", err)
@@ -159,6 +169,9 @@ func WithEnv(prefix string) Option {
 // If CONSUL_HTTP_ADDR is not set, this option is silently skipped, allowing
 // development without Consul while requiring it in production environments.
 //
+// Paths support environment variable expansion using ${VAR} or $VAR syntax.
+// Example: "${APP_ENV}/service.yaml" expands to "production/service.yaml" when APP_ENV=production
+//
 // Required environment variables (production only):
 //   - CONSUL_HTTP_ADDR: The address of the Consul server (e.g., "http://localhost:8500")
 //   - CONSUL_HTTP_TOKEN: The access token for authentication with Consul (optional)
@@ -174,6 +187,8 @@ func WithConsul(path string) Option {
 		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
 			return nil
 		}
+
+		path = os.ExpandEnv(path)
 
 		format, err := detectFormat(path)
 		if err != nil {
@@ -198,6 +213,9 @@ func WithConsul(path string) Option {
 // WithFileAs returns an Option that configures the Config instance to load configuration data from a file with explicit format.
 // Use this when the file doesn't have an extension or when you need to override the format detection.
 //
+// Paths support environment variable expansion using ${VAR} or $VAR syntax.
+// Example: "${CONFIG_DIR}/app" expands to "/etc/myapp/app" when CONFIG_DIR=/etc/myapp
+//
 // Example:
 //
 //	cfg := config.MustNew(
@@ -206,6 +224,8 @@ func WithConsul(path string) Option {
 //	)
 func WithFileAs(path string, codecType codec.Type) Option {
 	return func(c *Config) error {
+		path = os.ExpandEnv(path)
+
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
 			return NewError("file-source", "get-decoder", err)
@@ -222,6 +242,9 @@ func WithFileAs(path string, codecType codec.Type) Option {
 // If CONSUL_HTTP_ADDR is not set, this option is silently skipped, allowing
 // development without Consul while requiring it in production environments.
 //
+// Paths support environment variable expansion using ${VAR} or $VAR syntax.
+// Example: "${APP_ENV}/service" expands to "production/service" when APP_ENV=production
+//
 // Required environment variables (production only):
 //   - CONSUL_HTTP_ADDR: The address of the Consul server (e.g., "http://localhost:8500")
 //   - CONSUL_HTTP_TOKEN: The access token for authentication with Consul (optional)
@@ -237,6 +260,8 @@ func WithConsulAs(path string, codecType codec.Type) Option {
 		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
 			return nil
 		}
+
+		path = os.ExpandEnv(path)
 
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
@@ -277,6 +302,9 @@ func WithContent(data []byte, codecType codec.Type) Option {
 // WithFileDumperAs returns an Option that configures the Config instance to dump configuration data to a file with explicit format.
 // Use this when the file doesn't have an extension or when you need to override the format detection.
 //
+// Paths support environment variable expansion using ${VAR} or $VAR syntax.
+// Example: "${OUTPUT_DIR}/config" expands to "/tmp/config" when OUTPUT_DIR=/tmp
+//
 // Example:
 //
 //	cfg := config.MustNew(
@@ -285,6 +313,8 @@ func WithContent(data []byte, codecType codec.Type) Option {
 //	)
 func WithFileDumperAs(path string, codecType codec.Type) Option {
 	return func(c *Config) error {
+		path = os.ExpandEnv(path)
+
 		encoder, err := codec.GetEncoder(codecType)
 		if err != nil {
 			return NewError("file-dumper", "get-encoder", err)
