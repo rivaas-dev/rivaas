@@ -1046,10 +1046,10 @@ func TestWithConsul_SkipsWithoutEnvVar(t *testing.T) {
 
 	// Ensure CONSUL_HTTP_ADDR is not set
 	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
-	os.Unsetenv("CONSUL_HTTP_ADDR")
+	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
 	defer func() {
 		if originalAddr != "" {
-			os.Setenv("CONSUL_HTTP_ADDR", originalAddr)
+			require.NoError(t, os.Setenv("CONSUL_HTTP_ADDR", originalAddr))
 		}
 	}()
 
@@ -1065,10 +1065,10 @@ func TestWithConsulAs_SkipsWithoutEnvVar(t *testing.T) {
 
 	// Ensure CONSUL_HTTP_ADDR is not set
 	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
-	os.Unsetenv("CONSUL_HTTP_ADDR")
+	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
 	defer func() {
 		if originalAddr != "" {
-			os.Setenv("CONSUL_HTTP_ADDR", originalAddr)
+			require.NoError(t, os.Setenv("CONSUL_HTTP_ADDR", originalAddr))
 		}
 	}()
 
