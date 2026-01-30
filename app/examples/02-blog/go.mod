@@ -1,6 +1,6 @@
 module example.com/blog
 
-go 1.25.3
+go 1.25.5
 
 require (
 	go.opentelemetry.io/otel v1.39.0
@@ -14,7 +14,6 @@ require (
 )
 
 replace (
-	github.com/armon/go-metrics v0.5.3 => github.com/hashicorp/go-metrics v0.5.3
 	rivaas.dev/app => ../../
 	rivaas.dev/binding => ../../../binding
 	rivaas.dev/config => ../../../config
@@ -30,7 +29,7 @@ replace (
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/armon/go-metrics v0.5.3 // indirect
+	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -56,7 +55,7 @@ require (
 	github.com/goccy/go-yaml v1.19.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
-	github.com/hashicorp/consul/api v1.33.0 // indirect
+	github.com/hashicorp/consul/api v1.33.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
