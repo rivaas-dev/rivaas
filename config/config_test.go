@@ -1094,7 +1094,7 @@ func TestWithFile_ExpandsEnvVars(t *testing.T) {
 	// Create test file
 	testFile := filepath.Join(tmpDir, "test_env_expand.yaml")
 	testData := []byte("test: value")
-	require.NoError(t, os.WriteFile(testFile, testData, 0o644))
+	require.NoError(t, os.WriteFile(testFile, testData, 0o600))
 
 	// Test with environment variable expansion
 	cfg, err := New(WithFile("${" + envVar + "}/test_env_expand.yaml"))
@@ -1121,7 +1121,7 @@ func TestWithFileAs_ExpandsEnvVars(t *testing.T) {
 	// Create test file without extension
 	testFile := filepath.Join(tmpDir, "test_env_expand_noext")
 	testData := []byte("test: value")
-	require.NoError(t, os.WriteFile(testFile, testData, 0o644))
+	require.NoError(t, os.WriteFile(testFile, testData, 0o600))
 
 	// Test with environment variable expansion
 	cfg, err := New(WithFileAs("${"+envVar+"}/test_env_expand_noext", codec.TypeYAML))
