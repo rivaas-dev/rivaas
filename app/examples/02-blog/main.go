@@ -18,12 +18,10 @@ package main
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"slices"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -137,6 +135,8 @@ func main() {
 			}),
 		),
 		// Server config
+		app.WithHost(blogConfig.Server.Host),
+		app.WithPort(blogConfig.Server.Port),
 		app.WithServer(
 			app.WithReadTimeout(blogConfig.Server.ReadTimeout),
 			app.WithWriteTimeout(blogConfig.Server.WriteTimeout),
@@ -331,15 +331,8 @@ func main() {
 		),
 	)
 
-	if err := a.Start(ctx, net.JoinHostPort(blogConfig.Server.Host, strconv.Itoa(blogConfig.Server.Port))); err != nil {
+	if err := a.Start(ctx); err != nil {
 		logger.Error("server error", "error", err)
 		os.Exit(1)
 	}
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

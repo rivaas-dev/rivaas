@@ -38,6 +38,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "valid configuration",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       10 * time.Second,
 				writeTimeout:      10 * time.Second,
 				idleTimeout:       60 * time.Second,
@@ -50,6 +51,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "read timeout exceeds write timeout",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       15 * time.Second,
 				writeTimeout:      10 * time.Second, // Read > Write (invalid)
 				idleTimeout:       60 * time.Second,
@@ -68,6 +70,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "shutdown timeout too short",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       10 * time.Second,
 				writeTimeout:      10 * time.Second,
 				idleTimeout:       60 * time.Second,
@@ -86,6 +89,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "max header bytes too small",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       10 * time.Second,
 				writeTimeout:      10 * time.Second,
 				idleTimeout:       60 * time.Second,
@@ -104,6 +108,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "negative read timeout",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       -1 * time.Second,
 				writeTimeout:      10 * time.Second,
 				idleTimeout:       60 * time.Second,
@@ -122,6 +127,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "zero write timeout",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       10 * time.Second,
 				writeTimeout:      0, // Invalid
 				idleTimeout:       60 * time.Second,
@@ -140,6 +146,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "multiple validation errors",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       15 * time.Second,
 				writeTimeout:      10 * time.Second,       // Read > Write
 				idleTimeout:       -5 * time.Second,       // Negative
@@ -159,6 +166,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "read timeout equals write timeout (valid)",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       10 * time.Second,
 				writeTimeout:      10 * time.Second, // Equal is valid
 				idleTimeout:       60 * time.Second,
@@ -171,6 +179,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "write timeout greater than read timeout (valid)",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       10 * time.Second,
 				writeTimeout:      15 * time.Second, // Write > Read (valid)
 				idleTimeout:       60 * time.Second,
@@ -183,6 +192,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "exactly 1KB max header bytes (valid)",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       10 * time.Second,
 				writeTimeout:      10 * time.Second,
 				idleTimeout:       60 * time.Second,
@@ -195,6 +205,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		{
 			name: "exactly 1 second shutdown timeout (valid)",
 			config: &serverConfig{
+				port:              8080,
 				readTimeout:       10 * time.Second,
 				writeTimeout:      10 * time.Second,
 				idleTimeout:       60 * time.Second,
@@ -203,6 +214,44 @@ func TestServerConfig_Validate(t *testing.T) {
 				shutdownTimeout:   1 * time.Second, // Exactly 1s (valid)
 			},
 			wantErr: false,
+		},
+		{
+			name: "zero port (invalid)",
+			config: &serverConfig{
+				port:              0, // Invalid
+				readTimeout:       10 * time.Second,
+				writeTimeout:      10 * time.Second,
+				idleTimeout:       60 * time.Second,
+				readHeaderTimeout: 2 * time.Second,
+				maxHeaderBytes:    1 << 20,
+				shutdownTimeout:   30 * time.Second,
+			},
+			wantErr: true,
+			check: func(t *testing.T, err error) {
+				t.Helper()
+				var ve *ValidationError
+				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				assert.Contains(t, err.Error(), "server.port")
+			},
+		},
+		{
+			name: "port out of range (invalid)",
+			config: &serverConfig{
+				port:              65536, // Invalid - above max
+				readTimeout:       10 * time.Second,
+				writeTimeout:      10 * time.Second,
+				idleTimeout:       60 * time.Second,
+				readHeaderTimeout: 2 * time.Second,
+				maxHeaderBytes:    1 << 20,
+				shutdownTimeout:   30 * time.Second,
+			},
+			wantErr: true,
+			check: func(t *testing.T, err error) {
+				t.Helper()
+				var ve *ValidationError
+				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				assert.Contains(t, err.Error(), "server.port")
+			},
 		},
 	}
 

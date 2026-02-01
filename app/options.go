@@ -69,6 +69,38 @@ func WithEnvironment(env string) Option {
 	}
 }
 
+// WithPort sets the HTTP server port.
+// Default is 8080. Can be overridden by RIVAAS_PORT when [WithEnv] is used.
+//
+// Example:
+//
+//	app.New(app.WithPort(3000))
+func WithPort(port int) Option {
+	return func(c *config) {
+		c.server.port = port
+	}
+}
+
+// WithHost sets the host/interface to bind the HTTP server to.
+// Default is "" (all interfaces, equivalent to "0.0.0.0").
+// Use "127.0.0.1" or "localhost" to restrict to local connections only.
+//
+// Example:
+//
+//	// Bind to all interfaces (default)
+//	app.New(app.WithPort(8080))
+//
+//	// Bind to localhost only (e.g., behind reverse proxy)
+//	app.New(
+//	    app.WithHost("127.0.0.1"),
+//	    app.WithPort(8080),
+//	)
+func WithHost(host string) Option {
+	return func(c *config) {
+		c.server.host = host
+	}
+}
+
 // ServerOption configures server settings.
 type ServerOption func(*serverConfig)
 

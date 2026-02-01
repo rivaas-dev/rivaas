@@ -252,6 +252,10 @@ func (a *App) registerOpenAPIEndpoints() {
 // Start starts the HTTP server with graceful shutdown.
 // Start automatically freezes the router before starting, making routes immutable.
 //
+// The server listens on the address configured via [WithPort] and [WithHost],
+// or the defaults (:8080 on all interfaces). These can be overridden by
+// RIVAAS_PORT and RIVAAS_HOST environment variables when [WithEnv] is used.
+//
 // The context controls the application lifecycle - when canceled, it triggers
 // graceful shutdown of the server and all observability components (metrics, tracing).
 //
@@ -263,10 +267,16 @@ func (a *App) registerOpenAPIEndpoints() {
 //	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 //	defer cancel()
 //
-//	if err := app.Start(ctx, ":8080"); err != nil {
+//	app := app.MustNew(
+//	    app.WithServiceName("my-service"),
+//	    app.WithPort(3000),
+//	)
+//	if err := app.Start(ctx); err != nil {
 //	    log.Fatal(err)
 //	}
-func (a *App) Start(ctx context.Context, addr string) error {
+func (a *App) Start(ctx context.Context) error {
+	addr := a.config.server.ListenAddr()
+
 	// Start observability servers (metrics, etc.)
 	if err := a.startObservability(ctx); err != nil {
 		return fmt.Errorf("failed to start observability: %w", err)
@@ -300,6 +310,10 @@ func (a *App) Start(ctx context.Context, addr string) error {
 // StartTLS starts the HTTPS server with graceful shutdown.
 // StartTLS automatically freezes the router before starting, making routes immutable.
 //
+// The server listens on the address configured via [WithPort] and [WithHost],
+// or the defaults (:8080 on all interfaces). These can be overridden by
+// RIVAAS_PORT and RIVAAS_HOST environment variables when [WithEnv] is used.
+//
 // The context controls the application lifecycle - when canceled, it triggers
 // graceful shutdown of the server and all observability components (metrics, tracing).
 //
@@ -310,10 +324,16 @@ func (a *App) Start(ctx context.Context, addr string) error {
 //	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 //	defer cancel()
 //
-//	if err := app.StartTLS(ctx, ":8443", "server.crt", "server.key"); err != nil {
+//	app := app.MustNew(
+//	    app.WithServiceName("my-service"),
+//	    app.WithPort(8443),
+//	)
+//	if err := app.StartTLS(ctx, "server.crt", "server.key"); err != nil {
 //	    log.Fatal(err)
 //	}
-func (a *App) StartTLS(ctx context.Context, addr, certFile, keyFile string) error {
+func (a *App) StartTLS(ctx context.Context, certFile, keyFile string) error {
+	addr := a.config.server.ListenAddr()
+
 	// Start observability servers (metrics, etc.)
 	if err := a.startObservability(ctx); err != nil {
 		return fmt.Errorf("failed to start observability: %w", err)
@@ -350,6 +370,10 @@ func (a *App) StartTLS(ctx context.Context, addr, certFile, keyFile string) erro
 // It requires both client and server certificates for bidirectional authentication.
 // It automatically freezes the router before starting, making routes immutable.
 //
+// The server listens on the address configured via [WithPort] and [WithHost],
+// or the defaults (:8080 on all interfaces). These can be overridden by
+// RIVAAS_PORT and RIVAAS_HOST environment variables when [WithEnv] is used.
+//
 // The context controls the application lifecycle - when canceled, it triggers
 // graceful shutdown of the server and all observability components (metrics, tracing).
 //
@@ -381,8 +405,13 @@ func (a *App) StartTLS(ctx context.Context, addr, certFile, keyFile string) erro
 //	caCertPool := x509.NewCertPool()
 //	caCertPool.AppendCertsFromPEM(caCert)
 //
+//	app := app.MustNew(
+//	    app.WithServiceName("my-service"),
+//	    app.WithPort(8443),
+//	)
+//
 //	// Start server with mTLS
-//	err = app.StartMTLS(ctx, ":8443", serverCert,
+//	err = app.StartMTLS(ctx, serverCert,
 //	    app.WithClientCAs(caCertPool),
 //	    app.WithMinVersion(tls.VersionTLS13),
 //	    app.WithAuthorize(func(cert *x509.Certificate) (string, bool) {
@@ -390,7 +419,9 @@ func (a *App) StartTLS(ctx context.Context, addr, certFile, keyFile string) erro
 //	        return cert.Subject.CommonName, cert.Subject.CommonName != ""
 //	    }),
 //	)
-func (a *App) StartMTLS(ctx context.Context, addr string, serverCert tls.Certificate, opts ...MTLSOption) error {
+func (a *App) StartMTLS(ctx context.Context, serverCert tls.Certificate, opts ...MTLSOption) error {
+	addr := a.config.server.ListenAddr()
+
 	// Create mTLS configuration from options
 	cfg := newMTLSConfig(serverCert, opts...)
 

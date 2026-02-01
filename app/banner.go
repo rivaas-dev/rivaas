@@ -99,7 +99,8 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	providerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("243")) // Dimmed gray for provider brackets
 
-	// Normalize address display: ":8080" -> "0.0.0.0:8080"
+	// Normalize address display for empty host (all interfaces)
+	// ":8080" -> "0.0.0.0:8080" for clarity
 	displayAddr := addr
 	if strings.HasPrefix(addr, ":") {
 		displayAddr = "0.0.0.0" + addr

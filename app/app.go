@@ -43,6 +43,7 @@ const (
 	DefaultServiceName       = "rivaas-app"
 	DefaultVersion           = "1.0.0"
 	DefaultEnvironment       = "development"
+	DefaultPort              = 8080
 	DefaultReadTimeout       = 10 * time.Second
 	DefaultWriteTimeout      = 10 * time.Second
 	DefaultIdleTimeout       = 60 * time.Second
@@ -93,6 +94,7 @@ type config struct {
 	observability  *observabilitySettings // Unified observability settings (metrics, tracing, logging)
 	health         *healthSettings        // Health endpoint settings (healthz, readyz)
 	debug          *debugSettings         // Debug endpoint settings (pprof)
+	envErrors      []error                // Errors from environment variable parsing
 }
 
 // metricsConfig holds metrics configuration settings.
@@ -109,12 +111,19 @@ type tracingConfig struct {
 
 // serverConfig holds server configuration settings.
 type serverConfig struct {
+	host              string // Bind address (default: "" for all interfaces)
+	port              int    // Listen port (default: 8080)
 	readTimeout       time.Duration
 	writeTimeout      time.Duration
 	idleTimeout       time.Duration
 	readHeaderTimeout time.Duration
 	maxHeaderBytes    int
 	shutdownTimeout   time.Duration
+}
+
+// ListenAddr returns the server listen address in "host:port" format.
+func (sc *serverConfig) ListenAddr() string {
+	return fmt.Sprintf("%s:%d", sc.host, sc.port)
 }
 
 // Validate validates the server configuration and returns all validation errors.
@@ -216,6 +225,12 @@ func (sc *serverConfig) Validate() *ValidationError {
 			"must be at least 1KB (1024 bytes) to handle standard HTTP headers"))
 	}
 
+	// Validate port is in valid range (1-65535)
+	if sc.port <= 0 || sc.port > 65535 {
+		errs.Add(newInvalidValueError("server.port", sc.port,
+			"must be between 1 and 65535"))
+	}
+
 	return &errs
 }
 
@@ -285,6 +300,11 @@ func (c *config) validate() error {
 		}
 	}
 
+	// Validate environment variable parsing errors
+	for _, err := range c.envErrors {
+		errs.Add(newInvalidValueError("env", nil, err.Error()))
+	}
+
 	// Return all errors if any exist
 	return errs.ToError()
 }
@@ -314,6 +334,7 @@ func defaultConfig() *config {
 		serviceVersion: DefaultVersion,
 		environment:    DefaultEnvironment,
 		server: &serverConfig{
+			port:              DefaultPort,
 			readTimeout:       DefaultReadTimeout,
 			writeTimeout:      DefaultWriteTimeout,
 			idleTimeout:       DefaultIdleTimeout,

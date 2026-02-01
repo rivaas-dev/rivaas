@@ -80,7 +80,7 @@
 //	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 //	defer cancel()
 //
-//	if err := app.Start(ctx, ":8080"); err != nil {
+//	if err := app.Start(ctx); err != nil {
 //	    log.Fatal(err)
 //	}
 //
@@ -196,23 +196,73 @@
 //
 // # Server Configuration
 //
-// Configure server timeouts and limits using functional options:
+// Configure server address and timeouts using functional options:
 //
-//	app.WithServer(
-//	    app.WithReadTimeout(10 * time.Second),
-//	    app.WithWriteTimeout(10 * time.Second),
-//	    app.WithIdleTimeout(60 * time.Second),
-//	    app.WithShutdownTimeout(30 * time.Second),
+//	app.New(
+//	    app.WithPort(3000),                 // Listen on port 3000
+//	    app.WithHost("127.0.0.1"),          // Bind to localhost only
+//	    app.WithServer(
+//	        app.WithReadTimeout(10 * time.Second),
+//	        app.WithWriteTimeout(10 * time.Second),
+//	        app.WithIdleTimeout(60 * time.Second),
+//	        app.WithShutdownTimeout(30 * time.Second),
+//	    ),
 //	)
 //
 // Configuration is automatically validated to catch common misconfigurations.
+//
+// # Environment Variables
+//
+// The app package supports configuration via environment variables using [WithEnv]:
+//
+//	app.New(
+//	    app.WithServiceName("orders-api"),
+//	    app.WithEnv(),  // Enable RIVAAS_* environment variable overrides
+//	)
+//
+// Environment variables override programmatic configuration. Supported variables:
+//
+//	Core:
+//	  RIVAAS_ENV                    - Environment mode: "development" or "production"
+//	  RIVAAS_SERVICE_NAME           - Service name for observability
+//	  RIVAAS_SERVICE_VERSION        - Service version
+//
+//	Server:
+//	  RIVAAS_PORT                   - HTTP server port (e.g., "8080")
+//	  RIVAAS_HOST                   - HTTP server host/interface (e.g., "127.0.0.1")
+//	  RIVAAS_READ_TIMEOUT           - Request read timeout (e.g., "10s")
+//	  RIVAAS_WRITE_TIMEOUT          - Response write timeout (e.g., "10s")
+//	  RIVAAS_SHUTDOWN_TIMEOUT       - Graceful shutdown timeout (e.g., "30s")
+//
+//	Logging:
+//	  RIVAAS_LOG_LEVEL              - Log level: "debug", "info", "warn", "error"
+//	  RIVAAS_LOG_FORMAT             - Log format: "json", "text", or "console"
+//
+//	Observability:
+//	  RIVAAS_METRICS_EXPORTER       - Metrics exporter: "prometheus", "otlp", or "stdout"
+//	  RIVAAS_METRICS_ADDR           - Prometheus address (default: ":9090")
+//	  RIVAAS_METRICS_PATH           - Prometheus path (default: "/metrics")
+//	  RIVAAS_METRICS_ENDPOINT       - OTLP metrics endpoint (e.g., "http://localhost:4318")
+//	  RIVAAS_TRACING_EXPORTER       - Tracing exporter: "otlp", "otlp-http", or "stdout"
+//	  RIVAAS_TRACING_ENDPOINT       - OTLP tracing endpoint (e.g., "localhost:4317")
+//
+//	Debug:
+//	  RIVAAS_PPROF_ENABLED          - Enable pprof: "true" or "false"
+//
+// Use [WithEnvPrefix] for a custom prefix:
+//
+//	app.New(
+//	    app.WithEnvPrefix("MYAPP_"),  // Use MYAPP_* instead of RIVAAS_*
+//	)
+//
+// Invalid environment values cause [New] to return an error (fail-fast).
 //
 // # Examples
 //
 // See the examples directory for complete working examples:
 //
-//   - examples/01-quick-start: Minimal setup to get started
-//   - examples/02-full-featured: Production-ready application with full observability
+//   - examples/01-quick-start: Minimal setup to get started (basic routing, JSON responses)
+//   - examples/02-blog: Real-world blog API with configuration, validation, OpenAPI docs, observability, and testing
 //
 // # Architecture
 //
