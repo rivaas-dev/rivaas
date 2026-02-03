@@ -97,7 +97,7 @@ type bindingMetadata struct {
 func (c *Context) Bind(out any) error {
 	// Get struct type for introspection
 	t := reflect.TypeOf(out)
-	if t.Kind() != reflect.Ptr {
+	if t.Kind() != reflect.Pointer {
 		return binding.ErrOutMustBePointer
 	}
 	if t.Elem().Kind() != reflect.Struct && t.Elem().Kind() != reflect.Map {
@@ -289,10 +289,12 @@ func (c *Context) bindForm(out any) error {
 		if err := req.ParseMultipartForm(32 << 20); err != nil { // 32 MB max
 			return fmt.Errorf("failed to parse multipart form: %w", err)
 		}
-	} else {
-		if err := req.ParseForm(); err != nil {
-			return fmt.Errorf("failed to parse form: %w", err)
-		}
+
+		return binding.MultipartTo(req.MultipartForm, out)
+	}
+
+	if err := req.ParseForm(); err != nil {
+		return fmt.Errorf("failed to parse form: %w", err)
 	}
 
 	return binding.FormTo(req.Form, out)
