@@ -17,6 +17,7 @@ package binding
 import (
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -122,6 +123,41 @@ func Cookie[T any](cookies []*http.Cookie, opts ...Option) (T, error) {
 	return result, nil
 }
 
+// Multipart binds multipart form data including files to type T.
+// This handles both uploaded files (*File, []*File fields) and regular form values.
+//
+// Example:
+//
+//	type UploadRequest struct {
+//	    File     *File   `form:"avatar"`
+//	    Files    []*File `form:"attachments"`
+//	    Title    string  `form:"title"`
+//	    Settings *Config `form:"settings"` // JSON auto-parsed
+//	}
+//
+//	r.ParseMultipartForm(32 << 20) // 32 MB max memory
+//	req, err := binding.Multipart[UploadRequest](r.MultipartForm)
+//	if err != nil {
+//	    return err
+//	}
+//	req.File.Save("./uploads/" + req.File.Name)
+//
+// Errors:
+//   - [ErrOutMustBePointer]: T is not a struct type
+//   - [ErrFileNotFound]: required file field not found
+//   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
+//   - [BindError]: field-level binding errors with detailed context
+func Multipart[T any](form *multipart.Form, opts ...Option) (T, error) {
+	var result T
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewMultipartGetter(form), TagForm, cfg); err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
 // Bind binds from one or more sources specified via From* options.
 //
 // Example:
@@ -213,6 +249,26 @@ func CookieTo(cookies []*http.Cookie, out any, opts ...Option) error {
 	defer cfg.finish()
 
 	return bindFromSource(out, NewCookieGetter(cookies), TagCookie, cfg)
+}
+
+// MultipartTo binds multipart form data including files to out.
+// This handles both uploaded files (*File, []*File fields) and regular form values.
+//
+// Example:
+//
+//	type UploadRequest struct {
+//	    File  *File  `form:"avatar"`
+//	    Title string `form:"title"`
+//	}
+//
+//	r.ParseMultipartForm(32 << 20)
+//	var req UploadRequest
+//	err := binding.MultipartTo(r.MultipartForm, &req)
+func MultipartTo(form *multipart.Form, out any, opts ...Option) error {
+	cfg := applyOptions(opts)
+	defer cfg.finish()
+
+	return bindFromSource(out, NewMultipartGetter(form), TagForm, cfg)
 }
 
 // BindTo binds from one or more sources specified via From* options.
@@ -439,6 +495,31 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 		fieldValue := elem.FieldByIndex(field.index)
 		if !fieldValue.CanSet() {
 			continue // Skip unexported fields
+		}
+
+		// Handle file fields (*File or []*File)
+		if isFileType(field.fieldType) {
+			if err := setFileField(fieldValue, getter, field.tagName); err != nil {
+				bindErr := &BindError{
+					Field:  field.name,
+					Source: sourceFromTag(tagName),
+					Value:  "",
+					Type:   fieldValue.Type(),
+					Reason: err.Error(),
+					Err:    err,
+				}
+				if cfg.allErrors {
+					multiErr.Add(bindErr)
+
+					continue
+				}
+				cfg.trackError()
+
+				return bindErr
+			}
+			cfg.trackField(field.name, tagName, evtFlags)
+
+			continue
 		}
 
 		// Handle map fields

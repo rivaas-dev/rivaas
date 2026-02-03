@@ -60,6 +60,9 @@ const (
 
 	// SourceProto represents Protocol Buffers body.
 	SourceProto
+
+	// SourceMultipart represents multipart form data.
+	SourceMultipart
 )
 
 // String returns the string representation of the source.
@@ -87,6 +90,8 @@ func (s Source) String() string {
 		return "msgpack"
 	case SourceProto:
 		return "proto"
+	case SourceMultipart:
+		return "multipart"
 	default:
 		return "unknown"
 	}
@@ -141,6 +146,8 @@ var (
 	ErrInvalidStructTag        = errors.New("invalid struct tag")
 	ErrInvalidUUIDFormat       = errors.New("invalid UUID format")
 	ErrNoSourcesProvided       = errors.New("no binding sources provided")
+	ErrFileNotFound            = errors.New("file not found")
+	ErrNoFilesFound            = errors.New("no files found")
 )
 
 // BindError represents a binding error with field-level context.

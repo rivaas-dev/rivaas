@@ -61,6 +61,36 @@ type ValueGetter interface {
 	Has(key string) bool
 }
 
+// FileGetter provides access to uploaded files in multipart forms.
+// This interface is implemented by [MultipartGetter] and allows binding
+// *File and []*File fields during struct binding.
+//
+// FileGetter is typically used together with [ValueGetter] for multipart
+// form binding that includes both files and form values.
+//
+// Example:
+//
+//	type UploadRequest struct {
+//	    File  *File  `form:"document"`
+//	    Title string `form:"title"`
+//	}
+//
+//	getter := binding.NewMultipartGetter(form)
+//	file, err := getter.File("document")  // FileGetter
+//	title := getter.Get("title")          // ValueGetter
+type FileGetter interface {
+	// File returns the first uploaded file for the given field name.
+	// Returns ErrFileNotFound if no file exists for the field name.
+	File(name string) (*File, error)
+
+	// Files returns all uploaded files for the given field name.
+	// Returns ErrNoFilesFound if no files exist for the field name.
+	Files(name string) ([]*File, error)
+
+	// HasFile returns true if at least one file exists for the field name.
+	HasFile(name string) bool
+}
+
 // approxSizer is an optional interface for [ValueGetter] implementations that
 // can estimate the number of keys matching a prefix. This is used for map
 // capacity estimation to improve performance when binding map fields.

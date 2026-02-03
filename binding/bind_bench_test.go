@@ -17,6 +17,8 @@
 package binding
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/url"
 	"reflect"
 	"testing"
@@ -280,4 +282,229 @@ func BenchmarkBind_WithDefaults(b *testing.B) {
 		//nolint:errcheck // Benchmark measures performance; error checking would skew results
 		Raw(getter, TagQuery, &config)
 	}
+}
+
+// BenchmarkMultipart benchmarks multipart form binding.
+func BenchmarkMultipart(b *testing.B) {
+	type UploadRequest struct {
+		File     *File  `form:"avatar"`
+		Title    string `form:"title"`
+		Username string `form:"username"`
+	}
+
+	// Create a sample multipart form
+	form := createBenchMultipartForm(b)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for b.Loop() {
+		var req UploadRequest
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MultipartTo(form, &req)
+	}
+}
+
+// BenchmarkMultipart_WithFiles benchmarks multipart form binding with multiple files.
+func BenchmarkMultipart_WithFiles(b *testing.B) {
+	type UploadRequest struct {
+		Files []*File `form:"attachments"`
+		Title string  `form:"title"`
+	}
+
+	form := createBenchMultipartFormWithFiles(b)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for b.Loop() {
+		var req UploadRequest
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MultipartTo(form, &req)
+	}
+}
+
+// BenchmarkMultipart_WithJSON benchmarks multipart form binding with JSON parsing.
+func BenchmarkMultipart_WithJSON(b *testing.B) {
+	type Settings struct {
+		Theme  string `json:"theme"`
+		Lang   string `json:"lang"`
+		Notify bool   `json:"notify"`
+	}
+
+	type Request struct {
+		File     *File    `form:"file"`
+		Settings Settings `form:"settings"`
+	}
+
+	form := createBenchMultipartFormWithJSON(b)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for b.Loop() {
+		var req Request
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		MultipartTo(form, &req)
+	}
+}
+
+// BenchmarkMultipartGetter_File benchmarks file retrieval from MultipartGetter.
+func BenchmarkMultipartGetter_File(b *testing.B) {
+	form := createBenchMultipartForm(b)
+	getter := NewMultipartGetter(form)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for b.Loop() {
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		_, _ = getter.File("avatar")
+	}
+}
+
+// BenchmarkMultipartGetter_Get benchmarks form value retrieval.
+func BenchmarkMultipartGetter_Get(b *testing.B) {
+	form := createBenchMultipartForm(b)
+	getter := NewMultipartGetter(form)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for b.Loop() {
+		_ = getter.Get("title")
+		_ = getter.Get("username")
+	}
+}
+
+// BenchmarkFile_Save benchmarks file saving operations.
+func BenchmarkFile_Save(b *testing.B) {
+	form := createBenchMultipartForm(b)
+	getter := NewMultipartGetter(form)
+	file, err := getter.File("avatar")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	tmpDir := b.TempDir()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		dst := tmpDir + "/file_" + string(rune(i)) + ".txt"
+		b.StartTimer()
+
+		//nolint:errcheck // Benchmark measures performance; error checking would skew results
+		_ = file.Save(dst)
+	}
+}
+
+// Helper functions for benchmark setup
+
+func createBenchMultipartForm(b *testing.B) *multipart.Form {
+	b.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// Add a file
+	fw, err := writer.CreateFormFile("avatar", "test.jpg")
+	if err != nil {
+		b.Fatal(err)
+	}
+	if _, writeErr := fw.Write([]byte("test file content")); writeErr != nil {
+		b.Fatal(writeErr)
+	}
+
+	// Add form fields
+	if writeErr := writer.WriteField("title", "Test Title"); writeErr != nil {
+		b.Fatal(writeErr)
+	}
+	if writeErr := writer.WriteField("username", "testuser"); writeErr != nil {
+		b.Fatal(writeErr)
+	}
+
+	if closeErr := writer.Close(); closeErr != nil {
+		b.Fatal(closeErr)
+	}
+
+	// Parse into multipart.Form
+	boundary := writer.Boundary()
+	mr := multipart.NewReader(bytes.NewReader(body.Bytes()), boundary)
+	form, err := mr.ReadForm(32 << 20)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	return form
+}
+
+func createBenchMultipartFormWithFiles(b *testing.B) *multipart.Form {
+	b.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// Add multiple files
+	for i := 0; i < 5; i++ {
+		fw, err := writer.CreateFormFile("attachments", "file.txt")
+		if err != nil {
+			b.Fatal(err)
+		}
+		if _, writeErr := fw.Write([]byte("file content")); writeErr != nil {
+			b.Fatal(writeErr)
+		}
+	}
+
+	if writeErr := writer.WriteField("title", "Test"); writeErr != nil {
+		b.Fatal(writeErr)
+	}
+
+	if closeErr := writer.Close(); closeErr != nil {
+		b.Fatal(closeErr)
+	}
+
+	boundary := writer.Boundary()
+	mr := multipart.NewReader(bytes.NewReader(body.Bytes()), boundary)
+	form, err := mr.ReadForm(32 << 20)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	return form
+}
+
+func createBenchMultipartFormWithJSON(b *testing.B) *multipart.Form {
+	b.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	fw, err := writer.CreateFormFile("file", "test.txt")
+	if err != nil {
+		b.Fatal(err)
+	}
+	if _, writeErr := fw.Write([]byte("content")); writeErr != nil {
+		b.Fatal(writeErr)
+	}
+
+	// Add JSON in form field
+	if writeErr := writer.WriteField("settings", `{"theme":"dark","lang":"en","notify":true}`); writeErr != nil {
+		b.Fatal(writeErr)
+	}
+
+	if closeErr := writer.Close(); closeErr != nil {
+		b.Fatal(closeErr)
+	}
+
+	boundary := writer.Boundary()
+	mr := multipart.NewReader(bytes.NewReader(body.Bytes()), boundary)
+	form, err := mr.ReadForm(32 << 20)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	return form
 }

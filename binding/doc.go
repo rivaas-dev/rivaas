@@ -52,6 +52,10 @@
 //	// Cookies
 //	session, err := binding.Cookie[SessionData](r.Cookies())
 //
+//	// Multipart form data (with file uploads)
+//	r.ParseMultipartForm(32 << 20)
+//	req, err := binding.Multipart[UploadRequest](r.MultipartForm)
+//
 //	// JSON body
 //	user, err := binding.JSON[CreateUserRequest](body)
 //
@@ -68,6 +72,88 @@
 //	    binding.FromHeader(r.Header),
 //	    binding.FromJSON(body),
 //	)
+//
+// # Multipart Form Binding
+//
+// Bind multipart forms with file uploads directly to structs using the form tag.
+// This enables handling file uploads and form values in a single struct:
+//
+//	type UploadRequest struct {
+//	    Avatar      *File   `form:"avatar"`       // Single file
+//	    Attachments []*File `form:"attachments"`  // Multiple files
+//	    Title       string  `form:"title"`        // Regular form field
+//	    Settings    Config  `form:"settings"`     // JSON string auto-parsed
+//	}
+//
+//	r.ParseMultipartForm(32 << 20) // Parse with 32MB max memory
+//	req, err := binding.Multipart[UploadRequest](r.MultipartForm)
+//	if err != nil {
+//	    return err
+//	}
+//
+//	// Access file properties
+//	fmt.Printf("File: %s (%d bytes, %s)\n",
+//	    req.Avatar.Name, req.Avatar.Size, req.Avatar.ContentType)
+//
+//	// Save file to disk
+//	req.Avatar.Save("./uploads/" + req.Avatar.Name)
+//
+//	// Read file into memory (for small files)
+//	data, _ := req.Avatar.Bytes()
+//
+//	// Stream large files
+//	reader, _ := req.Avatar.Open()
+//	defer reader.Close()
+//	io.Copy(destination, reader)
+//
+// File fields use the *File or []*File types and support the same struct tag syntax
+// as other binding sources (defaults, aliases, etc.). The File type provides
+// methods for reading, streaming, and saving uploaded files with built-in
+// security (filename sanitization, path cleaning).
+//
+// ## JSON in Form Fields
+//
+// Multipart binding automatically detects and parses JSON strings in form fields:
+//
+//	type PrintSettings struct {
+//	    Orientation string `json:"orientation"`
+//	    ColorMode   string `json:"color_mode"`
+//	}
+//
+//	type Request struct {
+//	    Document *File         `form:"document"`
+//	    Settings PrintSettings `form:"settings"` // JSON auto-parsed
+//	}
+//
+//	// HTML form:
+//	// <input type="file" name="document">
+//	// <input type="hidden" name="settings" value='{"orientation":"landscape","color_mode":"color"}'>
+//
+// If the form field value starts with { or [ and ends with } or ], the binding
+// automatically attempts JSON unmarshaling. If JSON parsing fails, it falls back
+// to dot-notation parsing (settings.orientation=landscape).
+//
+// ## File Security
+//
+// The File type includes built-in security features:
+//
+//   - Filename sanitization: Removes path components (../, ..\, etc.)
+//   - Path cleaning: Save() validates destination paths
+//   - Content type detection: Extracts MIME type from headers
+//
+// Best practices for file handling:
+//
+//	// Generate unique filenames to prevent overwrites
+//	uniqueName := uuid.New().String() + file.Ext()
+//	file.Save("./uploads/" + uniqueName)
+//
+//	// Validate file size and type before processing
+//	if file.Size > maxSize {
+//	    return errors.New("file too large")
+//	}
+//	if !allowedTypes[file.ContentType] {
+//	    return errors.New("unsupported file type")
+//	}
 //
 // # Configuration
 //
@@ -555,6 +641,22 @@
 //	        return // Error automatically handled
 //	    }
 //	    c.JSON(http.StatusCreated, user)
+//	}
+//
+//	// Multipart file upload with app.Context
+//	func UploadHandler(c *app.Context) {
+//	    type Request struct {
+//	        File  *binding.File `form:"file"`
+//	        Title string         `form:"title"`
+//	    }
+//
+//	    var req Request
+//	    if err := c.Bind(&req); err != nil {
+//	        return // Error automatically handled
+//	    }
+//
+//	    req.File.Save("./uploads/" + req.File.Name)
+//	    c.JSON(http.StatusOK, map[string]string{"uploaded": req.File.Name})
 //	}
 //
 // # Best Practices

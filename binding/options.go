@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -242,6 +243,24 @@ func FromCookie(cookies []*http.Cookie) Option {
 		c.sources = append(c.sources, sourceEntry{
 			getter: NewCookieGetter(cookies),
 			tag:    TagCookie,
+		})
+	}
+}
+
+// FromMultipart specifies multipart form data as a binding source for [Bind] or [BindTo].
+// This handles both uploaded files and regular form values.
+//
+// Example:
+//
+//	req, err := binding.Bind[Request](
+//	    binding.FromPath(pathParams),
+//	    binding.FromMultipart(r.MultipartForm),
+//	)
+func FromMultipart(form *multipart.Form) Option {
+	return func(c *config) {
+		c.sources = append(c.sources, sourceEntry{
+			getter: NewMultipartGetter(form),
+			tag:    TagForm,
 		})
 	}
 }

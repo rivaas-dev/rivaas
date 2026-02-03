@@ -65,4 +65,6 @@ var (
 	ipType              = reflect.TypeFor[net.IP]()
 	ipNetType           = reflect.TypeFor[net.IPNet]()
 	regexpType          = reflect.TypeFor[regexp.Regexp]()
+	fileType            = reflect.TypeFor[*File]()
+	fileSliceType       = reflect.TypeFor[[]*File]()
 )

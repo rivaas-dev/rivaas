@@ -605,6 +605,23 @@ func extractBracketKey(fullKey, prefix string) string {
 func setNestedStructWithDepth(field reflect.Value, getter ValueGetter, prefix string,
 	tagName string, opts *config, depth int,
 ) error {
+	// Try to parse as JSON first if the field has a direct value (multipart forms with JSON strings)
+	if jsonValue := getter.Get(prefix); jsonValue != "" && len(jsonValue) > 0 {
+		// Check if it looks like JSON (starts with { or [)
+		trimmed := strings.TrimSpace(jsonValue)
+		if (strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")) ||
+			(strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]")) {
+			// Try to unmarshal as JSON
+			if field.CanAddr() {
+				if err := json.Unmarshal([]byte(jsonValue), field.Addr().Interface()); err == nil {
+					// Successfully parsed as JSON
+					return nil
+				}
+			}
+			// If JSON parsing fails, fall through to dot-notation parsing
+		}
+	}
+
 	// Create nested value getter that filters by prefix
 	nestedGetter := &prefixGetter{
 		inner:  getter,
@@ -706,4 +723,48 @@ func estimateMapCapacity(getter ValueGetter, prefix string) int {
 
 	// Fallback to reasonable default
 	return 8
+}
+
+// isFileType returns true if the type is *File or []*File.
+func isFileType(t reflect.Type) bool {
+	return t == fileType || t == fileSliceType
+}
+
+// setFileField handles binding for file upload fields (*File or []*File).
+// It checks if the getter implements FileGetter and retrieves the file(s).
+func setFileField(field reflect.Value, getter ValueGetter, name string) error {
+	// Check if getter supports file uploads
+	fg, ok := getter.(FileGetter)
+	if !ok {
+		// Not a multipart source, skip silently
+		return nil
+	}
+
+	fieldType := field.Type()
+
+	// Handle []*File (slice of files)
+	if fieldType == fileSliceType {
+		files, err := fg.Files(name)
+		if err != nil {
+			// Only return error if field is required (no default), otherwise skip
+			return err
+		}
+		field.Set(reflect.ValueOf(files))
+
+		return nil
+	}
+
+	// Handle *File (single file)
+	if fieldType == fileType {
+		file, err := fg.File(name)
+		if err != nil {
+			// Only return error if field is required, otherwise skip
+			return err
+		}
+		field.Set(reflect.ValueOf(file))
+
+		return nil
+	}
+
+	return nil
 }

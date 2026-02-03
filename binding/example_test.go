@@ -17,7 +17,9 @@
 package binding_test
 
 import (
+	"bytes"
 	"fmt"
+	"mime/multipart"
 	"net/url"
 
 	"rivaas.dev/binding"
@@ -273,4 +275,73 @@ func ExampleHasStructTag() {
 
 	_, _ = fmt.Printf("UserRequest has multiple source tags\n")
 	// Output: UserRequest has multiple source tags
+}
+
+// ExampleMultipart demonstrates binding multipart form data with file uploads.
+func ExampleMultipart() {
+	// Simulate a multipart form with file upload and JSON data
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// Add a file upload
+	fw, err := writer.CreateFormFile("avatar", "photo.jpg")
+	if err != nil {
+		panic(err)
+	}
+	if _, writeErr := fw.Write([]byte("image data")); writeErr != nil {
+		panic(writeErr)
+	}
+
+	// Add form fields
+	if writeErr := writer.WriteField("username", "alice"); writeErr != nil {
+		panic(writeErr)
+	}
+	if writeErr := writer.WriteField("email", "alice@example.com"); writeErr != nil {
+		panic(writeErr)
+	}
+
+	// Add JSON in a form field (automatically parsed)
+	if writeErr := writer.WriteField("settings", `{"theme":"dark","notifications":true}`); writeErr != nil {
+		panic(writeErr)
+	}
+
+	if closeErr := writer.Close(); closeErr != nil {
+		panic(closeErr)
+	}
+
+	// Parse the multipart form
+	boundary := writer.FormDataContentType()[len("multipart/form-data; boundary="):]
+	mr := multipart.NewReader(bytes.NewReader(body.Bytes()), boundary)
+	form, err := mr.ReadForm(32 << 20)
+	if err != nil {
+		panic(err)
+	}
+
+	// Define request struct
+	type Settings struct {
+		Theme         string `json:"theme"`
+		Notifications bool   `json:"notifications"`
+	}
+
+	type Request struct {
+		Avatar   *binding.File `form:"avatar"`
+		Username string        `form:"username"`
+		Email    string        `form:"email"`
+		Settings Settings      `form:"settings"` // JSON auto-parsed
+	}
+
+	// Bind multipart form to struct
+	req, err := binding.Multipart[Request](form)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("User: %s <%s>\n", req.Username, req.Email)
+	fmt.Printf("Avatar: %s (%d bytes)\n", req.Avatar.Name, req.Avatar.Size)
+	fmt.Printf("Settings: theme=%s, notifications=%t\n", req.Settings.Theme, req.Settings.Notifications)
+
+	// Output:
+	// User: alice <alice@example.com>
+	// Avatar: photo.jpg (10 bytes)
+	// Settings: theme=dark, notifications=true
 }
