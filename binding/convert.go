@@ -602,6 +602,9 @@ func extractBracketKey(fullKey, prefix string) string {
 // setNestedStructWithDepth handles nested struct binding with depth tracking.
 // It creates a prefix getter that filters values by the prefix (e.g., "address.")
 // and recursively binds the nested struct. Query syntax: ?address.street=Main&address.city=NYC
+//
+// When field is a pointer-to-struct, it initializes nil pointers and dereferences
+// them before binding. This allows binding into fields like *Settings or *Address.
 func setNestedStructWithDepth(field reflect.Value, getter ValueGetter, prefix string,
 	tagName string, opts *config, depth int,
 ) error {
@@ -628,9 +631,22 @@ func setNestedStructWithDepth(field reflect.Value, getter ValueGetter, prefix st
 		prefix: prefix + ".",
 	}
 
+	// Handle pointer-to-struct: initialize nil pointers and dereference
+	structValue := field
+	structType := field.Type()
+	if field.Kind() == reflect.Ptr {
+		// Initialize nil pointer
+		if field.IsNil() {
+			field.Set(reflect.New(field.Type().Elem()))
+		}
+		// Dereference to get the struct value
+		structValue = field.Elem()
+		structType = field.Type().Elem()
+	}
+
 	// Recursively bind nested struct with incremented depth
-	return bindFieldsWithDepth(field, nestedGetter, tagName,
-		getStructInfo(field.Type(), tagName), opts, depth)
+	return bindFieldsWithDepth(structValue, nestedGetter, tagName,
+		getStructInfo(structType, tagName), opts, depth)
 }
 
 // prefixGetter filters values by prefix for nested struct/map binding.
