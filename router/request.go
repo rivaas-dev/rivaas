@@ -18,7 +18,6 @@ package router
 // These methods provide convenient access to request metadata, URLs, headers, and client information.
 
 import (
-	"fmt"
 	"maps"
 	"net"
 	"net/http"
@@ -507,81 +506,6 @@ func (c *Context) IsFresh() bool {
 //	}
 func (c *Context) IsStale() bool {
 	return !c.IsFresh()
-}
-
-// File returns the uploaded file for the given form field name.
-// Returns a *File with a clean API for reading, streaming, and saving.
-//
-// The filename is automatically sanitized to prevent path traversal attacks.
-//
-// Example:
-//
-//	file, err := c.File("avatar")
-//	if err != nil {
-//	    return c.JSON(400, router.H{"error": "avatar required"})
-//	}
-//
-//	// Access file info
-//	fmt.Printf("Name: %s, Size: %d, Type: %s\n", file.Name, file.Size, file.ContentType)
-//
-//	// Save with generated name (recommended for security)
-//	file.Save("./uploads/" + uuid.New().String() + file.Ext())
-//
-//	// Or read into memory (for small files)
-//	data, _ := file.Bytes()
-func (c *Context) File(name string) (*File, error) {
-	// Parse multipart form if not already parsed
-	if c.Request.MultipartForm == nil {
-		if err := c.Request.ParseMultipartForm(32 << 20); err != nil { // 32 MB max
-			return nil, fmt.Errorf("failed to parse multipart form: %w", err)
-		}
-	}
-
-	// Get file from multipart form
-	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File[name] != nil {
-		headers := c.Request.MultipartForm.File[name]
-		if len(headers) > 0 {
-			return newFile(headers[0]), nil
-		}
-	}
-
-	return nil, fmt.Errorf("%w: %q", ErrFileNotFound, name)
-}
-
-// Files returns all uploaded files for the given form field name.
-// Useful for handling multiple file uploads with the same field name.
-//
-// Example:
-//
-//	// HTML: <input type="file" name="documents" multiple>
-//	files, err := c.Files("documents")
-//	if err != nil {
-//	    return c.JSON(400, router.H{"error": "documents required"})
-//	}
-//
-//	for _, f := range files {
-//	    f.Save("./uploads/" + f.Name)
-//	}
-func (c *Context) Files(name string) ([]*File, error) {
-	// Parse multipart form if not already parsed
-	if c.Request.MultipartForm == nil {
-		if err := c.Request.ParseMultipartForm(32 << 20); err != nil { // 32 MB max
-			return nil, fmt.Errorf("failed to parse multipart form: %w", err)
-		}
-	}
-
-	// Get files from multipart form
-	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File[name] != nil {
-		headers := c.Request.MultipartForm.File[name]
-		files := make([]*File, 0, len(headers))
-		for _, h := range headers {
-			files = append(files, newFile(h))
-		}
-
-		return files, nil
-	}
-
-	return nil, fmt.Errorf("%w: %q", ErrNoFilesFound, name)
 }
 
 // parseHTTPDate parses an HTTP date string per RFC 7231.

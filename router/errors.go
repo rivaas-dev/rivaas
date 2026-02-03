@@ -23,12 +23,6 @@ var (
 	// ErrContentTypeNotAllowed indicates that the content type is not allowed.
 	ErrContentTypeNotAllowed = errors.New("content type not allowed")
 
-	// ErrFileNotFound indicates that the requested file could not be found.
-	ErrFileNotFound = errors.New("file not found")
-
-	// ErrNoFilesFound indicates that no files were found for the specified key.
-	ErrNoFilesFound = errors.New("no files found for key")
-
 	// ErrResponseWriterNotHijacker indicates that ResponseWriter does not implement the http.Hijacker interface.
 	ErrResponseWriterNotHijacker = errors.New("responseWriter does not implement http.Hijacker")
 

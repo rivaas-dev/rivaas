@@ -1088,9 +1088,6 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 //	    // Process all errors using standard library functions
 //	    if c.HasErrors() {
 //	        joinedErr := errors.Join(c.Errors()...)
-//	        if errors.Is(joinedErr, ErrFileNotFound) {
-//	            // Handle specific error
-//	        }
 //	        if err := c.JSON(400, map[string]any{"errors": c.Errors()}); err != nil {
 //	            c.Logger().Error("failed to write error response", "err", err)
 //	        }
