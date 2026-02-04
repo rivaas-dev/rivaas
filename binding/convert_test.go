@@ -164,7 +164,8 @@ func TestSetNestedStructWithDepth_PointerFields(t *testing.T) {
 			params: &DocumentRequest{},
 			validate: func(t *testing.T, params any) {
 				t.Helper()
-				p := params.(*DocumentRequest)
+				p, ok := params.(*DocumentRequest)
+				require.True(t, ok, "expected *DocumentRequest")
 				assert.Equal(t, "Report", p.Title)
 				require.NotNil(t, p.Settings, "Settings should be initialized")
 				assert.Equal(t, 5, p.Settings.Copies)
@@ -192,7 +193,8 @@ func TestSetNestedStructWithDepth_PointerFields(t *testing.T) {
 			},
 			validate: func(t *testing.T, params any) {
 				t.Helper()
-				p := params.(*DocumentRequest)
+				p, ok := params.(*DocumentRequest)
+				require.True(t, ok, "expected *DocumentRequest")
 				assert.Equal(t, "Existing", p.Title)
 				require.NotNil(t, p.Settings)
 				assert.Equal(t, 3, p.Settings.Copies, "Copies should be updated")
@@ -214,7 +216,8 @@ func TestSetNestedStructWithDepth_PointerFields(t *testing.T) {
 			params: &DocumentRequest{},
 			validate: func(t *testing.T, params any) {
 				t.Helper()
-				p := params.(*DocumentRequest)
+				p, ok := params.(*DocumentRequest)
+				require.True(t, ok, "expected *DocumentRequest")
 				require.NotNil(t, p.Settings, "Settings should be initialized")
 				require.NotNil(t, p.Settings.Margin, "Margin should be initialized")
 				assert.Equal(t, 10, p.Settings.Margin.Top)
@@ -235,7 +238,8 @@ func TestSetNestedStructWithDepth_PointerFields(t *testing.T) {
 			params: &DocumentRequest{},
 			validate: func(t *testing.T, params any) {
 				t.Helper()
-				p := params.(*DocumentRequest)
+				p, ok := params.(*DocumentRequest)
+				require.True(t, ok, "expected *DocumentRequest")
 				require.NotNil(t, p.Settings)
 				assert.Equal(t, 2, p.Settings.Copies)
 				require.NotNil(t, p.Settings.PageSize)
@@ -254,7 +258,8 @@ func TestSetNestedStructWithDepth_PointerFields(t *testing.T) {
 			params: &DocumentRequest{},
 			validate: func(t *testing.T, params any) {
 				t.Helper()
-				p := params.(*DocumentRequest)
+				p, ok := params.(*DocumentRequest)
+				require.True(t, ok, "expected *DocumentRequest")
 				assert.Equal(t, "Empty Settings", p.Title)
 				// Settings should remain nil since no settings.* values provided
 			},
