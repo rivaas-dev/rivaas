@@ -181,9 +181,9 @@ in
           echo '{}' > .cursor/cli.json
         fi
         
-        # Test if cursor-agent works
+        # Test if cursor-agent works (15s timeout - first request can be slow due to API latency)
         local test_output
-        if test_output=$(timeout 5 ${pkgs.cursor-cli}/bin/cursor-agent -p --output-format text "test" 2>&1); then
+        if test_output=$(timeout 15 ${pkgs.cursor-cli}/bin/cursor-agent -p --output-format text "test" 2>&1); then
           # Check if we got actual output (not just exit 0)
           if [ -n "$test_output" ]; then
             return 0
@@ -257,9 +257,10 @@ in
         $gum style --faint "  Falling back to manual commit messages..."
         echo ""
       elif [ $trust_result -ne 0 ]; then
-        $gum style --foreground ${lib.colors.error} "✗ Cursor Agent workspace trust issue"
-        $gum style --faint "  Could not establish workspace trust"
-        $gum style --faint "  Run 'cursor-agent' interactively in this directory"
+        $gum style --foreground ${lib.colors.error} "✗ Cursor Agent connection failed"
+        $gum style --faint "  Could not connect to Cursor Agent API (timeout or trust issue)"
+        $gum style --faint "  Try: cursor-agent -p --output-format text 'test'"
+        $gum style --faint "  If slow, the API may need a moment to warm up"
         echo ""
       fi
       
