@@ -124,8 +124,8 @@ func Example_middleware() {
 	// Output: Middleware registered
 }
 
-// Example_bindAndValidate demonstrates request binding and validation.
-func Example_bindAndValidate() {
+// ExampleContext_Bind demonstrates basic request binding and validation.
+func ExampleContext_Bind() {
 	a := app.MustNew()
 
 	type CreateUserRequest struct {
@@ -135,7 +135,7 @@ func Example_bindAndValidate() {
 
 	a.POST("/users", func(c *app.Context) {
 		var req CreateUserRequest
-		if err := c.BindAndValidate(&req); err != nil {
+		if err := c.Bind(&req); err != nil {
 			c.Error(err)
 			return
 		}
@@ -150,6 +150,215 @@ func Example_bindAndValidate() {
 
 	fmt.Println("Handler with binding and validation registered")
 	// Output: Handler with binding and validation registered
+}
+
+// ExampleContext_Bind_withOptions demonstrates binding with options.
+func ExampleContext_Bind_withOptions() {
+	a := app.MustNew()
+
+	type CreateUserRequest struct {
+		Name  string `json:"name" validate:"required,min=3"`
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	a.POST("/users", func(c *app.Context) {
+		var req CreateUserRequest
+		if err := c.Bind(&req, app.WithStrict()); err != nil {
+			c.Error(err)
+			return
+		}
+
+		if err := c.JSON(http.StatusCreated, map[string]string{
+			"message": "User created",
+		}); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
+	})
+
+	fmt.Println("Handler with strict binding registered")
+	// Output: Handler with strict binding registered
+}
+
+// ExampleContext_MustBind demonstrates the Must pattern for binding.
+func ExampleContext_MustBind() {
+	a := app.MustNew()
+
+	type CreateUserRequest struct {
+		Name  string `json:"name" validate:"required,min=3"`
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	a.POST("/users", func(c *app.Context) {
+		var req CreateUserRequest
+		if !c.MustBind(&req) {
+			return // Error already written
+		}
+
+		if err := c.JSON(http.StatusCreated, map[string]string{
+			"message": "User created",
+			"name":    req.Name,
+		}); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
+	})
+
+	fmt.Println("Handler with MustBind registered")
+	// Output: Handler with MustBind registered
+}
+
+// ExampleBind demonstrates type-safe binding with generics.
+func ExampleBind() {
+	a := app.MustNew()
+
+	type CreateUserRequest struct {
+		Name  string `json:"name" validate:"required,min=3"`
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	a.POST("/users", func(c *app.Context) {
+		req, err := app.Bind[CreateUserRequest](c)
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		if jsonErr := c.JSON(http.StatusCreated, map[string]string{
+			"message": "User created",
+			"name":    req.Name,
+		}); jsonErr != nil {
+			log.Printf("Failed to write response: %v", jsonErr)
+		}
+	})
+
+	fmt.Println("Handler with generic Bind registered")
+	// Output: Handler with generic Bind registered
+}
+
+// ExampleMustBind demonstrates type-safe binding with the Must pattern.
+func ExampleMustBind() {
+	a := app.MustNew()
+
+	type CreateUserRequest struct {
+		Name  string `json:"name" validate:"required,min=3"`
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	a.POST("/users", func(c *app.Context) {
+		req, ok := app.MustBind[CreateUserRequest](c)
+		if !ok {
+			return // Error already written
+		}
+
+		if err := c.JSON(http.StatusCreated, map[string]string{
+			"message": "User created",
+			"name":    req.Name,
+		}); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
+	})
+
+	fmt.Println("Handler with MustBind registered")
+	// Output: Handler with MustBind registered
+}
+
+// ExampleBindPatch demonstrates partial validation for PATCH endpoints.
+func ExampleBindPatch() {
+	a := app.MustNew()
+
+	type UpdateUserRequest struct {
+		Name  *string `json:"name" validate:"omitempty,min=3"`
+		Email *string `json:"email" validate:"omitempty,email"`
+	}
+
+	a.PATCH("/users/:id", func(c *app.Context) {
+		req, err := app.BindPatch[UpdateUserRequest](c)
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		userID := c.Param("id")
+		if jsonErr := c.JSON(http.StatusOK, map[string]string{
+			"message": "User updated",
+			"id":      userID,
+		}); jsonErr != nil {
+			log.Printf("Failed to write response: %v", jsonErr)
+		}
+
+		_ = req // Use req for update logic
+	})
+
+	fmt.Println("PATCH handler with partial validation registered")
+	// Output: PATCH handler with partial validation registered
+}
+
+// ExampleBindStrict demonstrates strict mode for typo detection.
+func ExampleBindStrict() {
+	a := app.MustNew()
+
+	type CreateUserRequest struct {
+		Name  string `json:"name" validate:"required,min=3"`
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	a.POST("/users", func(c *app.Context) {
+		req, err := app.BindStrict[CreateUserRequest](c)
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		if jsonErr := c.JSON(http.StatusCreated, map[string]string{
+			"message": "User created",
+			"name":    req.Name,
+		}); jsonErr != nil {
+			log.Printf("Failed to write response: %v", jsonErr)
+		}
+	})
+
+	fmt.Println("Handler with strict binding registered")
+	// Output: Handler with strict binding registered
+}
+
+// ExampleContext_BindOnly demonstrates binding without validation.
+func ExampleContext_BindOnly() {
+	a := app.MustNew()
+
+	type CreateUserRequest struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	a.POST("/users", func(c *app.Context) {
+		var req CreateUserRequest
+		if err := c.BindOnly(&req); err != nil {
+			c.Error(err)
+			return
+		}
+
+		// Custom processing before validation
+		req.Email = normalizeEmail(req.Email)
+
+		// Validate separately
+		if err := c.Validate(&req); err != nil {
+			c.Error(err)
+			return
+		}
+
+		if err := c.JSON(http.StatusCreated, map[string]string{
+			"message": "User created",
+		}); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
+	})
+
+	fmt.Println("Handler with separate bind and validate registered")
+	// Output: Handler with separate bind and validate registered
+}
+
+func normalizeEmail(email string) string {
+	// Example normalization
+	return email
 }
 
 // Example_healthEndpoints demonstrates health check endpoint configuration.

@@ -181,17 +181,58 @@
 //	app.POST("/users", func(c *app.Context) {
 //	    var req CreateUserRequest
 //	    if err := c.Bind(&req); err != nil {
-//	        c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-//	        return
-//	    }
-//
-//	    if err := c.Validate(&req); err != nil {
-//	        c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+//	        c.Error(err)
 //	        return
 //	    }
 //
 //	    // Process request...
 //	    c.JSON(http.StatusCreated, user)
+//	})
+//
+// Or using the type-safe generic API:
+//
+//	app.POST("/users", func(c *app.Context) {
+//	    req, ok := app.MustBind[CreateUserRequest](c)
+//	    if !ok {
+//	        return // Error already written
+//	    }
+//
+//	    // Process request...
+//	    c.JSON(http.StatusCreated, user)
+//	})
+//
+// # Request Binding and Validation
+//
+// The app package provides a unified API for binding and validation:
+//
+//   - [Context.Bind]: Binds and validates request data (default behavior)
+//   - [Context.MustBind]: Bind and validate, write error on failure
+//   - [Context.BindOnly]: Bind without validation (for advanced use)
+//   - [Context.Validate]: Validate only (after BindOnly)
+//
+// Generic type-safe variants:
+//
+//   - [Bind]: Type-safe binding with generics
+//   - [MustBind]: Type-safe Must pattern
+//   - [BindPatch]: Bind with partial validation (PATCH endpoints)
+//   - [BindStrict]: Bind with unknown field rejection
+//
+// Options for customization:
+//
+//   - [WithStrict]: Reject unknown JSON fields
+//   - [WithPartial]: Partial validation for PATCH requests
+//   - [WithoutValidation]: Skip validation step
+//   - [WithBindingOptions]: Pass options to binding package
+//   - [WithValidationOptions]: Pass options to validation package
+//
+// Example with options:
+//
+//	app.PATCH("/users/:id", func(c *app.Context) {
+//	    req, ok := app.MustBindPatch[UpdateUserRequest](c)
+//	    if !ok {
+//	        return
+//	    }
+//	    // Only provided fields are validated
 //	})
 //
 // # Server Configuration

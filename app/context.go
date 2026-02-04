@@ -56,8 +56,14 @@ type bindingMetadata struct {
 	presence validation.PresenceMap // Tracks which fields are present in the request
 }
 
-// Bind automatically detects struct tags and binds from all relevant sources.
-// Bind introspects the struct and binds values based on the tags present.
+// Bind binds request data and validates it.
+// Bind is the recommended method for handling request input.
+//
+// Bind automatically:
+//   - Detects Content-Type and binds from appropriate sources
+//   - Binds path, query, header, and cookie parameters based on struct tags
+//   - Validates the bound struct using the configured strategy
+//   - Tracks field presence for partial validation support
 //
 // Supported sources based on tags:
 //   - path: "name"   - URL path parameters
@@ -67,34 +73,57 @@ type bindingMetadata struct {
 //   - json: "name"   - JSON request body
 //   - form: "name"   - Form data (application/x-www-form-urlencoded or multipart/form-data)
 //
-// Bind only binds from sources where tags are present.
-// For body binding (json/form), Bind automatically detects the Content-Type header.
-// Bind defaults to JSON if Content-Type header is missing.
+// For binding without validation, use [Context.BindOnly].
+// For separate binding and validation, use [Context.BindOnly] and [Context.Validate].
 //
 // Errors:
 //   - [binding.ErrOutMustBePointer]: out is not a pointer to struct or map
 //   - [binding.ErrRequestBodyNil]: request body is nil when JSON/form binding is needed
 //   - [binding.ErrUnsupportedContentType]: Content-Type is not supported
+//   - [validation.Error]: validation failed (one or more field errors)
 //
 // Example:
 //
-//	type GetUserRequest struct {
-//	    ID      int    `path:"id"`
-//	    Expand  string `query:"expand"`
-//	    APIKey  string `header:"X-API-Key"`
-//	    Session string `cookie:"session"`
-//	}
-//
-//	var req GetUserRequest
+//	var req CreateUserRequest
 //	if err := c.Bind(&req); err != nil {
-//	    return err
+//	    c.Error(err)
+//	    return
 //	}
 //
-// For binding + validation, use [Context.BindAndValidate].
+// With options:
+//
+//	if err := c.Bind(&req, app.WithStrict(), app.WithPartial()); err != nil {
+//	    c.Error(err)
+//	    return
+//	}
 //
 // Note: For multipart forms with file uploads, files must be retrieved
 // separately using c.File() or c.Files().
-func (c *Context) Bind(out any) error {
+func (c *Context) Bind(out any, opts ...BindOption) error {
+	cfg := applyBindOptions(opts)
+
+	// Step 1: Binding
+	if err := c.bindInternal(out, cfg); err != nil {
+		return err
+	}
+
+	// Step 2: Validation (unless skipped)
+	if !cfg.skipValidation {
+		if err := c.validateInternal(out, cfg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// bindInternal performs the binding step with the given configuration.
+func (c *Context) bindInternal(out any, cfg *bindConfig) error {
+	// Build binding options
+	bindOpts := cfg.bindingOpts
+	if cfg.strict {
+		bindOpts = append(bindOpts, binding.WithUnknownFields(binding.UnknownError))
+	}
 	// Get struct type for introspection
 	t := reflect.TypeOf(out)
 	if t.Kind() != reflect.Pointer {
@@ -134,7 +163,7 @@ func (c *Context) Bind(out any) error {
 		switch contentType {
 		case "application/json", "application/merge-patch+json", "application/json-patch+json", "":
 			// Default to JSON if no content type specified
-			return c.bindJSON(out)
+			return c.bindJSON(out, bindOpts)
 		case "application/x-www-form-urlencoded":
 			return c.bindForm(out)
 		case "multipart/form-data":
@@ -142,7 +171,7 @@ func (c *Context) Bind(out any) error {
 		default:
 			// For maps, default to JSON even if the content-type is missing
 			if isMap {
-				return c.bindJSON(out)
+				return c.bindJSON(out, bindOpts)
 			}
 
 			return fmt.Errorf("%w: %s", binding.ErrUnsupportedContentType, contentType)
@@ -152,13 +181,52 @@ func (c *Context) Bind(out any) error {
 	return nil
 }
 
+// validateInternal performs the validation step with the given configuration.
+func (c *Context) validateInternal(out any, cfg *bindConfig) error {
+	ctx := c.Request.Context()
+
+	// Inject raw JSON if available
+	if c.bindingMeta != nil && len(c.bindingMeta.rawBody) > 0 {
+		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)
+	}
+
+	// Build validation options
+	valOpts := []validation.Option{
+		validation.WithContext(ctx),
+	}
+
+	// Handle partial validation
+	if cfg.partial {
+		valOpts = append(valOpts, validation.WithPartial(true))
+	}
+
+	// Inject presence map
+	pm := cfg.presence
+	if pm == nil {
+		pm = c.Presence()
+	}
+	if pm != nil {
+		valOpts = append(valOpts, validation.WithPresence(pm))
+	}
+
+	// Handle strict mode for validation
+	if cfg.strict {
+		valOpts = append(valOpts, validation.WithDisallowUnknownFields(true))
+	}
+
+	// Append user-provided validation options
+	valOpts = append(valOpts, cfg.validationOpts...)
+
+	return validation.Validate(ctx, out, valOpts...)
+}
+
 // hasJSONOrFormTag checks if the struct has any "json" or form tags.
 func hasJSONOrFormTag(t reflect.Type) bool {
 	return binding.HasStructTag(t, binding.TagJSON) || binding.HasStructTag(t, binding.TagForm)
 }
 
 // bindJSON binds JSON request body to a struct.
-func (c *Context) bindJSON(out any) error {
+func (c *Context) bindJSON(out any, opts []binding.Option) error {
 	req := c.Request
 	if req.Body == nil {
 		return binding.ErrRequestBodyNil
@@ -191,58 +259,8 @@ func (c *Context) bindJSON(out any) error {
 		)
 	}
 
-	return binding.JSONTo(c.bindingMeta.rawBody, out)
-}
-
-// BindJSONStrict binds JSON request body with unknown field rejection.
-// BindJSONStrict is useful for catching typos and API drift early.
-//
-// Errors:
-//   - [binding.ErrRequestBodyNil]: request body is nil
-//   - [validation.Error]: JSON contains unknown fields (code: "json.unknown_field")
-//
-// Example:
-//
-//	var user User
-//	if err := c.BindJSONStrict(&user); err != nil {
-//	    // Returns error if JSON contains unknown fields
-//	    return err
-//	}
-func (c *Context) BindJSONStrict(out any) error {
-	req := c.Request
-	if req.Body == nil {
-		return binding.ErrRequestBodyNil
-	}
-
-	// Read and cache body (same as BindJSON)
-	if c.bindingMeta == nil {
-		c.bindingMeta = &bindingMetadata{}
-	}
-
-	if !c.bindingMeta.bodyRead {
-		body, err := io.ReadAll(req.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read body: %w", err)
-		}
-		c.bindingMeta.rawBody = body
-		c.bindingMeta.bodyRead = true
-
-		c.Request.Body = io.NopCloser(bytes.NewReader(body))
-
-		// Track presence using a validation package
-		if pm, presenceErr := validation.ComputePresence(body); presenceErr == nil {
-			c.bindingMeta.presence = pm
-		}
-
-		c.Request = c.Request.WithContext(
-			validation.InjectRawJSONCtx(c.Request.Context(), body),
-		)
-	}
-
-	// Use strict binding (reject unknown fields)
-	err := binding.JSONTo(c.bindingMeta.rawBody, out, binding.WithUnknownFields(binding.UnknownError))
-
-	// Translate binding.UnknownFieldError to validation.Error (only here!)
+	// Translate binding.UnknownFieldError to validation.Error for consistency
+	err := binding.JSONTo(c.bindingMeta.rawBody, out, opts...)
 	var unkErr *binding.UnknownFieldError
 	if errors.As(err, &unkErr) {
 		return &validation.Error{
@@ -254,6 +272,74 @@ func (c *Context) BindJSONStrict(out any) error {
 	}
 
 	return err
+}
+
+// MustBind binds and validates, writing an error response on failure.
+// Returns true if successful, false if an error was written.
+//
+// MustBind eliminates boilerplate error handling for the common case.
+//
+// Example:
+//
+//	var req CreateUserRequest
+//	if !c.MustBind(&req) {
+//	    return // Error already written
+//	}
+//	// Continue with validated request
+func (c *Context) MustBind(out any, opts ...BindOption) bool {
+	if err := c.Bind(out, opts...); err != nil {
+		c.Error(err)
+		return false
+	}
+	return true
+}
+
+// BindOnly binds request data without validation.
+// Use when you need fine-grained control over the bind/validate lifecycle.
+//
+// Example:
+//
+//	var req Request
+//	if err := c.BindOnly(&req); err != nil {
+//	    c.Error(err)
+//	    return
+//	}
+//	req.Normalize() // Custom processing
+//	if err := c.Validate(&req); err != nil {
+//	    c.Error(err)
+//	    return
+//	}
+func (c *Context) BindOnly(out any, opts ...BindOption) error {
+	cfg := applyBindOptions(opts)
+	return c.bindInternal(out, cfg)
+}
+
+// Validate validates a struct using the configured validation strategy.
+// Use after [BindOnly] for fine-grained control.
+//
+// Example:
+//
+//	if err := c.Validate(&req, validation.WithPartial(true)); err != nil {
+//	    c.Error(err)
+//	    return
+//	}
+func (c *Context) Validate(v any, opts ...validation.Option) error {
+	ctx := c.Request.Context()
+
+	// Inject raw JSON if available
+	if c.bindingMeta != nil && len(c.bindingMeta.rawBody) > 0 {
+		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)
+	}
+
+	allOpts := []validation.Option{
+		validation.WithContext(ctx),
+	}
+	if pm := c.Presence(); pm != nil {
+		allOpts = append(allOpts, validation.WithPresence(pm))
+	}
+	allOpts = append(allOpts, opts...)
+
+	return validation.Validate(ctx, v, allOpts...)
 }
 
 // Presence returns the presence map for the current request.
@@ -300,101 +386,6 @@ func (c *Context) bindForm(out any) error {
 	return binding.FormTo(req.Form, out)
 }
 
-// BindAndValidate binds the request body and validates it.
-// BindAndValidate is the most common validation pattern for handlers.
-//
-// BindAndValidate automatically:
-//   - Injects the request context into validation options
-//   - Injects the presence map for partial validation
-//
-// Errors:
-//   - Binding errors from [Context.Bind] (wrapped with "binding failed:")
-//   - [validation.Error]: one or more validation rules failed
-//
-// Example:
-//
-//	var req CreateUserRequest
-//	if err := c.BindAndValidate(&req); err != nil {
-//	    c.Error(err)
-//	    return
-//	}
-//
-// With options:
-//
-//	if err := c.BindAndValidate(&req,
-//	    validation.WithStrategy(validation.StrategyTags),
-//	    validation.WithPartial(true),
-//	); err != nil {
-//	    c.Error(err)
-//	    return
-//	}
-func (c *Context) BindAndValidate(out any, opts ...validation.Option) error {
-	if err := c.Bind(out); err != nil {
-		return fmt.Errorf("binding failed: %w", err)
-	}
-
-	ctx := c.Request.Context()
-	// Inject raw JSON if available
-	if c.bindingMeta != nil && len(c.bindingMeta.rawBody) > 0 {
-		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)
-	}
-
-	allOpts := []validation.Option{
-		validation.WithContext(ctx),
-	}
-	if pm := c.Presence(); pm != nil {
-		allOpts = append(allOpts, validation.WithPresence(pm))
-	}
-	allOpts = append(allOpts, opts...)
-
-	if verr := validation.Validate(ctx, out, allOpts...); verr != nil {
-		return verr
-	}
-
-	return nil
-}
-
-// BindAndValidateStrict binds JSON with unknown field rejection and validates.
-// BindAndValidateStrict is useful for catching typos and API drift early.
-//
-// Errors:
-//   - [validation.Error]: JSON contains unknown fields or validation failed
-//   - [binding.ErrRequestBodyNil]: request body is nil
-//
-// Example:
-//
-//	var req CreateUserRequest
-//	if err := c.BindAndValidateStrict(&req); err != nil {
-//	    c.Error(err)
-//	    return
-//	}
-func (c *Context) BindAndValidateStrict(out any, opts ...validation.Option) error {
-	if err := c.BindJSONStrict(out); err != nil {
-		return err
-	}
-
-	ctx := c.Request.Context()
-	// Inject raw JSON if available
-	if c.bindingMeta != nil && len(c.bindingMeta.rawBody) > 0 {
-		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)
-	}
-
-	allOpts := []validation.Option{
-		validation.WithContext(ctx),
-		validation.WithDisallowUnknownFields(true),
-	}
-	if pm := c.Presence(); pm != nil {
-		allOpts = append(allOpts, validation.WithPresence(pm))
-	}
-	allOpts = append(allOpts, opts...)
-
-	if verr := validation.Validate(ctx, out, allOpts...); verr != nil {
-		return verr
-	}
-
-	return nil
-}
-
 // Error responds with a formatted error using the configured formatter.
 // Error is the recommended way to return errors in handlers.
 //
@@ -405,7 +396,7 @@ func (c *Context) BindAndValidateStrict(out any, opts ...validation.Option) erro
 //
 // Example:
 //
-//	if err := c.BindAndValidate(&req); err != nil {
+//	if err := c.Bind(&req); err != nil {
 //	    c.Error(err)
 //	    return
 //	}
@@ -591,75 +582,6 @@ func (c *Context) Forbidden(message string) {
 //	}
 func (c *Context) InternalError(err error) {
 	c.ErrorStatus(err, http.StatusInternalServerError)
-}
-
-// MustBindAndValidate binds and validates, writing an error response on failure.
-// MustBindAndValidate returns true if validation succeeded, false otherwise.
-// MustBindAndValidate does not panic - it returns a boolean for control flow.
-//
-// Example:
-//
-//	var req CreateUserRequest
-//	if !c.MustBindAndValidate(&req) {
-//	    return // Error already written
-//	}
-//	// Continue with validated request
-func (c *Context) MustBindAndValidate(out any, opts ...validation.Option) bool {
-	if err := c.BindAndValidate(out, opts...); err != nil {
-		c.Error(err)
-		return false
-	}
-
-	return true
-}
-
-// BindAndValidateInto binds and validates into a specific type.
-// T must be a struct type with exported fields; using non-struct types
-// returns [binding.ErrOutMustBePointer].
-//
-// BindAndValidateInto is a generic helper that provides type-safe binding
-// without needing to declare the variable separately.
-//
-// Example:
-//
-//	req, err := BindAndValidateInto[CreateUserRequest](c)
-//	if err != nil {
-//	    c.Error(err)
-//	    return
-//	}
-//	// req is of type CreateUserRequest
-func BindAndValidateInto[T any](c *Context, opts ...validation.Option) (T, error) {
-	var out T
-	if err := c.BindAndValidate(&out, opts...); err != nil {
-		var zero T
-		return zero, err
-	}
-
-	return out, nil
-}
-
-// MustBindAndValidateInto binds and validates, writing an error response on failure.
-// T must be a struct type with exported fields; using non-struct types
-// writes an error response and returns false.
-//
-// MustBindAndValidateInto returns the typed value and a success flag.
-// It does not panic - it returns a boolean for control flow.
-//
-// Example:
-//
-//	req, ok := MustBindAndValidateInto[CreateUserRequest](c)
-//	if !ok {
-//	    return // Error already written
-//	}
-//	// req is of type CreateUserRequest
-func MustBindAndValidateInto[T any](c *Context, opts ...validation.Option) (T, bool) {
-	var out T
-	if !c.MustBindAndValidate(&out, opts...) {
-		var zero T
-		return zero, false
-	}
-
-	return out, true
 }
 
 // Logger returns the request-scoped logger.

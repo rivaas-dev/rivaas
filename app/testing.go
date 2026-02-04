@@ -24,6 +24,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"time"
+
+	"rivaas.dev/router"
 )
 
 // TestOption configures test execution behavior.
@@ -179,4 +181,102 @@ func ExpectJSON(t testingT, resp *http.Response, statusCode int, out any) {
 // testingT is a minimal interface for testing.T to allow use with other test frameworks.
 type testingT interface {
 	Errorf(format string, args ...any)
+}
+
+// TestContextWithBody creates a Context with JSON body for testing.
+// TestContextWithBody is useful for testing binding and validation logic.
+//
+// Example:
+//
+//	body := map[string]string{"name": "Alice", "email": "alice@example.com"}
+//	c, err := app.TestContextWithBody("POST", "/users", body)
+//	if err != nil {
+//	    t.Fatal(err)
+//	}
+//	var req CreateUserRequest
+//	err = c.Bind(&req)
+func TestContextWithBody(method, path string, body any) (*Context, error) {
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			return nil, fmt.Errorf("failed to encode JSON body: %w", err)
+		}
+	}
+
+	req := httptest.NewRequest(method, path, &buf)
+	req.Header.Set("Content-Type", "application/json")
+
+	// Create a minimal app for testing
+	a, err := New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create app: %w", err)
+	}
+
+	// Create router context
+	rc := &router.Context{
+		Request:  req,
+		Response: httptest.NewRecorder(),
+	}
+
+	// Create app context from the pool
+	c := a.contextPool.Get()
+	c.Context = rc
+	c.app = a
+	c.bindingMeta = nil
+	c.logger = buildRequestLogger(a.BaseLogger(), rc)
+
+	return c, nil
+}
+
+// TestContextWithForm creates a Context with form data for testing.
+// TestContextWithForm is useful for testing form binding logic.
+//
+// Example:
+//
+//	values := map[string][]string{
+//	    "name":  {"Alice"},
+//	    "email": {"alice@example.com"},
+//	}
+//	c, err := app.TestContextWithForm("POST", "/users", values)
+//	if err != nil {
+//	    t.Fatal(err)
+//	}
+//	var req CreateUserRequest
+//	err = c.Bind(&req)
+func TestContextWithForm(method, path string, values map[string][]string) (*Context, error) {
+	body := strings.NewReader(encodeFormValues(values))
+	req := httptest.NewRequest(method, path, body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// Create a minimal app for testing
+	a, err := New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create app: %w", err)
+	}
+
+	// Create router context
+	rc := &router.Context{
+		Request:  req,
+		Response: httptest.NewRecorder(),
+	}
+
+	// Create app context from the pool
+	c := a.contextPool.Get()
+	c.Context = rc
+	c.app = a
+	c.bindingMeta = nil
+	c.logger = buildRequestLogger(a.BaseLogger(), rc)
+
+	return c, nil
+}
+
+// encodeFormValues encodes form values into URL-encoded format.
+func encodeFormValues(values map[string][]string) string {
+	var parts []string
+	for key, vals := range values {
+		for _, val := range vals {
+			parts = append(parts, fmt.Sprintf("%s=%s", key, val))
+		}
+	}
+	return strings.Join(parts, "&")
 }
