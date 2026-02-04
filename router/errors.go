@@ -47,9 +47,6 @@ var (
 	// ErrMissingRouteParameter indicates that a required parameter for the route is missing.
 	ErrMissingRouteParameter = errors.New("missing required parameter")
 
-	// ErrMultipleJSONValues indicates that the request body must contain only a single JSON value.
-	ErrMultipleJSONValues = errors.New("request body must contain a single JSON value")
-
 	// ErrExpectedJSONArray indicates that a JSON array was expected.
 	ErrExpectedJSONArray = errors.New("expected a JSON array")
 

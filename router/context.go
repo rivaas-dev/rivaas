@@ -1282,12 +1282,6 @@ func (c *Context) RoutePattern() string {
 // Example:
 //
 
-// BindOptions configures strict JSON binding behavior.
-type BindOptions struct {
-	MaxBytes   int64 // Maximum request body size (0 = no limit)
-	DepthLimit int   // Maximum JSON nesting depth (0 = no limit)
-}
-
 // RequireContentType checks if the request Content-Type matches one of the allowed types.
 // Returns false and sends a 415 Unsupported Media Type problem if no match.
 // Supports suffix matching for patterns like "application/*+json".
@@ -1356,6 +1350,7 @@ func (c *Context) RequireContentTypeJSON() bool {
 }
 
 // writeJSONDecodeProblem converts JSON decode errors to HTTP error responses.
+// Used by streaming functions (StreamJSONArray, StreamNDJSON).
 func (c *Context) writeJSONDecodeProblem(err error) error {
 	switch {
 	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
@@ -1395,49 +1390,6 @@ func (c *Context) writeJSONDecodeProblem(err error) error {
 
 		return err
 	}
-}
-
-// BindStrict binds JSON with strict validation and size limits.
-// Returns an error (already written as RFC 9457 problem) if binding fails.
-//
-// Features:
-//   - Rejects unknown fields (catches typos)
-//   - Enforces size limits
-//   - Distinguishes 400 (malformed) vs 422 (type errors)
-//
-// Example:
-//
-//	var req CreateUserRequest
-//	if err := c.BindStrict(&req, router.BindOptions{MaxBytes: 1 << 20}); err != nil {
-//		return // Error already written
-//	}
-func (c *Context) BindStrict(dst any, opt BindOptions) error {
-	// 1) Content-Type check
-	if !c.RequireContentTypeJSON() {
-		return ErrContentTypeNotAllowed
-	}
-
-	// 2) Size cap
-	if opt.MaxBytes > 0 {
-		c.Request.Body = http.MaxBytesReader(c.Response, c.Request.Body, opt.MaxBytes)
-	}
-
-	dec := json.NewDecoder(c.Request.Body)
-	dec.DisallowUnknownFields()
-	dec.UseNumber()
-
-	// 3) Decode exactly one JSON value
-	if err := dec.Decode(dst); err != nil {
-		return c.writeJSONDecodeProblem(err)
-	}
-
-	// 4) No trailing data
-	if dec.More() {
-		c.WriteErrorResponse(http.StatusBadRequest, "Request body must contain a single JSON value")
-		return ErrMultipleJSONValues
-	}
-
-	return nil
 }
 
 // StreamJSONArray streams a JSON array, processing each item individually.

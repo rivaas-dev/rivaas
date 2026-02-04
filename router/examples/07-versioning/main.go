@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -174,8 +175,9 @@ func getUserV1(c *router.Context) {
 
 func createUserV1(c *router.Context) {
 	var req map[string]any
-	if err := c.BindStrict(&req, router.BindOptions{MaxBytes: 1 << 20}); err != nil {
-		return // Error already written
+	if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
+		c.WriteErrorResponse(http.StatusBadRequest, "Malformed JSON: "+err.Error())
+		return
 	}
 
 	c.JSON(201, map[string]any{
@@ -237,8 +239,9 @@ func getUserV2(c *router.Context) {
 
 func createUserV2(c *router.Context) {
 	var user UserV2
-	if err := c.BindStrict(&user, router.BindOptions{MaxBytes: 1 << 20}); err != nil {
-		return // Error already written
+	if err := json.NewDecoder(c.Request.Body).Decode(&user); err != nil {
+		c.WriteErrorResponse(http.StatusBadRequest, "Malformed JSON: "+err.Error())
+		return
 	}
 
 	user.ID = 123
@@ -252,8 +255,9 @@ func createUserV2(c *router.Context) {
 
 func updateUserV2(c *router.Context) {
 	var updates map[string]any
-	if err := c.BindStrict(&updates, router.BindOptions{MaxBytes: 1 << 20}); err != nil {
-		return // Error already written
+	if err := json.NewDecoder(c.Request.Body).Decode(&updates); err != nil {
+		c.WriteErrorResponse(http.StatusBadRequest, "Malformed JSON: "+err.Error())
+		return
 	}
 
 	c.JSON(200, map[string]any{
@@ -352,8 +356,9 @@ func getUserV3(c *router.Context) {
 
 func createUserV3(c *router.Context) {
 	var user UserV3
-	if err := c.BindStrict(&user, router.BindOptions{MaxBytes: 1 << 20}); err != nil {
-		return // Error already written
+	if err := json.NewDecoder(c.Request.Body).Decode(&user); err != nil {
+		c.WriteErrorResponse(http.StatusBadRequest, "Malformed JSON: "+err.Error())
+		return
 	}
 
 	user.ID = 123
@@ -370,8 +375,9 @@ func createUserV3(c *router.Context) {
 
 func updateUserV3(c *router.Context) {
 	var updates UserV3
-	if err := c.BindStrict(&updates, router.BindOptions{MaxBytes: 1 << 20}); err != nil {
-		return // Error already written
+	if err := json.NewDecoder(c.Request.Body).Decode(&updates); err != nil {
+		c.WriteErrorResponse(http.StatusBadRequest, "Malformed JSON: "+err.Error())
+		return
 	}
 
 	c.JSON(200, map[string]any{
