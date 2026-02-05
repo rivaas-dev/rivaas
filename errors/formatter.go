@@ -191,3 +191,38 @@ func NewJSONAPI() *JSONAPI {
 func NewSimple() *Simple {
 	return &Simple{}
 }
+
+// WithStatus wraps an error with an explicit HTTP status code.
+// The wrapped error implements ErrorType interface.
+//
+// This is useful when you want to override the default status code for an error.
+// If err is nil, the status text for the given status code is used as the error message.
+//
+// Example:
+//
+//	return errors.WithStatus(err, http.StatusNotFound)
+//	return errors.WithStatus(nil, http.StatusNoContent) // nil allowed
+func WithStatus(err error, status int) error {
+	return &statusError{err: err, status: status}
+}
+
+// statusError wraps an error with an explicit status code.
+type statusError struct {
+	err    error
+	status int
+}
+
+func (e *statusError) Error() string {
+	if e.err == nil {
+		return http.StatusText(e.status)
+	}
+	return e.err.Error()
+}
+
+func (e *statusError) Unwrap() error {
+	return e.err
+}
+
+func (e *statusError) HTTPStatus() int {
+	return e.status
+}
