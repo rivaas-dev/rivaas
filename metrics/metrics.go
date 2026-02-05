@@ -215,6 +215,9 @@ func New(opts ...Option) (*Recorder, error) {
 		opt(recorder)
 	}
 
+	// Compute attributes AFTER options are applied
+	recorder.initCommonAttributes()
+
 	// Validate configuration
 	if err := recorder.validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
@@ -247,8 +250,6 @@ func newDefaultRecorder() *Recorder {
 		customHistograms: make(map[string]metric.Float64Histogram),
 		customGauges:     make(map[string]metric.Float64Gauge),
 	}
-
-	recorder.initCommonAttributes()
 
 	return recorder
 }

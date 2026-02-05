@@ -29,9 +29,11 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
+	"go.opentelemetry.io/otel/sdk/resource"
 
 	promclient "github.com/prometheus/client_golang/prometheus"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
 // initializeProvider initializes the metrics provider based on configuration.
@@ -79,8 +81,10 @@ func (r *Recorder) initPrometheusProvider() error {
 		return fmt.Errorf("failed to create Prometheus exporter: %w", err)
 	}
 
+	res := createResource(r.serviceName, r.serviceVersion)
 	r.meterProvider = sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(exporter),
+		sdkmetric.WithResource(res),
 	)
 
 	// Create handler for the custom registry
@@ -154,8 +158,10 @@ func (r *Recorder) initOTLPProvider(ctx context.Context) error {
 		sdkmetric.WithInterval(r.exportInterval),
 	)
 
+	res := createResource(r.serviceName, r.serviceVersion)
 	r.meterProvider = sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(reader),
+		sdkmetric.WithResource(res),
 	)
 
 	// Set global meter provider only if requested
@@ -185,8 +191,10 @@ func (r *Recorder) initStdoutProvider() error {
 		sdkmetric.WithInterval(r.exportInterval),
 	)
 
+	res := createResource(r.serviceName, r.serviceVersion)
 	r.meterProvider = sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(reader),
+		sdkmetric.WithResource(res),
 	)
 
 	// Set global meter provider only if requested
@@ -343,4 +351,13 @@ func findAvailablePort(ctx context.Context, preferredPort string) (string, error
 	}
 
 	return "", fmt.Errorf("no available port found starting from %s", preferredPort)
+}
+
+// createResource creates an OpenTelemetry resource with service information.
+func createResource(serviceName, serviceVersion string) *resource.Resource {
+	return resource.NewWithAttributes(
+		semconv.SchemaURL,
+		semconv.ServiceName(serviceName),
+		semconv.ServiceVersion(serviceVersion),
+	)
 }

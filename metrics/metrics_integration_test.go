@@ -455,3 +455,79 @@ func TestIntegration_RequestResponseSizes(t *testing.T) {
 	// Should have size metrics
 	assert.Contains(t, body, "http_response_size_bytes")
 }
+
+func TestServiceNameAppearsInPrometheusOutput(t *testing.T) {
+	t.Parallel()
+
+	customServiceName := "my-custom-service"
+	recorder := metrics.TestingRecorderWithPrometheus(t, customServiceName,
+		metrics.WithServiceVersion("v1.2.3"),
+	)
+
+	// Wait for server to be ready
+	serverAddr := "localhost" + recorder.ServerAddress()
+	err := metrics.WaitForMetricsServer(t, serverAddr, 2*time.Second)
+	require.NoError(t, err, "metrics server should start")
+
+	// Create a simple handler
+	mux := http.NewServeMux()
+	mux.HandleFunc("/test", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := metrics.Middleware(recorder)(mux)
+
+	// Send a test request
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Fetch metrics output
+	metricsHandler, err := recorder.Handler()
+	require.NoError(t, err)
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsW := httptest.NewRecorder()
+	metricsHandler.ServeHTTP(metricsW, metricsReq)
+
+	assert.Equal(t, http.StatusOK, metricsW.Code)
+	body := metricsW.Body.String()
+
+	// Verify service name appears in metric labels
+	assert.Contains(t, body, `service_name="`+customServiceName+`"`)
+	assert.NotContains(t, body, `service_name="rivaas-service"`)
+}
+
+func TestTargetInfoHasCorrectServiceName(t *testing.T) {
+	t.Parallel()
+
+	customServiceName := "headless-browser-services"
+	customServiceVersion := "v2.0.0"
+	recorder := metrics.TestingRecorderWithPrometheus(t, customServiceName,
+		metrics.WithServiceVersion(customServiceVersion),
+	)
+
+	// Wait for server to be ready
+	serverAddr := "localhost" + recorder.ServerAddress()
+	err := metrics.WaitForMetricsServer(t, serverAddr, 2*time.Second)
+	require.NoError(t, err, "metrics server should start")
+
+	// Fetch metrics output
+	metricsHandler, err := recorder.Handler()
+	require.NoError(t, err)
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsW := httptest.NewRecorder()
+	metricsHandler.ServeHTTP(metricsW, metricsReq)
+
+	assert.Equal(t, http.StatusOK, metricsW.Code)
+	body := metricsW.Body.String()
+
+	// Verify target_info metric has correct service name
+	assert.Contains(t, body, "target_info")
+	assert.Contains(t, body, `service_name="`+customServiceName+`"`)
+	assert.NotContains(t, body, `service_name="unknown_service`)
+	assert.NotContains(t, body, `service_name="rivaas-service"`)
+}

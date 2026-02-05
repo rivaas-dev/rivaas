@@ -618,3 +618,67 @@ func TestPrometheusNormalization(t *testing.T) {
 		assert.Equal(t, "/custom-metrics", recorder.metricsPath)
 	})
 }
+
+func TestRecorder_ServiceNameInAttributes(t *testing.T) {
+	t.Parallel()
+
+	customName := "my-custom-service"
+	recorder := MustNew(
+		WithPrometheus(":0", "/metrics"),
+		WithServiceName(customName),
+		WithServerDisabled(),
+	)
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
+
+	// Verify the service name field
+	assert.Equal(t, customName, recorder.ServiceName())
+
+	// Verify the attribute uses the configured value, not the default
+	assert.Equal(t, customName, recorder.serviceNameAttr.Value.AsString())
+	assert.NotEqual(t, "rivaas-service", recorder.serviceNameAttr.Value.AsString())
+}
+
+func TestRecorder_ServiceVersionInAttributes(t *testing.T) {
+	t.Parallel()
+
+	customVersion := "v2.3.4"
+	recorder := MustNew(
+		WithPrometheus(":0", "/metrics"),
+		WithServiceVersion(customVersion),
+		WithServerDisabled(),
+	)
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
+
+	// Verify the service version field
+	assert.Equal(t, customVersion, recorder.ServiceVersion())
+
+	// Verify the attribute uses the configured value, not the default
+	assert.Equal(t, customVersion, recorder.serviceVersionAttr.Value.AsString())
+	assert.NotEqual(t, "1.0.0", recorder.serviceVersionAttr.Value.AsString())
+}
+
+func TestServiceName_NotDefaultAfterConfiguration(t *testing.T) {
+	t.Parallel()
+
+	customName := "headless-browser-services"
+	recorder := MustNew(
+		WithPrometheus(":0", "/metrics"),
+		WithServiceName(customName),
+		WithServerDisabled(),
+	)
+	t.Cleanup(func() {
+		//nolint:errcheck // Test cleanup
+		recorder.Shutdown(t.Context())
+	})
+
+	// Verify the attribute (not just the field) - regression test
+	assert.Equal(t, customName, recorder.ServiceName())
+	assert.Equal(t, customName, recorder.serviceNameAttr.Value.AsString())
+	assert.NotEqual(t, "rivaas-service", recorder.serviceNameAttr.Value.AsString())
+}
