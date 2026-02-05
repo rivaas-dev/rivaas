@@ -17,6 +17,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -328,4 +329,190 @@ func TestContext_ResetBinding(t *testing.T) {
 	// Presence should be nil after reset
 	pm := c.Presence()
 	assert.Nil(t, pm)
+}
+
+func TestContext_Fail(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantAbort  bool
+	}{
+		{
+			name:       "formats error and aborts",
+			err:        fmt.Errorf("test error"),
+			wantStatus: 500,
+			wantAbort:  true,
+		},
+		{
+			name:       "nil error does nothing",
+			err:        nil,
+			wantStatus: 0,
+			wantAbort:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, err := TestContextWithBody("GET", "/test", nil)
+			require.NoError(t, err)
+
+			c.Fail(tt.err)
+
+			if tt.wantAbort {
+				assert.True(t, c.IsAborted())
+			} else {
+				assert.False(t, c.IsAborted())
+			}
+		})
+	}
+}
+
+func TestContext_FailStatus(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	testErr := fmt.Errorf("test error")
+	c.FailStatus(404, testErr)
+
+	assert.True(t, c.IsAborted())
+}
+
+func TestContext_NotFound(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		err       error
+		wantAbort bool
+	}{
+		{
+			name:      "with error",
+			err:       fmt.Errorf("user not found"),
+			wantAbort: true,
+		},
+		{
+			name:      "with nil for generic message",
+			err:       nil,
+			wantAbort: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, err := TestContextWithBody("GET", "/test", nil)
+			require.NoError(t, err)
+
+			c.NotFound(tt.err)
+
+			assert.Equal(t, tt.wantAbort, c.IsAborted())
+		})
+	}
+}
+
+func TestContext_BadRequest(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	c.BadRequest(fmt.Errorf("invalid input"))
+
+	assert.True(t, c.IsAborted())
+}
+
+func TestContext_Unauthorized(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	c.Unauthorized(fmt.Errorf("invalid token"))
+
+	assert.True(t, c.IsAborted())
+}
+
+func TestContext_Forbidden(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	c.Forbidden(fmt.Errorf("insufficient permissions"))
+
+	assert.True(t, c.IsAborted())
+}
+
+func TestContext_Conflict(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	c.Conflict(fmt.Errorf("user already exists"))
+
+	assert.True(t, c.IsAborted())
+}
+
+func TestContext_Gone(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	c.Gone(fmt.Errorf("resource deleted"))
+
+	assert.True(t, c.IsAborted())
+}
+
+func TestContext_UnprocessableEntity(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	c.UnprocessableEntity(fmt.Errorf("validation failed"))
+
+	assert.True(t, c.IsAborted())
+}
+
+func TestContext_TooManyRequests(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	c.TooManyRequests(fmt.Errorf("rate limit exceeded"))
+
+	assert.True(t, c.IsAborted())
+}
+
+func TestContext_InternalError(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	c.InternalError(fmt.Errorf("internal error"))
+
+	assert.True(t, c.IsAborted())
+}
+
+func TestContext_ServiceUnavailable(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	c.ServiceUnavailable(fmt.Errorf("maintenance mode"))
+
+	assert.True(t, c.IsAborted())
 }

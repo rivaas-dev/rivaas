@@ -111,6 +111,6 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rivaas.dev/binding v0.7.2 // indirect
-	rivaas.dev/errors v0.5.0 // indirect
+	rivaas.dev/errors v0.6.0 // indirect
 	rivaas.dev/validation v0.5.0 // indirect
 )

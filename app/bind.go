@@ -32,7 +32,7 @@ package app
 //
 //	req, err := app.Bind[CreateUserRequest](c)
 //	if err != nil {
-//	    c.Error(err)
+//	    c.Fail(err)
 //	    return
 //	}
 //	// req is of type CreateUserRequest
@@ -77,12 +77,12 @@ func MustBind[T any](c *Context, opts ...BindOption) (T, bool) {
 //
 //	req, err := app.BindOnly[Request](c)
 //	if err != nil {
-//	    c.Error(err)
+//	    c.Fail(err)
 //	    return
 //	}
 //	req.Normalize() // Custom processing
 //	if err := c.Validate(&req); err != nil {
-//	    c.Error(err)
+//	    c.Fail(err)
 //	    return
 //	}
 func BindOnly[T any](c *Context, opts ...BindOption) (T, error) {

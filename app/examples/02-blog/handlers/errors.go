@@ -19,7 +19,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"net/http"
 
 	"rivaas.dev/app"
 )
@@ -64,9 +63,9 @@ var (
 	}
 )
 
-// HandleError processes errors and sends appropriate HTTP responses.
+// HandleError processes errors and sends appropriate HTTP responses using the new Fail API.
 // It checks if the error is an APIError and maps it to the corresponding
-// HTTP status code. Unknown errors are returned as generic internal server errors.
+// HTTP status code using convenience methods. Unknown errors are returned as internal server errors.
 //
 // Example:
 //
@@ -75,34 +74,21 @@ var (
 func HandleError(c *app.Context, err error) {
 	var apiErr APIError
 	if errors.As(err, &apiErr) {
-		status := getHTTPStatusForError(apiErr.Code)
-		if writeErr := c.JSON(status, apiErr); writeErr != nil {
-			c.Logger().Error("failed to write error response", "err", writeErr)
+		switch apiErr.Code {
+		case "POST_NOT_FOUND", "AUTHOR_NOT_FOUND":
+			c.NotFound(err)
+		case "SLUG_TAKEN":
+			c.Conflict(err)
+		case "INVALID_INPUT", "VALIDATION_FAILED", "CANNOT_PUBLISH":
+			c.BadRequest(err)
+		default:
+			c.InternalError(err)
 		}
 		return
 	}
 
-	// Unknown error - return generic error
-	if writeErr := c.JSON(http.StatusInternalServerError, APIError{
-		Code:    "INTERNAL_ERROR",
-		Message: "An internal error occurred",
-	}); writeErr != nil {
-		c.Logger().Error("failed to write error response", "err", writeErr)
-	}
-}
-
-// getHTTPStatusForError maps error codes to HTTP status codes.
-func getHTTPStatusForError(code string) int {
-	switch code {
-	case "POST_NOT_FOUND", "AUTHOR_NOT_FOUND":
-		return http.StatusNotFound
-	case "SLUG_TAKEN":
-		return http.StatusConflict
-	case "INVALID_INPUT", "VALIDATION_FAILED", "CANNOT_PUBLISH":
-		return http.StatusBadRequest
-	default:
-		return http.StatusInternalServerError
-	}
+	// Unknown error - return generic internal error
+	c.InternalError(err)
 }
 
 // WrapError wraps an APIError with additional context using fmt.Errorf.

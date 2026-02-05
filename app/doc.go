@@ -181,7 +181,7 @@
 //	app.POST("/users", func(c *app.Context) {
 //	    var req CreateUserRequest
 //	    if err := c.Bind(&req); err != nil {
-//	        c.Error(err)
+//	        c.Fail(err)
 //	        return
 //	    }
 //

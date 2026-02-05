@@ -86,14 +86,14 @@ type bindingMetadata struct {
 //
 //	var req CreateUserRequest
 //	if err := c.Bind(&req); err != nil {
-//	    c.Error(err)
+//	    c.Fail(err)
 //	    return
 //	}
 //
 // With options:
 //
 //	if err := c.Bind(&req, app.WithStrict(), app.WithPartial()); err != nil {
-//	    c.Error(err)
+//	    c.Fail(err)
 //	    return
 //	}
 //
@@ -288,7 +288,7 @@ func (c *Context) bindJSON(out any, opts []binding.Option) error {
 //	// Continue with validated request
 func (c *Context) MustBind(out any, opts ...BindOption) bool {
 	if err := c.Bind(out, opts...); err != nil {
-		c.Error(err)
+		c.Fail(err)
 		return false
 	}
 	return true
@@ -301,12 +301,12 @@ func (c *Context) MustBind(out any, opts ...BindOption) bool {
 //
 //	var req Request
 //	if err := c.BindOnly(&req); err != nil {
-//	    c.Error(err)
+//	    c.Fail(err)
 //	    return
 //	}
 //	req.Normalize() // Custom processing
 //	if err := c.Validate(&req); err != nil {
-//	    c.Error(err)
+//	    c.Fail(err)
 //	    return
 //	}
 func (c *Context) BindOnly(out any, opts ...BindOption) error {
@@ -320,7 +320,7 @@ func (c *Context) BindOnly(out any, opts ...BindOption) error {
 // Example:
 //
 //	if err := c.Validate(&req, validation.WithPartial(true)); err != nil {
-//	    c.Error(err)
+//	    c.Fail(err)
 //	    return
 //	}
 func (c *Context) Validate(v any, opts ...validation.Option) error {
@@ -386,10 +386,14 @@ func (c *Context) bindForm(out any) error {
 	return binding.FormTo(req.Form, out)
 }
 
-// Error responds with a formatted error using the configured formatter.
-// Error is the recommended way to return errors in handlers.
+// Fail responds with a formatted error using the configured formatter.
+// Fail automatically aborts the handler chain after writing the response.
 //
-// Error selects the formatter based on:
+// Fail is the recommended way to return errors in handlers.
+// The HTTP status is determined from the error (via ErrorType interface)
+// or defaults to 500 Internal Server Error.
+//
+// Fail selects the formatter based on:
 //   - Content negotiation (Accept header) if multiple formatters are configured
 //   - Default formatter if single formatter is configured
 //   - RFC 9457 formatter as ultimate fallback
@@ -397,21 +401,44 @@ func (c *Context) bindForm(out any) error {
 // Example:
 //
 //	if err := c.Bind(&req); err != nil {
-//	    c.Error(err)
+//	    c.Fail(err)
 //	    return
 //	}
 //
 //	if user == nil {
-//	    c.Error(fmt.Errorf("user not found"))
+//	    c.Fail(fmt.Errorf("user not found"))
 //	    return
 //	}
 //
-// See also [Context.ErrorStatus] for explicit status codes and convenience methods
+// See also [Context.FailStatus] for explicit status codes and convenience methods
 // like [Context.NotFound], [Context.BadRequest], [Context.Unauthorized].
-func (c *Context) Error(err error) {
+//
+// Note: This method shadows router.Context.Error() which collects errors without responding.
+// Use c.Fail() to send an error response, or c.Context.Error() to collect errors.
+func (c *Context) Fail(err error) {
 	if err == nil {
 		return
 	}
+	c.fail(err)
+}
+
+// FailStatus responds with an error and explicit status code.
+// FailStatus automatically aborts the handler chain.
+//
+// FailStatus is useful when you want to override the error's default status.
+//
+// Example:
+//
+//	c.FailStatus(http.StatusNotFound, err)
+//	c.FailStatus(http.StatusBadRequest, validationErr)
+func (c *Context) FailStatus(status int, err error) {
+	c.fail(riverrors.WithStatus(err, status))
+}
+
+// fail is the internal implementation that formats and writes the error response.
+func (c *Context) fail(err error) {
+	// Abort handler chain to prevent further processing
+	c.Abort()
 
 	// Select a formatter based on configuration
 	formatter := c.selectFormatter()
@@ -444,7 +471,7 @@ func (c *Context) Error(err error) {
 }
 
 // selectFormatter chooses the appropriate formatter based on configuration.
-// selectFormatter is a private helper used by Error().
+// selectFormatter is a private helper used by Fail().
 func (c *Context) selectFormatter() riverrors.Formatter {
 	cfg := c.app.config.errors
 	if cfg == nil {
@@ -480,108 +507,123 @@ func (c *Context) selectFormatter() riverrors.Formatter {
 			}
 		}
 
-		// Last resort: use the first formatter
-		for _, formatter := range cfg.formatters {
-			return formatter
-		}
+		// Predictable fallback - always use RFC9457
+		return &riverrors.RFC9457{}
 	}
 
 	// Ultimate fallback
 	return &riverrors.RFC9457{}
 }
 
-// ErrorStatus responds with an error and explicit status code.
-// ErrorStatus is useful when you want to override the error's default status.
-//
-// Example:
-//
-//	c.ErrorStatus(err, 404)
-func (c *Context) ErrorStatus(err error, status int) {
-	// Wrap error to override status
-	c.Error(&statusError{err: err, status: status})
-}
-
-// statusError wraps an error with an explicit status code.
-type statusError struct {
-	err    error
-	status int
-}
-
-func (e *statusError) Error() string {
-	return e.err.Error()
-}
-
-func (e *statusError) Unwrap() error {
-	return e.err
-}
-
-func (e *statusError) HTTPStatus() int {
-	return e.status
-}
-
 // NotFound responds with a 404 Not Found error.
-// NotFound is a convenience method for 404 errors.
+// Pass nil for a generic "Not Found" message.
 //
 // Example:
 //
-//	if user == nil {
-//	    c.NotFound("user not found")
-//	    return
-//	}
-func (c *Context) NotFound(message string) {
-	c.ErrorStatus(fmt.Errorf("%s", message), http.StatusNotFound)
+//	c.NotFound(nil)                                    // generic "Not Found"
+//	c.NotFound(fmt.Errorf("user %s not found", id))   // custom message
+//	c.NotFound(ErrUserNotFound)                       // domain error
+func (c *Context) NotFound(err error) {
+	c.FailStatus(http.StatusNotFound, err)
 }
 
 // BadRequest responds with a 400 Bad Request error.
-// BadRequest is a convenience method for 400 errors.
+// Pass nil for a generic "Bad Request" message.
 //
 // Example:
 //
-//	if err := validateInput(input); err != nil {
-//	    c.BadRequest("invalid input")
-//	    return
-//	}
-func (c *Context) BadRequest(message string) {
-	c.ErrorStatus(fmt.Errorf("%s", message), http.StatusBadRequest)
+//	c.BadRequest(nil)              // generic
+//	c.BadRequest(validationErr)    // with validation details
+func (c *Context) BadRequest(err error) {
+	c.FailStatus(http.StatusBadRequest, err)
 }
 
 // Unauthorized responds with a 401 Unauthorized error.
-// Unauthorized is a convenience method for 401 errors.
+// Pass nil for a generic "Unauthorized" message.
 //
 // Example:
 //
-//	if !isAuthenticated {
-//	    c.Unauthorized("authentication required")
-//	    return
-//	}
-func (c *Context) Unauthorized(message string) {
-	c.ErrorStatus(fmt.Errorf("%s", message), http.StatusUnauthorized)
+//	c.Unauthorized(nil)                              // generic
+//	c.Unauthorized(fmt.Errorf("invalid token"))     // custom message
+func (c *Context) Unauthorized(err error) {
+	c.FailStatus(http.StatusUnauthorized, err)
 }
 
 // Forbidden responds with a 403 Forbidden error.
-// Forbidden is a convenience method for 403 errors.
+// Pass nil for a generic "Forbidden" message.
 //
 // Example:
 //
-//	if !hasPermission {
-//	    c.Forbidden("insufficient permissions")
-//	    return
-//	}
-func (c *Context) Forbidden(message string) {
-	c.ErrorStatus(fmt.Errorf("%s", message), http.StatusForbidden)
+//	c.Forbidden(nil)                                      // generic
+//	c.Forbidden(fmt.Errorf("insufficient permissions"))  // custom message
+func (c *Context) Forbidden(err error) {
+	c.FailStatus(http.StatusForbidden, err)
+}
+
+// Conflict responds with a 409 Conflict error.
+// Pass nil for a generic "Conflict" message.
+//
+// Example:
+//
+//	c.Conflict(nil)                                    // generic
+//	c.Conflict(fmt.Errorf("user already exists"))     // custom message
+func (c *Context) Conflict(err error) {
+	c.FailStatus(http.StatusConflict, err)
+}
+
+// Gone responds with a 410 Gone error.
+// Pass nil for a generic "Gone" message.
+//
+// Example:
+//
+//	c.Gone(nil)                                        // generic
+//	c.Gone(fmt.Errorf("resource permanently deleted")) // custom message
+func (c *Context) Gone(err error) {
+	c.FailStatus(http.StatusGone, err)
+}
+
+// UnprocessableEntity responds with a 422 Unprocessable Entity error.
+// Pass nil for a generic "Unprocessable Entity" message.
+//
+// Example:
+//
+//	c.UnprocessableEntity(nil)           // generic
+//	c.UnprocessableEntity(validationErr) // validation details
+func (c *Context) UnprocessableEntity(err error) {
+	c.FailStatus(http.StatusUnprocessableEntity, err)
+}
+
+// TooManyRequests responds with a 429 Too Many Requests error.
+// Pass nil for a generic "Too Many Requests" message.
+//
+// Example:
+//
+//	c.TooManyRequests(nil)                                // generic
+//	c.TooManyRequests(fmt.Errorf("rate limit exceeded")) // custom message
+func (c *Context) TooManyRequests(err error) {
+	c.FailStatus(http.StatusTooManyRequests, err)
 }
 
 // InternalError responds with a 500 Internal Server Error.
-// InternalError is a convenience method for 500 errors.
+// Pass nil for a generic "Internal Server Error" message.
 //
 // Example:
 //
-//	if err := processRequest(); err != nil {
-//	    c.InternalError(err)
-//	    return
-//	}
+//	c.InternalError(nil)   // generic
+//	c.InternalError(err)   // with error details (logged but sanitized in response)
 func (c *Context) InternalError(err error) {
-	c.ErrorStatus(err, http.StatusInternalServerError)
+	c.FailStatus(http.StatusInternalServerError, err)
+}
+
+// ServiceUnavailable responds with a 503 Service Unavailable error.
+// Pass nil for a generic "Service Unavailable" message.
+//
+// Example:
+//
+//	c.ServiceUnavailable(nil)                              // generic
+//	c.ServiceUnavailable(fmt.Errorf("maintenance mode"))  // custom message
+func (c *Context) ServiceUnavailable(err error) {
+	c.FailStatus(http.StatusServiceUnavailable, err)
 }
 
 // Logger returns the request-scoped logger.
