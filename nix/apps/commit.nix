@@ -6,7 +6,7 @@ let
   # Configuration Constants
   # =============================================================================
   cfg = {
-    aiTimeoutSec = 30;           # Timeout for AI message generation
+    aiTimeoutSec = 60;           # Timeout for AI message generation
     diffTruncateBytes = 20000;   # ~400-500 lines, keeps AI context manageable
     complexChangeThreshold = 5;  # Files changed before using multi-line commit format
     editorWidth = 80;            # Width for multi-line commit editor
