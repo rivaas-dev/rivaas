@@ -25,8 +25,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"rivaas.dev/router"
 )
 
 // TestWithExcludePaths tests the WithExcludePaths middleware option.
@@ -688,8 +686,8 @@ func TestTracingResponseWriterImplementsMarkerInterface(t *testing.T) {
 	wrapped := newResponseWriter(innerWriter)
 
 	// Verify it implements the marker interface
-	marker, ok := any(wrapped).(router.ObservabilityWrappedWriter)
-	require.True(t, ok, "responseWriter should implement ObservabilityWrappedWriter")
+	marker, ok := any(wrapped).(observabilityWrappedWriter)
+	require.True(t, ok, "responseWriter should implement observabilityWrappedWriter")
 	assert.True(t, marker.IsObservabilityWrapped())
 }
 
@@ -729,7 +727,7 @@ func TestTracingMiddlewareWithExcludedPathsNoWrapping(t *testing.T) {
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if writer is wrapped
-		if _, ok := w.(router.ObservabilityWrappedWriter); ok {
+		if _, ok := w.(observabilityWrappedWriter); ok {
 			//nolint:errcheck // Test handler
 			w.Write([]byte("wrapped"))
 		} else {
