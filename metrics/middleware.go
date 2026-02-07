@@ -23,9 +23,15 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
-
-	"rivaas.dev/router"
 )
+
+// observabilityWrappedWriter detects if an http.ResponseWriter has already
+// been wrapped by observability middleware, preventing double-wrapping.
+// Uses Go structural typing — any writer implementing this method from any
+// package (tracing, metrics, app, or user code) will be detected.
+type observabilityWrappedWriter interface {
+	IsObservabilityWrapped() bool
+}
 
 // MiddlewareOption configures the metrics middleware.
 // These options are separate from Recorder options and only affect HTTP middleware behavior.
@@ -204,7 +210,7 @@ func Middleware(recorder *Recorder, opts ...MiddlewareOption) func(http.Handler)
 
 			// Wrap response writer to capture status code and size
 			// Check if already wrapped to prevent double-wrapping
-			if _, ok := w.(router.ObservabilityWrappedWriter); ok {
+			if _, ok := w.(observabilityWrappedWriter); ok {
 				// Already wrapped, use as-is
 				next.ServeHTTP(w, r)
 				// Can't extract metrics reliably from outer wrapper
@@ -241,7 +247,7 @@ func newResponseWriter(w http.ResponseWriter) *responseWriter {
 
 // Ensure responseWriter implements required interfaces
 var (
-	_ router.ObservabilityWrappedWriter = (*responseWriter)(nil)
+	_ observabilityWrappedWriter = (*responseWriter)(nil)
 )
 
 // WriteHeader captures the status code and prevents duplicate calls.
@@ -313,7 +319,7 @@ func (rw *responseWriter) Unwrap() http.ResponseWriter {
 	return rw.ResponseWriter
 }
 
-// IsObservabilityWrapped implements [router.ObservabilityWrappedWriter] marker interface.
+// IsObservabilityWrapped implements observabilityWrappedWriter marker interface.
 // This signals that the writer has been wrapped by observability middleware,
 // preventing double-wrapping when combining standalone metrics with app observability.
 func (rw *responseWriter) IsObservabilityWrapped() bool {

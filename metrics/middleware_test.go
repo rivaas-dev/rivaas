@@ -23,8 +23,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"rivaas.dev/router"
 )
 
 // TestMetricsResponseWriterImplementsMarkerInterface verifies that the
@@ -36,8 +34,8 @@ func TestMetricsResponseWriterImplementsMarkerInterface(t *testing.T) {
 	wrapped := newResponseWriter(innerWriter)
 
 	// Verify it implements the marker interface
-	marker, ok := any(wrapped).(router.ObservabilityWrappedWriter)
-	require.True(t, ok, "responseWriter should implement ObservabilityWrappedWriter")
+	marker, ok := any(wrapped).(observabilityWrappedWriter)
+	require.True(t, ok, "responseWriter should implement observabilityWrappedWriter")
 	assert.True(t, marker.IsObservabilityWrapped())
 }
 
@@ -87,7 +85,7 @@ func TestMetricsMiddlewareWithExcludedPaths(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if writer is wrapped
-		if _, ok := w.(router.ObservabilityWrappedWriter); ok {
+		if _, ok := w.(observabilityWrappedWriter); ok {
 			w.Write([]byte("wrapped")) //nolint:errcheck // Test handler
 		} else {
 			w.Write([]byte("not-wrapped")) //nolint:errcheck // Test handler
