@@ -563,7 +563,9 @@ func TestObservabilityResponseWriterImplementsMarkerInterface(t *testing.T) {
 	assert.Equal(t, int64(4), ri.Size())
 }
 
-// ObservabilityWrappedWriter is imported from router package
+// ObservabilityWrappedWriter uses Go's structural typing (duck typing).
+// Any response writer implementing IsObservabilityWrapped() bool will satisfy
+// this interface, regardless of which package defined it (tracing, metrics, app, etc).
 type ObservabilityWrappedWriter interface {
 	IsObservabilityWrapped() bool
 }

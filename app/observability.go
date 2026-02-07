@@ -32,6 +32,14 @@ import (
 	stderrors "errors"
 )
 
+// observabilityWrappedWriter detects if an http.ResponseWriter has already
+// been wrapped by observability middleware, preventing double-wrapping.
+// Uses Go structural typing — any writer implementing this method from any
+// package (tracing, metrics, app, or user code) will be detected.
+type observabilityWrappedWriter interface {
+	IsObservabilityWrapped() bool
+}
+
 // observabilityRecorder implements [router.ObservabilityRecorder] by unifying
 // metrics, tracing, and logging into a single lifecycle.
 // It coordinates observability data collection across all three pillars.
@@ -119,7 +127,7 @@ func (o *observabilityRecorder) WrapResponseWriter(w http.ResponseWriter, state 
 
 	// Check if already wrapped by observability middleware
 	// This prevents double-wrapping when combining app observability with standalone middleware
-	if _, ok := w.(router.ObservabilityWrappedWriter); ok {
+	if _, ok := w.(observabilityWrappedWriter); ok {
 		return w // Already wrapped, don't wrap again
 	}
 
@@ -287,8 +295,8 @@ type observabilityResponseWriter struct {
 
 // Ensure we implement required interfaces
 var (
-	_ router.ResponseInfo               = (*observabilityResponseWriter)(nil)
-	_ router.ObservabilityWrappedWriter = (*observabilityResponseWriter)(nil)
+	_ router.ResponseInfo        = (*observabilityResponseWriter)(nil)
+	_ observabilityWrappedWriter = (*observabilityResponseWriter)(nil)
 )
 
 func (rw *observabilityResponseWriter) WriteHeader(code int) {
@@ -322,7 +330,7 @@ func (rw *observabilityResponseWriter) Size() int64 {
 	return rw.size
 }
 
-// IsObservabilityWrapped implements [router.ObservabilityWrappedWriter] marker interface.
+// IsObservabilityWrapped implements observabilityWrappedWriter marker interface.
 // This signals that the writer has been wrapped by observability middleware,
 // preventing double-wrapping when combining app observability with standalone middleware.
 func (rw *observabilityResponseWriter) IsObservabilityWrapped() bool {
