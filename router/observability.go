@@ -113,33 +113,3 @@ type ResponseInfo interface {
 	StatusCode() int
 	Size() int64
 }
-
-// ObservabilityWrappedWriter is a marker interface to detect if an http.ResponseWriter
-// has already been wrapped by observability middleware.
-//
-// This prevents double-wrapping when combining app-level observability with standalone
-// metrics/tracing middleware. Multiple layers of wrapping cause:
-//   - Incorrect metric recording (status/size tracked by outer wrapper)
-//   - Performance overhead (unnecessary allocations)
-//   - Broken Unwrap() chains for http.ResponseController
-//
-// Usage pattern:
-//
-//	func WrapResponseWriter(w http.ResponseWriter, state any) http.ResponseWriter {
-//	    if state == nil {
-//	        return w // Request excluded
-//	    }
-//	    // Check if already wrapped
-//	    if _, ok := w.(ObservabilityWrappedWriter); ok {
-//	        return w // Don't wrap again
-//	    }
-//	    return &myResponseWriter{ResponseWriter: w}
-//	}
-//
-// All observability response writer implementations should implement this marker interface
-// to enable double-wrapping detection.
-type ObservabilityWrappedWriter interface {
-	// IsObservabilityWrapped is a marker method that returns true.
-	// This signals that the writer has already been wrapped for observability.
-	IsObservabilityWrapped() bool
-}

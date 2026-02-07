@@ -27,6 +27,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// observabilityWrappedWriter detects if an http.ResponseWriter has already
+// been wrapped by observability middleware, preventing double-wrapping.
+// Uses Go structural typing — any writer implementing this method from any
+// package (tracing, metrics, app, or user code) will be detected.
+type observabilityWrappedWriter interface {
+	IsObservabilityWrapped() bool
+}
+
 // TestObservabilityWrappedWriterMarkerInterface verifies that the marker interface
 // correctly identifies wrapped response writers.
 func TestObservabilityWrappedWriterMarkerInterface(t *testing.T) {
@@ -38,8 +46,8 @@ func TestObservabilityWrappedWriterMarkerInterface(t *testing.T) {
 	}
 
 	// Verify it implements the marker interface
-	_, ok := any(mockWriter).(ObservabilityWrappedWriter)
-	assert.True(t, ok, "mockWrappedResponseWriter should implement ObservabilityWrappedWriter")
+	_, ok := any(mockWriter).(observabilityWrappedWriter)
+	assert.True(t, ok, "mockWrappedResponseWriter should implement observabilityWrappedWriter")
 	assert.True(t, mockWriter.IsObservabilityWrapped(), "IsObservabilityWrapped should return true")
 }
 
@@ -95,7 +103,7 @@ func TestDoubleWrappingPreventionInRealScenario(t *testing.T) {
 	// Create a custom middleware that tries to wrap the writer
 	r.Use(func(c *Context) {
 		// Try to wrap the response writer
-		if wrapped, ok := c.Response.(ObservabilityWrappedWriter); ok {
+		if wrapped, ok := c.Response.(observabilityWrappedWriter); ok {
 			// Already wrapped
 			assert.True(t, wrapped.IsObservabilityWrapped(), "Writer should be marked as wrapped")
 		} else {
@@ -181,7 +189,7 @@ func (t *testObservabilityRecorder) WrapResponseWriter(w http.ResponseWriter, st
 	}
 
 	// Check if already wrapped
-	if _, ok := w.(ObservabilityWrappedWriter); ok {
+	if _, ok := w.(observabilityWrappedWriter); ok {
 		return w // Don't wrap again
 	}
 
