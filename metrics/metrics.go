@@ -24,7 +24,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	promclient "github.com/prometheus/client_golang/prometheus"
@@ -176,10 +175,6 @@ type Recorder struct {
 	metricsPort    string
 	metricsPath    string
 
-	// Pre-computed common attributes computed during initialization
-	serviceNameAttr    attribute.KeyValue
-	serviceVersionAttr attribute.KeyValue
-
 	serverMutex sync.Mutex // Protects metricsServer access
 
 	maxCustomMetrics int // Maximum number of custom metrics
@@ -195,6 +190,8 @@ type Recorder struct {
 	strictPort          bool // If true, fail instead of finding alternative port
 	customMeterProvider bool // If true, user provided their own meter provider
 	registerGlobal      bool // If true, sets otel.SetMeterProvider()
+	withoutScopeInfo    bool // If true, omit otel_scope_* labels from Prometheus output
+	withoutTargetInfo   bool // If true, omit target_info metric from Prometheus output
 }
 
 // New creates a new [Recorder] with the given options.
@@ -214,9 +211,6 @@ func New(opts ...Option) (*Recorder, error) {
 	for _, opt := range opts {
 		opt(recorder)
 	}
-
-	// Compute attributes AFTER options are applied
-	recorder.initCommonAttributes()
 
 	// Validate configuration
 	if err := recorder.validate(); err != nil {
@@ -252,13 +246,6 @@ func newDefaultRecorder() *Recorder {
 	}
 
 	return recorder
-}
-
-// initCommonAttributes pre-computes common attributes.
-// These attributes are used frequently in request metrics.
-func (r *Recorder) initCommonAttributes() {
-	r.serviceNameAttr = attribute.String("service.name", r.serviceName)
-	r.serviceVersionAttr = attribute.String("service.version", r.serviceVersion)
 }
 
 // validate checks that the configuration is valid.

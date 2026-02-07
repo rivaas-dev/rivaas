@@ -495,9 +495,18 @@ func TestServiceNameAppearsInPrometheusOutput(t *testing.T) {
 	assert.Equal(t, http.StatusOK, metricsW.Code)
 	body := metricsW.Body.String()
 
-	// Verify service name appears in metric labels
+	// Verify service name appears in target_info metric (not as labels on other metrics)
+	assert.Contains(t, body, "target_info")
 	assert.Contains(t, body, `service_name="`+customServiceName+`"`)
 	assert.NotContains(t, body, `service_name="rivaas-service"`)
+
+	// Verify service name does NOT appear as a label on http_requests_total
+	lines := strings.Split(body, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "http_requests_total{") {
+			assert.NotContains(t, line, "service_name=", "service_name should not be a label on http_requests_total")
+		}
+	}
 }
 
 func TestTargetInfoHasCorrectServiceName(t *testing.T) {

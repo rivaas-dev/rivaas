@@ -176,6 +176,47 @@ func WithLogger(logger *slog.Logger) Option {
 	return WithEventHandler(DefaultEventHandler(logger))
 }
 
+// WithoutScopeInfo configures the Prometheus exporter to omit instrumentation scope labels
+// (otel_scope_name, otel_scope_version, otel_scope_schema_url) from all metric points.
+//
+// By default, OpenTelemetry adds scope information to identify which instrumentation library
+// produced each metric. This can be disabled to reduce label cardinality when you only have
+// a single instrumentation scope or when the scope information is not useful.
+//
+// This option only affects the Prometheus provider. Other providers ignore it.
+//
+// Example:
+//
+//	recorder := metrics.MustNew(
+//	    metrics.WithPrometheus(":9090", "/metrics"),
+//	    metrics.WithoutScopeInfo(), // Remove otel_scope_* labels
+//	)
+func WithoutScopeInfo() Option {
+	return func(r *Recorder) {
+		r.withoutScopeInfo = true
+	}
+}
+
+// WithoutTargetInfo configures the Prometheus exporter to omit the target_info metric.
+//
+// By default, OpenTelemetry creates a target_info metric containing the resource attributes
+// (service.name, service.version, etc.). This can be disabled if you manage service
+// identification through other means (e.g., external labels in Prometheus configuration).
+//
+// This option only affects the Prometheus provider. Other providers ignore it.
+//
+// Example:
+//
+//	recorder := metrics.MustNew(
+//	    metrics.WithPrometheus(":9090", "/metrics"),
+//	    metrics.WithoutTargetInfo(), // Remove target_info metric
+//	)
+func WithoutTargetInfo() Option {
+	return func(r *Recorder) {
+		r.withoutTargetInfo = true
+	}
+}
+
 // WithPrometheus configures Prometheus provider with port and path.
 // This is the recommended way to configure Prometheus metrics.
 //

@@ -74,9 +74,16 @@ func (r *Recorder) initPrometheusProvider() error {
 	r.prometheusRegistry = promclient.NewRegistry()
 
 	// Create Prometheus exporter with custom registry
-	exporter, err := prometheus.New(
+	promOpts := []prometheus.Option{
 		prometheus.WithRegisterer(r.prometheusRegistry),
-	)
+	}
+	if r.withoutScopeInfo {
+		promOpts = append(promOpts, prometheus.WithoutScopeInfo())
+	}
+	if r.withoutTargetInfo {
+		promOpts = append(promOpts, prometheus.WithoutTargetInfo())
+	}
+	exporter, err := prometheus.New(promOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to create Prometheus exporter: %w", err)
 	}

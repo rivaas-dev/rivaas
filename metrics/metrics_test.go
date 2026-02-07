@@ -636,9 +636,8 @@ func TestRecorder_ServiceNameInAttributes(t *testing.T) {
 	// Verify the service name field
 	assert.Equal(t, customName, recorder.ServiceName())
 
-	// Verify the attribute uses the configured value, not the default
-	assert.Equal(t, customName, recorder.serviceNameAttr.Value.AsString())
-	assert.NotEqual(t, "rivaas-service", recorder.serviceNameAttr.Value.AsString())
+	// Service name is now only set as a resource attribute (in target_info),
+	// not as a metric-level attribute
 }
 
 func TestRecorder_ServiceVersionInAttributes(t *testing.T) {
@@ -658,9 +657,8 @@ func TestRecorder_ServiceVersionInAttributes(t *testing.T) {
 	// Verify the service version field
 	assert.Equal(t, customVersion, recorder.ServiceVersion())
 
-	// Verify the attribute uses the configured value, not the default
-	assert.Equal(t, customVersion, recorder.serviceVersionAttr.Value.AsString())
-	assert.NotEqual(t, "1.0.0", recorder.serviceVersionAttr.Value.AsString())
+	// Service version is now only set as a resource attribute (in target_info),
+	// not as a metric-level attribute
 }
 
 func TestServiceName_NotDefaultAfterConfiguration(t *testing.T) {
@@ -677,8 +675,10 @@ func TestServiceName_NotDefaultAfterConfiguration(t *testing.T) {
 		recorder.Shutdown(t.Context())
 	})
 
-	// Verify the attribute (not just the field) - regression test
+	// Verify the service name field - regression test
 	assert.Equal(t, customName, recorder.ServiceName())
-	assert.Equal(t, customName, recorder.serviceNameAttr.Value.AsString())
-	assert.NotEqual(t, "rivaas-service", recorder.serviceNameAttr.Value.AsString())
+	assert.NotEqual(t, "rivaas-service", recorder.ServiceName())
+
+	// Service name is now only set as a resource attribute (in target_info),
+	// not as a metric-level attribute
 }

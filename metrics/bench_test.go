@@ -494,7 +494,6 @@ func BenchmarkNoopProvider(b *testing.B) {
 		customHistograms: make(map[string]metric.Float64Histogram),
 		customGauges:     make(map[string]metric.Float64Gauge),
 	}
-	recorder.initCommonAttributes()
 
 	// Initialize all required noop metrics
 	//nolint:errcheck // Noop metrics

@@ -59,6 +59,36 @@ func ExampleMustNew() {
 	// Output: Service: my-service
 }
 
+// ExampleWithoutScopeInfo demonstrates disabling instrumentation scope labels.
+func ExampleWithoutScopeInfo() {
+	recorder := metrics.MustNew(
+		metrics.WithPrometheus(":9090", "/metrics"),
+		metrics.WithServiceName("my-api"),
+		metrics.WithoutScopeInfo(), // Removes otel_scope_* labels
+		metrics.WithServerDisabled(),
+	)
+	//nolint:errcheck // Example test cleanup
+	defer recorder.Shutdown(context.Background())
+
+	fmt.Println("Metrics recorder created without scope info labels")
+	// Output: Metrics recorder created without scope info labels
+}
+
+// ExampleWithoutTargetInfo demonstrates disabling the target_info metric.
+func ExampleWithoutTargetInfo() {
+	recorder := metrics.MustNew(
+		metrics.WithPrometheus(":9090", "/metrics"),
+		metrics.WithServiceName("my-api"),
+		metrics.WithoutTargetInfo(), // Removes target_info metric
+		metrics.WithServerDisabled(),
+	)
+	//nolint:errcheck // Example test cleanup
+	defer recorder.Shutdown(context.Background())
+
+	fmt.Println("Metrics recorder created without target_info metric")
+	// Output: Metrics recorder created without target_info metric
+}
+
 // ExampleRecorder_RecordHistogram demonstrates recording custom histogram metrics.
 //
 //nolint:testableexamples // Output is non-deterministic (contains timestamps)

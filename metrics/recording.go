@@ -119,10 +119,8 @@ func (r *Recorder) BeginRequest(ctx context.Context) *RequestMetrics {
 		StartTime: time.Now(),
 	}
 
-	// Pre-allocate with service attributes
-	m.Attributes = make([]attribute.KeyValue, 2, 8)
-	m.Attributes[0] = r.serviceNameAttr
-	m.Attributes[1] = r.serviceVersionAttr
+	// Pre-allocate attributes slice (capacity for future attributes)
+	m.Attributes = make([]attribute.KeyValue, 0, 8)
 
 	// Increment active requests
 	r.activeRequests.Add(ctx, 1, metric.WithAttributes(m.Attributes...))
@@ -134,7 +132,7 @@ func (r *Recorder) BeginRequest(ctx context.Context) *RequestMetrics {
 // This is the minimal API for app integration.
 //
 // Parameters:
-//   - m: [RequestMetrics] returned from [Recorder.Start] (can be nil)
+//   - m: [RequestMetrics] returned from [Recorder.BeginRequest] (can be nil)
 //   - statusCode: HTTP status code
 //   - responseSize: Response body size in bytes
 //   - route: Route pattern for cardinality control (e.g., "/users/{id}")
@@ -160,7 +158,10 @@ func (r *Recorder) Finish(ctx context.Context, m *RequestMetrics, statusCode int
 	r.requestCount.Add(ctx, 1, metric.WithAttributes(finalAttributes...))
 
 	// Decrement active requests
-	r.activeRequests.Add(ctx, -1, metric.WithAttributes(finalAttributes...))
+	// Note: Use m.Attributes (not finalAttributes) to match the increment in BeginRequest().
+	// This ensures increment/decrement target the same time series.
+	// Active requests gauge tracks only *how many* requests are in flight, not *which routes*.
+	r.activeRequests.Add(ctx, -1, metric.WithAttributes(m.Attributes...))
 
 	// Record error if status indicates error
 	if statusCode >= 400 {
