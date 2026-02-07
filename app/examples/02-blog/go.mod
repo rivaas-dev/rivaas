@@ -7,7 +7,7 @@ require (
 	rivaas.dev/app v0.0.0
 	rivaas.dev/config v0.0.0
 	rivaas.dev/logging v0.5.0
-	rivaas.dev/metrics v0.5.2
+	rivaas.dev/metrics v0.6.0
 	rivaas.dev/openapi v0.5.0
 	rivaas.dev/router v0.8.1
 	rivaas.dev/tracing v0.5.1
