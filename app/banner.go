@@ -42,6 +42,85 @@ func (a *App) getColorWriter(w io.Writer) *colorprofile.Writer {
 	return cpw
 }
 
+// bannerWriter provides helper methods for rendering styled banner sections.
+// It encapsulates the shared lipgloss styles so callers focus on content, not formatting.
+type bannerWriter struct {
+	buf           strings.Builder
+	categoryStyle lipgloss.Style
+	labelStyle    lipgloss.Style
+	valueStyle    lipgloss.Style
+	disabledStyle lipgloss.Style
+	providerStyle lipgloss.Style
+}
+
+// newBannerWriter creates a new bannerWriter with default lipgloss styles.
+func newBannerWriter() *bannerWriter {
+	return &bannerWriter{
+		categoryStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")).
+			Bold(true),
+		labelStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Width(14).
+			PaddingLeft(2).
+			Align(lipgloss.Left),
+		valueStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")).
+			Bold(true),
+		disabledStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")),
+		providerStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243")),
+	}
+}
+
+// category writes a styled section header (e.g., "Service", "Observability").
+func (bw *bannerWriter) category(name string) {
+	_, _ = bw.buf.WriteString(bw.categoryStyle.Render(name) + "\n")
+}
+
+// field writes a single label-value line with the given ANSI color.
+func (bw *bannerWriter) field(label, value, color string) {
+	_, _ = bw.buf.WriteString(
+		bw.labelStyle.Render(label) + "  " +
+			bw.valueStyle.Foreground(lipgloss.Color(color)).Render(value) + "\n",
+	)
+}
+
+// fieldWithProvider writes a label-value line with a dimmed provider suffix.
+func (bw *bannerWriter) fieldWithProvider(label, value, color, provider string) {
+	_, _ = bw.buf.WriteString(
+		bw.labelStyle.Render(label) + "  " +
+			bw.valueStyle.Foreground(lipgloss.Color(color)).Render(value) + "  " +
+			bw.providerStyle.Render(fmt.Sprintf("[%s]", provider)) + "\n",
+	)
+}
+
+// disabled writes a label with "Disabled" in dim style.
+func (bw *bannerWriter) disabled(label string) {
+	_, _ = bw.buf.WriteString(
+		bw.labelStyle.Render(label) + "  " + bw.disabledStyle.Render("Disabled") + "\n",
+	)
+}
+
+// blank writes an empty line (section separator).
+func (bw *bannerWriter) blank() {
+	_, _ = bw.buf.WriteString("\n")
+}
+
+// String returns the accumulated output.
+func (bw *bannerWriter) String() string {
+	return bw.buf.String()
+}
+
+// normalizeAddr prepends "0.0.0.0" to addresses starting with ":" for display clarity.
+func normalizeAddr(addr string) string {
+	if strings.HasPrefix(addr, ":") {
+		return "0.0.0.0" + addr
+	}
+	return addr
+}
+
 // printStartupBanner prints the startup banner to stdout.
 // It is called by [App.Run], [App.RunTLS], and [App.RunMTLS].
 func (a *App) printStartupBanner(addr, protocol string) {
@@ -60,6 +139,14 @@ func (a *App) printStartupBanner(addr, protocol string) {
 		gradientColors = []string{"10", "11"} // Green, Yellow
 	}
 
+	// Pre-build gradient styles to avoid repeated allocations
+	gradientStyles := make([]lipgloss.Style, 0, len(gradientColors))
+	for _, c := range gradientColors {
+		gradientStyles = append(gradientStyles, lipgloss.NewStyle().
+			Foreground(lipgloss.Color(c)).
+			Bold(true))
+	}
+
 	// Create styled ASCII art with gradient effect
 	var styledArt strings.Builder
 	for _, line := range asciiLines {
@@ -68,43 +155,12 @@ func (a *App) printStartupBanner(addr, protocol string) {
 			continue
 		}
 		for i, char := range line {
-			colorIndex := i % len(gradientColors)
-			color := gradientColors[colorIndex]
-			style := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(color)).
-				Bold(true)
-			_, _ = styledArt.WriteString(style.Render(string(char)))
+			_, _ = styledArt.WriteString(gradientStyles[i%len(gradientStyles)].Render(string(char)))
 		}
 		_, _ = styledArt.WriteString("\n")
 	}
 
-	// Define styles for categorized banner
-	categoryStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("245")).
-		Bold(true)
-
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
-		Width(14).
-		PaddingLeft(2).
-		Align(lipgloss.Left)
-
-	valueStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15")).
-		Bold(true)
-
-	disabledStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240"))
-
-	providerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243")) // Dimmed gray for provider brackets
-
-	// Normalize address display for empty host (all interfaces)
-	// ":8080" -> "0.0.0.0:8080" for clarity
-	displayAddr := addr
-	if strings.HasPrefix(addr, ":") {
-		displayAddr = "0.0.0.0" + addr
-	}
+	displayAddr := normalizeAddr(addr)
 
 	// Prepend scheme based on protocol
 	scheme := "http://"
@@ -113,61 +169,53 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	}
 	displayAddr = scheme + displayAddr
 
-	// Build categorized sections
-	var output strings.Builder
+	// Build categorized sections using bannerWriter
+	bw := newBannerWriter()
 
 	// === Service Section ===
-	_, _ = output.WriteString(categoryStyle.Render("Service") + "\n")
-	_, _ = output.WriteString(labelStyle.Render("Version:") + "  " + valueStyle.Foreground(lipgloss.Color("14")).Render(a.config.serviceVersion) + "\n")
-	_, _ = output.WriteString(labelStyle.Render("Environment:") + "  " + valueStyle.Foreground(lipgloss.Color("11")).Render(a.config.environment) + "\n")
-	_, _ = output.WriteString(labelStyle.Render("Address:") + "  " + valueStyle.Foreground(lipgloss.Color("10")).Render(displayAddr) + "\n")
+	bw.category("Service")
+	bw.field("Version:", a.config.serviceVersion, "14")
+	bw.field("Environment:", a.config.environment, "11")
+	bw.field("Address:", displayAddr, "10")
 
 	// === Observability Section ===
-	_, _ = output.WriteString("\n" + categoryStyle.Render("Observability") + "\n")
+	bw.blank()
+	bw.category("Observability")
 
 	// Metrics
-	var metricsLine string
 	if a.metrics != nil {
-		metricsAddr := a.metrics.ServerAddress()
-		if strings.HasPrefix(metricsAddr, ":") {
-			metricsAddr = "0.0.0.0" + metricsAddr
-		}
+		metricsAddr := normalizeAddr(a.metrics.ServerAddress())
 		metricsPath := a.metrics.Path()
 		if metricsPath == "" {
 			metricsPath = "/metrics"
 		}
 		metricsAddr = "http://" + metricsAddr + metricsPath
-		metricsLine = labelStyle.Render("Metrics:") + "  " +
-			valueStyle.Foreground(lipgloss.Color("13")).Render(metricsAddr) + "  " +
-			providerStyle.Render(fmt.Sprintf("[%s]", a.metrics.Provider()))
+		bw.fieldWithProvider("Metrics:", metricsAddr, "13", string(a.metrics.Provider()))
 	} else {
-		metricsLine = labelStyle.Render("Metrics:") + "  " + disabledStyle.Render("Disabled")
+		bw.disabled("Metrics:")
 	}
-	_, _ = output.WriteString(metricsLine + "\n")
 
 	// Tracing
-	var tracingLine string
 	if a.tracing != nil {
-		tracingLine = labelStyle.Render("Tracing:") + "  " +
-			valueStyle.Foreground(lipgloss.Color("12")).Render("Enabled") + "  " +
-			providerStyle.Render(fmt.Sprintf("[%s]", a.tracing.GetProvider()))
+		bw.fieldWithProvider("Tracing:", "Enabled", "12", string(a.tracing.GetProvider()))
 	} else {
-		tracingLine = labelStyle.Render("Tracing:") + "  " + disabledStyle.Render("Disabled")
+		bw.disabled("Tracing:")
 	}
-	_, _ = output.WriteString(tracingLine + "\n")
 
+	// === Documentation Section ===
 	if a.openapi != nil {
-		_, _ = output.WriteString("\n" + categoryStyle.Render("Documentation") + "\n")
+		bw.blank()
+		bw.category("Documentation")
 
 		// Always show API Docs (Swagger UI) if enabled
 		if a.openapi.ServeUI() {
 			docsAddr := displayAddr + a.openapi.UIPath()
-			_, _ = output.WriteString(labelStyle.Render("API Docs:") + "  " + valueStyle.Foreground(lipgloss.Color("14")).Render(docsAddr) + "\n")
+			bw.field("API Docs:", docsAddr, "14")
 		}
 
 		// Always show OpenAPI spec endpoint
 		specAddr := displayAddr + a.openapi.SpecPath()
-		_, _ = output.WriteString(labelStyle.Render("OpenAPI:") + "  " + valueStyle.Foreground(lipgloss.Color("14")).Render(specAddr) + "\n")
+		bw.field("OpenAPI:", specAddr, "14")
 	}
 
 	// Print the banner
@@ -178,7 +226,7 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	//nolint:errcheck // Best-effort banner display
 	_, _ = fmt.Fprintln(w)
 	//nolint:errcheck // Best-effort banner display
-	_, _ = fmt.Fprint(w, output.String())
+	_, _ = fmt.Fprint(w, bw.String())
 
 	// Add routes section (only in development mode)
 	if a.config.environment == EnvironmentDevelopment {
@@ -234,56 +282,36 @@ func (a *App) renderRoutesTable(w io.Writer) {
 	rows := make([][]string, 0, len(routes))
 	dimStyle := lipgloss.NewStyle().Faint(true) // Dim style for builtin routes
 
-	// Add builtin routes first
-	for _, route := range builtinRoutes {
-		method := route.Method
+	// Merge builtin and user routes, preserving order (builtin first)
+	allRoutes := append(builtinRoutes, userRoutes...)
+
+	for _, r := range allRoutes {
+		isBuiltin := strings.HasPrefix(r.HandlerName, "[builtin]")
+
+		method := r.Method
 		if useColors {
 			if style, ok := methodStyles[method]; ok {
 				method = style.Render(method)
 			}
 		}
 
-		version := route.Version
+		version := r.Version
 		if version == "" {
 			version = "-"
 		} else if useColors {
 			version = versionStyle.Render(version)
 		}
 
-		handlerName := route.HandlerName
-		if useColors {
+		handlerName := r.HandlerName
+		if useColors && isBuiltin {
 			handlerName = dimStyle.Render(handlerName)
 		}
 
 		rows = append(rows, []string{
 			method,
 			version,
-			route.Path,
+			r.Path,
 			handlerName,
-		})
-	}
-
-	// Add user routes
-	for _, route := range userRoutes {
-		method := route.Method
-		if useColors {
-			if style, ok := methodStyles[method]; ok {
-				method = style.Render(method)
-			}
-		}
-
-		version := route.Version
-		if version == "" {
-			version = "-"
-		} else if useColors {
-			version = versionStyle.Render(version)
-		}
-
-		rows = append(rows, []string{
-			method,
-			version,
-			route.Path,
-			route.HandlerName,
 		})
 	}
 
