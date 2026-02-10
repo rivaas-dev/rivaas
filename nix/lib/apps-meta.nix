@@ -15,7 +15,8 @@
   { name = "lint-soft";        category = "Code Quality"; color = "accent5"; description = "Run optional linters (advisory)"; }
   { name = "lint-all";         category = "Code Quality"; color = "accent5"; description = "Run all linters (required + optional)"; }
   { name = "bench";            category = "Code Quality"; color = "accent4"; description = "Run benchmarks"; }
-  { name = "tidy";             category = "Code Quality"; color = "accent5"; description = "Run go mod tidy"; }
+  { name = "tidy";             category = "Code Quality"; color = "accent5"; description = "Run \"go mod tidy\" for all modules"; }
+  { name = "update-all";       category = "Code Quality"; color = "accent5"; description = "Run \"go get -u ./...\" for all modules"; }
 
   # Release (pink → lavender gradient)
   { name = "release-check";    category = "Release"; color = "accent3"; description = "Check for unreleased changes"; }

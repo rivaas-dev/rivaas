@@ -211,4 +211,19 @@
       failMsg = "$failed/$total modules failed to tidy";
     });
   };
+
+  # Run "go get -u ./..." for all modules
+  update-all = {
+    type = "app";
+    meta.description = "Run \"go get -u ./...\" to update dependencies in all modules.";
+    program = toString (lib.mkModuleScript {
+      name = "update-all";
+      title = "Updating Go Modules";
+      findPattern = lib.findPatterns.allModules;
+      command = "${pkgs.go}/bin/go get -C ./$dir -u ./...";
+      spinnerTitle = "Updating";
+      successMsg = "All $total modules updated!";
+      failMsg = "$failed/$total modules failed to update";
+    });
+  };
 }
