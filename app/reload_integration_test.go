@@ -30,8 +30,6 @@ import (
 )
 
 func TestReload_SIGHUP(t *testing.T) {
-	t.Parallel()
-
 	app, err := New(
 		WithServiceName("test-reload-sighup"),
 		WithServiceVersion("1.0.0"),
@@ -62,8 +60,8 @@ func TestReload_SIGHUP(t *testing.T) {
 		serverErr <- app.Start(ctx) // Send result (nil or error)
 	}()
 
-	// Wait for server to be ready
-	time.Sleep(100 * time.Millisecond)
+	// Wait for server to be ready and to register for SIGHUP (avoid race)
+	time.Sleep(300 * time.Millisecond)
 
 	// Send SIGHUP signal to current process
 	err = syscall.Kill(os.Getpid(), syscall.SIGHUP)
@@ -102,8 +100,6 @@ func TestReload_SIGHUP(t *testing.T) {
 }
 
 func TestReload_SIGHUPWithError(t *testing.T) {
-	t.Parallel()
-
 	app, err := New(
 		WithServiceName("test-reload-sighup-error"),
 		WithServiceVersion("1.0.0"),
@@ -139,8 +135,8 @@ func TestReload_SIGHUPWithError(t *testing.T) {
 		serverErr <- app.Start(ctx) // Send result (nil or error)
 	}()
 
-	// Wait for server to be ready
-	time.Sleep(100 * time.Millisecond)
+	// Wait for server to be ready and to register for SIGHUP (avoid race)
+	time.Sleep(300 * time.Millisecond)
 
 	// Send SIGHUP signal
 	err = syscall.Kill(os.Getpid(), syscall.SIGHUP)
@@ -176,8 +172,6 @@ func TestReload_SIGHUPWithError(t *testing.T) {
 }
 
 func TestReload_SIGHUPIgnoredWhenNoHooks(t *testing.T) {
-	t.Parallel()
-
 	app, err := New(
 		WithServiceName("test-reload-sighup-ignored"),
 		WithServiceVersion("1.0.0"),
