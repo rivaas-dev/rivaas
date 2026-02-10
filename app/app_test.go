@@ -831,6 +831,111 @@ func TestApp_GroupRoutes(t *testing.T) {
 	assert.Equal(t, "user-42", rec.Body.String())
 }
 
+// TestGroup_HttpMethods tests that all HTTP methods can be registered on a group
+// and handle requests correctly (POST, PUT, DELETE, PATCH, HEAD, OPTIONS).
+func TestGroup_HttpMethods(t *testing.T) {
+	t.Parallel()
+
+	app := MustNew(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+	)
+	api := app.Group("/api")
+
+	api.POST("/items", func(c *Context) {
+		if err := c.String(http.StatusCreated, "item-created"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
+	})
+	api.PUT("/items/:id", func(c *Context) {
+		id := c.Param("id")
+		if err := c.Stringf(http.StatusOK, "updated-%s", id); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
+	})
+	api.DELETE("/items/:id", func(c *Context) {
+		if err := c.String(http.StatusNoContent, ""); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
+	})
+	api.PATCH("/items/:id", func(c *Context) {
+		id := c.Param("id")
+		if err := c.Stringf(http.StatusOK, "patched-%s", id); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
+	})
+	api.HEAD("/items/:id", func(c *Context) {
+		if err := c.String(http.StatusOK, ""); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
+	})
+	api.OPTIONS("/items", func(c *Context) {
+		if err := c.String(http.StatusOK, ""); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
+	})
+
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		wantStatus  int
+		wantBodySub string
+	}{
+		{"POST returns 201", http.MethodPost, "/api/items", http.StatusCreated, "item-created"},
+		{"PUT with param", http.MethodPut, "/api/items/99", http.StatusOK, "updated-99"},
+		{"DELETE returns 204", http.MethodDelete, "/api/items/1", http.StatusNoContent, ""},
+		{"PATCH with param", http.MethodPatch, "/api/items/42", http.StatusOK, "patched-42"},
+		{"HEAD returns 200", http.MethodHead, "/api/items/1", http.StatusOK, ""},
+		{"OPTIONS returns 200", http.MethodOptions, "/api/items", http.StatusOK, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			rec := httptest.NewRecorder()
+			app.Router().ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantBodySub != "" {
+				assert.Contains(t, rec.Body.String(), tt.wantBodySub)
+			}
+		})
+	}
+}
+
+// TestGroup_Any tests that Group.Any registers routes for all HTTP methods.
+func TestGroup_Any(t *testing.T) {
+	t.Parallel()
+
+	app := MustNew(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+	)
+	api := app.Group("/api")
+	api.Any("/ping", func(c *Context) {
+		if err := c.String(http.StatusOK, "pong"); err != nil {
+			c.Logger().Error("failed to write response", "err", err)
+		}
+	})
+
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		method := method
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(method, "/api/ping", nil)
+			rec := httptest.NewRecorder()
+			app.Router().ServeHTTP(rec, req)
+
+			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.Equal(t, "pong", rec.Body.String())
+		})
+	}
+}
+
 // TestApp_UseMiddleware tests that custom middleware is executed
 // in the correct order when handling requests.
 func TestApp_UseMiddleware(t *testing.T) {
