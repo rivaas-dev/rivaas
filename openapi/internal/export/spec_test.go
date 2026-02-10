@@ -33,12 +33,13 @@ func TestProject(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		spec      *model.Spec
-		cfg       Config
-		wantErr   bool
-		wantWarns bool
-		validate  func(t *testing.T, result Result)
+		name            string
+		spec            *model.Spec
+		cfg             Config
+		wantErr         bool
+		wantErrContains string
+		wantWarns       bool
+		validate        func(t *testing.T, result Result)
 	}{
 		{
 			name: "nil spec",
@@ -203,7 +204,7 @@ func TestProject(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "3.0 spec without paths errors",
+			name: "empty paths returns error for 3.0",
 			spec: &model.Spec{
 				Info: model.Info{
 					Title:   "Test API",
@@ -214,7 +215,29 @@ func TestProject(t *testing.T) {
 			cfg: Config{
 				Version: V30,
 			},
-			wantErr: true,
+			wantErr:         true,
+			wantErrContains: "paths",
+		},
+		{
+			name: "3.1 minimal spec with empty paths succeeds",
+			spec: &model.Spec{
+				Info: model.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Paths: map[string]*model.PathItem{},
+			},
+			cfg: Config{
+				Version: V31,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result Result) {
+				t.Helper()
+				var m map[string]any
+				require.NoError(t, json.Unmarshal(result.JSON, &m))
+				assert.Equal(t, "3.1.2", m["openapi"])
+				assert.NotNil(t, m["info"])
+			},
 		},
 		{
 			name: "3.0 spec with extensions",
@@ -260,6 +283,9 @@ func TestProject(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
+				if tt.wantErrContains != "" {
+					assert.ErrorContains(t, err, tt.wantErrContains)
+				}
 				return
 			}
 
