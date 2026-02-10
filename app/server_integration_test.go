@@ -86,6 +86,88 @@ var _ = Describe("Server Start", func() {
 		})
 	})
 
+	Describe("Health endpoints", func() {
+		It("should serve /healthz and /readyz when app is started with WithHealthEndpoints", func() {
+			const port = 58103
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+				app.WithPort(port),
+				app.WithServer(app.WithShutdownTimeout(2*time.Second)),
+				app.WithHealthEndpoints(
+					app.WithLivenessCheck("ok", func(ctx context.Context) error { return nil }),
+					app.WithReadinessCheck("ok", func(ctx context.Context) error { return nil }),
+				),
+			)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- a.Start(ctx)
+			}()
+
+			time.Sleep(400 * time.Millisecond)
+
+			baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+			resp, err := http.Get(baseURL + "/healthz")
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			resp2, err := http.Get(baseURL + "/readyz")
+			Expect(err).NotTo(HaveOccurred())
+			defer resp2.Body.Close()
+			Expect(resp2.StatusCode).To(Equal(http.StatusNoContent))
+
+			cancel()
+			select {
+			case err := <-serverErr:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(5 * time.Second):
+				Fail("server did not shut down in time")
+			}
+		})
+	})
+
+	Describe("Debug endpoints", func() {
+		It("should serve /debug/pprof/ when app is started with WithDebugEndpoints(WithPprof)", func() {
+			const port = 58104
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+				app.WithPort(port),
+				app.WithServer(app.WithShutdownTimeout(2*time.Second)),
+				app.WithDebugEndpoints(app.WithPprof()),
+			)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- a.Start(ctx)
+			}()
+
+			time.Sleep(400 * time.Millisecond)
+
+			pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof/", port)
+			resp, err := http.Get(pprofURL)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			cancel()
+			select {
+			case err := <-serverErr:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(5 * time.Second):
+				Fail("server did not shut down in time")
+			}
+		})
+	})
+
 	Describe("StartTLS", func() {
 		It("should serve HTTPS with self-signed certificate", func() {
 			const port = 58101
