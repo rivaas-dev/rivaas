@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/route"
@@ -135,15 +136,37 @@ func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serv
 	<-serverReady
 	a.executeReadyHooks(ctx)
 
-	// Wait for context cancellation or server error
-	// Note: Signal handling should be done by the caller via signal.NotifyContext
-	select {
-	case err := <-serverErr:
-		return err
-	case <-ctx.Done():
-		a.logLifecycleEvent(ctx, slog.LevelInfo, "server shutting down", "protocol", protocol, "reason", ctx.Err())
+	// Set up SIGHUP: handle reload when hooks exist, otherwise ignore so process isn't killed
+	var sighupCh <-chan os.Signal
+	if a.hasReloadHooks() {
+		ch, cleanup := setupReloadSignal()
+		defer cleanup()
+		sighupCh = ch
+	} else {
+		ignoreReloadSignal() // Unix: SIGHUP ignored so process isn't killed
 	}
 
+	// Event loop: wait for shutdown, reload, or server error
+	// When sighupCh is nil (no reload hooks registered), the nil channel case blocks forever with zero overhead
+	for {
+		select {
+		case err := <-serverErr:
+			return err
+
+		case <-sighupCh:
+			a.logLifecycleEvent(ctx, slog.LevelInfo, "reload signal received", "signal", "SIGHUP")
+			if err := a.Reload(ctx); err != nil {
+				// Error already logged inside Reload(), continue serving
+				_ = err
+			}
+
+		case <-ctx.Done():
+			a.logLifecycleEvent(ctx, slog.LevelInfo, "server shutting down", "protocol", protocol, "reason", ctx.Err())
+			goto shutdown
+		}
+	}
+
+shutdown:
 	// Create a deadline for shutdown.
 	// We use context.WithoutCancel() to preserve context values (tracing, logging) while ignoring
 	// the parent's cancellation. The parent ctx is already canceled (that's what triggered shutdown),

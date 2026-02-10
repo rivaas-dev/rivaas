@@ -331,6 +331,16 @@ func main() {
 		),
 	)
 
+	a.OnReload(func(ctx context.Context) error {
+		// Reload configuration
+		if err := cfg.Load(ctx); err != nil {
+			logger.Error("failed to load configuration", "error", err)
+			return err
+		}
+		logger.Info("configuration reloaded")
+		return nil
+	})
+
 	if err := a.Start(ctx); err != nil {
 		logger.Error("server error", "error", err)
 		os.Exit(1)

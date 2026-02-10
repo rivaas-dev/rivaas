@@ -177,6 +177,9 @@ func (a *App) printStartupBanner(addr, protocol string) {
 	bw.field("Version:", a.config.serviceVersion, "14")
 	bw.field("Environment:", a.config.environment, "11")
 	bw.field("Address:", displayAddr, "10")
+	if a.hasReloadHooks() {
+		bw.field("Reload:", "SIGHUP (enabled)", "13")
+	}
 
 	// === Observability Section ===
 	bw.blank()

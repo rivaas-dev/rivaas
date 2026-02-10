@@ -15,6 +15,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -24,6 +25,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"rivaas.dev/errors"
@@ -78,6 +80,7 @@ type App struct {
 	readiness   *ReadinessManager
 	openapi     *openapiState // OpenAPI state (nil if disabled)
 	contextPool *contextPool
+	reloadMu    sync.Mutex // Serializes concurrent reload executions
 }
 
 // config holds the internal application configuration.
@@ -1168,6 +1171,53 @@ func (a *App) BaseLogger() *slog.Logger {
 	}
 
 	return noopLogger
+}
+
+// hasReloadHooks returns true if any OnReload hooks are registered.
+// This is used to determine if SIGHUP signal handling should be enabled.
+func (a *App) hasReloadHooks() bool {
+	a.hooks.mu.Lock()
+	defer a.hooks.mu.Unlock()
+	return len(a.hooks.onReload) > 0
+}
+
+// Reload triggers a reload of the application by executing all registered OnReload hooks.
+// Reload can be called programmatically or is triggered automatically when SIGHUP is received
+// (SIGHUP handling is automatically enabled when OnReload hooks are registered).
+//
+// Hooks are executed sequentially, and if any hook returns an error, subsequent hooks are skipped.
+// Reload errors are logged but do not stop the server - it continues serving with the old configuration.
+//
+// Concurrent calls to Reload() are serialized via an internal mutex to prevent race conditions.
+//
+// Example - Programmatic reload:
+//
+//	if err := app.Reload(ctx); err != nil {
+//	    log.Printf("reload failed: %v", err)
+//	}
+//
+// Example - Admin endpoint:
+//
+//	app.POST("/admin/reload", func(c *app.Context) {
+//	    if err := app.Reload(c.Request.Context()); err != nil {
+//	        c.InternalError(err)
+//	        return
+//	    }
+//	    c.JSON(200, map[string]string{"status": "reloaded"})
+//	})
+func (a *App) Reload(ctx context.Context) error {
+	a.reloadMu.Lock()
+	defer a.reloadMu.Unlock()
+
+	a.logLifecycleEvent(ctx, slog.LevelInfo, "reload started")
+
+	if err := a.executeReloadHooks(ctx); err != nil {
+		a.logLifecycleEvent(ctx, slog.LevelError, "reload failed", "error", err)
+		return err
+	}
+
+	a.logLifecycleEvent(ctx, slog.LevelInfo, "reload completed")
+	return nil
 }
 
 // initializeMetrics creates and configures the metrics recorder based on settings.

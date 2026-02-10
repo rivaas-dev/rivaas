@@ -28,6 +28,7 @@ import (
 type Hooks struct {
 	onStart    []func(context.Context) error // Sequential, stops on first error
 	onReady    []func()                      // Async OK
+	onReload   []func(context.Context) error // Sequential, stops on first error
 	onShutdown []func(context.Context)       // LIFO order
 	onStop     []func()                      // Best effort
 	onRoute    []func(*route.Route)          // Fire during registration
@@ -69,6 +70,43 @@ func (a *App) OnReady(fn func()) {
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onReady = append(a.hooks.onReady, fn)
+}
+
+// OnReload registers a hook that runs when the application receives a reload signal (SIGHUP)
+// or when Reload() is called programmatically.
+// Hooks run sequentially, and if any hook returns an error, subsequent hooks are skipped.
+// Reload errors are logged but do not stop the server - it continues serving with the old configuration.
+//
+// OnReload should be used for reloading runtime configuration without restarting the server:
+//   - Re-reading configuration files
+//   - Rotating TLS certificates
+//   - Flushing caches
+//   - Adjusting log levels
+//   - Updating connection pool settings
+//
+// SIGHUP signal handling is automatically enabled when at least one OnReload hook is registered.
+// On Unix systems, sending SIGHUP to the process will trigger all registered reload hooks.
+// On Windows, SIGHUP is not available, but Reload() can still be called programmatically.
+//
+// Note: Routes and middleware cannot be reloaded as the router is frozen after startup.
+//
+// Example:
+//
+//	app.OnReload(func(ctx context.Context) error {
+//	    cfg, err := loadConfig("config.yaml")
+//	    if err != nil {
+//	        return fmt.Errorf("failed to load config: %w", err)
+//	    }
+//	    applyConfig(cfg)
+//	    return nil
+//	})
+func (a *App) OnReload(fn func(context.Context) error) {
+	if a.router.Frozen() {
+		panic("cannot register hooks after router is frozen")
+	}
+	a.hooks.mu.Lock()
+	defer a.hooks.mu.Unlock()
+	a.hooks.onReload = append(a.hooks.onReload, fn)
 }
 
 // OnShutdown registers a hook that runs during graceful shutdown.
@@ -180,6 +218,23 @@ func (a *App) executeReadyHooks(ctx context.Context) {
 			hook()
 		}()
 	}
+}
+
+// executeReloadHooks runs all OnReload hooks sequentially.
+// It returns an error if any hook fails, stopping execution of subsequent hooks.
+func (a *App) executeReloadHooks(ctx context.Context) error {
+	a.hooks.mu.Lock()
+	hooks := make([]func(context.Context) error, 0, len(a.hooks.onReload))
+	hooks = append(hooks, a.hooks.onReload...)
+	a.hooks.mu.Unlock()
+
+	for i, hook := range hooks {
+		if err := hook(ctx); err != nil {
+			return fmt.Errorf("OnReload hook %d failed: %w", i, err)
+		}
+	}
+
+	return nil
 }
 
 // executeShutdownHooks runs all OnShutdown hooks in reverse order (LIFO).
