@@ -31,6 +31,7 @@ import (
 	"rivaas.dev/metrics"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/recovery"
+	"rivaas.dev/router/version"
 	"rivaas.dev/tracing"
 )
 
@@ -934,6 +935,184 @@ func TestGroup_Any(t *testing.T) {
 			assert.Equal(t, "pong", rec.Body.String())
 		})
 	}
+}
+
+// TestApp_Version_returnsVersionGroup tests that Version returns a non-nil VersionGroup.
+func TestApp_Version_returnsVersionGroup(t *testing.T) {
+	t.Parallel()
+
+	app := MustNew(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithRouter(router.WithVersioning(
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2"),
+		)),
+	)
+	vg := app.Version("v1")
+	require.NotNil(t, vg)
+	vg.GET("/status", func(c *Context) {
+		require.NoError(t, c.String(http.StatusOK, "ok"))
+	})
+	req := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
+	rec := httptest.NewRecorder()
+	app.Router().ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "ok", rec.Body.String())
+}
+
+// TestVersionGroup_HttpMethods tests that all HTTP methods can be registered on a version group.
+func TestVersionGroup_HttpMethods(t *testing.T) {
+	t.Parallel()
+
+	app := MustNew(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithRouter(router.WithVersioning(
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2"),
+		)),
+	)
+	v1 := app.Version("v1")
+	v1.GET("/data", func(c *Context) {
+		require.NoError(t, c.String(http.StatusOK, "v1-data"))
+	})
+	v1.POST("/data", func(c *Context) {
+		require.NoError(t, c.String(http.StatusCreated, "v1-created"))
+	})
+	v1.PUT("/data/:id", func(c *Context) {
+		require.NoError(t, c.Stringf(http.StatusOK, "v1-updated-%s", c.Param("id")))
+	})
+	v1.DELETE("/data/:id", func(c *Context) {
+		require.NoError(t, c.String(http.StatusNoContent, ""))
+	})
+	v1.PATCH("/data/:id", func(c *Context) {
+		require.NoError(t, c.Stringf(http.StatusOK, "v1-patched-%s", c.Param("id")))
+	})
+	v1.HEAD("/data", func(c *Context) {
+		require.NoError(t, c.String(http.StatusOK, ""))
+	})
+	v1.OPTIONS("/data", func(c *Context) {
+		require.NoError(t, c.String(http.StatusOK, ""))
+	})
+
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		wantStatus  int
+		wantBodySub string
+	}{
+		{"GET", http.MethodGet, "/v1/data", http.StatusOK, "v1-data"},
+		{"POST", http.MethodPost, "/v1/data", http.StatusCreated, "v1-created"},
+		{"PUT", http.MethodPut, "/v1/data/99", http.StatusOK, "v1-updated-99"},
+		{"DELETE", http.MethodDelete, "/v1/data/1", http.StatusNoContent, ""},
+		{"PATCH", http.MethodPatch, "/v1/data/42", http.StatusOK, "v1-patched-42"},
+		{"HEAD", http.MethodHead, "/v1/data", http.StatusOK, ""},
+		{"OPTIONS", http.MethodOptions, "/v1/data", http.StatusOK, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			rec := httptest.NewRecorder()
+			app.Router().ServeHTTP(rec, req)
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantBodySub != "" {
+				assert.Contains(t, rec.Body.String(), tt.wantBodySub)
+			}
+		})
+	}
+}
+
+// TestVersionGroup_Use_middlewareRuns tests that Use adds middleware executed for version group routes.
+func TestVersionGroup_Use_middlewareRuns(t *testing.T) {
+	t.Parallel()
+
+	app := MustNew(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithRouter(router.WithVersioning(
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2"),
+		)),
+	)
+	var order []string
+	v1 := app.Version("v1")
+	v1.Use(func(c *Context) {
+		order = append(order, "mw")
+		c.Next()
+	})
+	v1.GET("/x", func(c *Context) {
+		order = append(order, "handler")
+		require.NoError(t, c.String(http.StatusOK, "ok"))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/x", nil)
+	rec := httptest.NewRecorder()
+	app.Router().ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, []string{"mw", "handler"}, order)
+}
+
+// TestVersionGroup_Any_registersAllMethods tests that Any registers GET, POST, etc.
+func TestVersionGroup_Any_registersAllMethods(t *testing.T) {
+	t.Parallel()
+
+	app := MustNew(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithRouter(router.WithVersioning(
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2"),
+		)),
+	)
+	v1 := app.Version("v1")
+	v1.Any("/any", func(c *Context) {
+		require.NoError(t, c.String(http.StatusOK, "any"))
+	})
+
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		method := method
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(method, "/v1/any", nil)
+			rec := httptest.NewRecorder()
+			app.Router().ServeHTTP(rec, req)
+			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.Equal(t, "any", rec.Body.String())
+		})
+	}
+}
+
+// TestVersionGroup_Group_nestedPrefix tests that Group creates nested path under version.
+func TestVersionGroup_Group_nestedPrefix(t *testing.T) {
+	t.Parallel()
+
+	app := MustNew(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithRouter(router.WithVersioning(
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2"),
+		)),
+	)
+	v1 := app.Version("v1")
+	api := v1.Group("/api")
+	api.GET("/users", func(c *Context) {
+		require.NoError(t, c.String(http.StatusOK, "v1-api-users"))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/api/users", nil)
+	rec := httptest.NewRecorder()
+	app.Router().ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "v1-api-users", rec.Body.String())
 }
 
 // TestApp_UseMiddleware tests that custom middleware is executed
