@@ -18,10 +18,13 @@ package toml
 
 import (
 	"bytes"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"rivaas.dev/binding"
 )
 
 type TOMLUser struct {
@@ -257,4 +260,48 @@ price = 300
 	assert.Equal(t, 200, catalog.Products[1].Price)
 	assert.Equal(t, "Gizmo", catalog.Products[2].Name)
 	assert.Equal(t, 300, catalog.Products[2].Price)
+}
+
+// TestFromTOML tests binding.BindTo with toml.FromTOML as a source.
+func TestFromTOML(t *testing.T) {
+	t.Parallel()
+
+	type Request struct {
+		Page  int    `query:"page"`
+		Title string `toml:"title"`
+		Name  string `toml:"name"`
+	}
+	body := []byte(`
+title = "My App"
+name = "myapp"
+`)
+	values := url.Values{}
+	values.Set("page", "3")
+	var out Request
+	err := binding.BindTo(&out,
+		binding.FromQuery(values),
+		FromTOML(body),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 3, out.Page)
+}
+
+// TestFromTOMLReader tests binding.BindTo with toml.FromTOMLReader as a source.
+func TestFromTOMLReader(t *testing.T) {
+	t.Parallel()
+
+	type Request struct {
+		Page int    `query:"page"`
+		Name string `toml:"name"`
+	}
+	body := []byte(`name = "reader-app"`)
+	values := url.Values{}
+	values.Set("page", "1")
+	var out Request
+	err := binding.BindTo(&out,
+		binding.FromQuery(values),
+		FromTOMLReader(bytes.NewReader(body)),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 1, out.Page)
 }

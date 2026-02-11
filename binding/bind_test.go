@@ -1294,3 +1294,202 @@ func TestBind_UnsupportedTypes(t *testing.T) {
 		})
 	}
 }
+
+// TestForm tests Form generic binding from url.Values.
+func TestForm(t *testing.T) {
+	t.Parallel()
+
+	type FormData struct {
+		Username string `form:"username"`
+		Active   bool   `form:"active"`
+	}
+	values := url.Values{}
+	values.Set("username", "formuser")
+	values.Set("active", "true")
+	result, err := Form[FormData](values)
+	require.NoError(t, err)
+	assert.Equal(t, "formuser", result.Username)
+	assert.True(t, result.Active)
+}
+
+// TestFormTo tests FormTo binding into out.
+func TestFormTo(t *testing.T) {
+	t.Parallel()
+
+	type FormData struct {
+		Email string `form:"email"`
+	}
+	values := url.Values{}
+	values.Set("email", "a@b.com")
+	var out FormData
+	err := FormTo(values, &out)
+	require.NoError(t, err)
+	assert.Equal(t, "a@b.com", out.Email)
+}
+
+// TestHeader tests Header generic binding from http.Header.
+func TestHeader(t *testing.T) {
+	t.Parallel()
+
+	type Headers struct {
+		Auth  string `header:"Authorization"`
+		ReqID string `header:"X-Request-ID"`
+	}
+	h := http.Header{}
+	h.Set("Authorization", "Bearer token")
+	h.Set("X-Request-ID", "123")
+	result, err := Header[Headers](h)
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer token", result.Auth)
+	assert.Equal(t, "123", result.ReqID)
+}
+
+// TestHeaderTo tests HeaderTo binding into out.
+func TestHeaderTo(t *testing.T) {
+	t.Parallel()
+
+	type Headers struct {
+		APIKey string `header:"X-Api-Key"`
+	}
+	h := http.Header{}
+	h.Set("X-Api-Key", "secret")
+	var out Headers
+	err := HeaderTo(h, &out)
+	require.NoError(t, err)
+	assert.Equal(t, "secret", out.APIKey)
+}
+
+// TestCookie tests Cookie generic binding from cookies slice.
+func TestCookie(t *testing.T) {
+	t.Parallel()
+
+	type Cookies struct {
+		Session string `cookie:"session_id"`
+		Theme   string `cookie:"theme"`
+	}
+	cookies := []*http.Cookie{
+		{Name: "session_id", Value: "xyz"},
+		{Name: "theme", Value: "dark"},
+	}
+	result, err := Cookie[Cookies](cookies)
+	require.NoError(t, err)
+	assert.Equal(t, "xyz", result.Session)
+	assert.Equal(t, "dark", result.Theme)
+}
+
+// TestCookieTo tests CookieTo binding into out.
+func TestCookieTo(t *testing.T) {
+	t.Parallel()
+
+	type Cookies struct {
+		Session string `cookie:"session"`
+	}
+	cookies := []*http.Cookie{{Name: "session", Value: "abc"}}
+	var out Cookies
+	err := CookieTo(cookies, &out)
+	require.NoError(t, err)
+	assert.Equal(t, "abc", out.Session)
+}
+
+// TestPath tests Path generic binding from path params.
+func TestPath(t *testing.T) {
+	t.Parallel()
+
+	type Params struct {
+		ID   string `path:"id"`
+		Slug string `path:"slug"`
+	}
+	params := map[string]string{"id": "99", "slug": "hello"}
+	result, err := Path[Params](params)
+	require.NoError(t, err)
+	assert.Equal(t, "99", result.ID)
+	assert.Equal(t, "hello", result.Slug)
+}
+
+// TestPathTo tests PathTo binding into out.
+func TestPathTo(t *testing.T) {
+	t.Parallel()
+
+	type Params struct {
+		ID string `path:"id"`
+	}
+	params := map[string]string{"id": "42"}
+	var out Params
+	err := PathTo(params, &out)
+	require.NoError(t, err)
+	assert.Equal(t, "42", out.ID)
+}
+
+// TestRawInto tests RawInto generic binding.
+func TestRawInto(t *testing.T) {
+	t.Parallel()
+
+	type Params struct {
+		Name string `query:"name"`
+		Page int    `query:"page"`
+	}
+	values := url.Values{}
+	values.Set("name", "rawuser")
+	values.Set("page", "3")
+	getter := NewQueryGetter(values)
+	result, err := RawInto[Params](getter, TagQuery)
+	require.NoError(t, err)
+	assert.Equal(t, "rawuser", result.Name)
+	assert.Equal(t, 3, result.Page)
+}
+
+// TestBind_WithAllErrors tests that WithAllErrors collects all binding errors.
+func TestBind_WithAllErrors(t *testing.T) {
+	t.Parallel()
+
+	type Request struct {
+		Age  int `query:"age"`
+		Page int `query:"page"`
+	}
+	values := url.Values{}
+	values.Set("age", "not-a-number")
+	values.Set("page", "also-invalid")
+	var out Request
+	err := Raw(NewQueryGetter(values), TagQuery, &out, WithAllErrors())
+	require.Error(t, err)
+	var multi *MultiError
+	require.ErrorAs(t, err, &multi)
+	require.Len(t, multi.Errors, 2)
+}
+
+// TestBindMultiSource_JSONSource tests BindTo with FromJSON so JSON path is exercised.
+func TestBindMultiSource_JSONSource(t *testing.T) {
+	t.Parallel()
+
+	type Request struct {
+		ID   int    `path:"id"`
+		Name string `json:"name"`
+		Page int    `query:"page"`
+	}
+	body := []byte(`{"name":"json-name"}`)
+	var out Request
+	err := BindTo(&out,
+		FromPath(map[string]string{"id": "1"}),
+		FromJSON(body),
+		FromQuery(url.Values{"page": {"5"}}),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 1, out.ID)
+	assert.Equal(t, "json-name", out.Name)
+	assert.Equal(t, 5, out.Page)
+}
+
+// TestApplyTypedDefault_Pointer tests pointer default application (setPointerDefault path).
+func TestApplyTypedDefault_Pointer(t *testing.T) {
+	t.Parallel()
+
+	type Params struct {
+		Age *int `query:"age" default:"99"`
+	}
+	values := url.Values{}
+	var out Params
+	err := Raw(NewQueryGetter(values), TagQuery, &out)
+	require.NoError(t, err)
+	require.NotNil(t, out.Age)
+	assert.Equal(t, 99, *out.Age)
+}

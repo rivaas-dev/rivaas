@@ -303,3 +303,188 @@ func TestIsIntType(t *testing.T) {
 		})
 	}
 }
+
+// TestSource_String tests string representation of all Source constants.
+func TestSource_String(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		source   Source
+		expected string
+	}{
+		{"query", SourceQuery, "query"},
+		{"path", SourcePath, "path"},
+		{"form", SourceForm, "form"},
+		{"header", SourceHeader, "header"},
+		{"cookie", SourceCookie, "cookie"},
+		{"json", SourceJSON, "json"},
+		{"xml", SourceXML, "xml"},
+		{"yaml", SourceYAML, "yaml"},
+		{"toml", SourceTOML, "toml"},
+		{"msgpack", SourceMsgPack, "msgpack"},
+		{"proto", SourceProto, "proto"},
+		{"multipart", SourceMultipart, "multipart"},
+		{"unknown", SourceUnknown, "unknown"},
+		{"invalid value yields unknown", Source(999), "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := tt.source.String()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+// TestBindError_HTTPStatus_Code_IsType tests BindError interface methods.
+func TestBindError_HTTPStatus_Code_IsType(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with underlying error", func(t *testing.T) {
+		t.Parallel()
+
+		err := &BindError{
+			Field:  "age",
+			Source: SourceQuery,
+			Value:  "invalid",
+			Type:   reflect.TypeFor[int](),
+			Err:    assert.AnError,
+		}
+		assert.Equal(t, 400, err.HTTPStatus())
+		assert.Equal(t, "binding_error", err.Code())
+		assert.True(t, err.IsType())
+	})
+
+	t.Run("without underlying error", func(t *testing.T) {
+		t.Parallel()
+
+		err := &BindError{
+			Field:  "name",
+			Source: SourceForm,
+			Err:    nil,
+		}
+		assert.Equal(t, 400, err.HTTPStatus())
+		assert.Equal(t, "binding_error", err.Code())
+		assert.False(t, err.IsType())
+	})
+}
+
+// TestUnknownFieldError_Error tests error message for single and multiple fields.
+func TestUnknownFieldError_Error(t *testing.T) {
+	t.Parallel()
+
+	t.Run("single field", func(t *testing.T) {
+		t.Parallel()
+
+		err := &UnknownFieldError{Fields: []string{"extra"}}
+		msg := err.Error()
+		assert.Contains(t, msg, "unknown field")
+		assert.Contains(t, msg, "extra")
+	})
+
+	t.Run("multiple fields", func(t *testing.T) {
+		t.Parallel()
+
+		err := &UnknownFieldError{Fields: []string{"a", "b"}}
+		msg := err.Error()
+		assert.Contains(t, msg, "unknown fields")
+		assert.Contains(t, msg, "a")
+		assert.Contains(t, msg, "b")
+	})
+}
+
+// TestUnknownFieldError_HTTPStatus_Code tests UnknownFieldError interface methods.
+func TestUnknownFieldError_HTTPStatus_Code(t *testing.T) {
+	t.Parallel()
+
+	err := &UnknownFieldError{Fields: []string{"x"}}
+	assert.Equal(t, 400, err.HTTPStatus())
+	assert.Equal(t, "unknown_field", err.Code())
+}
+
+// TestMultiError_Error tests error message for zero one and multiple errors.
+func TestMultiError_Error(t *testing.T) {
+	t.Parallel()
+
+	t.Run("zero errors returns no errors", func(t *testing.T) {
+		t.Parallel()
+
+		m := &MultiError{}
+		assert.Equal(t, "no errors", m.Error())
+	})
+
+	t.Run("one error delegates to first error", func(t *testing.T) {
+		t.Parallel()
+
+		be := &BindError{Field: "age", Source: SourceQuery, Value: "x", Err: assert.AnError}
+		m := &MultiError{Errors: []*BindError{be}}
+		assert.Contains(t, m.Error(), "age")
+	})
+
+	t.Run("multiple errors returns count message", func(t *testing.T) {
+		t.Parallel()
+
+		be1 := &BindError{Field: "a", Source: SourceQuery, Err: assert.AnError}
+		be2 := &BindError{Field: "b", Source: SourceQuery, Err: assert.AnError}
+		m := &MultiError{Errors: []*BindError{be1, be2}}
+		assert.Contains(t, m.Error(), "2 binding errors occurred")
+	})
+}
+
+// TestMultiError_Unwrap tests that Unwrap returns all errors.
+func TestMultiError_Unwrap(t *testing.T) {
+	t.Parallel()
+
+	be1 := &BindError{Field: "a", Source: SourceQuery, Err: assert.AnError}
+	be2 := &BindError{Field: "b", Source: SourceForm, Err: assert.AnError}
+	m := &MultiError{Errors: []*BindError{be1, be2}}
+	errs := m.Unwrap()
+	require.Len(t, errs, 2)
+	assert.ErrorIs(t, errs[0], be1)
+	assert.ErrorIs(t, errs[1], be2)
+}
+
+// TestMultiError_HTTPStatus_Details_Code tests MultiError interface methods.
+func TestMultiError_HTTPStatus_Details_Code(t *testing.T) {
+	t.Parallel()
+
+	be := &BindError{Field: "x", Source: SourceQuery, Err: assert.AnError}
+	m := &MultiError{Errors: []*BindError{be}}
+	assert.Equal(t, 400, m.HTTPStatus())
+	assert.Equal(t, "multiple_binding_errors", m.Code())
+	details := m.Details()
+	require.NotNil(t, details)
+	slice, ok := details.([]*BindError)
+	require.True(t, ok)
+	require.Len(t, slice, 1)
+	assert.Equal(t, "x", slice[0].Field)
+}
+
+// TestMultiError_Add_HasErrors_ErrorOrNil tests Add HasErrors and ErrorOrNil.
+func TestMultiError_Add_HasErrors_ErrorOrNil(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty MultiError HasErrors false ErrorOrNil nil", func(t *testing.T) {
+		t.Parallel()
+
+		m := &MultiError{}
+		assert.False(t, m.HasErrors())
+		assert.Nil(t, m.ErrorOrNil())
+	})
+
+	t.Run("after Add HasErrors true ErrorOrNil returns self", func(t *testing.T) {
+		t.Parallel()
+
+		m := &MultiError{}
+		be := &BindError{Field: "age", Source: SourceQuery, Err: assert.AnError}
+		m.Add(be)
+		assert.True(t, m.HasErrors())
+		err := m.ErrorOrNil()
+		require.NotNil(t, err)
+		var multi *MultiError
+		require.ErrorAs(t, err, &multi)
+		assert.Same(t, m, multi)
+	})
+}

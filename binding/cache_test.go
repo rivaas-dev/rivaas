@@ -17,11 +17,80 @@
 package binding
 
 import (
+	"net/url"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// TestWarmupCache tests WarmupCache skips invalid types and populates cache for valid structs.
+func TestWarmupCache(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid struct does not panic and populates cache", func(t *testing.T) {
+		t.Parallel()
+
+		type Params struct {
+			Name string `query:"name"`
+		}
+		assert.NotPanics(t, func() {
+			WarmupCache(Params{})
+		})
+
+		// Subsequent bind should succeed using cached struct info
+		values := url.Values{}
+		values.Set("name", "alice")
+		var out Params
+		err := Raw(NewQueryGetter(values), TagQuery, &out)
+		require.NoError(t, err)
+		assert.Equal(t, "alice", out.Name)
+	})
+
+	t.Run("nil type is skipped without panic", func(t *testing.T) {
+		t.Parallel()
+
+		assert.NotPanics(t, func() {
+			WarmupCache(nil)
+		})
+	})
+
+	t.Run("non-struct type is skipped without panic", func(t *testing.T) {
+		t.Parallel()
+
+		assert.NotPanics(t, func() {
+			WarmupCache(42)
+		})
+	})
+
+	t.Run("pointer to non-struct is skipped without panic", func(t *testing.T) {
+		t.Parallel()
+
+		var x int
+		assert.NotPanics(t, func() {
+			WarmupCache(&x)
+		})
+	})
+
+	t.Run("mixed valid and invalid types skips invalid only", func(t *testing.T) {
+		t.Parallel()
+
+		type Valid struct {
+			Page int `query:"page"`
+		}
+		assert.NotPanics(t, func() {
+			WarmupCache(nil, Valid{}, 42)
+		})
+
+		values := url.Values{}
+		values.Set("page", "2")
+		var out Valid
+		err := Raw(NewQueryGetter(values), TagQuery, &out)
+		require.NoError(t, err)
+		assert.Equal(t, 2, out.Page)
+	})
+}
 
 // TestMustWarmupCache tests MustWarmupCache behavior
 func TestMustWarmupCache(t *testing.T) {

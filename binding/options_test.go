@@ -17,7 +17,9 @@
 package binding
 
 import (
+	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -430,4 +432,169 @@ func TestOptions_ConcurrencySafety(t *testing.T) {
 		assert.Equal(t, 10, opts1.maxDepth)
 		assert.Equal(t, 20, opts2.maxDepth)
 	})
+}
+
+// TestConfig_Validate tests that New returns error for invalid config (validates via New).
+func TestConfig_Validate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("negative maxDepth returns error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := New(WithMaxDepth(-1))
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "maxDepth")
+	})
+
+	t.Run("negative maxMapSize returns error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := New(WithMaxMapSize(-1))
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "maxMapSize")
+	})
+
+	t.Run("negative maxSliceLen returns error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := New(WithMaxSliceLen(-1))
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "maxSliceLen")
+	})
+}
+
+// TestConfig_Finish_CallsDone tests that finish invokes events.Done when set.
+func TestConfig_Finish_CallsDone(t *testing.T) {
+	t.Parallel()
+
+	var doneCalled bool
+	type Params struct {
+		Name string `query:"name"`
+	}
+	values := url.Values{}
+	values.Set("name", "test")
+	var out Params
+	err := Raw(NewQueryGetter(values), TagQuery, &out,
+		WithEvents(Events{
+			Done: func(stats Stats) {
+				doneCalled = true
+			},
+		}))
+	require.NoError(t, err)
+	assert.True(t, doneCalled, "Done callback should have been invoked")
+}
+
+// TestFromForm tests BindTo with FromForm.
+func TestFromForm(t *testing.T) {
+	t.Parallel()
+
+	type Request struct {
+		ID   int    `path:"id"`
+		Data string `form:"data"`
+	}
+	values := url.Values{}
+	values.Set("data", "form-value")
+	var out Request
+	err := BindTo(&out,
+		FromPath(map[string]string{"id": "1"}),
+		FromForm(values),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 1, out.ID)
+	assert.Equal(t, "form-value", out.Data)
+}
+
+// TestFromJSON tests BindTo with FromJSON.
+func TestFromJSON(t *testing.T) {
+	t.Parallel()
+
+	type Request struct {
+		Page int    `query:"page"`
+		Name string `json:"name"`
+	}
+	body := []byte(`{"name":"json-name"}`)
+	values := url.Values{}
+	values.Set("page", "2")
+	var out Request
+	err := BindTo(&out, FromQuery(values), FromJSON(body))
+	require.NoError(t, err)
+	assert.Equal(t, 2, out.Page)
+	assert.Equal(t, "json-name", out.Name)
+}
+
+// TestFromGetter tests BindTo with FromGetter and custom tag.
+func TestFromGetter(t *testing.T) {
+	t.Parallel()
+
+	type Request struct {
+		ID     int    `path:"id"`
+		Custom string `custom:"value"`
+	}
+	getter := NewQueryGetter(url.Values{"value": {"custom-val"}})
+	// Use path getter for id and custom getter for "value" tag - but our struct has custom tag "value"
+	// FromGetter(getter, "custom") expects getter to respond to Get("value") for tag "custom" and field tag value.
+	// So we need a getter that Has/Get "value". NewQueryGetter with values "value"="custom-val" does that.
+	var out Request
+	err := BindTo(&out,
+		FromPath(map[string]string{"id": "10"}),
+		FromGetter(getter, "custom"),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 10, out.ID)
+	assert.Equal(t, "custom-val", out.Custom)
+}
+
+// TestWithStrictJSON tests that WithStrictJSON rejects unknown JSON fields.
+func TestWithStrictJSON(t *testing.T) {
+	t.Parallel()
+
+	type User struct {
+		Name string `json:"name"`
+	}
+	body := []byte(`{"name":"John","unknown":"x"}`)
+	var out User
+	err := JSONTo(body, &out, WithStrictJSON())
+	require.Error(t, err)
+	var unknownErr *UnknownFieldError
+	assert.ErrorAs(t, err, &unknownErr)
+}
+
+// TestWithEvents_FieldBound tests that FieldBound callback is invoked.
+func TestWithEvents_FieldBound(t *testing.T) {
+	t.Parallel()
+
+	var boundFields []string
+	type Params struct {
+		Name string `query:"name"`
+		Age  int    `query:"age"`
+	}
+	values := url.Values{}
+	values.Set("name", "alice")
+	values.Set("age", "30")
+	var out Params
+	err := Raw(NewQueryGetter(values), TagQuery, &out,
+		WithEvents(Events{
+			FieldBound: func(name, tag string) {
+				boundFields = append(boundFields, name)
+			},
+		}))
+	require.NoError(t, err)
+	require.Len(t, boundFields, 2)
+	assert.Contains(t, boundFields, "Name")
+	assert.Contains(t, boundFields, "Age")
+}
+
+// TestWithKeyNormalizer tests header binding with key normalizer.
+func TestWithKeyNormalizer(t *testing.T) {
+	t.Parallel()
+
+	type Headers struct {
+		Custom string `header:"x-custom"`
+	}
+	h := http.Header{}
+	h.Set("x-custom", "value")
+	var out Headers
+	err := Raw(NewHeaderGetter(h), TagHeader, &out, WithKeyNormalizer(strings.ToLower))
+	require.NoError(t, err)
+	assert.Equal(t, "value", out.Custom)
 }
