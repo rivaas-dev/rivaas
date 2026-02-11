@@ -273,6 +273,315 @@ func TestProject(t *testing.T) {
 				assert.Equal(t, "value", m["x-custom"])
 			},
 		},
+		{
+			name: "3.0 strict downlevel with webhooks returns error",
+			spec: &model.Spec{
+				Info: model.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Paths: map[string]*model.PathItem{
+					"/test": {
+						Get: &model.Operation{
+							Summary: "Test endpoint",
+							Responses: map[string]*model.Response{
+								"200": {Description: "Success"},
+							},
+						},
+					},
+				},
+				Webhooks: map[string]*model.PathItem{
+					"onEvent": {},
+				},
+			},
+			cfg: Config{
+				Version:         V30,
+				StrictDownlevel: true,
+			},
+			wantErr:         true,
+			wantErrContains: "webhooks",
+		},
+		{
+			name: "3.0 strict downlevel with mutualTLS security scheme returns error",
+			spec: &model.Spec{
+				Info: model.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Paths: map[string]*model.PathItem{
+					"/test": {
+						Get: &model.Operation{
+							Summary: "Test endpoint",
+							Responses: map[string]*model.Response{
+								"200": {Description: "Success"},
+							},
+						},
+					},
+				},
+				Components: &model.Components{
+					SecuritySchemes: map[string]*model.SecurityScheme{
+						"mutualTLS": {Type: "mutualTLS"},
+					},
+				},
+			},
+			cfg: Config{
+				Version:         V30,
+				StrictDownlevel: true,
+			},
+			wantErr:         true,
+			wantErrContains: "mutualTLS",
+		},
+		{
+			name: "3.0 with pathItems in components warns and drops pathItems",
+			spec: &model.Spec{
+				Info: model.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Paths: map[string]*model.PathItem{
+					"/test": {
+						Get: &model.Operation{
+							Summary: "Test endpoint",
+							Responses: map[string]*model.Response{
+								"200": {Description: "Success"},
+							},
+						},
+					},
+				},
+				Components: &model.Components{
+					PathItems: map[string]*model.PathItem{
+						"reusablePath": {
+							Get: &model.Operation{
+								Summary: "Reusable",
+								Responses: map[string]*model.Response{
+									"200": {Description: "OK"},
+								},
+							},
+						},
+					},
+				},
+			},
+			cfg: Config{
+				Version: V30,
+			},
+			wantErr:   false,
+			wantWarns: true,
+			validate: func(t *testing.T, result Result) {
+				t.Helper()
+				var foundPathItems bool
+				for _, w := range result.Warnings {
+					if w.Code() == diag.WarnDownlevelPathItems {
+						foundPathItems = true
+						break
+					}
+				}
+				assert.True(t, foundPathItems, "should warn about pathItems")
+				var m map[string]any
+				require.NoError(t, json.Unmarshal(result.JSON, &m))
+				comp, ok := m["components"].(map[string]any)
+				require.True(t, ok)
+				if comp != nil {
+					_, hasPathItems := comp["pathItems"]
+					assert.False(t, hasPathItems, "pathItems should be dropped in 3.0")
+				}
+			},
+		},
+		{
+			name: "3.0 with license identifier warns and drops identifier",
+			spec: &model.Spec{
+				Info: model.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+					License: &model.License{
+						Name:       "MIT",
+						Identifier: "MIT",
+					},
+				},
+				Paths: map[string]*model.PathItem{
+					"/test": {
+						Get: &model.Operation{
+							Summary: "Test endpoint",
+							Responses: map[string]*model.Response{
+								"200": {Description: "Success"},
+							},
+						},
+					},
+				},
+			},
+			cfg: Config{
+				Version: V30,
+			},
+			wantErr:   false,
+			wantWarns: true,
+			validate: func(t *testing.T, result Result) {
+				t.Helper()
+				var foundLicenseWarn bool
+				for _, w := range result.Warnings {
+					if w.Code() == diag.WarnDownlevelLicenseIdentifier {
+						foundLicenseWarn = true
+						break
+					}
+				}
+				assert.True(t, foundLicenseWarn, "should warn about license identifier")
+				var m map[string]any
+				require.NoError(t, json.Unmarshal(result.JSON, &m))
+				info, ok := m["info"].(map[string]any)
+				require.True(t, ok)
+				require.NotNil(t, info)
+				license, ok := info["license"].(map[string]any)
+				require.True(t, ok)
+				require.NotNil(t, license)
+				_, hasIdentifier := license["identifier"]
+				assert.False(t, hasIdentifier, "identifier should be dropped in 3.0")
+			},
+		},
+		{
+			name: "3.1 with license identifier and URL both set returns error",
+			spec: &model.Spec{
+				Info: model.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+					License: &model.License{
+						Name:       "MIT",
+						Identifier: "MIT",
+						URL:        "https://opensource.org/licenses/MIT",
+					},
+				},
+				Paths: map[string]*model.PathItem{
+					"/test": {
+						Get: &model.Operation{
+							Summary: "Test endpoint",
+							Responses: map[string]*model.Response{
+								"200": {Description: "Success"},
+							},
+						},
+					},
+				},
+			},
+			cfg: Config{
+				Version: V31,
+			},
+			wantErr:         true,
+			wantErrContains: "mutually exclusive",
+		},
+		{
+			name: "3.1 with server variable empty enum adds warning",
+			spec: &model.Spec{
+				Info: model.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Paths: map[string]*model.PathItem{
+					"/test": {
+						Get: &model.Operation{
+							Summary: "Test endpoint",
+							Responses: map[string]*model.Response{
+								"200": {Description: "Success"},
+							},
+						},
+					},
+				},
+				Servers: []model.Server{
+					{
+						URL: "https://{env}.example.com",
+						Variables: map[string]*model.ServerVariable{
+							"env": {
+								Default: "api",
+								Enum:    []string{}, // empty enum triggers warning in 3.1
+							},
+						},
+					},
+				},
+			},
+			cfg: Config{
+				Version: V31,
+			},
+			wantErr:   false,
+			wantWarns: true,
+			validate: func(t *testing.T, result Result) {
+				t.Helper()
+				var found bool
+				for _, w := range result.Warnings {
+					if w.Code() == "SERVER_VARIABLE_EMPTY_ENUM" {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "should warn about empty enum")
+			},
+		},
+		{
+			name: "3.1 with server variable default not in enum adds warning",
+			spec: &model.Spec{
+				Info: model.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Paths: map[string]*model.PathItem{
+					"/test": {
+						Get: &model.Operation{
+							Summary: "Test endpoint",
+							Responses: map[string]*model.Response{
+								"200": {Description: "Success"},
+							},
+						},
+					},
+				},
+				Servers: []model.Server{
+					{
+						URL: "https://{env}.example.com",
+						Variables: map[string]*model.ServerVariable{
+							"env": {
+								Default: "other",
+								Enum:    []string{"api", "staging"},
+							},
+						},
+					},
+				},
+			},
+			cfg: Config{
+				Version: V31,
+			},
+			wantErr:   false,
+			wantWarns: true,
+			validate: func(t *testing.T, result Result) {
+				t.Helper()
+				var found bool
+				for _, w := range result.Warnings {
+					if w.Code() == "SERVER_VARIABLE_DEFAULT_NOT_IN_ENUM" {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "should warn about default not in enum")
+			},
+		},
+		{
+			name: "3.1 with no servers injects default server",
+			spec: &model.Spec{
+				Info: model.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Paths:   map[string]*model.PathItem{},
+				Servers: nil,
+			},
+			cfg: Config{
+				Version: V31,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result Result) {
+				t.Helper()
+				var m map[string]any
+				require.NoError(t, json.Unmarshal(result.JSON, &m))
+				servers, ok := m["servers"].([]any)
+				require.True(t, ok, "servers should be present")
+				require.Len(t, servers, 1)
+				server, ok := servers[0].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, "/", server["url"])
+			},
+		},
 	}
 
 	for _, tt := range tests {
