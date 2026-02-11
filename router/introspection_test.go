@@ -154,6 +154,7 @@ func (suite *ExtendedTestSuite) TestAcceptsHelpers() {
 func (suite *ExtendedTestSuite) TestClientIP() {
 	r := MustNew(WithTrustedProxies(
 		WithProxies("10.0.0.0/8", "192.168.0.0/16"),
+		WithProxyMaxHops(2),
 	))
 
 	r.GET("/ip", func(c *Context) {

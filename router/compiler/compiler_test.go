@@ -31,6 +31,65 @@ import (
 // Note: BloomFilter tests are in bloom_test.go
 // Note: Benchmarks are in compiler_bench_test.go
 
+// TestRouteCompiler_Freeze_HasStatic_IsFrozen_HasStaticRoutes covers Freeze, HasStatic, IsFrozen, HasStaticRoutes.
+func TestRouteCompiler_Freeze_HasStatic_IsFrozen_HasStaticRoutes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty compiler", func(t *testing.T) {
+		t.Parallel()
+		rc := NewRouteCompiler(1000, 3)
+		assert.False(t, rc.IsFrozen())
+		assert.False(t, rc.HasStatic())
+		assert.False(t, rc.HasStaticRoutes())
+		rc.Freeze()
+		assert.True(t, rc.IsFrozen())
+		assert.False(t, rc.HasStatic())
+		assert.False(t, rc.HasStaticRoutes())
+	})
+	t.Run("compiler with static route", func(t *testing.T) {
+		t.Parallel()
+		rc := NewRouteCompiler(1000, 3)
+		route := CompileRoute(http.MethodGet, "/users", nil, nil)
+		rc.AddRoute(route)
+		assert.False(t, rc.IsFrozen())
+		assert.True(t, rc.HasStatic())
+		assert.True(t, rc.HasStaticRoutes())
+		rc.Freeze()
+		assert.True(t, rc.IsFrozen())
+		assert.True(t, rc.HasStatic())
+		assert.True(t, rc.HasStaticRoutes())
+	})
+	t.Run("compiler with dynamic only", func(t *testing.T) {
+		t.Parallel()
+		rc := NewRouteCompiler(1000, 3)
+		route := CompileRoute(http.MethodGet, "/users/:id", nil, nil)
+		rc.AddRoute(route)
+		assert.False(t, rc.HasStatic())
+		assert.False(t, rc.HasStaticRoutes())
+		rc.Freeze()
+		assert.False(t, rc.HasStatic())
+		assert.False(t, rc.HasStaticRoutes())
+	})
+}
+
+// TestTestContextParamWriter_GetParam_GetCount_Reset covers testing.go helper GetParam, GetCount, Reset.
+func TestTestContextParamWriter_GetParam_GetCount_Reset(t *testing.T) {
+	t.Parallel()
+	ctx := &testContextParamWriter{}
+	ctx.SetParam(0, "id", "123")
+	ctx.SetParamCount(1)
+	v, ok := ctx.GetParam("id")
+	assert.True(t, ok)
+	assert.Equal(t, "123", v)
+	_, ok = ctx.GetParam("missing")
+	assert.False(t, ok)
+	assert.Equal(t, int32(1), ctx.GetCount())
+	ctx.Reset()
+	assert.Equal(t, int32(0), ctx.GetCount())
+	_, ok = ctx.GetParam("id")
+	assert.False(t, ok)
+}
+
 // TestCompileRoute tests route compilation with various patterns.
 func TestCompileRoute(t *testing.T) {
 	t.Parallel()

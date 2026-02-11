@@ -227,3 +227,25 @@ func TestTrailingSlashPreservesMethod(t *testing.T) {
 	location := w.Header().Get("Location")
 	assert.Equal(t, "/users", location)
 }
+
+// TestTrailingSlash_MiddlewareRedirect308 covers redirect308 (middleware path, not Wrap).
+// Middleware runs after route matching; register both /users and /users/ so /users/ matches and middleware redirects.
+func TestTrailingSlash_MiddlewareRedirect308(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(WithPolicy(PolicyRemove)))
+	handler := func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.String(http.StatusOK, "users")
+	}
+	r.GET("/users", handler)
+	r.GET("/users/", handler)
+
+	// Request /users/ matches /users/ route; middleware runs and redirect308(c, "/users")
+	req := httptest.NewRequest(http.MethodGet, "/users/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusPermanentRedirect, w.Code)
+	assert.Equal(t, "/users", w.Header().Get("Location"))
+}

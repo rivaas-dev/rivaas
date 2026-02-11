@@ -17,6 +17,7 @@
 package compiler
 
 import (
+	"hash/fnv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -194,6 +195,19 @@ func TestBloomFilter_Test(t *testing.T) {
 			assert.Equal(t, tt.wantResult, result)
 		})
 	}
+}
+
+// TestBloomFilter_TestWithPrecomputedHash tests membership with pre-computed FNV-1a hash.
+func TestBloomFilter_TestWithPrecomputedHash(t *testing.T) {
+	t.Parallel()
+	bf := NewBloomFilter(1000, 3)
+	key := []byte("GET/users")
+	bf.Add(key)
+	h := fnv.New64a()
+	h.Write(key)
+	baseHash := h.Sum64()
+	assert.True(t, bf.TestWithPrecomputedHash(baseHash), "precomputed hash of added key should match")
+	assert.False(t, bf.TestWithPrecomputedHash(0), "wrong hash should not match")
 }
 
 // TestBloomFilter_FalsePositiveRate tests the false positive behavior.

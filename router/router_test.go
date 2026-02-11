@@ -279,6 +279,52 @@ func TestResponseWriter_FlushNoOp(t *testing.T) {
 	assert.Equal(t, "test", w.Body.String(), "should still be able to write after flush on non-flushable writer")
 }
 
+// TestNoopLogger covers NoopLogger().
+func TestNoopLogger(t *testing.T) {
+	t.Parallel()
+	logger := NoopLogger()
+	require.NotNil(t, logger)
+}
+
+// TestResponseWriter_StatusCode_Size_Written covers responseWriter getters.
+func TestResponseWriter_StatusCode_Size_Written(t *testing.T) {
+	t.Parallel()
+	w := httptest.NewRecorder()
+	rw := &responseWriter{ResponseWriter: w}
+	assert.False(t, rw.Written())
+	_, err := rw.Write([]byte("body"))
+	require.NoError(t, err)
+	assert.True(t, rw.Written())
+	assert.Equal(t, http.StatusOK, rw.StatusCode())
+	assert.Equal(t, int64(4), rw.Size())
+	rw.WriteHeader(http.StatusCreated)
+	// Already written, status stays 200
+	assert.Equal(t, http.StatusOK, rw.StatusCode())
+}
+
+// TestRouteExists covers RouteExists for existing and missing routes.
+func TestRouteExists(t *testing.T) {
+	t.Parallel()
+	r := MustNew()
+	r.GET("/health", func(c *Context) { c.Status(http.StatusOK) })
+	r.Warmup() // Trees are populated during Warmup
+	assert.True(t, r.RouteExists("GET", "/health"))
+	assert.False(t, r.RouteExists("GET", "/missing"))
+	assert.False(t, r.RouteExists("POST", "/health"))
+}
+
+// TestHandleMethodNotAllowed triggers 405 when method does not match path.
+func TestHandleMethodNotAllowed(t *testing.T) {
+	t.Parallel()
+	r := MustNew()
+	r.GET("/only-get", func(c *Context) { c.Status(http.StatusOK) })
+	req := httptest.NewRequest(http.MethodPost, "/only-get", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	assert.Equal(t, "GET", w.Header().Get("Allow"))
+}
+
 // TestWithBloomFilterHashFunctions tests bloom filter hash configuration
 func TestWithBloomFilterHashFunctions(t *testing.T) {
 	t.Parallel()

@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -733,4 +734,182 @@ func TestContext_Abort_InHandler(t *testing.T) {
 
 	assert.True(t, handlerCalled, "handler should be called")
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestNewPooledContext covers NewPooledContext for pool package usage.
+func TestNewPooledContext(t *testing.T) {
+	t.Parallel()
+	r := MustNew()
+	c := NewPooledContext(r, false)
+	require.NotNil(t, c)
+	require.NotNil(t, c.router)
+	c2 := NewPooledContext(r, true)
+	require.NotNil(t, c2)
+	require.NotNil(t, c2.Params)
+}
+
+// TestContext_Logger covers Logger when no logger is set (returns no-op).
+func TestContext_Logger(t *testing.T) {
+	t.Parallel()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := NewContext(w, req)
+	logger := c.Logger()
+	require.NotNil(t, logger)
+}
+
+// TestContext_MethodNotAllowed covers MethodNotAllowed and Allow header.
+func TestContext_MethodNotAllowed(t *testing.T) {
+	t.Parallel()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	c := NewContext(w, req)
+	c.MethodNotAllowed([]string{"GET", "HEAD"})
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	assert.Equal(t, "GET, HEAD", w.Header().Get("Allow"))
+}
+
+// TestContext_Span covers Span when no span is set (returns nil).
+func TestContext_Span(t *testing.T) {
+	t.Parallel()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := NewContext(w, req)
+	assert.Nil(t, c.Span())
+}
+
+// TestContext_RequireContentType covers RequireContentType and RequireContentTypeJSON.
+func TestContext_RequireContentType(t *testing.T) {
+	t.Parallel()
+
+	t.Run("GET without Content-Type returns true", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		c := NewContext(w, req)
+		ok := c.RequireContentType("application/json")
+		assert.True(t, ok)
+	})
+	t.Run("POST without Content-Type returns false and 415", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		c := NewContext(w, req)
+		ok := c.RequireContentType("application/json")
+		assert.False(t, ok)
+		assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
+	})
+	t.Run("POST with application/json returns true", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.Header.Set("Content-Type", "application/json")
+		c := NewContext(w, req)
+		ok := c.RequireContentType("application/json")
+		assert.True(t, ok)
+	})
+	t.Run("RequireContentTypeJSON with non-JSON returns false", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.Header.Set("Content-Type", "text/plain")
+		c := NewContext(w, req)
+		ok := c.RequireContentTypeJSON()
+		assert.False(t, ok)
+		assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
+	})
+}
+
+// TestStreamJSONArray covers StreamJSONArray and writeJSONDecodeProblem paths.
+func TestStreamJSONArray(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing Content-Type returns ErrContentTypeNotAllowed", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		c := NewContext(w, req)
+		err := StreamJSONArray(c, func(_ int) error { return nil }, 10)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrContentTypeNotAllowed)
+	})
+	t.Run("invalid JSON returns error", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not json"))
+		req.Header.Set("Content-Type", "application/json")
+		c := NewContext(w, req)
+		err := StreamJSONArray(c, func(_ int) error { return nil }, 10)
+		require.Error(t, err)
+	})
+	t.Run("valid array calls each", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("[1,2,3]"))
+		req.Header.Set("Content-Type", "application/json")
+		c := NewContext(w, req)
+		var seen []int
+		err := StreamJSONArray(c, func(n int) error {
+			seen = append(seen, n)
+			return nil
+		}, 10)
+		require.NoError(t, err)
+		assert.Equal(t, []int{1, 2, 3}, seen)
+	})
+	t.Run("array exceeding max items returns error", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("[1,2,3,4,5]"))
+		req.Header.Set("Content-Type", "application/json")
+		c := NewContext(w, req)
+		err := StreamJSONArray(c, func(_ int) error { return nil }, 3)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrArrayExceedsMax)
+	})
+}
+
+// TestStreamNDJSON covers StreamNDJSON.
+func TestStreamNDJSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing Content-Type returns ErrContentTypeNotAllowed", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		c := NewContext(w, req)
+		err := StreamNDJSON(c, func(_ int) error { return nil })
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrContentTypeNotAllowed)
+	})
+	t.Run("valid NDJSON calls each", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("1\n2\n3\n"))
+		req.Header.Set("Content-Type", "application/x-ndjson")
+		c := NewContext(w, req)
+		var seen []int
+		err := StreamNDJSON(c, func(n int) error {
+			seen = append(seen, n)
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []int{1, 2, 3}, seen)
+	})
+}
+
+// TestContext_ParamCountAndSetParamMap covers ParamCount and SetParamMap.
+func TestContext_ParamCountAndSetParamMap(t *testing.T) {
+	t.Parallel()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := NewContext(w, req)
+	assert.Equal(t, int32(0), c.ParamCount())
+	c.SetParamCount(2)
+	c.SetParam(0, "a", "1")
+	c.SetParam(1, "b", "2")
+	assert.Equal(t, int32(2), c.ParamCount())
+	assert.Equal(t, "1", c.Param("a"))
+	// SetParamMap allocates Params and sets key (used for >8 params)
+	c.SetParamMap("key9", "val9")
+	assert.Equal(t, "val9", c.Param("key9"))
 }

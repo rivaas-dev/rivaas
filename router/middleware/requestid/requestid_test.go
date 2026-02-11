@@ -284,3 +284,33 @@ func TestRequestID_ULID_Uniqueness(t *testing.T) {
 
 	assert.Len(t, ids, count, "Expected %d unique ULIDs", count)
 }
+
+func TestGet_RetrievesIDFromContext(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New())
+	var capturedID string
+	r.GET("/test", func(c *router.Context) {
+		capturedID = Get(c)
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	headerID := w.Header().Get("X-Request-ID")
+	assert.NotEmpty(t, headerID)
+	assert.Equal(t, headerID, capturedID, "Get(c) should return the same ID as X-Request-ID header")
+}
+
+func TestGet_ReturnsEmptyWhenNotInContext(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	c := router.NewContext(w, req)
+
+	id := Get(c)
+	assert.Empty(t, id, "Get(c) should return empty string when request ID was not set")
+}

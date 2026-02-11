@@ -50,6 +50,30 @@ func TestSecurity_DefaultHeaders(t *testing.T) {
 	assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"))
 }
 
+func TestSecurity_ProductionPreset(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(ProductionPreset()))
+	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
+	req.TLS = &tls.ConnectionState{} // HSTS is only set when TLS != nil
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "1; mode=block", w.Header().Get("X-XSS-Protection"))
+	assert.Equal(t, "default-src 'self'", w.Header().Get("Content-Security-Policy"))
+	assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"))
+	assert.Equal(t, "geolocation=(), microphone=(), camera=()", w.Header().Get("Permissions-Policy"))
+	hsts := w.Header().Get("Strict-Transport-Security")
+	assert.Contains(t, hsts, "preload", "ProductionPreset enables HSTS preload")
+}
+
 func TestSecurity_CustomFrameOptions(t *testing.T) {
 	t.Parallel()
 	r := router.MustNew()

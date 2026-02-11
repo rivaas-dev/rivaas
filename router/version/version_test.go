@@ -459,3 +459,30 @@ func TestPathStripping(t *testing.T) {
 		assert.Empty(t, segment)
 	})
 }
+
+func TestConfig_EnforceSunset(t *testing.T) {
+	t.Parallel()
+	cfg, err := NewConfig(WithDefault("v1"), WithSunsetEnforcement())
+	require.NoError(t, err)
+	assert.True(t, cfg.EnforceSunset())
+}
+
+func TestConfig_Observer(t *testing.T) {
+	t.Parallel()
+	cfg, err := NewConfig(
+		WithDefault("v1"),
+		WithObserver(OnDetected(func(_, _ string) {}), OnMissing(func() {}), OnInvalid(func(_ string) {})),
+	)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg.Observer())
+}
+
+func TestEngine_ShouldApplyVersioning(t *testing.T) {
+	t.Parallel()
+	engine, err := New(WithDefault("v1"))
+	require.NoError(t, err)
+	// No path detector -> always apply when default is set
+	assert.True(t, engine.ShouldApplyVersioning("/any/path"))
+	// Nil engine
+	assert.False(t, (*Engine)(nil).ShouldApplyVersioning("/path"))
+}

@@ -1246,3 +1246,89 @@ func TestInfo_Struct(t *testing.T) {
 	assert.Equal(t, "v1", info.Version)
 	assert.Equal(t, 1, info.ParamCount)
 }
+
+// TestRoute_SetVersionGroup_GetVersionGroup covers SetVersionGroup and GetVersionGroup.
+func TestRoute_SetVersionGroup_GetVersionGroup(t *testing.T) {
+	t.Parallel()
+	reg := newMockRegistrar()
+	route := NewRoute(reg, "", "GET", "/users", []Handler{"h"})
+	assert.Nil(t, route.GetVersionGroup())
+	vg := struct{ name string }{name: "v1"}
+	route.SetVersionGroup(vg)
+	assert.Equal(t, vg, route.GetVersionGroup())
+}
+
+// TestRoute_Where_WhereUUID_WhereFloat_WhereRegex_WhereEnum_WhereDate_WhereDateTime covers constraint methods.
+func TestRoute_Where_WhereUUID_WhereFloat_WhereRegex_WhereEnum_WhereDate_WhereDateTime(t *testing.T) {
+	t.Parallel()
+	reg := newMockRegistrar()
+
+	t.Run("Where", func(t *testing.T) {
+		t.Parallel()
+		route := NewRoute(reg, "", "GET", "/users/:id", nil)
+		route.Where("id", `\d+`)
+		require.Len(t, route.constraints, 1)
+		assert.Equal(t, "id", route.constraints[0].Param)
+	})
+	t.Run("WhereUUID", func(t *testing.T) {
+		t.Parallel()
+		route := NewRoute(reg, "", "GET", "/e/:uuid", nil)
+		route.WhereUUID("uuid")
+		require.NotNil(t, route.typedConstraints)
+		assert.Equal(t, ConstraintUUID, route.typedConstraints["uuid"].Kind)
+	})
+	t.Run("WhereFloat", func(t *testing.T) {
+		t.Parallel()
+		route := NewRoute(reg, "", "GET", "/p/:amount", nil)
+		route.WhereFloat("amount")
+		assert.Equal(t, ConstraintFloat, route.typedConstraints["amount"].Kind)
+	})
+	t.Run("WhereRegex", func(t *testing.T) {
+		t.Parallel()
+		route := NewRoute(reg, "", "GET", "/f/:name", nil)
+		route.WhereRegex("name", `[a-z]+`)
+		assert.Equal(t, ConstraintRegex, route.typedConstraints["name"].Kind)
+		assert.Equal(t, `[a-z]+`, route.typedConstraints["name"].Pattern)
+	})
+	t.Run("WhereEnum", func(t *testing.T) {
+		t.Parallel()
+		route := NewRoute(reg, "", "GET", "/s/:state", nil)
+		route.WhereEnum("state", "active", "pending")
+		assert.Equal(t, ConstraintEnum, route.typedConstraints["state"].Kind)
+		assert.Len(t, route.typedConstraints["state"].Enum, 2)
+	})
+	t.Run("WhereDate", func(t *testing.T) {
+		t.Parallel()
+		route := NewRoute(reg, "", "GET", "/o/:date", nil)
+		route.WhereDate("date")
+		assert.Equal(t, ConstraintDate, route.typedConstraints["date"].Kind)
+	})
+	t.Run("WhereDateTime", func(t *testing.T) {
+		t.Parallel()
+		route := NewRoute(reg, "", "GET", "/e/:ts", nil)
+		route.WhereDateTime("ts")
+		assert.Equal(t, ConstraintDateTime, route.typedConstraints["ts"].Kind)
+	})
+}
+
+// TestRoute_SetName covers SetName (mock not frozen, RegisterNamedRoute succeeds).
+func TestRoute_SetName(t *testing.T) {
+	t.Parallel()
+	reg := newMockRegistrar()
+	route := NewRoute(reg, "", "GET", "/users/:id", []Handler{"h"})
+	result := route.SetName("users.get")
+	assert.Equal(t, route, result)
+	assert.Equal(t, "users.get", route.Name())
+	assert.Equal(t, route, reg.namedRoutes["users.get"])
+}
+
+// TestRoute_RegisterRoute_covers_convertTypedConstraintsToRegex compiles typed constraints and registers (mock path).
+func TestRoute_RegisterRoute_covers_convertTypedConstraintsToRegex(t *testing.T) {
+	t.Parallel()
+	reg := newMockRegistrar()
+	route := NewRoute(reg, "", "GET", "/users/:id", []Handler{"handler"})
+	route.WhereInt("id")
+	route.RegisterRoute()
+	// Mock AddRouteToTree was called; convertTypedConstraintsToRegex and compile run inside RegisterRoute
+	assert.True(t, route.registered)
+}
