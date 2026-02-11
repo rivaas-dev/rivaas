@@ -10,14 +10,14 @@ require (
 	github.com/onsi/gomega v1.39.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel/trace v1.40.0
-	rivaas.dev/binding v0.7.2
+	rivaas.dev/binding v0.7.3
 	rivaas.dev/errors v0.6.0
-	rivaas.dev/logging v0.5.0
-	rivaas.dev/metrics v0.6.0
-	rivaas.dev/openapi v0.5.0
-	rivaas.dev/router v0.8.1
-	rivaas.dev/tracing v0.5.1
-	rivaas.dev/validation v0.5.0
+	rivaas.dev/logging v0.5.1
+	rivaas.dev/metrics v0.6.1
+	rivaas.dev/openapi v0.5.1
+	rivaas.dev/router v0.8.2
+	rivaas.dev/tracing v0.5.2
+	rivaas.dev/validation v0.5.1
 )
 
 replace (
@@ -52,7 +52,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20260202012954-cb029daf43ef // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.8 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

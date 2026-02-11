@@ -6,11 +6,11 @@ require (
 	go.opentelemetry.io/otel v1.40.0
 	rivaas.dev/app v0.0.0
 	rivaas.dev/config v0.0.0
-	rivaas.dev/logging v0.5.0
-	rivaas.dev/metrics v0.6.0
-	rivaas.dev/openapi v0.5.0
-	rivaas.dev/router v0.8.1
-	rivaas.dev/tracing v0.5.1
+	rivaas.dev/logging v0.5.1
+	rivaas.dev/metrics v0.6.1
+	rivaas.dev/openapi v0.5.1
+	rivaas.dev/router v0.8.2
+	rivaas.dev/tracing v0.5.2
 )
 
 replace (
@@ -53,7 +53,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.8 // indirect
 	github.com/hashicorp/consul/api v1.33.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -109,7 +109,7 @@ require (
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	rivaas.dev/binding v0.7.2 // indirect
+	rivaas.dev/binding v0.7.3 // indirect
 	rivaas.dev/errors v0.6.0 // indirect
-	rivaas.dev/validation v0.5.0 // indirect
+	rivaas.dev/validation v0.5.1 // indirect
 )
