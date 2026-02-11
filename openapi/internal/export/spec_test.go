@@ -612,6 +612,521 @@ func TestProject(t *testing.T) {
 	}
 }
 
+// fullSpecV30 returns a rich model.Spec that exercises all projection branches in spec_v30.go.
+func fullSpecV30() *model.Spec {
+	minimalSchema := &model.Schema{Kind: model.KindString}
+	return &model.Spec{
+		Info: model.Info{
+			Title:   "Full Coverage API",
+			Version: "1.0.0",
+			Contact: &model.Contact{
+				Name:       "Support",
+				URL:        "https://example.com",
+				Email:      "support@example.com",
+				Extensions: map[string]any{"x-contact": "c1"},
+			},
+			License: &model.License{
+				Name: "MIT",
+				URL:  "https://opensource.org/licenses/MIT",
+			},
+		},
+		Servers: []model.Server{
+			{
+				URL:         "https://{env}.example.com",
+				Description: "API server",
+				Variables: map[string]*model.ServerVariable{
+					"env": {
+						Default:     "api",
+						Enum:        []string{"api", "staging"},
+						Description: "Environment",
+					},
+				},
+			},
+		},
+		Tags: []model.Tag{
+			{
+				Name:        "items",
+				Description: "Item operations",
+				ExternalDocs: &model.ExternalDocs{
+					URL:         "https://docs.example.com",
+					Description: "External docs",
+				},
+			},
+		},
+		Security: []model.SecurityRequirement{{"oauth2Scheme": {}}},
+		ExternalDocs: &model.ExternalDocs{
+			URL:         "https://docs.example.com",
+			Description: "API documentation",
+		},
+		Paths: map[string]*model.PathItem{
+			"/refPath": {
+				Ref: "#/components/pathItems/reusable",
+			},
+			"/ops": {
+				Put:     &model.Operation{Summary: "Put", Responses: map[string]*model.Response{"200": {Description: "OK"}}},
+				Delete:  &model.Operation{Summary: "Delete", Responses: map[string]*model.Response{"200": {Description: "OK"}}},
+				Options: &model.Operation{Summary: "Options", Responses: map[string]*model.Response{"200": {Description: "OK"}}},
+				Head:    &model.Operation{Summary: "Head", Responses: map[string]*model.Response{"200": {Description: "OK"}}},
+				Patch:   &model.Operation{Summary: "Patch", Responses: map[string]*model.Response{"200": {Description: "OK"}}},
+				Trace:   &model.Operation{Summary: "Trace", Responses: map[string]*model.Response{"200": {Description: "OK"}}},
+			},
+			"/items": {
+				Summary:     "Items path",
+				Description: "Path with full projection",
+				Parameters: []model.Parameter{
+					{
+						Name:        "limit",
+						In:          "query",
+						Description: "Max items",
+						Schema:      minimalSchema,
+						Examples: map[string]*model.Example{
+							"default": {Summary: "Default", Value: "10"},
+						},
+					},
+				},
+				Post: &model.Operation{
+					Tags:        []string{"items"},
+					Summary:     "Create item",
+					Description: "Creates a new item",
+					OperationID: "createItem",
+					ExternalDocs: &model.ExternalDocs{
+						URL: "https://docs.example.com/create",
+					},
+					Parameters: []model.Parameter{
+						{
+							Name:     "id",
+							In:       "path",
+							Required: true,
+							Schema:   minimalSchema,
+						},
+					},
+					RequestBody: &model.RequestBody{
+						Description: "Item body",
+						Required:    true,
+						Content: map[string]*model.MediaType{
+							"application/json": {
+								Schema: minimalSchema,
+								Examples: map[string]*model.Example{
+									"item": {Value: map[string]any{"name": "foo"}},
+								},
+								Encoding: map[string]*model.Encoding{
+									"style": {
+										ContentType: "application/json",
+										Headers: map[string]*model.Header{
+											"X-Custom": {
+												Description: "Custom header",
+												Schema:      minimalSchema,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Responses: map[string]*model.Response{
+						"200": {
+							Description: "Created",
+							Content: map[string]*model.MediaType{
+								"application/json": {
+									Schema:   minimalSchema,
+									Example:  "ok",
+									Examples: map[string]*model.Example{"one": {Summary: "One", Value: "v"}},
+								},
+							},
+							Headers: map[string]*model.Header{
+								"X-Request-Id": {
+									Description: "Request ID",
+									Schema:      minimalSchema,
+									Examples:    map[string]*model.Example{"id": {Value: "req-1"}},
+								},
+							},
+							Links: map[string]*model.Link{
+								"getItem": {
+									OperationID: "getItem",
+									Description: "Get the item",
+									Server: &model.Server{
+										URL: "https://api.example.com",
+									},
+								},
+							},
+						},
+					},
+					Security: []model.SecurityRequirement{{"oauth2Scheme": {"read", "write"}}},
+					Servers: []model.Server{
+						{URL: "https://api.example.com"},
+					},
+					Callbacks: map[string]*model.Callback{
+						"onEvent": {
+							PathItems: map[string]*model.PathItem{
+								"https://events.example.com": {
+									Post: &model.Operation{
+										Summary: "Event",
+										Responses: map[string]*model.Response{
+											"200": {Description: "OK"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Components: &model.Components{
+			Parameters: map[string]*model.Parameter{
+				"sharedParam": {
+					Name:    "shared",
+					In:      "query",
+					Schema:  minimalSchema,
+					Content: map[string]*model.MediaType{"application/json": {Schema: minimalSchema}},
+				},
+			},
+			Examples: map[string]*model.Example{
+				"itemExample": {Summary: "Item", Value: map[string]any{"id": "1"}},
+			},
+			RequestBodies: map[string]*model.RequestBody{
+				"itemBody": {
+					Description: "Item",
+					Content:     map[string]*model.MediaType{"application/json": {Schema: minimalSchema}},
+				},
+			},
+			Headers: map[string]*model.Header{
+				"X-Header": {Description: "Header", Schema: minimalSchema},
+			},
+			Links: map[string]*model.Link{
+				"itemLink": {OperationID: "getItem", Description: "Link"},
+			},
+			Callbacks: map[string]*model.Callback{
+				"callback": {
+					PathItems: map[string]*model.PathItem{
+						"https://callback.example.com": {
+							Get: &model.Operation{
+								Summary:   "Callback",
+								Responses: map[string]*model.Response{"200": {Description: "OK"}},
+							},
+						},
+					},
+				},
+			},
+			Responses: map[string]*model.Response{
+				"generic": {Description: "Generic response", Content: map[string]*model.MediaType{"application/json": {Schema: minimalSchema}}},
+			},
+			SecuritySchemes: map[string]*model.SecurityScheme{
+				"oauth2Scheme": {
+					Type:        "oauth2",
+					Description: "OAuth2",
+					Flows: &model.OAuthFlows{
+						AuthorizationCode: &model.OAuthFlow{
+							AuthorizationURL: "https://auth.example.com/authorize",
+							TokenURL:         "https://auth.example.com/token",
+							Scopes:           map[string]string{"read": "Read", "write": "Write"},
+						},
+						Implicit: &model.OAuthFlow{
+							AuthorizationURL: "https://auth.example.com/authorize",
+							Scopes:           map[string]string{"read": "Read"},
+						},
+						Password: &model.OAuthFlow{
+							TokenURL: "https://auth.example.com/token",
+							Scopes:   map[string]string{"read": "Read"},
+						},
+						ClientCredentials: &model.OAuthFlow{
+							TokenURL: "https://auth.example.com/token",
+							Scopes:   map[string]string{"read": "Read"},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestProject_V30_fullSpecCoverage(t *testing.T) {
+	t.Parallel()
+
+	spec := fullSpecV30()
+	result, err := Project(context.Background(), spec, Config{Version: V30})
+
+	require.NoError(t, err)
+	require.NotNil(t, result.JSON)
+
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(result.JSON, &m))
+	assert.Equal(t, "3.0.4", m["openapi"])
+	assert.NotNil(t, m["info"])
+	assert.NotNil(t, m["paths"])
+	assert.NotNil(t, m["components"])
+	assert.NotNil(t, m["security"])
+	assert.NotNil(t, m["externalDocs"])
+	assert.NotNil(t, m["servers"])
+	assert.NotNil(t, m["tags"])
+
+	comp, ok := m["components"].(map[string]any)
+	require.True(t, ok)
+	assert.NotNil(t, comp["parameters"])
+	assert.NotNil(t, comp["examples"])
+	assert.NotNil(t, comp["requestBodies"])
+	assert.NotNil(t, comp["headers"])
+	assert.NotNil(t, comp["links"])
+	assert.NotNil(t, comp["callbacks"])
+	assert.NotNil(t, comp["securitySchemes"])
+}
+
+// fullSpecV31 returns a rich model.Spec for OpenAPI 3.1 that exercises projection branches in spec_v31.go.
+func fullSpecV31() *model.Spec {
+	minimalSchema := &model.Schema{Kind: model.KindString}
+	spec := fullSpecV30()
+	spec.Webhooks = map[string]*model.PathItem{
+		"itemCreated": {
+			Post: &model.Operation{
+				Summary: "Item created webhook",
+				Responses: map[string]*model.Response{
+					"200": {Description: "Received"},
+				},
+			},
+		},
+	}
+	if spec.Components == nil {
+		spec.Components = &model.Components{}
+	}
+	spec.Components.PathItems = map[string]*model.PathItem{
+		"reusable": {
+			Summary: "Reusable path",
+			Get: &model.Operation{
+				Summary: "Get reusable",
+				Responses: map[string]*model.Response{
+					"200": {
+						Description: "OK",
+						Content:     map[string]*model.MediaType{"application/json": {Schema: minimalSchema}},
+					},
+				},
+			},
+		},
+	}
+	return spec
+}
+
+func TestProject_V31_fullSpecCoverage(t *testing.T) {
+	t.Parallel()
+
+	spec := fullSpecV31()
+	result, err := Project(context.Background(), spec, Config{Version: V31})
+
+	require.NoError(t, err)
+	require.NotNil(t, result.JSON)
+
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(result.JSON, &m))
+	assert.Equal(t, "3.1.2", m["openapi"])
+	assert.NotNil(t, m["webhooks"])
+	assert.NotNil(t, m["info"])
+	assert.NotNil(t, m["paths"])
+	assert.NotNil(t, m["components"])
+
+	comp, ok := m["components"].(map[string]any)
+	require.True(t, ok)
+	assert.NotNil(t, comp["pathItems"])
+}
+
+func TestProject_V30_refBranches(t *testing.T) {
+	t.Parallel()
+
+	minimalSchema := &model.Schema{Kind: model.KindString}
+	tests := []struct {
+		name string
+		spec *model.Spec
+	}{
+		{
+			name: "parameter Ref only",
+			spec: &model.Spec{
+				Info: model.Info{Title: "API", Version: "1.0"},
+				Paths: map[string]*model.PathItem{
+					"/p": {
+						Parameters: []model.Parameter{{Ref: "#/components/parameters/refParam"}},
+						Get:        &model.Operation{Responses: map[string]*model.Response{"200": {Description: "OK"}}},
+					},
+				},
+				Components: &model.Components{
+					Parameters: map[string]*model.Parameter{
+						"refParam": {Ref: "#/components/parameters/refParam"},
+					},
+				},
+			},
+		},
+		{
+			name: "example Ref only",
+			spec: &model.Spec{
+				Info: model.Info{Title: "API", Version: "1.0"},
+				Paths: map[string]*model.PathItem{
+					"/p": {Get: &model.Operation{Responses: map[string]*model.Response{"200": {Description: "OK"}}}},
+				},
+				Components: &model.Components{
+					Examples: map[string]*model.Example{
+						"refEx": {Ref: "#/components/examples/refEx"},
+					},
+				},
+			},
+		},
+		{
+			name: "requestBody Ref only",
+			spec: &model.Spec{
+				Info: model.Info{Title: "API", Version: "1.0"},
+				Paths: map[string]*model.PathItem{
+					"/p": {
+						Post: &model.Operation{
+							RequestBody: &model.RequestBody{Ref: "#/components/requestBodies/refBody"},
+							Responses:   map[string]*model.Response{"200": {Description: "OK"}},
+						},
+					},
+				},
+				Components: &model.Components{
+					RequestBodies: map[string]*model.RequestBody{
+						"refBody": {Ref: "#/components/requestBodies/refBody"},
+					},
+				},
+			},
+		},
+		{
+			name: "response Ref only",
+			spec: &model.Spec{
+				Info: model.Info{Title: "API", Version: "1.0"},
+				Paths: map[string]*model.PathItem{
+					"/p": {
+						Get: &model.Operation{
+							Responses: map[string]*model.Response{
+								"200": {Ref: "#/components/responses/refResp"},
+							},
+						},
+					},
+				},
+				Components: &model.Components{
+					Responses: map[string]*model.Response{
+						"refResp": {Ref: "#/components/responses/refResp", Description: "Ref response"},
+					},
+				},
+			},
+		},
+		{
+			name: "header Ref only",
+			spec: &model.Spec{
+				Info: model.Info{Title: "API", Version: "1.0"},
+				Paths: map[string]*model.PathItem{
+					"/p": {
+						Get: &model.Operation{
+							Responses: map[string]*model.Response{
+								"200": {
+									Description: "OK",
+									Headers: map[string]*model.Header{
+										"X-Ref": {Ref: "#/components/headers/refHeader"},
+									},
+								},
+							},
+						},
+					},
+				},
+				Components: &model.Components{
+					Headers: map[string]*model.Header{
+						"refHeader": {Ref: "#/components/headers/refHeader", Description: "Ref header"},
+					},
+				},
+			},
+		},
+		{
+			name: "link Ref only",
+			spec: &model.Spec{
+				Info: model.Info{Title: "API", Version: "1.0"},
+				Paths: map[string]*model.PathItem{
+					"/p": {
+						Get: &model.Operation{
+							Responses: map[string]*model.Response{
+								"200": {
+									Description: "OK",
+									Links: map[string]*model.Link{
+										"refLink": {Ref: "#/components/links/refLink"},
+									},
+								},
+							},
+						},
+					},
+				},
+				Components: &model.Components{
+					Links: map[string]*model.Link{
+						"refLink": {Ref: "#/components/links/refLink", OperationID: "get"},
+					},
+				},
+			},
+		},
+		{
+			name: "callback Ref only",
+			spec: &model.Spec{
+				Info: model.Info{Title: "API", Version: "1.0"},
+				Paths: map[string]*model.PathItem{
+					"/p": {
+						Post: &model.Operation{
+							Responses: map[string]*model.Response{"200": {Description: "OK"}},
+							Callbacks: map[string]*model.Callback{
+								"onEvent": {Ref: "#/components/callbacks/refCb"},
+							},
+						},
+					},
+				},
+				Components: &model.Components{
+					Callbacks: map[string]*model.Callback{
+						"refCb": {Ref: "#/components/callbacks/refCb"},
+					},
+				},
+			},
+		},
+		{
+			name: "securityScheme Ref only",
+			spec: &model.Spec{
+				Info:     model.Info{Title: "API", Version: "1.0"},
+				Security: []model.SecurityRequirement{{"refScheme": {}}},
+				Paths: map[string]*model.PathItem{
+					"/p": {Get: &model.Operation{Responses: map[string]*model.Response{"200": {Description: "OK"}}}},
+				},
+				Components: &model.Components{
+					SecuritySchemes: map[string]*model.SecurityScheme{
+						"refScheme": {Ref: "#/components/securitySchemes/refScheme", Type: "apiKey", Name: "key", In: "header"},
+					},
+				},
+			},
+		},
+		{
+			name: "header with Content (projection branch)",
+			spec: &model.Spec{
+				Info: model.Info{Title: "API", Version: "1.0"},
+				Paths: map[string]*model.PathItem{
+					"/p": {
+						Get: &model.Operation{
+							Responses: map[string]*model.Response{
+								"200": {
+									Description: "OK",
+									Headers: map[string]*model.Header{
+										"X-Content": {
+											Description: "Header with content",
+											Content:     map[string]*model.MediaType{"application/json": {Schema: minimalSchema}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result, err := Project(context.Background(), tt.spec, Config{Version: V30})
+			require.NoError(t, err)
+			require.NotNil(t, result.JSON)
+		})
+	}
+}
+
 // mockValidator is a test implementation of Validator.
 type mockValidator struct {
 	validateFunc func(ctx context.Context, specJSON []byte, version validate.Version) error
