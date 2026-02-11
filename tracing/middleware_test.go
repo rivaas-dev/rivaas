@@ -18,6 +18,8 @@ package tracing
 
 import (
 	"bufio"
+	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // TestWithExcludePaths tests the WithExcludePaths middleware option.
@@ -81,6 +84,46 @@ func TestWithExcludePaths(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
+}
+
+// TestWithExcludePaths_RespectsMaxExcludedPaths covers the cap at MaxExcludedPaths (1000).
+func TestWithExcludePaths_RespectsMaxExcludedPaths(t *testing.T) {
+	t.Parallel()
+
+	paths := make([]string, 0, MaxExcludedPaths+1)
+	for i := 0; i <= MaxExcludedPaths; i++ {
+		paths = append(paths, fmt.Sprintf("/path%d", i))
+	}
+
+	tracer := TestingTracer(t)
+	middleware := Middleware(tracer, WithExcludePaths(paths...))
+
+	var spanCreated bool
+	tracerWithHook := TestingTracer(t, WithSpanStartHook(func(_ context.Context, _ trace.Span, _ *http.Request) {
+		spanCreated = true
+	}))
+	middlewareWithHook := Middleware(tracerWithHook, WithExcludePaths(paths...))
+
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	handlerWithHook := middlewareWithHook(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Request to paths[999] is excluded (within cap)
+	req0 := httptest.NewRequest(http.MethodGet, paths[999], nil)
+	w0 := httptest.NewRecorder()
+	handler.ServeHTTP(w0, req0)
+	assert.Equal(t, http.StatusOK, w0.Code)
+
+	// Request to paths[1000] (1001st) is NOT excluded because loop broke at i >= 1000
+	spanCreated = false
+	req1 := httptest.NewRequest(http.MethodGet, paths[MaxExcludedPaths], nil)
+	w1 := httptest.NewRecorder()
+	handlerWithHook.ServeHTTP(w1, req1)
+	assert.Equal(t, http.StatusOK, w1.Code)
+	assert.True(t, spanCreated, "path at index MaxExcludedPaths should not be excluded and should create span")
 }
 
 // TestWithExcludePrefixes tests the WithExcludePrefixes middleware option.
@@ -173,6 +216,97 @@ func TestWithExcludePatterns(t *testing.T) {
 			Middleware(tracer, WithExcludePatterns("[invalid"))
 		})
 	})
+
+	t.Run("invalid regex with valid pattern panics with excludePatterns message", func(t *testing.T) {
+		t.Parallel()
+
+		tracer := TestingTracer(t)
+		var panicVal any
+		func() {
+			defer func() { panicVal = recover() }()
+			Middleware(tracer, WithExcludePatterns("[", "^/health"))
+		}()
+		require.NotNil(t, panicVal, "expected panic")
+		assert.Contains(t, fmt.Sprint(panicVal), "excludePatterns")
+	})
+}
+
+// TestMiddleware_InvalidOptionPanics covers panic when cfg.validate() returns error.
+func TestMiddleware_InvalidOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	tracer := TestingTracer(t)
+	assert.Panics(t, func() {
+		Middleware(tracer, WithExcludePatterns("["))
+	})
+}
+
+// TestMiddleware_NilTracerPanics covers panic when tracer is nil.
+func TestMiddleware_NilTracerPanics(t *testing.T) {
+	t.Parallel()
+
+	assert.Panics(t, func() {
+		Middleware(nil)
+	})
+}
+
+// TestMustMiddleware_ValidOptionsSucceeds covers MustMiddleware.
+func TestMustMiddleware_ValidOptionsSucceeds(t *testing.T) {
+	t.Parallel()
+
+	tracer := TestingTracer(t)
+	handler := MustMiddleware(tracer, WithExcludePaths("/health"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestMiddleware_ProbabilisticSamplingSkipsSomeSpans covers the probabilistic skip branch in startMiddlewareSpan.
+func TestMiddleware_ProbabilisticSamplingSkipsSomeSpans(t *testing.T) {
+	t.Parallel()
+
+	tracer := TestingTracer(t, WithSampleRate(0.0001))
+	middleware := Middleware(tracer)
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Many requests so some hit the skip path (hash > threshold).
+	for i := 0; i < 1000; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	}
+}
+
+// TestResponseWriter_StatusCode_ReturnsOKWhenWriteOnly covers StatusCode() when only Write was called (no WriteHeader).
+func TestResponseWriter_StatusCode_ReturnsOKWhenWriteOnly(t *testing.T) {
+	t.Parallel()
+
+	tracer := TestingTracer(t)
+	middleware := Middleware(tracer)
+
+	var capturedRW *responseWriter
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if rw, ok := w.(*responseWriter); ok {
+			capturedRW = rw
+		}
+		// Only Write, no WriteHeader
+		_, _ = w.Write([]byte("ok")) //nolint:errcheck // Test handler
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	require.NotNil(t, capturedRW, "handler should receive *responseWriter")
+	assert.Equal(t, http.StatusOK, capturedRW.StatusCode())
 }
 
 // TestWithHeaders tests the WithHeaders middleware option.

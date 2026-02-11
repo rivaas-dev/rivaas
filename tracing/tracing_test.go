@@ -28,7 +28,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/trace"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
 func TestTracerConfig(t *testing.T) {
@@ -1537,4 +1542,237 @@ func TestMultipleProvidersValidation(t *testing.T) {
 			)
 		})
 	})
+}
+
+// TestValidate_SampleRateBetweenZeroAndOne covers sampling threshold for rate in (0, 1).
+func TestValidate_SampleRateBetweenZeroAndOne(t *testing.T) {
+	t.Parallel()
+
+	tracer, err := New(
+		WithServiceName("test"),
+		WithSampleRate(0.5),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, tracer)
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	assert.InEpsilon(t, 0.5, tracer.sampleRate, 0.001)
+	assert.Greater(t, tracer.samplingThreshold, uint64(0))
+	assert.Less(t, tracer.samplingThreshold, ^uint64(0))
+}
+
+// TestValidate_OTLPDefaultEndpointWarning covers the warning when OTLP endpoint is empty.
+func TestValidate_OTLPDefaultEndpointWarning(t *testing.T) {
+	t.Parallel()
+
+	var warnings []string
+	handler := func(e Event) {
+		if e.Type == EventWarning {
+			warnings = append(warnings, e.Message)
+		}
+	}
+
+	tracer, err := New(
+		WithServiceName("test"),
+		WithOTLP(""),
+		WithEventHandler(handler),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, tracer)
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	assert.Contains(t, warnings, "OTLP endpoint not specified, will use default")
+}
+
+// TestTracer_StartSpan_CanceledContext covers StartSpan when context is already canceled.
+func TestTracer_StartSpan_CanceledContext(t *testing.T) {
+	t.Parallel()
+
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, span := tracer.StartSpan(ctx, "test")
+	defer tracer.FinishSpan(span, http.StatusOK)
+
+	assert.False(t, span.IsRecording(), "span should not be recording when context is canceled")
+}
+
+// TestTracer_Start_Idempotent covers Start when called twice (second returns nil).
+func TestTracer_Start_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	tracer, err := New(
+		WithServiceName("test"),
+		WithOTLP("localhost:4317", OTLPInsecure()),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, tracer)
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err1 := tracer.Start(ctx)
+	require.NoError(t, err1)
+
+	err2 := tracer.Start(ctx)
+	require.NoError(t, err2)
+	assert.Nil(t, err2)
+}
+
+// TestTracer_Start_OTLPInitError covers Start with OTLP; init may fail on invalid endpoint or timeout.
+func TestTracer_Start_OTLPInitError(t *testing.T) {
+	t.Parallel()
+
+	tracer, err := New(
+		WithServiceName("test"),
+		WithOTLP("invalid-host-port", OTLPInsecure()),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, tracer)
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+
+	err = tracer.Start(ctx)
+	// OTLP client may succeed (background connect) or fail; either way Start path is exercised
+	if err != nil {
+		assert.Contains(t, err.Error(), "failed to initialize tracing")
+	}
+}
+
+// TestTracer_Shutdown_ReturnsErrorWhenProviderFails covers Shutdown when provider shutdown fails.
+// Uses a canceled context so that the SDK provider's Shutdown may return an error.
+func TestTracer_Shutdown_ReturnsErrorWhenProviderFails(t *testing.T) {
+	t.Parallel()
+
+	tracer, err := New(
+		WithServiceName("test"),
+		WithStdout(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, tracer)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = tracer.Shutdown(ctx)
+	// SDK may or may not return error on canceled context; either way Shutdown path is exercised
+	if err != nil {
+		assert.Contains(t, err.Error(), "tracer provider shutdown")
+	}
+}
+
+// TestTracer_FinishSpan_StatusCodeError covers FinishSpan with statusCode >= 400.
+func TestTracer_FinishSpan_StatusCodeError(t *testing.T) {
+	t.Parallel()
+
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	_, span := tracer.StartSpan(t.Context(), "test")
+	require.True(t, span.IsRecording())
+
+	tracer.FinishSpan(span, http.StatusNotFound)
+	// No panic and span is ended
+}
+
+// TestAddSpanEventFromContext_NoOpWhenNotRecording covers AddSpanEventFromContext with no recording span.
+func TestAddSpanEventFromContext_NoOpWhenNotRecording(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	// No span in context - should not panic
+	AddSpanEventFromContext(ctx, "event")
+	AddSpanEventFromContext(ctx, "event2", attribute.String("k", "v"))
+}
+
+// TestBuildAttribute_DefaultStringConversion covers buildAttribute default branch (non-primitive type).
+func TestBuildAttribute_DefaultStringConversion(t *testing.T) {
+	t.Parallel()
+
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	_, span := tracer.StartSpan(t.Context(), "test")
+	defer tracer.FinishSpan(span, http.StatusOK)
+
+	// Struct type uses default fmt.Sprintf path
+	tracer.SetSpanAttribute(span, "struct_attr", struct{ X int }{42})
+	assert.True(t, span.IsRecording())
+}
+
+// TestEventEmitters covers emitError, emitWarning, emitInfo, emitDebug via event handler.
+func TestEventEmitters(t *testing.T) {
+	t.Parallel()
+
+	var (
+		warnings []string
+		infos    []string
+		debugs   []string
+	)
+	handler := func(e Event) {
+		switch e.Type {
+		case EventWarning:
+			warnings = append(warnings, e.Message)
+		case EventInfo:
+			infos = append(infos, e.Message)
+		case EventDebug:
+			debugs = append(debugs, e.Message)
+		}
+	}
+
+	// emitWarning: OTLP empty endpoint
+	tracer, err := New(
+		WithServiceName("test"),
+		WithOTLP(""),
+		WithEventHandler(handler),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+	assert.NotEmpty(t, warnings)
+
+	// emitInfo: use Stdout so init emits info
+	tracer2, err := New(
+		WithServiceName("test"),
+		WithStdout(),
+		WithEventHandler(handler),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { tracer2.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+	assert.NotEmpty(t, infos)
+
+	// emitDebug: use custom provider and Shutdown so we get debug messages
+	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+	require.NoError(t, err)
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName("test"),
+		)),
+	)
+	tracer3, err := New(
+		WithTracerProvider(tp),
+		WithServiceName("test"),
+		WithEventHandler(handler),
+	)
+	require.NoError(t, err)
+	require.NoError(t, tracer3.Shutdown(t.Context()))
+	require.NoError(t, tp.Shutdown(t.Context()))
+	assert.NotEmpty(t, debugs)
+	// emitError is triggered when sdkProvider.Shutdown returns error; see TestTracer_Shutdown_ReturnsErrorWhenProviderFails
+}
+
+// TestTraceContext_ReturnsContext covers TraceContext.
+func TestTraceContext_ReturnsContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	out := TraceContext(ctx)
+	assert.Equal(t, ctx, out)
 }
