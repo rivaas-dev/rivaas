@@ -218,6 +218,47 @@ func TestWithHeaders(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+
+	t.Run("only sensitive headers results in empty record list", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			headers []string
+		}{
+			{
+				name:    "Authorization only",
+				headers: []string{"Authorization"},
+			},
+			{
+				name:    "Cookie only",
+				headers: []string{"Cookie"},
+			},
+			{
+				name:    "mixed sensitive and non-sensitive",
+				headers: []string{"X-Request-ID", "Authorization"},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				tracer := TestingTracer(t)
+				middleware := Middleware(tracer, WithHeaders(tt.headers...))
+
+				handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/test", nil)
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, req)
+
+				assert.Equal(t, http.StatusOK, w.Code)
+			})
+		}
+	})
 }
 
 // TestWithRecordParams tests the WithRecordParams middleware option.
@@ -344,6 +385,32 @@ func TestMiddleware_BasicFunctionality(t *testing.T) {
 
 		assert.True(t, handlerCalled)
 		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+
+	// NOTE: startMiddlewareSpan's spanNamePool.Get() !ok branch (allocating a new
+	// strings.Builder when the pool returns a non-*strings.Builder) is defensive
+	// and not exercised by tests; the pool's New function always returns *strings.Builder.
+
+	t.Run("enabled tracer with 0% sample rate does not create span", func(t *testing.T) {
+		t.Parallel()
+
+		// Tracer is enabled (default) but samples 0% of requests; startMiddlewareSpan
+		// is still called and returns early without creating a span.
+		tracer := TestingTracer(t, WithSampleRate(0))
+		middleware := Middleware(tracer)
+
+		handlerCalled := false
+		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			handlerCalled = true
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		assert.True(t, handlerCalled)
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
 
@@ -502,6 +569,27 @@ func TestResponseWriter(t *testing.T) {
 		rw.Flush()
 	})
 
+	t.Run("Flush is no-op when underlying does not implement Flusher", func(t *testing.T) {
+		t.Parallel()
+
+		w := &minimalResponseWriter{header: make(http.Header)}
+		rw := newResponseWriter(w)
+
+		// Should not panic when underlying has no Flusher
+		rw.Flush()
+	})
+
+	t.Run("Push returns ErrNotSupported when underlying does not implement Pusher", func(t *testing.T) {
+		t.Parallel()
+
+		w := &minimalResponseWriter{header: make(http.Header)}
+		rw := newResponseWriter(w)
+
+		err := rw.Push("/static.js", nil)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, http.ErrNotSupported)
+	})
+
 	t.Run("implements Unwrap", func(t *testing.T) {
 		t.Parallel()
 
@@ -511,6 +599,33 @@ func TestResponseWriter(t *testing.T) {
 		unwrapped := rw.Unwrap()
 		assert.Equal(t, w, unwrapped)
 	})
+}
+
+// minimalResponseWriter implements only http.ResponseWriter (no Flusher, Pusher, or Hijacker).
+// Used to test responseWriter behavior when the underlying writer does not support optional interfaces.
+type minimalResponseWriter struct {
+	header http.Header
+	code   int
+	body   []byte
+}
+
+func (m *minimalResponseWriter) Header() http.Header {
+	if m.header == nil {
+		m.header = make(http.Header)
+	}
+	return m.header
+}
+
+func (m *minimalResponseWriter) Write(b []byte) (int, error) {
+	m.body = append(m.body, b...)
+	if m.code == 0 {
+		m.code = http.StatusOK
+	}
+	return len(b), nil
+}
+
+func (m *minimalResponseWriter) WriteHeader(code int) {
+	m.code = code
 }
 
 // mockHijacker implements http.Hijacker for testing.
@@ -614,10 +729,6 @@ func TestContextTracing_Helper(t *testing.T) {
 	})
 }
 
-// =============================================================================
-// Middleware Config Tests
-// =============================================================================
-
 // TestMiddlewareConfig_Validation tests middleware configuration validation.
 func TestMiddlewareConfig_Validation(t *testing.T) {
 	t.Parallel()
@@ -637,6 +748,36 @@ func TestMiddlewareConfig_Validation(t *testing.T) {
 		assert.Panics(t, func() {
 			Middleware(tracer, WithExcludePatterns("[invalid", "(unclosed"))
 		})
+	})
+
+	t.Run("invalid regex appends validation error", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			patterns []string
+		}{
+			{
+				name:     "single invalid pattern",
+				patterns: []string{"[invalid"},
+			},
+			{
+				name:     "valid then invalid pattern",
+				patterns: []string{`^/health$`, "(unclosed"},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := newMiddlewareConfig()
+				WithExcludePatterns(tt.patterns...)(cfg)
+				err := cfg.validate()
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "middleware validation errors")
+			})
+		}
 	})
 }
 
@@ -692,7 +833,9 @@ func TestTracingResponseWriterImplementsMarkerInterface(t *testing.T) {
 }
 
 // TestTracingMiddlewareDoubleWrappingPrevention tests that the tracing middleware
-// doesn't wrap an already-wrapped response writer.
+// doesn't wrap an already-wrapped response writer. Covers the observabilityWrappedWriter
+// branch in Middleware where an already-wrapped writer is used as-is and the span is
+// finished with http.StatusOK.
 func TestTracingMiddlewareDoubleWrappingPrevention(t *testing.T) {
 	t.Parallel()
 
