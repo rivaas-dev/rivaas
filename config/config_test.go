@@ -33,6 +33,18 @@ import (
 	"rivaas.dev/config/codec"
 )
 
+// validatingStruct is used by TestBinding_ValidatorInterface; implements Validator.
+type validatingStruct struct {
+	Port int `config:"port"`
+}
+
+func (v *validatingStruct) Validate() error {
+	if v.Port <= 0 {
+		return errors.New("port must be positive")
+	}
+	return nil
+}
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 
@@ -99,6 +111,79 @@ func TestNew(t *testing.T) {
 			assert.NotNil(t, cfg)
 		})
 	}
+}
+
+func TestNew_WithTag(t *testing.T) {
+	t.Parallel()
+
+	type cfgTagStruct struct {
+		Foo string `cfg:"foo"`
+		Bar int    `cfg:"bar"`
+	}
+
+	tests := []struct {
+		name    string
+		opts    []Option
+		wantErr bool
+		errMsg  string
+		verify  func(t *testing.T, cfg *Config)
+	}{
+		{
+			name: "valid custom tag binds correctly",
+			opts: []Option{
+				WithSource(&mockSource{conf: map[string]any{"foo": "baz", "bar": 99}}),
+				WithTag("cfg"),
+				WithBinding(&cfgTagStruct{}),
+			},
+			wantErr: false,
+			verify: func(t *testing.T, cfg *Config) {
+				require.NoError(t, cfg.Load(context.Background()))
+				assert.Equal(t, "baz", cfg.String("foo"))
+				assert.Equal(t, 99, cfg.Int("bar"))
+			},
+		},
+		{
+			name:    "empty tag name fails",
+			opts:    []Option{WithTag("")},
+			wantErr: true,
+			errMsg:  "tag name cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg, err := New(tt.opts...)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.errMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, cfg)
+			if tt.verify != nil {
+				tt.verify(t, cfg)
+			}
+		})
+	}
+}
+
+func TestNew_NilOptionSkipped(t *testing.T) {
+	t.Parallel()
+
+	src1 := &mockSource{conf: map[string]any{"a": "1"}}
+	src2 := &mockSource{conf: map[string]any{"b": "2"}}
+	cfg, err := New(WithSource(src1), nil, WithSource(src2))
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	assert.Len(t, cfg.sources, 2, "nil option should be skipped, two sources applied")
+
+	require.NoError(t, cfg.Load(context.Background()))
+	assert.Equal(t, "1", cfg.String("a"))
+	assert.Equal(t, "2", cfg.String("b"))
 }
 
 func TestMustNew(t *testing.T) {
@@ -355,6 +440,101 @@ func TestBinding(t *testing.T) {
 	}
 }
 
+func TestBinding_DefaultTag(t *testing.T) {
+	t.Parallel()
+
+	type defaultTagStruct struct {
+		Foo     string        `config:"foo" default:"defaultfoo"`
+		Bar     int           `config:"bar" default:"42"`
+		Enabled bool          `config:"enabled" default:"true"`
+		Timeout time.Duration `config:"timeout" default:"5s"`
+	}
+
+	tests := []struct {
+		name   string
+		conf   map[string]any
+		verify func(t *testing.T, target *defaultTagStruct)
+	}{
+		{
+			name: "defaults applied when keys omitted",
+			conf: map[string]any{"foo": "fromconfig"},
+			verify: func(t *testing.T, target *defaultTagStruct) {
+				assert.Equal(t, "fromconfig", target.Foo)
+				assert.Equal(t, 42, target.Bar)
+				assert.True(t, target.Enabled)
+				assert.Equal(t, 5*time.Second, target.Timeout)
+			},
+		},
+		{
+			name: "provided values override defaults",
+			conf: map[string]any{"foo": "x", "bar": 7, "enabled": true, "timeout": "10s"},
+			verify: func(t *testing.T, target *defaultTagStruct) {
+				assert.Equal(t, "x", target.Foo)
+				assert.Equal(t, 7, target.Bar)
+				assert.True(t, target.Enabled)
+				assert.Equal(t, 10*time.Second, target.Timeout)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var target defaultTagStruct
+			cfg, err := New(WithSource(&mockSource{conf: tt.conf}), WithBinding(&target))
+			require.NoError(t, err)
+			require.NoError(t, cfg.Load(context.Background()))
+			tt.verify(t, &target)
+		})
+	}
+}
+
+func TestBinding_ValidatorInterface(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		conf    map[string]any
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "Validate returns nil succeeds",
+			conf:    map[string]any{"port": 8080},
+			wantErr: false,
+		},
+		{
+			name:    "Validate returns error fails",
+			conf:    map[string]any{}, // port omitted => 0, Validate rejects
+			wantErr: true,
+			errMsg:  "port must be positive",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var target validatingStruct
+			cfg, err := New(WithSource(&mockSource{conf: tt.conf}), WithBinding(&target))
+			require.NoError(t, err)
+
+			err = cfg.Load(context.Background())
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errMsg != "" {
+					assert.ErrorContains(t, err, tt.errMsg)
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, 8080, target.Port)
+		})
+	}
+}
+
 func TestDump(t *testing.T) {
 	t.Parallel()
 
@@ -547,6 +727,39 @@ func TestDump_NilContext(t *testing.T) {
 	assert.Contains(t, err.Error(), "context cannot be nil")
 }
 
+func TestDump_NoLoad(t *testing.T) {
+	t.Parallel()
+
+	dumper := &MockDumper{}
+	cfg, err := New(WithSource(&mockSource{conf: map[string]any{"foo": "bar"}}), WithDumper(dumper))
+	require.NoError(t, err)
+	// Do not call Load
+
+	err = cfg.Dump(context.Background())
+	require.NoError(t, err)
+	assert.True(t, dumper.called)
+	require.NotNil(t, dumper.values)
+	// Values not loaded yet: internal map is empty from New()
+	assert.Empty(t, *dumper.values)
+}
+
+func TestLoad_NilContext(t *testing.T) {
+	t.Parallel()
+
+	src := &mockSource{conf: map[string]any{"foo": "bar"}}
+	cfg, err := New(WithSource(src))
+	require.NoError(t, err)
+
+	callLoadWithNil := func(c *Config) error {
+		//nolint:staticcheck // SA1012: Intentionally testing nil context error handling
+		return c.Load(nil)
+	}
+
+	err = callLoadWithNil(cfg)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "context cannot be nil")
+}
+
 func TestGet(t *testing.T) {
 	t.Parallel()
 
@@ -599,6 +812,59 @@ func TestGet(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestGet_EmptyKey(t *testing.T) {
+	t.Parallel()
+
+	cfg := TestConfigLoaded(t, map[string]any{"foo": "bar"})
+
+	got := cfg.Get("")
+	assert.Nil(t, got)
+
+	_, err := GetE[string](cfg, "")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "not found")
+}
+
+func TestGetOr(t *testing.T) {
+	t.Parallel()
+
+	t.Run("key present returns value", func(t *testing.T) {
+		t.Parallel()
+		cfg := TestConfigLoaded(t, map[string]any{"port": 9090})
+		got := GetOr(cfg, "port", 8080)
+		assert.Equal(t, 9090, got)
+	})
+
+	t.Run("key missing returns default", func(t *testing.T) {
+		t.Parallel()
+		cfg := TestConfigLoaded(t, map[string]any{"foo": "bar"})
+		got := GetOr(cfg, "port", 8080)
+		assert.Equal(t, 8080, got)
+	})
+
+	t.Run("nil config returns default", func(t *testing.T) {
+		t.Parallel()
+		var cfg *Config
+		got := GetOr(cfg, "port", 8080)
+		assert.Equal(t, 8080, got)
+	})
+}
+
+func TestGet_UnsupportedType(t *testing.T) {
+	t.Parallel()
+
+	type myType struct{}
+
+	cfg := TestConfigLoaded(t, map[string]any{"custom": "value"})
+
+	got := Get[myType](cfg, "custom")
+	assert.Equal(t, myType{}, got)
+
+	_, err := GetE[myType](cfg, "custom")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "cannot convert")
 }
 
 func TestGetTypedValues(t *testing.T) {
@@ -949,6 +1215,17 @@ func TestJSONSchemaValidation(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestNew_WithJSONSchema_ErrorCase(t *testing.T) {
+	t.Parallel()
+
+	t.Run("invalid JSON schema fails", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := New(WithSource(&mockSource{conf: map[string]any{"foo": "bar"}}), WithJSONSchema([]byte(`{invalid json`)))
+		require.Error(t, err)
+	})
 }
 
 func TestWithFileAs(t *testing.T) {

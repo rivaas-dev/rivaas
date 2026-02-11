@@ -73,6 +73,19 @@ func (s *FileDumperTestSuite) TestDump_FileWriteError() {
 	s.Contains(err.Error(), "failed to write file")
 }
 
+func (s *FileDumperTestSuite) TestNewFileWithPermissions_DumpWritesWithCustomPermissions() {
+	encoder := &mockEncoder{}
+	fileDumper := NewFileWithPermissions(s.tmpFile, encoder, 0o600)
+	values := &map[string]any{"foo": "bar"}
+
+	err := fileDumper.Dump(context.Background(), values)
+	s.Require().NoError(err)
+
+	info, err := os.Stat(s.tmpFile)
+	s.Require().NoError(err)
+	s.Equal(os.FileMode(0o600), info.Mode().Perm(), "file should have custom permissions 0600")
+}
+
 // mockEncoder implements codec.Encoder for testing
 // Always returns "encoded" as bytes unless err is set
 
