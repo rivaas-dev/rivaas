@@ -1022,3 +1022,33 @@ func TestDetermineStrategy_PriorityMatrix(t *testing.T) {
 		})
 	}
 }
+
+func TestValidate_UnknownStrategy(t *testing.T) {
+	t.Parallel()
+	type User struct {
+		Name string `json:"name"`
+	}
+	err := Validate(t.Context(), &User{}, WithStrategy(Strategy(999)))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	require.Len(t, verr.Fields, 1)
+	assert.Equal(t, "unknown_strategy", verr.Fields[0].Code)
+	assert.Contains(t, verr.Fields[0].Message, "unknown validation strategy")
+}
+
+func TestValidate_RequireAnyWithOnlyInterfacePassing(t *testing.T) {
+	t.Parallel()
+	u := &userWithValidator{Name: "John", Email: "j@x.com"}
+	err := Validate(t.Context(), u, WithRunAll(true), WithRequireAny(true))
+	assert.NoError(t, err)
+}
+
+func TestValidate_DetermineStrategyFallbackToTags(t *testing.T) {
+	t.Parallel()
+	type NoTags struct {
+		X int `json:"x"`
+	}
+	err := Validate(t.Context(), &NoTags{})
+	assert.NoError(t, err)
+}

@@ -18,6 +18,7 @@ package validation
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -942,4 +943,123 @@ func TestValidateWithSchema_ArrayValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// structWithChan cannot be JSON-marshaled; used to trigger marshal_error path.
+type structWithChan struct {
+	Ch chan int `json:"ch"`
+}
+
+func TestValidateWithSchema_MarshalError(t *testing.T) {
+	t.Parallel()
+	val := &structWithChan{Ch: make(chan int)}
+	err := Validate(t.Context(), val, WithStrategy(StrategyJSONSchema), WithCustomSchema("x", `{"type":"object"}`))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	require.Len(t, verr.Fields, 1)
+	assert.Equal(t, "marshal_error", verr.Fields[0].Code)
+}
+
+func TestValidateWithSchema_InvalidSchemaJSON(t *testing.T) {
+	t.Parallel()
+	type User struct {
+		Name string `json:"name"`
+	}
+	v := MustNew(WithStrategy(StrategyJSONSchema))
+	err := v.Validate(t.Context(), &User{}, WithCustomSchema("x", "not valid json"))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	require.Len(t, verr.Fields, 1)
+	assert.True(t, verr.Fields[0].Code == "schema_compile_error" || strings.Contains(verr.Fields[0].Message, "invalid"))
+}
+
+func TestValidateWithSchema_FieldNameMapper(t *testing.T) {
+	t.Parallel()
+	v := MustNew(
+		WithFieldNameMapper(func(s string) string { return strings.ReplaceAll(s, "_", " ") }),
+		WithStrategy(StrategyJSONSchema),
+	)
+	schema := `{"type":"object","properties":{"first_name":{"type":"string","minLength":1}},"required":["first_name"]}`
+	type User struct {
+		FirstName string `json:"first_name"`
+	}
+	err := v.Validate(t.Context(), &User{}, WithCustomSchema("fn", schema))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	require.NotEmpty(t, verr.Fields)
+	assert.Contains(t, verr.Fields[0].Path, " ", "field name mapper should transform path")
+}
+
+func TestValidateWithSchema_MaxErrorsTruncation(t *testing.T) {
+	t.Parallel()
+	// Schema with many required properties to produce many errors (same pattern as TestValidateWithSchema_Basic)
+	schema := `{
+		"type": "object",
+		"properties": {
+			"name": {"type": "string", "minLength": 1},
+			"age": {"type": "number", "minimum": 1},
+			"email": {"type": "string", "format": "email"}
+		},
+		"required": ["name", "age", "email"]
+	}`
+	type User struct {
+		Name  string `json:"name"`
+		Age   int    `json:"age"`
+		Email string `json:"email"`
+	}
+	// Empty user triggers multiple required/format errors
+	err := Validate(t.Context(), &User{}, WithStrategy(StrategyJSONSchema), WithCustomSchema("trunc-schema", schema), WithMaxErrors(2))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	assert.LessOrEqual(t, len(verr.Fields), 2)
+	assert.True(t, verr.Truncated)
+}
+
+func TestValidateWithSchema_PartialArrayWithGaps(t *testing.T) {
+	t.Parallel()
+	// Schema allows array of objects; pruneByPresence appends nil for missing indices (array branch)
+	schema := `{"type":"object","properties":{"items":{"type":"array","items":{"type":["object","null"]}}},"required":["items"]}`
+	type Item struct {
+		X int `json:"x"`
+	}
+	type WithItems struct {
+		Items []Item `json:"items"`
+	}
+	// Presence has items.0 and items.2 but not items.1 to hit array branch (append nil)
+	pm := PresenceMap{"items": true, "items.0": true, "items.0.x": true, "items.2": true, "items.2.x": true}
+	val := &WithItems{Items: []Item{{X: 1}, {X: 2}, {X: 3}}}
+	raw, err := json.Marshal(val)
+	require.NoError(t, err)
+	ctx := InjectRawJSONCtx(t.Context(), raw)
+	v := MustNew(WithStrategy(StrategyJSONSchema))
+	err = v.Validate(ctx, val, WithPresence(pm), WithPartial(true), WithCustomSchema("arr", schema))
+	// Schema allows null in array; pruning replaces missing index with nil, so validation can pass
+	assert.NoError(t, err)
+}
+
+func TestValidateWithSchema_PruneMaxDepth(t *testing.T) {
+	t.Parallel()
+	type deepNode struct {
+		Child *deepNode `json:"child"`
+	}
+	// Build 101 levels so pruneByPresence hits maxRecursionDepth
+	var node *deepNode
+	for i := 0; i < 102; i++ {
+		node = &deepNode{Child: node}
+	}
+	pm := PresenceMap{}
+	p := "child"
+	for i := 0; i < 102; i++ {
+		pm[p] = true
+		p += ".child"
+	}
+	v := MustNew(WithStrategy(StrategyJSONSchema))
+	schema := `{"type":"object","properties":{"child":{}}}`
+	err := v.Validate(t.Context(), node, WithPresence(pm), WithPartial(true), WithCustomSchema("deep", schema))
+	// Should not panic; may error due to schema
+	_ = err
 }

@@ -760,3 +760,67 @@ func TestValidateWithInterface_NoContextProvided(t *testing.T) {
 		})
 	}
 }
+
+// userReturningFieldError implements ValidatorInterface and returns a FieldError from Validate().
+type userReturningFieldError struct{}
+
+func (userReturningFieldError) Validate() error {
+	return FieldError{Path: "field", Code: "custom", Message: "field error"}
+}
+
+// userReturningManyErrors implements ValidatorInterface and returns *Error with many fields.
+type userReturningManyErrors struct{}
+
+func (userReturningManyErrors) Validate() error {
+	return &Error{
+		Fields: []FieldError{
+			{Path: "a", Code: "c1", Message: "m1"},
+			{Path: "b", Code: "c2", Message: "m2"},
+			{Path: "c", Code: "c3", Message: "m3"},
+			{Path: "d", Code: "c4", Message: "m4"},
+			{Path: "e", Code: "c5", Message: "m5"},
+		},
+	}
+}
+
+// userReturningErrValidation implements ValidatorInterface and returns ErrValidation.
+type userReturningErrValidation struct{}
+
+func (userReturningErrValidation) Validate() error {
+	return ErrValidation
+}
+
+func TestValidateWithInterface_CoerceFieldError(t *testing.T) {
+	t.Parallel()
+	val := userReturningFieldError{}
+	err := Validate(t.Context(), val, WithStrategy(StrategyInterface))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	require.Len(t, verr.Fields, 1)
+	assert.Equal(t, "field", verr.Fields[0].Path)
+	assert.Equal(t, "custom", verr.Fields[0].Code)
+	assert.Equal(t, "field error", verr.Fields[0].Message)
+}
+
+func TestValidateWithInterface_CoerceTruncatesWhenMaxErrorsSet(t *testing.T) {
+	t.Parallel()
+	val := userReturningManyErrors{}
+	err := Validate(t.Context(), val, WithStrategy(StrategyInterface), WithMaxErrors(2))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	assert.Len(t, verr.Fields, 2, "should truncate to maxErrors")
+	assert.True(t, verr.Truncated, "Truncated should be set when fields are truncated")
+}
+
+func TestValidateWithInterface_CoerceErrValidation(t *testing.T) {
+	t.Parallel()
+	val := userReturningErrValidation{}
+	err := Validate(t.Context(), val, WithStrategy(StrategyInterface))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	require.Len(t, verr.Fields, 1)
+	assert.Equal(t, "validation_error", verr.Fields[0].Code)
+}

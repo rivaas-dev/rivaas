@@ -312,6 +312,44 @@ func TestFieldError_Unwrap(t *testing.T) {
 	assert.ErrorIs(t, err, ErrValidation, "Unwrap should return ErrValidation")
 }
 
+func TestFieldError_HTTPStatus(t *testing.T) {
+	t.Parallel()
+	fe := FieldError{
+		Path:    "name",
+		Code:    "required",
+		Message: "is required",
+	}
+	assert.Equal(t, 422, fe.HTTPStatus(), "FieldError.HTTPStatus should return 422 Unprocessable Entity")
+}
+
+func TestError_HTTPStatus(t *testing.T) {
+	t.Parallel()
+	var verr Error
+	verr.Add("name", "required", "is required", nil)
+	assert.Equal(t, 422, verr.HTTPStatus(), "Error.HTTPStatus should return 422 Unprocessable Entity")
+}
+
+func TestError_Details(t *testing.T) {
+	t.Parallel()
+	var verr Error
+	verr.Add("name", "required", "is required", nil)
+	verr.Add("email", "email", "invalid email", nil)
+	details := verr.Details()
+	require.NotNil(t, details)
+	fields, ok := details.([]FieldError)
+	require.True(t, ok, "Details should return []FieldError")
+	assert.Len(t, fields, 2)
+	assert.Equal(t, "name", fields[0].Path)
+	assert.Equal(t, "email", fields[1].Path)
+}
+
+func TestError_Code(t *testing.T) {
+	t.Parallel()
+	var verr Error
+	verr.Add("name", "required", "is required", nil)
+	assert.Equal(t, "validation_error", verr.Code(), "Error.Code should return validation_error")
+}
+
 func TestValidationErrors_Add(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -439,6 +477,18 @@ func TestValidationErrors_AddError(t *testing.T) {
 			expectedCount: 0,
 			expectedCode:  "",
 		},
+		{
+			name: "add value Error propagates Truncated",
+			setup: func() error {
+				var valErr Error
+				valErr.Add("a", "code1", "msg1", nil)
+				valErr.Add("b", "code2", "msg2", nil)
+				valErr.Truncated = true
+				return valErr
+			},
+			expectedCount: 2,
+			expectedCode:  "code2",
+		},
 	}
 
 	for _, tt := range tests {
@@ -450,6 +500,9 @@ func TestValidationErrors_AddError(t *testing.T) {
 			assert.Len(t, verr.Fields, tt.expectedCount)
 			if tt.expectedCode != "" && tt.expectedCount > 0 {
 				assert.Equal(t, tt.expectedCode, verr.Fields[tt.expectedCount-1].Code)
+			}
+			if tt.name == "add value Error propagates Truncated" {
+				assert.True(t, verr.Truncated, "Truncated should be propagated from value Error")
 			}
 		})
 	}
@@ -739,6 +792,12 @@ func TestPresenceMap_HasPrefix(t *testing.T) {
 			prefix:   "addr", // Partial match, not a prefix
 			expected: false,
 		},
+		{
+			name:     "nil map should return false",
+			pm:       (PresenceMap)(nil),
+			prefix:   "any",
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -972,12 +1031,21 @@ func TestPresenceMap_LeafPaths(t *testing.T) {
 				"items.2":    true,
 			},
 		},
+		{
+			name:     "nil map returns nil",
+			pm:       (PresenceMap)(nil),
+			expected: map[string]bool{},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			leaves := tt.pm.LeafPaths()
+			if tt.pm == nil {
+				assert.Nil(t, leaves)
+				return
+			}
 			assert.Len(t, leaves, len(tt.expected), "expected %d leaves", len(tt.expected))
 
 			for _, leaf := range leaves {
@@ -990,6 +1058,20 @@ func TestPresenceMap_LeafPaths(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestComputePresence_MaxDepth(t *testing.T) {
+	t.Parallel()
+	// Build JSON with depth > maxRecursionDepth to hit the depth guard in markPresence
+	inner := "{}"
+	for i := 0; i < maxRecursionDepth+2; i++ {
+		inner = `{"x":` + inner + `}`
+	}
+	rawJSON := []byte(inner)
+	pm, err := ComputePresence(rawJSON)
+	require.NoError(t, err)
+	// Should not panic; may have limited paths due to depth guard
+	assert.NotNil(t, pm)
 }
 
 func TestValidatorInterface_WithContext(t *testing.T) {

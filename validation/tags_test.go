@@ -1042,6 +1042,155 @@ func TestWithMessageFunc(t *testing.T) {
 	}
 }
 
+func TestGetJSONFieldName_JsonTagDash(t *testing.T) {
+	t.Parallel()
+	// Field with json:"-" should use struct field name for path (getJSONFieldName returns field.Name)
+	type WithPrivate struct {
+		Public  string `json:"public" validate:"required"`
+		Private string `json:"-" validate:"required"`
+	}
+
+	err := Validate(t.Context(), &WithPrivate{}, WithStrategy(StrategyTags))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	paths := make([]string, 0, len(verr.Fields))
+	for _, f := range verr.Fields {
+		paths = append(paths, f.Path)
+	}
+	assert.Contains(t, paths, "public", "expected error for public field")
+	assert.Contains(t, paths, "Private", "expected error for json:\"-\" field using struct field name")
+}
+
+func TestGetJSONFieldName_EmptyJsonTag(t *testing.T) {
+	t.Parallel()
+	// Field with empty json tag should use struct field name (getJSONFieldName returns field.Name)
+	type WithEmptyTag struct {
+		NoJSON string `json:"" validate:"required"`
+	}
+	err := Validate(t.Context(), &WithEmptyTag{}, WithStrategy(StrategyTags))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	var paths []string
+	for _, f := range verr.Fields {
+		paths = append(paths, f.Path)
+	}
+	assert.Contains(t, paths, "NoJSON", "expected error path to use struct field name when json tag is empty")
+}
+
+func TestDefaultTagMessage_UrlAndOneof(t *testing.T) {
+	t.Parallel()
+	type WithURL struct {
+		Homepage string `json:"homepage" validate:"url"`
+	}
+	type WithOneof struct {
+		Status string `json:"status" validate:"oneof=draft published"`
+	}
+
+	tests := []struct {
+		name        string
+		val         any
+		wantSnippet string
+	}{
+		{"url tag default message", &WithURL{Homepage: "not-a-url"}, "must be a valid URL"},
+		{"oneof tag default message", &WithOneof{Status: "invalid"}, "must be one of"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := Validate(t.Context(), tt.val, WithStrategy(StrategyTags))
+			require.Error(t, err)
+			var verr *Error
+			require.ErrorAs(t, err, &verr)
+			allMsgs := ""
+			for _, f := range verr.Fields {
+				allMsgs += f.Message + " "
+			}
+			assert.Contains(t, allMsgs, tt.wantSnippet, "expected default message snippet in: %s", allMsgs)
+		})
+	}
+}
+
+func TestDefaultTagMessage_UnknownTag(t *testing.T) {
+	t.Parallel()
+	// Use a tag that is not in defaultTagMessage switch to hit default case
+	type WithGte struct {
+		Age int `json:"age" validate:"gte=18"`
+	}
+	err := Validate(t.Context(), &WithGte{Age: 10}, WithStrategy(StrategyTags))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	assert.NotEmpty(t, verr.Fields)
+	assert.Contains(t, verr.Fields[0].Message, "failed validation", "expected default message for unknown tag")
+}
+
+func TestDefaultTagMessage_MinMaxString(t *testing.T) {
+	t.Parallel()
+	// defaultTagMessage "min" and "max" with string kind (must be at least/most X characters)
+	type WithMinMax struct {
+		Name string `json:"name" validate:"min=3,max=10"`
+	}
+	tests := []struct {
+		name        string
+		val         WithMinMax
+		wantSnippet string
+	}{
+		{"min string", WithMinMax{Name: "ab"}, "must be at least"},
+		{"max string", WithMinMax{Name: "a very long name here"}, "must be at most"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := Validate(t.Context(), &tt.val, WithStrategy(StrategyTags))
+			require.Error(t, err)
+			var verr *Error
+			require.ErrorAs(t, err, &verr)
+			allMsgs := ""
+			for _, f := range verr.Fields {
+				allMsgs += f.Message + " "
+			}
+			assert.Contains(t, allMsgs, tt.wantSnippet)
+		})
+	}
+}
+
+func TestValidatePartial_UnresolvedPath(t *testing.T) {
+	t.Parallel()
+	// Presence map with path that does not resolve to any field (resolvePath returns false)
+	type User struct {
+		Name string `json:"name" validate:"required"`
+	}
+	pm := PresenceMap{
+		"name":         true,
+		"typo":         true, // no such field
+		"a.b.c":        true, // nested path that doesn't exist
+		"items.0.name": true, // User has no items
+	}
+	err := ValidatePartial(t.Context(), &User{Name: "John"}, pm, WithStrategy(StrategyTags))
+	// Should not panic; unresolved paths are skipped
+	assert.NoError(t, err)
+}
+
+func TestValidatePartial_ArrayIndexOutOfBounds(t *testing.T) {
+	t.Parallel()
+	type Item struct {
+		Name string `json:"name" validate:"required"`
+	}
+	type Order struct {
+		Items []Item `json:"items"`
+	}
+	// Presence includes items.5.name but slice has only 2 elements
+	pm := PresenceMap{
+		"items": true, "items.0": true, "items.0.name": true,
+		"items.5": true, "items.5.name": true,
+	}
+	err := ValidatePartial(t.Context(), &Order{Items: []Item{{Name: "a"}, {Name: "b"}}}, pm, WithStrategy(StrategyTags))
+	// resolvePath for items.5.name returns false; should not panic
+	_ = err
+}
+
 func TestWithMessagesAndMessageFunc(t *testing.T) {
 	t.Parallel()
 	type User struct {

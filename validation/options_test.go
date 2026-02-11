@@ -19,11 +19,65 @@ package validation
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNew_InvalidConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		opt        Option
+		wantErrMsg string
+	}{
+		{
+			name:       "maxErrors negative returns error",
+			opt:        WithMaxErrors(-1),
+			wantErrMsg: "maxErrors must be non-negative",
+		},
+		{
+			name:       "maxFields negative returns error",
+			opt:        WithMaxFields(-1),
+			wantErrMsg: "maxFields must be non-negative",
+		},
+		{
+			name:       "maxCachedSchemas negative returns error",
+			opt:        WithMaxCachedSchemas(-1),
+			wantErrMsg: "maxCachedSchemas must be non-negative",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			v, err := New(tt.opt)
+			require.Error(t, err)
+			assert.Nil(t, v)
+			assert.Contains(t, err.Error(), tt.wantErrMsg)
+		})
+	}
+}
+
+func TestMustNew_PanicsOnInvalidConfig(t *testing.T) {
+	t.Parallel()
+	var panicked bool
+	var panicVal any
+	func() {
+		defer func() {
+			panicVal = recover()
+			panicked = panicVal != nil
+		}()
+		MustNew(WithMaxErrors(-1))
+	}()
+	require.True(t, panicked, "MustNew should panic on invalid config")
+	assert.Contains(t, fmt.Sprint(panicVal), "validation.MustNew")
+	assert.Contains(t, fmt.Sprint(panicVal), "maxErrors")
+}
 
 func TestWithRunAll(t *testing.T) {
 	t.Parallel()
@@ -882,4 +936,152 @@ func TestWithPartial(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWithDisallowUnknownFields_OptionApplied(t *testing.T) {
+	t.Parallel()
+	v := MustNew(WithDisallowUnknownFields(true))
+	require.NotNil(t, v)
+	type User struct {
+		Name string `json:"name" validate:"required"`
+	}
+	err := v.Validate(t.Context(), &User{})
+	require.Error(t, err)
+	// Option is applied at validator creation; binding is tested elsewhere
+	assert.NotNil(t, err)
+}
+
+func TestWithFieldNameMapper_AppliesToErrorPaths(t *testing.T) {
+	t.Parallel()
+	mapper := func(name string) string {
+		return strings.ReplaceAll(name, "_", " ")
+	}
+	v := MustNew(WithFieldNameMapper(mapper), WithStrategy(StrategyTags))
+	require.NotNil(t, v)
+	type User struct {
+		FirstName string `json:"first_name" validate:"required"` //nolint:tagliatelle // intentional for mapper test
+	}
+	err := v.Validate(t.Context(), &User{})
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	require.NotEmpty(t, verr.Fields)
+	// Field name mapper should transform path (e.g. first_name -> first name)
+	assert.Contains(t, verr.Fields[0].Path, " ", "field name mapper should have transformed path")
+}
+
+func TestWithMaxFields_OptionApplied(t *testing.T) {
+	t.Parallel()
+	v := MustNew(WithMaxFields(5000), WithPartial(true))
+	require.NotNil(t, v)
+	type User struct {
+		Name string `json:"name" validate:"required"`
+	}
+	pm, err := ComputePresence([]byte(`{"name":"x"}`))
+	require.NoError(t, err)
+	user := &User{Name: "x"}
+	err = v.Validate(t.Context(), user, WithPresence(pm))
+	assert.NoError(t, err)
+}
+
+func TestWithMaxCachedSchemas_OptionApplied(t *testing.T) {
+	t.Parallel()
+	v := MustNew(WithMaxCachedSchemas(2048))
+	require.NotNil(t, v)
+	type User struct {
+		Name string `json:"name" validate:"required"`
+	}
+	err := v.Validate(t.Context(), &User{Name: "ok"})
+	assert.NoError(t, err)
+}
+
+func TestWithCustomTag_OptionApplied(t *testing.T) {
+	t.Parallel()
+	v := MustNew(WithCustomTag("nonempty", func(fl validator.FieldLevel) bool {
+		return len(fl.Field().String()) > 0
+	}))
+	require.NotNil(t, v)
+	type User struct {
+		Name string `json:"name" validate:"nonempty"`
+	}
+	err := v.Validate(t.Context(), &User{}, WithStrategy(StrategyTags))
+	require.Error(t, err)
+	err = v.Validate(t.Context(), &User{Name: "ok"}, WithStrategy(StrategyTags))
+	assert.NoError(t, err)
+}
+
+// TestClone_WithCustomTags triggers clone() when base config has customTags set.
+func TestClone_WithCustomTags(t *testing.T) {
+	t.Parallel()
+	v := MustNew(WithCustomTag("alwaysok", func(fl validator.FieldLevel) bool { return true }))
+	require.NotNil(t, v)
+	type User struct {
+		Name string `json:"name" validate:"required,alwaysok"`
+	}
+	// Pass an extra option so applyOptions clones the base config (which has customTags).
+	err := v.Validate(t.Context(), &User{}, WithStrategy(StrategyTags))
+	require.Error(t, err)
+	// Clone with customTags was exercised; validation ran
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	assert.NotEmpty(t, verr.Fields)
+}
+
+// TestClone_WithMessages triggers clone() when base config has messages set.
+func TestClone_WithMessages(t *testing.T) {
+	t.Parallel()
+	v := MustNew(WithMessages(map[string]string{"required": "custom required msg"}))
+	require.NotNil(t, v)
+	type User struct {
+		Name string `json:"name" validate:"required"`
+	}
+	err := v.Validate(t.Context(), &User{}, WithStrategy(StrategyTags))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	assert.NotEmpty(t, verr.Fields)
+}
+
+// TestClone_WithMessageFuncs triggers clone() when base config has messageFuncs set.
+func TestClone_WithMessageFuncs(t *testing.T) {
+	t.Parallel()
+	v := MustNew(WithMessageFunc("min", func(param string, _ reflect.Kind) string {
+		return "min " + param
+	}))
+	require.NotNil(t, v)
+	type User struct {
+		Name string `json:"name" validate:"required,min=2"`
+	}
+	err := v.Validate(t.Context(), &User{Name: "x"}, WithStrategy(StrategyTags))
+	require.Error(t, err)
+	var verr *Error
+	require.ErrorAs(t, err, &verr)
+	assert.NotEmpty(t, verr.Fields)
+}
+
+func TestValidator_SchemaCacheEviction(t *testing.T) {
+	t.Parallel()
+	// WithMaxCachedSchemas(2): fill cache with 3 schemas to trigger eviction of oldest
+	v := MustNew(WithStrategy(StrategyJSONSchema), WithMaxCachedSchemas(2))
+	require.NotNil(t, v)
+	type User struct {
+		Name string `json:"name"`
+	}
+	schemaA := `{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}`
+	schemaB := `{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}`
+	schemaC := `{"type":"object","properties":{"id":{"type":"integer"}}}`
+	// Validate with A, B, C to fill cache and evict A (oldest)
+	err := v.Validate(t.Context(), &User{Name: "x"}, WithCustomSchema("schema-a", schemaA))
+	require.NoError(t, err)
+	err = v.Validate(t.Context(), &struct {
+		Title string `json:"title"`
+	}{Title: "y"}, WithCustomSchema("schema-b", schemaB))
+	require.NoError(t, err)
+	err = v.Validate(t.Context(), &struct {
+		ID int `json:"id"`
+	}{ID: 1}, WithCustomSchema("schema-c", schemaC))
+	require.NoError(t, err)
+	// Validate with A again; A was evicted so it is recompiled and should still work
+	err = v.Validate(t.Context(), &User{Name: "z"}, WithCustomSchema("schema-a", schemaA))
+	require.NoError(t, err)
 }
