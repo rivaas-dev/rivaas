@@ -186,6 +186,107 @@ func TestNew_NilOptionSkipped(t *testing.T) {
 	assert.Equal(t, "2", cfg.String("b"))
 }
 
+func TestNew_OptionErrorPaths(t *testing.T) {
+	t.Parallel()
+
+	unknownType := codec.Type("unknown")
+
+	tests := []struct {
+		name        string
+		opt         Option
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "WithFileDumper unknown extension",
+			opt:         WithFileDumper("file.xyz"),
+			wantErr:     true,
+			errContains: "detect-format",
+		},
+		{
+			name:        "WithFile unknown extension",
+			opt:         WithFile("file.xyz"),
+			wantErr:     true,
+			errContains: "detect-format",
+		},
+		{
+			name:        "WithFileAs unregistered codec type",
+			opt:         WithFileAs("/tmp/config", unknownType),
+			wantErr:     true,
+			errContains: "get-decoder",
+		},
+		{
+			name:        "WithContent unregistered codec type",
+			opt:         WithContent([]byte("{}"), unknownType),
+			wantErr:     true,
+			errContains: "get-decoder",
+		},
+		{
+			name:        "WithFileDumperAs unregistered codec type",
+			opt:         WithFileDumperAs("/tmp/out", unknownType),
+			wantErr:     true,
+			errContains: "get-encoder",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg, err := New(tt.opt)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.errContains)
+				return
+			}
+			require.NoError(t, err)
+			assert.NotNil(t, cfg)
+		})
+	}
+}
+
+func TestDetectFormat_UnknownExtension(t *testing.T) {
+	t.Parallel()
+
+	_, err := detectFormat("file.xyz")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "cannot detect format from extension")
+	assert.ErrorContains(t, err, "WithFileAs()")
+}
+
+func TestNew_WithConsul_OptionErrorPaths(t *testing.T) {
+	// Do not use t.Parallel() here: subtests use t.Setenv which is incompatible with parallel.
+	unknownType := codec.Type("unknown")
+
+	t.Run("with CONSUL_HTTP_ADDR set unknown extension returns error", func(t *testing.T) {
+		t.Setenv("CONSUL_HTTP_ADDR", "http://localhost:8500")
+
+		_, err := New(WithConsul("path/file.xyz"))
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "detect-format")
+	})
+
+	t.Run("with CONSUL_HTTP_ADDR set unregistered codec type returns error", func(t *testing.T) {
+		// Cannot use t.Parallel() with t.Setenv
+		t.Setenv("CONSUL_HTTP_ADDR", "http://localhost:8500")
+
+		_, err := New(WithConsulAs("path/key", unknownType))
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "get-decoder")
+	})
+}
+
+func TestNew_MultipleOptionErrors(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(WithSource(nil), WithDumper(nil), WithBinding(nil))
+	require.Error(t, err)
+	// Errors are joined; all should be present
+	assert.Contains(t, err.Error(), "source cannot be nil")
+	assert.Contains(t, err.Error(), "dumper cannot be nil")
+	assert.Contains(t, err.Error(), "binding target cannot be nil")
+}
+
 func TestMustNew(t *testing.T) {
 	t.Parallel()
 
@@ -209,6 +310,20 @@ func TestMustNew(t *testing.T) {
 		assert.Panics(t, func() {
 			MustNew(WithSource(nil))
 		})
+	})
+
+	t.Run("panic message contains config failure prefix", func(t *testing.T) {
+		t.Parallel()
+		var panicMsg string
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					panicMsg = fmt.Sprint(r)
+				}
+			}()
+			MustNew(WithSource(nil))
+		}()
+		require.Contains(t, panicMsg, "config: failed to create config")
 	})
 }
 
@@ -297,6 +412,75 @@ func TestLoad_MultipleSources(t *testing.T) {
 	assert.Equal(t, "bar", cfg.String("foo"))
 	assert.Equal(t, 2, cfg.Int("bar")) // src2 overrides src1
 	assert.Equal(t, 3, cfg.Int("baz"))
+}
+
+func TestLoad_CancelledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately so Load sees ctx.Err() != nil
+
+	src := &mockSource{conf: map[string]any{"foo": "bar"}}
+	cfg, err := New(WithSource(src))
+	require.NoError(t, err)
+
+	err = cfg.Load(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestLoad_BindingPointerToNonStruct(t *testing.T) {
+	t.Parallel()
+
+	var notAStruct int
+	cfg, err := New(WithSource(&mockSource{conf: map[string]any{"x": "y"}}), WithBinding(&notAStruct))
+	require.NoError(t, err)
+
+	err = cfg.Load(context.Background())
+	require.Error(t, err)
+	// Binding to *int fails (decode expects struct, or applyDefaults rejects non-struct)
+}
+
+func TestLoad_BindingInvalidDurationDefault(t *testing.T) {
+	t.Parallel()
+
+	type withDuration struct {
+		Timeout time.Duration `config:"timeout" default:"not-a-duration"`
+	}
+	var target withDuration
+	cfg, err := New(WithSource(&mockSource{conf: map[string]any{}}), WithBinding(&target))
+	require.NoError(t, err)
+
+	err = cfg.Load(context.Background())
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to set default")
+}
+
+func TestLoad_BindingUnsupportedDefaultType(t *testing.T) {
+	t.Parallel()
+
+	type withSliceDefault struct {
+		Items []string `config:"items" default:"a,b,c"` // slice default not supported by setDefaultValue
+	}
+	var target withSliceDefault
+	cfg, err := New(WithSource(&mockSource{conf: map[string]any{}}), WithBinding(&target))
+	require.NoError(t, err)
+
+	err = cfg.Load(context.Background())
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "unsupported type for default tag")
+}
+
+func TestValues_WithoutLoad(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := New()
+	require.NoError(t, err)
+
+	vals := cfg.Values()
+	require.NotNil(t, vals)
+	require.NotNil(t, *vals)
+	assert.Empty(t, *vals)
 }
 
 func TestMustLoad(t *testing.T) {
@@ -827,6 +1011,54 @@ func TestGet_EmptyKey(t *testing.T) {
 	assert.ErrorContains(t, err, "not found")
 }
 
+func TestGet_MissingKeyReturnsZero(t *testing.T) {
+	t.Parallel()
+
+	cfg := TestConfigLoaded(t, map[string]any{"foo": "bar"})
+
+	assert.Equal(t, 0, Get[int](cfg, "missing"))
+	assert.Equal(t, "", Get[string](cfg, "missing"))
+	assert.False(t, Get[bool](cfg, "missing"))
+}
+
+func TestGet_ValueNotConvertibleReturnsZero(t *testing.T) {
+	t.Parallel()
+
+	cfg := TestConfigLoaded(t, map[string]any{"port": "not-a-number"})
+
+	got := Get[int](cfg, "port")
+	assert.Equal(t, 0, got)
+}
+
+func TestGetE_NilConfigAndKeyNotFoundAndConversionError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil config returns error", func(t *testing.T) {
+		t.Parallel()
+		var cfg *Config
+		_, err := GetE[string](cfg, "key")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "config instance is nil")
+	})
+
+	t.Run("key not found returns error", func(t *testing.T) {
+		t.Parallel()
+		cfg := TestConfigLoaded(t, map[string]any{"foo": "bar"})
+		_, err := GetE[int](cfg, "nonexistent")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "key \"nonexistent\" not found")
+	})
+
+	t.Run("value not convertible returns error", func(t *testing.T) {
+		t.Parallel()
+		type customType struct{ X int }
+		cfg := TestConfigLoaded(t, map[string]any{"key": "string-value"})
+		_, err := GetE[customType](cfg, "key")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "cannot convert value at key \"key\" to type")
+	})
+}
+
 func TestGetOr(t *testing.T) {
 	t.Parallel()
 
@@ -878,6 +1110,8 @@ func TestGetTypedValues(t *testing.T) {
 		"boolstr":     "true",
 		"int":         42,
 		"intstr":      "42",
+		"int8":        int8(8),
+		"int16":       int16(16),
 		"int32":       int32(32),
 		"int64":       int64(64),
 		"uint8":       uint8(8),
@@ -885,6 +1119,8 @@ func TestGetTypedValues(t *testing.T) {
 		"uint16":      uint16(16),
 		"uint32":      uint32(32),
 		"uint64":      uint64(64),
+		"float32":     float32(1.5),
+		"float32str":  "2.5",
 		"float64":     3.14,
 		"floatstr":    "2.71",
 		"time":        timeStr,
@@ -932,6 +1168,28 @@ func TestGetTypedValues(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, 42, i)
 				_, err = GetE[int](cfg, "notfound")
+				assert.Error(t, err)
+			},
+		},
+		{
+			name: "GetInt8",
+			testFn: func(t *testing.T) {
+				assert.Equal(t, int8(8), Get[int8](cfg, "int8"))
+				i8, err := GetE[int8](cfg, "int8")
+				require.NoError(t, err)
+				assert.Equal(t, int8(8), i8)
+				_, err = GetE[int8](cfg, "notfound")
+				assert.Error(t, err)
+			},
+		},
+		{
+			name: "GetInt16",
+			testFn: func(t *testing.T) {
+				assert.Equal(t, int16(16), Get[int16](cfg, "int16"))
+				i16, err := GetE[int16](cfg, "int16")
+				require.NoError(t, err)
+				assert.Equal(t, int16(16), i16)
+				_, err = GetE[int16](cfg, "notfound")
 				assert.Error(t, err)
 			},
 		},
@@ -1009,6 +1267,17 @@ func TestGetTypedValues(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, uint64(64), u64)
 				_, err = GetE[uint64](cfg, "notfound")
+				assert.Error(t, err)
+			},
+		},
+		{
+			name: "GetFloat32",
+			testFn: func(t *testing.T) {
+				assert.Equal(t, float32(1.5), Get[float32](cfg, "float32"))
+				f32, err := GetE[float32](cfg, "float32str")
+				require.NoError(t, err)
+				assert.InDelta(t, 2.5, float64(f32), 0.0001)
+				_, err = GetE[float32](cfg, "notfound")
 				assert.Error(t, err)
 			},
 		},
@@ -1224,6 +1493,14 @@ func TestNew_WithJSONSchema_ErrorCase(t *testing.T) {
 		t.Parallel()
 
 		_, err := New(WithSource(&mockSource{conf: map[string]any{"foo": "bar"}}), WithJSONSchema([]byte(`{invalid json`)))
+		require.Error(t, err)
+	})
+
+	t.Run("schema that fails to compile returns error", func(t *testing.T) {
+		t.Parallel()
+		// Schema with invalid $ref that does not exist - Compile fails
+		schema := []byte(`{"$ref": "#/definitions/Missing"}`)
+		_, err := New(WithSource(&mockSource{conf: map[string]any{"foo": "bar"}}), WithJSONSchema(schema))
 		require.Error(t, err)
 	})
 }
@@ -1712,11 +1989,50 @@ func TestNilConfigInstance(t *testing.T) {
 	assert.Equal(t, "", cfg.String("any"))
 	assert.Equal(t, false, cfg.Bool("any"))
 	assert.Equal(t, 0, cfg.Int("any"))
+	assert.Equal(t, int64(0), cfg.Int64("any"))
+	assert.Equal(t, 0.0, cfg.Float64("any"))
+	assert.Equal(t, time.Duration(0), cfg.Duration("any"))
+	assert.True(t, cfg.Time("any").IsZero())
+	assert.Empty(t, cfg.StringSlice("any"))
+	assert.Empty(t, cfg.IntSlice("any"))
+	assert.Empty(t, cfg.StringMap("any"))
 	assert.Equal(t, nil, cfg.Get("any"))
 
 	_, err := GetE[string](cfg, "any")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "config instance is nil")
+}
+
+func TestConfigOrMethods_NilConfigAndMissingKey(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil config returns default for Or methods", func(t *testing.T) {
+		t.Parallel()
+		var cfg *Config
+		assert.Equal(t, "default", cfg.StringOr("key", "default"))
+		assert.Equal(t, 8080, cfg.IntOr("key", 8080))
+		assert.Equal(t, int64(1024), cfg.Int64Or("key", 1024))
+		assert.Equal(t, 0.5, cfg.Float64Or("key", 0.5))
+		assert.True(t, cfg.BoolOr("key", true))
+		assert.Equal(t, 30*time.Second, cfg.DurationOr("key", 30*time.Second))
+		assert.Equal(t, []string{"a"}, cfg.StringSliceOr("key", []string{"a"}))
+		assert.Equal(t, []int{1}, cfg.IntSliceOr("key", []int{1}))
+		assert.Equal(t, map[string]any{"x": "y"}, cfg.StringMapOr("key", map[string]any{"x": "y"}))
+	})
+
+	t.Run("missing key returns default for Or methods", func(t *testing.T) {
+		t.Parallel()
+		cfg := TestConfigLoaded(t, map[string]any{"foo": "bar"})
+		assert.Equal(t, "default", cfg.StringOr("missing", "default"))
+		assert.Equal(t, 8080, cfg.IntOr("missing", 8080))
+		assert.Equal(t, int64(1024), cfg.Int64Or("missing", 1024))
+		assert.Equal(t, 0.5, cfg.Float64Or("missing", 0.5))
+		assert.True(t, cfg.BoolOr("missing", true))
+		assert.Equal(t, 30*time.Second, cfg.DurationOr("missing", 30*time.Second))
+		assert.Equal(t, []string{"a"}, cfg.StringSliceOr("missing", []string{"a"}))
+		assert.Equal(t, []int{1}, cfg.IntSliceOr("missing", []int{1}))
+		assert.Equal(t, map[string]any{"x": "y"}, cfg.StringMapOr("missing", map[string]any{"x": "y"}))
+	})
 }
 
 func TestLargeConfiguration(t *testing.T) {
