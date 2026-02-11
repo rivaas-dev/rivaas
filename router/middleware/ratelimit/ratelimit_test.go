@@ -17,6 +17,7 @@
 package ratelimit
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -293,4 +294,107 @@ func TestRateLimit_BurstBehavior(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusTooManyRequests, w.Code, "Request after burst should be rate limited")
+}
+
+//nolint:paralleltest // Tests sliding window rate limiting
+func TestRateLimit_WithSlidingWindow(t *testing.T) {
+	r, err := router.New()
+	require.NoError(t, err)
+
+	sw := SlidingWindow{
+		Window: 10 * time.Second,
+		Limit:  2,
+		Store:  NewInMemoryStore(),
+	}
+	opts := CommonOptions{Headers: true, Enforce: true}
+	r.Use(WithSlidingWindow(sw, opts))
+
+	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.String(http.StatusOK, "ok")
+	})
+
+	// First 2 requests should succeed
+	for i := range 2 {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code, "Request %d should succeed", i+1)
+		assert.NotEmpty(t, w.Header().Get("RateLimit-Remaining"))
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Equal(t, "0", w.Header().Get("RateLimit-Remaining"))
+}
+
+//nolint:paralleltest // Tests PerRoute wraps middleware for per-route application
+func TestRateLimit_PerRoute(t *testing.T) {
+	r, err := router.New()
+	require.NoError(t, err)
+
+	sw := SlidingWindow{
+		Window: 10 * time.Second,
+		Limit:  1,
+		Store:  NewInMemoryStore(),
+	}
+	opts := CommonOptions{Headers: true, Enforce: true}
+	limitedMiddleware := PerRoute(WithSlidingWindow(sw, opts))
+
+	handler := func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.String(http.StatusOK, "ok")
+	}
+	r.GET("/limited", limitedMiddleware, handler)
+	r.GET("/unlimited", handler)
+
+	// First request to /limited succeeds
+	req := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Second request to /limited is rate limited
+	req = httptest.NewRequest(http.MethodGet, "/limited", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+
+	// /unlimited is not rate limited
+	req = httptest.NewRequest(http.MethodGet, "/unlimited", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+//nolint:paralleltest // Tests options WithCleanupInterval, WithLimiterTTL, WithLogger
+func TestRateLimit_Options(t *testing.T) {
+	tests := []struct {
+		name string
+		opts []Option
+	}{
+		{"WithCleanupInterval", []Option{WithCleanupInterval(time.Minute), WithRequestsPerSecond(10), WithBurst(5)}},
+		{"WithLimiterTTL", []Option{WithLimiterTTL(5 * time.Minute), WithRequestsPerSecond(10), WithBurst(5)}},
+		{"WithLogger", []Option{WithLogger(slog.Default()), WithRequestsPerSecond(10), WithBurst(5)}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := router.New()
+			require.NoError(t, err)
+			r.Use(New(tt.opts...))
+			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
+				c.String(http.StatusOK, "ok")
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code)
+		})
+	}
 }

@@ -381,3 +381,112 @@ func TestRecovery_MultipleOptions(t *testing.T) {
 	assert.True(t, handlerCalled, "Handler should be called")
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+//nolint:paralleltest // Tests WithPrettyStack option
+func TestRecovery_WithPrettyStack(t *testing.T) {
+	tests := []struct {
+		name          string
+		prettyStack   *bool
+		wantCompact   bool // true = log contains "stack trace" and "frames"; false = colorized to stderr (we only verify 500)
+		wantStatus500 bool
+	}{
+		{
+			name:          "WithPrettyStack true triggers colorized stack path",
+			prettyStack:   ptrBool(true),
+			wantCompact:   false,
+			wantStatus500: true,
+		},
+		{
+			name:          "WithPrettyStack false triggers compact log",
+			prettyStack:   ptrBool(false),
+			wantCompact:   true,
+			wantStatus500: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logBuf bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&logBuf, nil))
+
+			opts := []Option{WithLogger(logger), WithStackTrace(true)}
+			if tt.prettyStack != nil {
+				opts = append(opts, WithPrettyStack(*tt.prettyStack))
+			}
+
+			r := router.MustNew()
+			r.Use(New(opts...))
+			r.GET("/panic", func(_ *router.Context) {
+				panic("pretty stack test")
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/panic", nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+			logOutput := logBuf.String()
+			if tt.wantCompact {
+				assert.Contains(t, logOutput, "stack trace", "compact path should log 'stack trace'")
+				assert.Contains(t, logOutput, "frames", "compact path should log 'frames'")
+			} else {
+				assert.Contains(t, logOutput, "panic recovered", "colorized path still logs panic")
+			}
+		})
+	}
+}
+
+func ptrBool(b bool) *bool { return &b }
+
+//nolint:paralleltest // Triggers colorized stack path for coverage
+func TestRecovery_PrettyPrintedStackPath(t *testing.T) {
+	// WithPrettyStack(true) + WithLogger triggers printColorizedStack (writes to stderr),
+	// covering parseStackFrames, cleanFunctionName, simplifyAnonFunc, isIdentChar,
+	// parseFileLine, shortenPath, isStandardLibrary.
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
+
+	r := router.MustNew()
+	r.Use(New(
+		WithPrettyStack(true),
+		WithLogger(logger),
+		WithStackTrace(true),
+	))
+	r.GET("/panic", func(_ *router.Context) {
+		panic("colorized stack test")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, logBuf.String(), "panic recovered")
+}
+
+//nolint:paralleltest // Verifies compact stack path
+func TestRecovery_CompactStackPath(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+	r := router.MustNew()
+	r.Use(New(
+		WithPrettyStack(false),
+		WithLogger(logger),
+		WithStackTrace(true),
+	))
+	r.GET("/panic", func(_ *router.Context) {
+		panic("compact stack test")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	logOutput := buf.String()
+	assert.Contains(t, logOutput, "panic recovered")
+	assert.Contains(t, logOutput, "stack trace")
+	assert.Contains(t, logOutput, "frames")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}

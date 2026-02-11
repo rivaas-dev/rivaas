@@ -20,11 +20,13 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/andybalholm/brotli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -310,4 +312,111 @@ func TestCompression_ContentLengthRemoved(t *testing.T) {
 
 	// Content-Length should be removed when compressing
 	assert.NotEqual(t, "100", w.Header().Get("Content-Length"))
+}
+
+//nolint:paralleltest // Tests Brotli compression path
+func TestCompression_Brotli(t *testing.T) {
+	r := router.MustNew()
+	r.Use(New())
+	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "Hello Brotli"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Accept-Encoding", "br")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, "br", w.Header().Get("Content-Encoding"))
+	br := brotli.NewReader(w.Body)
+	decompressed, err := io.ReadAll(br)
+	require.NoError(t, err)
+	assert.Contains(t, string(decompressed), "Hello Brotli")
+}
+
+//nolint:paralleltest // Tests WithBrotliDisabled returns gzip when client prefers br
+func TestCompression_WithBrotliDisabled(t *testing.T) {
+	r := router.MustNew()
+	r.Use(New(WithBrotliDisabled()))
+	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"data": "value"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Accept-Encoding", "br, gzip")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	// Brotli disabled so should fall back to gzip
+	assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
+}
+
+//nolint:paralleltest // Tests WithGzipDisabled with Brotli
+func TestCompression_WithGzipDisabled(t *testing.T) {
+	r := router.MustNew()
+	r.Use(New(WithGzipDisabled()))
+	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"data": "value"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Accept-Encoding", "br")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+	assert.Equal(t, "br", w.Header().Get("Content-Encoding"))
+}
+
+//nolint:paralleltest // Tests WithMinSize and WithLogger options
+func TestCompression_Options(t *testing.T) {
+	tests := []struct {
+		name string
+		opts []Option
+	}{
+		{"WithMinSize", []Option{WithMinSize(1024)}},
+		{"WithLogger", []Option{WithLogger(slog.Default())}},
+		{"WithBrotliLevel", []Option{WithBrotliLevel(5)}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := router.MustNew()
+			r.Use(New(tt.opts...))
+			r.GET("/test", func(c *router.Context) {
+				//nolint:errcheck // Test handler
+				c.JSON(http.StatusOK, map[string]string{"data": "ok"})
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set("Accept-Encoding", "gzip")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code)
+		})
+	}
+}
+
+//nolint:paralleltest // Tests writeUncompressed path when content type is excluded
+func TestCompression_WriteUncompressed(t *testing.T) {
+	r := router.MustNew()
+	r.Use(New(WithExcludeContentTypes("image/jpeg")))
+	r.GET("/image", func(c *router.Context) {
+		c.Response.Header().Set("Content-Type", "image/jpeg")
+		c.Response.WriteHeader(http.StatusOK)
+		_, _ = c.Response.Write([]byte("fake image data")) //nolint:errcheck // Test handler
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/image", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	// Excluded content type: no compression
+	assert.Empty(t, w.Header().Get("Content-Encoding"))
+	assert.Equal(t, "fake image data", w.Body.String())
 }

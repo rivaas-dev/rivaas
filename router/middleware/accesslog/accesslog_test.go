@@ -18,9 +18,11 @@ package accesslog
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -897,4 +899,63 @@ func TestAccessLog_HostAndProto(t *testing.T) { //nolint:paralleltest // Tests s
 	fields := handler.getFields(slog.LevelInfo)
 	assert.Equal(t, "example.com:8080", fields["host"])
 	assert.Equal(t, "HTTP/1.1", fields["proto"])
+}
+
+// TestAccessLog_ResponseWriterHijackPushReadFrom exercises Hijack, Push, and ReadFrom
+// on the wrapped response writer when the underlying does not support them (httptest.ResponseRecorder).
+func TestAccessLog_ResponseWriterHijackPushReadFrom(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New())
+
+	hijackErr := make(chan error, 1)
+	pushErr := make(chan error, 1)
+	r.GET("/hijack", func(c *router.Context) {
+		h, ok := c.Response.(http.Hijacker)
+		if !ok {
+			t.Error("response should support Hijacker interface")
+			return
+		}
+		_, _, err := h.Hijack()
+		hijackErr <- err
+	})
+	r.GET("/push", func(c *router.Context) {
+		p, ok := c.Response.(http.Pusher)
+		if !ok {
+			t.Error("response should support Pusher interface")
+			return
+		}
+		pushErr <- p.Push("/x", nil)
+	})
+	r.GET("/readfrom", func(c *router.Context) {
+		rf, ok := c.Response.(io.ReaderFrom)
+		if !ok {
+			t.Error("response should support ReaderFrom interface")
+			return
+		}
+		n, err := rf.ReadFrom(strings.NewReader("readfrom-body"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, int64(13), n)
+	})
+
+	// Hijack: underlying (ResponseRecorder) does not implement Hijacker
+	req := httptest.NewRequest(http.MethodGet, "/hijack", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Error(t, <-hijackErr)
+
+	// Push: underlying does not implement Pusher
+	req = httptest.NewRequest(http.MethodGet, "/push", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.ErrorIs(t, <-pushErr, http.ErrNotSupported)
+
+	// ReadFrom: fallback io.Copy path when underlying may not implement ReaderFrom
+	req = httptest.NewRequest(http.MethodGet, "/readfrom", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "readfrom-body", w.Body.String())
 }

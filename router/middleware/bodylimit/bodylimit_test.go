@@ -281,6 +281,33 @@ func TestBodyLimit_EmptyBody(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code, "Empty body should be allowed")
 }
 
+// TestBodyLimit_Close covers limitedReader.Close() by reading and closing the body in the handler.
+func TestBodyLimit_Close(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(WithLimit(1024)))
+
+	closed := false
+	r.POST("/close", func(c *router.Context) {
+		_, cpErr := io.Copy(io.Discard, c.Request.Body)
+		require.NoError(t, cpErr)
+		err := c.Request.Body.Close()
+		require.NoError(t, err)
+		closed = true
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"ok": "true"})
+	})
+
+	body := bytes.NewBufferString(`{"key":"value"}`)
+	req := httptest.NewRequest(http.MethodPost, "/close", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.True(t, closed, "Handler should have closed the body")
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
 func TestBodyLimit_FormData(t *testing.T) {
 	t.Parallel()
 	r := router.MustNew()

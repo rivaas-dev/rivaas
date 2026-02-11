@@ -18,6 +18,7 @@ package timeout
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -211,6 +212,82 @@ func TestTimeout_CustomHandler(t *testing.T) {
 
 	assert.True(t, customHandlerCalled, "Custom timeout handler should be called")
 	assert.Equal(t, http.StatusRequestTimeout, w.Code)
+}
+
+func TestTimeout_WithoutLogging(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(WithDuration(100*time.Millisecond), WithoutLogging()))
+	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	})
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestTimeout_WithLogger(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(WithDuration(100*time.Millisecond), WithLogger(slog.Default())))
+	r.GET("/test", func(c *router.Context) {
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	})
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestTimeout_WithSkipPrefix(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(WithDuration(50*time.Millisecond), WithSkipPrefix("/admin")))
+	r.GET("/admin/slow", func(c *router.Context) {
+		time.Sleep(100 * time.Millisecond)
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	})
+	req := httptest.NewRequest(http.MethodGet, "/admin/slow", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestTimeout_WithSkipSuffix(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(WithDuration(50*time.Millisecond), WithSkipSuffix("/stream")))
+	r.GET("/api/stream", func(c *router.Context) {
+		time.Sleep(100 * time.Millisecond)
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/stream", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestTimeout_WithSkip(t *testing.T) {
+	t.Parallel()
+	r := router.MustNew()
+	r.Use(New(WithDuration(50*time.Millisecond), WithSkip(func(c *router.Context) bool {
+		return c.Request.Header.Get("X-Skip-Timeout") == "1"
+	})))
+	r.GET("/slow", func(c *router.Context) {
+		time.Sleep(100 * time.Millisecond)
+		//nolint:errcheck // Test handler
+		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	})
+	req := httptest.NewRequest(http.MethodGet, "/slow", nil)
+	req.Header.Set("X-Skip-Timeout", "1")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestTimeout_ContextPropagation(t *testing.T) {
