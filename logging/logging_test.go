@@ -18,7 +18,9 @@ package logging
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,6 +30,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Test basic logger creation
@@ -328,6 +331,110 @@ func TestLogger_DebugInfo(t *testing.T) {
 	assert.Equal(t, true, info["debug_mode"])
 }
 
+// TestLogger_DebugInfo_IncludesSampling tests that DebugInfo includes sampling config when set.
+func TestLogger_DebugInfo_IncludesSampling(t *testing.T) {
+	t.Parallel()
+
+	logger := MustNew(
+		WithJSONHandler(),
+		WithOutput(io.Discard),
+		WithSampling(SamplingConfig{
+			Initial:    5,
+			Thereafter: 10,
+			Tick:       time.Second,
+		}),
+	)
+
+	info := logger.DebugInfo()
+
+	require.Contains(t, info, "sampling", "DebugInfo should include sampling when configured")
+	sampling, ok := info["sampling"].(map[string]any)
+	require.True(t, ok, "sampling should be map[string]any")
+	assert.Equal(t, 5, sampling["initial"])
+	assert.Equal(t, 10, sampling["thereafter"])
+	assert.Contains(t, sampling["tick"], "1s")
+	assert.Contains(t, sampling, "counter")
+}
+
+// TestContextLogger_WithValidSpan_SetsTraceAndSpanID tests that ContextLogger extracts trace/span from context.
+func TestContextLogger_WithValidSpan_SetsTraceAndSpanID(t *testing.T) {
+	t.Parallel()
+
+	tid, err := trace.TraceIDFromHex("00000000000000000000000000000001")
+	require.NoError(t, err)
+	sid, err := trace.SpanIDFromHex("0000000000000001")
+	require.NoError(t, err)
+	sc := trace.NewSpanContext(trace.SpanContextConfig{TraceID: tid, SpanID: sid})
+	require.True(t, sc.IsValid(), "test span context must be valid")
+
+	ctx := trace.ContextWithSpanContext(context.Background(), sc)
+	th := NewTestHelper(t)
+	cl := NewContextLogger(ctx, th.Logger)
+
+	assert.NotEmpty(t, cl.TraceID(), "TraceID should be set with valid span")
+	assert.NotEmpty(t, cl.SpanID(), "SpanID should be set with valid span")
+	assert.Equal(t, tid.String(), cl.TraceID())
+	assert.Equal(t, sid.String(), cl.SpanID())
+	assert.NotNil(t, cl.Logger(), "Logger should return underlying slog.Logger")
+}
+
+// TestContextLogger_WithValidSpan_LogMethodsIncludeContext tests that log methods emit trace_id/span_id.
+func TestContextLogger_WithValidSpan_LogMethodsIncludeContext(t *testing.T) {
+	t.Parallel()
+
+	tid, err := trace.TraceIDFromHex("00000000000000000000000000000002")
+	require.NoError(t, err)
+	sid, err := trace.SpanIDFromHex("0000000000000002")
+	require.NoError(t, err)
+	sc := trace.NewSpanContext(trace.SpanContextConfig{TraceID: tid, SpanID: sid})
+	ctx := trace.ContextWithSpanContext(context.Background(), sc)
+
+	th := NewTestHelper(t)
+	cl := NewContextLogger(ctx, th.Logger)
+
+	cl.Debug("debug msg")
+	cl.Info("info msg")
+	cl.Warn("warn msg")
+	cl.Error("error msg")
+
+	cl.With("extra", "value").Info("with attrs")
+
+	entries, err := th.Logs()
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(entries), 4)
+
+	for _, e := range entries {
+		assert.Equal(t, tid.String(), e.Attrs["trace_id"], "entry should have trace_id")
+		assert.Equal(t, sid.String(), e.Attrs["span_id"], "entry should have span_id")
+	}
+}
+
+// TestWithSampling_ConfigApplied tests that WithSampling option applies sampling config.
+func TestWithSampling_ConfigApplied(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	logger := MustNew(
+		WithJSONHandler(),
+		WithOutput(buf),
+		WithSampling(SamplingConfig{
+			Initial:    2,
+			Thereafter: 5,
+			Tick:       100 * time.Millisecond,
+		}),
+	)
+
+	// Log more than Initial; sampling should reduce output
+	for i := range 20 {
+		logger.Info("msg", "i", i)
+	}
+
+	entries, err := ParseJSONLogEntries(buf)
+	require.NoError(t, err)
+	assert.Less(t, len(entries), 20, "sampling should reduce log count")
+	assert.GreaterOrEqual(t, len(entries), 2, "at least Initial entries should be logged")
+}
+
 // TestLogger_SetLevel tests dynamic level changes.
 func TestLogger_SetLevel(t *testing.T) {
 	t.Parallel()
@@ -356,6 +463,34 @@ func TestLogger_SetLevel_CustomLogger(t *testing.T) {
 
 	err := logger.SetLevel(LevelDebug)
 	assert.ErrorIs(t, err, ErrCannotChangeLevel)
+}
+
+// flushableHandler is a test handler that implements Flush() error for Shutdown coverage.
+type flushableHandler struct {
+	slog.Handler
+	flushCalled bool
+}
+
+func (h *flushableHandler) Flush() error {
+	h.flushCalled = true
+	return nil
+}
+
+// TestLogger_Shutdown_FlushesHandler tests that Shutdown calls Flush on handlers that support it.
+func TestLogger_Shutdown_FlushesHandler(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	h := &flushableHandler{Handler: slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})}
+	logger := MustNew(WithCustomLogger(slog.New(h)))
+
+	logger.Info("message")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	t.Cleanup(cancel)
+	err := logger.Shutdown(ctx)
+	require.NoError(t, err)
+
+	assert.True(t, h.flushCalled, "Shutdown should call Flush() on handler that implements it")
 }
 
 // TestLogger_Shutdown tests graceful shutdown behavior.
@@ -475,6 +610,17 @@ func TestBatchLogger_ManualFlush(t *testing.T) {
 	assert.True(t, th.ContainsLog("message 2"), "message 2 should be logged after flush")
 }
 
+// TestBatchLogger_Close_StopsFlusherGoroutine tests that Close stops the flusher goroutine (no hang).
+func TestBatchLogger_Close_StopsFlusherGoroutine(t *testing.T) {
+	t.Parallel()
+
+	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
+	bl := NewBatchLogger(logger, 10, 10*time.Millisecond)
+
+	bl.Close()
+	// If flusher goroutine did not exit on <-bl.done, the test would hang; single Close is enough
+}
+
 // TestBatchLogger_AllLevels tests all log level methods on batch logger.
 func TestBatchLogger_AllLevels(t *testing.T) {
 	t.Parallel()
@@ -524,6 +670,133 @@ func TestTestHelper(t *testing.T) {
 	// Test AssertLog
 	th.Logger.Info("another message", "key", "value")
 	th.AssertLog(t, "INFO", "another message", map[string]any{"key": "value"})
+}
+
+// TestParseJSONLogEntries_InvalidInput tests error cases for ParseJSONLogEntries.
+func TestParseJSONLogEntries_InvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr string
+	}{
+		{
+			name:    "missing msg field",
+			input:   `{"level":"INFO"}`,
+			wantErr: "msg",
+		},
+		{
+			name:    "missing level field",
+			input:   `{"msg":"x"}`,
+			wantErr: "level",
+		},
+		{
+			name:    "invalid msg type",
+			input:   `{"msg":1,"level":"INFO"}`,
+			wantErr: "msg",
+		},
+		{
+			name:    "invalid level type",
+			input:   `{"msg":"x","level":1}`,
+			wantErr: "level",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			entries, err := ParseJSONLogEntries(bytes.NewBufferString(tt.input))
+			require.Error(t, err)
+			assert.Nil(t, entries)
+			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+// TestTestHelper_LastLog_EmptyBufferReturnsError tests LastLog when no entries exist.
+func TestTestHelper_LastLog_EmptyBufferReturnsError(t *testing.T) {
+	t.Parallel()
+
+	th := NewTestHelper(t)
+	// No logs written; buffer is empty
+
+	last, err := th.LastLog()
+	require.Error(t, err)
+	assert.Nil(t, last)
+	assert.ErrorContains(t, err, "no log entries")
+}
+
+// TestTestHelper_LastLog_InvalidJSONReturnsError tests LastLog when buffer has invalid JSON.
+func TestTestHelper_LastLog_InvalidJSONReturnsError(t *testing.T) {
+	t.Parallel()
+
+	th := NewTestHelper(t)
+	th.Buffer.Reset()
+	_, _ = th.Buffer.WriteString("not valid json\n")
+
+	_, err := th.LastLog()
+	require.Error(t, err)
+}
+
+// TestLogger_AfterShutdown_LogMethodsAreNoOp tests that helper methods do not log after shutdown.
+func TestLogger_AfterShutdown_LogMethodsAreNoOp(t *testing.T) {
+	t.Parallel()
+
+	th := NewTestHelper(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	t.Cleanup(cancel)
+
+	err := th.Logger.Shutdown(ctx)
+	require.NoError(t, err)
+
+	// Count entries before calling helper methods
+	before, err := th.Logs()
+	require.NoError(t, err)
+	beforeCount := len(before)
+
+	t.Run("LogRequest", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		th.Logger.LogRequest(req, "status", 200)
+		after, logReqErr := th.Logs()
+		require.NoError(t, logReqErr)
+		assert.Len(t, after, beforeCount, "LogRequest after shutdown should not add entries")
+	})
+
+	t.Run("LogError", func(t *testing.T) {
+		t.Parallel()
+		th2 := NewTestHelper(t)
+		require.NoError(t, th2.Logger.Shutdown(ctx))
+		//nolint:contextcheck // Logger.LogError has no context parameter in public API
+		th2.Logger.LogError(errors.New("test"), "operation failed", "key", "value")
+		after, logErrorErr := th2.Logs()
+		require.NoError(t, logErrorErr)
+		assert.Len(t, after, 0, "LogError after shutdown should not add entries")
+	})
+
+	t.Run("LogDuration", func(t *testing.T) {
+		t.Parallel()
+		th2 := NewTestHelper(t)
+		require.NoError(t, th2.Logger.Shutdown(ctx))
+		//nolint:contextcheck // Logger.LogDuration has no context parameter in public API
+		th2.Logger.LogDuration("done", time.Now(), "n", 1)
+		after, logDurationErr := th2.Logs()
+		require.NoError(t, logDurationErr)
+		assert.Len(t, after, 0, "LogDuration after shutdown should not add entries")
+	})
+
+	t.Run("ErrorWithStack", func(t *testing.T) {
+		t.Parallel()
+		th2 := NewTestHelper(t)
+		require.NoError(t, th2.Logger.Shutdown(ctx))
+		//nolint:contextcheck // Logger.ErrorWithStack has no context parameter in public API
+		th2.Logger.ErrorWithStack("failed", errors.New("err"), false, "k", "v")
+		after, errorWithStackErr := th2.Logs()
+		require.NoError(t, errorWithStackErr)
+		assert.Len(t, after, 0, "ErrorWithStack after shutdown should not add entries")
+	})
 }
 
 // TestMockWriter tests the mock writer test utility.
@@ -813,18 +1086,42 @@ func TestLogger_WithReplaceAttr(t *testing.T) {
 	assert.True(t, th.ContainsAttr("custom_field", "***CUSTOM***"), "custom field should be redacted by custom replacer")
 }
 
+// TestNew_InvalidHandlerTypeReturnsError tests that New returns error for invalid handler type.
+func TestNew_InvalidHandlerTypeReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(
+		WithHandlerType(HandlerType("invalid")),
+		WithOutput(io.Discard),
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidHandler)
+	assert.ErrorContains(t, err, "invalid")
+}
+
 // TestMustNew_Panic tests that MustNew panics on invalid config.
 func TestMustNew_Panic(t *testing.T) {
 	t.Parallel()
 
-	defer func() {
-		if r := recover(); r == nil {
-			require.Fail(t, "MustNew should panic on invalid config")
-		}
-	}()
+	t.Run("nil output panics", func(t *testing.T) {
+		t.Parallel()
+		defer func() {
+			if r := recover(); r == nil {
+				require.Fail(t, "MustNew should panic on invalid config")
+			}
+		}()
+		MustNew(WithOutput(nil))
+	})
 
-	// This should panic
-	MustNew(WithOutput(nil))
+	t.Run("invalid handler type panics", func(t *testing.T) {
+		t.Parallel()
+		defer func() {
+			r := recover()
+			require.NotNil(t, r, "MustNew should panic on invalid handler type")
+			assert.Contains(t, fmt.Sprint(r), "logging initialization failed")
+		}()
+		MustNew(WithHandlerType(HandlerType("invalid")), WithOutput(io.Discard))
+	})
 }
 
 // TestLogger_Level_Filtering tests that logs below minimum level are filtered.

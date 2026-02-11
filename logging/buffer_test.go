@@ -18,8 +18,15 @@ package logging
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"io"
+	"log/slog"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLogger_Buffering(t *testing.T) {
@@ -155,4 +162,59 @@ func TestLogger_IsBuffering_NotBuffering(t *testing.T) {
 	if logger.IsBuffering() {
 		t.Error("expected IsBuffering() to return false initially")
 	}
+}
+
+// TestLogger_Buffering_WithAttrs tests that WithAttrs on the buffering handler is exercised (coverage).
+func TestLogger_Buffering_WithAttrs(t *testing.T) {
+	t.Parallel()
+
+	th := NewTestHelper(t)
+	th.Logger.StartBuffering()
+	th.Logger.Logger().With("attr_key", "attr_value").Info("message with attrs")
+	err := th.Logger.FlushBuffer()
+	require.NoError(t, err)
+
+	assert.True(t, th.ContainsLog("message with attrs"))
+	entries, err := th.Logs()
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+}
+
+// TestLogger_Buffering_WithGroup tests that WithGroup on the buffering handler is exercised (coverage).
+func TestLogger_Buffering_WithGroup(t *testing.T) {
+	t.Parallel()
+
+	th := NewTestHelper(t)
+	th.Logger.StartBuffering()
+	th.Logger.Logger().WithGroup("mygroup").With("k", "v").Info("message in group")
+	err := th.Logger.FlushBuffer()
+	require.NoError(t, err)
+
+	assert.True(t, th.ContainsLog("message in group"))
+	entries, err := th.Logs()
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+}
+
+// failingHandler is a slog.Handler that returns an error from Handle (for testing flush error path).
+type failingHandler struct {
+	slog.Handler
+}
+
+func (h *failingHandler) Handle(ctx context.Context, r slog.Record) error {
+	return errors.New("handle error")
+}
+
+// TestLogger_FlushBuffer_WhenHandlerReturnsError tests that FlushBuffer returns error when underlying Handle fails.
+func TestLogger_FlushBuffer_WhenHandlerReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fh := &failingHandler{Handler: slog.NewJSONHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug})}
+	logger := MustNew(WithCustomLogger(slog.New(fh)))
+	logger.StartBuffering()
+	logger.Info("message")
+
+	err := logger.FlushBuffer()
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "handle error")
 }
