@@ -24,6 +24,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ANSI color codes
@@ -238,6 +240,54 @@ func (h *consoleHandler) appendAttr(b *strings.Builder, a slog.Attr) {
 	}
 
 	b.WriteString(" ")
+}
+
+// contextHandler wraps any [slog.Handler] to automatically inject OpenTelemetry
+// trace correlation fields (trace_id, span_id) from the context.
+//
+// When a log record is emitted via slog.InfoContext (or similar *Context methods),
+// the handler checks the context for an active OTel span. If found, it adds
+// trace_id and span_id as attributes before delegating to the underlying handler.
+//
+// This enables automatic trace correlation for any code that passes a request
+// context to slog — no special logger instance needed.
+//
+// Thread-safe: Safe for concurrent use by multiple goroutines.
+type contextHandler struct {
+	underlying slog.Handler
+}
+
+// Enabled delegates to the underlying handler.
+func (h *contextHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.underlying.Enabled(ctx, level)
+}
+
+// Handle injects trace_id and span_id from the context's OTel span (if present)
+// before delegating to the underlying handler.
+func (h *contextHandler) Handle(ctx context.Context, r slog.Record) error {
+	if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
+		sc := span.SpanContext()
+		r.AddAttrs(
+			slog.String(fieldTraceID, sc.TraceID().String()),
+			slog.String(fieldSpanID, sc.SpanID().String()),
+		)
+	}
+
+	return h.underlying.Handle(ctx, r)
+}
+
+// WithAttrs returns a new contextHandler wrapping the underlying handler with additional attributes.
+func (h *contextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &contextHandler{
+		underlying: h.underlying.WithAttrs(attrs),
+	}
+}
+
+// WithGroup returns a new contextHandler wrapping the underlying handler with a group name.
+func (h *contextHandler) WithGroup(name string) slog.Handler {
+	return &contextHandler{
+		underlying: h.underlying.WithGroup(name),
+	}
 }
 
 // handlerRecordSource returns "file:line" for a pc if available.

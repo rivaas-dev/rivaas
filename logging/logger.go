@@ -288,6 +288,11 @@ func (l *Logger) initializeHandler() error {
 		return fmt.Errorf("%w: %s", ErrInvalidHandler, l.handlerType)
 	}
 
+	// Wrap with context-aware handler for automatic trace correlation.
+	// This injects trace_id and span_id from the OTel span in context
+	// whenever slog.*Context(ctx, ...) is used with a request context.
+	handler = &contextHandler{underlying: handler}
+
 	newLogger := slog.New(handler)
 
 	// Add service metadata as default attributes if configured

@@ -213,7 +213,7 @@ func TestIntegration_ErrorsNeverSampled(t *testing.T) {
 	assert.Equal(t, errorCount, errorEntries, "all errors should be logged regardless of sampling")
 }
 
-func TestIntegration_ContextLoggerPropagation(t *testing.T) {
+func TestIntegration_ContextHandlerTraceInjection(t *testing.T) {
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -224,24 +224,24 @@ func TestIntegration_ContextLoggerPropagation(t *testing.T) {
 	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })
 
-	// Simulate request context with tracing
-	ctx := t.Context()
-	cl := logging.NewContextLogger(ctx, logger)
+	// Use the slog logger directly with a context that has a span
+	slogger := logger.Logger()
 
-	// Add request-scoped fields using With()
-	clWithFields := cl.With("request_id", "req-123", "user_id", "user-456")
+	// Log with request-scoped fields using With()
+	scoped := slogger.With("request_id", "req-123", "user_id", "user-456")
 
 	// Log in different "layers" of the application
-	clWithFields.Info("received request")
-	clWithFields.Info("processing data", "step", "validation")
-	clWithFields.Info("request completed", "status", "success")
+	ctx := t.Context()
+	scoped.InfoContext(ctx, "received request")
+	scoped.InfoContext(ctx, "processing data", "step", "validation")
+	scoped.InfoContext(ctx, "request completed", "status", "success")
 
 	entries, err := logging.ParseJSONLogEntries(buf)
 	require.NoError(t, err)
 
 	require.Len(t, entries, 3)
 
-	// All entries should have the context fields
+	// All entries should have the with-scoped fields
 	for _, entry := range entries {
 		assert.Equal(t, "req-123", entry.Attrs["request_id"], "missing request_id")
 		assert.Equal(t, "user-456", entry.Attrs["user_id"], "missing user_id")

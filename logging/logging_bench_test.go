@@ -103,29 +103,29 @@ func BenchmarkConcurrentLogging(b *testing.B) {
 	})
 }
 
-// Benchmark context logger
-func BenchmarkContextLogger(b *testing.B) {
+// Benchmark contextHandler trace injection via slog.InfoContext
+func BenchmarkContextHandler(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
+	slogger := logger.Logger()
 	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		cl := NewContextLogger(ctx, logger)
-		cl.Info("message", "key", "value")
+		slogger.InfoContext(ctx, "message", "key", "value")
 	}
 }
 
-func BenchmarkContextLogger_Pooled(b *testing.B) {
+func BenchmarkContextHandler_Parallel(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
+	slogger := logger.Logger()
 	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			cl := NewContextLogger(ctx, logger)
-			cl.Info("message", "key", "value")
+			slogger.InfoContext(ctx, "message", "key", "value")
 		}
 	})
 }
@@ -262,15 +262,16 @@ func BenchmarkShutdownCheck_Atomic(b *testing.B) {
 	})
 }
 
-// Benchmark pool operations
-func BenchmarkPool_ContextLogger(b *testing.B) {
+// Benchmark contextHandler overhead (no span in context)
+func BenchmarkContextHandler_NoSpan(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
+	slogger := logger.Logger()
 	ctx := b.Context()
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		NewContextLogger(ctx, logger)
+		slogger.InfoContext(ctx, "message")
 	}
 }
 
@@ -526,28 +527,24 @@ func BenchmarkLoggerAccess_HighContention(b *testing.B) {
 	})
 }
 
-// Benchmark pooling effectiveness under load
-func BenchmarkPool_Effectiveness(b *testing.B) {
+// Benchmark contextHandler under parallel load
+func BenchmarkContextHandler_Load(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))
+	slogger := logger.Logger()
 	ctx := b.Context()
 
-	b.Run("without_pooling", func(b *testing.B) {
+	b.Run("serial", func(b *testing.B) {
 		b.ReportAllocs()
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				// Simulate creating new objects each time
-				cl := NewContextLogger(ctx, logger)
-				cl.Info("message", "key", "value")
-			}
-		})
+		for b.Loop() {
+			slogger.InfoContext(ctx, "message", "key", "value")
+		}
 	})
 
-	b.Run("with_pooling", func(b *testing.B) {
+	b.Run("parallel", func(b *testing.B) {
 		b.ReportAllocs()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				cl := NewContextLogger(ctx, logger)
-				cl.Info("message", "key", "value")
+				slogger.InfoContext(ctx, "message", "key", "value")
 			}
 		})
 	})

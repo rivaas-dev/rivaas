@@ -356,8 +356,9 @@ func TestLogger_DebugInfo_IncludesSampling(t *testing.T) {
 	assert.Contains(t, sampling, "counter")
 }
 
-// TestContextLogger_WithValidSpan_SetsTraceAndSpanID tests that ContextLogger extracts trace/span from context.
-func TestContextLogger_WithValidSpan_SetsTraceAndSpanID(t *testing.T) {
+// TestContextHandler_WithValidSpan_InjectsTraceFields tests that the contextHandler
+// automatically injects trace_id and span_id when a valid OTel span is in the context.
+func TestContextHandler_WithValidSpan_InjectsTraceFields(t *testing.T) {
 	t.Parallel()
 
 	tid, err := trace.TraceIDFromHex("00000000000000000000000000000001")
@@ -368,18 +369,44 @@ func TestContextLogger_WithValidSpan_SetsTraceAndSpanID(t *testing.T) {
 	require.True(t, sc.IsValid(), "test span context must be valid")
 
 	ctx := trace.ContextWithSpanContext(context.Background(), sc)
-	th := NewTestHelper(t)
-	cl := NewContextLogger(ctx, th.Logger)
 
-	assert.NotEmpty(t, cl.TraceID(), "TraceID should be set with valid span")
-	assert.NotEmpty(t, cl.SpanID(), "SpanID should be set with valid span")
-	assert.Equal(t, tid.String(), cl.TraceID())
-	assert.Equal(t, sid.String(), cl.SpanID())
-	assert.NotNil(t, cl.Logger(), "Logger should return underlying slog.Logger")
+	th := NewTestHelper(t)
+	logger := th.Logger.Logger()
+
+	// Log with request context — contextHandler should inject trace_id/span_id
+	logger.InfoContext(ctx, "test message")
+
+	entries, err := th.Logs()
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+
+	assert.Equal(t, tid.String(), entries[0].Attrs["trace_id"], "should have trace_id")
+	assert.Equal(t, sid.String(), entries[0].Attrs["span_id"], "should have span_id")
 }
 
-// TestContextLogger_WithValidSpan_LogMethodsIncludeContext tests that log methods emit trace_id/span_id.
-func TestContextLogger_WithValidSpan_LogMethodsIncludeContext(t *testing.T) {
+// TestContextHandler_WithoutSpan_NoTraceFields tests that no trace fields are injected
+// when there is no OTel span in the context.
+func TestContextHandler_WithoutSpan_NoTraceFields(t *testing.T) {
+	t.Parallel()
+
+	th := NewTestHelper(t)
+	logger := th.Logger.Logger()
+
+	// Log with background context — no span, no trace fields
+	logger.InfoContext(context.Background(), "no span message")
+
+	entries, err := th.Logs()
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+
+	_, hasTraceID := entries[0].Attrs["trace_id"]
+	_, hasSpanID := entries[0].Attrs["span_id"]
+	assert.False(t, hasTraceID, "should not have trace_id without span")
+	assert.False(t, hasSpanID, "should not have span_id without span")
+}
+
+// TestContextHandler_MultipleLevels tests that trace injection works across all log levels.
+func TestContextHandler_MultipleLevels(t *testing.T) {
 	t.Parallel()
 
 	tid, err := trace.TraceIDFromHex("00000000000000000000000000000002")
@@ -390,18 +417,15 @@ func TestContextLogger_WithValidSpan_LogMethodsIncludeContext(t *testing.T) {
 	ctx := trace.ContextWithSpanContext(context.Background(), sc)
 
 	th := NewTestHelper(t)
-	cl := NewContextLogger(ctx, th.Logger)
+	logger := th.Logger.Logger()
 
-	cl.Debug("debug msg")
-	cl.Info("info msg")
-	cl.Warn("warn msg")
-	cl.Error("error msg")
-
-	cl.With("extra", "value").Info("with attrs")
+	logger.InfoContext(ctx, "info msg")
+	logger.WarnContext(ctx, "warn msg")
+	logger.ErrorContext(ctx, "error msg")
 
 	entries, err := th.Logs()
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(entries), 4)
+	require.GreaterOrEqual(t, len(entries), 3)
 
 	for _, e := range entries {
 		assert.Equal(t, tid.String(), e.Attrs["trace_id"], "entry should have trace_id")

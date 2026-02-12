@@ -99,10 +99,11 @@
 //
 // # Context-Aware Logging
 //
-// For automatic trace correlation with OpenTelemetry:
+// Trace correlation with OpenTelemetry is automatic. When using
+// slog.*Context methods with a context that contains an active OTel span,
+// trace_id and span_id are injected into every log record:
 //
-//	cl := logging.NewContextLogger(ctx, logger)
-//	cl.Info("processing request", "user_id", userID)
+//	slog.InfoContext(ctx, "processing request", "user_id", userID)
 //	// Automatically includes trace_id and span_id if context has active span
 //
 // See the README for more examples and configuration options.

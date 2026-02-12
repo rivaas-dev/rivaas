@@ -344,8 +344,8 @@ func ExampleNewBatchLogger() {
 	// after flush: 0
 }
 
-// ExampleNewContextLogger demonstrates context-aware logging.
-func ExampleNewContextLogger() {
+// ExampleLogger_contextAwareLogging demonstrates automatic trace injection via context.
+func ExampleLogger_contextAwareLogging() {
 	buf := &bytes.Buffer{}
 	logger := logging.MustNew(
 		logging.WithJSONHandler(),
@@ -354,13 +354,12 @@ func ExampleNewContextLogger() {
 	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())
 
-	// Create a context logger and add request-scoped fields via With()
-	ctx := context.Background()
-	cl := logging.NewContextLogger(ctx, logger)
+	// Use the slog logger with With() for request-scoped fields
+	slogger := logger.Logger().With("request_id", "req-123", "user_id", "user-456")
 
-	// Use With() to add fields to the underlying logger
-	clWithFields := cl.With("request_id", "req-123", "user_id", "user-456")
-	clWithFields.Info("processing request")
+	// Log with context — trace_id/span_id are injected automatically when a span is present
+	ctx := context.Background()
+	slogger.InfoContext(ctx, "processing request")
 
 	//nolint:errcheck // Example test - parsing test logger output
 	entries, _ := logging.ParseJSONLogEntries(buf)
