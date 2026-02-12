@@ -6,11 +6,11 @@ require (
 	go.opentelemetry.io/otel v1.40.0
 	rivaas.dev/app v0.0.0
 	rivaas.dev/config v0.0.0
-	rivaas.dev/logging v0.5.1
-	rivaas.dev/metrics v0.6.1
+	rivaas.dev/logging v0.6.0
+	rivaas.dev/metrics v0.6.2
 	rivaas.dev/openapi v0.5.1
-	rivaas.dev/router v0.8.2
-	rivaas.dev/tracing v0.5.2
+	rivaas.dev/router v0.9.0
+	rivaas.dev/tracing v0.5.3
 )
 
 replace (
@@ -34,7 +34,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/charmbracelet/colorprofile v0.4.1 // indirect
+	github.com/charmbracelet/colorprofile v0.4.2 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.11.6 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
@@ -111,5 +111,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rivaas.dev/binding v0.7.3 // indirect
 	rivaas.dev/errors v0.6.0 // indirect
-	rivaas.dev/validation v0.5.1 // indirect
+	rivaas.dev/validation v0.5.2 // indirect
 )

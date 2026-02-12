@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -44,7 +45,7 @@ func BenchmarkTestJSON(b *testing.B) {
 	}
 	app.GET("/test", func(c *Context) {
 		if jsonErr := c.JSON(http.StatusOK, map[string]string{"status": "ok"}); jsonErr != nil {
-			c.Logger().Error("failed to write response", "err", jsonErr)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", jsonErr)
 		}
 	})
 
@@ -102,7 +103,7 @@ func BenchmarkRouteRegistration(b *testing.B) {
 	for b.Loop() {
 		app.GET("/test", func(c *Context) {
 			if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
-				c.Logger().Error("failed to write response", "err", stringErr)
+				slog.ErrorContext(c.RequestContext(), "failed to write response", "err", stringErr)
 			}
 		})
 	}
@@ -115,7 +116,7 @@ func BenchmarkRequestHandling(b *testing.B) {
 	}
 	app.GET("/test", func(c *Context) {
 		if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
-			c.Logger().Error("failed to write response", "err", stringErr)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", stringErr)
 		}
 	})
 
@@ -147,7 +148,7 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 	})
 	app.GET("/test", func(c *Context) {
 		if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
-			c.Logger().Error("failed to write response", "err", stringErr)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", stringErr)
 		}
 	})
 

@@ -17,6 +17,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -51,7 +52,7 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		// No liveness checks = always healthy (process is running)
 		if len(s.liveness) == 0 {
 			if err := c.String(http.StatusOK, "ok"); err != nil {
-				c.Logger().Error("failed to write healthz response", "err", err)
+				slog.ErrorContext(c.RequestContext(), "failed to write healthz response", "err", err)
 			}
 
 			return
@@ -68,7 +69,7 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		}
 
 		if err := c.String(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write healthz response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write healthz response", "err", err)
 		}
 	})
 

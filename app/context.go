@@ -43,9 +43,6 @@ type Context struct {
 
 	// Binding metadata (per-request)
 	bindingMeta *bindingMetadata
-
-	// Request-scoped logger (never nil, includes HTTP metadata and trace correlation)
-	logger *slog.Logger
 }
 
 // bindingMetadata holds a per-request binding state.
@@ -446,9 +443,8 @@ func (c *Context) fail(err error) {
 	// Format the error (formatter is framework-agnostic)
 	response := formatter.Format(c.Request, err)
 
-	// Log error using request-scoped logger (includes trace context, request ID, etc.)
-	// Logger() is always safe to call - uses noopLogger if logging isn't configured
-	c.Logger().Error("handler error",
+	// Log error with request context (trace_id/span_id injected automatically by contextHandler)
+	slog.ErrorContext(c.RequestContext(), "handler error",
 		"error", err,
 		"method", c.Request.Method,
 		"path", c.Request.URL.Path,
@@ -466,7 +462,7 @@ func (c *Context) fail(err error) {
 	}
 
 	if jsonErr := c.JSON(response.Status, response.Body); jsonErr != nil {
-		c.Logger().Error("failed to write JSON response", "err", jsonErr)
+		slog.ErrorContext(c.RequestContext(), "failed to write JSON response", "err", jsonErr)
 	}
 }
 
@@ -624,44 +620,4 @@ func (c *Context) InternalError(err error) {
 //	c.ServiceUnavailable(fmt.Errorf("maintenance mode"))  // custom message
 func (c *Context) ServiceUnavailable(err error) {
 	c.FailStatus(http.StatusServiceUnavailable, err)
-}
-
-// Logger returns the request-scoped logger.
-// Logger returns a logger that is automatically configured with:
-//   - HTTP metadata using semantic conventions (method, route, target, client IP)
-//   - Request ID (if present in X-Request-ID header)
-//   - Trace/span IDs (if OpenTelemetry tracing is enabled)
-//   - Service metadata (from base logger configuration)
-//
-// Logger never returns nil. If no logger is configured at the app level,
-// a no-op logger is returned (logs are silently discarded).
-//
-// Field naming follows OpenTelemetry semantic conventions for consistency
-// with metrics and traces.
-//
-// Example:
-//
-//	app.GET("/orders/:id", func(c *app.Context) {
-//	    c.Logger().Info("processing order",
-//	        slog.String("order.id", c.Param("id")),
-//	        slog.Int("customer.id", customerID),
-//	    )
-//	})
-//
-// Log output includes automatic context:
-//
-//	{
-//	  "time": "2024-...",
-//	  "level": "INFO",
-//	  "msg": "processing order",
-//	  "http.method": "GET",
-//	  "http.route": "/orders/:id",
-//	  "http.target": "/orders/123",
-//	  "network.client.ip": "203.0.113.1",
-//	  "trace_id": "abc...",       // if tracing enabled
-//	  "span_id": "def...",        // if tracing enabled
-//	  "order.id": "123"
-//	}
-func (c *Context) Logger() *slog.Logger {
-	return c.logger
 }

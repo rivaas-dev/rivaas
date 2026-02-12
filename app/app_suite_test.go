@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -84,7 +85,7 @@ func (s *AppLifecycleSuite) TestHooksExecutionOrder() {
 	// For this unit test, we just verify hooks are registered
 	s.testApp.GET("/test", func(c *Context) {
 		if err := c.String(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -95,13 +96,13 @@ func (s *AppLifecycleSuite) TestHooksExecutionOrder() {
 func (s *AppLifecycleSuite) TestRouteRegistration() {
 	s.testApp.GET("/users", func(c *Context) {
 		if err := c.JSON(http.StatusOK, map[string]string{"message": "users"}); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
 	s.testApp.POST("/users", func(c *Context) {
 		if err := c.JSON(http.StatusCreated, map[string]string{"message": "created"}); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -143,7 +144,7 @@ func (s *AppLifecycleSuite) TestMiddlewareChain() {
 		callOrder = append(callOrder, 3)
 		<-callMutex
 		if err := c.String(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 

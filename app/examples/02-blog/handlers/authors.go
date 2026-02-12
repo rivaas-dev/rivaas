@@ -16,6 +16,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -81,7 +82,7 @@ func ListAuthors(c *app.Context) {
 		"authors": authorList,
 		"total":   len(authorList),
 	}); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }
 
@@ -118,7 +119,7 @@ func GetAuthor(c *app.Context) {
 	)
 
 	if err := c.JSON(http.StatusOK, author); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }
 
@@ -168,6 +169,6 @@ func GetAuthorPosts(c *app.Context) {
 		"posts":    authorPosts,
 		"total":    len(authorPosts),
 	}); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }

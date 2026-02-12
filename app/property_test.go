@@ -18,6 +18,7 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -66,25 +67,25 @@ func TestProperty_RouteMatchingCommutativity(t *testing.T) {
 				case "GET":
 					app.GET(route.path, func(c *Context) {
 						if err := c.Stringf(http.StatusOK, "%s", body); err != nil {
-							c.Logger().Error("failed to write response", "err", err)
+							slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 						}
 					})
 				case "POST":
 					app.POST(route.path, func(c *Context) {
 						if err := c.Stringf(http.StatusOK, "%s", body); err != nil {
-							c.Logger().Error("failed to write response", "err", err)
+							slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 						}
 					})
 				case "PUT":
 					app.PUT(route.path, func(c *Context) {
 						if err := c.Stringf(http.StatusOK, "%s", body); err != nil {
-							c.Logger().Error("failed to write response", "err", err)
+							slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 						}
 					})
 				default:
 					app.GET(route.path, func(c *Context) {
 						if err := c.Stringf(http.StatusOK, "%s", body); err != nil {
-							c.Logger().Error("failed to write response", "err", err)
+							slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 						}
 					})
 				}
@@ -134,7 +135,7 @@ func TestProperty_MiddlewareIdempotency(t *testing.T) {
 
 	app.GET("/test", func(c *Context) {
 		if err := c.Stringf(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -243,7 +244,7 @@ func TestProperty_RoutePathEquivalence(t *testing.T) {
 	app.GET("/users/:id", func(c *Context) {
 		id := c.Param("id")
 		if err := c.Stringf(http.StatusOK, "user-%s", id); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 

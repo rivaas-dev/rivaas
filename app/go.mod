@@ -3,7 +3,7 @@ module rivaas.dev/app
 go 1.25.0
 
 require (
-	github.com/charmbracelet/colorprofile v0.4.1
+	github.com/charmbracelet/colorprofile v0.4.2
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/onsi/ginkgo/v2 v2.28.1
@@ -12,12 +12,12 @@ require (
 	go.opentelemetry.io/otel/trace v1.40.0
 	rivaas.dev/binding v0.7.3
 	rivaas.dev/errors v0.6.0
-	rivaas.dev/logging v0.5.1
-	rivaas.dev/metrics v0.6.1
+	rivaas.dev/logging v0.6.0
+	rivaas.dev/metrics v0.6.2
 	rivaas.dev/openapi v0.5.1
-	rivaas.dev/router v0.8.2
-	rivaas.dev/tracing v0.5.2
-	rivaas.dev/validation v0.5.1
+	rivaas.dev/router v0.9.0
+	rivaas.dev/tracing v0.5.3
+	rivaas.dev/validation v0.5.2
 )
 
 replace (

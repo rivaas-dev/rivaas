@@ -16,6 +16,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"sort"
 
@@ -32,6 +33,8 @@ func GetBlogStats(c *app.Context) {
 	c.SetSpanAttribute("operation", "get_blog_stats")
 	c.SetSpanAttribute("api.version", c.Version())
 	c.AddSpanEvent("calculating_blog_stats")
+
+	slog.InfoContext(c.RequestContext(), "calculating blog stats")
 
 	// Calculate statistics
 	var totalPosts, publishedPosts, draftPosts, archivedPosts, totalViews int
@@ -59,7 +62,7 @@ func GetBlogStats(c *app.Context) {
 	}
 
 	if err := c.JSON(http.StatusOK, stats); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }
 
@@ -128,6 +131,6 @@ func GetPopularPosts(c *app.Context) {
 		"total": len(popularPosts),
 		"limit": params.Limit,
 	}); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }

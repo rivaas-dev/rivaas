@@ -205,7 +205,7 @@ func (a *App) registerOpenAPIEndpoints() {
 		specJSON, etag, err := a.openapi.GenerateSpec(c.Request.Context())
 		if err != nil {
 			if writeErr := c.Stringf(http.StatusInternalServerError, "Failed to generate OpenAPI specification: %v", err); writeErr != nil {
-				c.Logger().Error("failed to write error response", "err", writeErr)
+				slog.ErrorContext(c.RequestContext(), "failed to write error response", "err", writeErr)
 			}
 
 			return
@@ -221,7 +221,7 @@ func (a *App) registerOpenAPIEndpoints() {
 		c.Response.Header().Set("Cache-Control", "public, max-age=3600")
 		c.Response.Header().Set("Content-Type", "application/json")
 		if _, err = c.Response.Write(specJSON); err != nil {
-			c.Logger().Error("failed to write spec response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write spec response", "err", err)
 		}
 	})
 
@@ -261,7 +261,7 @@ func (a *App) registerOpenAPIEndpoints() {
 </html>`
 
 			if htmlErr := c.HTML(http.StatusOK, html); htmlErr != nil {
-				c.Logger().Error("failed to write HTML response", "err", htmlErr)
+				slog.ErrorContext(c.RequestContext(), "failed to write HTML response", "err", htmlErr)
 			}
 		})
 

@@ -19,6 +19,7 @@ package app_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -48,7 +49,7 @@ var _ = Describe("App Integration", func() {
 
 			a.GET("/health", func(c *app.Context) {
 				if err := c.String(http.StatusOK, "ok"); err != nil {
-					c.Logger().Error("failed to write response", "err", err)
+					slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 				}
 			})
 
@@ -96,7 +97,7 @@ var _ = Describe("App Integration", func() {
 
 			a.GET("/test", func(c *app.Context) {
 				if err := c.String(http.StatusOK, "test"); err != nil {
-					c.Logger().Error("failed to write response", "err", err)
+					slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 				}
 			})
 
@@ -133,7 +134,7 @@ var _ = Describe("App Integration", func() {
 					// the app doesn't panic during normal operations
 					a.GET("/test", func(c *app.Context) {
 						if err := c.String(http.StatusOK, "ok"); err != nil {
-							c.Logger().Error("failed to write response", "err", err)
+							slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 						}
 					})
 				}).NotTo(Panic())
@@ -152,20 +153,20 @@ var _ = Describe("App Integration", func() {
 
 			a.GET("/", func(c *app.Context) {
 				if err := c.String(http.StatusOK, "home"); err != nil {
-					c.Logger().Error("failed to write response", "err", err)
+					slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 				}
 			})
 
 			a.GET("/users/:id", func(c *app.Context) {
 				userID := c.Param("id")
 				if err := c.Stringf(http.StatusOK, "user-%s", userID); err != nil {
-					c.Logger().Error("failed to write response", "err", err)
+					slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 				}
 			})
 
 			a.POST("/users", func(c *app.Context) {
 				if err := c.String(http.StatusCreated, "created"); err != nil {
-					c.Logger().Error("failed to write response", "err", err)
+					slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 				}
 			})
 		})
@@ -209,7 +210,7 @@ var _ = Describe("App Integration", func() {
 			a.GET("/test", func(c *app.Context) {
 				executionOrder = append(executionOrder, "handler")
 				if err := c.String(http.StatusOK, "ok"); err != nil {
-					c.Logger().Error("failed to write response", "err", err)
+					slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 				}
 			})
 
@@ -277,14 +278,14 @@ var _ = Describe("App Integration", func() {
 			v1 := api.Group("/v1")
 			v1.GET("/users", func(c *app.Context) {
 				if err := c.String(http.StatusOK, "v1-users"); err != nil {
-					c.Logger().Error("failed to write response", "err", err)
+					slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 				}
 			})
 
 			v2 := api.Group("/v2")
 			v2.GET("/users", func(c *app.Context) {
 				if err := c.String(http.StatusOK, "v2-users"); err != nil {
-					c.Logger().Error("failed to write response", "err", err)
+					slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 				}
 			})
 
@@ -325,7 +326,7 @@ var _ = Describe("App Integration", func() {
 
 						a.GET("/test", func(c *app.Context) {
 							if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
-								c.Logger().Error("failed to write response", "err", stringErr)
+								slog.ErrorContext(c.RequestContext(), "failed to write response", "err", stringErr)
 							}
 						})
 
@@ -363,7 +364,7 @@ var _ = Describe("App Integration", func() {
 					if err := c.JSON(http.StatusOK, map[string]int64{
 						"count": requestCount.Load(),
 					}); err != nil {
-						c.Logger().Error("failed to write response", "err", err)
+						slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 					}
 				})
 
@@ -418,7 +419,7 @@ var _ = Describe("App Integration", func() {
 					executionOrder = append(executionOrder, counter.Add(1))
 					orderMutex.Unlock()
 					if err := c.String(http.StatusOK, "ok"); err != nil {
-						c.Logger().Error("failed to write response", "err", err)
+						slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 					}
 				})
 
@@ -462,11 +463,11 @@ var _ = Describe("App Integration", func() {
 					// Use observability features
 					c.IncrementCounter("test_requests_total")
 					c.SetSpanAttribute("test.key", "test.value")
-					c.Logger().Info("test request", "request_id", "123")
+					slog.InfoContext(c.RequestContext(), "test request", "request_id", "123")
 
 					successCount.Add(1)
 					if stringErr := c.String(http.StatusOK, "ok"); stringErr != nil {
-						c.Logger().Error("failed to write response", "err", stringErr)
+						slog.ErrorContext(c.RequestContext(), "failed to write response", "err", stringErr)
 					}
 				})
 
@@ -509,7 +510,7 @@ var _ = Describe("App Integration", func() {
 					routeID := i // capture for closure
 					a.GET(path, func(c *app.Context) {
 						if err := c.Stringf(http.StatusOK, "route-%d", routeID); err != nil {
-							c.Logger().Error("failed to write response", "err", err)
+							slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 						}
 					})
 				}
@@ -561,7 +562,7 @@ var _ = Describe("App Integration", func() {
 				// Register a route
 				a.GET("/existing", func(c *app.Context) {
 					if err := c.String(http.StatusOK, "existing"); err != nil {
-						c.Logger().Error("failed to write response", "err", err)
+						slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 					}
 				})
 
@@ -594,7 +595,7 @@ var _ = Describe("App Integration", func() {
 
 				a.GET("/test", func(c *app.Context) {
 					if err := c.String(http.StatusOK, "ok"); err != nil {
-						c.Logger().Error("failed to write response", "err", err)
+						slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 					}
 				})
 
@@ -649,14 +650,14 @@ var _ = Describe("App Integration", func() {
 					if err := c.JSON(http.StatusInternalServerError, map[string]string{
 						"error": "test error",
 					}); err != nil {
-						c.Logger().Error("failed to write error response", "err", err)
+						slog.ErrorContext(c.RequestContext(), "failed to write error response", "err", err)
 					}
 				})
 
 				// Route that works
 				a.GET("/ok", func(c *app.Context) {
 					if err := c.String(http.StatusOK, "ok"); err != nil {
-						c.Logger().Error("failed to write response", "err", err)
+						slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 					}
 				})
 

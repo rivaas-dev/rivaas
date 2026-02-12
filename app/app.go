@@ -737,7 +737,6 @@ func (a *App) wrapHandler(handler HandlerFunc) router.HandlerFunc {
 			ac.Context = nil
 			ac.app = nil
 			ac.bindingMeta = nil
-			ac.logger = nil
 			a.contextPool.Put(ac)
 		}()
 
@@ -745,9 +744,6 @@ func (a *App) wrapHandler(handler HandlerFunc) router.HandlerFunc {
 		ac.Context = rc
 		ac.app = a
 		ac.bindingMeta = nil
-
-		// Build request-scoped logger (never nil)
-		ac.logger = buildRequestLogger(a.BaseLogger(), rc)
 
 		// Call the handler
 		handler(ac)

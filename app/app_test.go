@@ -18,6 +18,7 @@ package app
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -703,45 +704,45 @@ func TestApp_RouteRegistration(t *testing.T) {
 	// Register routes using App methods
 	app.GET("/users", func(c *Context) {
 		if err := c.String(http.StatusOK, "users"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
 	app.POST("/users", func(c *Context) {
 		if err := c.String(http.StatusCreated, "created"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
 	app.PUT("/users/:id", func(c *Context) {
 		userID := c.Param("id")
 		if err := c.Stringf(http.StatusOK, "updated %s", userID); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
 	app.DELETE("/users/:id", func(c *Context) {
 		if err := c.String(http.StatusNoContent, ""); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
 	app.PATCH("/users/:id", func(c *Context) {
 		userID := c.Param("id")
 		if err := c.Stringf(http.StatusOK, "patched %s", userID); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
 	app.HEAD("/users/:id", func(c *Context) {
 		if err := c.String(http.StatusOK, ""); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
 	app.OPTIONS("/users", func(c *Context) {
 		if err := c.String(http.StatusOK, ""); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -806,14 +807,14 @@ func TestApp_GroupRoutes(t *testing.T) {
 	api := app.Group("/api")
 	api.GET("/health", func(c *Context) {
 		if err := c.String(http.StatusOK, "healthy"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
 	api.GET("/users/:id", func(c *Context) {
 		userID := c.Param("id")
 		if err := c.Stringf(http.StatusOK, "user-%s", userID); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -845,34 +846,34 @@ func TestGroup_HttpMethods(t *testing.T) {
 
 	api.POST("/items", func(c *Context) {
 		if err := c.String(http.StatusCreated, "item-created"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 	api.PUT("/items/:id", func(c *Context) {
 		id := c.Param("id")
 		if err := c.Stringf(http.StatusOK, "updated-%s", id); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 	api.DELETE("/items/:id", func(c *Context) {
 		if err := c.String(http.StatusNoContent, ""); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 	api.PATCH("/items/:id", func(c *Context) {
 		id := c.Param("id")
 		if err := c.Stringf(http.StatusOK, "patched-%s", id); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 	api.HEAD("/items/:id", func(c *Context) {
 		if err := c.String(http.StatusOK, ""); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 	api.OPTIONS("/items", func(c *Context) {
 		if err := c.String(http.StatusOK, ""); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -918,7 +919,7 @@ func TestGroup_Any(t *testing.T) {
 	api := app.Group("/api")
 	api.Any("/ping", func(c *Context) {
 		if err := c.String(http.StatusOK, "pong"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -1133,7 +1134,7 @@ func TestApp_UseMiddleware(t *testing.T) {
 
 	app.GET("/test", func(c *Context) {
 		if err := c.String(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -1633,7 +1634,7 @@ func TestApp_NoRoute(t *testing.T) {
 			if err := c.JSON(http.StatusNotFound, map[string]string{
 				"error": "custom not found",
 			}); err != nil {
-				c.Logger().Error("failed to write response", "err", err)
+				slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 			}
 		})
 
@@ -1656,7 +1657,7 @@ func TestApp_NoRoute(t *testing.T) {
 		// First set a custom handler
 		app.NoRoute(func(c *Context) {
 			if err := c.JSON(http.StatusNotFound, map[string]string{"error": "custom"}); err != nil {
-				c.Logger().Error("failed to write response", "err", err)
+				slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 			}
 		})
 
@@ -1681,13 +1682,13 @@ func TestApp_NoRoute(t *testing.T) {
 
 		app.GET("/exists", func(c *Context) {
 			if err := c.String(http.StatusOK, "exists"); err != nil {
-				c.Logger().Error("failed to write response", "err", err)
+				slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 			}
 		})
 
 		app.NoRoute(func(c *Context) {
 			if err := c.JSON(http.StatusNotFound, map[string]string{"error": "not found"}); err != nil {
-				c.Logger().Error("failed to write response", "err", err)
+				slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 			}
 		})
 

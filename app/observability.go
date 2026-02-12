@@ -217,11 +217,6 @@ func (o *observabilityRecorder) logAccessRequest(
 		fields = append(fields, "request_id", reqID)
 	}
 
-	// Add trace ID (for correlation with traces)
-	if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
-		fields = append(fields, "trace_id", span.SpanContext().TraceID().String())
-	}
-
 	// Mark slow requests explicitly
 	if isSlow {
 		fields = append(fields, "slow", true)
@@ -231,56 +226,14 @@ func (o *observabilityRecorder) logAccessRequest(
 	// Note: Slow 200s appear as warnings (intentional)
 	switch {
 	case statusCode >= 500:
-		o.logger.ErrorContext(ctx, "access", fields...)
+		o.logger.ErrorContext(ctx, "http request", fields...)
 	case statusCode >= 400:
-		o.logger.WarnContext(ctx, "access", fields...)
+		o.logger.WarnContext(ctx, "http request", fields...)
 	case isSlow:
-		o.logger.WarnContext(ctx, "access", fields...) // Slow success still notable
+		o.logger.WarnContext(ctx, "http request", fields...) // Slow success still notable
 	default:
-		o.logger.InfoContext(ctx, "access", fields...)
+		o.logger.InfoContext(ctx, "http request", fields...)
 	}
-}
-
-func (o *observabilityRecorder) BuildRequestLogger(ctx context.Context, req *http.Request, routePattern string) *slog.Logger {
-	// Always return a non-nil logger
-	// If logging disabled, return no-op logger
-	if o.logger == nil {
-		return router.NoopLogger()
-	}
-
-	// Build request-scoped logger with HTTP metadata (semantic conventions)
-	attrs := []any{
-		fieldHTTPMethod, req.Method,
-		fieldHTTPTarget, req.URL.Path,
-	}
-
-	// Add route template (available after routing)
-	if routePattern != "" {
-		attrs = append(attrs, fieldHTTPRoute, routePattern)
-	}
-
-	// Add request ID (for correlation)
-	if reqID := req.Header.Get("X-Request-ID"); reqID != "" {
-		attrs = append(attrs, fieldRequestID, reqID)
-	}
-
-	// Add client IP (proxy-aware if configured)
-	// Note: This should use router's ClientIP() helper if available
-	// For now, using raw RemoteAddr
-	attrs = append(attrs, fieldNetworkClientIP, req.RemoteAddr)
-
-	logger := o.logger.With(attrs...)
-
-	// Add trace correlation (if span is active)
-	if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
-		sc := span.SpanContext()
-		logger = logger.With(
-			fieldTraceID, sc.TraceID().String(),
-			fieldSpanID, sc.SpanID().String(),
-		)
-	}
-
-	return logger
 }
 
 // observabilityResponseWriter wraps [http.ResponseWriter] to capture metadata.

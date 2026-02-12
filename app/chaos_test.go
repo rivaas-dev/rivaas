@@ -18,6 +18,7 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -60,7 +61,7 @@ func TestChaos_ConcurrentRouteRegistration(t *testing.T) {
 			path := fmt.Sprintf("/route%d", id%10)
 			app.GET(path, func(c *Context) {
 				if err := c.Stringf(http.StatusOK, "route-%d", id); err != nil {
-					c.Logger().Error("failed to write response", "err", err)
+					slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 				}
 			})
 		}(i)
@@ -117,7 +118,7 @@ func TestChaos_StressTestHighConcurrency(t *testing.T) {
 		// #nosec G404 -- test code, not security-sensitive
 		time.Sleep(time.Duration(rand.IntN(5)) * time.Millisecond)
 		if err := c.String(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -247,7 +248,7 @@ func TestChaos_MiddlewareChainStress(t *testing.T) {
 		order := counter.Add(1)
 		executionOrder.Store(order, -1) // -1 indicates handler
 		if err := c.String(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -284,7 +285,7 @@ func TestChaos_ContextPoolExhaustion(t *testing.T) {
 	app.GET("/slow", func(c *Context) {
 		time.Sleep(5 * time.Millisecond)
 		if err := c.String(http.StatusOK, "ok"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -331,7 +332,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 	// Pre-register some routes
 	app.GET("/existing", func(c *Context) {
 		if err := c.String(http.StatusOK, "existing"); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 
@@ -351,7 +352,7 @@ func TestChaos_MixedOperations(t *testing.T) {
 				}()
 				app.GET(fmt.Sprintf("/new%d", id), func(c *Context) {
 					if err := c.Stringf(http.StatusOK, "new-%d", id); err != nil {
-						c.Logger().Error("failed to write response", "err", err)
+						slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 					}
 				})
 			}()

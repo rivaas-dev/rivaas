@@ -18,6 +18,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -97,6 +98,7 @@ func main() {
 	// Create a logger early for initialization-phase logging
 	logger := logging.MustNew(
 		logging.WithConsoleHandler(),
+		logging.WithGlobalLogger(),
 	)
 
 	// Load configuration
@@ -177,7 +179,7 @@ func main() {
 			"spanId":      c.SpanID(),
 			"requestId":   c.Response.Header().Get("X-Request-ID"),
 		}); err != nil {
-			c.Logger().Error("failed to write response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 		}
 	})
 

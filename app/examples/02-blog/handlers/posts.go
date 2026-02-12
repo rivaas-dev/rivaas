@@ -17,6 +17,7 @@ package handlers
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -183,7 +184,7 @@ func ListPosts(c *app.Context) {
 		"page":    params.Page,
 		"perPage": params.PerPage,
 	}); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }
 
@@ -222,7 +223,7 @@ func GetPostBySlug(c *app.Context) {
 	)
 
 	if err := c.JSON(http.StatusOK, post); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }
 
@@ -303,7 +304,7 @@ func CreatePost(c *app.Context) {
 
 	c.AddSpanEvent("post_created")
 	if err := c.JSON(http.StatusCreated, post); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }
 
@@ -380,7 +381,7 @@ func UpdatePost(c *app.Context) {
 	c.IncrementCounter("posts_updated_total")
 
 	if err := c.JSON(http.StatusOK, post); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }
 
@@ -428,6 +429,6 @@ func PublishPost(c *app.Context) {
 	c.IncrementCounter("posts_published_total")
 
 	if err := c.JSON(http.StatusOK, post); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }

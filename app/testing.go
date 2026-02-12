@@ -223,7 +223,6 @@ func TestContextWithBody(method, path string, body any) (*Context, error) {
 	c.Context = rc
 	c.app = a
 	c.bindingMeta = nil
-	c.logger = buildRequestLogger(a.BaseLogger(), rc)
 
 	return c, nil
 }
@@ -265,7 +264,6 @@ func TestContextWithForm(method, path string, values map[string][]string) (*Cont
 	c.Context = rc
 	c.app = a
 	c.bindingMeta = nil
-	c.logger = buildRequestLogger(a.BaseLogger(), rc)
 
 	return c, nil
 }

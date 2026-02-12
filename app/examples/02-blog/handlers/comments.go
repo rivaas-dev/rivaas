@@ -16,6 +16,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -112,7 +113,7 @@ func ListComments(c *app.Context) {
 		"comments": postComments,
 		"total":    len(postComments),
 	}); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }
 
@@ -187,6 +188,6 @@ func CreateComment(c *app.Context) {
 
 	c.AddSpanEvent("comment_created")
 	if err := c.JSON(http.StatusCreated, comment); err != nil {
-		c.Logger().Error("failed to write response", "err", err)
+		slog.ErrorContext(c.RequestContext(), "failed to write response", "err", err)
 	}
 }
