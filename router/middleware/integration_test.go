@@ -178,7 +178,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 			// Verify AccessLog captured the request
 			logRecords := handler.getRecords(slog.LevelInfo)
 			Expect(logRecords).To(HaveLen(1), "AccessLog should have logged the request")
-			Expect(logRecords[0].msg).To(Equal("access"))
+			Expect(logRecords[0].msg).To(Equal("http request"))
 
 			// Verify basic log fields are present
 			logFields := handler.getFields(slog.LevelInfo)
@@ -216,7 +216,7 @@ var _ = Describe("Middleware Integration", Label("integration"), func() {
 			// Verify AccessLog captured the error
 			logRecords := handler.getRecords(slog.LevelError)
 			Expect(logRecords).To(HaveLen(1), "AccessLog should have logged the error")
-			Expect(logRecords[0].msg).To(Equal("access"))
+			Expect(logRecords[0].msg).To(Equal("http request"))
 
 			logFields := handler.getFields(slog.LevelError)
 			Expect(logFields["status"]).To(Equal(int64(http.StatusInternalServerError)))

@@ -130,7 +130,7 @@ func TestAccessLog_BasicLogging(t *testing.T) {
 
 	records := handler.getRecords(slog.LevelInfo)
 	require.Len(t, records, 1, "Expected exactly 1 info log")
-	assert.Equal(t, "access", records[0].msg)
+	assert.Equal(t, "http request", records[0].msg)
 
 	fields := handler.getFields(slog.LevelInfo)
 	assert.Equal(t, "GET", fields["method"])

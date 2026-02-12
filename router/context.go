@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"mime"
 	"net/http"
 	"net/url"
@@ -143,7 +142,6 @@ type Context struct {
 	tracingRecorder ContextTracingRecorder // Tracing recorder for this context
 	version         string                 // Current API version (e.g., "v1", "v2")
 	routePattern    string                 // Matched route pattern (e.g., "/users/:id" or "_not_found")
-	logger          *slog.Logger           // Request-scoped logger (set by observability recorder)
 
 	// Header parsing cache (per-request)
 	cachedAcceptHeader string       // Cached Accept header value
@@ -327,7 +325,7 @@ func (c *Context) Param(key string) string {
 // Example:
 //
 //	if err := c.JSON(http.StatusOK, user); err != nil {
-//	    c.Logger().Error("failed to write json", "err", err)
+//	    slog.ErrorContext(c.Request.Context(), "failed to write json", "err", err)
 //	    return
 //	}
 func (c *Context) JSON(code int, obj any) error {
@@ -889,19 +887,6 @@ func (c *Context) Version() string {
 	return c.version
 }
 
-// Logger returns the request-scoped logger for this context.
-// The logger is set by the observability recorder during request initialization
-// and includes request metadata like method, path, trace ID, etc.
-//
-// Returns a non-nil logger. If no logger was set, returns a no-op logger.
-func (c *Context) Logger() *slog.Logger {
-	if c.logger != nil {
-		return c.logger
-	}
-
-	return noopLogger
-}
-
 // IsVersion returns true if the current request is for the specified version.
 // This is a helper for version checking.
 //
@@ -1089,7 +1074,7 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 //	    if c.HasErrors() {
 //	        joinedErr := errors.Join(c.Errors()...)
 //	        if err := c.JSON(400, map[string]any{"errors": c.Errors()}); err != nil {
-//	            c.Logger().Error("failed to write error response", "err", err)
+//	            slog.ErrorContext(c.Request.Context(), "failed to write error response", "err", err)
 //	        }
 //	        return
 //	    }
@@ -1242,7 +1227,7 @@ func (c *Context) AddSpanEvent(name string, attrs ...attribute.KeyValue) {
 //		return // Request canceled
 //	case result := <-longOperation():
 //		if err := c.JSON(200, result); err != nil {
-//		    c.Logger().Error("failed to write response", "err", err)
+//		    slog.ErrorContext(c.Request.Context(), "failed to write response", "err", err)
 //		}
 //	}
 func (c *Context) RequestContext() context.Context {
@@ -1500,7 +1485,6 @@ func (c *Context) reset() {
 	c.tracingRecorder = nil
 	c.version = ""
 	c.routePattern = ""
-	c.logger = nil
 
 	// Reset state flags
 	c.aborted = false

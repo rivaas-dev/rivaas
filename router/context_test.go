@@ -748,16 +748,6 @@ func TestNewPooledContext(t *testing.T) {
 	require.NotNil(t, c2.Params)
 }
 
-// TestContext_Logger covers Logger when no logger is set (returns no-op).
-func TestContext_Logger(t *testing.T) {
-	t.Parallel()
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	c := NewContext(w, req)
-	logger := c.Logger()
-	require.NotNil(t, logger)
-}
-
 // TestContext_MethodNotAllowed covers MethodNotAllowed and Allow header.
 func TestContext_MethodNotAllowed(t *testing.T) {
 	t.Parallel()

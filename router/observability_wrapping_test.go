@@ -18,7 +18,6 @@ package router
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -198,10 +197,6 @@ func (t *testObservabilityRecorder) WrapResponseWriter(w http.ResponseWriter, st
 
 func (t *testObservabilityRecorder) OnRequestEnd(_ context.Context, _ any, _ http.ResponseWriter, _ string) {
 	// No-op for test
-}
-
-func (t *testObservabilityRecorder) BuildRequestLogger(_ context.Context, _ *http.Request, _ string) *slog.Logger {
-	return noopLogger
 }
 
 // mockWrappedResponseWriter is a test implementation of a wrapped response writer.

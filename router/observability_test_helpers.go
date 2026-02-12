@@ -17,7 +17,6 @@ package router
 import (
 	"bufio"
 	"context"
-	"log/slog"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -29,10 +28,9 @@ type mockObservabilityRecorder struct {
 	shouldExclude func(path string) bool
 
 	// Counters for verification
-	startCalls  atomic.Int32
-	endCalls    atomic.Int32
-	wrapCalls   atomic.Int32
-	loggerCalls atomic.Int32
+	startCalls atomic.Int32
+	endCalls   atomic.Int32
+	wrapCalls  atomic.Int32
 
 	// Captured data
 	lastStatusCode   int
@@ -95,11 +93,6 @@ func (m *mockObservabilityRecorder) OnRequestEnd(ctx context.Context, state any,
 		m.lastResponseSize = 0
 	}
 	m.lastRoutePattern = routePattern
-}
-
-func (m *mockObservabilityRecorder) BuildRequestLogger(ctx context.Context, req *http.Request, routePattern string) *slog.Logger {
-	m.loggerCalls.Add(1)
-	return noopLogger
 }
 
 // mockHTTPResponseWriter implements http.ResponseWriter and ResponseInfo for testing

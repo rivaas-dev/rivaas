@@ -85,7 +85,7 @@ type ParameterReader interface {
 // Example:
 //
 //	if err := c.JSON(200, user); err != nil {
-//	    c.Logger().Error("failed to write json", "err", err)
+//	    slog.ErrorContext(c.Request.Context(), "failed to write json", "err", err)
 //	    return
 //	}
 type ResponseWriter interface {

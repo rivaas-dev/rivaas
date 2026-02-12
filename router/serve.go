@@ -17,7 +17,6 @@ package router
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 
 	"golang.org/x/net/http2"
@@ -145,14 +144,6 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				c.routePattern = "_unmatched"
 			}
 
-			var logger *slog.Logger
-			if r.observability != nil {
-				logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-			} else {
-				logger = noopLogger
-			}
-			c.logger = logger
-
 			c.handlers = handlers
 			c.index = -1
 			c.Next()
@@ -188,12 +179,6 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // handleNotFoundWithObs handles 404 responses with observability support.
 func (r *Router) handleNotFoundWithObs(w http.ResponseWriter, req *http.Request, obsState any) {
-	// Build request-scoped logger for 404 handler (for future use)
-	// Currently handleNotFound doesn't use the logger, but it could in the future
-	if r.observability != nil {
-		_ = r.observability.BuildRequestLogger(req.Context(), req, "_not_found")
-	}
-
 	// Call the 404 handler
 	r.handleNotFound(w, req)
 
@@ -207,21 +192,12 @@ func (r *Router) handleNotFoundWithObs(w http.ResponseWriter, req *http.Request,
 func (r *Router) serveStaticRoute(w http.ResponseWriter, req *http.Request, handlers []HandlerFunc, routePattern, version string, hasVersioning bool, obsState any) {
 	ctx := req.Context()
 
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-	} else {
-		logger = noopLogger
-	}
-
 	// Get context from pool
 	c := getContextFromGlobalPool()
 	c.Request = req
 	c.Response = w
 	c.handlers = handlers
 	c.router = r
-	c.logger = logger
 	c.routePattern = routePattern
 	c.index = -1
 	c.paramCount = 0
@@ -304,15 +280,6 @@ func (r *Router) serveVersionedRequest(w http.ResponseWriter, req *http.Request,
 	// Execute handlers with the context that has extracted parameters
 	c.handlers = handlers
 
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-	} else {
-		logger = noopLogger
-	}
-	c.logger = logger
-
 	// Execute
 	c.Next()
 
@@ -341,14 +308,6 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 		}
 	}
 
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-	} else {
-		logger = noopLogger
-	}
-
 	// Use global context pool
 	c := getContextFromGlobalPool()
 	c.Request = req
@@ -358,7 +317,6 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 	c.router = r
 	c.version = version
 	c.routePattern = routePattern // Set route pattern for access log
-	c.logger = logger
 	c.handlers = handlers
 
 	// Execute
@@ -378,14 +336,6 @@ func (r *Router) serveVersionedHandlers(w http.ResponseWriter, req *http.Request
 func (r *Router) serveCompiledRoute(w http.ResponseWriter, req *http.Request, route *compiler.CompiledRoute, obsState any) {
 	routePattern := route.Pattern() // Use route pattern, not raw path
 	ctx := req.Context()
-
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-	} else {
-		logger = noopLogger
-	}
 
 	// Execute handlers
 	c := getContextFromGlobalPool()
@@ -408,7 +358,6 @@ func (r *Router) serveCompiledRoute(w http.ResponseWriter, req *http.Request, ro
 	}
 
 	c.routePattern = routePattern // Set template for access
-	c.logger = logger
 
 	c.Next()
 
@@ -444,15 +393,6 @@ func (r *Router) serveCompiledRouteWithParams(w http.ResponseWriter, req *http.R
 		}
 		c.initForRequestWithParams(req, w, handlers, r)
 	}
-
-	// Build request-scoped logger (after routing)
-	var logger *slog.Logger
-	if r.observability != nil {
-		logger = r.observability.BuildRequestLogger(ctx, req, routePattern)
-	} else {
-		logger = noopLogger
-	}
-	c.logger = logger
 
 	defer releaseGlobalContext(c)
 

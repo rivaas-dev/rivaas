@@ -19,6 +19,7 @@ package router_test
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"rivaas.dev/router"
@@ -264,7 +265,7 @@ func ExampleContext_JSON() {
 		err := c.JSON(http.StatusOK, map[string]string{"key": "value"})
 		if err != nil {
 			// Handle error explicitly
-			c.Logger().Error("failed to write JSON", "err", err)
+			slog.ErrorContext(c.Request.Context(), "failed to write JSON", "err", err)
 			c.Error(err) // Optionally collect it
 			c.WriteErrorResponse(http.StatusInternalServerError, "encoding failed")
 

@@ -156,13 +156,13 @@ func New(opts ...Option) router.HandlerFunc {
 		// Log at appropriate level
 		switch {
 		case status >= 500:
-			logger.Error("access", fields...)
+			logger.Error("http request", fields...)
 		case status >= 400:
-			logger.Warn("access", fields...)
+			logger.Warn("http request", fields...)
 		case isSlow:
-			logger.Warn("access", fields...)
+			logger.Warn("http request", fields...)
 		default:
-			logger.Info("access", fields...)
+			logger.Info("http request", fields...)
 		}
 	}
 }

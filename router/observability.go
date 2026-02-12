@@ -16,7 +16,6 @@ package router
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 )
 
@@ -28,8 +27,8 @@ import (
 //     → Implement in OnRequestEnd by extracting ResponseInfo and recording to metrics system
 //   - Tracing: Track request flow and create distributed trace spans
 //     → Implement in OnRequestStart (create span) and OnRequestEnd (finish span)
-//   - Logging: Provide structured, request-scoped logs for debugging
-//     → Implement in BuildRequestLogger for business logic, OnRequestEnd for access logs
+//   - Logging: Provide structured access logs
+//     → Implement in OnRequestEnd for canonical access log lines
 //
 // These three pillars work together to provide complete visibility into system behavior.
 // See observability_example_test.go for a reference implementation.
@@ -43,19 +42,16 @@ import (
 //     - Example: trace propagation for downstream calls works even if metrics are excluded
 //  3. Router wraps ResponseWriter ONLY IF state != nil
 //     - Excluded requests (state=nil) skip wrapping and OnRequestEnd
-//  4. Router matches route and calls BuildRequestLogger(ctx, req, routePattern)
-//     - Called AFTER routing completes (so routePattern is known)
-//     - Called EVEN FOR excluded requests (enables business logging)
-//  5. Handler executes
-//  6. Router calls OnRequestEnd(ctx, state, writer, routePattern) ONLY IF state != nil
+//  4. Handler executes
+//  5. Router calls OnRequestEnd(ctx, state, writer, routePattern) ONLY IF state != nil
 //     - Implementation extracts status/size from writer (via ResponseInfo interface)
 //     - Records metrics, finishes traces, logs access entry
 //
 // Exclusion semantics:
 //   - state=nil means: no wrapping, no OnRequestEnd, no access logs/metrics/traces
-//   - state=nil does NOT affect: context enrichment, BuildRequestLogger
-//   - Rationale: handlers on excluded paths can still do business logging and
-//     make downstream calls with proper trace propagation
+//   - state=nil does NOT affect: context enrichment
+//   - Rationale: handlers on excluded paths can still make downstream calls
+//     with proper trace propagation
 //
 // Thread safety: All methods must be safe for concurrent use.
 type ObservabilityRecorder interface {
@@ -67,7 +63,7 @@ type ObservabilityRecorder interface {
 	//
 	// If the request should be excluded from observability (e.g., /health, /metrics),
 	// return (enrichedCtx, nil). Router will skip WrapResponseWriter and OnRequestEnd,
-	// but will still use the enriched context and call BuildRequestLogger.
+	// but will still use the enriched context.
 	//
 	// The state token is passed to WrapResponseWriter and OnRequestEnd.
 	// Router treats state as completely opaque.
@@ -94,16 +90,6 @@ type ObservabilityRecorder interface {
 	//
 	// state is the opaque token returned by OnRequestStart.
 	OnRequestEnd(ctx context.Context, state any, writer http.ResponseWriter, routePattern string)
-
-	// BuildRequestLogger creates a request-scoped logger enriched with HTTP metadata.
-	// Called after routing completes (so routePattern is available).
-	//
-	// This is called EVEN FOR excluded paths (state=nil), allowing handlers to perform
-	// business logging. Access logging is separate (happens in OnRequestEnd).
-	//
-	// Returns a non-nil logger. If logging is disabled, returns a no-op logger.
-	// The returned logger is injected into Context for handlers to use.
-	BuildRequestLogger(ctx context.Context, req *http.Request, routePattern string) *slog.Logger
 }
 
 // ResponseInfo is implemented by response writers that track response metadata.

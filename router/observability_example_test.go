@@ -62,10 +62,6 @@ func Example_simpleObservabilityRecorder() {
 		w := httptest.NewRecorder()
 		wrapped := obs.WrapResponseWriter(w, state)
 
-		// 3. BuildRequestLogger - create request-scoped logger
-		logger := obs.BuildRequestLogger(enrichedCtx, req, "/users/:id")
-		logger.Info("processing request")
-
 		// Simulate handler writing response
 		if rw, ok := wrapped.(*observableResponseWriter); ok {
 			//nolint:errcheck // Error checking is omitted in the example test code
@@ -74,7 +70,7 @@ func Example_simpleObservabilityRecorder() {
 			rw.Write([]byte(`{"status":"ok"}`))
 		}
 
-		// 4. OnRequestEnd - called after request completes
+		// 3. OnRequestEnd - called after request completes
 		obs.OnRequestEnd(enrichedCtx, state, wrapped, "/users/:id")
 	}
 
@@ -85,10 +81,9 @@ func Example_simpleObservabilityRecorder() {
 }
 
 // SimpleObservabilityRecorder is a minimal reference implementation of router.ObservabilityRecorder.
-// It demonstrates the basic lifecycle and how to implement the three observability pillars:
+// It demonstrates the basic lifecycle and how to implement the observability pillars:
 //   - Metrics: Track request counts, durations, status codes
 //   - Tracing: Add request IDs and track request flow
-//   - Logging: Provide request-scoped structured logging
 type SimpleObservabilityRecorder struct {
 	logger       *slog.Logger
 	excludePaths map[string]bool
@@ -178,25 +173,6 @@ func (s *SimpleObservabilityRecorder) OnRequestEnd(ctx context.Context, state an
 	// - Record metrics (request count, duration histogram, status code counter)
 	// - Finish distributed tracing span
 	// - Update dashboards/monitoring systems
-}
-
-// BuildRequestLogger creates a request-scoped logger with HTTP metadata.
-// This logger is available to handlers for business logic logging.
-func (s *SimpleObservabilityRecorder) BuildRequestLogger(ctx context.Context, req *http.Request, routePattern string) *slog.Logger {
-	// Extract request ID from context (added in OnRequestStart)
-	requestID, ok := ctx.Value("request_id").(string)
-	if !ok {
-		requestID = "" // Fallback if not found
-	}
-
-	// Create logger with request context
-	return s.logger.With(
-		"request_id", requestID,
-		"route", routePattern,
-		"method", req.Method,
-		"path", req.URL.Path,
-		"remote_addr", req.RemoteAddr,
-	)
 }
 
 // observableResponseWriter wraps http.ResponseWriter to capture response metadata.
