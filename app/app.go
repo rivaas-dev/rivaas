@@ -95,7 +95,7 @@ type config struct {
 	openapi        *openapiConfig
 	errors         *errorsConfig
 	observability  *observabilitySettings // Unified observability settings (metrics, tracing, logging)
-	health         *healthSettings        // Health endpoint settings (healthz, readyz)
+	health         *healthSettings        // Health endpoint settings (livez, readyz)
 	debug          *debugSettings         // Debug endpoint settings (pprof)
 	envErrors      []error                // Errors from environment variable parsing
 }

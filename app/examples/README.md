@@ -59,7 +59,7 @@ go test -v
 - HTTP API on `:8080`
 - OpenAPI docs at `/docs`
 - Prometheus metrics on `:9090`
-- Health endpoints: `/healthz`, `/readyz`
+- Health endpoints: `/livez`, `/readyz`
 - Versioned API: `/v1/stats`, `/v1/popular`
 - Full CRUD operations with validation
 

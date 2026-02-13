@@ -66,7 +66,7 @@ func setupTestApp(t *testing.T) *app.App {
 			app.WithLogging(logging.WithConsoleHandler()),
 			app.WithMetrics(metrics.WithPrometheus(":9091", "/metrics")),
 			app.WithTracing(tracing.WithStdout(), tracing.WithSampleRate(1.0)),
-			app.WithExcludePaths("/healthz", "/readyz", "/metrics"),
+			app.WithExcludePaths("/livez", "/readyz", "/metrics"),
 		),
 		app.WithHealthEndpoints(
 			app.WithHealthTimeout(800*time.Millisecond),

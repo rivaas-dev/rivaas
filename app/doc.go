@@ -96,7 +96,7 @@
 //	        app.WithMetrics(), // Prometheus is default
 //	        app.WithTracing(tracing.WithOTLP("localhost:4317")),
 //	    ),
-//	    // Health endpoints: /healthz and /readyz
+//	    // Health endpoints: /livez and /readyz
 //	    app.WithHealthEndpoints(
 //	        app.WithLivenessCheck("process", func(ctx context.Context) error {
 //	            return nil

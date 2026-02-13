@@ -419,7 +419,7 @@ func WithDefaultErrorFormat(mediaType string) Option {
 //   - WithAccessLogging, WithLogOnlyErrors, WithSlowThreshold
 //
 // Default exclusions include common health/probe paths:
-// /health, /healthz, /ready, /readyz, /live, /livez, /metrics, /debug/*
+// /health, /livez, /ready, /readyz, /live, /metrics, /debug/*
 //
 // Example:
 //

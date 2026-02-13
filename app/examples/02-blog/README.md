@@ -10,7 +10,7 @@ This example showcases:
 - **Method-based Validation** - Proper validation using `IsValid()` methods instead of struct tags
 - **OpenAPI Documentation** - Auto-generated Swagger UI at `/docs`
 - **Observability** - Structured logging, Prometheus metrics, and OpenTelemetry tracing
-- **Health Endpoints** - Liveness (`/healthz`) and readiness (`/readyz`) checks
+- **Health Endpoints** - Liveness (`/livez`) and readiness (`/readyz`) checks
 - **API Versioning** - Path-based versioning (`/v1/stats`, `/v1/popular`)
 - **Integration Tests** - Using `app/testing.go` for comprehensive test coverage
 - **Real-world Patterns** - Slug-based URLs, status transitions, nested resources, pagination
@@ -29,7 +29,7 @@ The server starts on `http://localhost:8080`
 ### 2. Explore the API
 
 - **OpenAPI Docs**: http://localhost:8080/docs
-- **Health Check**: http://localhost:8080/healthz
+- **Health Check**: http://localhost:8080/livez
 - **Metrics**: http://localhost:9090/metrics
 
 ### 3. Try Some Requests

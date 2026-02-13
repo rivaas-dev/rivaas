@@ -33,12 +33,12 @@ func TestHealthOptions_defaultPaths(t *testing.T) {
 	app, err := New(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
-		WithHealthEndpoints(), // no opts -> defaultHealthSettings, /healthz, /readyz
+		WithHealthEndpoints(), // no opts -> defaultHealthSettings, /livez, /readyz
 	)
 	require.NoError(t, err)
 	require.NotNil(t, app)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/livez", nil)
 	rec := httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -61,7 +61,7 @@ func TestHealthOptions_withHealthPrefix(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, app)
 
-	req := httptest.NewRequest(http.MethodGet, "/_system/healthz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_system/livez", nil)
 	rec := httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -72,14 +72,14 @@ func TestHealthOptions_withHealthPrefix(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rec.Code)
 }
 
-func TestHealthOptions_withHealthzPathAndReadyzPath(t *testing.T) {
+func TestHealthOptions_withLivezPathAndReadyzPath(t *testing.T) {
 	t.Parallel()
 
 	app, err := New(
 		WithServiceName("test"),
 		WithServiceVersion("1.0.0"),
 		WithHealthEndpoints(
-			WithHealthzPath("/live"),
+			WithLivezPath("/live"),
 			WithReadyzPath("/ready"),
 		),
 	)
@@ -105,7 +105,7 @@ func TestHealthOptions_withMultipleOptions(t *testing.T) {
 		WithServiceVersion("1.0.0"),
 		WithHealthEndpoints(
 			WithHealthPrefix("/_system"),
-			WithHealthzPath("/live"),
+			WithLivezPath("/live"),
 			WithReadyzPath("/ready"),
 			WithHealthTimeout(2*time.Second),
 			WithLivenessCheck("ok", func(context.Context) error { return nil }),

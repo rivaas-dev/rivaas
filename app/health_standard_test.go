@@ -41,7 +41,7 @@ func TestRegisterHealthEndpoints_noChecksReturnsOkAndNoContent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, app)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/livez", nil)
 	rec := httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -66,7 +66,7 @@ func TestRegisterHealthEndpoints_livenessCheckFailsReturns503(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, app)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/livez", nil)
 	rec := httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
@@ -99,7 +99,7 @@ func TestRegisterHealthEndpoints_customPrefixAndPaths(t *testing.T) {
 		WithServiceVersion("1.0.0"),
 		WithHealthEndpoints(
 			WithHealthPrefix("/_system"),
-			WithHealthzPath("/live"),
+			WithLivezPath("/live"),
 			WithReadyzPath("/ready"),
 		),
 	)
@@ -128,7 +128,7 @@ func TestRegisterHealthEndpoints_routeCollisionReturnsError(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, app)
 
-	app.Router().GET("/healthz", func(c *router.Context) {
+	app.Router().GET("/livez", func(c *router.Context) {
 		_, writeErr := c.Response.Write([]byte("collision"))
 		require.NoError(t, writeErr)
 	})
@@ -139,7 +139,7 @@ func TestRegisterHealthEndpoints_routeCollisionReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "route already registered")
 	assert.ErrorContains(t, err, "GET")
-	assert.ErrorContains(t, err, "healthz")
+	assert.ErrorContains(t, err, "livez")
 }
 
 func TestRunChecks_allPassReturnsEmptyMap(t *testing.T) {

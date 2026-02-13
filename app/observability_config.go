@@ -226,7 +226,7 @@ func (c LoggingConfig) options() ([]logging.Option, error) {
 //	    handler: json
 //	    level: info
 //	  excludePaths:
-//	    - /healthz
+//	    - /livez
 //	    - /readyz
 //
 // Example usage:

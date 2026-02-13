@@ -20,7 +20,7 @@ import (
 )
 
 // HealthOption configures health endpoint settings.
-// These options configure liveness (/healthz) and readiness (/readyz) probes.
+// These options configure liveness (/livez) and readiness (/readyz) probes.
 type HealthOption func(*healthSettings)
 
 // CheckFunc defines a function that performs a health or readiness check.
@@ -33,9 +33,9 @@ type healthSettings struct {
 	enabled bool
 
 	// Path configuration
-	prefix      string // Mount prefix (e.g., "/_system")
-	healthzPath string // Liveness probe path (default: "/healthz")
-	readyzPath  string // Readiness probe path (default: "/readyz")
+	prefix     string // Mount prefix (e.g., "/_system")
+	livezPath  string // Liveness probe path (default: "/livez")
+	readyzPath string // Readiness probe path (default: "/readyz")
 
 	// Check configuration
 	liveness  map[string]CheckFunc // Liveness checks
@@ -46,18 +46,18 @@ type healthSettings struct {
 // defaultHealthSettings returns health settings with sensible defaults.
 func defaultHealthSettings() *healthSettings {
 	return &healthSettings{
-		enabled:     true, // Enabled by default when WithHealthEndpoints is called
-		healthzPath: "/healthz",
-		readyzPath:  "/readyz",
-		timeout:     time.Second,
-		liveness:    make(map[string]CheckFunc),
-		readiness:   make(map[string]CheckFunc),
+		enabled:    true, // Enabled by default when WithHealthEndpoints is called
+		livezPath:  "/livez",
+		readyzPath: "/readyz",
+		timeout:    time.Second,
+		liveness:   make(map[string]CheckFunc),
+		readiness:  make(map[string]CheckFunc),
 	}
 }
 
 // WithHealthPrefix sets the mount prefix for health endpoints.
-// By default, endpoints are mounted at root (e.g., /healthz, /readyz).
-// Use this to mount under a different prefix (e.g., /_system/healthz).
+// By default, endpoints are mounted at root (e.g., /livez, /readyz).
+// Use this to mount under a different prefix (e.g., /_system/livez).
 //
 // Example:
 //
@@ -66,25 +66,25 @@ func defaultHealthSettings() *healthSettings {
 //	        app.WithHealthPrefix("/_system"),
 //	    ),
 //	)
-//	// Endpoints: /_system/healthz, /_system/readyz
+//	// Endpoints: /_system/livez, /_system/readyz
 func WithHealthPrefix(prefix string) HealthOption {
 	return func(s *healthSettings) {
 		s.prefix = prefix
 	}
 }
 
-// WithHealthzPath sets the path for the liveness probe endpoint.
-// Default is "/healthz". The path is appended to the prefix (if set).
+// WithLivezPath sets the path for the liveness probe endpoint.
+// Default is "/livez". The path is appended to the prefix (if set).
 //
 // Example:
 //
 //	app.WithHealthEndpoints(
-//	    app.WithHealthzPath("/live"),
+//	    app.WithLivezPath("/live"),
 //	)
 //	// Endpoint: /live (or /{prefix}/live if prefix is set)
-func WithHealthzPath(path string) HealthOption {
+func WithLivezPath(path string) HealthOption {
 	return func(s *healthSettings) {
-		s.healthzPath = path
+		s.livezPath = path
 	}
 }
 
@@ -121,10 +121,10 @@ func WithHealthTimeout(d time.Duration) HealthOption {
 
 // WithLivenessCheck adds a liveness check.
 // Liveness checks determine if the process is alive and should be dependency-free.
-// If any liveness check fails, /healthz returns 503.
+// If any liveness check fails, /livez returns 503.
 //
 // Multiple calls accumulate checks. If no liveness checks are provided,
-// /healthz always returns 200 (process is running).
+// /livez always returns 200 (process is running).
 //
 // Example:
 //
@@ -188,10 +188,10 @@ func WithReadinessCheck(name string, check CheckFunc) HealthOption {
 }
 
 // WithHealthEndpoints enables and configures health check endpoints.
-// This registers /healthz (liveness) and /readyz (readiness) endpoints.
+// This registers /livez (liveness) and /readyz (readiness) endpoints.
 //
 // Endpoints registered:
-//   - GET /healthz (or /{prefix}/healthz) - Liveness probe
+//   - GET /livez (or /{prefix}/livez) - Liveness probe
 //     Returns 200 "ok" if all liveness checks pass, 503 if any fail
 //   - GET /readyz (or /{prefix}/readyz) - Readiness probe
 //     Returns 204 if all readiness checks pass, 503 if any fail

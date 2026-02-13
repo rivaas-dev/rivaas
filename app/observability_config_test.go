@@ -242,7 +242,7 @@ func TestWithObservabilityFromConfig_excludePathsApplied(t *testing.T) {
 
 	cfg := ObservabilityConfig{
 		Tracing:         TracingConfig{Provider: TracingNoop},
-		ExcludePaths:    []string{"/healthz", "/readyz"},
+		ExcludePaths:    []string{"/livez", "/readyz"},
 		ExcludePrefixes: []string{"/admin/"},
 	}
 	app, err := New(
@@ -252,7 +252,7 @@ func TestWithObservabilityFromConfig_excludePathsApplied(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, app)
-	assert.True(t, app.config.observability.pathFilter.shouldExclude("/healthz"))
+	assert.True(t, app.config.observability.pathFilter.shouldExclude("/livez"))
 	assert.True(t, app.config.observability.pathFilter.shouldExclude("/readyz"))
 	assert.True(t, app.config.observability.pathFilter.shouldExclude("/admin/foo"))
 }

@@ -63,7 +63,7 @@ func TestPathFilter_Defaults(t *testing.T) {
 
 	// Default health paths should be excluded
 	assert.True(t, pf.shouldExclude("/health"))
-	assert.True(t, pf.shouldExclude("/healthz"))
+	assert.True(t, pf.shouldExclude("/livez"))
 	assert.True(t, pf.shouldExclude("/ready"))
 	assert.True(t, pf.shouldExclude("/readyz"))
 	assert.True(t, pf.shouldExclude("/live"))

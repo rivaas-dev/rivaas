@@ -87,7 +87,7 @@ var _ = Describe("Server Start", func() {
 	})
 
 	Describe("Health endpoints", func() {
-		It("should serve /healthz and /readyz when app is started with WithHealthEndpoints", func() {
+		It("should serve /livez and /readyz when app is started with WithHealthEndpoints", func() {
 			const port = 58103
 			a := app.MustNew(
 				app.WithServiceName("test"),
@@ -111,7 +111,7 @@ var _ = Describe("Server Start", func() {
 			time.Sleep(400 * time.Millisecond)
 
 			baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
-			resp, err := http.Get(baseURL + "/healthz")
+			resp, err := http.Get(baseURL + "/livez")
 			Expect(err).NotTo(HaveOccurred())
 			defer resp.Body.Close()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))

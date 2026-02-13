@@ -29,12 +29,12 @@ import (
 // This is called internally by app.New() when health endpoints are configured.
 func (a *App) registerHealthEndpoints(s *healthSettings) error {
 	// Build full paths
-	healthzPath := s.prefix + s.healthzPath
+	livezPath := s.prefix + s.livezPath
 	readyzPath := s.prefix + s.readyzPath
 
 	// Check for route collisions
-	if a.router.RouteExists("GET", healthzPath) {
-		return fmt.Errorf("route already registered: GET %s", healthzPath)
+	if a.router.RouteExists("GET", livezPath) {
+		return fmt.Errorf("route already registered: GET %s", livezPath)
 	}
 	if a.router.RouteExists("GET", readyzPath) {
 		return fmt.Errorf("route already registered: GET %s", readyzPath)
@@ -45,14 +45,14 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		timeout = time.Second
 	}
 
-	// GET /healthz - Liveness probe (process health, no external deps)
-	a.Router().GET(healthzPath, func(c *router.Context) {
+	// GET /livez - Liveness probe (process health, no external deps)
+	a.Router().GET(livezPath, func(c *router.Context) {
 		c.Header("Cache-Control", "no-store")
 
 		// No liveness checks = always healthy (process is running)
 		if len(s.liveness) == 0 {
 			if err := c.String(http.StatusOK, "ok"); err != nil {
-				slog.ErrorContext(c.RequestContext(), "failed to write healthz response", "err", err)
+				slog.ErrorContext(c.RequestContext(), "failed to write livez response", "err", err)
 			}
 
 			return
@@ -69,13 +69,13 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		}
 
 		if err := c.String(http.StatusOK, "ok"); err != nil {
-			slog.ErrorContext(c.RequestContext(), "failed to write healthz response", "err", err)
+			slog.ErrorContext(c.RequestContext(), "failed to write livez response", "err", err)
 		}
 	})
 
 	// Update route info to show builtin handler name
-	a.router.UpdateRouteInfo("GET", healthzPath, "", func(info *route.Info) {
-		info.HandlerName = "[builtin] health"
+	a.router.UpdateRouteInfo("GET", livezPath, "", func(info *route.Info) {
+		info.HandlerName = "[builtin] liveness"
 	})
 
 	// GET /readyz - Readiness probe (external deps: db, cache, otel)

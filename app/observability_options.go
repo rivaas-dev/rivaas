@@ -207,7 +207,7 @@ func WithMetricsSeparateServer(addr, path string) ObservabilityOption {
 }
 
 // WithoutDefaultExclusions clears the default path exclusions.
-// By default, common health/probe paths are excluded (/health, /healthz, /ready, etc.).
+// By default, common health/probe paths are excluded (/health, /livez, /ready, etc.).
 // Use this option to start with an empty exclusion list, then add your own paths.
 //
 // Example:

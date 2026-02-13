@@ -9,8 +9,8 @@ require (
 	rivaas.dev/logging v0.6.0
 	rivaas.dev/metrics v0.6.2
 	rivaas.dev/openapi v0.5.1
-	rivaas.dev/router v0.9.0
-	rivaas.dev/tracing v0.5.3
+	rivaas.dev/router v0.9.1
+	rivaas.dev/tracing v0.6.0
 )
 
 replace (
