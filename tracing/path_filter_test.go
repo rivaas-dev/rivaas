@@ -55,7 +55,7 @@ func TestPathFilterExactPaths(t *testing.T) {
 		pf.addPaths("/health")
 
 		assert.True(t, pf.shouldExclude("/health"))
-		assert.False(t, pf.shouldExclude("/healthz"))
+		assert.False(t, pf.shouldExclude("/livez"))
 		assert.False(t, pf.shouldExclude("/api/health"))
 	})
 
