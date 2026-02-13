@@ -392,8 +392,8 @@ func (r *Router) NoRoute(handler HandlerFunc) {
 //
 // Example:
 //
-//	if r.RouteExists("GET", "/healthz") {
-//	    return fmt.Errorf("route already registered: GET /healthz")
+//	if r.RouteExists("GET", "/livez") {
+//	    return fmt.Errorf("route already registered: GET /livez")
 //	}
 func (r *Router) RouteExists(method, path string) bool {
 	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
