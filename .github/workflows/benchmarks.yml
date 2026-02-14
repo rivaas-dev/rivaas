@@ -1,0 +1,234 @@
+name: Benchmarks
+
+on:
+  pull_request:
+    paths:
+      - 'router/**'
+      - '.github/workflows/benchmarks.yml'
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # PR regression check - runs only Rivaas benchmarks and compares with baseline
+  regression-check:
+    name: Benchmark Regression Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Rivaas benchmarks
+        run: |
+          cd router/benchmarks
+          nix-shell -p go_1_25 --run "go test -bench='/(Rivaas)\$' -benchmem -count=5 -run=^\$ > current.txt 2>&1"
+
+      - name: Compare with baseline
+        id: compare
+        run: |
+          cd router/benchmarks
+          
+          # Install benchstat
+          nix-shell -p go_1_25 --run "go install golang.org/x/perf/cmd/benchstat@latest"
+          
+          # Run benchstat comparison
+          export PATH="$HOME/go/bin:$PATH"
+          benchstat baseline.txt current.txt > comparison.txt || true
+          
+          # Check for regressions (simple threshold check)
+          # If any metric shows >10% regression, fail
+          if grep -E '\+[0-9]{2}\.[0-9]+%' comparison.txt | grep -v '\+[0-9]\.[0-9]+%'; then
+            echo "regression=true" >> $GITHUB_OUTPUT
+            echo "❌ Performance regression detected!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "regression=false" >> $GITHUB_OUTPUT
+            echo "✅ No significant performance regression" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Output comparison to summary
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat comparison.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comparison = fs.readFileSync('router/benchmarks/comparison.txt', 'utf8');
+            const regression = '${{ steps.compare.outputs.regression }}' === 'true';
+            
+            const body = regression 
+              ? `## ❌ Benchmark Regression Detected\n\n\`\`\`\n${comparison}\n\`\`\``
+              : `## ✅ Benchmark Comparison\n\n\`\`\`\n${comparison}\n\`\`\``;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Fail if regression detected
+        if: steps.compare.outputs.regression == 'true'
+        run: |
+          echo "::error::Performance regression detected. Review the benchmark comparison above."
+          exit 1
+
+  # Release benchmark - runs full comparison and publishes results
+  full-comparison:
+    name: Full Framework Comparison
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run full benchmark suite
+        run: |
+          cd router/benchmarks
+          nix-shell -p go_1_25 --run "go test -bench=. -benchmem -count=5 -run=^\$ > full-results.txt 2>&1"
+
+      - name: Parse results to JSON
+        id: parse
+        run: |
+          cd router/benchmarks
+          
+          # Create JSON output using a simple parser
+          cat > parse-benchmarks.sh << 'PARSER_EOF'
+          #!/bin/bash
+          
+          # Extract CPU info and metadata
+          CPU=$(grep "^cpu:" full-results.txt | head -1 | sed 's/cpu: //')
+          GOOS=$(grep "^goos:" full-results.txt | head -1 | sed 's/goos: //')
+          GOARCH=$(grep "^goarch:" full-results.txt | head -1 | sed 's/goarch: //')
+          
+          # Start JSON output
+          cat << EOF
+          {
+            "updated": "$(date -u +%Y-%m-%d)",
+            "go_version": "1.25",
+            "goos": "$GOOS",
+            "goarch": "$GOARCH",
+            "cpu": "$CPU",
+            "scenarios": [
+          EOF
+          
+          # Parse each scenario (Static, OneParam, TwoParams)
+          for scenario in "Static" "OneParam" "TwoParams"; do
+            echo "      {"
+            echo "        \"name\": \"$scenario\","
+            
+            # Map scenario to path
+            case $scenario in
+              Static) path="/" ;;
+              OneParam) path="/users/:id" ;;
+              TwoParams) path="/users/:id/posts/:post_id" ;;
+            esac
+            echo "        \"path\": \"$path\","
+            echo "        \"results\": ["
+            
+            # Extract results for this scenario
+            first=true
+            for framework in Rivaas StdMux Gin Echo Chi Fiber FiberV3 Hertz Beego; do
+              line=$(grep "Benchmark${scenario}/${framework}-" full-results.txt | tail -1)
+              if [ -n "$line" ]; then
+                [ "$first" = false ] && echo ","
+                first=false
+                
+                # Parse ns/op, B/op, allocs/op
+                ns_op=$(echo "$line" | awk '{print $3}')
+                b_op=$(echo "$line" | awk '{print $5}')
+                allocs_op=$(echo "$line" | awk '{print $7}')
+                
+                echo -n "          { \"framework\": \"$framework\", \"ns_op\": $ns_op, \"b_op\": $b_op, \"allocs_op\": $allocs_op }"
+              fi
+            done
+            echo ""
+            echo "        ]"
+            
+            # Add comma for all but last scenario
+            if [ "$scenario" != "TwoParams" ]; then
+              echo "      },"
+            else
+              echo "      }"
+            fi
+          done
+          
+          echo "    ]"
+          echo "  }"
+          PARSER_EOF
+          
+          chmod +x parse-benchmarks.sh
+          ./parse-benchmarks.sh > benchmarks.json
+          
+          cat benchmarks.json
+
+      - name: Update baseline for Rivaas
+        run: |
+          cd router/benchmarks
+          nix-shell -p go_1_25 --run "go test -bench='/(Rivaas)\$' -benchmem -count=5 -run=^\$ > baseline.txt 2>&1"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add baseline.txt
+          git commit -m "chore: update benchmark baseline for ${GITHUB_REF_NAME}" || true
+
+      - name: Push baseline update
+        run: |
+          git push origin HEAD:main || echo "Failed to push baseline update"
+
+      - name: Dispatch to docs repo
+        if: env.BENCHMARK_DISPATCH_TOKEN != ''
+        env:
+          BENCHMARK_DISPATCH_TOKEN: ${{ secrets.BENCHMARK_DISPATCH_TOKEN }}
+        run: |
+          cd router/benchmarks
+          
+          # Read JSON and dispatch
+          PAYLOAD=$(cat benchmarks.json | jq -c '.')
+          
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $BENCHMARK_DISPATCH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/rivaas-dev/docs/dispatches \
+            -d "{\"event_type\":\"benchmark-update\",\"client_payload\":$PAYLOAD}"
+
+      - name: Dispatch to landing page repo
+        if: env.BENCHMARK_DISPATCH_TOKEN != ''
+        env:
+          BENCHMARK_DISPATCH_TOKEN: ${{ secrets.BENCHMARK_DISPATCH_TOKEN }}
+        run: |
+          cd router/benchmarks
+          
+          PAYLOAD=$(cat benchmarks.json | jq -c '.')
+          
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $BENCHMARK_DISPATCH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/rivaas-dev/rivaas.dev/dispatches \
+            -d "{\"event_type\":\"benchmark-update\",\"client_payload\":$PAYLOAD}"
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: router/benchmarks/benchmarks.json
+          retention-days: 90
