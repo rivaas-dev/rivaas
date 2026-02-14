@@ -2,21 +2,21 @@ init global config instance failed. If you do not use this, just ignore it.  ope
 goos: linux
 goarch: amd64
 pkg: rivaas.dev/router/benchmarks
-cpu: 12th Gen Intel(R) Core(TM) i7-1265U
-BenchmarkStatic/Rivaas-12         	24863443	        45.60 ns/op	       0 B/op	       0 allocs/op
-BenchmarkStatic/Rivaas-12         	28835287	        39.38 ns/op	       0 B/op	       0 allocs/op
-BenchmarkStatic/Rivaas-12         	29806762	        39.62 ns/op	       0 B/op	       0 allocs/op
-BenchmarkStatic/Rivaas-12         	28249368	        37.88 ns/op	       0 B/op	       0 allocs/op
-BenchmarkStatic/Rivaas-12         	32467336	        38.07 ns/op	       0 B/op	       0 allocs/op
-BenchmarkOneParam/Rivaas-12       	12281371	        89.50 ns/op	       0 B/op	       0 allocs/op
-BenchmarkOneParam/Rivaas-12       	13311937	        89.65 ns/op	       0 B/op	       0 allocs/op
-BenchmarkOneParam/Rivaas-12       	13429010	        89.82 ns/op	       0 B/op	       0 allocs/op
-BenchmarkOneParam/Rivaas-12       	10482304	        96.17 ns/op	       0 B/op	       0 allocs/op
-BenchmarkOneParam/Rivaas-12       	12737672	        90.25 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTwoParams/Rivaas-12      	 8191152	       180.4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTwoParams/Rivaas-12      	 5562218	       211.0 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTwoParams/Rivaas-12      	 5847981	       203.8 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTwoParams/Rivaas-12      	 5826980	       197.5 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTwoParams/Rivaas-12      	 6231366	       182.6 ns/op	       0 B/op	       0 allocs/op
+cpu: AMD EPYC 7763 64-Core Processor                
+BenchmarkStatic/Rivaas-4         	18994614	        62.88 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStatic/Rivaas-4         	19074469	        62.89 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStatic/Rivaas-4         	19019359	        63.02 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStatic/Rivaas-4         	18945704	        62.87 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStatic/Rivaas-4         	18922717	        62.92 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-4       	 8027638	       149.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-4       	 8077018	       149.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-4       	 7719567	       150.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-4       	 8038705	       149.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-4       	 8017363	       149.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-4      	 5279781	       227.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-4      	 5249324	       227.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-4      	 5223763	       228.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-4      	 5286004	       226.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-4      	 5256466	       227.5 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	rivaas.dev/router/benchmarks	17.590s
+ok  	rivaas.dev/router/benchmarks	17.955s
