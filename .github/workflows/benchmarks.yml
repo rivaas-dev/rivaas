@@ -33,19 +33,15 @@ jobs:
       - name: Run Rivaas benchmarks
         run: |
           cd router/benchmarks
-          nix-shell -p go_1_25 --run "go test -bench='/(Rivaas)\$' -benchmem -count=5 -run=^\$ > current.txt 2>&1"
+          nix shell nixpkgs#go_1_25 -c bash -c "go test -bench='/(Rivaas)\$' -benchmem -count=5 -run=^\$ > current.txt 2>&1"
 
       - name: Compare with baseline
         id: compare
         run: |
           cd router/benchmarks
           
-          # Install benchstat
-          nix-shell -p go_1_25 --run "go install golang.org/x/perf/cmd/benchstat@latest"
-          
-          # Run benchstat comparison
-          export PATH="$HOME/go/bin:$PATH"
-          benchstat baseline.txt current.txt > comparison.txt || true
+          # Install benchstat and run comparison
+          nix shell nixpkgs#go_1_25 -c bash -c "go install golang.org/x/perf/cmd/benchstat@latest && \$HOME/go/bin/benchstat baseline.txt current.txt > comparison.txt" || true
           
           # Check for regressions (simple threshold check)
           # If any metric shows >10% regression, fail
@@ -102,7 +98,7 @@ jobs:
       - name: Run full benchmark suite
         run: |
           cd router/benchmarks
-          nix-shell -p go_1_25 --run "go test -bench=. -benchmem -count=5 -run=^\$ > full-results.txt 2>&1"
+          nix shell nixpkgs#go_1_25 -c bash -c "go test -bench=. -benchmem -count=5 -run=^\$ > full-results.txt 2>&1"
 
       - name: Parse results to JSON
         id: parse
@@ -182,7 +178,7 @@ jobs:
       - name: Update baseline for Rivaas
         run: |
           cd router/benchmarks
-          nix-shell -p go_1_25 --run "go test -bench='/(Rivaas)\$' -benchmem -count=5 -run=^\$ > baseline.txt 2>&1"
+          nix shell nixpkgs#go_1_25 -c bash -c "go test -bench='/(Rivaas)\$' -benchmem -count=5 -run=^\$ > baseline.txt 2>&1"
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
