@@ -1,0 +1,22 @@
+init global config instance failed. If you do not use this, just ignore it.  open conf/app.conf: no such file or directory
+goos: linux
+goarch: amd64
+pkg: rivaas.dev/router/benchmarks
+cpu: 12th Gen Intel(R) Core(TM) i7-1265U
+BenchmarkStatic/Rivaas-12         	24863443	        45.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStatic/Rivaas-12         	28835287	        39.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStatic/Rivaas-12         	29806762	        39.62 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStatic/Rivaas-12         	28249368	        37.88 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStatic/Rivaas-12         	32467336	        38.07 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-12       	12281371	        89.50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-12       	13311937	        89.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-12       	13429010	        89.82 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-12       	10482304	        96.17 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOneParam/Rivaas-12       	12737672	        90.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-12      	 8191152	       180.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-12      	 5562218	       211.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-12      	 5847981	       203.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-12      	 5826980	       197.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTwoParams/Rivaas-12      	 6231366	       182.6 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	rivaas.dev/router/benchmarks	17.590s

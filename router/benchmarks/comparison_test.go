@@ -15,18 +15,25 @@
 package benchmarks
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/beego/beego/v2/server/web"
+	beecontext "github.com/beego/beego/v2/server/web/context"
+	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/cloudwego/hertz/pkg/common/ut"
 	"github.com/gin-gonic/gin"
 	"github.com/go-chi/chi/v5"
 	"github.com/gofiber/fiber/v2"
 	"github.com/labstack/echo/v4"
-	"github.com/valyala/fasthttp"
-	"github.com/valyala/fasthttp/fasthttpadaptor"
 
 	fiberadaptor "github.com/gofiber/fiber/v2/middleware/adaptor"
+	fiberv3 "github.com/gofiber/fiber/v3"
+	fiberadaptorv3 "github.com/gofiber/fiber/v3/middleware/adaptor"
 	router "rivaas.dev/router"
 )
 
@@ -36,367 +43,319 @@ import (
 // popular Go web frameworks. These benchmarks are isolated in a separate
 // module to avoid polluting the main module's dependencies.
 //
+// All frameworks use the same route structure and response pattern (direct
+// writes via io.WriteString / WriteString, no string concatenation or
+// fmt.Sprintf) to minimize handler overhead and isolate router dispatch cost.
+//
 // To run these benchmarks:
-//   cd benchmarks
-//   go test -bench=.
+//
+//	cd benchmarks
+//	go test -bench=.
 
-// BenchmarkRivaasRouter benchmarks the Rivaas router with formatted string responses.
-// Allocations: 1 per request
-//  1. Stringf variadic slice - from formatted response
-func BenchmarkRivaasRouter(b *testing.B) {
+// setupRivaas returns an http.Handler for the Rivaas router with all three routes registered.
+// No Warmup() is called for fair comparison with other frameworks.
+// Handlers use io.WriteString(c.Response, ...) to avoid string concatenation allocations.
+func setupRivaas() http.Handler {
 	r := router.MustNew()
 	r.GET("/", func(c *router.Context) {
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		c.String(http.StatusOK, "Hello")
+		_, _ = io.WriteString(c.Response, "Hello")
 	})
 	r.GET("/users/:id", func(c *router.Context) {
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		c.String(http.StatusOK, "User: "+c.Param("id"))
+		_, _ = io.WriteString(c.Response, "User: ")
+		_, _ = io.WriteString(c.Response, c.Param("id"))
 	})
 	r.GET("/users/:id/posts/:post_id", func(c *router.Context) {
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		c.String(http.StatusOK, "User: "+c.Param("id")+", Post: "+c.Param("post_id"))
+		_, _ = io.WriteString(c.Response, "User: ")
+		_, _ = io.WriteString(c.Response, c.Param("id"))
+		_, _ = io.WriteString(c.Response, ", Post: ")
+		_, _ = io.WriteString(c.Response, c.Param("post_id"))
 	})
-
-	// Warm up all optimizations for performance
-	r.Warmup()
-
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
-	w := httptest.NewRecorder()
-
-	b.ResetTimer()
-	for b.Loop() {
-		w.Body.Reset()
-		w.Code = 0
-		w.Flushed = false
-		r.ServeHTTP(w, req)
-	}
+	return r
 }
 
-// BenchmarkRivaasRouterPlainString benchmarks the Rivaas router with plain string concatenation.
-// This avoids the Stringf variadic allocation but string concatenation and conversion
-// to []byte still causes allocations.
-// Allocations: 1 per request
-//  1. String concatenation + []byte(value) conversion in WriteString
-func BenchmarkRivaasRouterPlainString(b *testing.B) {
-	r := router.MustNew()
-	r.GET("/users/:id", func(c *router.Context) {
-		// Manual concatenation - avoids Stringf variadic but still allocates
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		c.String(http.StatusOK, "User: "+c.Param("id"))
-	})
-
-	// Warm up all optimizations for performance
-	r.Warmup()
-
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
-	w := httptest.NewRecorder()
-
-	b.ResetTimer()
-	for b.Loop() {
-		w.Body.Reset()
-		w.Code = 0
-		w.Flushed = false
-		r.ServeHTTP(w, req)
-	}
-}
-
-// BenchmarkRivaasRouterZeroAlloc benchmarks the Rivaas router with a truly static response.
-// This demonstrates the router's efficiency when the handler doesn't allocate.
-// Allocations: 0 per request
-//
-// Note: This uses a pre-allocated byte slice and writes directly to the response
-// without setting headers (headers would allocate). Real applications with dynamic
-// responses or headers will always have allocations.
-func BenchmarkRivaasRouterZeroAlloc(b *testing.B) {
-	r := router.MustNew()
-
-	// Pre-allocate response to avoid allocations in handler
-	staticResponse := []byte("Hello, World!")
-
-	r.GET("/hello", func(c *router.Context) {
-		// Don't set headers - Header.Set() allocates
-		// c.Response.Header().Set("Content-Type", "text/plain")
-		c.Response.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		c.Response.Write(staticResponse)
-	})
-
-	// Warm up all optimizations for performance
-	r.Warmup()
-
-	req := httptest.NewRequest(http.MethodGet, "/hello", nil)
-	w := httptest.NewRecorder()
-
-	b.ResetTimer()
-	for b.Loop() {
-		w.Body.Reset()
-		w.Code = 0
-		w.Flushed = false
-		r.ServeHTTP(w, req)
-	}
-}
-
-// BenchmarkStandardMux benchmarks Go's standard library mux
-func BenchmarkStandardMux(b *testing.B) {
+// setupStdMux returns an http.Handler for net/http ServeMux with Go 1.22+ dynamic routing.
+func setupStdMux() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		w.Write([]byte("Hello"))
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "Hello")
 	})
-	mux.HandleFunc("/users/123", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		w.Write([]byte("User: 123"))
+	mux.HandleFunc("GET /users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, "User: ")
+		_, _ = io.WriteString(w, r.PathValue("id"))
 	})
-	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		w.Write([]byte("User: 123, Post: 456"))
+	mux.HandleFunc("GET /users/{id}/posts/{post_id}", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, "User: ")
+		_, _ = io.WriteString(w, r.PathValue("id"))
+		_, _ = io.WriteString(w, ", Post: ")
+		_, _ = io.WriteString(w, r.PathValue("post_id"))
 	})
-
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
-	w := httptest.NewRecorder()
-
-	b.ResetTimer()
-	for b.Loop() {
-		w.Body.Reset()
-		w.Code = 0
-		w.Flushed = false
-		mux.ServeHTTP(w, req)
-	}
+	return mux
 }
 
-// BenchmarkSimpleRouter benchmarks a simple map-based router
-func BenchmarkSimpleRouter(b *testing.B) {
-	routes := map[string]http.HandlerFunc{
-		"/": func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			//nolint:errcheck // Benchmark measures performance; error checking would skew results
-			w.Write([]byte("Hello"))
-		},
-		"/users/123": func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			//nolint:errcheck // Benchmark measures performance; error checking would skew results
-			w.Write([]byte("User: 123"))
-		},
-		"/users/123/posts/456": func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			//nolint:errcheck // Benchmark measures performance; error checking would skew results
-			w.Write([]byte("User: 123, Post: 456"))
-		},
-	}
-
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		if route, exists := routes[r.URL.Path]; exists {
-			route(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
-	w := httptest.NewRecorder()
-
-	b.ResetTimer()
-	for b.Loop() {
-		w.Body.Reset()
-		w.Code = 0
-		w.Flushed = false
-		handler(w, req)
-	}
-}
-
-// BenchmarkGinRouter benchmarks Gin router
-func BenchmarkGinRouter(b *testing.B) {
+// setupGin returns an http.Handler for Gin in ReleaseMode. Uses io.WriteString(c.Writer, ...)
+// for direct writes to avoid allocations and match other frameworks.
+func setupGin() http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.GET("/", func(c *gin.Context) {
-		c.String(http.StatusOK, "Hello")
+		_, _ = io.WriteString(c.Writer, "Hello")
 	})
 	r.GET("/users/:id", func(c *gin.Context) {
-		c.String(http.StatusOK, "User: %s", c.Param("id"))
+		_, _ = io.WriteString(c.Writer, "User: ")
+		_, _ = io.WriteString(c.Writer, c.Param("id"))
 	})
 	r.GET("/users/:id/posts/:post_id", func(c *gin.Context) {
-		c.String(http.StatusOK, "User: %s, Post: %s", c.Param("id"), c.Param("post_id"))
+		_, _ = io.WriteString(c.Writer, "User: ")
+		_, _ = io.WriteString(c.Writer, c.Param("id"))
+		_, _ = io.WriteString(c.Writer, ", Post: ")
+		_, _ = io.WriteString(c.Writer, c.Param("post_id"))
 	})
-
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
-	w := httptest.NewRecorder()
-
-	b.ResetTimer()
-	for b.Loop() {
-		w.Body.Reset()
-		w.Code = 0
-		w.Flushed = false
-		r.ServeHTTP(w, req)
-	}
+	return r
 }
 
-// BenchmarkEchoRouter benchmarks Echo router
-func BenchmarkEchoRouter(b *testing.B) {
+// setupEcho returns an http.Handler for Echo.
+func setupEcho() http.Handler {
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello")
+		_, _ = io.WriteString(c.Response(), "Hello")
+		return nil
 	})
 	e.GET("/users/:id", func(c echo.Context) error {
-		return c.String(http.StatusOK, "User: "+c.Param("id"))
+		_, _ = io.WriteString(c.Response(), "User: ")
+		_, _ = io.WriteString(c.Response(), c.Param("id"))
+		return nil
 	})
 	e.GET("/users/:id/posts/:post_id", func(c echo.Context) error {
-		return c.String(http.StatusOK, "User: "+c.Param("id")+", Post: "+c.Param("post_id"))
+		_, _ = io.WriteString(c.Response(), "User: ")
+		_, _ = io.WriteString(c.Response(), c.Param("id"))
+		_, _ = io.WriteString(c.Response(), ", Post: ")
+		_, _ = io.WriteString(c.Response(), c.Param("post_id"))
+		return nil
 	})
-
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
-	w := httptest.NewRecorder()
-
-	b.ResetTimer()
-	for b.Loop() {
-		w.Body.Reset()
-		w.Code = 0
-		w.Flushed = false
-		e.ServeHTTP(w, req)
-	}
+	return e
 }
 
-// BenchmarkFasthttpRouter benchmarks fasthttp with basic routing
-// Note: This uses fasthttp's native RequestCtx which is more efficient than net/http
-// but makes direct comparison harder due to different APIs
-func BenchmarkFasthttpRouter(b *testing.B) {
-	// Create a simple fasthttp handler with basic path matching
-	handler := func(ctx *fasthttp.RequestCtx) {
-		path := string(ctx.Path())
-
-		switch path {
-		case "/":
-			ctx.SetStatusCode(fasthttp.StatusOK)
-			ctx.SetBodyString("Hello")
-		case "/users/123":
-			ctx.SetStatusCode(fasthttp.StatusOK)
-			ctx.SetBodyString("User: 123")
-		case "/users/123/posts/456":
-			ctx.SetStatusCode(fasthttp.StatusOK)
-			ctx.SetBodyString("User: 123, Post: 456")
-		default:
-			// For fair comparison, we handle dynamic routes
-			// This is a simplified version - real fasthttp apps would use a router
-			if len(path) > 7 && path[:7] == "/users/" {
-				ctx.SetStatusCode(fasthttp.StatusOK)
-				ctx.SetBodyString("User: 123")
-			} else {
-				ctx.SetStatusCode(fasthttp.StatusNotFound)
-			}
-		}
-	}
-
-	// Create fasthttp request context
-	var ctx fasthttp.RequestCtx
-	ctx.Request.Header.SetMethod("GET")
-	ctx.Request.SetRequestURI("/users/123")
-
-	b.ResetTimer()
-	for b.Loop() {
-		handler(&ctx)
-		ctx.Response.Reset()
-	}
-}
-
-// BenchmarkFasthttpRouterViaAdaptor benchmarks fasthttp via net/http adaptor
-// This provides a more apples-to-apples comparison with other frameworks
-func BenchmarkFasthttpRouterViaAdaptor(b *testing.B) {
-	// Create a simple net/http handler
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		w.Write([]byte("Hello"))
-	})
-	mux.HandleFunc("/users/123", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		w.Write([]byte("User: 123"))
-	})
-	mux.HandleFunc("/users/123/posts/456", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		w.Write([]byte("User: 123, Post: 456"))
-	})
-
-	// Wrap with fasthttp adaptor
-	fasthttpHandler := fasthttpadaptor.NewFastHTTPHandlerFunc(mux.ServeHTTP)
-
-	// Create fasthttp request context
-	var ctx fasthttp.RequestCtx
-	ctx.Request.Header.SetMethod("GET")
-	ctx.Request.SetRequestURI("/users/123")
-
-	b.ResetTimer()
-	for b.Loop() {
-		fasthttpHandler(&ctx)
-		ctx.Response.Reset()
-	}
-}
-
-// BenchmarkChiRouter benchmarks Chi router
-func BenchmarkChiRouter(b *testing.B) {
+// setupChi returns an http.Handler for Chi.
+func setupChi() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		w.Write([]byte("Hello"))
+		_, _ = io.WriteString(w, "Hello")
 	})
 	r.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id := chi.URLParam(r, "id")
-		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		w.Write([]byte("User: " + id))
+		_, _ = io.WriteString(w, "User: ")
+		_, _ = io.WriteString(w, chi.URLParam(r, "id"))
 	})
 	r.Get("/users/{id}/posts/{post_id}", func(w http.ResponseWriter, r *http.Request) {
-		id := chi.URLParam(r, "id")
-		postID := chi.URLParam(r, "post_id")
-		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		w.Write([]byte("User: " + id + ", Post: " + postID))
+		_, _ = io.WriteString(w, "User: ")
+		_, _ = io.WriteString(w, chi.URLParam(r, "id"))
+		_, _ = io.WriteString(w, ", Post: ")
+		_, _ = io.WriteString(w, chi.URLParam(r, "post_id"))
 	})
-
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
-	w := httptest.NewRecorder()
-
-	b.ResetTimer()
-	for b.Loop() {
-		w.Body.Reset()
-		w.Code = 0
-		w.Flushed = false
-		r.ServeHTTP(w, req)
-	}
+	return r
 }
 
-// BenchmarkFiberRouter benchmarks Fiber router
-func BenchmarkFiberRouter(b *testing.B) {
+// setupFiber returns an http.Handler for Fiber via the net/http adaptor.
+// The adaptor adds overhead; Fiber is measured this way for httptest compatibility.
+func setupFiber() http.Handler {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
 	app.Get("/", func(c *fiber.Ctx) error {
-		return c.SendString("Hello")
+		_, _ = c.WriteString("Hello")
+		return nil
 	})
 	app.Get("/users/:id", func(c *fiber.Ctx) error {
-		return c.SendString("User: " + c.Params("id"))
+		_, _ = c.WriteString("User: ")
+		_, _ = c.WriteString(c.Params("id"))
+		return nil
 	})
 	app.Get("/users/:id/posts/:post_id", func(c *fiber.Ctx) error {
-		return c.SendString("User: " + c.Params("id") + ", Post: " + c.Params("post_id"))
+		_, _ = c.WriteString("User: ")
+		_, _ = c.WriteString(c.Params("id"))
+		_, _ = c.WriteString(", Post: ")
+		_, _ = c.WriteString(c.Params("post_id"))
+		return nil
 	})
+	return fiberadaptor.FiberApp(app)
+}
 
-	// Convert Fiber app to http.HandlerFunc for httptest compatibility
-	handler := fiberadaptor.FiberApp(app)
+// setupFiberV3 returns an http.Handler for Fiber v3 via the net/http adaptor.
+// Same measurement approach as Fiber v2 for comparable results.
+func setupFiberV3() http.Handler {
+	app := fiberv3.New()
+	app.Get("/", func(c fiberv3.Ctx) error {
+		_, _ = c.Write([]byte("Hello"))
+		return nil
+	})
+	app.Get("/users/:id", func(c fiberv3.Ctx) error {
+		_, _ = c.Write([]byte("User: "))
+		_, _ = c.Write([]byte(c.Req().Params("id")))
+		return nil
+	})
+	app.Get("/users/:id/posts/:post_id", func(c fiberv3.Ctx) error {
+		_, _ = c.Write([]byte("User: "))
+		_, _ = c.Write([]byte(c.Req().Params("id")))
+		_, _ = c.Write([]byte(", Post: "))
+		_, _ = c.Write([]byte(c.Req().Params("post_id")))
+		return nil
+	})
+	return fiberadaptorv3.FiberApp(app)
+}
 
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
-	w := httptest.NewRecorder()
+// setupHertz returns a Hertz engine with the same three routes. Hertz does not expose http.Handler;
+// benchmarks use ut.PerformRequest (Hertz's native test API) for the same request flow.
+func setupHertz() *server.Hertz {
+	h := server.New(server.WithDisablePrintRoute(true))
+	h.GET("/", func(_ context.Context, c *app.RequestContext) {
+		c.WriteString("Hello") //nolint:errcheck
+	})
+	h.GET("/users/:id", func(_ context.Context, c *app.RequestContext) {
+		c.WriteString("User: ")   //nolint:errcheck
+		c.WriteString(c.Param("id")) //nolint:errcheck
+	})
+	h.GET("/users/:id/posts/:post_id", func(_ context.Context, c *app.RequestContext) {
+		c.WriteString("User: ")          //nolint:errcheck
+		c.WriteString(c.Param("id"))     //nolint:errcheck
+		c.WriteString(", Post: ")        //nolint:errcheck
+		c.WriteString(c.Param("post_id")) //nolint:errcheck
+	})
+	return h
+}
 
+// setupBeego returns an http.Handler for Beego v2 using ControllerRegister with the same three routes.
+func setupBeego() http.Handler {
+	cr := web.NewControllerRegister()
+	cr.Get("/", func(ctx *beecontext.Context) {
+		_, _ = io.WriteString(ctx.ResponseWriter, "Hello")
+	})
+	cr.Get("/users/:id", func(ctx *beecontext.Context) {
+		_, _ = io.WriteString(ctx.ResponseWriter, "User: ")
+		_, _ = io.WriteString(ctx.ResponseWriter, ctx.Input.Param(":id"))
+	})
+	cr.Get("/users/:id/posts/:post_id", func(ctx *beecontext.Context) {
+		_, _ = io.WriteString(ctx.ResponseWriter, "User: ")
+		_, _ = io.WriteString(ctx.ResponseWriter, ctx.Input.Param(":id"))
+		_, _ = io.WriteString(ctx.ResponseWriter, ", Post: ")
+		_, _ = io.WriteString(ctx.ResponseWriter, ctx.Input.Param(":post_id"))
+	})
+	return cr
+}
+
+// runBenchHertz runs the benchmark loop for Hertz using ut.PerformRequest (no http.Handler).
+func runBenchHertz(b *testing.B, h *server.Hertz, method, path string) {
+	b.ResetTimer()
+	for b.Loop() {
+		rec := ut.PerformRequest(h.Engine, method, path, nil)
+		_ = rec
+	}
+}
+
+// runBench runs the benchmark loop: reset recorder, call ServeHTTP. Shared by all framework benchmarks.
+func runBench(b *testing.B, h http.Handler, w *httptest.ResponseRecorder, req *http.Request) {
 	b.ResetTimer()
 	for b.Loop() {
 		w.Body.Reset()
 		w.Code = 0
 		w.Flushed = false
-		handler(w, req)
+		h.ServeHTTP(w, req)
 	}
+}
+
+func BenchmarkStatic(b *testing.B) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	b.Run("Rivaas", func(b *testing.B) {
+		runBench(b, setupRivaas(), w, req)
+	})
+	b.Run("StdMux", func(b *testing.B) {
+		runBench(b, setupStdMux(), w, req)
+	})
+	b.Run("Gin", func(b *testing.B) {
+		runBench(b, setupGin(), w, req)
+	})
+	b.Run("Echo", func(b *testing.B) {
+		runBench(b, setupEcho(), w, req)
+	})
+	b.Run("Chi", func(b *testing.B) {
+		runBench(b, setupChi(), w, req)
+	})
+	b.Run("Fiber", func(b *testing.B) {
+		runBench(b, setupFiber(), w, req)
+	})
+	b.Run("FiberV3", func(b *testing.B) {
+		runBench(b, setupFiberV3(), w, req)
+	})
+	b.Run("Hertz", func(b *testing.B) {
+		runBenchHertz(b, setupHertz(), http.MethodGet, "/")
+	})
+	b.Run("Beego", func(b *testing.B) {
+		runBench(b, setupBeego(), w, req)
+	})
+}
+
+func BenchmarkOneParam(b *testing.B) {
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+	w := httptest.NewRecorder()
+
+	b.Run("Rivaas", func(b *testing.B) {
+		runBench(b, setupRivaas(), w, req)
+	})
+	b.Run("StdMux", func(b *testing.B) {
+		runBench(b, setupStdMux(), w, req)
+	})
+	b.Run("Gin", func(b *testing.B) {
+		runBench(b, setupGin(), w, req)
+	})
+	b.Run("Echo", func(b *testing.B) {
+		runBench(b, setupEcho(), w, req)
+	})
+	b.Run("Chi", func(b *testing.B) {
+		runBench(b, setupChi(), w, req)
+	})
+	b.Run("Fiber", func(b *testing.B) {
+		runBench(b, setupFiber(), w, req)
+	})
+	b.Run("FiberV3", func(b *testing.B) {
+		runBench(b, setupFiberV3(), w, req)
+	})
+	b.Run("Hertz", func(b *testing.B) {
+		runBenchHertz(b, setupHertz(), http.MethodGet, "/users/123")
+	})
+	b.Run("Beego", func(b *testing.B) {
+		runBench(b, setupBeego(), w, req)
+	})
+}
+
+func BenchmarkTwoParams(b *testing.B) {
+	req := httptest.NewRequest(http.MethodGet, "/users/123/posts/456", nil)
+	w := httptest.NewRecorder()
+
+	b.Run("Rivaas", func(b *testing.B) {
+		runBench(b, setupRivaas(), w, req)
+	})
+	b.Run("StdMux", func(b *testing.B) {
+		runBench(b, setupStdMux(), w, req)
+	})
+	b.Run("Gin", func(b *testing.B) {
+		runBench(b, setupGin(), w, req)
+	})
+	b.Run("Echo", func(b *testing.B) {
+		runBench(b, setupEcho(), w, req)
+	})
+	b.Run("Chi", func(b *testing.B) {
+		runBench(b, setupChi(), w, req)
+	})
+	b.Run("Fiber", func(b *testing.B) {
+		runBench(b, setupFiber(), w, req)
+	})
+	b.Run("FiberV3", func(b *testing.B) {
+		runBench(b, setupFiberV3(), w, req)
+	})
+	b.Run("Hertz", func(b *testing.B) {
+		runBenchHertz(b, setupHertz(), http.MethodGet, "/users/123/posts/456")
+	})
+	b.Run("Beego", func(b *testing.B) {
+		runBench(b, setupBeego(), w, req)
+	})
 }
