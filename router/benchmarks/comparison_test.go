@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/beego/beego/v2/server/web"
-	beecontext "github.com/beego/beego/v2/server/web/context"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/ut"
@@ -31,6 +30,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/labstack/echo/v4"
 
+	beecontext "github.com/beego/beego/v2/server/web/context"
 	fiberadaptor "github.com/gofiber/fiber/v2/middleware/adaptor"
 	fiberv3 "github.com/gofiber/fiber/v3"
 	fiberadaptorv3 "github.com/gofiber/fiber/v3/middleware/adaptor"
@@ -58,17 +58,17 @@ import (
 func setupRivaas() http.Handler {
 	r := router.MustNew()
 	r.GET("/", func(c *router.Context) {
-		_, _ = io.WriteString(c.Response, "Hello")
+		io.WriteString(c.Response, "Hello") //nolint:errcheck // ignored in benchmark
 	})
 	r.GET("/users/:id", func(c *router.Context) {
-		_, _ = io.WriteString(c.Response, "User: ")
-		_, _ = io.WriteString(c.Response, c.Param("id"))
+		io.WriteString(c.Response, "User: ")      //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Response, c.Param("id")) //nolint:errcheck // ignored in benchmark
 	})
 	r.GET("/users/:id/posts/:post_id", func(c *router.Context) {
-		_, _ = io.WriteString(c.Response, "User: ")
-		_, _ = io.WriteString(c.Response, c.Param("id"))
-		_, _ = io.WriteString(c.Response, ", Post: ")
-		_, _ = io.WriteString(c.Response, c.Param("post_id"))
+		io.WriteString(c.Response, "User: ")           //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Response, c.Param("id"))      //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Response, ", Post: ")         //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Response, c.Param("post_id")) //nolint:errcheck // ignored in benchmark
 	})
 	return r
 }
@@ -77,17 +77,17 @@ func setupRivaas() http.Handler {
 func setupStdMux() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, "Hello")
+		io.WriteString(w, "Hello") //nolint:errcheck // ignored in benchmark
 	})
 	mux.HandleFunc("GET /users/{id}", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, "User: ")
-		_, _ = io.WriteString(w, r.PathValue("id"))
+		io.WriteString(w, "User: ")          //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, r.PathValue("id")) //nolint:errcheck // ignored in benchmark
 	})
 	mux.HandleFunc("GET /users/{id}/posts/{post_id}", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, "User: ")
-		_, _ = io.WriteString(w, r.PathValue("id"))
-		_, _ = io.WriteString(w, ", Post: ")
-		_, _ = io.WriteString(w, r.PathValue("post_id"))
+		io.WriteString(w, "User: ")               //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, r.PathValue("id"))      //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, ", Post: ")             //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, r.PathValue("post_id")) //nolint:errcheck // ignored in benchmark
 	})
 	return mux
 }
@@ -98,17 +98,17 @@ func setupGin() http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.GET("/", func(c *gin.Context) {
-		_, _ = io.WriteString(c.Writer, "Hello")
+		io.WriteString(c.Writer, "Hello") //nolint:errcheck // ignored in benchmark
 	})
 	r.GET("/users/:id", func(c *gin.Context) {
-		_, _ = io.WriteString(c.Writer, "User: ")
-		_, _ = io.WriteString(c.Writer, c.Param("id"))
+		io.WriteString(c.Writer, "User: ")      //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Writer, c.Param("id")) //nolint:errcheck // ignored in benchmark
 	})
 	r.GET("/users/:id/posts/:post_id", func(c *gin.Context) {
-		_, _ = io.WriteString(c.Writer, "User: ")
-		_, _ = io.WriteString(c.Writer, c.Param("id"))
-		_, _ = io.WriteString(c.Writer, ", Post: ")
-		_, _ = io.WriteString(c.Writer, c.Param("post_id"))
+		io.WriteString(c.Writer, "User: ")           //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Writer, c.Param("id"))      //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Writer, ", Post: ")         //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Writer, c.Param("post_id")) //nolint:errcheck // ignored in benchmark
 	})
 	return r
 }
@@ -117,19 +117,19 @@ func setupGin() http.Handler {
 func setupEcho() http.Handler {
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
-		_, _ = io.WriteString(c.Response(), "Hello")
+		io.WriteString(c.Response(), "Hello") //nolint:errcheck // ignored in benchmark
 		return nil
 	})
 	e.GET("/users/:id", func(c echo.Context) error {
-		_, _ = io.WriteString(c.Response(), "User: ")
-		_, _ = io.WriteString(c.Response(), c.Param("id"))
+		io.WriteString(c.Response(), "User: ")      //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Response(), c.Param("id")) //nolint:errcheck // ignored in benchmark
 		return nil
 	})
 	e.GET("/users/:id/posts/:post_id", func(c echo.Context) error {
-		_, _ = io.WriteString(c.Response(), "User: ")
-		_, _ = io.WriteString(c.Response(), c.Param("id"))
-		_, _ = io.WriteString(c.Response(), ", Post: ")
-		_, _ = io.WriteString(c.Response(), c.Param("post_id"))
+		io.WriteString(c.Response(), "User: ")           //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Response(), c.Param("id"))      //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Response(), ", Post: ")         //nolint:errcheck // ignored in benchmark
+		io.WriteString(c.Response(), c.Param("post_id")) //nolint:errcheck // ignored in benchmark
 		return nil
 	})
 	return e
@@ -139,17 +139,17 @@ func setupEcho() http.Handler {
 func setupChi() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, "Hello")
+		io.WriteString(w, "Hello") //nolint:errcheck // ignored in benchmark
 	})
 	r.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, "User: ")
-		_, _ = io.WriteString(w, chi.URLParam(r, "id"))
+		io.WriteString(w, "User: ")              //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, chi.URLParam(r, "id")) //nolint:errcheck // ignored in benchmark
 	})
 	r.Get("/users/{id}/posts/{post_id}", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, "User: ")
-		_, _ = io.WriteString(w, chi.URLParam(r, "id"))
-		_, _ = io.WriteString(w, ", Post: ")
-		_, _ = io.WriteString(w, chi.URLParam(r, "post_id"))
+		io.WriteString(w, "User: ")                   //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, chi.URLParam(r, "id"))      //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, ", Post: ")                 //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, chi.URLParam(r, "post_id")) //nolint:errcheck // ignored in benchmark
 	})
 	return r
 }
@@ -161,19 +161,19 @@ func setupFiber() http.Handler {
 		DisableStartupMessage: true,
 	})
 	app.Get("/", func(c *fiber.Ctx) error {
-		_, _ = c.WriteString("Hello")
+		c.WriteString("Hello") //nolint:errcheck // ignored in benchmark
 		return nil
 	})
 	app.Get("/users/:id", func(c *fiber.Ctx) error {
-		_, _ = c.WriteString("User: ")
-		_, _ = c.WriteString(c.Params("id"))
+		c.WriteString("User: ")       //nolint:errcheck // ignored in benchmark
+		c.WriteString(c.Params("id")) //nolint:errcheck // ignored in benchmark
 		return nil
 	})
 	app.Get("/users/:id/posts/:post_id", func(c *fiber.Ctx) error {
-		_, _ = c.WriteString("User: ")
-		_, _ = c.WriteString(c.Params("id"))
-		_, _ = c.WriteString(", Post: ")
-		_, _ = c.WriteString(c.Params("post_id"))
+		c.WriteString("User: ")            //nolint:errcheck // ignored in benchmark
+		c.WriteString(c.Params("id"))      //nolint:errcheck // ignored in benchmark
+		c.WriteString(", Post: ")          //nolint:errcheck // ignored in benchmark
+		c.WriteString(c.Params("post_id")) //nolint:errcheck // ignored in benchmark
 		return nil
 	})
 	return fiberadaptor.FiberApp(app)
@@ -184,19 +184,19 @@ func setupFiber() http.Handler {
 func setupFiberV3() http.Handler {
 	app := fiberv3.New()
 	app.Get("/", func(c fiberv3.Ctx) error {
-		_, _ = c.Write([]byte("Hello"))
+		c.Write([]byte("Hello")) //nolint:errcheck // ignored in benchmark
 		return nil
 	})
 	app.Get("/users/:id", func(c fiberv3.Ctx) error {
-		_, _ = c.Write([]byte("User: "))
-		_, _ = c.Write([]byte(c.Req().Params("id")))
+		c.Write([]byte("User: "))             //nolint:errcheck // ignored in benchmark
+		c.Write([]byte(c.Req().Params("id"))) //nolint:errcheck // ignored in benchmark
 		return nil
 	})
 	app.Get("/users/:id/posts/:post_id", func(c fiberv3.Ctx) error {
-		_, _ = c.Write([]byte("User: "))
-		_, _ = c.Write([]byte(c.Req().Params("id")))
-		_, _ = c.Write([]byte(", Post: "))
-		_, _ = c.Write([]byte(c.Req().Params("post_id")))
+		c.Write([]byte("User: "))                  //nolint:errcheck // ignored in benchmark
+		c.Write([]byte(c.Req().Params("id")))      //nolint:errcheck // ignored in benchmark
+		c.Write([]byte(", Post: "))                //nolint:errcheck // ignored in benchmark
+		c.Write([]byte(c.Req().Params("post_id"))) //nolint:errcheck // ignored in benchmark
 		return nil
 	})
 	return fiberadaptorv3.FiberApp(app)
@@ -207,17 +207,17 @@ func setupFiberV3() http.Handler {
 func setupHertz() *server.Hertz {
 	h := server.New(server.WithDisablePrintRoute(true))
 	h.GET("/", func(_ context.Context, c *app.RequestContext) {
-		c.WriteString("Hello") //nolint:errcheck
+		c.WriteString("Hello") //nolint:errcheck // ignored in benchmark
 	})
 	h.GET("/users/:id", func(_ context.Context, c *app.RequestContext) {
-		c.WriteString("User: ")   //nolint:errcheck
-		c.WriteString(c.Param("id")) //nolint:errcheck
+		c.WriteString("User: ")      //nolint:errcheck // ignored in benchmark
+		c.WriteString(c.Param("id")) //nolint:errcheck // ignored in benchmark
 	})
 	h.GET("/users/:id/posts/:post_id", func(_ context.Context, c *app.RequestContext) {
-		c.WriteString("User: ")          //nolint:errcheck
-		c.WriteString(c.Param("id"))     //nolint:errcheck
-		c.WriteString(", Post: ")        //nolint:errcheck
-		c.WriteString(c.Param("post_id")) //nolint:errcheck
+		c.WriteString("User: ")           //nolint:errcheck // ignored in benchmark
+		c.WriteString(c.Param("id"))      //nolint:errcheck // ignored in benchmark
+		c.WriteString(", Post: ")         //nolint:errcheck // ignored in benchmark
+		c.WriteString(c.Param("post_id")) //nolint:errcheck // ignored in benchmark
 	})
 	return h
 }
@@ -226,17 +226,17 @@ func setupHertz() *server.Hertz {
 func setupBeego() http.Handler {
 	cr := web.NewControllerRegister()
 	cr.Get("/", func(ctx *beecontext.Context) {
-		_, _ = io.WriteString(ctx.ResponseWriter, "Hello")
+		io.WriteString(ctx.ResponseWriter, "Hello") //nolint:errcheck // ignored in benchmark
 	})
 	cr.Get("/users/:id", func(ctx *beecontext.Context) {
-		_, _ = io.WriteString(ctx.ResponseWriter, "User: ")
-		_, _ = io.WriteString(ctx.ResponseWriter, ctx.Input.Param(":id"))
+		io.WriteString(ctx.ResponseWriter, "User: ")               //nolint:errcheck // ignored in benchmark
+		io.WriteString(ctx.ResponseWriter, ctx.Input.Param(":id")) //nolint:errcheck // ignored in benchmark
 	})
 	cr.Get("/users/:id/posts/:post_id", func(ctx *beecontext.Context) {
-		_, _ = io.WriteString(ctx.ResponseWriter, "User: ")
-		_, _ = io.WriteString(ctx.ResponseWriter, ctx.Input.Param(":id"))
-		_, _ = io.WriteString(ctx.ResponseWriter, ", Post: ")
-		_, _ = io.WriteString(ctx.ResponseWriter, ctx.Input.Param(":post_id"))
+		io.WriteString(ctx.ResponseWriter, "User: ")                    //nolint:errcheck // ignored in benchmark
+		io.WriteString(ctx.ResponseWriter, ctx.Input.Param(":id"))      //nolint:errcheck // ignored in benchmark
+		io.WriteString(ctx.ResponseWriter, ", Post: ")                  //nolint:errcheck // ignored in benchmark
+		io.WriteString(ctx.ResponseWriter, ctx.Input.Param(":post_id")) //nolint:errcheck // ignored in benchmark
 	})
 	return cr
 }
