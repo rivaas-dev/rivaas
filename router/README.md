@@ -6,30 +6,30 @@
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
-An HTTP router for Go, designed for cloud-native applications with comprehensive routing, middleware, and observability features.
+An HTTP router for Go, built for cloud-native apps. It gives you routing, middleware, and observability in one place.
 
-> **📚 Full Documentation:** For comprehensive documentation, guides, and examples, see the [Router Documentation](https://rivaas.dev/docs/guides/router/).
+> **📚 Full docs:** For guides, examples, and API details, see the [Router Documentation](https://rivaas.dev/docs/guides/router/).
 
 ## Documentation
 
-- **[Installation](https://rivaas.dev/docs/guides/router/installation/)** - Get started with the router
-- **[User Guide](https://rivaas.dev/docs/guides/router/)** - Complete learning path from basics to advanced features
-- **[API Reference](https://rivaas.dev/docs/reference/packages/router/)** - Detailed API documentation
-- **[Examples](https://rivaas.dev/docs/guides/router/examples/)** - Complete working examples
-- **[Troubleshooting](https://rivaas.dev/docs/reference/packages/router/troubleshooting/)** - Common issues and solutions
+- **[Installation](https://rivaas.dev/docs/guides/router/installation/)** – Get the router and run your first route
+- **[User Guide](https://rivaas.dev/docs/guides/router/)** – From basics to advanced use
+- **[API Reference](https://rivaas.dev/docs/reference/packages/router/)** – Full API docs
+- **[Examples](https://rivaas.dev/docs/guides/router/examples/)** – Working examples you can copy
+- **[Troubleshooting](https://rivaas.dev/docs/reference/packages/router/troubleshooting/)** – Fix common issues
 
 ## Features
 
-- **High Performance**: 8.4M+ req/s throughput, 119ns/op routing, 16B/req memory
-- **Radix Tree Routing**: Compiled routes with bloom filters for static lookups
-- **Request Binding**: Automatic parsing to structs with 15+ type categories
-- **Comprehensive Validation**: Multiple strategies (tags, interface, JSON Schema)
-- **Content Negotiation**: RFC 7231 compliant Accept header handling
-- **API Versioning**: Built-in header/query-based versioning
-- **OpenTelemetry Native**: Zero-overhead tracing when disabled
-- **Built-in Middleware**: 12 production-ready middlewares
-- **Memory Safe**: Context pooling with clear lifecycle rules
-- **Thread Safe**: Concurrent-safe operations
+- **Fast** – 8.4M+ req/s, 119ns per route, 16B per request
+- **Radix tree routing** – Compiled routes and bloom filters for quick lookups
+- **Request binding** – Parses requests into structs (15+ types)
+- **Validation** – Tags, interfaces, or JSON Schema
+- **Content negotiation** – Handles Accept headers the standard way
+- **API versioning** – Version via headers or query
+- **OpenTelemetry** – Built-in tracing; no cost when you turn it off
+- **Middleware** – 12 middlewares ready for production
+- **Memory safe** – Context pooling with clear rules
+- **Safe for concurrency** – Use it from multiple goroutines
 
 ## Installation
 
@@ -37,7 +37,7 @@ An HTTP router for Go, designed for cloud-native applications with comprehensive
 go get rivaas.dev/router
 ```
 
-Requires Go 1.25+
+You need Go 1.25 or later.
 
 ## Quick Start
 
@@ -73,37 +73,41 @@ func main() {
 
 ## Learn More
 
-- **[Getting Started](https://rivaas.dev/docs/guides/router/basic-usage/)** - Your first router
-- **[Route Patterns](https://rivaas.dev/docs/guides/router/route-patterns/)** - Static, parameter, and wildcard routes
-- **[Middleware](https://rivaas.dev/docs/guides/router/middleware/)** - Built-in and custom middleware
-- **[Request Binding](https://rivaas.dev/docs/guides/router/request-binding/)** - Automatic request parsing
-- **[Validation](https://rivaas.dev/docs/guides/router/validation/)** - Multiple validation strategies
-- **[Context API](https://rivaas.dev/docs/guides/router/context/)** - Request/response handling
-- **[Observability](https://rivaas.dev/docs/guides/router/observability/)** - OpenTelemetry tracing
-- **[Testing](https://rivaas.dev/docs/guides/router/testing/)** - Test your routes
-- **[Migration](https://rivaas.dev/docs/guides/router/migration/)** - From Gin, Echo, http.ServeMux
+- **[Getting Started](https://rivaas.dev/docs/guides/router/basic-usage/)** – Your first router
+- **[Route Patterns](https://rivaas.dev/docs/guides/router/route-patterns/)** – Static, params, wildcards
+- **[Middleware](https://rivaas.dev/docs/guides/router/middleware/)** – Built-in and custom
+- **[Request Binding](https://rivaas.dev/docs/guides/router/request-binding/)** – Parse requests into structs
+- **[Validation](https://rivaas.dev/docs/guides/router/validation/)** – Tags, interfaces, JSON Schema
+- **[Context API](https://rivaas.dev/docs/guides/router/context/)** – Request and response
+- **[Observability](https://rivaas.dev/docs/guides/router/observability/)** – OpenTelemetry tracing
+- **[Testing](https://rivaas.dev/docs/guides/router/testing/)** – How to test routes
+- **[Migration](https://rivaas.dev/docs/guides/router/migration/)** – From Gin, Echo, http.ServeMux
 
 ## Examples
 
-The router includes [progressive examples](examples/) from basic to advanced usage:
+We ship [step-by-step examples](examples/) from simple to advanced:
 
-1. [Hello World](examples/01-hello-world/) - Basic router setup
-2. [Routing](examples/02-routing/) - Routes, parameters, groups
-3. [Middleware](examples/03-middleware/) - Auth, logging, CORS
-4. [REST API](examples/04-rest-api/) - Full CRUD implementation
-5. [Advanced](examples/05-advanced/) - Constraints, static files
-6. [Advanced Routing](examples/06-advanced-routing/) - Versioning, wildcards
-7. [Content Negotiation](examples/07-content-negotiation/) - Accept headers
-8. [Request Binding](examples/08-binding/) - Automatic parsing
+1. [Hello World](examples/01-hello-world/) – Basic setup
+2. [Routing](examples/02-routing/) – Routes, params, groups
+3. [Middleware](examples/03-middleware/) – Auth, logging, CORS
+4. [REST API](examples/04-rest-api/) – Full CRUD
+5. [Advanced](examples/05-advanced/) – Constraints, static files
+6. [Advanced Routing](examples/06-advanced-routing/) – Versioning, wildcards
+7. [Content Negotiation](examples/07-content-negotiation/) – Accept headers
+8. [Request Binding](examples/08-binding/) – Parse into structs
+
+## Benchmarks
+
+Benchmarks live in [benchmarks/](benchmarks/). They compare this router with other Go frameworks (Gin, Echo, Chi, Fiber, Hertz, Beego, std lib). When you push a tag like `router/v0.9.2`, CI runs the benchmarks and updates the results on the docs and the website. For how we run them and how to reproduce, see [Router Performance](https://rivaas.dev/docs/reference/packages/router/performance/).
 
 ## Contributing
 
-Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+Contributions are welcome. See the [main repository](../) for how to contribute.
 
 ## License
 
-Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+Apache License 2.0. See [LICENSE](../LICENSE) for details.
 
 ---
 
-Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework ecosystem.
+Part of the [Rivaas](https://github.com/rivaas-dev/rivaas) web framework.
