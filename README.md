@@ -12,15 +12,9 @@
 [![CI](https://github.com/rivaas-dev/rivaas/actions/workflows/ci.yml/badge.svg)](https://github.com/rivaas-dev/rivaas/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/rivaas-dev/rivaas/branch/main/graph/badge.svg)](https://codecov.io/gh/rivaas-dev/rivaas)
 
-> A batteries-included, cloud-native web framework for Go featuring **high-performance routing (8.4M+ req/sec), comprehensive request binding & validation, automatic OpenAPI generation, and OpenTelemetry-native observability**.
+> A batteries-included, cloud-native web framework for Go featuring **high-performance routing**, comprehensive request binding & validation, automatic OpenAPI generation, and OpenTelemetry-native observability.
 
-| Metric | Value |
-|--------|-------|
-| Throughput | **8.4M+ req/sec** |
-| Latency | **119ns** average |
-| Memory | **16 bytes/request** |
-
-<sup>Benchmarked on Intel i7-1265U. See [benchmarks](./router/benchmarks/) for methodology and comparisons.</sup>
+We run benchmarks on every router release. For the latest numbers and how we measure them, see [Router Performance](https://rivaas.dev/docs/reference/packages/router/performance/).
 
 ## Quick Start
 
@@ -91,7 +85,7 @@ That's the philosophy behind Rivaas:
 | Principle | Description |
 |-----------|-------------|
 | 🛡️ **Resilient** | Built for production with graceful shutdown, health checks, and panic recovery |
-| ⚡ **Lightweight** | Minimal overhead (119ns latency, 16 bytes/request) without sacrificing features |
+| ⚡ **Lightweight** | Minimal overhead without sacrificing features — see [Performance](https://rivaas.dev/docs/reference/packages/router/performance/) for latest benchmarks |
 | 🔧 **Adaptive** | Works locally, in containers, or across distributed systems with the same code |
 | 📦 **Self-sufficient** | Integrated observability (metrics, tracing, logging) instead of bolted-on dependencies |
 
@@ -195,14 +189,7 @@ See [App Documentation](./app/README.md) for complete configuration options.
 
 ## Performance
 
-| Metric | Value |
-|--------|-------|
-| Throughput | **8.4M+ req/sec** |
-| Latency | **119ns** average |
-| Memory | **16 bytes/request** |
-| Allocations | **1 per request** |
-
-→ [Benchmarks](./router/benchmarks/) — detailed comparisons with Gin, Echo, Chi, Fiber
+We benchmark the router on every release. For the latest numbers and comparisons with Gin, Echo, Chi, Fiber, and others, see [Router Performance](https://rivaas.dev/docs/reference/packages/router/performance/). To run the benchmarks yourself, see [router/benchmarks](./router/benchmarks/).
 
 ## Repository Structure
 
