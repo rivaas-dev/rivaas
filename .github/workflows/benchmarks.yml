@@ -109,10 +109,10 @@ jobs:
           cat > parse-benchmarks.sh << 'PARSER_EOF'
           #!/bin/bash
           
-          # Extract CPU info and metadata
-          CPU=$(grep "^cpu:" full-results.txt | head -1 | sed 's/cpu: //')
-          GOOS=$(grep "^goos:" full-results.txt | head -1 | sed 's/goos: //')
-          GOARCH=$(grep "^goarch:" full-results.txt | head -1 | sed 's/goarch: //')
+          # Extract CPU info and metadata (trim leading/trailing space)
+          CPU=$(grep "^cpu:" full-results.txt | head -1 | sed 's/cpu: //' | xargs)
+          GOOS=$(grep "^goos:" full-results.txt | head -1 | sed 's/goos: //' | xargs)
+          GOARCH=$(grep "^goarch:" full-results.txt | head -1 | sed 's/goarch: //' | xargs)
           
           # Start JSON output
           cat << EOF
