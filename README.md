@@ -45,7 +45,7 @@ func main() {
     ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
     defer cancel()
 
-    if err := a.Start(ctx, ":8080"); err != nil {
+    if err := a.Start(ctx); err != nil {
         log.Fatal(err)
     }
 }
