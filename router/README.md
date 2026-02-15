@@ -20,7 +20,7 @@ An HTTP router for Go, built for cloud-native apps. It gives you routing, middle
 
 ## Features
 
-- **Fast** – 8.4M+ req/s, 119ns per route, 16B per request
+- **Fast** – See [Performance](https://rivaas.dev/docs/reference/packages/router/performance/) for latest benchmarks.
 - **Radix tree routing** – Compiled routes and bloom filters for quick lookups
 - **Request binding** – Parses requests into structs (15+ types)
 - **Validation** – Tags, interfaces, or JSON Schema
