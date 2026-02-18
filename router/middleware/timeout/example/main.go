@@ -17,11 +17,9 @@
 package main
 
 import (
+	"log"
 	"net/http"
-	"os"
 	"time"
-
-	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/timeout"
@@ -42,30 +40,9 @@ func main() {
 	// Example 4: Context-aware handler
 	contextAwareExample(r)
 
-	// Create a logger with clean, colorful output
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportTimestamp: false,
-		ReportCaller:    false,
-	})
-
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET /basic        - Basic 2s timeout")
-	logger.Print("  GET /custom       - Custom timeout handler")
-	logger.Print("  GET /stream       - Skipped from timeout")
-	logger.Print("  GET /slow         - Context-aware slow operation")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  curl http://localhost:8080/basic")
-	logger.Print("  curl http://localhost:8080/custom")
-	logger.Print("  curl http://localhost:8080/slow")
-	logger.Print("")
-	logger.Print("💡 Tip: For /slow, try waiting longer than 2 seconds to see timeout")
-	logger.Print("   Handlers should check c.Request.Context().Done() for cancellation")
-	logger.Print("")
-
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Endpoints: /basic /custom /stream /slow")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Basic timeout (uses 30s default)
