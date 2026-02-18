@@ -18,11 +18,9 @@ package main
 import (
 	"compress/gzip"
 	"fmt"
+	"log"
 	"net/http"
-	"os"
 	"strings"
-
-	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/compression"
@@ -46,32 +44,9 @@ func main() {
 	// Example 5: Compression ratio demonstration
 	compressionRatioExample(r)
 
-	// Create a logger with clean, colorful output
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportTimestamp: false,
-		ReportCaller:    false,
-	})
-
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET /basic        - Basic compression")
-	logger.Print("  GET /fast         - Fast compression (best speed)")
-	logger.Print("  GET /best         - Best compression (smallest size)")
-	logger.Print("  GET /large        - Large response (shows compression benefits)")
-	logger.Print("  GET /image.jpg    - Excluded by extension")
-	logger.Print("  GET /metrics      - Excluded path")
-	logger.Print("  GET /ratio        - Compression ratio demo")
-	logger.Print("  GET /api/users    - Production configuration")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  curl -H 'Accept-Encoding: gzip' http://localhost:8080/basic -i")
-	logger.Print("  curl -H 'Accept-Encoding: gzip' http://localhost:8080/ratio --compressed -w '\\nSize: %{size_download} bytes\\n'")
-	logger.Print("")
-	logger.Print("💡 Tip: Use --compressed flag to auto-decompress responses")
-	logger.Print("")
-
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Endpoints: /basic /fast /best /large /image.jpg /metrics /ratio /api/users")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Basic compression with defaults
