@@ -41,12 +41,12 @@
 // # Accessing Authenticated User
 //
 // The authenticated username is stored in the request context and can be
-// retrieved using the GetUsername function:
+// retrieved using the Username function:
 //
 //	import "rivaas.dev/router/middleware/basicauth"
 //
 //	func handler(c *router.Context) {
-//	    username := basicauth.GetUsername(c)
+//	    username := basicauth.Username(c)
 //	    if username == "" {
 //	        c.JSON(http.StatusUnauthorized, map[string]string{"error": "not authenticated"})
 //	        return

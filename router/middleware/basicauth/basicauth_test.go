@@ -291,7 +291,7 @@ func TestGetAuthUsername(t *testing.T) {
 		WithUsers(map[string]string{"testuser": "testpass"}),
 	))
 	r.GET("/test", func(c *router.Context) {
-		username := GetUsername(c)
+		username := Username(c)
 		//nolint:errcheck // Test handler
 		c.Stringf(http.StatusOK, "user:%s", username)
 	})

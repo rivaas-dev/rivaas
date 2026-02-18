@@ -22,8 +22,9 @@ import (
 	"strings"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware"
 )
+
+type contextKey struct{}
 
 // Option defines functional options for basicauth middleware configuration.
 type Option func(*config)
@@ -204,23 +205,23 @@ func New(opts ...Option) router.HandlerFunc {
 		}
 
 		// Authentication successful - store username in request context for later use
-		ctx := context.WithValue(c.Request.Context(), middleware.AuthUsernameKey, username)
+		ctx := context.WithValue(c.Request.Context(), contextKey{}, username)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}
 }
 
-// GetUsername retrieves the authenticated username from the request context.
+// Username retrieves the authenticated username from the request context.
 // Returns an empty string if no authentication has occurred.
 //
 // Example:
 //
 //	func handler(c *router.Context) {
-//	    username := basicauth.GetUsername(c)
+//	    username := basicauth.Username(c)
 //	    c.JSON(http.StatusOK, map[string]string{"user": username})
 //	}
-func GetUsername(c *router.Context) string {
-	if username, ok := c.Request.Context().Value(middleware.AuthUsernameKey).(string); ok {
+func Username(c *router.Context) string {
+	if username, ok := c.Request.Context().Value(contextKey{}).(string); ok {
 		return username
 	}
 
