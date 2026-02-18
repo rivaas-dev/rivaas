@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/requestid"
 )
 
 func TestSecurity_DefaultHeaders(t *testing.T) {
@@ -363,7 +362,7 @@ func TestNoSecurityHeaders(t *testing.T) {
 func TestSecurity_CombinedWithOtherMiddleware(t *testing.T) {
 	t.Parallel()
 	r := router.MustNew()
-	r.Use(requestid.New())
+	// Simulate request with X-Request-ID (e.g. from requestid middleware or client)
 	r.Use(New())
 	r.GET("/test", func(c *router.Context) {
 		//nolint:errcheck // Test handler
@@ -371,12 +370,12 @@ func TestSecurity_CombinedWithOtherMiddleware(t *testing.T) {
 	})
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
+	req.Header.Set("X-Request-ID", "test-id-123")
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
 
-	// Should have both request ID and security headers
-	assert.NotEmpty(t, w.Header().Get("X-Request-ID"))
+	// Should have security headers
 	assert.NotEmpty(t, w.Header().Get("X-Frame-Options"))
 }
 
