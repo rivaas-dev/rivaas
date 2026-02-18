@@ -18,6 +18,7 @@ package tracing
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -112,11 +113,8 @@ func TestInitStdoutProvider_SkipsGlobalRegistration(t *testing.T) {
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 	var found bool
-	for _, msg := range debugMessages {
-		if msg == "Skipping global tracer provider registration" {
-			found = true
-			break
-		}
+	if slices.Contains(debugMessages, "Skipping global tracer provider registration") {
+		found = true
 	}
 	assert.True(t, found, "expected debug message for skipping global registration")
 }

@@ -277,7 +277,7 @@ func TestMiddleware_ProbabilisticSamplingSkipsSomeSpans(t *testing.T) {
 	}))
 
 	// Many requests so some hit the skip path (hash > threshold).
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
