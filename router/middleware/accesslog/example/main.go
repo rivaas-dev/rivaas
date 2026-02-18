@@ -16,10 +16,8 @@
 package main
 
 import (
+	"log"
 	"net/http"
-	"os"
-
-	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/accesslog"
@@ -44,32 +42,9 @@ func main() {
 	// Example 5: Integration with request ID
 	requestIDIntegrationExample(r)
 
-	// Create a logger with clean, colorful output
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportTimestamp: false,
-		ReportCaller:    false,
-	})
-
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET /default  - Default format logging")
-	logger.Print("  GET /custom   - Custom format")
-	logger.Print("  GET /json     - JSON structured logs")
-	logger.Print("  GET /health   - Skipped from logs")
-	logger.Print("  GET /tracked  - With request ID")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  curl http://localhost:8080/default")
-	logger.Print("  curl http://localhost:8080/custom")
-	logger.Print("  curl http://localhost:8080/json")
-	logger.Print("  curl http://localhost:8080/health")
-	logger.Print("  curl http://localhost:8080/tracked")
-	logger.Print("")
-	logger.Print("💡 Tip: Check the server output to see different log formats")
-	logger.Print("")
-
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Endpoints: /default /custom /json /health /tracked")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Default logging
