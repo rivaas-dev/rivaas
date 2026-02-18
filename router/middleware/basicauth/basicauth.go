@@ -166,8 +166,8 @@ func New(opts ...Option) router.HandlerFunc {
 
 		// Split username:password
 		credentials := string(decoded)
-		colonIndex := strings.IndexByte(credentials, ':')
-		if colonIndex == -1 {
+		before, after, ok := strings.Cut(credentials, ":")
+		if !ok {
 			c.Response.Header().Set("WWW-Authenticate", authenticateHeader)
 			cfg.unauthorizedHandler(c)
 			c.Abort()
@@ -175,8 +175,8 @@ func New(opts ...Option) router.HandlerFunc {
 			return
 		}
 
-		username := credentials[:colonIndex]
-		password := credentials[colonIndex+1:]
+		username := before
+		password := after
 
 		// Validate credentials
 		var authenticated bool

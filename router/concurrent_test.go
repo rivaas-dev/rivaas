@@ -548,9 +548,7 @@ func TestConcurrentLookupAfterRegistration(t *testing.T) {
 	// Phase 2: Concurrent lookups (routes are now immutable)
 	var wg sync.WaitGroup
 	for range 100 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range 10 {
 				path := "/concurrent" + string(rune('0'+i%10))
 				req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -559,7 +557,7 @@ func TestConcurrentLookupAfterRegistration(t *testing.T) {
 				// All should succeed now that routes are registered
 				assert.Equal(t, http.StatusOK, w.Code)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

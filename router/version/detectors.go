@@ -75,12 +75,12 @@ func (d *pathDetector) extractFromPath(path string) (string, bool) {
 	}
 
 	// Find end of version segment (next "/" or end)
-	end := strings.IndexByte(remaining, '/')
+	before, _, ok := strings.Cut(remaining, "/")
 	var segment string
-	if end == -1 {
+	if !ok {
 		segment = remaining
 	} else {
-		segment = remaining[:end]
+		segment = before
 	}
 
 	if segment == "" {
@@ -109,12 +109,12 @@ func (d *pathDetector) ExtractSegment(path string) (string, bool) {
 		return "", false
 	}
 
-	end := strings.IndexByte(remaining, '/')
+	before, _, ok := strings.Cut(remaining, "/")
 	var segment string
-	if end == -1 {
+	if !ok {
 		segment = remaining
 	} else {
-		segment = remaining[:end]
+		segment = before
 	}
 
 	if segment == "" {
