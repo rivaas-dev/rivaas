@@ -18,12 +18,11 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
-
-	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/accesslog"
@@ -51,33 +50,9 @@ func main() {
 	// Example 6: Reject client-provided IDs
 	rejectClientIDExample(r)
 
-	// Create a logger with clean, colorful output
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportTimestamp: false,
-		ReportCaller:    false,
-	})
-
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET /default      - UUID v7 (default, 36 chars)")
-	logger.Print("  GET /ulid         - ULID format (26 chars)")
-	logger.Print("  GET /custom       - Custom header name (X-Trace-ID)")
-	logger.Print("  GET /generator    - Custom ID generator")
-	logger.Print("  GET /logged       - With logger integration")
-	logger.Print("  GET /secure       - Reject client-provided IDs")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  curl -i http://localhost:8080/default")
-	logger.Print("  curl -i http://localhost:8080/ulid")
-	logger.Print("  curl -H 'X-Request-ID: my-custom-id' http://localhost:8080/default")
-	logger.Print("  curl http://localhost:8080/logged")
-	logger.Print("")
-	logger.Print("💡 Tip: UUID v7 and ULID are time-ordered and sortable")
-	logger.Print("   Use requestid.Get(c) to retrieve the ID in handlers")
-	logger.Print("")
-
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Endpoints: /default /ulid /custom /generator /logged /secure")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Default request ID (UUID v7)
