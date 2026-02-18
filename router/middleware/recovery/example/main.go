@@ -19,14 +19,13 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/recovery"
-
-	charmlog "github.com/charmbracelet/log"
 )
 
 func main() {
@@ -47,31 +46,9 @@ func main() {
 	// Example 5: Production-ready setup (reference implementation)
 	productionExample(r)
 
-	// Create a logger with clean, colorful output
-	logger := charmlog.NewWithOptions(os.Stderr, charmlog.Options{
-		ReportTimestamp: false,
-		ReportCaller:    false,
-	})
-
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET /basic-panic             - Basic panic recovery")
-	logger.Print("  GET /api/custom-panic         - Custom recovery handler")
-	logger.Print("  GET /logged/logged-panic      - Custom logger")
-	logger.Print("  GET /advanced/advanced-panic  - Advanced configuration")
-	logger.Print("  GET /production/panic         - Production-ready setup")
-	logger.Print("  GET /safe                    - No panic, normal response")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  curl http://localhost:8080/basic-panic")
-	logger.Print("  curl http://localhost:8080/api/custom-panic")
-	logger.Print("  curl http://localhost:8080/safe")
-	logger.Print("")
-	logger.Print("💡 Tip: The /production endpoint shows a production-ready configuration")
-	logger.Print("")
-
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Endpoints: /basic-panic /api/custom-panic /logged/logged-panic /advanced/advanced-panic /production/panic /safe")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Basic recovery with default settings
