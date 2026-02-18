@@ -59,5 +59,5 @@
 //
 // Method override should only be used when necessary (e.g., HTML form limitations).
 // Consider CSRF protection when using form-based method override. The middleware
-// sets a CSRFVerifiedKey in the context that other middleware can check.
+// can be checked via CSRFVerified(c) when using WithRequireCSRFToken.
 package methodoverride

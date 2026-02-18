@@ -104,7 +104,7 @@ func WithRespectBody(required bool) Option {
 
 // WithRequireCSRFToken requires CSRF token verification before allowing method override.
 // When enabled, the middleware expects a CSRF verification middleware to run first
-// and set c.Request.Context().Value(CSRFVerifiedKey) == true.
+// and set the context so CSRFVerified(c) returns true.
 // Default: false
 //
 // SECURITY WARNING: This middleware should only be used when you control

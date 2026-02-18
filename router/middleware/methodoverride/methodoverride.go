@@ -19,12 +19,12 @@ import (
 	"strings"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware"
 )
 
-// CSRFVerifiedKey is the context key for CSRF verification status.
-// Other middleware (e.g., CSRF middleware) should set this to true when CSRF is verified.
-var CSRFVerifiedKey middleware.ContextKey = "middleware.csrf_verified"
+type (
+	originalMethodKey struct{}
+	csrfVerifiedKey   struct{}
+)
 
 // New creates a new HTTP method override middleware.
 //
@@ -83,7 +83,7 @@ func New(opts ...Option) router.HandlerFunc {
 
 		// Check CSRF requirement
 		if cfg.requireCSRFToken {
-			if verified, ok := c.Request.Context().Value(CSRFVerifiedKey).(bool); !ok || !verified {
+			if verified, ok := c.Request.Context().Value(csrfVerifiedKey{}).(bool); !ok || !verified {
 				// CSRF not verified, skip override
 				c.Next()
 				return
@@ -119,7 +119,7 @@ func New(opts ...Option) router.HandlerFunc {
 
 		// Store original method in context for logging
 		ctx := c.Request.Context()
-		ctx = context.WithValue(ctx, middleware.OriginalMethodKey, originalMethod)
+		ctx = context.WithValue(ctx, originalMethodKey{}, originalMethod)
 		c.Request = c.Request.WithContext(ctx)
 
 		// Override method
@@ -129,12 +129,19 @@ func New(opts ...Option) router.HandlerFunc {
 	}
 }
 
-// GetOriginalMethod retrieves the original HTTP method before override.
+// OriginalMethod retrieves the original HTTP method before override.
 // Returns the current method if no override occurred.
-func GetOriginalMethod(c *router.Context) string {
-	if orig, ok := c.Request.Context().Value(middleware.OriginalMethodKey).(string); ok {
+func OriginalMethod(c *router.Context) string {
+	if orig, ok := c.Request.Context().Value(originalMethodKey{}).(string); ok {
 		return orig
 	}
 
 	return c.Request.Method
+}
+
+// CSRFVerified returns true if a CSRF verification middleware has set the verified flag in context.
+// Other middleware (e.g., CSRF middleware) should set the flag via context when CSRF is verified.
+func CSRFVerified(c *router.Context) bool {
+	verified, ok := c.Request.Context().Value(csrfVerifiedKey{}).(bool)
+	return ok && verified
 }

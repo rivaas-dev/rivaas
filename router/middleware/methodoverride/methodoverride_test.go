@@ -81,7 +81,7 @@ func TestMethodOverride_Basic(t *testing.T) {
 			handler(c)
 
 			assert.Equal(t, tt.expectedMethod, c.Request.Method)
-			assert.Equal(t, tt.expectedOriginal, GetOriginalMethod(c))
+			assert.Equal(t, tt.expectedOriginal, OriginalMethod(c))
 		})
 	}
 }
@@ -262,7 +262,7 @@ func TestMethodOverride_CSRFRequired(t *testing.T) {
 			req.Header.Set("X-Http-Method-Override", "DELETE")
 
 			if tt.csrfVerified {
-				req = req.WithContext(context.WithValue(req.Context(), CSRFVerifiedKey, true))
+				req = req.WithContext(context.WithValue(req.Context(), csrfVerifiedKey{}, true))
 			}
 
 			w := httptest.NewRecorder()
@@ -362,7 +362,7 @@ func TestMethodOverride_EdgeCases(t *testing.T) {
 	}
 }
 
-func TestGetOriginalMethod(t *testing.T) {
+func TestOriginalMethod(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name           string
@@ -401,7 +401,7 @@ func TestGetOriginalMethod(t *testing.T) {
 			handler(c)
 
 			assert.Equal(t, tt.expectedMethod, c.Request.Method)
-			assert.Equal(t, tt.expectedOrig, GetOriginalMethod(c))
+			assert.Equal(t, tt.expectedOrig, OriginalMethod(c))
 		})
 	}
 }
