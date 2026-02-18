@@ -32,7 +32,7 @@ import (
 //	type User struct { Base; Name string }
 //	// walkFields on User will visit both ID (from Base) and Name
 func walkFields(t reflect.Type, fn func(reflect.StructField)) {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -100,7 +100,7 @@ func parseJSONName(tag, fallback string) string {
 
 // isFieldRequired determines if a field is required.
 func isFieldRequired(f reflect.StructField) bool {
-	if f.Type.Kind() == reflect.Ptr {
+	if f.Type.Kind() == reflect.Pointer {
 		return false
 	}
 

@@ -58,9 +58,9 @@ func ValidatePath(path string) error {
 
 	// Track seen parameters to detect duplicates
 	params := make(map[string]bool)
-	segments := strings.Split(path, "/")
+	segments := strings.SplitSeq(path, "/")
 
-	for _, seg := range segments {
+	for seg := range segments {
 		if seg == "" {
 			continue
 		}
@@ -68,8 +68,8 @@ func ValidatePath(path string) error {
 		var paramName string
 
 		// Check for :param syntax (router-style)
-		if strings.HasPrefix(seg, ":") {
-			paramName = strings.TrimPrefix(seg, ":")
+		if after, ok := strings.CutPrefix(seg, ":"); ok {
+			paramName = after
 			if paramName == "" {
 				return fmt.Errorf("%w: empty parameter name in segment ':%s'", ErrPathInvalidParameter, seg)
 			}

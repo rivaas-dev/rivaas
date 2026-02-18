@@ -14,7 +14,10 @@
 
 package export
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"maps"
+)
 
 // SpecV30 represents an OpenAPI 3.0.4 specification.
 // This type is defined here to avoid import cycles with the openapi package.
@@ -381,9 +384,7 @@ func (c *CallbackV30) MarshalJSON() ([]byte, error) {
 		m[k] = v
 	}
 	// Merge extensions
-	for k, v := range c.Extensions {
-		m[k] = v
-	}
+	maps.Copy(m, c.Extensions)
 	return json.Marshal(m)
 }
 

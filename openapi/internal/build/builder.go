@@ -251,9 +251,7 @@ func (b *Builder) buildOperation(er EnrichedRoute, sg *schema.SchemaGenerator, s
 	// Copy operation extensions
 	if len(doc.Extensions) > 0 {
 		op.Extensions = make(map[string]any, len(doc.Extensions))
-		for k, v := range doc.Extensions {
-			op.Extensions[k] = v
-		}
+		maps.Copy(op.Extensions, doc.Extensions)
 	}
 
 	for _, s := range doc.Security {

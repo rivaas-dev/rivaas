@@ -378,7 +378,7 @@ func isZeroValue(v any) bool {
 		return true
 	}
 	switch rv.Kind() {
-	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+	case reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
 		return rv.IsNil()
 	case reflect.Struct:
 		for i := range rv.NumField() {

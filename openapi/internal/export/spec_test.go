@@ -1117,7 +1117,6 @@ func TestProject_V30_refBranches(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result, err := Project(context.Background(), tt.spec, Config{Version: V30})

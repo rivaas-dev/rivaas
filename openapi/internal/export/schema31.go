@@ -14,7 +14,11 @@
 
 package export
 
-import "rivaas.dev/openapi/internal/model"
+import (
+	"maps"
+
+	"rivaas.dev/openapi/internal/model"
+)
 
 // SchemaV31 represents an OpenAPI 3.1.x schema.
 type SchemaV31 struct {
@@ -217,9 +221,7 @@ func schema31(s *model.Schema, p *proj31, path string) *SchemaV31 {
 		}
 		if len(s.Discriminator.Mapping) > 0 {
 			out.Discriminator.Mapping = make(map[string]string, len(s.Discriminator.Mapping))
-			for k, v := range s.Discriminator.Mapping {
-				out.Discriminator.Mapping[k] = v
-			}
+			maps.Copy(out.Discriminator.Mapping, s.Discriminator.Mapping)
 		}
 	}
 

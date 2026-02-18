@@ -76,7 +76,7 @@ func IntrospectRequest(t reflect.Type) *RequestMetadata {
 		return nil
 	}
 
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -193,7 +193,7 @@ func isParamRequired(field reflect.StructField, tagName string) bool {
 	}
 
 	// Pointer types are optional
-	if field.Type.Kind() == reflect.Ptr {
+	if field.Type.Kind() == reflect.Pointer {
 		return false
 	}
 
@@ -224,7 +224,7 @@ func parseValue(s string, t reflect.Type) any {
 		return nil
 	}
 
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -274,7 +274,7 @@ func inferFormat(field reflect.StructField) string {
 	}
 
 	t := field.Type
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 

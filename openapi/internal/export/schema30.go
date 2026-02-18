@@ -15,6 +15,8 @@
 package export
 
 import (
+	"maps"
+
 	"rivaas.dev/openapi/diag"
 	"rivaas.dev/openapi/internal/model"
 )
@@ -216,9 +218,7 @@ func schema30(s *model.Schema, p *proj30, path string) *SchemaV30 {
 		}
 		if len(s.Discriminator.Mapping) > 0 {
 			out.Discriminator.Mapping = make(map[string]string, len(s.Discriminator.Mapping))
-			for k, v := range s.Discriminator.Mapping {
-				out.Discriminator.Mapping[k] = v
-			}
+			maps.Copy(out.Discriminator.Mapping, s.Discriminator.Mapping)
 		}
 	}
 

@@ -17,7 +17,10 @@
 // the openapi package and its subpackages.
 package diag
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Warning represents an informational, non-fatal issue during spec generation.
 //
@@ -255,11 +258,12 @@ func (ws Warnings) String() string {
 	if len(ws) == 0 {
 		return "no warnings"
 	}
-	s := fmt.Sprintf("%d warning(s):", len(ws))
+	var s strings.Builder
+	s.WriteString(fmt.Sprintf("%d warning(s):", len(ws)))
 	for i, w := range ws {
-		s += fmt.Sprintf("\n  [%d] %s", i+1, w.String())
+		s.WriteString(fmt.Sprintf("\n  [%d] %s", i+1, w.String()))
 	}
-	return s
+	return s.String()
 }
 
 // warning is the concrete implementation of Warning interface.

@@ -73,7 +73,7 @@ func (sg *SchemaGenerator) Generate(t reflect.Type) *model.Schema {
 		}
 	}
 
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		s := sg.Generate(t.Elem())
 		s.Nullable = true
 
@@ -191,7 +191,7 @@ func (sg *SchemaGenerator) structSchema(t reflect.Type) *model.Schema {
 
 // GenerateProjected builds a schema containing ONLY fields that satisfy include(f).
 func (sg *SchemaGenerator) GenerateProjected(t reflect.Type, include func(reflect.StructField) bool) *model.Schema {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
