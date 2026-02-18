@@ -17,10 +17,8 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
-	"os"
-
-	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/basicauth"
@@ -95,44 +93,7 @@ func main() {
 		})
 	})
 
-	// Create a logger with clean, colorful output
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportTimestamp: false,
-		ReportCaller:    false,
-	})
-
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET /                    - Public route (no auth)")
-	logger.Print("  GET /health              - Public health check")
-	logger.Print("  GET /admin/dashboard     - Protected admin route")
-	logger.Print("  GET /admin/settings      - Protected admin settings")
-	logger.Print("  GET /api/health          - API health (no auth)")
-	logger.Print("  GET /api/data            - Protected API endpoint")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  # Public route (no auth)")
-	logger.Print("  curl http://localhost:8080/")
-	logger.Print("")
-	logger.Print("  # Protected admin route (will prompt for credentials)")
-	logger.Print("  curl http://localhost:8080/admin/dashboard")
-	logger.Print("")
-	logger.Print("  # With admin credentials")
-	logger.Print("  curl -u admin:secret123 http://localhost:8080/admin/dashboard")
-	logger.Print("")
-	logger.Print("  # With user credentials")
-	logger.Print("  curl -u user:password456 http://localhost:8080/admin/settings")
-	logger.Print("")
-	logger.Print("  # API endpoint with API key")
-	logger.Print("  curl -u apikey1:secret http://localhost:8080/api/data")
-	logger.Print("")
-	logger.Print("  # API health check (no auth required)")
-	logger.Print("  curl http://localhost:8080/api/health")
-	logger.Print("")
-	logger.Print("⚠️  WARNING: Basic Auth transmits credentials in base64 (not encrypted).")
-	logger.Print("   Always use HTTPS in production!")
-	logger.Print("")
-
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Public: GET / GET /health | Protected: /admin/* (curl -u admin:secret123) /api/data (curl -u apikey1:secret)")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
