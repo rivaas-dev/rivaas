@@ -16,10 +16,8 @@
 package main
 
 import (
+	"log"
 	"net/http"
-	"os"
-
-	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/ratelimit"
@@ -40,37 +38,9 @@ func main() {
 	// Example 4: Different limits for different endpoints
 	tieredLimitsExample(r)
 
-	// Create a logger with clean, colorful output
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportTimestamp: false,
-		ReportCaller:    false,
-	})
-
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET /basic               - 5 requests per second globally")
-	logger.Print("  GET /api/public          - 10 req/s per IP")
-	logger.Print("  GET /api/premium?key=xyz - 100 req/s with API key")
-	logger.Print("  GET /free/data           - Free tier (1 req/s)")
-	logger.Print("  GET /pro/data?token=xyz  - Pro tier (20 req/s)")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  # Test global rate limit (send 10 requests quickly)")
-	logger.Print("  for i in {1..10}; do curl http://localhost:8080/basic; done")
-	logger.Print("")
-	logger.Print("  # Test per-IP rate limit")
-	logger.Print("  curl http://localhost:8080/api/public")
-	logger.Print("")
-	logger.Print("  # Test API key rate limit")
-	logger.Print("  curl 'http://localhost:8080/api/premium?key=xyz'")
-	logger.Print("")
-	logger.Print("💡 Tip: Rate limit headers are included in responses:")
-	logger.Print("   - X-Rate-Limit-Remaining: remaining requests")
-	logger.Print("   - X-Rate-Limit-Reset: seconds until reset")
-	logger.Print("")
-
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Endpoints: /basic /api/public /api/premium /free/data /pro/data")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Basic global rate limit
