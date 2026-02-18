@@ -924,7 +924,6 @@ func TestGroup_Any(t *testing.T) {
 	})
 
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
-		method := method
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
 
@@ -1078,7 +1077,6 @@ func TestVersionGroup_Any_registersAllMethods(t *testing.T) {
 	})
 
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
-		method := method
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
 			req := httptest.NewRequest(method, "/v1/any", nil)

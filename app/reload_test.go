@@ -199,12 +199,10 @@ func TestReload_Serialized(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Launch multiple concurrent reloads
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 5 {
+		wg.Go(func() {
 			_ = app.Reload(ctx) //nolint:errcheck // Test is checking serialization, not error handling
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -237,7 +235,7 @@ func TestReload_Programmatic(t *testing.T) {
 	ctx := context.Background()
 
 	// Call Reload() programmatically multiple times
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		err = app.Reload(ctx)
 		require.NoError(t, err)
 	}
@@ -311,7 +309,7 @@ func TestOnReload_MultipleReloads(t *testing.T) {
 	ctx := context.Background()
 
 	// Perform multiple reloads
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		err = app.Reload(ctx)
 		require.NoError(t, err)
 	}
