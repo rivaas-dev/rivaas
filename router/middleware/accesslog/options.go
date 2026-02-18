@@ -17,6 +17,8 @@ package accesslog
 import (
 	"log/slog"
 	"time"
+
+	"rivaas.dev/router"
 )
 
 // Option defines functional options for access log middleware.
@@ -35,6 +37,9 @@ type config struct {
 
 	// sampleRate samples access logs (1.0 = all, 0.1 = 10%)
 	sampleRate float64
+
+	// requestIDFunc extracts a request ID for deterministic sampling. When nil and sampleRate < 1, random sampling is used.
+	requestIDFunc func(*router.Context) string
 
 	// logErrorsOnly only logs requests with status >= 400
 	logErrorsOnly bool
@@ -81,7 +86,7 @@ func WithExcludePrefixes(prefixes ...string) Option {
 
 // WithSampleRate sets the sampling rate (0.0 to 1.0).
 // A rate of 1.0 logs all requests, 0.1 logs 10% of requests.
-// Sampling is deterministic based on request ID hash.
+// Without WithRequestIDFunc, sampling is random. With WithRequestIDFunc (e.g. requestid.Get), sampling is deterministic by request ID hash.
 //
 // Example:
 //
@@ -92,6 +97,24 @@ func WithSampleRate(rate float64) Option {
 	return func(c *config) {
 		// Clamp to valid sample rate range [0.0, 1.0]
 		c.sampleRate = max(0.0, min(rate, 1.0))
+	}
+}
+
+// WithRequestIDFunc sets a function to extract the request ID for deterministic sampling.
+// When set with WithSampleRate, the same request ID always gets the same sampling decision across replicas.
+// When not set, WithSampleRate uses random sampling.
+//
+// Example:
+//
+//	r.Use(requestid.New())
+//	r.Use(accesslog.New(
+//	    accesslog.WithLogger(logger),
+//	    accesslog.WithSampleRate(0.1),
+//	    accesslog.WithRequestIDFunc(requestid.Get),
+//	))
+func WithRequestIDFunc(fn func(*router.Context) string) Option {
+	return func(c *config) {
+		c.requestIDFunc = fn
 	}
 }
 

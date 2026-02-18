@@ -365,12 +365,13 @@ func TestAccessLog_Sampling(t *testing.T) { //nolint:paralleltest // Tests sampl
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
+	r.Use(requestid.New())
 	r.Use(New(
 		WithLogger(logger),
 		WithSampleRate(0.5), // 50% sampling
+		WithRequestIDFunc(requestid.Get),
 	))
 
-	r.Use(requestid.New())
 	r.GET("/test", func(c *router.Context) {
 		//nolint:errcheck // Test handler
 		c.JSON(http.StatusOK, map[string]string{"message": "ok"})
@@ -830,6 +831,7 @@ func TestAccessLog_RequestIDSampling(t *testing.T) { //nolint:paralleltest // Te
 	r.Use(New(
 		WithLogger(logger),
 		WithSampleRate(0.5), // 50% sampling
+		WithRequestIDFunc(requestid.Get),
 	))
 
 	r.GET("/test", func(c *router.Context) {

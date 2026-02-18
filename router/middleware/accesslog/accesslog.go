@@ -20,13 +20,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware"
 )
 
 // statusSizer is a capability interface for response writers that track status/size.
@@ -109,14 +109,14 @@ func New(opts ...Option) router.HandlerFunc {
 			if cfg.logErrorsOnly {
 				shouldLog = false
 			} else if cfg.sampleRate < 1.0 {
-				// Deterministic sampling by request ID hash
-				var requestID string
-				if v := c.Request.Context().Value(middleware.RequestIDKey); v != nil {
-					if rid, ok := v.(string); ok {
-						requestID = rid
-					}
+				if cfg.requestIDFunc != nil {
+					// Deterministic: hash-based sampling by request ID
+					shouldLog = sampleByHash(cfg.requestIDFunc(c), cfg.sampleRate)
+				} else {
+					// Random: probabilistic sampling (not security-sensitive)
+					//nolint:gosec // G404: Using math/rand/v2 for sampling is appropriate here
+					shouldLog = rand.Float64() < cfg.sampleRate
 				}
-				shouldLog = sampleByHash(requestID, cfg.sampleRate)
 			}
 		}
 

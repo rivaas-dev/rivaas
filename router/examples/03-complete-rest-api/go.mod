@@ -5,8 +5,10 @@ go 1.25.0
 require (
 	github.com/charmbracelet/log v0.4.2
 	rivaas.dev/binding v0.0.0
-	rivaas.dev/logging v0.0.0
 	rivaas.dev/router v0.0.0
+	rivaas.dev/router/middleware/accesslog v0.0.0
+	rivaas.dev/router/middleware/cors v0.0.0
+	rivaas.dev/router/middleware/recovery v0.0.0
 )
 
 require (
@@ -19,15 +21,12 @@ require (
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.10.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-logfmt/logfmt v0.6.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.20 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
@@ -43,4 +42,8 @@ replace (
 	rivaas.dev/binding => ../../../binding
 	rivaas.dev/logging => ../../../logging
 	rivaas.dev/router => ../../
+	rivaas.dev/router/middleware/accesslog => ../../middleware/accesslog
+	rivaas.dev/router/middleware/cors => ../../middleware/cors
+	rivaas.dev/router/middleware/recovery => ../../middleware/recovery
+	rivaas.dev/router/middleware/requestid => ../../middleware/requestid
 )

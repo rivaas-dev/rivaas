@@ -26,7 +26,6 @@ import (
 	"github.com/charmbracelet/log"
 
 	"rivaas.dev/binding"
-	"rivaas.dev/logging"
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/accesslog"
 	"rivaas.dev/router/middleware/cors"
@@ -199,13 +198,6 @@ func (s *PostStore) GetByUser(userID int) []Post {
 func main() {
 	r := router.MustNew()
 
-	// Set up logging for accesslog middleware
-	logger := logging.MustNew(
-		logging.WithConsoleHandler(),
-		logging.WithDebugLevel(),
-	)
-	r.SetLogger(logger)
-
 	userStore := NewUserStore()
 	postStore := NewPostStore()
 
@@ -226,8 +218,8 @@ func main() {
 			PageSize int `query:"page_size"`
 		}
 
-		var params ListParams
-		if err := binding.Bind(&params, binding.NewQueryGetter(c.Request.URL.Query()), binding.TagQuery); err != nil {
+		params, err := binding.Bind[ListParams](binding.FromQuery(c.Request.URL.Query()))
+		if err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_QUERY",
 				Message: "Invalid query parameters",
@@ -261,9 +253,8 @@ func main() {
 			ID int `path:"id"`
 		}
 
-		var params PathParams
-		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
+		params, err := binding.Bind[PathParams](binding.FromPath(c.AllParams()))
+		if err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -293,8 +284,8 @@ func main() {
 			Email string `json:"email"`
 		}
 
-		var req CreateUserRequest
-		if err := binding.BindJSON(&req, c.Request.Body); err != nil {
+		req, err := binding.Bind[CreateUserRequest](binding.FromJSONReader(c.Request.Body))
+		if err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_JSON",
 				Message: "Invalid JSON body",
@@ -350,9 +341,8 @@ func main() {
 			Email string `json:"email"`
 		}
 
-		var params PathParams
-		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
+		params, err := binding.Bind[PathParams](binding.FromPath(c.AllParams()))
+		if err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -362,7 +352,8 @@ func main() {
 		}
 
 		var req UpdateUserRequest
-		if err := binding.BindJSON(&req, c.Request.Body); err != nil {
+		req, err = binding.Bind[UpdateUserRequest](binding.FromJSONReader(c.Request.Body))
+		if err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_JSON",
 				Message: "Invalid JSON body",
@@ -417,9 +408,8 @@ func main() {
 			ID int `path:"id"`
 		}
 
-		var params PathParams
-		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
+		params, err := binding.Bind[PathParams](binding.FromPath(c.AllParams()))
+		if err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -448,9 +438,8 @@ func main() {
 			UserID int `path:"id"`
 		}
 
-		var params PathParams
-		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
+		params, err := binding.Bind[PathParams](binding.FromPath(c.AllParams()))
+		if err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -488,9 +477,8 @@ func main() {
 			Content string `json:"content"`
 		}
 
-		var params PathParams
-		allParams := c.AllParams()
-		if err := binding.Bind(&params, binding.NewPathGetter(allParams), binding.TagPath); err != nil {
+		params, err := binding.Bind[PathParams](binding.FromPath(c.AllParams()))
+		if err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_USER_ID",
 				Message: "Invalid user ID format",
@@ -510,7 +498,8 @@ func main() {
 		}
 
 		var req CreatePostRequest
-		if err := binding.BindJSON(&req, c.Request.Body); err != nil {
+		req, err = binding.Bind[CreatePostRequest](binding.FromJSONReader(c.Request.Body))
+		if err != nil {
 			c.JSON(http.StatusBadRequest, APIError{
 				Code:    "INVALID_JSON",
 				Message: "Invalid JSON body",
