@@ -17,11 +17,9 @@
 package main
 
 import (
+	"log"
 	"net/http"
-	"os"
 	"strings"
-
-	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/security"
@@ -48,32 +46,9 @@ func main() {
 	// Example 6: CSP builder pattern
 	cspBuilderExample(r)
 
-	// Create a logger with clean, colorful output
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportTimestamp: false,
-		ReportCaller:    false,
-	})
-
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET /basic      - Basic security headers")
-	logger.Print("  GET /webapp     - Web app with custom CSP")
-	logger.Print("  GET /api/data   - API with strict security")
-	logger.Print("  GET /dev        - Development security (relaxed)")
-	logger.Print("  GET /prod       - Production security (strict)")
-	logger.Print("  GET /all        - All available options")
-	logger.Print("  GET /builder    - CSP builder pattern")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  curl -I http://localhost:8080/basic")
-	logger.Print("  curl -I http://localhost:8080/webapp")
-	logger.Print("  curl -I http://localhost:8080/api/data")
-	logger.Print("")
-	logger.Print("💡 Tip: Check /all and /builder endpoints for advanced patterns")
-	logger.Print("")
-
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Endpoints: /basic /webapp /api/data /dev /prod /all /builder")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // Example 1: Basic security with secure defaults
