@@ -10,6 +10,9 @@ require (
 	rivaas.dev/metrics v0.6.2
 	rivaas.dev/openapi v0.5.1
 	rivaas.dev/router v0.9.1
+	rivaas.dev/router/middleware/cors v0.0.0
+	rivaas.dev/router/middleware/requestid v0.0.0
+	rivaas.dev/router/middleware/timeout v0.0.0
 	rivaas.dev/tracing v0.6.0
 )
 
@@ -22,6 +25,11 @@ replace (
 	rivaas.dev/metrics => ../../../metrics
 	rivaas.dev/openapi => ../../../openapi
 	rivaas.dev/router => ../../../router
+	rivaas.dev/router/middleware/accesslog => ../../../router/middleware/accesslog
+	rivaas.dev/router/middleware/cors => ../../../router/middleware/cors
+	rivaas.dev/router/middleware/recovery => ../../../router/middleware/recovery
+	rivaas.dev/router/middleware/requestid => ../../../router/middleware/requestid
+	rivaas.dev/router/middleware/timeout => ../../../router/middleware/timeout
 	rivaas.dev/tracing => ../../../tracing
 	rivaas.dev/validation => ../../../validation
 )
@@ -111,5 +119,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rivaas.dev/binding v0.7.3 // indirect
 	rivaas.dev/errors v0.6.0 // indirect
+	rivaas.dev/router/middleware/recovery v0.0.0 // indirect
 	rivaas.dev/validation v0.5.2 // indirect
 )
