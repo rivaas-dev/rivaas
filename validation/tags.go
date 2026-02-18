@@ -32,7 +32,7 @@ func (v *Validator) validateWithTags(val any, cfg *config) error {
 	}
 
 	rv := reflect.ValueOf(val)
-	if rv.Kind() == reflect.Ptr {
+	if rv.Kind() == reflect.Pointer {
 		if rv.IsNil() {
 			return nil
 		}
@@ -82,7 +82,7 @@ func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 
 	var result Error
 	structType := reflect.TypeOf(val)
-	for structType.Kind() == reflect.Ptr {
+	for structType.Kind() == reflect.Pointer {
 		structType = structType.Elem()
 	}
 
@@ -149,7 +149,7 @@ func (v *Validator) resolvePath(val any, path string) (reflect.Value, reflect.St
 
 	for i, part := range parts {
 		// Dereference pointers
-		for currentVal.Kind() == reflect.Ptr {
+		for currentVal.Kind() == reflect.Pointer {
 			if currentVal.IsNil() {
 				return reflect.Value{}, reflect.StructField{}, false
 			}
@@ -200,8 +200,8 @@ func getJSONFieldName(field reflect.StructField) string {
 	if jsonTag == "" || jsonTag == "-" {
 		return field.Name
 	}
-	if idx := strings.Index(jsonTag, ","); idx != -1 {
-		return jsonTag[:idx]
+	if before, _, ok := strings.Cut(jsonTag, ","); ok {
+		return before
 	}
 
 	return jsonTag
@@ -225,7 +225,7 @@ func buildFieldMap(structType reflect.Type) map[string]int {
 func (v *Validator) formatTagErrors(errs validator.ValidationErrors, structValue any, cfg *config) error {
 	var result Error
 	structType := reflect.TypeOf(structValue)
-	for structType.Kind() == reflect.Ptr {
+	for structType.Kind() == reflect.Pointer {
 		structType = structType.Elem()
 	}
 
@@ -296,7 +296,7 @@ func namespaceToJSONPath(ns string, structType reflect.Type) string {
 				result = append(result, jsonName)
 				currentType = field.Type
 
-				if currentType.Kind() == reflect.Ptr {
+				if currentType.Kind() == reflect.Pointer {
 					currentType = currentType.Elem()
 				}
 

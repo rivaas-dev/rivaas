@@ -1064,7 +1064,7 @@ func TestComputePresence_MaxDepth(t *testing.T) {
 	t.Parallel()
 	// Build JSON with depth > maxRecursionDepth to hit the depth guard in markPresence
 	inner := "{}"
-	for i := 0; i < maxRecursionDepth+2; i++ {
+	for range maxRecursionDepth + 2 {
 		inner = `{"x":` + inner + `}`
 	}
 	rawJSON := []byte(inner)

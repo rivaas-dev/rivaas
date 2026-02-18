@@ -17,6 +17,7 @@ package validation
 import (
 	"context"
 	"errors"
+	"maps"
 	"reflect"
 
 	"github.com/go-playground/validator/v10"
@@ -115,15 +116,11 @@ func (c *config) clone() *config {
 	// Deep copy maps
 	if c.messages != nil {
 		clone.messages = make(map[string]string, len(c.messages))
-		for k, v := range c.messages {
-			clone.messages[k] = v
-		}
+		maps.Copy(clone.messages, c.messages)
 	}
 	if c.messageFuncs != nil {
 		clone.messageFuncs = make(map[string]MessageFunc, len(c.messageFuncs))
-		for k, v := range c.messageFuncs {
-			clone.messageFuncs[k] = v
-		}
+		maps.Copy(clone.messageFuncs, c.messageFuncs)
 	}
 
 	return &clone
@@ -364,9 +361,7 @@ func WithMessages(messages map[string]string) Option {
 		if c.messages == nil {
 			c.messages = make(map[string]string)
 		}
-		for tag, msg := range messages {
-			c.messages[tag] = msg
-		}
+		maps.Copy(c.messages, messages)
 	}
 }
 

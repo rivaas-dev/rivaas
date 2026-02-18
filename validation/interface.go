@@ -109,7 +109,7 @@ func (v *Validator) callValidator(val any) error {
 	}
 
 	// Try value receiver on pointer
-	if rv.Kind() == reflect.Ptr && !rv.IsNil() {
+	if rv.Kind() == reflect.Pointer && !rv.IsNil() {
 		elemVal := rv.Elem()
 		elemType := elemVal.Type()
 		if v.typeImplementsValidator(elemType) {
@@ -173,7 +173,7 @@ func (v *Validator) callValidatorWithContext(ctx context.Context, val any) error
 	}
 
 	// Try value receiver on pointer
-	if rv.Kind() == reflect.Ptr && !rv.IsNil() {
+	if rv.Kind() == reflect.Pointer && !rv.IsNil() {
 		elemVal := rv.Elem()
 		elemType := elemVal.Type()
 		if v.typeImplementsValidatorWithContext(elemType) {

@@ -1147,11 +1147,11 @@ func TestDefaultTagMessage_MinMaxString(t *testing.T) {
 			require.Error(t, err)
 			var verr *Error
 			require.ErrorAs(t, err, &verr)
-			allMsgs := ""
+			var allMsgs strings.Builder
 			for _, f := range verr.Fields {
-				allMsgs += f.Message + " "
+				allMsgs.WriteString(f.Message + " ")
 			}
-			assert.Contains(t, allMsgs, tt.wantSnippet)
+			assert.Contains(t, allMsgs.String(), tt.wantSnippet)
 		})
 	}
 }

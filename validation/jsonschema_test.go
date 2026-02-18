@@ -1048,12 +1048,12 @@ func TestValidateWithSchema_PruneMaxDepth(t *testing.T) {
 	}
 	// Build 101 levels so pruneByPresence hits maxRecursionDepth
 	var node *deepNode
-	for i := 0; i < 102; i++ {
+	for range 102 {
 		node = &deepNode{Child: node}
 	}
 	pm := PresenceMap{}
 	p := "child"
-	for i := 0; i < 102; i++ {
+	for range 102 {
 		pm[p] = true
 		p += ".child"
 	}

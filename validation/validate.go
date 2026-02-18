@@ -120,7 +120,7 @@ func (v *Validator) Validate(ctx context.Context, val any, opts ...Option) error
 	}
 
 	// Check for nil pointers (but preserve pointer for interface validation)
-	for rv.Kind() == reflect.Ptr {
+	for rv.Kind() == reflect.Pointer {
 		if rv.IsNil() {
 			return &Error{Fields: []FieldError{{Code: "nil_pointer", Message: "cannot validate nil pointer"}}}
 		}
@@ -212,7 +212,7 @@ func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy
 		}
 		// Also check if pointer type implements (for pointer receivers)
 		rv := reflect.ValueOf(val)
-		if rv.Kind() == reflect.Ptr && !rv.IsNil() {
+		if rv.Kind() == reflect.Pointer && !rv.IsNil() {
 			if rv.Type().Implements(reflect.TypeFor[ValidatorInterface]()) {
 				return true
 			}
@@ -240,7 +240,7 @@ func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy
 	case StrategyTags:
 		// Tags require a struct type with actual validation tags
 		rv := reflect.ValueOf(val)
-		for rv.Kind() == reflect.Ptr {
+		for rv.Kind() == reflect.Pointer {
 			if rv.IsNil() {
 				return false
 			}
@@ -297,7 +297,7 @@ func (v *Validator) determineStrategy(ctx context.Context, val any, cfg *config)
 
 	// Default to tags if it's a struct
 	rv := reflect.ValueOf(val)
-	for rv.Kind() == reflect.Ptr {
+	for rv.Kind() == reflect.Pointer {
 		if rv.IsNil() {
 			return StrategyTags
 		}
@@ -320,7 +320,7 @@ func (v *Validator) validateByStrategy(ctx context.Context, val any, strategy St
 	case StrategyTags:
 		// Dereference for tag validation (tags work on struct values)
 		rv := reflect.ValueOf(val)
-		for rv.Kind() == reflect.Ptr && !rv.IsNil() {
+		for rv.Kind() == reflect.Pointer && !rv.IsNil() {
 			rv = rv.Elem()
 		}
 
@@ -329,7 +329,7 @@ func (v *Validator) validateByStrategy(ctx context.Context, val any, strategy St
 	case StrategyJSONSchema:
 		// Dereference for schema validation
 		rv := reflect.ValueOf(val)
-		for rv.Kind() == reflect.Ptr && !rv.IsNil() {
+		for rv.Kind() == reflect.Pointer && !rv.IsNil() {
 			rv = rv.Elem()
 		}
 
