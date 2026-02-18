@@ -12,6 +12,18 @@ use (
 	./openapi
 	./router
 	./router/benchmarks
+	./router/middleware/accesslog
+	./router/middleware/basicauth
+	./router/middleware/bodylimit
+	./router/middleware/compression
+	./router/middleware/cors
+	./router/middleware/methodoverride
+	./router/middleware/ratelimit
+	./router/middleware/recovery
+	./router/middleware/requestid
+	./router/middleware/security
+	./router/middleware/timeout
+	./router/middleware/trailingslash
 	./tracing
 	./validation
 )

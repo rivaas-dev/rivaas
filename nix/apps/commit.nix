@@ -24,9 +24,18 @@ let
     count_changes() {
       local mod="$1"
       local staged unstaged untracked
-      staged=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l)
-      unstaged=$($git diff --name-only -- "$mod/" 2>/dev/null | wc -l)
-      untracked=$($git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | wc -l)
+      
+      # Special handling for router: exclude middleware/* (separate modules)
+      if [ "$mod" = "router" ]; then
+        staged=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/" | wc -l)
+        unstaged=$($git diff --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/" | wc -l)
+        untracked=$($git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | grep -v "^router/middleware/" | wc -l)
+      else
+        staged=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l)
+        unstaged=$($git diff --name-only -- "$mod/" 2>/dev/null | wc -l)
+        untracked=$($git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | wc -l)
+      fi
+      
       echo "$staged $unstaged $untracked"
     }
   '';
@@ -85,6 +94,19 @@ let
   stripMarkdownScript = ''
     strip_markdown() {
       sed '/^```/d'
+    }
+  '';
+
+  # Shorten module path for commit message prefix
+  # router/middleware/accesslog -> middleware/accesslog
+  shortenPrefixScript = ''
+    shorten_prefix() {
+      local mod="$1"
+      if [[ "$mod" == router/middleware/* ]]; then
+        echo "''${mod#router/}"
+      else
+        echo "$mod"
+      fi
     }
   '';
 
@@ -172,6 +194,7 @@ in
       ${checkOutsideChangesScript}
       ${cleanAiOutputScript}
       ${stripMarkdownScript}
+      ${shortenPrefixScript}
 
       # Ensure workspace is trusted (one-time operation)
       ensure_workspace_trust() {
@@ -183,7 +206,7 @@ in
         
         # Test if cursor-agent works (15s timeout - first request can be slow due to API latency)
         local test_output
-        if test_output=$(timeout 15 ${pkgs.cursor-cli}/bin/cursor-agent -p --output-format text "test" 2>&1); then
+        if test_output=$(timeout 15 ${pkgs.cursor-cli}/bin/cursor-agent --model auto -p --output-format text "test" 2>&1); then
           # Check if we got actual output (not just exit 0)
           if [ -n "$test_output" ]; then
             return 0
@@ -200,7 +223,7 @@ in
       generate_ai_message() {
         local prompt="$1"
         local output
-        if output=$(timeout ${toString cfg.aiTimeoutSec} ${pkgs.cursor-cli}/bin/cursor-agent -p --output-format text "$prompt" 2>&1); then
+        if output=$(timeout ${toString cfg.aiTimeoutSec} ${pkgs.cursor-cli}/bin/cursor-agent --model auto -p --output-format text "$prompt" 2>&1); then
           echo "$output"
           return 0
         else
@@ -251,7 +274,7 @@ in
         $gum style --faint ""
         $gum style --faint "  To diagnose:"
         $gum style --faint "    1. Check: cursor-agent status"
-        $gum style --faint "    2. Try: cursor-agent -p --output-format text 'hello'"
+        $gum style --faint "    2. Try: cursor-agent --model auto -p --output-format text 'hello'"
         $gum style --faint "    3. Review ~/.cursor/cli-config.json (ghostMode, privacyMode)"
         $gum style --faint ""
         $gum style --faint "  Falling back to manual commit messages..."
@@ -259,7 +282,7 @@ in
       elif [ $trust_result -ne 0 ]; then
         $gum style --foreground ${lib.colors.error} "✗ Cursor Agent connection failed"
         $gum style --faint "  Could not connect to Cursor Agent API (timeout or trust issue)"
-        $gum style --faint "  Try: cursor-agent -p --output-format text 'test'"
+        $gum style --faint "  Try: cursor-agent --model auto -p --output-format text 'test'"
         $gum style --faint "  If slow, the API may need a moment to warm up"
         echo ""
       fi
@@ -342,20 +365,39 @@ in
         # Show changed files
         $gum style --foreground ${lib.colors.info} "Changed files:"
         {
-          $git diff --cached --name-only -- "$mod/" 2>/dev/null | while read -r f; do
-            [ -n "$f" ] && $gum style --foreground ${lib.colors.success} "  [staged] $f"
-          done
-          $git diff --name-only -- "$mod/" 2>/dev/null | while read -r f; do
-            [ -n "$f" ] && $gum style --foreground ${lib.colors.accent4} "  [modified] $f"
-          done
-          $git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | while read -r f; do
-            [ -n "$f" ] && $gum style --foreground ${lib.colors.accent1} "  [untracked] $f"
-          done
+          # Special exclusion for router module: don't show middleware files
+          if [ "$mod" = "router" ]; then
+            $git diff --cached --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/" | while read -r f; do
+              [ -n "$f" ] && $gum style --foreground ${lib.colors.success} "  [staged] $f"
+            done
+            $git diff --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/" | while read -r f; do
+              [ -n "$f" ] && $gum style --foreground ${lib.colors.accent4} "  [modified] $f"
+            done
+            $git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | grep -v "^router/middleware/" | while read -r f; do
+              [ -n "$f" ] && $gum style --foreground ${lib.colors.accent1} "  [untracked] $f"
+            done
+          else
+            $git diff --cached --name-only -- "$mod/" 2>/dev/null | while read -r f; do
+              [ -n "$f" ] && $gum style --foreground ${lib.colors.success} "  [staged] $f"
+            done
+            $git diff --name-only -- "$mod/" 2>/dev/null | while read -r f; do
+              [ -n "$f" ] && $gum style --foreground ${lib.colors.accent4} "  [modified] $f"
+            done
+            $git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | while read -r f; do
+              [ -n "$f" ] && $gum style --foreground ${lib.colors.accent1} "  [untracked] $f"
+            done
+          fi
         }
         echo ""
 
         # Stage all changes for this module
-        $git add "$mod/"
+        # Special handling for router: exclude middleware subdirectories (they're separate modules)
+        if [ "$mod" = "router" ]; then
+          # Stage router files but exclude middleware/* (separate modules)
+          $git add "$mod/" ':!router/middleware/*'
+        else
+          $git add "$mod/"
+        fi
 
         # Get the diff for AI context (limit by bytes to avoid huge prompts)
         diff_limit=${toString cfg.diffTruncateBytes}
@@ -411,7 +453,8 @@ $diff_content"
 
           ai_title=$(clean_ai_output "$ai_title")
 
-          ai_message_with_prefix="$mod: $ai_title"
+          commit_prefix=$(shorten_prefix "$mod")
+          ai_message_with_prefix="$commit_prefix: $ai_title"
           [ -n "$ai_body" ] && ai_message_with_prefix="$ai_message_with_prefix
 
 $ai_body"
@@ -442,7 +485,8 @@ $diff_content"
           fi
 
           ai_message=$(clean_ai_output "$ai_message")
-          ai_message_with_prefix="$mod: $ai_message"
+          commit_prefix=$(shorten_prefix "$mod")
+          ai_message_with_prefix="$commit_prefix: $ai_message"
 
           $gum style --foreground ${lib.colors.info} "Edit commit message:"
           message=$($gum input --width ${toString cfg.inputWidth} --value "$ai_message_with_prefix" </dev/tty)
