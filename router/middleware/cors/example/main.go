@@ -16,11 +16,9 @@
 package main
 
 import (
+	"log"
 	"net/http"
-	"os"
 	"strings"
-
-	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/cors"
@@ -44,46 +42,9 @@ func main() {
 	// Example 5: Preflight request demonstration
 	testPreflightExample(r)
 
-	// Create a logger with clean, colorful output
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportTimestamp: false,
-		ReportCaller:    false,
-	})
-
-	logger.Info("🚀 Server starting on http://localhost:8080")
-	logger.Print("")
-	logger.Print("📝 Available endpoints:")
-	logger.Print("  GET  /basic/api/data        - Basic CORS (allow specific origins)")
-	logger.Print("  POST /basic/api/data        - Create data with CORS")
-	logger.Print("  GET  /public/api/public     - Public API (allow all origins)")
-	logger.Print("  GET  /production/api/user/profile - Production setup with credentials")
-	logger.Print("  POST /production/api/user/profile - Production setup with credentials")
-	logger.Print("  GET  /dynamic/api/dynamic   - Dynamic origin validation")
-	logger.Print("  POST /preflight/api/test    - Preflight request demonstration")
-	logger.Print("")
-	logger.Print("📋 Example commands:")
-	logger.Print("  # Basic CORS")
-	logger.Print("  curl -H 'Origin: https://example.com' http://localhost:8080/basic/api/data")
-	logger.Print("")
-	logger.Print("  # Public API (allows any origin)")
-	logger.Print("  curl -H 'Origin: https://anywhere.com' http://localhost:8080/public/api/public")
-	logger.Print("")
-	logger.Print("  # Production with credentials")
-	logger.Print("  curl -H 'Origin: https://app.example.com' -H 'Authorization: Bearer token' http://localhost:8080/production/api/user/profile")
-	logger.Print("")
-	logger.Print("  # Dynamic origin validation")
-	logger.Print("  curl -H 'Origin: https://api.example.com' http://localhost:8080/dynamic/api/dynamic")
-	logger.Print("")
-	logger.Print("  # Preflight request")
-	logger.Print("  curl -X OPTIONS http://localhost:8080/preflight/api/test \\")
-	logger.Print("    -H 'Origin: https://example.com' \\")
-	logger.Print("    -H 'Access-Control-Request-Method: POST' \\")
-	logger.Print("    -v")
-	logger.Print("")
-	logger.Print("⚠️  WARNING: /public endpoint allows ALL origins - only use for truly public APIs!")
-	logger.Print("")
-
-	logger.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Endpoints: /basic/api/data /public/api/public /production/api/user/profile /dynamic/api/dynamic /preflight/api/test")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
 // basicExample demonstrates basic CORS setup with specific origins
