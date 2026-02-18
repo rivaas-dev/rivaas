@@ -24,8 +24,9 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware"
 )
+
+type contextKey struct{}
 
 // Option defines functional options for requestid middleware configuration.
 type Option func(*config)
@@ -143,7 +144,7 @@ func New(opts ...Option) router.HandlerFunc {
 		c.Response.Header().Set(cfg.headerName, requestID)
 
 		// Store request ID in context for use by other middleware (e.g., logger)
-		ctx := context.WithValue(c.Request.Context(), middleware.RequestIDKey, requestID)
+		ctx := context.WithValue(c.Request.Context(), contextKey{}, requestID)
 		c.Request = c.Request.WithContext(ctx)
 
 		// Continue processing
@@ -161,7 +162,7 @@ func New(opts ...Option) router.HandlerFunc {
 //	    log.Printf("Processing request %s", requestID)
 //	}
 func Get(c *router.Context) string {
-	if requestID, ok := c.Request.Context().Value(middleware.RequestIDKey).(string); ok {
+	if requestID, ok := c.Request.Context().Value(contextKey{}).(string); ok {
 		return requestID
 	}
 
