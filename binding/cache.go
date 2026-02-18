@@ -63,7 +63,7 @@ func getStructInfo(typ reflect.Type, tag string) *structInfo {
 	}
 
 	// Normalize: unwrap pointer to get struct type
-	if typ.Kind() == reflect.Ptr {
+	if typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
 
@@ -128,7 +128,7 @@ func WarmupCache(types ...any) {
 		if typ == nil {
 			continue
 		}
-		if typ.Kind() == reflect.Ptr {
+		if typ.Kind() == reflect.Pointer {
 			typ = typ.Elem()
 		}
 		if typ.Kind() != reflect.Struct {
@@ -165,7 +165,7 @@ func MustWarmupCache(types ...any) {
 		if typ == nil {
 			panic("binding: MustWarmupCache called with nil type")
 		}
-		if typ.Kind() == reflect.Ptr {
+		if typ.Kind() == reflect.Pointer {
 			typ = typ.Elem()
 		}
 		if typ.Kind() != reflect.Struct {

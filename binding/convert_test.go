@@ -68,7 +68,7 @@ func TestConvertValue_ErrorCases(t *testing.T) {
 		{"chan type", "", reflect.Chan, "unsupported type"},
 		{"func type", "", reflect.Func, "unsupported type"},
 		{"interface type", "", reflect.Interface, "unsupported type"},
-		{"ptr type", "", reflect.Ptr, "unsupported type"},
+		{"ptr type", "", reflect.Pointer, "unsupported type"},
 		{"struct type", "", reflect.Struct, "unsupported type"},
 		{"unsafe pointer", "", reflect.UnsafePointer, "unsupported type"},
 	}

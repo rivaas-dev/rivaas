@@ -66,7 +66,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 		}
 
 		// Handle pointer vs value transparently
-		if fieldType.Kind() == reflect.Ptr {
+		if fieldType.Kind() == reflect.Pointer {
 			ptr := reflect.New(fieldType.Elem())
 			ptr.Elem().Set(reflect.ValueOf(converted))
 			field.Set(ptr)
@@ -381,7 +381,7 @@ func convertToType(value string, targetType reflect.Type, opts *config) (reflect
 //   - map[string]net.IP, map[string]any
 func setMapField(field reflect.Value, getter ValueGetter, prefix string, fieldType reflect.Type, opts *config) error {
 	mapType := fieldType
-	isPtr := mapType.Kind() == reflect.Ptr
+	isPtr := mapType.Kind() == reflect.Pointer
 	if isPtr {
 		mapType = mapType.Elem() // Extract element type from pointer
 	}
@@ -634,7 +634,7 @@ func setNestedStructWithDepth(field reflect.Value, getter ValueGetter, prefix st
 	// Handle pointer-to-struct: initialize nil pointers and dereference
 	structValue := field
 	structType := field.Type()
-	if field.Kind() == reflect.Ptr {
+	if field.Kind() == reflect.Pointer {
 		// Initialize nil pointer
 		if field.IsNil() {
 			field.Set(reflect.New(field.Type().Elem()))
@@ -707,7 +707,7 @@ func findConverter(fieldType reflect.Type, opts *config) TypeConverter {
 	}
 
 	// Pointer normalization: if field is *T, check for converter registered for T
-	if fieldType.Kind() == reflect.Ptr {
+	if fieldType.Kind() == reflect.Pointer {
 		if conv, ok := opts.typeConverters[fieldType.Elem()]; ok {
 			return conv // Will be wrapped transparently by caller
 		}

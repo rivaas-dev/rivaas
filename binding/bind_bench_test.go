@@ -448,7 +448,7 @@ func createBenchMultipartFormWithFiles(b *testing.B) *multipart.Form {
 	writer := multipart.NewWriter(body)
 
 	// Add multiple files
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		fw, err := writer.CreateFormFile("attachments", "file.txt")
 		if err != nil {
 			b.Fatal(err)

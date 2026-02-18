@@ -193,7 +193,7 @@ func bindJSONWithWarnings(ctx context.Context, out any, body []byte, cfg *config
 
 	// Build trie of allowed field paths from struct type
 	t := reflect.TypeOf(out)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	trie := newJSONFieldTrie(t, TagJSON)

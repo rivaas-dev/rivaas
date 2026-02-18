@@ -346,7 +346,7 @@ func applyOptions(opts []Option) *config {
 func bindFromSource(out any, getter ValueGetter, tag string, cfg *config) error {
 	// Validate output is a pointer to struct
 	rv := reflect.ValueOf(out)
-	if rv.Kind() != reflect.Ptr {
+	if rv.Kind() != reflect.Pointer {
 		cfg.trackError()
 		return ErrOutMustBePointer
 	}
@@ -380,7 +380,7 @@ func bindMultiSource(out any, cfg *config) error {
 
 	// Validate output is a pointer to struct
 	rv := reflect.ValueOf(out)
-	if rv.Kind() != reflect.Ptr {
+	if rv.Kind() != reflect.Pointer {
 		cfg.trackError()
 		return ErrOutMustBePointer
 	}
@@ -706,7 +706,7 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 		kind := fieldType.Kind()
 
 		// Check for pointer to struct (embedded)
-		if kind == reflect.Ptr && fieldType.Elem().Kind() == reflect.Struct {
+		if kind == reflect.Pointer && fieldType.Elem().Kind() == reflect.Struct {
 			fieldType = fieldType.Elem()
 			kind = reflect.Struct
 		}
@@ -740,7 +740,7 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 
 		// Handle pointer types
 		isPtr := false
-		if kind == reflect.Ptr {
+		if kind == reflect.Pointer {
 			isPtr = true
 			fieldType = fieldType.Elem()
 			kind = fieldType.Kind()
@@ -756,7 +756,7 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 			elemKind = elemType.Kind()
 
 			// Handle []* types (slice of pointers)
-			if elemKind == reflect.Ptr {
+			if elemKind == reflect.Pointer {
 				elemKind = elemType.Elem().Kind()
 			}
 		}
@@ -833,7 +833,7 @@ func HasStructTag(t reflect.Type, tag string) bool {
 // with embedded structs by tracking visited types.
 func hasStructTagRecursive(t reflect.Type, tag string, visited map[reflect.Type]bool) bool {
 	// Unwrap pointer
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -859,7 +859,7 @@ func hasStructTagRecursive(t reflect.Type, tag string, visited map[reflect.Type]
 		if field.Anonymous {
 			fieldType := field.Type
 			// Handle pointer to struct
-			if fieldType.Kind() == reflect.Ptr {
+			if fieldType.Kind() == reflect.Pointer {
 				fieldType = fieldType.Elem()
 			}
 			// Recursively check embedded struct

@@ -233,7 +233,7 @@ func (e *BindError) hint() string {
 	}
 
 	// Pointer type issues
-	if e.Type.Kind() == reflect.Ptr {
+	if e.Type.Kind() == reflect.Pointer {
 		elemType := e.Type.Elem()
 		if isIntType(elemType) && strings.Contains(e.Value, ".") {
 			return "use float pointer type for decimal values"
