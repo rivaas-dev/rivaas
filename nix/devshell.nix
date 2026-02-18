@@ -6,11 +6,11 @@ pkgs.mkShell {
 
   buildInputs = with pkgs; [
     # Go toolchain
-    go            # Go compiler
+    go_1_26       # Go compiler
     gopls         # Go language server
     gotools       # Go tools (godoc, goimports, callgraph, digraph, etc.)
-    go-tools    # Go tools (staticcheck, etc.)
-    golangci-lint  # Linting and code quality
+    go-tools      # Go tools (staticcheck, etc.)
+    golangci-lint # Linting and code quality
     delve         # Go debugger
     ginkgo        # Testing and benchmarking tools
 
