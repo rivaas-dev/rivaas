@@ -46,7 +46,7 @@ func (EnvVarCodec) Encode(_ any) ([]byte, error) {
 func (EnvVarCodec) Decode(data []byte, v any) error {
 	conf := make(map[string]any)
 
-	for _, env := range bytes.Split(data, []byte("\n")) {
+	for env := range bytes.SplitSeq(data, []byte("\n")) {
 		pair := strings.SplitN(string(env), "=", 2)
 		if len(pair) != 2 {
 			continue

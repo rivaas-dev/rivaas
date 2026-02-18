@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"os"
 	"reflect"
@@ -331,7 +332,7 @@ func WithBinding(v any) Option {
 		if v == nil {
 			return errors.New("binding target cannot be nil")
 		}
-		if reflect.TypeOf(v).Kind() != reflect.Ptr {
+		if reflect.TypeOf(v).Kind() != reflect.Pointer {
 			return errors.New("binding target must be a pointer")
 		}
 		c.binding = v
@@ -441,9 +442,9 @@ type Validator interface {
 // applyDefaults applies default values from struct tags to a struct.
 // It walks through the struct fields and sets defaults for fields that have the 'default' tag
 // and are currently zero-valued.
-func applyDefaults(target interface{}) error {
+func applyDefaults(target any) error {
 	val := reflect.ValueOf(target)
-	if val.Kind() != reflect.Ptr {
+	if val.Kind() != reflect.Pointer {
 		return fmt.Errorf("target must be a pointer")
 	}
 
@@ -509,7 +510,7 @@ func isZeroValue(v reflect.Value) bool {
 		return v.Uint() == 0
 	case reflect.Float32, reflect.Float64:
 		return v.Float() == 0
-	case reflect.Interface, reflect.Ptr:
+	case reflect.Interface, reflect.Pointer:
 		return v.IsNil()
 	}
 	return false
@@ -522,7 +523,7 @@ func setDefaultValue(field reflect.Value, defaultVal string) error {
 		field.SetString(defaultVal)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		// Special handling for time.Duration
-		if field.Type() == reflect.TypeOf(time.Duration(0)) {
+		if field.Type() == reflect.TypeFor[time.Duration]() {
 			d, err := time.ParseDuration(defaultVal)
 			if err != nil {
 				return err
@@ -738,9 +739,7 @@ func (c *Config) Dump(ctx context.Context) error {
 		if c.values != nil {
 			// Use shallow copy for better performance
 			valuesCopy = make(map[string]any, len(*c.values))
-			for k, v := range *c.values {
-				valuesCopy[k] = v
-			}
+			maps.Copy(valuesCopy, *c.values)
 		} else {
 			valuesCopy = make(map[string]any)
 		}
@@ -801,7 +800,7 @@ func (c *Config) bindAndValidate(values map[string]any) error {
 	// Create a temporary copy of the binding struct to avoid race conditions
 	// when multiple goroutines call Load() concurrently
 	bindingType := reflect.TypeOf(c.binding)
-	if bindingType.Kind() == reflect.Ptr {
+	if bindingType.Kind() == reflect.Pointer {
 		bindingType = bindingType.Elem()
 	}
 	tempBinding := reflect.New(bindingType).Interface()

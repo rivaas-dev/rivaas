@@ -1915,7 +1915,7 @@ func TestConcurrency(t *testing.T) {
 		for range 20 {
 			go func() {
 				defer func() { wg <- struct{}{} }()
-				for i := 0; i < 10; i++ {
+				for i := range 10 {
 					if i%2 == 0 {
 						_ = cfg.Get("foo")
 						_ = cfg.String("foo")
@@ -2039,7 +2039,7 @@ func TestLargeConfiguration(t *testing.T) {
 	t.Parallel()
 
 	largeConfig := make(map[string]any, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		largeConfig[fmt.Sprintf("key%d", i)] = fmt.Sprintf("value%d", i)
 	}
 
