@@ -481,8 +481,11 @@ in
               $git diff --cached --name-only -- "$pattern" 2>/dev/null | while read -r f; do
                 [ -n "$f" ] && $gum style --foreground ${lib.colors.success} "  [staged] $f"
               done
-              $git diff --name-only -- "$pattern" 2>/dev/null | while read -r f; do
+              $git diff --name-only --diff-filter=M -- "$pattern" 2>/dev/null | while read -r f; do
                 [ -n "$f" ] && $gum style --foreground ${lib.colors.accent4} "  [modified] $f"
+              done
+              $git diff --name-only --diff-filter=D -- "$pattern" 2>/dev/null | while read -r f; do
+                [ -n "$f" ] && $gum style --foreground ${lib.colors.error} "  [deleted] $f"
               done
               $git ls-files --others --exclude-standard -- "$pattern" 2>/dev/null | while read -r f; do
                 [ -n "$f" ] && $gum style --foreground ${lib.colors.accent1} "  [untracked] $f"
@@ -493,8 +496,11 @@ in
             $git diff --cached --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | while read -r f; do
               [ -n "$f" ] && $gum style --foreground ${lib.colors.success} "  [staged] $f"
             done
-            $git diff --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | while read -r f; do
+            $git diff --name-only --diff-filter=M -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | while read -r f; do
               [ -n "$f" ] && $gum style --foreground ${lib.colors.accent4} "  [modified] $f"
+            done
+            $git diff --name-only --diff-filter=D -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | while read -r f; do
+              [ -n "$f" ] && $gum style --foreground ${lib.colors.error} "  [deleted] $f"
             done
             $git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | while read -r f; do
               [ -n "$f" ] && $gum style --foreground ${lib.colors.accent1} "  [untracked] $f"
@@ -503,8 +509,11 @@ in
             $git diff --cached --name-only -- "$mod/" 2>/dev/null | while read -r f; do
               [ -n "$f" ] && $gum style --foreground ${lib.colors.success} "  [staged] $f"
             done
-            $git diff --name-only -- "$mod/" 2>/dev/null | while read -r f; do
+            $git diff --name-only --diff-filter=M -- "$mod/" 2>/dev/null | while read -r f; do
               [ -n "$f" ] && $gum style --foreground ${lib.colors.accent4} "  [modified] $f"
+            done
+            $git diff --name-only --diff-filter=D -- "$mod/" 2>/dev/null | while read -r f; do
+              [ -n "$f" ] && $gum style --foreground ${lib.colors.error} "  [deleted] $f"
             done
             $git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | while read -r f; do
               [ -n "$f" ] && $gum style --foreground ${lib.colors.accent1} "  [untracked] $f"
