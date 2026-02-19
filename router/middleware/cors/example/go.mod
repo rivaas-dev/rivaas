@@ -3,7 +3,7 @@ module example-cors
 go 1.25.0
 
 require (
-	rivaas.dev/router v0.10.0
+	rivaas.dev/router v0.0.0
 	rivaas.dev/router/middleware/cors v0.0.0
 )
 

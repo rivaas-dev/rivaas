@@ -21,6 +21,7 @@ import (
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/middleware/accesslog"
+	"rivaas.dev/router/middleware/requestid"
 )
 
 func main() {
@@ -97,20 +98,17 @@ func skipPathsExample(r *router.Router) {
 	})
 }
 
-// Example 5: Deterministic sampling by request ID (e.g. from X-Request-ID header)
+// Example 5: Integration with RequestID middleware
 func requestIDIntegrationExample(r *router.Router) {
 	tracked := r.Group("/tracked")
 
-	tracked.Use(accesslog.New(
-		accesslog.WithSampleRate(0.5),
-		accesslog.WithRequestIDFunc(func(c *router.Context) string {
-			return c.Request.Header.Get("X-Request-ID")
-		}),
-	))
+	// RequestID middleware must come before accesslog
+	tracked.Use(requestid.New())
+	tracked.Use(accesslog.New())
 
 	tracked.GET("", func(c *router.Context) {
 		c.JSON(http.StatusOK, map[string]string{
-			"message": "Request with ID-based sampling (set X-Request-ID header)",
+			"message": "Request with ID tracking (automatic via accesslog)",
 		})
 	})
 }

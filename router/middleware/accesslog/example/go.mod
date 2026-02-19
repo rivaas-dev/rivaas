@@ -3,12 +3,15 @@ module example-logger
 go 1.25.0
 
 require (
-	rivaas.dev/router v0.10.0
+	rivaas.dev/router v0.0.0
 	rivaas.dev/router/middleware/accesslog v0.0.0
+	rivaas.dev/router/middleware/requestid v0.0.0
 )
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	golang.org/x/net v0.50.0 // indirect
@@ -21,4 +24,6 @@ replace (
 	rivaas.dev/logging => ../../../../logging
 	rivaas.dev/router => ../../../
 	rivaas.dev/router/middleware/accesslog => ../../accesslog
+	rivaas.dev/router/middleware/recovery => ../../recovery
+	rivaas.dev/router/middleware/requestid => ../../requestid
 )

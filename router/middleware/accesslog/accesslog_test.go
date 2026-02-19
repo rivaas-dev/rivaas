@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"rivaas.dev/router"
+	"rivaas.dev/router/middleware/requestid"
 )
 
 // testHandler is a slog.Handler implementation for testing that captures log records.
@@ -364,10 +365,11 @@ func TestAccessLog_Sampling(t *testing.T) { //nolint:paralleltest // Tests sampl
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
+	r.Use(requestid.New())
 	r.Use(New(
 		WithLogger(logger),
 		WithSampleRate(0.5), // 50% sampling
-		WithRequestIDFunc(func(c *router.Context) string { return c.Request.Header.Get("X-Request-ID") }),
+		WithRequestIDFunc(requestid.Get),
 	))
 
 	r.GET("/test", func(c *router.Context) {
@@ -519,6 +521,7 @@ func TestAccessLog_AllFields(t *testing.T) { //nolint:paralleltest // Tests spec
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
+	r.Use(requestid.New())
 	r.Use(New(WithLogger(logger)))
 
 	r.GET("/users/:id", func(c *router.Context) {
@@ -824,10 +827,11 @@ func TestAccessLog_RequestIDSampling(t *testing.T) { //nolint:paralleltest // Te
 	handler := newTestHandler()
 	logger := slog.New(handler)
 	r := router.MustNew()
+	r.Use(requestid.New())
 	r.Use(New(
 		WithLogger(logger),
 		WithSampleRate(0.5), // 50% sampling
-		WithRequestIDFunc(func(c *router.Context) string { return c.Request.Header.Get("X-Request-ID") }),
+		WithRequestIDFunc(requestid.Get),
 	))
 
 	r.GET("/test", func(c *router.Context) {
@@ -861,7 +865,7 @@ func TestAccessLog_NoRequestIDSampling(t *testing.T) { //nolint:paralleltest // 
 	logger := slog.New(handler)
 	r := router.MustNew()
 	r.Use(New(WithLogger(logger)))
-	// No request ID set on request - sampling uses empty ID
+	// Don't use requestid middleware - no request ID available
 	r.Use(New(
 		WithSampleRate(0.0), // 0% sampling
 	))

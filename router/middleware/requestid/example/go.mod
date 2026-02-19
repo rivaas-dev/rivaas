@@ -3,7 +3,7 @@ module example-request-id
 go 1.25.0
 
 require (
-	rivaas.dev/router v0.10.0
+	rivaas.dev/router v0.0.0
 	rivaas.dev/router/middleware/accesslog v0.0.0
 	rivaas.dev/router/middleware/requestid v0.0.0
 )
