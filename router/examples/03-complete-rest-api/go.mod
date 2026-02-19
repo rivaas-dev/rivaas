@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/charmbracelet/log v0.4.2
 	rivaas.dev/binding v0.0.0
-	rivaas.dev/router v0.0.0
+	rivaas.dev/router v0.10.0
 	rivaas.dev/router/middleware/accesslog v0.0.0
 	rivaas.dev/router/middleware/cors v0.0.0
 	rivaas.dev/router/middleware/recovery v0.0.0
@@ -30,7 +30,7 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
-	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a // indirect
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
