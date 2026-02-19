@@ -75,9 +75,6 @@ middleware/
 ├── accesslog/
 │   ├── accesslog.go              # Implementation
 │   ├── accesslog_test.go         # Unit tests
-│   ├── accesslog_bench_test.go   # Benchmarks
-│   ├── accesslog_integration_suite_test.go
-│   ├── integration_test.go      # Integration tests (some packages)
 │   ├── options.go                # Configuration options
 │   ├── doc.go                    # Package documentation
 │   ├── go.mod                    # Module definition
@@ -109,7 +106,7 @@ Each example shows basic usage, common patterns, and how to configure the middle
 
 ## Testing
 
-Each middleware has unit tests; some also have integration and benchmark tests:
+Each middleware has unit tests:
 
 ```bash
 # Run all middleware tests
@@ -149,9 +146,9 @@ r.Use(compression.New())     // 9. Compression (last)
 When adding new middleware:
 
 1. Create a new subdirectory under `middleware/`
-2. Follow the existing pattern: `name.go`, `options.go`, `doc.go`, `name_test.go`, `name_bench_test.go`
+2. Follow the existing pattern: `name.go`, `options.go`, `doc.go`, `name_test.go`
 3. Use functional options for configuration
-4. Include unit tests and benchmarks; add integration tests if needed
+4. Include unit tests
 5. Add a runnable example in an `example/` subdirectory
 6. Create its own `go.mod` for independent versioning
 7. Add a README.md in the package and update this README and the documentation site
