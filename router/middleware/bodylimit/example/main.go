@@ -41,7 +41,7 @@ func main() {
 			Email string `json:"email"`
 		}
 
-		if err := binding.BindJSON(&user, c.Request.Body); err != nil {
+		if err := binding.JSONReaderTo(c.Request.Body, &user); err != nil {
 			// Check if error is due to body limit
 			if strings.Contains(err.Error(), "exceeds limit") {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
@@ -71,7 +71,7 @@ func main() {
 			Content string `json:"content"`
 		}
 
-		if err := binding.BindJSON(&doc, c.Request.Body); err != nil {
+		if err := binding.JSONReaderTo(c.Request.Body, &doc); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
 				c.JSON(http.StatusRequestEntityTooLarge, map[string]string{
 					"error": "Document too large (max 1MB)",
@@ -114,7 +114,7 @@ func main() {
 		}),
 	), func(c *router.Context) {
 		var data map[string]interface{}
-		if err := binding.BindJSON(&data, c.Request.Body); err != nil {
+		if err := binding.JSONReaderTo(c.Request.Body, &data); err != nil {
 			if strings.Contains(err.Error(), "exceeds limit") {
 				// Error handler already called, but we can add additional logic
 				return
@@ -140,7 +140,7 @@ func main() {
 		}),
 	), func(c *router.Context) {
 		var data map[string]interface{}
-		if err := binding.BindJSON(&data, c.Request.Body); err != nil {
+		if err := binding.JSONReaderTo(c.Request.Body, &data); err != nil {
 			c.JSON(http.StatusBadRequest, map[string]string{
 				"error": err.Error(),
 			})
