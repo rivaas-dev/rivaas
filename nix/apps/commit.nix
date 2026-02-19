@@ -171,19 +171,6 @@ let
     }
   '';
 
-  # Shorten module path for commit message prefix
-  # router/middleware/accesslog -> middleware/accesslog
-  shortenPrefixScript = ''
-    shorten_prefix() {
-      local mod="$1"
-      if [[ "$mod" == router/middleware/* ]]; then
-        echo "''${mod#router/}"
-      else
-        echo "$mod"
-      fi
-    }
-  '';
-
   # Common AI prompt rules (shared between simple and complex prompts)
   aiPromptRules = ''
 RULES:
@@ -279,7 +266,7 @@ in
       ${checkOutsideChangesScript}
       ${cleanAiOutputScript}
       ${stripMarkdownScript}
-      ${shortenPrefixScript}
+      ${lib.moduleHelpers.shortenPrefixScript}
 
       # Ensure workspace is trusted (one-time operation)
       ensure_workspace_trust() {
@@ -535,10 +522,13 @@ in
           done
         # Special handling for router: exclude middleware subdirs (they're separate modules)
         # but include files directly in router/middleware/ (e.g. README.md)
+        # Use grep-based filtering so deleted files are excluded reliably
         elif [ "$mod" = "router" ]; then
-          # Stage router files but exclude middleware subdirs (separate modules)
-          # This allows router/middleware/README.md but excludes router/middleware/accesslog/*
-          $git add "$mod/" ':!router/middleware/*/'
+          {
+            $git diff --name-only -- "$mod/" 2>/dev/null
+            $git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null
+            $git ls-files --deleted -- "$mod/" 2>/dev/null
+          } | sort -u | grep -v "^router/middleware/[^/]\+/" | xargs -r $git add --
         else
           $git add "$mod/"
         fi
@@ -554,6 +544,15 @@ in
           done
           diff_content=$(echo "$diff_content" | head -c "$diff_limit")
           diff_full_size=$(for pattern in "''${patterns[@]}"; do $git diff --cached -- "$pattern" 2>/dev/null; done | wc -c | tr -d ' ')
+        elif [ "$mod" = "router" ]; then
+          diff_files=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/")
+          if [ -n "$diff_files" ]; then
+            diff_content=$(echo "$diff_files" | xargs -r $git diff --cached -- 2>/dev/null | head -c "$diff_limit")
+            diff_full_size=$(echo "$diff_files" | xargs -r $git diff --cached -- 2>/dev/null | wc -c | tr -d ' ')
+          else
+            diff_content=""
+            diff_full_size=0
+          fi
         else
           diff_content=$($git diff --cached -- "$mod/" 2>/dev/null | head -c "$diff_limit")
           diff_full_size=$($git diff --cached -- "$mod/" 2>/dev/null | wc -c | tr -d ' ')
@@ -571,6 +570,8 @@ in
           for pattern in "''${patterns[@]}"; do
             file_count=$((file_count + $($git diff --cached --name-only -- "$pattern" 2>/dev/null | wc -l)))
           done
+        elif [ "$mod" = "router" ]; then
+          file_count=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | wc -l | tr -d ' ')
         else
           file_count=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l | tr -d ' ')
         fi
