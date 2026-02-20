@@ -80,7 +80,7 @@ let
       # Only shown if they have changes
       echo "ci"
       echo "nix"
-      echo "config"
+      echo "dotfiles"
       echo "deps"
       echo "docs"
       
@@ -100,7 +100,7 @@ let
         nix)
           echo "nix/" "flake.nix" "flake.lock"
           ;;
-        config)
+        dotfiles)
           echo ".editorconfig" ".envrc" ".gitignore" ".golangci.yaml" ".golangci-soft.yaml"
           ;;
         deps)
@@ -121,7 +121,7 @@ let
     is_root_category() {
       local mod="$1"
       case "$mod" in
-        ci|nix|config|deps|docs)
+        ci|nix|dotfiles|deps|docs)
           return 0
           ;;
         *)
