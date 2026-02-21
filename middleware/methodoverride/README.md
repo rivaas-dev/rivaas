@@ -1,6 +1,6 @@
 # MethodOverride
 
-[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router/middleware/methodoverride.svg)](https://pkg.go.dev/rivaas.dev/router/middleware/methodoverride)
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/middleware/methodoverride.svg)](https://pkg.go.dev/rivaas.dev/middleware/methodoverride)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
 
@@ -19,7 +19,7 @@ Let clients send PUT, PATCH, or DELETE using a POST request plus a header or for
 ## Installation
 
 ```bash
-go get rivaas.dev/router/middleware/methodoverride
+go get rivaas.dev/middleware/methodoverride
 ```
 
 Requires Go 1.25 or later.
@@ -32,7 +32,7 @@ package main
 import (
     "net/http"
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/methodoverride"
+    "rivaas.dev/middleware/methodoverride"
 )
 
 func main() {

@@ -3,8 +3,8 @@ module example-method-override
 go 1.25.0
 
 require (
-	rivaas.dev/router v0.10.0
-	rivaas.dev/router/middleware/methodoverride v0.0.0
+	rivaas.dev/middleware/methodoverride v0.0.0
+	rivaas.dev/router v0.11.0
 )
 
 require (
@@ -18,6 +18,6 @@ require (
 
 replace (
 	rivaas.dev/binding => ../../../../binding
-	rivaas.dev/router => ../../..
-	rivaas.dev/router/middleware/methodoverride => ..
+	rivaas.dev/middleware/methodoverride => ..
+	rivaas.dev/router => ../../../router
 )

@@ -21,7 +21,7 @@ import (
 	"net/http"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/methodoverride"
+	"rivaas.dev/middleware/methodoverride"
 )
 
 func main() {

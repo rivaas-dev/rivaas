@@ -22,7 +22,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/methodoverride"
+//	import "rivaas.dev/middleware/methodoverride"
 //
 //	r := router.MustNew()
 //	r.Use(methodoverride.New())
