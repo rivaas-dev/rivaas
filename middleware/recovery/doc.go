@@ -21,7 +21,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/recovery"
+//	import "rivaas.dev/middleware/recovery"
 //
 //	r := router.MustNew()
 //	r.Use(recovery.New())
@@ -39,7 +39,7 @@
 //
 // # Custom Recovery Handler
 //
-//	import "rivaas.dev/router/middleware/recovery"
+//	import "rivaas.dev/middleware/recovery"
 //
 //	r.Use(recovery.New(
 //	    recovery.WithHandler(func(c *router.Context, err any) {

@@ -3,8 +3,8 @@ module example-recovery
 go 1.25.0
 
 require (
-	rivaas.dev/router v0.10.0
-	rivaas.dev/router/middleware/recovery v0.0.0
+	rivaas.dev/middleware/recovery v0.0.0
+	rivaas.dev/router v0.11.0
 )
 
 require (
@@ -20,8 +20,8 @@ require (
 
 replace (
 	rivaas.dev/binding => ../../../../binding
-	rivaas.dev/router => ../../../
-	rivaas.dev/router/middleware/accesslog => ../../accesslog
-	rivaas.dev/router/middleware/recovery => ../../recovery
-	rivaas.dev/router/middleware/requestid => ../../requestid
+	rivaas.dev/middleware/accesslog => ../../accesslog
+	rivaas.dev/middleware/recovery => ../../recovery
+	rivaas.dev/middleware/requestid => ../../requestid
+	rivaas.dev/router => ../../../router
 )

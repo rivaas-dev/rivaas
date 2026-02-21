@@ -25,7 +25,7 @@ import (
 	"os"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/recovery"
+	"rivaas.dev/middleware/recovery"
 )
 
 func main() {
