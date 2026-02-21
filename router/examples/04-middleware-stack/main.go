@@ -26,10 +26,10 @@ import (
 	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/accesslog"
-	"rivaas.dev/router/middleware/cors"
-	"rivaas.dev/router/middleware/recovery"
-	"rivaas.dev/router/middleware/timeout"
+	"rivaas.dev/middleware/accesslog"
+	"rivaas.dev/middleware/cors"
+	"rivaas.dev/middleware/recovery"
+	"rivaas.dev/middleware/timeout"
 )
 
 func main() {

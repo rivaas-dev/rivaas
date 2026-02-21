@@ -5,10 +5,10 @@ go 1.25.0
 require (
 	github.com/charmbracelet/log v0.4.2
 	rivaas.dev/binding v0.0.0
+	rivaas.dev/middleware/accesslog v0.0.0
+	rivaas.dev/middleware/cors v0.0.0
+	rivaas.dev/middleware/recovery v0.0.0
 	rivaas.dev/router v0.10.0
-	rivaas.dev/router/middleware/accesslog v0.0.0
-	rivaas.dev/router/middleware/cors v0.0.0
-	rivaas.dev/router/middleware/recovery v0.0.0
 )
 
 require (
@@ -41,9 +41,9 @@ require (
 replace (
 	rivaas.dev/binding => ../../../binding
 	rivaas.dev/logging => ../../../logging
+	rivaas.dev/middleware/accesslog => ../../../middleware/accesslog
+	rivaas.dev/middleware/cors => ../../../middleware/cors
+	rivaas.dev/middleware/recovery => ../../../middleware/recovery
+	rivaas.dev/middleware/requestid => ../../../middleware/requestid
 	rivaas.dev/router => ../../
-	rivaas.dev/router/middleware/accesslog => ../../middleware/accesslog
-	rivaas.dev/router/middleware/cors => ../../middleware/cors
-	rivaas.dev/router/middleware/recovery => ../../middleware/recovery
-	rivaas.dev/router/middleware/requestid => ../../middleware/requestid
 )

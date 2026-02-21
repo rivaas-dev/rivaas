@@ -2,7 +2,7 @@
 
 Pure router and middleware feature demonstrations.
 
-**No domain logic here** - these examples focus solely on router/middleware capabilities.
+**No domain logic here** - these examples focus solely on router and middleware capabilities.
 
 For complete, production-ready applications with business logic, see `app/examples/`.
 
