@@ -20,8 +20,8 @@ import (
 	"log"
 	"net/http"
 
-	"rivaas.dev/router"
 	"rivaas.dev/middleware/basicauth"
+	"rivaas.dev/router"
 )
 
 func main() {
