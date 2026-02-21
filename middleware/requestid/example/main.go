@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/accesslog"
-	"rivaas.dev/router/middleware/requestid"
+	"rivaas.dev/middleware/accesslog"
+	"rivaas.dev/middleware/requestid"
 )
 
 func main() {

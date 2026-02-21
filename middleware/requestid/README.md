@@ -1,6 +1,6 @@
 # RequestID
 
-[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router/middleware/requestid.svg)](https://pkg.go.dev/rivaas.dev/router/middleware/requestid)
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/middleware/requestid.svg)](https://pkg.go.dev/rivaas.dev/middleware/requestid)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
 
@@ -19,7 +19,7 @@ Give every request a unique ID. You can use it in logs and across services to tr
 ## Installation
 
 ```bash
-go get rivaas.dev/router/middleware/requestid
+go get rivaas.dev/middleware/requestid
 ```
 
 Requires Go 1.25 or later.
@@ -32,7 +32,7 @@ package main
 import (
     "net/http"
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/requestid"
+    "rivaas.dev/middleware/requestid"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module rivaas.dev/router/middleware/requestid
+module rivaas.dev/middleware/requestid
 
 go 1.25
 
@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/stretchr/testify v1.11.1
-	rivaas.dev/router v0.10.0
+	rivaas.dev/router v0.11.0
 )
 
 require (
@@ -21,4 +21,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace rivaas.dev/router => ../../
+replace rivaas.dev/router => ../../router/

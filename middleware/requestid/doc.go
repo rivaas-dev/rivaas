@@ -21,7 +21,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/requestid"
+//	import "rivaas.dev/middleware/requestid"
 //
 //	r := router.MustNew()
 //	r.Use(requestid.New())
@@ -60,7 +60,7 @@
 //
 // The request ID is stored in the request context and can be retrieved:
 //
-//	import "rivaas.dev/router/middleware/requestid"
+//	import "rivaas.dev/middleware/requestid"
 //
 //	func handler(c *router.Context) {
 //	    id := requestid.Get(c)
