@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	"rivaas.dev/binding"
-	"rivaas.dev/router"
 	"rivaas.dev/middleware/bodylimit"
+	"rivaas.dev/router"
 )
 
 func main() {
