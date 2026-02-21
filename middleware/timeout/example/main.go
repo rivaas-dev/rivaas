@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/timeout"
+	"rivaas.dev/middleware/timeout"
 )
 
 func main() {

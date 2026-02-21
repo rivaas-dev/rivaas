@@ -1,6 +1,6 @@
 # Timeout
 
-[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router/middleware/timeout.svg)](https://pkg.go.dev/rivaas.dev/router/middleware/timeout)
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/middleware/timeout.svg)](https://pkg.go.dev/rivaas.dev/middleware/timeout)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
 
@@ -20,7 +20,7 @@ Stop requests that run too long. The middleware sets a deadline on the request; 
 ## Installation
 
 ```bash
-go get rivaas.dev/router/middleware/timeout
+go get rivaas.dev/middleware/timeout
 ```
 
 Requires Go 1.25 or later.
@@ -34,7 +34,7 @@ import (
     "net/http"
     "time"
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/timeout"
+    "rivaas.dev/middleware/timeout"
 )
 
 func main() {

@@ -21,7 +21,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/timeout"
+//	import "rivaas.dev/middleware/timeout"
 //
 //	r := router.MustNew()
 //	r.Use(timeout.New())  // Uses 30s default timeout
