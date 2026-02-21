@@ -20,7 +20,7 @@ import (
 	"net/http"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/ratelimit"
+	"rivaas.dev/middleware/ratelimit"
 )
 
 func main() {

@@ -1,6 +1,6 @@
 # RateLimit
 
-[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router/middleware/ratelimit.svg)](https://pkg.go.dev/rivaas.dev/router/middleware/ratelimit)
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/middleware/ratelimit.svg)](https://pkg.go.dev/rivaas.dev/middleware/ratelimit)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
 
@@ -20,7 +20,7 @@ Limit how many requests each client can make. Uses a token bucket so you get a s
 ## Installation
 
 ```bash
-go get rivaas.dev/router/middleware/ratelimit
+go get rivaas.dev/middleware/ratelimit
 ```
 
 Requires Go 1.25 or later.
@@ -33,7 +33,7 @@ package main
 import (
     "net/http"
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/ratelimit"
+    "rivaas.dev/middleware/ratelimit"
 )
 
 func main() {

@@ -20,7 +20,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/ratelimit"
+//	import "rivaas.dev/middleware/ratelimit"
 //
 //	r := router.MustNew()
 //	r.Use(ratelimit.New(
@@ -47,7 +47,7 @@
 //
 // # Custom Key Function
 //
-//	import "rivaas.dev/router/middleware/ratelimit"
+//	import "rivaas.dev/middleware/ratelimit"
 //
 //	r.Use(ratelimit.New(
 //	    ratelimit.WithRequestsPerSecond(100),
