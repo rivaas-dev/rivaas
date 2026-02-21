@@ -29,9 +29,9 @@ import (
 	"rivaas.dev/metrics"
 	"rivaas.dev/openapi"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/cors"
-	"rivaas.dev/router/middleware/requestid"
-	"rivaas.dev/router/middleware/timeout"
+	"rivaas.dev/middleware/cors"
+	"rivaas.dev/middleware/requestid"
+	"rivaas.dev/middleware/timeout"
 	"rivaas.dev/router/version"
 	"rivaas.dev/tracing"
 )

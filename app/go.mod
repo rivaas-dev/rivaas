@@ -10,26 +10,27 @@ require (
 	github.com/onsi/gomega v1.39.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel/trace v1.40.0
-	rivaas.dev/binding v0.7.3
+	rivaas.dev/binding v0.7.4
 	rivaas.dev/errors v0.6.0
 	rivaas.dev/logging v0.6.0
-	rivaas.dev/metrics v0.6.2
-	rivaas.dev/openapi v0.5.1
-	rivaas.dev/router v0.9.1
-	rivaas.dev/router/middleware/recovery v0.0.0
-	rivaas.dev/tracing v0.6.0
-	rivaas.dev/validation v0.5.2
+	rivaas.dev/metrics v0.6.3
+	rivaas.dev/middleware/recovery v0.1.0
+	rivaas.dev/openapi v0.5.2
+	rivaas.dev/router v0.11.0
+	rivaas.dev/tracing v0.6.1
+	rivaas.dev/validation v0.5.3
 )
 
 replace (
 	rivaas.dev/binding => ../binding
 	rivaas.dev/errors => ../errors
+	rivaas.dev/logging => ../logging
 	rivaas.dev/metrics => ../metrics
+	rivaas.dev/middleware/accesslog => ../middleware/accesslog
+	rivaas.dev/middleware/recovery => ../middleware/recovery
+	rivaas.dev/middleware/requestid => ../middleware/requestid
 	rivaas.dev/openapi => ../openapi
 	rivaas.dev/router => ../router
-	rivaas.dev/router/middleware/accesslog => ../router/middleware/accesslog
-	rivaas.dev/router/middleware/recovery => ../router/middleware/recovery
-	rivaas.dev/router/middleware/requestid => ../router/middleware/requestid
 	rivaas.dev/tracing => ../tracing
 	rivaas.dev/validation => ../validation
 )
@@ -88,7 +89,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a // indirect
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect

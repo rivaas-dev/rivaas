@@ -7,13 +7,13 @@ require (
 	rivaas.dev/app v0.0.0
 	rivaas.dev/config v0.0.0
 	rivaas.dev/logging v0.6.0
-	rivaas.dev/metrics v0.6.2
-	rivaas.dev/openapi v0.5.1
-	rivaas.dev/router v0.9.1
-	rivaas.dev/router/middleware/cors v0.0.0
-	rivaas.dev/router/middleware/requestid v0.0.0
-	rivaas.dev/router/middleware/timeout v0.0.0
-	rivaas.dev/tracing v0.6.0
+	rivaas.dev/metrics v0.6.3
+	rivaas.dev/middleware/cors v0.0.0
+	rivaas.dev/middleware/requestid v0.0.0
+	rivaas.dev/middleware/timeout v0.0.0
+	rivaas.dev/openapi v0.5.2
+	rivaas.dev/router v0.11.0
+	rivaas.dev/tracing v0.6.1
 )
 
 replace (
@@ -23,13 +23,13 @@ replace (
 	rivaas.dev/errors => ../../../errors
 	rivaas.dev/logging => ../../../logging
 	rivaas.dev/metrics => ../../../metrics
+	rivaas.dev/middleware/accesslog => ../../../middleware/accesslog
+	rivaas.dev/middleware/cors => ../../../middleware/cors
+	rivaas.dev/middleware/recovery => ../../../middleware/recovery
+	rivaas.dev/middleware/requestid => ../../../middleware/requestid
+	rivaas.dev/middleware/timeout => ../../../middleware/timeout
 	rivaas.dev/openapi => ../../../openapi
 	rivaas.dev/router => ../../../router
-	rivaas.dev/router/middleware/accesslog => ../../../router/middleware/accesslog
-	rivaas.dev/router/middleware/cors => ../../../router/middleware/cors
-	rivaas.dev/router/middleware/recovery => ../../../router/middleware/recovery
-	rivaas.dev/router/middleware/requestid => ../../../router/middleware/requestid
-	rivaas.dev/router/middleware/timeout => ../../../router/middleware/timeout
 	rivaas.dev/tracing => ../../../tracing
 	rivaas.dev/validation => ../../../validation
 )
@@ -107,7 +107,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a // indirect
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
@@ -117,8 +117,8 @@ require (
 	google.golang.org/grpc v1.79.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	rivaas.dev/binding v0.7.3 // indirect
+	rivaas.dev/binding v0.7.4 // indirect
 	rivaas.dev/errors v0.6.0 // indirect
-	rivaas.dev/router/middleware/recovery v0.0.0 // indirect
-	rivaas.dev/validation v0.5.2 // indirect
+	rivaas.dev/middleware/recovery v0.1.0 // indirect
+	rivaas.dev/validation v0.5.3 // indirect
 )

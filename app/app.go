@@ -33,7 +33,7 @@ import (
 	"rivaas.dev/metrics"
 	"rivaas.dev/openapi"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/recovery"
+	"rivaas.dev/middleware/recovery"
 	"rivaas.dev/router/route"
 	"rivaas.dev/tracing"
 
