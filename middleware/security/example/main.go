@@ -21,8 +21,8 @@ import (
 	"net/http"
 	"strings"
 
-	"rivaas.dev/router"
 	"rivaas.dev/middleware/security"
+	"rivaas.dev/router"
 )
 
 func main() {
