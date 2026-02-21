@@ -26,10 +26,10 @@ import (
 	"github.com/charmbracelet/log"
 
 	"rivaas.dev/binding"
-	"rivaas.dev/router"
 	"rivaas.dev/middleware/accesslog"
 	"rivaas.dev/middleware/cors"
 	"rivaas.dev/middleware/recovery"
+	"rivaas.dev/router"
 )
 
 // APIError represents a structured error response
