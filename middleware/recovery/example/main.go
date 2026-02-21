@@ -24,8 +24,8 @@ import (
 	"net/http"
 	"os"
 
-	"rivaas.dev/router"
 	"rivaas.dev/middleware/recovery"
+	"rivaas.dev/router"
 )
 
 func main() {
