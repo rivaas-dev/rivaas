@@ -20,8 +20,8 @@ import (
 	"net/http"
 	"strings"
 
-	"rivaas.dev/router"
 	"rivaas.dev/middleware/cors"
+	"rivaas.dev/router"
 )
 
 func main() {
