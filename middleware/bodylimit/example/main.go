@@ -24,7 +24,7 @@ import (
 
 	"rivaas.dev/binding"
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/bodylimit"
+	"rivaas.dev/middleware/bodylimit"
 )
 
 func main() {

@@ -21,7 +21,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/bodylimit"
+//	import "rivaas.dev/middleware/bodylimit"
 //
 //	r := router.MustNew()
 //	r.Use(bodylimit.New(
@@ -39,7 +39,7 @@
 // When a request body exceeds the limit, the middleware returns a 413 Payload
 // Too Large response. The error can be customized:
 //
-//	import "rivaas.dev/router/middleware/bodylimit"
+//	import "rivaas.dev/middleware/bodylimit"
 //
 //	r.Use(bodylimit.New(
 //	    bodylimit.WithMaxSize(10 << 20),

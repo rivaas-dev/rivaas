@@ -4,8 +4,8 @@ go 1.25.0
 
 require (
 	rivaas.dev/binding v0.0.0
-	rivaas.dev/router v0.10.0
-	rivaas.dev/router/middleware/bodylimit v0.0.0
+	rivaas.dev/middleware/bodylimit v0.0.0
+	rivaas.dev/router v0.11.0
 )
 
 require (
@@ -18,7 +18,7 @@ require (
 )
 
 replace (
-	rivaas.dev/binding => ../../../../binding
-	rivaas.dev/router => ../../../
-	rivaas.dev/router/middleware/bodylimit => ../../bodylimit
+	rivaas.dev/binding => ../../../binding
+	rivaas.dev/middleware/bodylimit => ../
+	rivaas.dev/router => ../../../router
 )
