@@ -1,6 +1,6 @@
 # BasicAuth
 
-[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router/middleware/basicauth.svg)](https://pkg.go.dev/rivaas.dev/router/middleware/basicauth)
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/middleware/basicauth.svg)](https://pkg.go.dev/rivaas.dev/middleware/basicauth)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
 
@@ -19,7 +19,7 @@ Protect routes with a username and password. The middleware checks credentials a
 ## Installation
 
 ```bash
-go get rivaas.dev/router/middleware/basicauth
+go get rivaas.dev/middleware/basicauth
 ```
 
 Requires Go 1.25 or later.
@@ -32,7 +32,7 @@ package main
 import (
     "net/http"
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/basicauth"
+    "rivaas.dev/middleware/basicauth"
 )
 
 func main() {

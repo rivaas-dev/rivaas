@@ -21,7 +21,7 @@ import (
 	"net/http"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/basicauth"
+	"rivaas.dev/middleware/basicauth"
 )
 
 func main() {

@@ -22,7 +22,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/basicauth"
+//	import "rivaas.dev/middleware/basicauth"
 //
 //	r := router.MustNew()
 //	r.Use(basicauth.New(
@@ -43,7 +43,7 @@
 // The authenticated username is stored in the request context and can be
 // retrieved using the Username function:
 //
-//	import "rivaas.dev/router/middleware/basicauth"
+//	import "rivaas.dev/middleware/basicauth"
 //
 //	func handler(c *router.Context) {
 //	    username := basicauth.Username(c)
