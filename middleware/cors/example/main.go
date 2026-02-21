@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/cors"
+	"rivaas.dev/middleware/cors"
 )
 
 func main() {

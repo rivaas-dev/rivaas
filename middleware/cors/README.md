@@ -1,6 +1,6 @@
 # CORS
 
-[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router/middleware/cors.svg)](https://pkg.go.dev/rivaas.dev/router/middleware/cors)
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/middleware/cors.svg)](https://pkg.go.dev/rivaas.dev/middleware/cors)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
 
@@ -19,7 +19,7 @@ Control which websites can call your API from the browser. CORS (Cross-Origin Re
 ## Installation
 
 ```bash
-go get rivaas.dev/router/middleware/cors
+go get rivaas.dev/middleware/cors
 ```
 
 Requires Go 1.25 or later.
@@ -32,7 +32,7 @@ package main
 import (
     "net/http"
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/cors"
+    "rivaas.dev/middleware/cors"
 )
 
 func main() {

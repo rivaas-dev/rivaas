@@ -21,7 +21,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/cors"
+//	import "rivaas.dev/middleware/cors"
 //
 //	r := router.MustNew()
 //	r.Use(cors.New(
