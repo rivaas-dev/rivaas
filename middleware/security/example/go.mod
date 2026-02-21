@@ -3,8 +3,8 @@ module example-security
 go 1.25.0
 
 require (
-	rivaas.dev/router v0.10.0
-	rivaas.dev/router/middleware/security v0.0.0
+	rivaas.dev/middleware/security v0.0.0
+	rivaas.dev/router v0.11.0
 )
 
 require (
@@ -18,6 +18,6 @@ require (
 
 replace (
 	rivaas.dev/binding => ../../../../binding
-	rivaas.dev/router => ../../../
-	rivaas.dev/router/middleware/security => ../../security
+	rivaas.dev/middleware/security => ../../security
+	rivaas.dev/router => ../../../router
 )

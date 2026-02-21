@@ -21,7 +21,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/security"
+//	import "rivaas.dev/middleware/security"
 //
 //	r := router.MustNew()
 //	r.Use(security.New())

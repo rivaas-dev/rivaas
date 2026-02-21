@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/security"
+	"rivaas.dev/middleware/security"
 )
 
 func main() {

@@ -1,6 +1,6 @@
 # Security
 
-[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router/middleware/security.svg)](https://pkg.go.dev/rivaas.dev/router/middleware/security)
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/middleware/security.svg)](https://pkg.go.dev/rivaas.dev/middleware/security)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
 
@@ -21,7 +21,7 @@ Add security-related HTTP headers to protect your app from common issues like cl
 ## Installation
 
 ```bash
-go get rivaas.dev/router/middleware/security
+go get rivaas.dev/middleware/security
 ```
 
 Requires Go 1.25 or later.
@@ -34,7 +34,7 @@ package main
 import (
     "net/http"
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/security"
+    "rivaas.dev/middleware/security"
 )
 
 func main() {
