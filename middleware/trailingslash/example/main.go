@@ -21,7 +21,7 @@ import (
 	"net/http"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/trailingslash"
+	"rivaas.dev/middleware/trailingslash"
 )
 
 func main() {

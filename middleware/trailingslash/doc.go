@@ -21,7 +21,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/trailingslash"
+//	import "rivaas.dev/middleware/trailingslash"
 //
 //	r := router.MustNew()
 //	r.Use(trailingslash.New(
