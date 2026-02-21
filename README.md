@@ -177,7 +177,7 @@ See [App Documentation](./app/README.md) for complete configuration options.
 
 12 production-ready middleware included: `accesslog`, `recovery`, `cors`, `requestid`, `timeout`, `ratelimit`, `basicauth`, `bodylimit`, `compression`, `security`, `methodoverride`, `trailingslash`.
 
-→ [Middleware Documentation](./middleware/README.md)
+→ [Middleware Catalog](./middleware/README.md)
 
 ## Examples
 
@@ -185,7 +185,7 @@ See [App Documentation](./app/README.md) for complete configuration options.
 |-----------|-------------|
 | [App Examples](./app/examples/) | Quick start and full-featured apps |
 | [Router Examples](./router/examples/) | Routing, middleware, versioning, static files |
-| [Middleware Examples](./router/middleware/examples/) | All middleware usage with curl commands |
+| [Middleware Examples](./middleware/) | Each package has an `example/` subdirectory with runnable demos |
 
 ## Performance
 
@@ -218,7 +218,7 @@ rivaas/
 | [App Guide](./app/README.md) | Complete framework documentation |
 | [Router Guide](./router/README.md) | HTTP routing and request handling |
 | [Config Guide](./config/README.md) | Configuration management |
-| [Middleware Catalog](./router/middleware/README.md) | All 12 middleware with examples |
+| [Middleware Catalog](./middleware/README.md) | All 12 middleware with examples |
 | [Design Principles](./docs/DESIGN_PRINCIPLES.md) | Architecture and design decisions |
 | [Testing Standards](./docs/TESTING_STANDARDS.md) | Testing guidelines and patterns |
 
