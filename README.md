@@ -177,7 +177,7 @@ See [App Documentation](./app/README.md) for complete configuration options.
 
 12 production-ready middleware included: `accesslog`, `recovery`, `cors`, `requestid`, `timeout`, `ratelimit`, `basicauth`, `bodylimit`, `compression`, `security`, `methodoverride`, `trailingslash`.
 
-→ [Middleware Documentation](./router/middleware/README.md)
+→ [Middleware Documentation](./middleware/README.md)
 
 ## Examples
 
@@ -198,6 +198,7 @@ Multi-module repository — each package has its own `go.mod` and can be version
 ```
 rivaas/
 ├── app/          → rivaas.dev/app
+├── middleware/   → rivaas.dev/middleware/*
 ├── router/       → rivaas.dev/router
 ├── binding/      → rivaas.dev/binding
 ├── validation/   → rivaas.dev/validation
