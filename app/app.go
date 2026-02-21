@@ -31,9 +31,9 @@ import (
 	"rivaas.dev/errors"
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
+	"rivaas.dev/middleware/recovery"
 	"rivaas.dev/openapi"
 	"rivaas.dev/router"
-	"rivaas.dev/middleware/recovery"
 	"rivaas.dev/router/route"
 	"rivaas.dev/tracing"
 

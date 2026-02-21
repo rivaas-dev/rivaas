@@ -27,11 +27,11 @@ import (
 	"rivaas.dev/config"
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
-	"rivaas.dev/openapi"
-	"rivaas.dev/router"
 	"rivaas.dev/middleware/cors"
 	"rivaas.dev/middleware/requestid"
 	"rivaas.dev/middleware/timeout"
+	"rivaas.dev/openapi"
+	"rivaas.dev/router"
 	"rivaas.dev/router/version"
 	"rivaas.dev/tracing"
 )
