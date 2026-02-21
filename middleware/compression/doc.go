@@ -20,7 +20,7 @@
 //
 // # Basic Usage
 //
-//	import "rivaas.dev/router/middleware/compression"
+//	import "rivaas.dev/middleware/compression"
 //
 //	r := router.MustNew()
 //	r.Use(compression.New())

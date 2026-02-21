@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"rivaas.dev/router"
-	"rivaas.dev/router/middleware/compression"
+	"rivaas.dev/middleware/compression"
 )
 
 func main() {
