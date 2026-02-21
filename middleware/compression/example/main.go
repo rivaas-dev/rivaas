@@ -22,8 +22,8 @@ import (
 	"net/http"
 	"strings"
 
-	"rivaas.dev/router"
 	"rivaas.dev/middleware/compression"
+	"rivaas.dev/router"
 )
 
 func main() {
