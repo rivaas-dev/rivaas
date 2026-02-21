@@ -21,8 +21,8 @@ import (
 	"net/http"
 	"time"
 
-	"rivaas.dev/router"
 	"rivaas.dev/middleware/timeout"
+	"rivaas.dev/router"
 )
 
 func main() {
