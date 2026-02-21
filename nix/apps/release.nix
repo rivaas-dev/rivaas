@@ -278,7 +278,7 @@ $mod,$version,$commit_count"
           continue
         fi
 
-        # Auto-generate changelog from commits (filter_router_commits excludes middleware-only for router)
+        # Auto-generate changelog from commits
         if [ -n "$latest_tag" ]; then
           raw_commits=$($git log --oneline "$latest_tag"..HEAD -- "$mod/" 2>/dev/null | filter_router_commits "$mod")
         else

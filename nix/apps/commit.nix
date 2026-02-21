@@ -47,12 +47,6 @@ let
             untracked=$((untracked + $($git ls-files --others --exclude-standard -- "$pattern" 2>/dev/null | wc -l)))
           fi
         done
-      # Special handling for router: exclude middleware subdirs (separate modules)
-      # but include files directly in router/middleware/ (e.g. README.md)
-      elif [ "$mod" = "router" ]; then
-        staged=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | wc -l)
-        unstaged=$($git diff --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | wc -l)
-        untracked=$($git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | wc -l)
       else
         staged=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l)
         unstaged=$($git diff --name-only -- "$mod/" 2>/dev/null | wc -l)
@@ -579,8 +573,6 @@ in
           for pattern in "''${patterns[@]}"; do
             file_count=$((file_count + $($git diff --cached --name-only -- "$pattern" 2>/dev/null | wc -l)))
           done
-        elif [ "$mod" = "router" ]; then
-          file_count=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | wc -l | tr -d ' ')
         else
           file_count=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l | tr -d ' ')
         fi

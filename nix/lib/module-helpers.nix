@@ -1,16 +1,9 @@
 # Shared helper functions for module operations (commit, release)
 {
-  # Shorten module path for commit message prefix
-  # router/middleware/accesslog -> middleware/accesslog
-  # router -> router
+  # Shorten module path for commit message prefix (no special cases; modules are at root)
   shortenPrefixScript = ''
     shorten_prefix() {
-      local mod="$1"
-      if [[ "$mod" == router/middleware/* ]]; then
-        echo "''${mod#router/}"
-      else
-        echo "$mod"
-      fi
+      echo "$1"
     }
   '';
 
@@ -48,25 +41,10 @@
     }
   '';
 
-  # Filter router commits: exclude commits that only touched router/middleware/*/ subdirs
-  # Reads commit lines from stdin, writes filtered lines to stdout
-  # Uses $git (must be in scope when script runs)
+  # Pass-through: middleware is at repo root, no exclusion needed per module
   filterRouterCommitsScript = ''
     filter_router_commits() {
-      local mod="$1"
-      if [ "$mod" != "router" ]; then
-        cat
-        return
-      fi
-      while IFS= read -r commit_line; do
-        [ -z "$commit_line" ] && continue
-        commit_hash=$(echo "$commit_line" | cut -d' ' -f1)
-        files_changed=$($git show --name-only --format="" "$commit_hash" -- "$mod/" 2>/dev/null)
-        non_middleware_files=$(echo "$files_changed" | grep -v "^router/middleware/[^/]\+/" || true)
-        if [ -n "$non_middleware_files" ]; then
-          echo "$commit_line"
-        fi
-      done
+      cat
     }
   '';
 }
