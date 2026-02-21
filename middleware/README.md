@@ -44,9 +44,9 @@ import (
     "os"
     
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/accesslog"
-    "rivaas.dev/router/middleware/recovery"
-    "rivaas.dev/router/middleware/requestid"
+    "rivaas.dev/middleware/accesslog"
+    "rivaas.dev/middleware/recovery"
+    "rivaas.dev/middleware/requestid"
 )
 
 func main() {
@@ -94,11 +94,11 @@ Each middleware package includes a runnable example in an `example/` subdirector
 
 ```bash
 # Run the BasicAuth example
-cd basicauth/example
+cd middleware/basicauth/example
 go run main.go
 
 # Run the AccessLog example
-cd accesslog/example
+cd middleware/accesslog/example
 go run main.go
 ```
 
@@ -110,11 +110,11 @@ Each middleware has unit tests:
 
 ```bash
 # Run all middleware tests
-go test ./...
+go test ./middleware/...
 
 # Run tests for a specific middleware
-go test ./basicauth/...
-go test ./accesslog/...
+go test ./middleware/basicauth/...
+go test ./middleware/accesslog/...
 ```
 
 ## Middleware Ordering
@@ -151,8 +151,8 @@ When adding new middleware:
 4. Include unit tests
 5. Add a runnable example in an `example/` subdirectory
 6. Create its own `go.mod` for independent versioning
-7. Add a README.md in the package and update this README and the documentation site
+7. Add a README.md in the package and update this doc and the documentation site
 
 ## License
 
-Apache License 2.0 - see [LICENSE](../../LICENSE) for details.
+Apache License 2.0 - see [LICENSE](../LICENSE) for details.
