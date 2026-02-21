@@ -25,7 +25,7 @@
 //	import (
 //	    "log/slog"
 //	    "os"
-//	    "rivaas.dev/router/middleware/accesslog"
+//	    "rivaas.dev/middleware/accesslog"
 //	)
 //
 //	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))

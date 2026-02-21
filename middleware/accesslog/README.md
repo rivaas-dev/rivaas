@@ -1,6 +1,6 @@
 # AccessLog
 
-[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/router/middleware/accesslog.svg)](https://pkg.go.dev/rivaas.dev/router/middleware/accesslog)
+[![Go Reference](https://pkg.go.dev/badge/rivaas.dev/middleware/accesslog.svg)](https://pkg.go.dev/rivaas.dev/middleware/accesslog)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.25-blue)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
 
@@ -20,7 +20,7 @@ Log every HTTP request and response in a structured way. You get method, path, s
 ## Installation
 
 ```bash
-go get rivaas.dev/router/middleware/accesslog
+go get rivaas.dev/middleware/accesslog
 ```
 
 Requires Go 1.25 or later.
@@ -36,8 +36,8 @@ import (
     "os"
 
     "rivaas.dev/router"
-    "rivaas.dev/router/middleware/accesslog"
-    "rivaas.dev/router/middleware/requestid"
+    "rivaas.dev/middleware/accesslog"
+    "rivaas.dev/middleware/requestid"
 )
 
 func main() {
