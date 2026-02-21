@@ -77,6 +77,7 @@ let
       echo "dotfiles"
       echo "deps"
       echo "docs"
+      echo "middleware"
       
       # Go modules
       ${pkgs.findutils}/bin/find . ${lib.findPatterns.rootModules} | sed 's|^\./||' | sort
@@ -103,6 +104,9 @@ let
         docs)
           echo "README.md" "LICENSE"
           ;;
+        middleware)
+          echo "middleware/README.md"
+          ;;
         *)
           return 1
           ;;
@@ -115,7 +119,7 @@ let
     is_root_category() {
       local mod="$1"
       case "$mod" in
-        ci|nix|dotfiles|deps|docs)
+        ci|nix|dotfiles|deps|docs|middleware)
           return 0
           ;;
         *)
