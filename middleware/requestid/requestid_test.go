@@ -19,6 +19,7 @@ package requestid
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -110,7 +111,7 @@ func TestRequestID_Configuration(t *testing.T) {
 	counter := 0
 	customGenerator := func() string {
 		counter++
-		return "custom-id-" + string(rune('0'+counter))
+		return "custom-id-" + strconv.Itoa(counter)
 	}
 
 	tests := []struct {
