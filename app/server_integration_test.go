@@ -27,6 +27,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -133,7 +134,11 @@ var _ = Describe("Server Start", func() {
 
 	Describe("Debug endpoints", func() {
 		It("should serve /debug/pprof/ when app is started with WithDebugEndpoints(WithPprof)", func() {
-			const port = 58104
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			Expect(err).NotTo(HaveOccurred())
+			port := listener.Addr().(*net.TCPAddr).Port
+			listener.Close()
+
 			a := app.MustNew(
 				app.WithServiceName("test"),
 				app.WithServiceVersion("1.0.0"),
@@ -150,11 +155,20 @@ var _ = Describe("Server Start", func() {
 				serverErr <- a.Start(ctx)
 			}()
 
-			time.Sleep(400 * time.Millisecond)
-
 			pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof/", port)
-			resp, err := http.Get(pprofURL)
+			var resp *http.Response
+			for i := 0; i < 50; i++ {
+				time.Sleep(100 * time.Millisecond)
+				resp, err = http.Get(pprofURL)
+				if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
+					break
+				}
+				if resp != nil {
+					resp.Body.Close()
+				}
+			}
 			Expect(err).NotTo(HaveOccurred())
+			Expect(resp).NotTo(BeNil())
 			defer resp.Body.Close()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 

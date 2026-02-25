@@ -22,6 +22,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -33,6 +35,8 @@ import (
 	"rivaas.dev/app"
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
+	"rivaas.dev/router"
+	"rivaas.dev/router/version"
 	"rivaas.dev/tracing"
 )
 
@@ -142,6 +146,403 @@ var _ = Describe("App Integration", func() {
 		})
 	})
 
+	Describe("Option application", func() {
+		It("should create app with minimal options", func() {
+			a := app.MustNew(
+				app.WithServiceName("minimal"),
+				app.WithServiceVersion("0.0.0"),
+			)
+			Expect(a).NotTo(BeNil())
+			Expect(a.ServiceName()).To(Equal("minimal"))
+		})
+
+		It("should create app with server options", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+				app.WithServer(
+					app.WithReadTimeout(1*time.Second),
+					app.WithWriteTimeout(1*time.Second),
+					app.WithShutdownTimeout(1*time.Second),
+				),
+			)
+			Expect(a).NotTo(BeNil())
+		})
+
+		It("should register route with and without route options", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.GET("/plain", func(c *app.Context) {
+				_ = c.String(http.StatusOK, "plain")
+			})
+			a.GET("/with-middleware", func(c *app.Context) {
+				_ = c.String(http.StatusOK, "middleware")
+			}, app.WithBefore(func(c *app.Context) {
+				c.Next()
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/plain", nil)
+			rec := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			Expect(rec.Body.String()).To(Equal("plain"))
+
+			req2 := httptest.NewRequest(http.MethodGet, "/with-middleware", nil)
+			rec2 := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec2, req2)
+			Expect(rec2.Code).To(Equal(http.StatusOK))
+			Expect(rec2.Body.String()).To(Equal("middleware"))
+		})
+	})
+
+	// registerRoute default branch: The default branch in registerRoute (for unsupported
+	// HTTP method) is defensive only. All public APIs (GET, POST, PUT, DELETE, PATCH, HEAD,
+	// OPTIONS, Any) pass a known method, so the default is not reachable from public API.
+
+	Describe("App Getters and Metrics", func() {
+		Describe("ServiceName, ServiceVersion, Environment", func() {
+			It("should return configured service name, version, and environment", func() {
+				a := app.MustNew(
+					app.WithServiceName("my-service"),
+					app.WithServiceVersion("2.0.0"),
+					app.WithEnvironment(app.EnvironmentProduction),
+				)
+				Expect(a.ServiceName()).To(Equal("my-service"))
+				Expect(a.ServiceVersion()).To(Equal("2.0.0"))
+				Expect(a.Environment()).To(Equal(app.EnvironmentProduction))
+			})
+
+			It("should return default environment when not configured", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+				)
+				Expect(a.Environment()).To(Equal(app.DefaultEnvironment))
+			})
+		})
+
+		Describe("GetMetricsHandler", func() {
+			It("should return error when metrics are not enabled", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+				)
+				handler, err := a.GetMetricsHandler()
+				Expect(err).To(HaveOccurred())
+				Expect(handler).To(BeNil())
+				Expect(err.Error()).To(ContainSubstring("metrics not enabled"))
+			})
+
+			It("should return handler when metrics are enabled", func() {
+				a, err := app.New(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+					app.WithObservability(app.WithMetrics(metrics.WithPrometheus(":0", "/metrics"))),
+				)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(a).NotTo(BeNil())
+				handler, err := a.GetMetricsHandler()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(handler).NotTo(BeNil())
+			})
+		})
+
+		Describe("GetMetricsServerAddress", func() {
+			It("should return empty string when metrics are not enabled", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+				)
+				addr := a.GetMetricsServerAddress()
+				Expect(addr).To(Equal(""))
+			})
+
+			It("should return address when metrics are enabled", func() {
+				a, err := app.New(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+					app.WithObservability(app.WithMetrics(metrics.WithPrometheus(":9091", "/metrics"))),
+				)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(a).NotTo(BeNil())
+				addr := a.GetMetricsServerAddress()
+				Expect(addr).NotTo(BeEmpty())
+				Expect(addr).To(ContainSubstring("9091"))
+			})
+		})
+
+		Describe("Metrics and Tracing", func() {
+			It("should return nil when observability is not configured", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+				)
+				Expect(a.Metrics()).To(BeNil())
+				Expect(a.Tracing()).To(BeNil())
+			})
+
+			It("should return non-nil when observability is configured", func() {
+				a, err := app.New(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+					app.WithObservability(
+						app.WithMetrics(metrics.WithPrometheus(":0", "/metrics")),
+						app.WithTracing(tracing.WithNoop()),
+					),
+				)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(a).NotTo(BeNil())
+				Expect(a.Metrics()).NotTo(BeNil())
+				Expect(a.Tracing()).NotTo(BeNil())
+			})
+		})
+
+		Describe("BaseLogger", func() {
+			It("should never return nil when no logger is configured", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+				)
+				logger := a.BaseLogger()
+				Expect(logger).NotTo(BeNil())
+			})
+
+			It("should return configured logger when logging is enabled", func() {
+				a, err := app.New(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+					app.WithObservability(app.WithLogging(logging.WithLevel(logging.LevelInfo))),
+				)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(a).NotTo(BeNil())
+				logger := a.BaseLogger()
+				Expect(logger).NotTo(BeNil())
+			})
+		})
+	})
+
+	Describe("Route Introspection", func() {
+		It("should return route by name and list all routes after freeze", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.GET("/users/:id", func(c *app.Context) {
+				_ = c.String(http.StatusOK, "ok")
+			}).SetName("users.get")
+			a.GET("/users", func(c *app.Context) {
+				_ = c.String(http.StatusOK, "list")
+			}).SetName("users.list")
+
+			a.Router().Freeze()
+
+			rt, ok := a.Route("users.get")
+			Expect(ok).To(BeTrue())
+			Expect(rt).NotTo(BeNil())
+			Expect(rt.Name()).To(Equal("users.get"))
+			Expect(rt.Method()).To(Equal(http.MethodGet))
+			Expect(rt.Path()).To(Equal("/users/:id"))
+
+			_, ok = a.Route("nonexistent")
+			Expect(ok).To(BeFalse())
+
+			routes := a.Routes()
+			Expect(routes).NotTo(BeNil())
+			Expect(routes).To(HaveLen(2))
+		})
+
+		It("should generate URL from route name via URLFor and MustURLFor", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.GET("/users/:id", func(c *app.Context) {
+				_ = c.String(http.StatusOK, "ok")
+			}).SetName("users.get")
+
+			a.Router().Freeze()
+
+			url, err := a.URLFor("users.get", map[string]string{"id": "123"}, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(url).To(Equal("/users/123"))
+
+			mustURL := a.MustURLFor("users.get", map[string]string{"id": "456"}, nil)
+			Expect(mustURL).To(Equal("/users/456"))
+		})
+
+		It("should return error from URLFor when route is not found", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.Router().Freeze()
+
+			_, err := a.URLFor("missing.route", nil, nil)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should panic when MustURLFor is called with missing route", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.Router().Freeze()
+
+			Expect(func() {
+				a.MustURLFor("missing.route", nil, nil)
+			}).To(Panic())
+		})
+	})
+
+	Describe("NoRoute", func() {
+		It("should restore default NotFound behavior when NoRoute(nil) is called", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.GET("/known", func(c *app.Context) {
+				_ = c.String(http.StatusOK, "ok")
+			})
+			a.NoRoute(nil)
+
+			req := httptest.NewRequest(http.MethodGet, "/unknown/path", nil)
+			rec := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should use custom handler when NoRoute is set to non-nil", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.NoRoute(func(c *app.Context) {
+				_ = c.JSON(http.StatusNotFound, map[string]string{"error": "route not found"})
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/unknown", nil)
+			rec := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+			Expect(rec.Body.String()).To(ContainSubstring("route not found"))
+		})
+	})
+
+	Describe("Version, Static, Any, File, StaticFS", func() {
+		It("should serve routes registered under Version group", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+				app.WithRouter(
+					router.WithVersioning(
+						version.WithPathDetection("/v{version}/"),
+						version.WithDefault("v1"),
+					),
+				),
+			)
+			v1 := a.Version("v1")
+			v1.GET("/status", func(c *app.Context) {
+				_ = c.String(http.StatusOK, "v1-status")
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
+			rec := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			Expect(rec.Body.String()).To(Equal("v1-status"))
+		})
+
+		It("should serve static files from directory via Static", func() {
+			dir, err := os.MkdirTemp("", "app-static-*")
+			Expect(err).NotTo(HaveOccurred())
+			defer os.RemoveAll(dir)
+			err = os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hello static"), 0o644)
+			Expect(err).NotTo(HaveOccurred())
+
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.Static("/static", dir)
+
+			req := httptest.NewRequest(http.MethodGet, "/static/hello.txt", nil)
+			rec := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			Expect(rec.Body.String()).To(Equal("hello static"))
+		})
+
+		It("should match all HTTP methods via Any", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.Any("/any", func(c *app.Context) {
+				_ = c.String(http.StatusOK, "any:"+c.Request.Method)
+			})
+
+			for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut} {
+				req := httptest.NewRequest(method, "/any", nil)
+				rec := httptest.NewRecorder()
+				a.Router().ServeHTTP(rec, req)
+				Expect(rec.Code).To(Equal(http.StatusOK))
+				Expect(rec.Body.String()).To(Equal("any:" + method))
+			}
+		})
+
+		It("should serve single file via File", func() {
+			f, err := os.CreateTemp("", "app-file-*.txt")
+			Expect(err).NotTo(HaveOccurred())
+			_, err = f.Write([]byte("file content"))
+			Expect(err).NotTo(HaveOccurred())
+			path := f.Name()
+			Expect(f.Close()).NotTo(HaveOccurred())
+			defer os.Remove(path)
+
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.File("/f", path)
+
+			req := httptest.NewRequest(http.MethodGet, "/f", nil)
+			rec := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			Expect(rec.Body.String()).To(Equal("file content"))
+		})
+
+		It("should serve files from filesystem via StaticFS", func() {
+			dir, err := os.MkdirTemp("", "app-staticfs-*")
+			Expect(err).NotTo(HaveOccurred())
+			defer os.RemoveAll(dir)
+			err = os.MkdirAll(filepath.Join(dir, "sub"), 0o755)
+			Expect(err).NotTo(HaveOccurred())
+			err = os.WriteFile(filepath.Join(dir, "sub", "fs.txt"), []byte("fs content"), 0o644)
+			Expect(err).NotTo(HaveOccurred())
+
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.StaticFS("/fs", http.Dir(dir))
+
+			req := httptest.NewRequest(http.MethodGet, "/fs/sub/fs.txt", nil)
+			rec := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			Expect(rec.Body.String()).To(Equal("fs content"))
+		})
+	})
+
 	Describe("Route Handling", func() {
 		var a *app.App
 
@@ -220,6 +621,32 @@ var _ = Describe("App Integration", func() {
 
 			Expect(executionOrder).To(Equal([]string{"middleware1", "middleware2", "handler"}))
 			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+	})
+
+	Describe("Handler Panic and Context Pool", func() {
+		It("should recover from handler panic and return context to pool for subsequent requests", func() {
+			a := app.MustNew(
+				app.WithServiceName("test"),
+				app.WithServiceVersion("1.0.0"),
+			)
+			a.GET("/panic", func(c *app.Context) {
+				panic("test panic")
+			})
+			a.GET("/ok", func(c *app.Context) {
+				_ = c.String(http.StatusOK, "ok")
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/panic", nil)
+			rec := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
+
+			req2 := httptest.NewRequest(http.MethodGet, "/ok", nil)
+			rec2 := httptest.NewRecorder()
+			a.Router().ServeHTTP(rec2, req2)
+			Expect(rec2.Code).To(Equal(http.StatusOK))
+			Expect(rec2.Body.String()).To(Equal("ok"))
 		})
 	})
 
@@ -697,6 +1124,141 @@ var _ = Describe("App Integration", func() {
 				}
 
 				wg.Wait()
+			})
+		})
+
+		Describe("Group routes", func() {
+			It("should serve routes registered on Group for all HTTP methods", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+				)
+				api := a.Group("/api")
+				api.GET("/get", func(c *app.Context) { _ = c.String(http.StatusOK, "get") })
+				api.POST("/post", func(c *app.Context) { _ = c.String(http.StatusOK, "post") })
+				api.PUT("/put", func(c *app.Context) { _ = c.String(http.StatusOK, "put") })
+				api.DELETE("/delete", func(c *app.Context) { _ = c.String(http.StatusOK, "delete") })
+				api.PATCH("/patch", func(c *app.Context) { _ = c.String(http.StatusOK, "patch") })
+				api.HEAD("/head", func(c *app.Context) { _ = c.String(http.StatusOK, "head") })
+				api.OPTIONS("/options", func(c *app.Context) { _ = c.String(http.StatusOK, "options") })
+				api.Any("/any", func(c *app.Context) { _ = c.String(http.StatusOK, "any") })
+
+				for _, tc := range []struct {
+					method string
+					path   string
+					body   string
+				}{
+					{http.MethodGet, "/api/get", ""},
+					{http.MethodPost, "/api/post", ""},
+					{http.MethodPut, "/api/put", ""},
+					{http.MethodDelete, "/api/delete", ""},
+					{http.MethodPatch, "/api/patch", ""},
+					{http.MethodHead, "/api/head", ""},
+					{http.MethodOptions, "/api/options", ""},
+					{http.MethodGet, "/api/any", ""},
+					{http.MethodPost, "/api/any", ""},
+				} {
+					req := httptest.NewRequest(tc.method, tc.path, nil)
+					rec := httptest.NewRecorder()
+					a.Router().ServeHTTP(rec, req)
+					Expect(rec.Code).To(Equal(http.StatusOK), "method=%s path=%s", tc.method, tc.path)
+				}
+			})
+		})
+
+		Describe("Group Use (middleware)", func() {
+			It("should run group middleware for routes under the group", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+				)
+				var groupMiddlewareRan bool
+				api := a.Group("/api")
+				api.Use(func(c *app.Context) {
+					groupMiddlewareRan = true
+					c.Next()
+				})
+				api.GET("/ok", func(c *app.Context) { _ = c.String(http.StatusOK, "ok") })
+
+				req := httptest.NewRequest(http.MethodGet, "/api/ok", nil)
+				rec := httptest.NewRecorder()
+				a.Router().ServeHTTP(rec, req)
+				Expect(rec.Code).To(Equal(http.StatusOK))
+				Expect(rec.Body.String()).To(Equal("ok"))
+				Expect(groupMiddlewareRan).To(BeTrue())
+			})
+		})
+
+		Describe("Version group routes", func() {
+			It("should serve POST, PUT, DELETE, PATCH on versioned routes", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+					app.WithRouter(router.WithVersioning(version.WithPathDetection("/v{version}/"), version.WithDefault("v1"))),
+				)
+				v1 := a.Version("v1")
+				v1.GET("/status", func(c *app.Context) { _ = c.String(http.StatusOK, "get") })
+				v1.POST("/items", func(c *app.Context) { _ = c.String(http.StatusOK, "post") })
+				v1.PUT("/items/:id", func(c *app.Context) { _ = c.String(http.StatusOK, "put") })
+				v1.DELETE("/items/:id", func(c *app.Context) { _ = c.String(http.StatusOK, "delete") })
+				v1.PATCH("/items/:id", func(c *app.Context) { _ = c.String(http.StatusOK, "patch") })
+
+				for _, tc := range []struct {
+					method string
+					path   string
+					body   string
+				}{
+					{http.MethodPost, "/v1/items", ""},
+					{http.MethodPut, "/v1/items/1", ""},
+					{http.MethodDelete, "/v1/items/1", ""},
+					{http.MethodPatch, "/v1/items/1", ""},
+				} {
+					req := httptest.NewRequest(tc.method, tc.path, nil)
+					rec := httptest.NewRecorder()
+					a.Router().ServeHTTP(rec, req)
+					Expect(rec.Code).To(Equal(http.StatusOK), "method=%s path=%s", tc.method, tc.path)
+				}
+			})
+		})
+
+		Describe("Context error helpers", func() {
+			It("should respond with correct status for NotFound, BadRequest, Unauthorized, Forbidden, Conflict, Gone, UnprocessableEntity, TooManyRequests, InternalError, ServiceUnavailable", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithServiceVersion("1.0.0"),
+				)
+				a.GET("/404", func(c *app.Context) { c.NotFound(nil) })
+				a.GET("/400", func(c *app.Context) { c.BadRequest(nil) })
+				a.GET("/401", func(c *app.Context) { c.Unauthorized(nil) })
+				a.GET("/403", func(c *app.Context) { c.Forbidden(nil) })
+				a.GET("/409", func(c *app.Context) { c.Conflict(nil) })
+				a.GET("/410", func(c *app.Context) { c.Gone(nil) })
+				a.GET("/422", func(c *app.Context) { c.UnprocessableEntity(nil) })
+				a.GET("/429", func(c *app.Context) { c.TooManyRequests(nil) })
+				a.GET("/500", func(c *app.Context) { c.InternalError(nil) })
+				a.GET("/503", func(c *app.Context) { c.ServiceUnavailable(nil) })
+
+				tests := []struct {
+					path       string
+					expectCode int
+				}{
+					{"/404", http.StatusNotFound},
+					{"/400", http.StatusBadRequest},
+					{"/401", http.StatusUnauthorized},
+					{"/403", http.StatusForbidden},
+					{"/409", http.StatusConflict},
+					{"/410", http.StatusGone},
+					{"/422", http.StatusUnprocessableEntity},
+					{"/429", http.StatusTooManyRequests},
+					{"/500", http.StatusInternalServerError},
+					{"/503", http.StatusServiceUnavailable},
+				}
+				for _, tt := range tests {
+					req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+					rec := httptest.NewRecorder()
+					a.Router().ServeHTTP(rec, req)
+					Expect(rec.Code).To(Equal(tt.expectCode), "path=%s", tt.path)
+				}
 			})
 		})
 	})
