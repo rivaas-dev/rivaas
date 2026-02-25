@@ -18,6 +18,7 @@ package metrics
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -472,7 +473,7 @@ func BenchmarkMetricCreation_Parallel(b *testing.B) {
 			i := counter
 			counter++
 			//nolint:errcheck // Benchmark hot path
-			recorder.RecordHistogram(b.Context(), "parallel.metric."+string(rune(i)), float64(i))
+			recorder.RecordHistogram(b.Context(), "parallel.metric."+strconv.FormatInt(i, 10), float64(i))
 		}
 	})
 }
@@ -663,7 +664,7 @@ func BenchmarkCASRetryBackoff(b *testing.B) {
 				defer wg.Done()
 				for i := range itemsPerGoroutine {
 					//nolint:errcheck // Benchmark hot path
-					recorder.IncrementCounter(b.Context(), "parallel.counter."+string(rune(goroutineID*itemsPerGoroutine+i)))
+					recorder.IncrementCounter(b.Context(), "parallel.counter."+strconv.Itoa(goroutineID*itemsPerGoroutine+i))
 				}
 			}(g)
 		}
