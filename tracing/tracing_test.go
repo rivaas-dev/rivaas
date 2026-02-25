@@ -481,7 +481,7 @@ func TestContextTracingHelpers(t *testing.T) {
 		spanID := SpanID(ctx)
 
 		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Test handler
+		//nolint:errcheck,gosec // Test handler; G705: trace IDs from tracer, not user input
 		w.Write(fmt.Appendf(nil, `{"trace_id":"%s","span_id":"%s"}`, traceID, spanID))
 	}))
 
