@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -173,7 +174,7 @@ func TestBodyLimit_NoContentLength_WithinLimit(t *testing.T) {
 			return
 		}
 		//nolint:errcheck // Test handler
-		c.JSON(http.StatusOK, map[string]string{"message": "success", "size": string(rune(len(body)))})
+		c.JSON(http.StatusOK, map[string]string{"message": "success", "size": strconv.Itoa(len(body))})
 	})
 
 	body := bytes.NewBufferString(`{"key": "value"}`)
