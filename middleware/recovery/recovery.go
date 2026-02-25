@@ -182,7 +182,7 @@ func shouldPrettyPrint(cfg *config) bool {
 		return *cfg.prettyStack
 	}
 	// Auto-detect: pretty for terminal, compact for files/pipes
-	return term.IsTerminal(int(os.Stderr.Fd()))
+	return term.IsTerminal(int(os.Stderr.Fd())) //nolint:gosec // G115: fd is small non-negative, safe on all supported platforms
 }
 
 // printStackTrace prints a formatted stack trace.
