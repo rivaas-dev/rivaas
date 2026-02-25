@@ -341,7 +341,7 @@ func (a *App) renderRoutesTable(w io.Writer) {
 		Headers("Method", "Version", "Path", "Handler").
 		Rows(rows...)
 
-	//nolint:errcheck // Best-effort table display
+	//nolint:errcheck,gosec // Best-effort table display; G705: t.Render() is server-generated route table, not user input
 	_, _ = fmt.Fprintln(w, t.Render())
 }
 

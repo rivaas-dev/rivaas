@@ -220,7 +220,7 @@ func (a *App) registerOpenAPIEndpoints() {
 		c.Response.Header().Set("ETag", etag)
 		c.Response.Header().Set("Cache-Control", "public, max-age=3600")
 		c.Response.Header().Set("Content-Type", "application/json")
-		if _, err = c.Response.Write(specJSON); err != nil {
+		if _, err = c.Response.Write(specJSON); err != nil { //nolint:gosec // G705: specJSON is server-generated OpenAPI spec, not user input
 			slog.ErrorContext(c.RequestContext(), "failed to write spec response", "err", err)
 		}
 	})
