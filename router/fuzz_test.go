@@ -332,7 +332,7 @@ func FuzzRouteRegistration(f *testing.F) {
 					done <- true
 				}()
 
-				routePath := path + string(rune('0'+id))
+				routePath := path + string(rune('0'+id)) //nolint:gosec // G115: id is 0-2 from range 3, no overflow
 				r.GET(routePath, func(c *Context) {
 					c.Status(http.StatusOK)
 				})

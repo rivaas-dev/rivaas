@@ -81,13 +81,13 @@ func setupStdMux() http.Handler {
 	})
 	mux.HandleFunc("GET /users/{id}", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "User: ")          //nolint:errcheck // ignored in benchmark
-		io.WriteString(w, r.PathValue("id")) //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, r.PathValue("id")) //nolint:errcheck,gosec // ignored in benchmark; G705: benchmark echoes path param
 	})
 	mux.HandleFunc("GET /users/{id}/posts/{post_id}", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "User: ")               //nolint:errcheck // ignored in benchmark
-		io.WriteString(w, r.PathValue("id"))      //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, r.PathValue("id"))      //nolint:errcheck,gosec // ignored in benchmark; G705: benchmark echoes path param
 		io.WriteString(w, ", Post: ")             //nolint:errcheck // ignored in benchmark
-		io.WriteString(w, r.PathValue("post_id")) //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, r.PathValue("post_id")) //nolint:errcheck,gosec // ignored in benchmark; G705: benchmark echoes path param
 	})
 	return mux
 }
@@ -143,13 +143,13 @@ func setupChi() http.Handler {
 	})
 	r.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "User: ")              //nolint:errcheck // ignored in benchmark
-		io.WriteString(w, chi.URLParam(r, "id")) //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, chi.URLParam(r, "id")) //nolint:errcheck,gosec // ignored in benchmark; G705: benchmark echoes path param
 	})
 	r.Get("/users/{id}/posts/{post_id}", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "User: ")                   //nolint:errcheck // ignored in benchmark
-		io.WriteString(w, chi.URLParam(r, "id"))      //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, chi.URLParam(r, "id"))      //nolint:errcheck,gosec // ignored in benchmark; G705: benchmark echoes path param
 		io.WriteString(w, ", Post: ")                 //nolint:errcheck // ignored in benchmark
-		io.WriteString(w, chi.URLParam(r, "post_id")) //nolint:errcheck // ignored in benchmark
+		io.WriteString(w, chi.URLParam(r, "post_id")) //nolint:errcheck,gosec // ignored in benchmark; G705: benchmark echoes path param
 	})
 	return r
 }

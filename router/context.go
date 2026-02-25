@@ -498,18 +498,18 @@ func (c *Context) ASCIIJSON(code int, obj any) error {
 			if size > 0 {
 				// Escape the full rune
 				if r <= 0xFFFF {
-					result.WriteString(fmt.Sprintf("\\u%04x", r))
+					fmt.Fprintf(&result, "\\u%04x", r)
 				} else {
 					// Surrogate pair for runes > U+FFFF
 					r -= 0x10000
-					result.WriteString(fmt.Sprintf("\\u%04x\\u%04x", 0xD800+(r>>10), 0xDC00+(r&0x3FF)))
+					fmt.Fprintf(&result, "\\u%04x\\u%04x", 0xD800+(r>>10), 0xDC00+(r&0x3FF))
 				}
 				i += size
 
 				continue
 			}
 			// Fallback: escape single byte
-			result.WriteString(fmt.Sprintf("\\u%04x", b))
+			fmt.Fprintf(&result, "\\u%04x", b)
 			i++
 		} else {
 			// ASCII character - write as-is

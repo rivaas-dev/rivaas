@@ -163,8 +163,9 @@ func TestStructSizes(t *testing.T) {
 			t.Logf("%s size: %d bytes", tt.name, tt.size)
 
 			if tt.expectedSize > 0 && tt.size != tt.expectedSize {
+				delta := int64(tt.size) - int64(tt.expectedSize) //nolint:gosec // G115: struct sizes fit in int64
 				t.Logf("WARNING: %s size changed from %d to %d bytes (delta: %+d)",
-					tt.name, tt.expectedSize, tt.size, int(tt.size)-int(tt.expectedSize))
+					tt.name, tt.expectedSize, tt.size, delta)
 			}
 
 			if tt.size > tt.maxSize {
