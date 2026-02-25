@@ -1,6 +1,4 @@
-go 1.25.5
-
-toolchain go1.25.5
+go 1.25.7
 
 use (
 	./app
@@ -9,9 +7,6 @@ use (
 	./errors
 	./logging
 	./metrics
-	./openapi
-	./router
-	./router/benchmarks
 	./middleware/accesslog
 	./middleware/basicauth
 	./middleware/bodylimit
@@ -24,6 +19,9 @@ use (
 	./middleware/security
 	./middleware/timeout
 	./middleware/trailingslash
+	./openapi
+	./router
+	./router/benchmarks
 	./tracing
 	./validation
 )
