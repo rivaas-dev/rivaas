@@ -259,9 +259,9 @@ func (ws Warnings) String() string {
 		return "no warnings"
 	}
 	var s strings.Builder
-	s.WriteString(fmt.Sprintf("%d warning(s):", len(ws)))
+	fmt.Fprintf(&s, "%d warning(s):", len(ws))
 	for i, w := range ws {
-		s.WriteString(fmt.Sprintf("\n  [%d] %s", i+1, w.String()))
+		fmt.Fprintf(&s, "\n  [%d] %s", i+1, w.String())
 	}
 	return s.String()
 }

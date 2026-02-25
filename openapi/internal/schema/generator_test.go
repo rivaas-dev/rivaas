@@ -611,7 +611,7 @@ func TestSchemaGenerator_JSONTagVariations(t *testing.T) {
 		Ignored    string `json:"-"`
 		CustomName string `json:"custom_name"` //nolint:tagliatelle // testing snake_case tag
 		EmptyTag   string `json:""`            //nolint:tagliatelle // testing empty tag
-		CommaOnly  string `json:","`           //nolint:tagliatelle // testing comma-only tag
+		CommaOnly  string `json:","`           //nolint:tagliatelle,staticcheck // testing comma-only tag (SA5008: intentional malformed tag)
 	}
 
 	sg := newTestSchemaGenerator(t)

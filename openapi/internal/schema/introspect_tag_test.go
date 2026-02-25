@@ -100,7 +100,7 @@ func TestExtractParamsFromTag(t *testing.T) {
 				name: "header parameters",
 				structFn: func() (reflect.Type, string, string) {
 					type Request struct {
-						APIKey    string `header:"X-API-Key"` //nolint:tagliatelle // Standard HTTP header format
+						APIKey    string `header:"X-API-Key"` //nolint:tagliatelle,gosec // Standard HTTP header format; G117: test fixture
 						UserAgent string `header:"User-Agent"`
 					}
 
@@ -931,7 +931,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				type Request struct {
 					ID      int    `path:"id"`
 					Page    int    `query:"page"`
-					APIKey  string `header:"X-API-Key"` //nolint:tagliatelle // Standard HTTP header format
+					APIKey  string `header:"X-API-Key"` //nolint:tagliatelle,gosec // Standard HTTP header format; G117: test fixture
 					Session string `cookie:"session"`
 					Name    string `json:"name"`
 				}
@@ -976,7 +976,7 @@ func TestIntrospectRequest_TagVariations(t *testing.T) {
 				type Request struct {
 					ID      int    `path:"id" doc:"User ID" example:"123"`
 					Page    int    `query:"page" doc:"Page number" default:"1" example:"1"`
-					APIKey  string `header:"X-API-Key" validate:"required" doc:"API key"` //nolint:tagliatelle // Standard HTTP header format
+					APIKey  string `header:"X-API-Key" validate:"required" doc:"API key"` //nolint:tagliatelle,gosec // Standard HTTP header format; G117: test fixture
 					Session string `cookie:"session" doc:"Session token" example:"abc123"`
 					Status  string `query:"status" enum:"pending,active" validate:"oneof=pending active completed" doc:"Status"`
 				}
