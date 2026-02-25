@@ -315,7 +315,7 @@ func TestPathResolution(t *testing.T) {
 func TestRedaction(t *testing.T) {
 	t.Parallel()
 	type User struct {
-		Password string `json:"password" validate:"required,min=8"`
+		Password string `json:"password" validate:"required,min=8"` //nolint:gosec // G117: test fixture, no real credentials
 		Token    string `json:"token" validate:"required"`
 	}
 
@@ -790,7 +790,7 @@ func TestFieldNameMapper_ArrayElements(t *testing.T) {
 func TestRedaction_NestedSensitiveFields(t *testing.T) {
 	t.Parallel()
 	type User struct {
-		Password string `json:"password" validate:"required,min=8"`
+		Password string `json:"password" validate:"required,min=8"` //nolint:gosec // G117: test fixture, no real credentials
 		Profile  struct {
 			Token string `json:"token" validate:"required"`
 		} `json:"profile"`
@@ -882,7 +882,7 @@ func TestRedaction_NestedSensitiveFields(t *testing.T) {
 func TestRedaction_AllErrorTypes(t *testing.T) {
 	t.Parallel()
 	type User struct {
-		Password string `json:"password" validate:"required"`
+		Password string `json:"password" validate:"required"` //nolint:gosec // G117: test fixture, no real credentials
 	}
 
 	tests := []struct {

@@ -426,7 +426,7 @@ func TestWithFieldNameMapper(t *testing.T) {
 func TestWithRedactor(t *testing.T) {
 	t.Parallel()
 	type User struct {
-		Password string `json:"password" validate:"required,min=8"`
+		Password string `json:"password" validate:"required,min=8"` //nolint:gosec // G117: test fixture, no real credentials
 		Token    string `json:"token" validate:"required"`
 	}
 
