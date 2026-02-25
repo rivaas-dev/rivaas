@@ -51,7 +51,7 @@ func BenchmarkTOML_LargeStruct(b *testing.B) {
 		Port     int    `toml:"port"`
 		Name     string `toml:"name"`
 		User     string `toml:"user"`
-		Password string `toml:"password"`
+		Password string `toml:"password"` //nolint:gosec // G117: benchmark fixture
 		SSLMode  string `toml:"ssl_mode"`
 	}
 

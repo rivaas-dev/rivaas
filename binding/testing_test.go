@@ -108,7 +108,7 @@ func TestTestFormGetter(t *testing.T) {
 		getter := TestFormGetter(t, "username", "testuser", "password", "secret")
 		type Form struct {
 			Username string `form:"username"`
-			Password string `form:"password"`
+			Password string `form:"password"` //nolint:gosec // G117: test fixture
 		}
 		var out Form
 		err := Raw(getter, TagForm, &out)

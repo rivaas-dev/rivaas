@@ -727,7 +727,7 @@ func TestBind_TagParsingCommaSeparatedOptions(t *testing.T) {
 
 	type FormDataOmitempty struct {
 		Username string `form:"username,omitempty"`
-		Password string `form:"password,omitempty"`
+		Password string `form:"password,omitempty"` //nolint:gosec // G117: test fixture
 	}
 
 	type JSONDataEmptyName struct {
@@ -1069,7 +1069,7 @@ func TestBindTo(t *testing.T) {
 		type Request struct {
 			ID      int    `path:"id"`
 			Page    int    `query:"page"`
-			APIKey  string `header:"X-Api-Key"`
+			APIKey  string `header:"X-Api-Key"` //nolint:gosec // G117: test fixture
 			Session string `cookie:"session"`
 		}
 
@@ -1349,7 +1349,7 @@ func TestHeaderTo(t *testing.T) {
 	t.Parallel()
 
 	type Headers struct {
-		APIKey string `header:"X-Api-Key"`
+		APIKey string `header:"X-Api-Key"` //nolint:gosec // G117: test fixture
 	}
 	h := http.Header{}
 	h.Set("X-Api-Key", "secret")

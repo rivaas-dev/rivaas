@@ -275,7 +275,7 @@ func TestHeaderWith(t *testing.T) {
 	require.NoError(t, err)
 
 	type Headers struct {
-		APIKey string `header:"X-Api-Key"`
+		APIKey string `header:"X-Api-Key"` //nolint:gosec // G117: test fixture
 	}
 	h := http.Header{}
 	h.Set("X-Api-Key", "secret")

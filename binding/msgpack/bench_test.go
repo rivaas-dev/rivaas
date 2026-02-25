@@ -57,7 +57,7 @@ func BenchmarkMsgPack_LargeStruct(b *testing.B) {
 		Port     int    `msgpack:"port"`
 		Name     string `msgpack:"name"`
 		User     string `msgpack:"user"`
-		Password string `msgpack:"password"`
+		Password string `msgpack:"password"` //nolint:gosec // G117: benchmark fixture
 		SSLMode  string `msgpack:"ssl_mode"`
 	}
 

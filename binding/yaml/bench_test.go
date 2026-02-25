@@ -51,7 +51,7 @@ func BenchmarkYAML_LargeStruct(b *testing.B) {
 		Port     int    `yaml:"port"`
 		Name     string `yaml:"name"`
 		User     string `yaml:"user"`
-		Password string `yaml:"password"`
+		Password string `yaml:"password"` //nolint:gosec // G117: benchmark fixture
 		SSLMode  string `yaml:"ssl_mode"` //nolint:tagliatelle // snake_case is standard YAML convention
 	}
 
