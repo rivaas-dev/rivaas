@@ -75,7 +75,7 @@ type PrimaryConfig struct {
 	Port     int    `config:"port"`
 	Database string `config:"database"`
 	Username string `config:"username"`
-	Password string `config:"password"`
+	Password string `config:"password"` //nolint:gosec // G117: example config struct
 	SSLMode  string `config:"ssl.mode"`
 }
 
@@ -85,7 +85,7 @@ type ReplicaConfig struct {
 	Port     int    `config:"port"`
 	Database string `config:"database"`
 	Username string `config:"username"`
-	Password string `config:"password"`
+	Password string `config:"password"` //nolint:gosec // G117: example config struct
 	SSLMode  string `config:"ssl.mode"`
 }
 
@@ -105,7 +105,7 @@ type MaxConfig struct {
 type RedisConfig struct {
 	Host     string        `config:"host"`
 	Port     int           `config:"port"`
-	Password string        `config:"password"`
+	Password string        `config:"password"` //nolint:gosec // G117: example config struct
 	Database int           `config:"database"`
 	Timeout  time.Duration `config:"timeout"`
 }
@@ -119,7 +119,7 @@ type AuthConfig struct {
 
 // JWTConfig represents JWT authentication settings
 type JWTConfig struct {
-	Secret string `config:"secret"`
+	Secret string `config:"secret"` //nolint:gosec // G117: example config struct
 }
 
 // TokenConfig represents token configuration settings
@@ -129,7 +129,7 @@ type TokenConfig struct {
 
 // RefreshConfig represents refresh token configuration settings
 type RefreshConfig struct {
-	Secret string `config:"secret"`
+	Secret string `config:"secret"` //nolint:gosec // G117: example config struct
 }
 
 // LoggingConfig represents logging configuration settings

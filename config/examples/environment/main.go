@@ -56,7 +56,7 @@ type AuthConfig struct {
 
 // JWTConfig represents JWT authentication settings
 type JWTConfig struct {
-	Secret string `config:"secret"`
+	Secret string `config:"secret"` //nolint:gosec // G117: example config struct
 }
 
 // FeaturesConfig represents feature flags and settings
