@@ -365,6 +365,12 @@ func (c *Context) JSON(code int, obj any) error {
 //
 // This is useful for debugging, development, and human-readable API responses.
 // Use JSON() for compact responses, IndentedJSON() for debugging/development.
+//
+// Example:
+//
+//	if err := c.IndentedJSON(200, user); err != nil {
+//	    return err
+//	}
 func (c *Context) IndentedJSON(code int, obj any) error {
 	// Use MarshalIndent for pretty-printing
 	jsonBytes, err := json.MarshalIndent(obj, "", "  ")
@@ -395,6 +401,13 @@ func (c *Context) IndentedJSON(code int, obj any) error {
 //
 // Unlike JSON(), this does not escape <, >, &, and other HTML characters.
 // Use cases: HTML/markdown content, URLs with query parameters, code snippets.
+//
+// Example:
+//
+//	data := map[string]string{"html": "<p>Hello</p>", "url": "https://example.com?a=1&b=2"}
+//	if err := c.PureJSON(200, data); err != nil {
+//	    return err
+//	}
 func (c *Context) PureJSON(code int, obj any) error {
 	// Encode without HTML escaping
 	var buf strings.Builder
@@ -430,6 +443,16 @@ func (c *Context) PureJSON(code int, obj any) error {
 //
 // Default prefix: "while(1);" (matches Gin's default).
 // The client must strip this prefix before parsing JSON.
+//
+// Example:
+//
+//	if err := c.SecureJSON(200, data); err != nil {
+//	    return err
+//	}
+//	// Custom prefix:
+//	if err := c.SecureJSON(200, data, ")]}',\n"); err != nil {
+//	    return err
+//	}
 func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 	// Determine security prefix
 	securityPrefix := "while(1);"
@@ -469,7 +492,15 @@ func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 // Returns an error if encoding or writing fails.
 //
 // This ensures the response is pure ASCII, useful for legacy systems or strict compatibility.
-// All non-ASCII characters are escaped to their Unicode code point representation (\uXXXX).
+// Non-ASCII characters are escaped to their Unicode code point form: a single \uXXXX for the
+// BMP, or a surrogate pair \uHHHH\uLLLL for code points above U+FFFF.
+//
+// Example:
+//
+//	data := map[string]string{"message": "Hello, سلام"}
+//	if err := c.ASCIIJSON(200, data); err != nil {
+//	    return err
+//	}
 func (c *Context) ASCIIJSON(code int, obj any) error {
 	// Use json.Marshal which already escapes non-ASCII to \uXXXX by default
 	// when using the default encoder settings
@@ -484,8 +515,36 @@ func (c *Context) ASCIIJSON(code int, obj any) error {
 	// Get the JSON bytes
 	jsonBytes := buf.Bytes()
 
-	// Additional pass to ensure ALL non-ASCII bytes are escaped
-	// This handles edge cases where json.Encoder might miss some
+	// We walk over the JSON bytes and escape every non-ASCII character so the output is pure ASCII.
+	//
+	// What we do:
+	//   - Bytes with value < 128 are ASCII. We leave them as they are.
+	//   - Bytes >= 128 are (or are part of) a UTF-8 multi-byte character. We try to decode one full
+	//     character (rune) with decodeRuneInJSON. If that works, we escape that rune (see below) and
+	//     skip past its bytes. If it fails (bad or cut-off UTF-8), we escape that single byte as \u00XX.
+	//
+	// How we escape a rune:
+	//   - BMP (Basic Multilingual Plane): code points U+0000 to U+FFFF. This is the first 65,536
+	//     code points and includes almost all common letters and symbols. One rune fits in 16 bits,
+	//     so we output a single \uXXXX (4 hex digits).
+	//   - Astral: code points from U+10000 to U+10FFFF. These are "above" the BMP (e.g. many emoji
+	//     and some historic scripts). They don't fit in 16 bits. In JSON (and JavaScript), they are
+	//     represented as two 16-bit "surrogate" values (high then low). We output \uHHHH\uLLLL using
+	//     the standard surrogate formula below.
+	//
+	// Constants used in the loop:
+	//   - 128       : anything smaller is ASCII.
+	//   - 0xFFFF    : top of the BMP; above this we need a surrogate pair.
+	//   - 0x10000   : start of the astral range.
+	//   - 0xD800    : start of the high-surrogate range (high 10 bits of (r - 0x10000)).
+	//   - 0xDC00    : start of the low-surrogate range (low 10 bits of (r - 0x10000)).
+	//   - 0x3FF     : 10-bit mask for the low part. Surrogate pair: r' = r - 0x10000,
+	//                  high = 0xD800 + (r' >> 10), low = 0xDC00 + (r' & 0x3FF).
+	//
+	// References:
+	//   - Unicode glossary (BMP, surrogate, etc.): https://unicode.org/glossary/
+	//   - UTF-16 and surrogate pairs: https://unicode.org/faq/utf_bom/
+	//   - JSON string escaping (\uXXXX): https://www.rfc-editor.org/rfc/rfc8259#section-7
 	var result strings.Builder
 	result.Grow(len(jsonBytes) * 2)
 
@@ -536,33 +595,39 @@ func (c *Context) ASCIIJSON(code int, obj any) error {
 	return writeErr
 }
 
-// decodeRuneInJSON decodes a UTF-8 rune from a byte slice (inside JSON context)
-// Returns the rune and the number of bytes consumed
+// decodeRuneInJSON decodes one UTF-8 character (rune) from the start of b.
+// It returns that rune and how many bytes it used. If b is empty or the bytes
+// do not form a valid start of a UTF-8 sequence, it returns (0, 0). ASCIIJSON
+// uses this to decode multi-byte characters before escaping them as \uXXXX
+// or surrogate pairs.
+//
+// References:
+//   - UTF-8 definition and the standard: https://unicode.org/faq/utf_bom/
+//   - UTF-8 byte sequences: https://www.rfc-editor.org/rfc/rfc3629
 func decodeRuneInJSON(b []byte) (rune, int) {
 	if len(b) == 0 {
-		return 0, 0
+		return 0, 0 // Nothing to decode; caller will escape byte-by-byte
 	}
 
-	// Single byte (ASCII)
+	// One byte: 0xxxxxxx (ASCII)
 	if b[0] < 128 {
 		return rune(b[0]), 1
 	}
 
-	// Multi-byte UTF-8
+	// Two bytes: leading byte 110xxxxx (mask 0xE0); 5 bits from b[0], 6 from b[1]
 	if len(b) >= 2 && (b[0]&0xE0) == 0xC0 {
-		// 2-byte sequence
 		return rune((b[0]&0x1F))<<6 | rune(b[1]&0x3F), 2
 	}
+	// Three bytes: leading byte 1110xxxx (mask 0xF0); 4 bits from b[0], 6+6 from b[1], b[2]
 	if len(b) >= 3 && (b[0]&0xF0) == 0xE0 {
-		// 3-byte sequence
 		return rune((b[0]&0x0F))<<12 | rune((b[1]&0x3F))<<6 | rune(b[2]&0x3F), 3
 	}
+	// Four bytes: leading byte 11110xxx (mask 0xF8); 3 bits from b[0], 6+6+6 from b[1..3]
 	if len(b) >= 4 && (b[0]&0xF8) == 0xF0 {
-		// 4-byte sequence
 		return rune((b[0]&0x07))<<18 | rune((b[1]&0x3F))<<12 | rune((b[2]&0x3F))<<6 | rune(b[3]&0x3F), 4
 	}
 
-	return 0, 0
+	return 0, 0 // Invalid or cut-off sequence; caller escapes one byte at a time
 }
 
 // String sends a plain text response.
@@ -706,8 +771,15 @@ func (c *Context) tryFastStringFormat(format string, values []any) error {
 	return nil
 }
 
-// HTML sends an HTML response with the specified status code.
-// Returns an error if writing fails.
+// HTML sends an HTML response with the given status code and body.
+// It sets Content-Type to text/html. Returns an error if writing fails.
+//
+// Example:
+//
+//	body := "<html><body><h1>Hello</h1></body></html>"
+//	if err := c.HTML(200, body); err != nil {
+//	    return err
+//	}
 func (c *Context) HTML(code int, html string) error {
 	c.Response.Header().Set("Content-Type", "text/html")
 
