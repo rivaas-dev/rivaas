@@ -29,8 +29,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,8 +40,6 @@ import (
 //   - Parameter storage and lookup
 //   - Response methods
 //   - Middleware chain execution
-//   - OpenTelemetry tracing support (when enabled)
-//   - Custom metrics recording capabilities
 //   - Route versioning support for API versioning
 //
 // ⚠️ THREAD SAFETY: Context is NOT thread-safe.
@@ -136,12 +132,9 @@ type Context struct {
 	// Params map is nil unless route has many parameters.
 	// When Params is populated, it contains additional parameters while paramKeys/paramValues
 	// hold the initial parameters.
-	Params          map[string]string      // URL parameters (nil when not needed, populated when needed)
-	span            trace.Span             // Current OpenTelemetry span
-	metricsRecorder ContextMetricsRecorder // Metrics recorder for this context
-	tracingRecorder ContextTracingRecorder // Tracing recorder for this context
-	version         string                 // Current API version (e.g., "v1", "v2")
-	routePattern    string                 // Matched route pattern (e.g., "/users/:id" or "_not_found")
+	Params       map[string]string // URL parameters (nil when not needed, populated when needed)
+	version      string            // Current API version (e.g., "v1", "v2")
+	routePattern string            // Matched route pattern (e.g., "/users/:id" or "_not_found")
 
 	// Header parsing cache (per-request)
 	cachedAcceptHeader string       // Cached Accept header value
@@ -1215,66 +1208,6 @@ func (c *Context) MethodNotAllowed(allowed []string) {
 	c.WriteErrorResponse(http.StatusMethodNotAllowed, "Method Not Allowed")
 }
 
-// RecordMetric records a custom histogram metric by delegating to the metrics recorder.
-// Thread-safety depends on the underlying metrics recorder implementation.
-func (c *Context) RecordMetric(name string, value float64, attributes ...attribute.KeyValue) {
-	if c.metricsRecorder != nil {
-		c.metricsRecorder.RecordMetric(c.RequestContext(), name, value, attributes...)
-	}
-}
-
-// IncrementCounter increments a custom counter metric by delegating to the metrics recorder.
-// Thread-safety depends on the underlying metrics recorder implementation.
-func (c *Context) IncrementCounter(name string, attributes ...attribute.KeyValue) {
-	if c.metricsRecorder != nil {
-		c.metricsRecorder.IncrementCounter(c.RequestContext(), name, attributes...)
-	}
-}
-
-// SetGauge sets a custom gauge metric by delegating to the metrics recorder.
-// Thread-safety depends on the underlying metrics recorder implementation.
-func (c *Context) SetGauge(name string, value float64, attributes ...attribute.KeyValue) {
-	if c.metricsRecorder != nil {
-		c.metricsRecorder.SetGauge(c.RequestContext(), name, value, attributes...)
-	}
-}
-
-// TraceID returns the current trace ID from the active span.
-// Returns an empty string if tracing is not active.
-func (c *Context) TraceID() string {
-	if c.tracingRecorder != nil {
-		return c.tracingRecorder.TraceID()
-	}
-
-	return ""
-}
-
-// SpanID returns the current span ID from the active span.
-// Returns an empty string if tracing is not active.
-func (c *Context) SpanID() string {
-	if c.tracingRecorder != nil {
-		return c.tracingRecorder.SpanID()
-	}
-
-	return ""
-}
-
-// SetSpanAttribute adds an attribute to the current span.
-// This is a no-op if tracing is not active.
-func (c *Context) SetSpanAttribute(key string, value any) {
-	if c.tracingRecorder != nil {
-		c.tracingRecorder.SetSpanAttribute(key, value)
-	}
-}
-
-// AddSpanEvent adds an event to the current span with optional attributes.
-// This is a no-op if tracing is not active.
-func (c *Context) AddSpanEvent(name string, attrs ...attribute.KeyValue) {
-	if c.tracingRecorder != nil {
-		c.tracingRecorder.AddSpanEvent(name, attrs...)
-	}
-}
-
 // RequestContext returns the request's context.Context.
 // This is a convenience method for passing to functions expecting context.Context.
 //
@@ -1282,8 +1215,6 @@ func (c *Context) AddSpanEvent(name string, attrs ...attribute.KeyValue) {
 //   - Database queries: db.Query(c.RequestContext(), ...)
 //   - HTTP client calls: httpClient.Do(c.RequestContext(), req)
 //   - Any function expecting context.Context
-//
-// For tracing-aware context propagation, use TraceContext() instead.
 //
 // Example:
 //
@@ -1308,23 +1239,6 @@ func (c *Context) RequestContext() context.Context {
 	}
 
 	return context.Background()
-}
-
-// TraceContext returns the OpenTelemetry trace context.
-// This can be used for manual span creation or context propagation.
-// If tracing is not enabled, it returns the request context for proper cancellation support.
-func (c *Context) TraceContext() context.Context {
-	if c.tracingRecorder != nil {
-		return c.tracingRecorder.TraceContext()
-	}
-	// Use request context as parent for proper cancellation support
-	return c.RequestContext()
-}
-
-// Span returns the OpenTelemetry span for this request, if tracing is enabled.
-// Returns nil if tracing is not enabled or no span exists.
-func (c *Context) Span() trace.Span {
-	return c.span
 }
 
 // RoutePattern returns the matched route pattern (e.g., "/users/:id").
@@ -1551,10 +1465,7 @@ func (c *Context) reset() {
 	c.handlers = nil
 	c.index = -1
 
-	// Reset observability and tracing fields
-	c.span = nil
-	c.metricsRecorder = nil
-	c.tracingRecorder = nil
+	// Reset version and route pattern
 	c.version = ""
 	c.routePattern = ""
 
@@ -1641,9 +1552,6 @@ func (c *Context) initForRequest(req *http.Request, w http.ResponseWriter, handl
 	c.index = -1
 	c.paramCount = 0
 	c.version = "" // Reset version for non-versioned routes
-
-	// NOTE: metricsRecorder is now set by app/observability if needed
-	// Handler-level custom metrics work through Context.RecordMetric(), IncrementCounter(), SetGauge()
 }
 
 // initForRequestWithParams initializes context WITHOUT resetting parameters.
@@ -1656,9 +1564,6 @@ func (c *Context) initForRequestWithParams(req *http.Request, w http.ResponseWri
 	c.index = -1
 	c.version = "" // Reset version for non-versioned routes
 	// Note: paramCount and param arrays NOT reset - already populated by compiled route matching
-
-	// NOTE: metricsRecorder is now set by app/observability if needed
-	// Handler-level custom metrics work through Context.RecordMetric(), IncrementCounter(), SetGauge()
 }
 
 // unsafeStringToBytes converts a string to a byte slice.

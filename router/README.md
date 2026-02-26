@@ -22,11 +22,11 @@ An HTTP router for Go, built for cloud-native apps. It gives you routing, middle
 
 - **Fast** – See [Performance](https://rivaas.dev/docs/reference/packages/router/performance/) for latest benchmarks.
 - **Radix tree routing** – Compiled routes and bloom filters for quick lookups
-- **Request binding** – Parses requests into structs (15+ types)
-- **Validation** – Tags, interfaces, or JSON Schema
+- **Works with binding** – Pair with `rivaas.dev/binding` to parse requests into structs
+- **Works with validation** – Pair with `rivaas.dev/validation` for tags, interfaces, or JSON Schema
 - **Content negotiation** – Handles Accept headers the standard way
 - **API versioning** – Version via headers or query
-- **OpenTelemetry** – Built-in tracing; no cost when you turn it off
+- **OpenTelemetry** – Observability recorder interface; zero cost when disabled
 - **Middleware** – 12 middlewares ready for production
 - **Memory safe** – Context pooling with clear rules
 - **Safe for concurrency** – Use it from multiple goroutines
@@ -50,7 +50,7 @@ import (
 )
 
 func main() {
-    r := router.New()
+    r := router.MustNew()
     
     // Simple route
     r.GET("/", func(c *router.Context) {
@@ -89,12 +89,11 @@ We ship [step-by-step examples](examples/) from simple to advanced:
 
 1. [Hello World](examples/01-hello-world/) – Basic setup
 2. [Routing](examples/02-routing/) – Routes, params, groups
-3. [Middleware](examples/03-middleware/) – Auth, logging, CORS
-4. [REST API](examples/04-rest-api/) – Full CRUD
-5. [Advanced](examples/05-advanced/) – Constraints, static files
-6. [Advanced Routing](examples/06-advanced-routing/) – Versioning, wildcards
-7. [Content Negotiation](examples/07-content-negotiation/) – Accept headers
-8. [Request Binding](examples/08-binding/) – Parse into structs
+3. [Complete REST API](examples/03-complete-rest-api/) – Full CRUD
+4. [Middleware Stack](examples/04-middleware-stack/) – Auth, logging, CORS
+5. [Advanced Routing](examples/05-advanced-routing/) – Constraints, static files
+6. [Content and Rendering](examples/06-content-and-rendering/) – Accept headers, response formats
+7. [Versioning](examples/07-versioning/) – API version via headers or query
 
 ## Benchmarks
 

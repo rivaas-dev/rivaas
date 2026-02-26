@@ -759,15 +759,6 @@ func TestContext_MethodNotAllowed(t *testing.T) {
 	assert.Equal(t, "GET, HEAD", w.Header().Get("Allow"))
 }
 
-// TestContext_Span covers Span when no span is set (returns nil).
-func TestContext_Span(t *testing.T) {
-	t.Parallel()
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	c := NewContext(w, req)
-	assert.Nil(t, c.Span())
-}
-
 // TestContext_RequireContentType covers RequireContentType and RequireContentTypeJSON.
 func TestContext_RequireContentType(t *testing.T) {
 	t.Parallel()
