@@ -1,0 +1,4 @@
+# Ignore all files in the examples directory (e.g. built binaries)
+examples/**
+# Keep only files with extensions (source and config: main.go, go.mod, README.md, etc.)
+!examples/**/*.*

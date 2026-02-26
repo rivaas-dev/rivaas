@@ -195,35 +195,19 @@ func WithoutCancellationCheck() Option {
 	}
 }
 
-// WithRouteCompilation returns a RouterOption that enables/disables compiled route matching.
+// WithRouteCompilation enables or disables compiled route matching.
 // When enabled, routes are pre-compiled into data structures for lookup:
 //   - Static routes use hash table lookup
 //   - Dynamic routes use first-segment indexing and bloom filters
 //
-// Default: true (enabled)
-//
-// Disable only for debugging or if you encounter issues with route matching.
+// Default: false (tree traversal). Enable for large route sets (hundreds of
+// routes) where bloom filter and hash lookups reduce lookup cost.
 //
 // Example:
 //
-//	r := router.MustNew(router.WithRouteCompilation(true))  // Enabled by default
+//	r := router.MustNew(router.WithRouteCompilation(true))  // Opt-in for large APIs
 func WithRouteCompilation(enabled bool) Option {
 	return func(r *Router) {
 		r.useCompiledRoutes = enabled
-	}
-}
-
-// WithoutRouteCompilation disables compiled route matching.
-// This is equivalent to WithRouteCompilation(false) but follows the design principle
-// of using "Without" prefix for disabling features that are enabled by default.
-//
-// When disabled, all routes use tree traversal for matching (slower but simpler).
-//
-// Example:
-//
-//	r := router.MustNew(router.WithoutRouteCompilation())
-func WithoutRouteCompilation() Option {
-	return func(r *Router) {
-		r.useCompiledRoutes = false
 	}
 }

@@ -79,12 +79,13 @@ func (r *Router) compileRoutesForMethod(method string) {
 // CompileAllRoutes pre-compiles all static routes.
 // This should be called after all routes are registered.
 func (r *Router) CompileAllRoutes() {
-	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
-	trees := (*map[string]*node)(treesPtr)
-
-	for method := range *trees {
-		r.compileRoutesForMethod(method)
+	trees := r.routeTree.loadTrees()
+	if trees == nil {
+		return
 	}
+	trees.iterate(func(method string, tree *node) {
+		r.compileRoutesForMethod(method)
+	})
 }
 
 // Warmup registers all pending routes and pre-compiles them for optimal request handling.

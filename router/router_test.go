@@ -512,7 +512,7 @@ func TestRouterOptions_Defaults(t *testing.T) {
 	assert.Equal(t, uint64(1000), r.bloomFilterSize)
 	assert.Equal(t, 3, r.bloomHashFunctions)
 	assert.True(t, r.checkCancellation, "expected cancellation check to be enabled by default")
-	assert.True(t, r.useCompiledRoutes, "expected compiled routes to be enabled by default")
+	assert.False(t, r.useCompiledRoutes, "expected compiled routes to be disabled by default")
 	assert.NotNil(t, r.routeCompiler, "route compiler should be initialized")
 }
 

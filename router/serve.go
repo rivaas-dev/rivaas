@@ -39,10 +39,10 @@ import (
 //     - Only checked if main tree has no match
 //     - Subject to version detection (header/path/query/accept)
 //
-// Within each tree, the lookup order is:
-//  1. Compiled static routes (hash table lookup)
-//  2. Compiled dynamic routes (pre-compiled patterns with bloom filter)
-//  3. Dynamic tree traversal (fallback for uncached routes)
+// Within each tree, when route compilation is disabled (default), tree
+// traversal is used directly. When enabled via WithRouteCompilation(true),
+// the lookup order is: compiled static routes, then compiled dynamic routes,
+// then tree traversal as fallback.
 //
 // For each request:
 //  1. Resets a pooled context for the request
@@ -116,18 +116,18 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		releaseGlobalContext(poolCtx)
 	}
 
-	// Try main tree's dynamic routing (tree traversal fallback)
+	// Try main tree (tree traversal; when useCompiledRoutes is true, compiled path was tried above)
 	tree := r.getTreeForMethodDirect(req.Method)
 	if tree != nil {
-		// Try per-tree compiled routes (legacy path)
-		if tree.compiled != nil {
+		// Per-tree compiled routes only when compilation is enabled (avoids RLock + hash on default path)
+		if r.useCompiledRoutes && tree.compiled != nil {
 			if handlers := tree.compiled.getRoute(path); handlers != nil {
 				r.serveStaticRoute(w, req, handlers, path, "", false, obsState)
 				return
 			}
 		}
 
-		// Try dynamic tree traversal
+		// Tree traversal (handles static and dynamic routes)
 		c := getContextFromGlobalPool()
 		c.Request = req
 		c.Response = w
@@ -394,10 +394,10 @@ func (r *Router) serveCompiledRouteWithParams(w http.ResponseWriter, req *http.R
 		c.initForRequestWithParams(req, w, handlers, r)
 	}
 
-	defer releaseGlobalContext(c)
-
 	// Execute handler chain
 	c.Next()
+
+	releaseGlobalContext(c)
 
 	// Finish observability
 	if obsState != nil {

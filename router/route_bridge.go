@@ -473,15 +473,13 @@ func (r *Router) mountRoute(prefix string, rt *route.Route, middlewareChain []Ha
 }
 
 func (r *Router) mergeFromSubrouterTrees(prefix string, sub *Router, middlewareChain []HandlerFunc, namePrefix string) {
-	treesPtr := sub.routeTree.loadTrees()
-	if treesPtr == nil {
+	trees := sub.routeTree.loadTrees()
+	if trees == nil {
 		return
 	}
-	trees := *treesPtr
-
-	for method, tree := range trees {
+	trees.iterate(func(method string, tree *node) {
 		r.extractAndMountFromNode(prefix, method, "", tree, middlewareChain, namePrefix)
-	}
+	})
 }
 
 func (r *Router) extractAndMountFromNode(prefix, method, currentPath string, n *node, middlewareChain []HandlerFunc, namePrefix string) {
@@ -494,7 +492,6 @@ func (r *Router) extractAndMountFromNode(prefix, method, currentPath string, n *
 	handlers := n.handlers
 	nodePath := n.path
 	constraints := n.constraints
-	children := n.children
 	paramNode := n.param
 	wildcardNode := n.wildcard
 
@@ -518,7 +515,10 @@ func (r *Router) extractAndMountFromNode(prefix, method, currentPath string, n *
 		}
 	}
 
-	for _, child := range children {
+	for i := range n.edges {
+		r.extractAndMountFromNode(prefix, method, currentPath, n.edges[i].node, middlewareChain, namePrefix)
+	}
+	for _, child := range n.staticPaths {
 		r.extractAndMountFromNode(prefix, method, currentPath, child, middlewareChain, namePrefix)
 	}
 

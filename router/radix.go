@@ -38,14 +38,19 @@ type CompiledRouteTable struct {
 	mu     sync.RWMutex              // Protects concurrent access
 }
 
+// edge represents a per-segment child in the radix tree (avoids map hashing in hot path).
+type edge struct {
+	label string
+	node  *node
+}
+
 // node represents a node in the route tree used for route matching.
 // The tree implementation uses different strategies for static and dynamic routes.
 //
 // Features:
-//   - Static routes use map lookups
-//   - Parameter routes use segment-based traversal
-//   - Full path storage for exact matching
-//   - Route table for static route matching
+//   - edges: per-segment children (linear scan for traversal, no map hash)
+//   - staticPaths: full-path static routes at root only (e.g. /api/users)
+//   - Parameter routes use segment-based traversal via edges
 //
 // Thread safety:
 // Routes are registered during a single-threaded configuration phase (before
@@ -53,12 +58,35 @@ type CompiledRouteTable struct {
 // for concurrent reads without locking.
 type node struct {
 	handlers    []HandlerFunc       // Handler chain for this route
-	children    map[string]*node    // Static child routes
+	edges       []edge              // Per-segment children (linear scan for traversal)
+	staticPaths map[string]*node    // Full-path static routes (root node only, nil otherwise)
 	param       *param              // Parameter child route (if any)
 	wildcard    *wildcard           // Wildcard child route (if any)
 	constraints []route.Constraint  // Parameter constraints for this route
 	path        string              // Full path for this node
 	compiled    *CompiledRouteTable // Route table for static route matching
+}
+
+// findChild returns the child node for the given segment, or nil.
+func (n *node) findChild(segment string) *node {
+	for i := range n.edges {
+		if n.edges[i].label == segment {
+			return n.edges[i].node
+		}
+	}
+	return nil
+}
+
+// findOrCreateChild returns the child node for the given segment, creating it if needed.
+func (n *node) findOrCreateChild(segment string) *node {
+	for i := range n.edges {
+		if n.edges[i].label == segment {
+			return n.edges[i].node
+		}
+	}
+	child := &node{}
+	n.edges = append(n.edges, edge{label: segment, node: child})
+	return child
 }
 
 // param represents a parameter node in the route tree.
@@ -88,9 +116,9 @@ type wildcard struct {
 // 3. Wildcard nodes: Catch-all (e.g., /* for static files)
 //
 // Route examples and their tree structure:
-// - "/users" → root.children["users"]
-// - "/users/:id" → root.children["users"].param.node
-// - "/static/*" → root.children["static"].wildcard.node
+// - "/users" → root.staticPaths["/users"] or root.edges (per-segment)
+// - "/users/:id" → root.findChild("users").param.node
+// - "/static/*" → root.findChild("static").wildcard.node
 func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, constraints []route.Constraint) {
 	// NOTE: We store handlers directly without copying.
 	// Callers MUST NOT modify the handler slice after registration.
@@ -152,13 +180,7 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 			if segment == "" {
 				continue
 			}
-			if current.children == nil {
-				current.children = make(map[string]*node, 4)
-			}
-			if current.children[segment] == nil {
-				current.children[segment] = &node{}
-			}
-			current = current.children[segment]
+			current = current.findOrCreateChild(segment)
 		}
 
 		if current.wildcard == nil {
@@ -172,19 +194,18 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 	}
 
 	// Path for simple static routes (no : or *)
-	// Store the entire path as a single child
-	// Example: "/api/users" is stored as a single key, not split into ["api", "users"]
-	// This enables map lookup without tree traversal
+	// Store the entire path in staticPaths (root only) for full-path lookup
+	// Example: "/api/users" is stored as staticPaths["/api/users"]
 	if !strings.Contains(path, ":") && !strings.HasSuffix(path, "/*") {
-		if n.children == nil {
-			n.children = make(map[string]*node, 8) // Pre-allocate with reasonable capacity
+		if n.staticPaths == nil {
+			n.staticPaths = make(map[string]*node, 8)
 		}
-		if n.children[path] == nil {
-			n.children[path] = &node{}
+		if n.staticPaths[path] == nil {
+			n.staticPaths[path] = &node{}
 		}
-		n.children[path].handlers = handlers
-		n.children[path].constraints = constraints
-		n.children[path].path = path
+		n.staticPaths[path].handlers = handlers
+		n.staticPaths[path].constraints = constraints
+		n.staticPaths[path].path = path
 
 		return
 	}
@@ -216,13 +237,7 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 			current = current.param.node
 		} else {
 			// Static segment: "users", "api", "posts", etc.
-			if current.children == nil {
-				current.children = make(map[string]*node, 4)
-			}
-			if current.children[segment] == nil {
-				current.children[segment] = &node{}
-			}
-			current = current.children[segment]
+			current = current.findOrCreateChild(segment)
 		}
 
 		// If this is the last segment, attach handlers and constraints
@@ -246,8 +261,6 @@ func (n *node) addRouteWithConstraints(path string, handlers []HandlerFunc, cons
 //     Empty string if no route matches or pattern not available
 //
 // For implementation details, see radix_test.go.
-//
-//go:noinline
 func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
 	// Handle root path specially (common case)
 	if path == "/" {
@@ -259,11 +272,9 @@ func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
 	}
 
 	// Path for static routes (no parameters)
-	// During addRoute(), static routes are stored with full path as key (e.g., "/api/users")
-	// This enables map lookup without tree traversal
-	// Works because addRouteWithConstraints() stores static routes at root level
-	if n.children != nil {
-		if child, exists := n.children[path]; exists && child.handlers != nil {
+	// During addRoute(), static routes are stored in staticPaths at root (e.g., "/api/users")
+	if n.staticPaths != nil {
+		if child := n.staticPaths[path]; child != nil && child.handlers != nil {
 			return child.handlers, child.path
 		}
 	}
@@ -294,9 +305,9 @@ func (n *node) getRoute(path string, ctx *Context) ([]HandlerFunc, string) {
 		isLast := end >= pathLen
 
 		// Try matching strategies in priority order:
-		// Priority 1: Exact static match (map lookup)
-		if current.children != nil && current.children[segment] != nil {
-			current = current.children[segment]
+		// Priority 1: Exact static match (linear scan over edges)
+		if next := current.findChild(segment); next != nil {
+			current = next
 		} else if current.param != nil {
 			// Priority 2: Parameter match (e.g., :id, :name)
 			// Store parameter based on count
@@ -436,9 +447,12 @@ func (n *node) countStaticRoutes() int {
 		count++
 	}
 
-	// Count static routes in children
-	if n.children != nil {
-		for _, child := range n.children {
+	// Count static routes in edges and staticPaths
+	for i := range n.edges {
+		count += n.edges[i].node.countStaticRoutes()
+	}
+	if n.staticPaths != nil {
+		for _, child := range n.staticPaths {
 			count += child.countStaticRoutes()
 		}
 	}
@@ -478,7 +492,6 @@ func (n *node) compileStaticRoutes(bloomFilterSize uint64, numHashFuncs int) *Co
 // No locking needed as route tree is not accessed concurrently during compilation.
 func (n *node) compileStaticRoutesRecursive(table *CompiledRouteTable, prefix string) {
 	handlers := n.handlers
-	children := n.children
 
 	// If this node has handlers and is a static route (no parameters), compile it
 	if handlers != nil && !strings.Contains(prefix, ":") && prefix != "" {
@@ -501,10 +514,20 @@ func (n *node) compileStaticRoutesRecursive(table *CompiledRouteTable, prefix st
 		table.bloom.Add([]byte(prefix))
 	}
 
-	// Recursively compile children using the snapshot
-	for path, child := range children {
-		childPath := prefix + path
-		child.compileStaticRoutesRecursive(table, childPath)
+	// Recursively compile edges (per-segment children)
+	for i := range n.edges {
+		e := &n.edges[i]
+		childPath := prefix
+		if childPath == "" {
+			childPath = "/" + e.label
+		} else {
+			childPath = prefix + "/" + e.label
+		}
+		e.node.compileStaticRoutesRecursive(table, childPath)
+	}
+	// Recursively compile staticPaths (full-path children at root; key is full path)
+	for fullPath, child := range n.staticPaths {
+		child.compileStaticRoutesRecursive(table, fullPath)
 	}
 }
 

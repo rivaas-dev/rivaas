@@ -23,16 +23,17 @@ import (
 	"github.com/charmbracelet/log"
 
 	"rivaas.dev/router"
+	"rivaas.dev/router/version"
 )
 
 func main() {
 	// Create router with versioning support
 	r := router.MustNew(
 		router.WithVersioning(
-			router.WithHeaderVersioning("API-Version"),
-			router.WithQueryVersioning("version"),
-			router.WithDefaultVersion("v1"),
-			router.WithValidVersions("v1", "v2", "latest"),
+			version.WithHeaderDetection("API-Version"),
+			version.WithQueryDetection("version"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1", "v2", "latest"),
 		),
 	)
 

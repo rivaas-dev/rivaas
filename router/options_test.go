@@ -53,9 +53,16 @@ func TestWithoutCancellationCheck(t *testing.T) {
 	assert.False(t, r.checkCancellation)
 }
 
-func TestWithoutRouteCompilation(t *testing.T) {
+func TestRouteCompilationDefault(t *testing.T) {
 	t.Parallel()
-	r, err := New(WithoutRouteCompilation())
+	r, err := New()
 	require.NoError(t, err)
-	assert.False(t, r.useCompiledRoutes)
+	assert.False(t, r.useCompiledRoutes, "default should be tree traversal")
+}
+
+func TestWithRouteCompilation_OptIn(t *testing.T) {
+	t.Parallel()
+	r, err := New(WithRouteCompilation(true))
+	require.NoError(t, err)
+	assert.True(t, r.useCompiledRoutes)
 }

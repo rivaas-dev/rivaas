@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"net"
 	"net/http"
 	"slices"
@@ -164,7 +163,7 @@ type Router struct {
 
 	// Route compilation
 	routeCompiler     *compiler.RouteCompiler // Pre-compiled routes for matching
-	useCompiledRoutes bool                    // Enable compiled route matching (default: true)
+	useCompiledRoutes bool                    // Enable compiled route matching (default: false, opt-in)
 
 	// Custom 404 handler
 	noRouteHandler HandlerFunc  // Custom handler for unmatched routes (nil means use http.NotFound)
@@ -245,14 +244,14 @@ func New(opts ...Option) (*Router, error) {
 	r := &Router{
 		bloomFilterSize:    defaultBloomFilterSize,
 		bloomHashFunctions: defaultBloomHashFunctions,
-		checkCancellation:  true, // Enable cancellation checks by default
-		useCompiledRoutes:  true, // Enable compiled route matching by default
+		checkCancellation:  true,  // Enable cancellation checks by default
+		useCompiledRoutes:  false, // Tree traversal by default; opt-in via WithRouteCompilation(true)
 		namedRoutes:        make(map[string]*route.Route),
 	}
 
-	// Initialize the atomic route tree with an empty map
-	initialTrees := make(map[string]*node)
-	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(&initialTrees))
+	// Initialize the atomic route tree with empty method trees
+	initialTrees := &methodTrees{}
+	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(initialTrees))
 
 	// Initialize route compiler
 	r.routeCompiler = compiler.NewRouteCompiler(r.bloomFilterSize, r.bloomHashFunctions)
@@ -396,17 +395,12 @@ func (r *Router) NoRoute(handler HandlerFunc) {
 //	    return fmt.Errorf("route already registered: GET /livez")
 //	}
 func (r *Router) RouteExists(method, path string) bool {
-	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
-	if treesPtr == nil {
-		return false
-	}
-	trees := (*map[string]*node)(treesPtr)
+	trees := r.routeTree.loadTrees()
 	if trees == nil {
 		return false
 	}
-
-	tree, exists := (*trees)[method]
-	if !exists || tree == nil {
+	tree := trees.getTree(method)
+	if tree == nil {
 		return false
 	}
 
@@ -432,11 +426,7 @@ func (r *Router) RouteExists(method, path string) bool {
 // getAllowedMethodsForPath checks all method trees to find which methods have routes for the given path.
 // Returns a list of allowed HTTP methods, or empty slice if path doesn't match any route.
 func (r *Router) getAllowedMethodsForPath(path string) []string {
-	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
-	if treesPtr == nil {
-		return nil
-	}
-	trees := (*map[string]*node)(treesPtr)
+	trees := r.routeTree.loadTrees()
 	if trees == nil {
 		return nil
 	}
@@ -454,7 +444,7 @@ func (r *Router) getAllowedMethodsForPath(path string) []string {
 		// If one tree populates parameters, they could leak into subsequent checks
 		c.reset()
 
-		if tree, exists := (*trees)[method]; exists && tree != nil {
+		if tree := trees.getTree(method); tree != nil {
 			// Try to match the path in this method's tree
 			if handlers, _ := tree.getRoute(path, c); handlers != nil {
 				allowed = append(allowed, method)
@@ -561,14 +551,14 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// updateTrees updates the route trees map using copy-on-write semantics.
+// updateTrees updates the method trees using copy-on-write semantics.
 // This method ensures thread-safe updates without blocking concurrent reads.
-func (r *Router) updateTrees(updater func(map[string]*node) map[string]*node) {
+func (r *Router) updateTrees(updater func(*methodTrees) *methodTrees) {
 	for {
 		// Step 1: Atomically load the current tree pointer
 		// Multiple goroutines can read this simultaneously without blocking
 		currentPtr := atomic.LoadPointer(&r.routeTree.trees)
-		currentTrees := *(*map[string]*node)(currentPtr)
+		currentTrees := (*methodTrees)(currentPtr)
 
 		// Step 2: Create a modified copy using the updater function
 		// This is copy-on-write: we never modify the existing tree
@@ -578,7 +568,7 @@ func (r *Router) updateTrees(updater func(map[string]*node) map[string]*node) {
 		// Step 3: Attempt atomic compare-and-swap
 		// This succeeds only if no other goroutine modified the pointer since step 1
 		// If successful, all future readers will see the new tree
-		if atomic.CompareAndSwapPointer(&r.routeTree.trees, currentPtr, unsafe.Pointer(&newTrees)) {
+		if atomic.CompareAndSwapPointer(&r.routeTree.trees, currentPtr, unsafe.Pointer(newTrees)) {
 			// Successfully updated, increment version for optimistic concurrency control
 			atomic.AddUint64(&r.routeTree.version, 1)
 			return
@@ -594,33 +584,25 @@ func (r *Router) updateTrees(updater func(map[string]*node) map[string]*node) {
 func (r *Router) addRouteToTree(method, path string, handlers []HandlerFunc, constraints []route.Constraint) {
 	// Phase 1: Check if method tree already exists
 	// This read is atomic and safe even during concurrent writes
-	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
-	trees := *(*map[string]*node)(treesPtr)
-
-	if tree, exists := trees[method]; exists {
+	trees := r.routeTree.loadTrees()
+	if tree := trees.getTree(method); tree != nil {
 		// Tree exists, add route directly (thread-safe due to per-node mutex)
-		// Direct modification - we're only modifying the tree, not replacing it
 		tree.addRouteWithConstraints(path, handlers, constraints)
 		return
 	}
 
 	// Phase 2: Tree doesn't exist for this method, need to create it atomically
-	r.updateTrees(func(currentTrees map[string]*node) map[string]*node {
+	r.updateTrees(func(current *methodTrees) *methodTrees {
 		// Double-check: another goroutine might have created the tree during retry
-		if tree, exists := currentTrees[method]; exists {
-			// Another goroutine won the race and created it, add route directly
+		if tree := current.getTree(method); tree != nil {
 			tree.addRouteWithConstraints(path, handlers, constraints)
-			return currentTrees // No copy needed
+			return current // No copy needed
 		}
-
-		// Create new trees map with the new method tree
-		// Copy-on-write: clone the map and add the new tree
-		newTrees := make(map[string]*node, len(currentTrees)+1)
-		maps.Copy(newTrees, currentTrees)
-		newTrees[method] = &node{}
-		newTrees[method].addRouteWithConstraints(path, handlers, constraints)
-
-		return newTrees
+		// Copy-on-write: clone methodTrees and set new tree for this method
+		copy := current.copy()
+		copy.setTree(method, &node{})
+		copy.getTree(method).addRouteWithConstraints(path, handlers, constraints)
+		return copy
 	})
 }
 

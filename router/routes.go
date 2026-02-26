@@ -23,6 +23,93 @@ import (
 	"rivaas.dev/router/route"
 )
 
+// methodTrees holds per-method route tree roots for O(1) lookup via switch.
+// Used instead of map[string]*node to avoid string hashing in the hot path.
+type methodTrees struct {
+	get     *node
+	post    *node
+	put     *node
+	delete  *node
+	patch   *node
+	head    *node
+	options *node
+}
+
+// getTree returns the tree for the given HTTP method, or nil.
+func (m *methodTrees) getTree(method string) *node {
+	switch method {
+	case http.MethodGet:
+		return m.get
+	case http.MethodPost:
+		return m.post
+	case http.MethodPut:
+		return m.put
+	case http.MethodDelete:
+		return m.delete
+	case http.MethodPatch:
+		return m.patch
+	case http.MethodHead:
+		return m.head
+	case http.MethodOptions:
+		return m.options
+	default:
+		return nil
+	}
+}
+
+// setTree sets the tree for the given HTTP method.
+func (m *methodTrees) setTree(method string, n *node) {
+	switch method {
+	case http.MethodGet:
+		m.get = n
+	case http.MethodPost:
+		m.post = n
+	case http.MethodPut:
+		m.put = n
+	case http.MethodDelete:
+		m.delete = n
+	case http.MethodPatch:
+		m.patch = n
+	case http.MethodHead:
+		m.head = n
+	case http.MethodOptions:
+		m.options = n
+	}
+}
+
+// iterate calls fn for each non-nil method tree.
+func (m *methodTrees) iterate(fn func(method string, tree *node)) {
+	if m.get != nil {
+		fn(http.MethodGet, m.get)
+	}
+	if m.post != nil {
+		fn(http.MethodPost, m.post)
+	}
+	if m.put != nil {
+		fn(http.MethodPut, m.put)
+	}
+	if m.delete != nil {
+		fn(http.MethodDelete, m.delete)
+	}
+	if m.patch != nil {
+		fn(http.MethodPatch, m.patch)
+	}
+	if m.head != nil {
+		fn(http.MethodHead, m.head)
+	}
+	if m.options != nil {
+		fn(http.MethodOptions, m.options)
+	}
+}
+
+// copy returns a new methodTrees with the same pointers (shallow copy for copy-on-write).
+func (m *methodTrees) copy() *methodTrees {
+	return &methodTrees{
+		get: m.get, post: m.post, put: m.put, delete: m.delete,
+		patch: m.patch, head: m.head, options: m.options,
+	}
+}
+
 // atomicRouteTree represents a route tree with thread-safe operations.
 // This structure enables concurrent reads and writes.
 //
@@ -45,11 +132,11 @@ import (
 //
 // Alignment is verified at runtime in init() - the program will panic if misaligned.
 type atomicRouteTree struct {
-	// trees is a pointer to the current route tree map
+	// trees is a pointer to the current methodTrees (per-method roots)
 	// This allows thread-safe reads and updates during route registration
 	// WARNING: Must only be accessed via atomic operations (Load/Store/CompareAndSwap)
 	// CRITICAL: Must be first field for 8-byte alignment (verified in init())
-	trees unsafe.Pointer // *map[string]*node
+	trees unsafe.Pointer // *methodTrees
 
 	// version is incremented on each tree update
 	// CRITICAL: Must immediately follow trees for 8-byte alignment (verified in init())
@@ -91,23 +178,24 @@ func init() {
 }
 
 // getTreeForMethodDirect atomically gets the tree for a specific HTTP method without copying.
-// This method uses direct pointer access.
+// Uses a switch on method string to avoid map hashing in the hot path.
 func (r *Router) getTreeForMethodDirect(method string) *node {
 	treesPtr := atomic.LoadPointer(&r.routeTree.trees)
-	trees := (*map[string]*node)(treesPtr)
-
-	return (*trees)[method]
+	trees := (*methodTrees)(treesPtr)
+	if trees == nil {
+		return nil
+	}
+	return trees.getTree(method)
 }
 
-// loadTrees atomically loads the route trees map.
+// loadTrees atomically loads the method trees.
 // Returns nil if trees haven't been initialized.
-func (rt *atomicRouteTree) loadTrees() *map[string]*node {
+func (rt *atomicRouteTree) loadTrees() *methodTrees {
 	treesPtr := atomic.LoadPointer(&rt.trees)
 	if treesPtr == nil {
 		return nil
 	}
-
-	return (*map[string]*node)(treesPtr)
+	return (*methodTrees)(treesPtr)
 }
 
 // GET adds a route that matches GET requests to the specified path.
