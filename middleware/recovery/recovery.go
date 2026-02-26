@@ -25,6 +25,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/term"
 
 	"rivaas.dev/router"
@@ -157,7 +158,7 @@ func handlePanic(c *router.Context, cfg *config, err any) {
 
 // recordPanicToSpan records panic information to the active span if available.
 func recordPanicToSpan(c *router.Context, err any) {
-	span := c.Span()
+	span := trace.SpanFromContext(c.RequestContext())
 	if span == nil || !span.SpanContext().IsValid() {
 		return
 	}
