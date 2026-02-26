@@ -1,0 +1,4 @@
+# Ignore all files under any middleware example directory (e.g. built binaries)
+**/example/**
+# Keep only files with extensions (main.go, go.mod, go.sum, etc.)
+!**/example/**/*.*
