@@ -516,3 +516,26 @@ func TestContext_ServiceUnavailable(t *testing.T) {
 
 	assert.True(t, c.IsAborted())
 }
+
+// TestContext_ObservabilityMethods_NoPanic verifies that observability methods
+// do not panic when metrics/tracing are not configured (app created with New() has nil metrics/tracing).
+func TestContext_ObservabilityMethods_NoPanic(t *testing.T) {
+	t.Parallel()
+
+	c, err := TestContextWithBody("GET", "/test", nil)
+	require.NoError(t, err)
+
+	// Tracing methods — should return empty or no-op when no span in context
+	assert.Empty(t, c.TraceID())
+	assert.Empty(t, c.SpanID())
+	assert.NotNil(t, c.TraceContext())
+	c.SetSpanAttribute("key", "value")
+	c.AddSpanEvent("event")
+	span := c.Span()
+	assert.False(t, span.SpanContext().IsValid(), "Span should be non-recording when tracing not enabled")
+
+	// Metrics methods — should no-op when metrics not configured
+	c.RecordHistogram("test_histogram", 1.0)
+	c.IncrementCounter("test_counter")
+	c.SetGauge("test_gauge", 42)
+}

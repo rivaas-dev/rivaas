@@ -16,6 +16,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -24,8 +25,12 @@ import (
 	"reflect"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"rivaas.dev/binding"
 	"rivaas.dev/router"
+	"rivaas.dev/tracing"
 	"rivaas.dev/validation"
 
 	riverrors "rivaas.dev/errors"
@@ -620,4 +625,67 @@ func (c *Context) InternalError(err error) {
 //	c.ServiceUnavailable(fmt.Errorf("maintenance mode"))  // custom message
 func (c *Context) ServiceUnavailable(err error) {
 	c.FailStatus(http.StatusServiceUnavailable, err)
+}
+
+// Observability methods — delegate to app's metrics and tracing.
+// These methods are no-ops when observability is not configured.
+
+// TraceID returns the current trace ID from the active span.
+// Returns an empty string if tracing is not active.
+func (c *Context) TraceID() string {
+	return tracing.TraceID(c.RequestContext())
+}
+
+// SpanID returns the current span ID from the active span.
+// Returns an empty string if tracing is not active.
+func (c *Context) SpanID() string {
+	return tracing.SpanID(c.RequestContext())
+}
+
+// SetSpanAttribute adds an attribute to the current span.
+// This is a no-op if tracing is not active.
+func (c *Context) SetSpanAttribute(key string, value any) {
+	tracing.SetSpanAttributeFromContext(c.RequestContext(), key, value)
+}
+
+// AddSpanEvent adds an event to the current span with optional attributes.
+// This is a no-op if tracing is not active.
+func (c *Context) AddSpanEvent(name string, attrs ...attribute.KeyValue) {
+	tracing.AddSpanEventFromContext(c.RequestContext(), name, attrs...)
+}
+
+// TraceContext returns the request context (which carries the active span when tracing is enabled).
+// Use it for manual span creation or context propagation.
+func (c *Context) TraceContext() context.Context {
+	return c.RequestContext()
+}
+
+// Span returns the OpenTelemetry span for this request, if tracing is enabled.
+// Returns a non-recording span if tracing is not enabled.
+func (c *Context) Span() trace.Span {
+	return trace.SpanFromContext(c.RequestContext())
+}
+
+// RecordHistogram records a custom histogram metric.
+// This is a no-op when metrics are not configured.
+func (c *Context) RecordHistogram(name string, value float64, attributes ...attribute.KeyValue) {
+	if c.app != nil && c.app.metrics != nil {
+		_ = c.app.metrics.RecordHistogram(c.RequestContext(), name, value, attributes...) //nolint:errcheck // metrics failures must not break request handling
+	}
+}
+
+// IncrementCounter increments a custom counter metric by one.
+// This is a no-op when metrics are not configured.
+func (c *Context) IncrementCounter(name string, attributes ...attribute.KeyValue) {
+	if c.app != nil && c.app.metrics != nil {
+		_ = c.app.metrics.IncrementCounter(c.RequestContext(), name, attributes...) //nolint:errcheck // metrics failures must not break request handling
+	}
+}
+
+// SetGauge sets a custom gauge metric.
+// This is a no-op when metrics are not configured.
+func (c *Context) SetGauge(name string, value float64, attributes ...attribute.KeyValue) {
+	if c.app != nil && c.app.metrics != nil {
+		_ = c.app.metrics.SetGauge(c.RequestContext(), name, value, attributes...) //nolint:errcheck // metrics failures must not break request handling
+	}
 }
