@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	rivaas.dev/middleware/basicauth v0.0.0
-	rivaas.dev/router v0.11.0
+	rivaas.dev/router v0.12.0
 )
 
 require (
