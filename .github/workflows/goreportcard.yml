@@ -1,0 +1,28 @@
+name: Go Report Card
+
+on:
+  push:
+    tags:
+      - '*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-check:
+    name: Trigger Go Report Card
+    runs-on: ubuntu-latest
+    steps:
+      - name: Derive module from tag and trigger
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          PATH_PART="${TAG%/*}"
+          REPO="rivaas.dev/${PATH_PART}"
+          echo "Tag: $TAG -> module: $REPO"
+          curl -sS -X POST 'https://goreportcard.com/checks' \
+            -H 'X-Requested-With: XMLHttpRequest' \
+            --form "repo=$REPO"
