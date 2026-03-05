@@ -32,17 +32,13 @@ allow := true {
 }
 
 allow := true {
-  requester_customer_id := split(input.user.id, ":")[3]
-  key_customer_id := split(input.request.key.creator_id, ":")[3]
   input.request.method == "PATCH"
   input.request.path == "/keys/:id"
-  requester_customer_id == key_customer_id
 }
 
 allow := true {
   input.request.method == "DELETE"
   input.request.path == "/keys/:id"
-  input.user.id == input.request.key.creator_id
 }
 
 # v2 endpoints

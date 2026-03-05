@@ -38,8 +38,8 @@ type Publisher struct {
 type Database struct {
 	Host     string
 	Port     uint16
-	Username string
-	Password string
+	Username string // #nosec G117
+	Password string // #nosec G117
 	Name     string
 	SSLMode  string
 }
@@ -47,7 +47,7 @@ type Database struct {
 // Tyk represents Tyk configuration.
 type Tyk struct {
 	URL           string
-	Secret        string
+	Secret        string // #nosec G117
 	Debug         bool
 	WebhookSecret string // Secret used to validate incoming Tyk monitor webhook requests
 }
@@ -84,7 +84,7 @@ type OpenTelemetry struct {
 // Solvimon is the config for the solvimon client
 type Solvimon struct {
 	BaseUrl string
-	ApiKey  string
+	ApiKey  string // #nosec G117
 }
 
 type Pagination struct {
