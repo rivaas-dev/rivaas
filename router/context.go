@@ -339,7 +339,7 @@ func (c *Context) JSON(code int, obj any) error {
 	c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	// Check if headers have already been written to avoid "superfluous response.WriteHeader call"
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -375,7 +375,7 @@ func (c *Context) IndentedJSON(code int, obj any) error {
 	c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	// Write status code
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -417,7 +417,7 @@ func (c *Context) PureJSON(code int, obj any) error {
 	c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	// Write status code
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -465,7 +465,7 @@ func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 	c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	// Write status code
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -574,7 +574,7 @@ func (c *Context) ASCIIJSON(code int, obj any) error {
 	c.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	// Write status code
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -653,7 +653,7 @@ func (c *Context) String(code int, value string) error {
 	}
 
 	// Check if headers have already been written
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -694,7 +694,7 @@ func (c *Context) Stringf(code int, format string, values ...any) error {
 	}
 
 	// Check if headers have already been written
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -777,7 +777,7 @@ func (c *Context) HTML(code int, html string) error {
 	c.Response.Header().Set("Content-Type", "text/html")
 
 	// Check if headers have already been written to avoid "superfluous response.WriteHeader call"
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -801,7 +801,7 @@ func (c *Context) HTML(code int, html string) error {
 //	c.Status(http.StatusNoContent) // 204 No Content
 func (c *Context) Status(code int) {
 	// Check if headers have already been written to avoid "superfluous response.WriteHeader call"
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -1015,7 +1015,7 @@ func (c *Context) YAML(code int, obj any) error {
 	c.Response.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
 
 	// Write status code
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -1073,7 +1073,7 @@ func (c *Context) DataFromReader(code int, contentLength int64, contentType stri
 	}
 
 	// Write status code
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -1104,7 +1104,7 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 	}
 
 	// Write status code
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if !rw.Written() {
 			c.Response.WriteHeader(code)
 		}
@@ -1184,7 +1184,7 @@ func (c *Context) HasErrors() bool {
 // WriteErrorResponse writes a simple HTTP error response.
 // Error formatting is handled by app.Context.Error() when router.Context is wrapped.
 func (c *Context) WriteErrorResponse(status int, message string) {
-	if rw, ok := c.Response.(*responseWriter); !ok || !rw.Written() {
+	if rw, ok := c.Response.(WrittenChecker); !ok || !rw.Written() {
 		c.Response.WriteHeader(status)
 	}
 	if message != "" {

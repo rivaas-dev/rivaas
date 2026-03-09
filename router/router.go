@@ -15,11 +15,9 @@
 package router
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"slices"
 	"sync"
@@ -44,76 +42,8 @@ func NoopLogger() *slog.Logger {
 // Option defines functional options for router configuration.
 type Option func(*Router)
 
-// responseWriter wraps http.ResponseWriter to capture status code and size.
-// It also prevents "superfluous response.WriteHeader call" errors
-type responseWriter struct {
-	http.ResponseWriter
-
-	statusCode int
-	size       int64
-	written    bool
-}
-
-// WriteHeader captures the status code and prevents duplicate calls.
-func (rw *responseWriter) WriteHeader(code int) {
-	if !rw.written {
-		rw.statusCode = code
-		rw.ResponseWriter.WriteHeader(code)
-		rw.written = true
-	}
-}
-
-// Write captures the response size and marks as written.
-func (rw *responseWriter) Write(b []byte) (int, error) {
-	if !rw.written {
-		rw.written = true
-	}
-	if rw.statusCode == 0 {
-		rw.statusCode = http.StatusOK
-	}
-	n, err := rw.ResponseWriter.Write(b)
-	rw.size += int64(n)
-
-	return n, err
-}
-
-// StatusCode returns the HTTP status code.
-func (rw *responseWriter) StatusCode() int {
-	if rw.statusCode == 0 {
-		return http.StatusOK
-	}
-
-	return rw.statusCode
-}
-
-// Size returns the response size in bytes.
-func (rw *responseWriter) Size() int64 {
-	return rw.size
-}
-
-// Written returns true if headers have been written.
-func (rw *responseWriter) Written() bool {
-	return rw.written
-}
-
-// Compile-time check that responseWriter implements ResponseInfo.
-var _ ResponseInfo = (*responseWriter)(nil)
-
-// Hijack implements http.Hijacker interface.
-func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
-		return hijacker.Hijack()
-	}
-
-	return nil, nil, ErrResponseWriterNotHijacker
-}
-
-// Flush implements http.Flusher interface.
-func (rw *responseWriter) Flush() {
-	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
-}
+// responseWriter is an alias for ResponseWriterWrapper for internal and test use.
+type responseWriter = ResponseWriterWrapper
 
 // Router represents the HTTP router.
 // It matches HTTP requests to registered routes and executes handler chains.

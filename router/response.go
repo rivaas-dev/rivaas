@@ -194,7 +194,7 @@ func (c *Context) SendStatus(code int) error {
 	c.Status(code)
 
 	// Check if body already written
-	if rw, ok := c.Response.(*responseWriter); ok {
+	if rw, ok := c.Response.(WrittenChecker); ok {
 		if rw.Written() {
 			return nil
 		}
