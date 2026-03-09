@@ -333,7 +333,7 @@ func main() {
 		),
 	)
 
-	a.OnReload(func(ctx context.Context) error {
+	if err := a.OnReload(func(ctx context.Context) error {
 		// Reload configuration
 		if err := cfg.Load(ctx); err != nil {
 			logger.Error("failed to load configuration", "error", err)
@@ -341,7 +341,10 @@ func main() {
 		}
 		logger.Info("configuration reloaded")
 		return nil
-	})
+	}); err != nil {
+		logger.Error("failed to register reload hook", "error", err)
+		os.Exit(1)
+	}
 
 	if err := a.Start(ctx); err != nil {
 		logger.Error("server error", "error", err)

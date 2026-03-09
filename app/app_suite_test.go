@@ -55,31 +55,31 @@ func (s *AppLifecycleSuite) TestHooksExecutionOrder() {
 	executionOrder := make([]string, 0)
 	executionMutex := make(chan struct{}, 1)
 
-	s.testApp.OnStart(func(ctx context.Context) error {
+	s.Require().NoError(s.testApp.OnStart(func(ctx context.Context) error {
 		executionMutex <- struct{}{}
 		executionOrder = append(executionOrder, "OnStart")
 		<-executionMutex
 
 		return nil
-	})
+	}))
 
-	s.testApp.OnReady(func() {
+	s.Require().NoError(s.testApp.OnReady(func() {
 		executionMutex <- struct{}{}
 		executionOrder = append(executionOrder, "OnReady")
 		<-executionMutex
-	})
+	}))
 
-	s.testApp.OnShutdown(func(ctx context.Context) {
+	s.Require().NoError(s.testApp.OnShutdown(func(ctx context.Context) {
 		executionMutex <- struct{}{}
 		executionOrder = append(executionOrder, "OnShutdown")
 		<-executionMutex
-	})
+	}))
 
-	s.testApp.OnStop(func() {
+	s.Require().NoError(s.testApp.OnStop(func() {
 		executionMutex <- struct{}{}
 		executionOrder = append(executionOrder, "OnStop")
 		<-executionMutex
-	})
+	}))
 
 	// Note: In a real test, we'd start the server and trigger shutdown
 	// For this unit test, we just verify hooks are registered

@@ -156,17 +156,23 @@
 //
 // Example:
 //
-//	app.OnStart(func(ctx context.Context) error {
+//	if err := app.OnStart(func(ctx context.Context) error {
 //	    return db.Connect(ctx)
-//	})
+//	}); err != nil {
+//	    log.Fatal(err)
+//	}
 //
-//	app.OnReady(func() {
+//	if err := app.OnReady(func() {
 //	    log.Println("Server is ready!")
-//	})
+//	}); err != nil {
+//	    log.Fatal(err)
+//	}
 //
-//	app.OnShutdown(func(ctx context.Context) {
+//	if err := app.OnShutdown(func(ctx context.Context) {
 //	    db.Close()
-//	})
+//	}); err != nil {
+//	    log.Fatal(err)
+//	}
 //
 // # Request Handling
 //

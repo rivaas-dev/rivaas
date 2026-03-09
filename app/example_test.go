@@ -386,21 +386,27 @@ func Example_healthEndpoints() {
 func Example_lifecycleHooks() {
 	a := app.MustNew()
 
-	a.OnStart(func(ctx context.Context) error {
+	if err := a.OnStart(func(ctx context.Context) error {
 		// Initialize database, run migrations, etc.
 		fmt.Println("OnStart: Initializing...")
 		return nil
-	})
+	}); err != nil {
+		log.Fatal(err)
+	}
 
-	a.OnReady(func() {
+	if err := a.OnReady(func() {
 		// Register with service discovery, warmup caches, etc.
 		fmt.Println("OnReady: Server is ready")
-	})
+	}); err != nil {
+		log.Fatal(err)
+	}
 
-	a.OnShutdown(func(ctx context.Context) {
+	if err := a.OnShutdown(func(ctx context.Context) {
 		// Close connections, flush buffers, etc.
 		fmt.Println("OnShutdown: Cleaning up...")
-	})
+	}); err != nil {
+		log.Fatal(err)
+	}
 
 	fmt.Println("Lifecycle hooks registered")
 	// Output: Lifecycle hooks registered

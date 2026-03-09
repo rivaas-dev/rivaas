@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 
@@ -34,11 +35,11 @@ func TestOnRoute_fireRouteHookInvokedOnRouteRegistration(t *testing.T) {
 	var seen []struct{ method, path string }
 	var mu sync.Mutex
 
-	app.OnRoute(func(rt *route.Route) {
+	require.NoError(t, app.OnRoute(func(rt *route.Route) {
 		mu.Lock()
 		seen = append(seen, struct{ method, path string }{rt.Method(), rt.Path()})
 		mu.Unlock()
-	})
+	}))
 
 	app.GET("/test", func(c *Context) {})
 
@@ -56,11 +57,11 @@ func TestOnRoute_multipleRoutesInvokeHookForEach(t *testing.T) {
 	var seen []struct{ method, path string }
 	var mu sync.Mutex
 
-	app.OnRoute(func(rt *route.Route) {
+	require.NoError(t, app.OnRoute(func(rt *route.Route) {
 		mu.Lock()
 		seen = append(seen, struct{ method, path string }{rt.Method(), rt.Path()})
 		mu.Unlock()
-	})
+	}))
 
 	app.GET("/a", func(c *Context) {})
 	app.POST("/b", func(c *Context) {})
@@ -74,35 +75,35 @@ func TestOnRoute_multipleRoutesInvokeHookForEach(t *testing.T) {
 	assert.Equal(t, "/b", seen[1].path)
 }
 
-func TestOnStart_panicsWhenRouterAlreadyFrozen(t *testing.T) {
+func TestOnStart_returnsErrorWhenRouterAlreadyFrozen(t *testing.T) {
 	t.Parallel()
 
 	app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
 	app.Router().Freeze()
 
-	assert.Panics(t, func() {
-		app.OnStart(func(context.Context) error { return nil })
-	}, "OnStart should panic when router is already frozen")
+	err := app.OnStart(func(context.Context) error { return nil })
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRouterFrozen), "expected ErrRouterFrozen")
 }
 
-func TestOnReady_panicsWhenRouterAlreadyFrozen(t *testing.T) {
+func TestOnReady_returnsErrorWhenRouterAlreadyFrozen(t *testing.T) {
 	t.Parallel()
 
 	app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
 	app.Router().Freeze()
 
-	assert.Panics(t, func() {
-		app.OnReady(func() {})
-	}, "OnReady should panic when router is already frozen")
+	err := app.OnReady(func() {})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRouterFrozen), "expected ErrRouterFrozen")
 }
 
-func TestOnRoute_panicsWhenRouterAlreadyFrozen(t *testing.T) {
+func TestOnRoute_returnsErrorWhenRouterAlreadyFrozen(t *testing.T) {
 	t.Parallel()
 
 	app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
 	app.Router().Freeze()
 
-	assert.Panics(t, func() {
-		app.OnRoute(func(*route.Route) {})
-	}, "OnRoute should panic when router is already frozen")
+	err := app.OnRoute(func(*route.Route) {})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRouterFrozen), "expected ErrRouterFrozen")
 }

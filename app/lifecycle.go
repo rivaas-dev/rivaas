@@ -39,23 +39,30 @@ type Hooks struct {
 // Hooks run sequentially, and if any hook returns an error, startup is aborted.
 // It should be used for initialization that must succeed (database connections, migrations, etc.).
 //
+// Returns ErrRouterFrozen if called after the router is frozen (e.g. after Start() or Freeze()).
+// Register all hooks before starting the server.
+//
 // Example:
 //
 //	app.OnStart(func(ctx context.Context) error {
 //	    return db.PingContext(ctx)
 //	})
-func (a *App) OnStart(fn func(context.Context) error) {
+func (a *App) OnStart(fn func(context.Context) error) error {
 	if a.router.Frozen() {
-		panic("cannot register hooks after router is frozen")
+		return ErrRouterFrozen
 	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onStart = append(a.hooks.onStart, fn)
+	return nil
 }
 
 // OnReady registers a hook that runs after the server starts listening.
 // Hooks can run asynchronously and errors are logged but don't stop the server.
 // It should be used for warmup tasks, service discovery registration, etc.
+//
+// Returns ErrRouterFrozen if called after the router is frozen (e.g. after Start() or Freeze()).
+// Register all hooks before starting the server.
 //
 // Example:
 //
@@ -63,13 +70,14 @@ func (a *App) OnStart(fn func(context.Context) error) {
 //	    log.Println("Server ready!")
 //	    registerWithConsul()
 //	})
-func (a *App) OnReady(fn func()) {
+func (a *App) OnReady(fn func()) error {
 	if a.router.Frozen() {
-		panic("cannot register hooks after router is frozen")
+		return ErrRouterFrozen
 	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onReady = append(a.hooks.onReady, fn)
+	return nil
 }
 
 // OnReload registers a hook that runs when the application receives a reload signal (SIGHUP)
@@ -90,6 +98,9 @@ func (a *App) OnReady(fn func()) {
 //
 // Note: Routes and middleware cannot be reloaded as the router is frozen after startup.
 //
+// Returns ErrRouterFrozen if called after the router is frozen (e.g. after Start() or Freeze()).
+// Register all hooks before starting the server.
+//
 // Example:
 //
 //	app.OnReload(func(ctx context.Context) error {
@@ -100,18 +111,22 @@ func (a *App) OnReady(fn func()) {
 //	    applyConfig(cfg)
 //	    return nil
 //	})
-func (a *App) OnReload(fn func(context.Context) error) {
+func (a *App) OnReload(fn func(context.Context) error) error {
 	if a.router.Frozen() {
-		panic("cannot register hooks after router is frozen")
+		return ErrRouterFrozen
 	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onReload = append(a.hooks.onReload, fn)
+	return nil
 }
 
 // OnShutdown registers a hook that runs during graceful shutdown.
 // Hooks run in reverse order (LIFO) and receive a context with the shutdown timeout.
 // It should be used for cleanup that must complete within the timeout (closing connections, flushing buffers).
+//
+// Returns ErrRouterFrozen if called after the router is frozen (e.g. after Start() or Freeze()).
+// Register all hooks before starting the server.
 //
 // Example:
 //
@@ -119,49 +134,58 @@ func (a *App) OnReload(fn func(context.Context) error) {
 //	    db.Close()
 //	    flushMetrics(ctx)
 //	})
-func (a *App) OnShutdown(fn func(context.Context)) {
+func (a *App) OnShutdown(fn func(context.Context)) error {
 	if a.router.Frozen() {
-		panic("cannot register hooks after router is frozen")
+		return ErrRouterFrozen
 	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onShutdown = append(a.hooks.onShutdown, fn)
+	return nil
 }
 
 // OnStop registers a hook that runs after the server stops.
 // Hooks run in best-effort mode - panics are caught and logged.
 // It should be used for final cleanup that doesn't need to complete within a timeout.
 //
+// Returns ErrRouterFrozen if called after the router is frozen (e.g. after Start() or Freeze()).
+// Register all hooks before starting the server.
+//
 // Example:
 //
 //	app.OnStop(func() {
 //	    cleanupTempFiles()
 //	})
-func (a *App) OnStop(fn func()) {
+func (a *App) OnStop(fn func()) error {
 	if a.router.Frozen() {
-		panic("cannot register hooks after router is frozen")
+		return ErrRouterFrozen
 	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onStop = append(a.hooks.onStop, fn)
+	return nil
 }
 
 // OnRoute registers a hook that fires when a route is registered.
 // OnRoute is useful for route validation, logging, or documentation generation.
 // OnRoute hooks are disabled after router is frozen.
 //
+// Returns ErrRouterFrozen if called after the router is frozen (e.g. after Start() or Freeze()).
+// Register all hooks before starting the server.
+//
 // Example:
 //
 //	app.OnRoute(func(rt *route.Route) {
 //	    log.Printf("Registered: %s %s", rt.Method(), rt.Path())
 //	})
-func (a *App) OnRoute(fn func(*route.Route)) {
+func (a *App) OnRoute(fn func(*route.Route)) error {
 	if a.router.Frozen() {
-		panic("cannot register hooks after router is frozen")
+		return ErrRouterFrozen
 	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onRoute = append(a.hooks.onRoute, fn)
+	return nil
 }
 
 // fireRouteHook fires all OnRoute hooks for a newly registered route.

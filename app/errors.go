@@ -15,10 +15,16 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 )
+
+// ErrRouterFrozen is returned when a lifecycle hook is registered after the router
+// has been frozen (e.g. after Start() or Router().Freeze()).
+// Register all hooks before starting the server. Use errors.Is(err, app.ErrRouterFrozen) to detect.
+var ErrRouterFrozen = errors.New("cannot register hooks after router is frozen")
 
 // ConfigError represents a configuration validation error with structured information.
 //

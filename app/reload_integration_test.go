@@ -40,12 +40,12 @@ func TestReload_SIGHUP(t *testing.T) {
 	var reloadCount int
 	var mu sync.Mutex
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		reloadCount++
 		mu.Unlock()
 		return nil
-	})
+	}))
 
 	app.GET("/test", func(c *Context) {
 		_ = c.String(http.StatusOK, "ok")
@@ -111,16 +111,16 @@ func TestReload_SIGHUPWithError(t *testing.T) {
 	var mu sync.Mutex
 
 	// First hook succeeds, second fails
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		reloadAttempts++
 		mu.Unlock()
 		return nil
-	})
+	}))
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		return assert.AnError // Simulated error
-	})
+	}))
 
 	app.GET("/test", func(c *Context) {
 		_ = c.String(http.StatusOK, "ok")

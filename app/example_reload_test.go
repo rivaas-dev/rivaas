@@ -35,7 +35,7 @@ func ExampleApp_OnReload() {
 
 	// Register a reload hook to reload configuration
 	// SIGHUP is automatically enabled when this hook is registered
-	myApp.OnReload(func(ctx context.Context) error {
+	if err := myApp.OnReload(func(ctx context.Context) error {
 		fmt.Println("Reloading configuration...")
 		// In a real application, you would:
 		// - Re-read config files
@@ -43,7 +43,9 @@ func ExampleApp_OnReload() {
 		// - Flush caches
 		// - Update connection pool settings
 		return nil
-	})
+	}); err != nil {
+		log.Fatal(err)
+	}
 
 	myApp.GET("/", func(c *app.Context) {
 		_ = c.String(200, "Hello, World!") //nolint:errcheck // Example code
@@ -67,11 +69,13 @@ func ExampleApp_Reload() {
 
 	var configVersion int
 
-	myApp.OnReload(func(ctx context.Context) error {
+	if err := myApp.OnReload(func(ctx context.Context) error {
 		configVersion++
 		fmt.Printf("Config reloaded, version: %d\n", configVersion)
 		return nil
-	})
+	}); err != nil {
+		log.Fatal(err)
+	}
 
 	// Create an admin endpoint that triggers reload
 	myApp.POST("/admin/reload", func(c *app.Context) {

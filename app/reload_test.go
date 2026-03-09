@@ -40,26 +40,26 @@ func TestOnReload_Sequential(t *testing.T) {
 	var executionOrder []int
 	var mu sync.Mutex
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		executionOrder = append(executionOrder, 1)
 		mu.Unlock()
 		return nil
-	})
+	}))
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		executionOrder = append(executionOrder, 2)
 		mu.Unlock()
 		return nil
-	})
+	}))
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		executionOrder = append(executionOrder, 3)
 		mu.Unlock()
 		return nil
-	})
+	}))
 
 	ctx := context.Background()
 	err = app.Reload(ctx)
@@ -82,26 +82,26 @@ func TestOnReload_StopsOnError(t *testing.T) {
 	var executed []int
 	var mu sync.Mutex
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		executed = append(executed, 1)
 		mu.Unlock()
 		return nil
-	})
+	}))
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		executed = append(executed, 2)
 		mu.Unlock()
 		return errors.New("hook 2 failed")
-	})
+	}))
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		executed = append(executed, 3)
 		mu.Unlock()
 		return nil
-	})
+	}))
 
 	ctx := context.Background()
 	err = app.Reload(ctx)
@@ -123,9 +123,9 @@ func TestOnReload_ServerContinuesOnError(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		return errors.New("reload failed")
-	})
+	}))
 
 	app.GET("/test", func(c *Context) {
 		_ = c.String(http.StatusOK, "ok") //nolint:errcheck // Test code
@@ -144,11 +144,11 @@ func TestOnReload_ServerContinuesOnError(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "server should continue serving after reload error")
 }
 
-func TestOnReload_PanicIfFrozen(t *testing.T) {
+func TestOnReload_ReturnsErrorIfFrozen(t *testing.T) {
 	t.Parallel()
 
 	app, err := New(
-		WithServiceName("test-reload-panic-frozen"),
+		WithServiceName("test-reload-returns-error-frozen"),
 		WithServiceVersion("1.0.0"),
 	)
 	require.NoError(t, err)
@@ -156,12 +156,12 @@ func TestOnReload_PanicIfFrozen(t *testing.T) {
 	// Freeze the router
 	app.router.Freeze()
 
-	// Registering OnReload after freeze should panic
-	assert.Panics(t, func() {
-		app.OnReload(func(ctx context.Context) error {
-			return nil
-		})
-	}, "should panic when registering OnReload after router is frozen")
+	// Registering OnReload after freeze should return error
+	err = app.OnReload(func(ctx context.Context) error {
+		return nil
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRouterFrozen), "expected ErrRouterFrozen")
 }
 
 func TestReload_Serialized(t *testing.T) {
@@ -177,7 +177,7 @@ func TestReload_Serialized(t *testing.T) {
 	var maxConcurrent int32
 	var mu sync.Mutex
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		activeReloads++
 		if activeReloads > maxConcurrent {
@@ -193,7 +193,7 @@ func TestReload_Serialized(t *testing.T) {
 		mu.Unlock()
 
 		return nil
-	})
+	}))
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
@@ -225,12 +225,12 @@ func TestReload_Programmatic(t *testing.T) {
 	var reloadCount int
 	var mu sync.Mutex
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		reloadCount++
 		mu.Unlock()
 		return nil
-	})
+	}))
 
 	ctx := context.Background()
 
@@ -269,14 +269,14 @@ func TestOnReload_ContextCancellation(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(100 * time.Millisecond):
 			return nil
 		}
-	})
+	}))
 
 	// Create a context that's already canceled
 	ctx, cancel := context.WithCancel(context.Background())
@@ -299,12 +299,12 @@ func TestOnReload_MultipleReloads(t *testing.T) {
 	var reloadCount int
 	var mu sync.Mutex
 
-	app.OnReload(func(ctx context.Context) error {
+	require.NoError(t, app.OnReload(func(ctx context.Context) error {
 		mu.Lock()
 		reloadCount++
 		mu.Unlock()
 		return nil
-	})
+	}))
 
 	ctx := context.Background()
 
