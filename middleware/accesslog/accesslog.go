@@ -15,14 +15,9 @@
 package accesslog
 
 import (
-	"bufio"
 	"crypto/sha256"
 	"encoding/binary"
-	"errors"
-	"io"
 	"math/rand/v2"
-	"net"
-	"net/http"
 	"strings"
 	"time"
 
@@ -84,8 +79,7 @@ func New(opts ...Option) router.HandlerFunc {
 			// Already has capability, use it
 			ss = existing
 		} else {
-			// Wrap it
-			wrapped := &responseWriter{ResponseWriter: c.Response}
+			wrapped := router.NewResponseWriterWrapper(c.Response)
 			c.Response = wrapped
 			ss = wrapped
 		}
@@ -182,92 +176,4 @@ func sampleByHash(id string, rate float64) bool {
 	threshold := uint64(rate * float64(^uint64(0)))
 
 	return hashValue <= threshold
-}
-
-// responseWriter wraps http.ResponseWriter and preserves optional interfaces.
-type responseWriter struct {
-	http.ResponseWriter
-
-	statusCode int
-	size       int64
-	written    bool
-}
-
-// Compile-time interface checks
-var (
-	_ http.ResponseWriter = (*responseWriter)(nil)
-	_ http.Flusher        = (*responseWriter)(nil)
-	_ http.Hijacker       = (*responseWriter)(nil)
-	_ http.Pusher         = (*responseWriter)(nil)
-	_ io.ReaderFrom       = (*responseWriter)(nil)
-)
-
-func (rw *responseWriter) WriteHeader(code int) {
-	if !rw.written {
-		rw.statusCode = code
-		rw.written = true
-		rw.ResponseWriter.WriteHeader(code)
-	}
-}
-
-func (rw *responseWriter) Write(b []byte) (int, error) {
-	if !rw.written {
-		rw.WriteHeader(http.StatusOK)
-	}
-	n, err := rw.ResponseWriter.Write(b)
-	rw.size += int64(n)
-
-	return n, err
-}
-
-func (rw *responseWriter) StatusCode() int {
-	if rw.statusCode == 0 {
-		return http.StatusOK
-	}
-
-	return rw.statusCode
-}
-
-func (rw *responseWriter) Size() int64 {
-	return rw.size
-}
-
-// Flush implements http.Flusher
-func (rw *responseWriter) Flush() {
-	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
-}
-
-// Hijack implements http.Hijacker (for WebSocket, etc.)
-func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if h, ok := rw.ResponseWriter.(http.Hijacker); ok {
-		return h.Hijack()
-	}
-
-	return nil, nil, errors.New("hijacker not supported")
-}
-
-// Push implements http.Pusher (HTTP/2 server push)
-func (rw *responseWriter) Push(target string, opts *http.PushOptions) error {
-	if p, ok := rw.ResponseWriter.(http.Pusher); ok {
-		return p.Push(target, opts)
-	}
-
-	return http.ErrNotSupported
-}
-
-// ReadFrom implements io.ReaderFrom using zero-copy when available.
-func (rw *responseWriter) ReadFrom(r io.Reader) (int64, error) {
-	if rf, ok := rw.ResponseWriter.(io.ReaderFrom); ok {
-		n, err := rf.ReadFrom(r)
-		rw.size += n
-
-		return n, err
-	}
-	// Fallback to io.Copy
-	n, err := io.Copy(rw.ResponseWriter, r)
-	rw.size += n
-
-	return n, err
 }
