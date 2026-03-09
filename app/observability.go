@@ -15,11 +15,9 @@
 package app
 
 import (
-	"bufio"
 	"context"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"time"
 
@@ -131,7 +129,7 @@ func (o *observabilityRecorder) WrapResponseWriter(w http.ResponseWriter, state 
 		return w // Already wrapped, don't wrap again
 	}
 
-	return &observabilityResponseWriter{ResponseWriter: w}
+	return &observabilityResponseWriter{ResponseWriterWrapper: router.NewResponseWriterWrapper(w)}
 }
 
 func (o *observabilityRecorder) OnRequestEnd(ctx context.Context, state any, writer http.ResponseWriter, routePattern string) {
@@ -237,51 +235,17 @@ func (o *observabilityRecorder) logAccessRequest(
 }
 
 // observabilityResponseWriter wraps [http.ResponseWriter] to capture metadata.
-// It implements [router.ResponseInfo] plus common optional interfaces.
+// It embeds [router.ResponseWriterWrapper] and adds Push, ReadFrom, and the observability marker.
 type observabilityResponseWriter struct {
-	http.ResponseWriter
-
-	statusCode int
-	size       int64
-	written    bool
+	*router.ResponseWriterWrapper
 }
 
 // Ensure we implement required interfaces
 var (
 	_ router.ResponseInfo        = (*observabilityResponseWriter)(nil)
+	_ router.WrittenChecker      = (*observabilityResponseWriter)(nil)
 	_ observabilityWrappedWriter = (*observabilityResponseWriter)(nil)
 )
-
-func (rw *observabilityResponseWriter) WriteHeader(code int) {
-	if !rw.written {
-		rw.statusCode = code
-		rw.ResponseWriter.WriteHeader(code)
-		rw.written = true
-	}
-}
-
-func (rw *observabilityResponseWriter) Write(b []byte) (int, error) {
-	if !rw.written {
-		rw.written = true
-		rw.statusCode = http.StatusOK
-	}
-	n, err := rw.ResponseWriter.Write(b)
-	rw.size += int64(n)
-
-	return n, err
-}
-
-func (rw *observabilityResponseWriter) StatusCode() int {
-	if rw.statusCode == 0 {
-		return http.StatusOK
-	}
-
-	return rw.statusCode
-}
-
-func (rw *observabilityResponseWriter) Size() int64 {
-	return rw.size
-}
 
 // IsObservabilityWrapped implements observabilityWrappedWriter marker interface.
 // This signals that the writer has been wrapped by observability middleware,
@@ -290,23 +254,7 @@ func (rw *observabilityResponseWriter) IsObservabilityWrapped() bool {
 	return true
 }
 
-// Hijack Preserve http.Hijacker (for WebSockets, HTTP/2, etc.)
-func (rw *observabilityResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
-		return hijacker.Hijack()
-	}
-
-	return nil, nil, stderrors.New("response writer does not support hijacking")
-}
-
-// Flush Preserve http.Flusher (for streaming responses)
-func (rw *observabilityResponseWriter) Flush() {
-	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
-}
-
-// Push Preserve http.Pusher (for HTTP/2 server push)
+// Push preserves http.Pusher (for HTTP/2 server push).
 func (rw *observabilityResponseWriter) Push(target string, opts *http.PushOptions) error {
 	if pusher, ok := rw.ResponseWriter.(http.Pusher); ok {
 		return pusher.Push(target, opts)
@@ -315,32 +263,18 @@ func (rw *observabilityResponseWriter) Push(target string, opts *http.PushOption
 	return stderrors.New("response writer does not support push")
 }
 
-// ReadFrom Preserve io.ReaderFrom (for io.Copy)
+// ReadFrom preserves io.ReaderFrom (for io.Copy).
 func (rw *observabilityResponseWriter) ReadFrom(r io.Reader) (int64, error) {
-	// Try to use the underlying ReaderFrom implementation if available
-	if rf, ok := rw.ResponseWriter.(io.ReaderFrom); ok {
+	underlying := rw.ResponseWriter
+	if rf, ok := underlying.(io.ReaderFrom); ok {
 		n, err := rf.ReadFrom(r)
-		rw.size += n
-		if !rw.written {
-			rw.written = true
-			if rw.statusCode == 0 {
-				rw.statusCode = http.StatusOK
-			}
-		}
-
+		rw.AddSize(n)
+		rw.MarkWritten()
 		return n, err
 	}
 
-	// Fallback: use io.Copy but still track size & status
-	// This ensures StatusCode() and Size() remain accurate
-	n, err := io.Copy(rw.ResponseWriter, r)
-	rw.size += n
-	if !rw.written {
-		rw.written = true
-		if rw.statusCode == 0 {
-			rw.statusCode = http.StatusOK
-		}
-	}
-
+	n, err := io.Copy(underlying, r)
+	rw.AddSize(n)
+	rw.MarkWritten()
 	return n, err
 }

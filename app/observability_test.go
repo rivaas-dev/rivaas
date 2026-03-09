@@ -28,6 +28,7 @@ import (
 
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
+	"rivaas.dev/router"
 	"rivaas.dev/tracing"
 )
 
@@ -543,7 +544,7 @@ func TestObservabilityResponseWriterImplementsMarkerInterface(t *testing.T) {
 	t.Parallel()
 
 	innerWriter := httptest.NewRecorder()
-	wrapped := &observabilityResponseWriter{ResponseWriter: innerWriter}
+	wrapped := &observabilityResponseWriter{ResponseWriterWrapper: router.NewResponseWriterWrapper(innerWriter)}
 
 	// Verify it implements the marker interface
 	marker, ok := any(wrapped).(ObservabilityWrappedWriter)
