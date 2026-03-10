@@ -423,6 +423,8 @@ func (r *Router) handleMethodNotAllowed(w http.ResponseWriter, req *http.Request
 // handleNotFound handles unmatched routes by either calling the custom NoRoute handler
 // or using RFC 9457 problem details by default.
 // It also checks if the path exists for other methods (405) vs doesn't exist at all (404).
+// It uses a single pooled context and conditional dispatch so both custom and default 404
+// share the same context setup (Request, Response, routePattern, version, etc.).
 func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 	// First check if this path exists for any other method (405)
 	allowed := r.getAllowedMethodsForPath(req.URL.Path)
@@ -437,48 +439,23 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 	handler := r.noRouteHandler
 	r.noRouteMutex.RUnlock()
 
-	if handler != nil {
-		// Create a context for the custom handler
-		c := getContextFromGlobalPool()
-		c.Request = req
-		c.Response = w
-		c.index = -1
-		c.paramCount = 0
-		c.router = r
-
-		// Set version if versioning is enabled
-		if r.versionEngine != nil {
-			c.version = r.versionEngine.DetectVersion(req)
-		}
-
-		// Set route pattern for metrics/tracing
-		c.routePattern = "_not_found"
-
-		// Execute the custom handler
-		handler(c)
-
-		// Reset and return to pool
-		releaseGlobalContext(c)
-	} else {
-		// Default: Use RFC 9457 problem details
-		c := getContextFromGlobalPool()
-		c.Request = req
-		c.Response = w
-		c.index = -1
-		c.paramCount = 0
-		c.router = r
-
-		// Set route pattern for metrics/tracing (sentinel, not raw path)
-		c.routePattern = "_not_found"
-
-		if r.versionEngine != nil {
-			c.version = r.versionEngine.DetectVersion(req)
-		}
-
-		c.NotFound()
-
-		releaseGlobalContext(c)
+	c := getContextFromGlobalPool()
+	c.Request = req
+	c.Response = w
+	c.index = -1
+	c.paramCount = 0
+	c.router = r
+	c.routePattern = "_not_found"
+	if r.versionEngine != nil {
+		c.version = r.versionEngine.DetectVersion(req)
 	}
+
+	if handler != nil {
+		handler(c)
+	} else {
+		c.NotFound()
+	}
+	releaseGlobalContext(c)
 }
 
 // updateTrees updates the method trees using copy-on-write semantics.
