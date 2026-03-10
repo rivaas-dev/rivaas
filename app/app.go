@@ -496,11 +496,8 @@ func New(opts ...Option) (*App, error) {
 
 	// Create unified observability recorder if any observability is enabled
 	if metricsCfg != nil || tracingCfg != nil || loggingCfg != nil {
-		// In production, default to logging errors only
-		logErrorsOnly := obsSettings.logErrorsOnly
-		if cfg.environment == EnvironmentProduction && !obsSettings.logErrorsOnly {
-			logErrorsOnly = true
-		}
+		// When access log scope is unset, production defaults to errors-only and development to all requests.
+		logErrorsOnly := effectiveLogErrorsOnly(obsSettings, cfg.environment == EnvironmentProduction)
 
 		obsRecorder := newObservabilityRecorder(&observabilityConfig{
 			Metrics:           metricsCfg,

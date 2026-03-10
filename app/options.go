@@ -56,7 +56,7 @@ func WithServiceVersion(version string) Option {
 // validation to fail during [New].
 //
 // Environment affects:
-//   - Logging verbosity (production defaults to error-only access logs)
+//   - Access log scope (when unset via [WithAccessLogScope], production defaults to errors-only, development to all)
 //   - Startup banner (development shows route table)
 //   - Terminal colors (production strips ANSI sequences)
 //
@@ -416,7 +416,7 @@ func WithDefaultErrorFormat(mediaType string) Option {
 //
 // Shared settings (apply to all components):
 //   - WithExcludePaths, WithExcludePrefixes, WithExcludePatterns, WithoutDefaultExclusions
-//   - WithAccessLogging, WithLogOnlyErrors, WithSlowThreshold
+//   - WithAccessLogging, WithAccessLogScope, WithSlowThreshold
 //
 // Default exclusions include common health/probe paths:
 // /health, /livez, /ready, /readyz, /live, /metrics, /debug/*
@@ -432,7 +432,7 @@ func WithDefaultErrorFormat(mediaType string) Option {
 //	        app.WithTracing(tracing.WithOTLP("localhost:4317")),
 //	        app.WithExcludePaths("/custom-health"),
 //	        app.WithExcludePrefixes("/internal/", "/admin/"),
-//	        app.WithLogOnlyErrors(),
+//	        app.WithAccessLogScope(app.AccessLogScopeErrorsOnly),
 //	        app.WithSlowThreshold(500 * time.Millisecond),
 //	    ),
 //	)

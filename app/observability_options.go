@@ -26,6 +26,17 @@ import (
 	stderrors "errors"
 )
 
+// AccessLogScope controls which HTTP requests are logged as access logs.
+// When unset, production defaults to AccessLogScopeErrorsOnly and development to AccessLogScopeAll.
+type AccessLogScope string
+
+const (
+	// AccessLogScopeAll logs every request (including 2xx). Use in production only if you need full request logs.
+	AccessLogScopeAll AccessLogScope = "all"
+	// AccessLogScopeErrorsOnly logs only errors (status >= 400) and slow requests. Reduces log volume.
+	AccessLogScopeErrorsOnly AccessLogScope = "errors_only"
+)
+
 // ObservabilityOption configures unified observability settings.
 // These options configure metrics, tracing, logging, and shared settings like path exclusions.
 type ObservabilityOption func(*observabilitySettings)
@@ -51,10 +62,10 @@ type observabilitySettings struct {
 	metricsSeparatePath   string // Path on separate server (default: /metrics)
 
 	// Shared settings
-	pathFilter    *pathFilter
-	accessLogging bool
-	logErrorsOnly bool
-	slowThreshold time.Duration
+	pathFilter     *pathFilter
+	accessLogging  bool
+	accessLogScope *AccessLogScope // nil means use environment default (production => errors_only, development => all)
+	slowThreshold  time.Duration
 
 	// Validation errors collected during option application
 	validationErrors []error
@@ -301,22 +312,40 @@ func WithAccessLogging(enabled bool) ObservabilityOption {
 	}
 }
 
-// WithLogOnlyErrors logs only errors (status >= 400) and slow requests.
-// Normal successful requests are not logged.
+// WithAccessLogScope sets which requests are logged. When not set, production defaults to
+// errors-only and development to all requests. Invalid scope values cause validation to fail at startup.
 //
 // Example:
 //
 //	app.WithObservability(
-//	    app.WithLogOnlyErrors(),
+//	    app.WithAccessLogScope(app.AccessLogScopeErrorsOnly),
 //	)
-func WithLogOnlyErrors() ObservabilityOption {
+func WithAccessLogScope(scope AccessLogScope) ObservabilityOption {
 	return func(s *observabilitySettings) {
-		s.logErrorsOnly = true
+		switch scope {
+		case AccessLogScopeAll, AccessLogScopeErrorsOnly:
+			s.accessLogScope = &scope
+		default:
+			if s.validationErrors == nil {
+				s.validationErrors = make([]error, 0, 1)
+			}
+			s.validationErrors = append(s.validationErrors,
+				fmt.Errorf("invalid access log scope %q: must be %q or %q", scope, AccessLogScopeAll, AccessLogScopeErrorsOnly))
+		}
 	}
 }
 
+// effectiveLogErrorsOnly returns the effective value for the observability recorder.
+// Used when building the recorder; unset scope uses environment default.
+func effectiveLogErrorsOnly(s *observabilitySettings, isProduction bool) bool {
+	if s.accessLogScope != nil {
+		return *s.accessLogScope == AccessLogScopeErrorsOnly
+	}
+	return isProduction
+}
+
 // WithSlowThreshold sets the duration threshold for marking requests as "slow".
-// Slow requests are always logged, even when using WithLogOnlyErrors.
+// Slow requests are always logged, even when using AccessLogScopeErrorsOnly.
 // Default is 1 second.
 //
 // Example:

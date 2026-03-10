@@ -85,7 +85,7 @@ func TestObservabilitySettings_Defaults(t *testing.T) {
 
 	assert.NotNil(t, settings.pathFilter)
 	assert.True(t, settings.accessLogging)
-	assert.False(t, settings.logErrorsOnly)
+	assert.Nil(t, settings.accessLogScope)
 	assert.Equal(t, time.Second, settings.slowThreshold)
 }
 
@@ -146,14 +146,99 @@ func TestObservabilitySettings_WithAccessLogging(t *testing.T) {
 	assert.False(t, settings.accessLogging)
 }
 
-func TestObservabilitySettings_WithLogOnlyErrors(t *testing.T) {
+func TestObservabilitySettings_WithAccessLogScope(t *testing.T) {
 	t.Parallel()
 
-	settings := defaultObservabilitySettings()
-	assert.False(t, settings.logErrorsOnly)
+	t.Run("errors only", func(t *testing.T) {
+		settings := defaultObservabilitySettings()
+		WithAccessLogScope(AccessLogScopeErrorsOnly)(settings)
+		require.NotNil(t, settings.accessLogScope)
+		assert.Equal(t, AccessLogScopeErrorsOnly, *settings.accessLogScope)
+		assert.True(t, effectiveLogErrorsOnly(settings, false))
+		assert.True(t, effectiveLogErrorsOnly(settings, true))
+	})
 
-	WithLogOnlyErrors()(settings)
-	assert.True(t, settings.logErrorsOnly)
+	t.Run("all", func(t *testing.T) {
+		settings := defaultObservabilitySettings()
+		WithAccessLogScope(AccessLogScopeAll)(settings)
+		require.NotNil(t, settings.accessLogScope)
+		assert.Equal(t, AccessLogScopeAll, *settings.accessLogScope)
+		assert.False(t, effectiveLogErrorsOnly(settings, false))
+		assert.False(t, effectiveLogErrorsOnly(settings, true))
+	})
+
+	t.Run("unset uses env default", func(t *testing.T) {
+		settings := defaultObservabilitySettings()
+		assert.True(t, effectiveLogErrorsOnly(settings, true), "production default => errors only")
+		assert.False(t, effectiveLogErrorsOnly(settings, false), "development default => all")
+	})
+}
+
+func TestWithAccessLogScope_InvalidScopeFailsValidation(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithObservability(
+			WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
+			WithAccessLogScope(AccessLogScope("invalid")),
+		),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid access log scope")
+}
+
+func TestAccessLogScope_EnvironmentDefaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("production with no scope uses errors-only", func(t *testing.T) {
+		app, err := New(
+			WithServiceName("test"),
+			WithServiceVersion("1.0.0"),
+			WithEnvironment(EnvironmentProduction),
+			WithObservability(WithMetrics(metrics.WithPrometheus(":9090", "/metrics"))),
+		)
+		require.NoError(t, err)
+		assert.True(t, effectiveLogErrorsOnly(app.config.observability, true))
+	})
+
+	t.Run("development with no scope uses all", func(t *testing.T) {
+		app, err := New(
+			WithServiceName("test"),
+			WithServiceVersion("1.0.0"),
+			WithObservability(WithMetrics(metrics.WithPrometheus(":9090", "/metrics"))),
+		)
+		require.NoError(t, err)
+		assert.False(t, effectiveLogErrorsOnly(app.config.observability, false))
+	})
+
+	t.Run("production with AccessLogScopeAll uses all", func(t *testing.T) {
+		app, err := New(
+			WithServiceName("test"),
+			WithServiceVersion("1.0.0"),
+			WithEnvironment(EnvironmentProduction),
+			WithObservability(
+				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
+				WithAccessLogScope(AccessLogScopeAll),
+			),
+		)
+		require.NoError(t, err)
+		assert.False(t, effectiveLogErrorsOnly(app.config.observability, true))
+	})
+
+	t.Run("development with AccessLogScopeErrorsOnly uses errors-only", func(t *testing.T) {
+		app, err := New(
+			WithServiceName("test"),
+			WithServiceVersion("1.0.0"),
+			WithObservability(
+				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
+				WithAccessLogScope(AccessLogScopeErrorsOnly),
+			),
+		)
+		require.NoError(t, err)
+		assert.True(t, effectiveLogErrorsOnly(app.config.observability, false))
+	})
 }
 
 func TestObservabilitySettings_WithSlowThreshold(t *testing.T) {
@@ -175,7 +260,7 @@ func TestWithObservability_Integration(t *testing.T) {
 		WithObservability(
 			WithExcludePaths("/custom-health"),
 			WithExcludePrefixes("/admin/"),
-			WithLogOnlyErrors(),
+			WithAccessLogScope(AccessLogScopeErrorsOnly),
 			WithSlowThreshold(500*time.Millisecond),
 		),
 	)
@@ -187,7 +272,7 @@ func TestWithObservability_Integration(t *testing.T) {
 	assert.True(t, app.config.observability.pathFilter.shouldExclude("/health"))
 	assert.True(t, app.config.observability.pathFilter.shouldExclude("/custom-health"))
 	assert.True(t, app.config.observability.pathFilter.shouldExclude("/admin/users"))
-	assert.True(t, app.config.observability.logErrorsOnly)
+	assert.True(t, effectiveLogErrorsOnly(app.config.observability, app.Environment() == EnvironmentProduction))
 	assert.Equal(t, 500*time.Millisecond, app.config.observability.slowThreshold)
 }
 
@@ -233,7 +318,7 @@ func TestWithObservability_Components(t *testing.T) {
 				WithMetrics(metrics.WithPrometheus(":9090", "/metrics")),
 				WithTracing(tracing.WithNoop()),
 				WithExcludePaths("/custom"),
-				WithLogOnlyErrors(),
+				WithAccessLogScope(AccessLogScopeErrorsOnly),
 			),
 		)
 		require.NoError(t, err)
@@ -241,7 +326,7 @@ func TestWithObservability_Components(t *testing.T) {
 		assert.NotNil(t, app.metrics)
 		assert.NotNil(t, app.tracing)
 		assert.True(t, app.config.observability.pathFilter.shouldExclude("/custom"))
-		assert.True(t, app.config.observability.logErrorsOnly)
+		assert.True(t, effectiveLogErrorsOnly(app.config.observability, app.Environment() == EnvironmentProduction))
 	})
 }
 
