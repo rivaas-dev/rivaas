@@ -128,6 +128,8 @@ func (g *Group) addRoute(method, path string, handler HandlerFunc, opts ...Route
 		rt = g.router.HEAD(path, allHandlers...)
 	case http.MethodOptions:
 		rt = g.router.OPTIONS(path, allHandlers...)
+	default:
+		panicUnsupportedHTTPMethod(method)
 	}
 
 	// Update route info with actual handler name and caller location

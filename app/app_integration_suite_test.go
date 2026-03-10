@@ -197,10 +197,6 @@ var _ = Describe("App Integration", func() {
 		})
 	})
 
-	// registerRoute default branch: The default branch in registerRoute (for unsupported
-	// HTTP method) is defensive only. All public APIs (GET, POST, PUT, DELETE, PATCH, HEAD,
-	// OPTIONS, Any) pass a known method, so the default is not reachable from public API.
-
 	Describe("App Getters and Metrics", func() {
 		Describe("ServiceName, ServiceVersion, Environment", func() {
 			It("should return configured service name, version, and environment", func() {

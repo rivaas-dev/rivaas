@@ -91,6 +91,8 @@ func (vg *VersionGroup) addRoute(method, path string, handler HandlerFunc, opts 
 		rt = vg.versionRouter.HEAD(fullPath, allHandlers...)
 	case http.MethodOptions:
 		rt = vg.versionRouter.OPTIONS(fullPath, allHandlers...)
+	default:
+		panicUnsupportedHTTPMethod(method)
 	}
 
 	// Update route info with actual handler name and caller location

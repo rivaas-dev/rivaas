@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -156,6 +157,57 @@ func (s *AppLifecycleSuite) TestMiddlewareChain() {
 
 	// Verify execution order: middleware 1, middleware 2, handler
 	s.Equal([]int{1, 2, 3}, callOrder)
+}
+
+func (s *AppLifecycleSuite) TestUnsupportedHTTPMethodPanics_registerRoute() {
+	noop := func(c *Context) {}
+	s.Require().Panics(func() {
+		s.testApp.registerRoute("CONNECT", "/", noop)
+	}, "registerRoute with unsupported method should panic")
+	// Assert panic message contains expected text
+	var panicMsg string
+	func() {
+		defer func() {
+			if v := recover(); v != nil {
+				panicMsg = fmt.Sprintf("%v", v)
+			}
+		}()
+		s.testApp.registerRoute("TRACE", "/", noop)
+	}()
+	s.Require().Contains(panicMsg, "unsupported HTTP method")
+	s.Require().Contains(panicMsg, "supported: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS")
+}
+
+func (s *AppLifecycleSuite) TestUnsupportedHTTPMethodPanics_Group_addRoute() {
+	noop := func(c *Context) {}
+	g := s.testApp.Group("/api")
+	var panicMsg string
+	func() {
+		defer func() {
+			if v := recover(); v != nil {
+				panicMsg = fmt.Sprintf("%v", v)
+			}
+		}()
+		g.addRoute("CUSTOM", "/", noop)
+	}()
+	s.Require().Contains(panicMsg, "unsupported HTTP method")
+	s.Require().Contains(panicMsg, "CUSTOM")
+}
+
+func (s *AppLifecycleSuite) TestUnsupportedHTTPMethodPanics_VersionGroup_addRoute() {
+	noop := func(c *Context) {}
+	vg := s.testApp.Version("v1")
+	var panicMsg string
+	func() {
+		defer func() {
+			if v := recover(); v != nil {
+				panicMsg = fmt.Sprintf("%v", v)
+			}
+		}()
+		vg.addRoute("INVALID", "/", noop)
+	}()
+	s.Require().Contains(panicMsg, "unsupported HTTP method")
+	s.Require().Contains(panicMsg, "INVALID")
 }
 
 //nolint:paralleltest // Test suites manage their own parallelization

@@ -638,6 +638,12 @@ func getHandlerFuncName(handler HandlerFunc) string {
 	return fullName
 }
 
+// panicUnsupportedHTTPMethod panics with a clear message when an unsupported HTTP method
+// is passed to registerRoute or addRoute. Used by App.registerRoute, Group.addRoute, and VersionGroup.addRoute.
+func panicUnsupportedHTTPMethod(method string) {
+	panic(fmt.Sprintf("app: unsupported HTTP method %q (supported: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)", method))
+}
+
 // registerRoute is the internal implementation for all HTTP method shortcuts.
 // It applies route options, builds the handler chain, registers with the router,
 // and registers OpenAPI documentation if enabled.
@@ -681,8 +687,7 @@ func (a *App) registerRoute(method, path string, handler HandlerFunc, opts ...Ro
 	case http.MethodOptions:
 		rt = a.router.OPTIONS(path, handlers...)
 	default:
-		// Fallback - shouldn't happen in normal use
-		rt = a.router.GET(path, handlers...)
+		panicUnsupportedHTTPMethod(method)
 	}
 
 	// Update route info with actual handler name and caller location
