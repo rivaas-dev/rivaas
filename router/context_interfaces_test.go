@@ -327,7 +327,7 @@ func TestContextImplementsInterfaces(t *testing.T) {
 		// Test ContextWriter interface
 		var contextWriter ContextWriter = c
 		assert.NotNil(t, contextWriter)
-		// ContextWriter now only extends ResponseWriter - error formatting is handled by app.Context
+		// ContextWriter now only extends ResponseWriter - app.Context handles error formatting
 	})
 
 	r.ServeHTTP(w, req)
