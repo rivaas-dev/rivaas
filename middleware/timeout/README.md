@@ -51,15 +51,15 @@ func main() {
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithDuration` | Max time for the request (default: 30s) |
-| `WithHandler` | Custom response when timeout happens (default: 408) |
-| `WithSkipPaths` | Exact paths to exclude from timeout |
-| `WithSkipPrefix` | Path prefixes to exclude (e.g. /stream) |
-| `WithSkipSuffix` | Path suffixes to exclude |
-| `WithSkip` | Custom function to skip timeout for a request |
-| `WithoutLogging` | Do not log timeout events |
+| Option           | What it does                                        |
+|------------------|-----------------------------------------------------|
+| `WithDuration`   | Max time for the request (default: 30s)             |
+| `WithHandler`    | Custom response when timeout happens (default: 408) |
+| `WithSkipPaths`  | Exact paths to exclude from timeout                 |
+| `WithSkipPrefix` | Path prefixes to exclude (e.g. /stream)             |
+| `WithSkipSuffix` | Path suffixes to exclude                            |
+| `WithSkip`       | Custom function to skip timeout for a request       |
+| `WithoutLogging` | Do not log timeout events                           |
 
 Skip timeout for some paths:
 
