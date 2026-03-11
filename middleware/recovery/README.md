@@ -56,13 +56,13 @@ Register recovery early (or first) in the chain so it wraps all handlers below i
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithStackTrace` | Include stack trace in logs (default: true) |
-| `WithStackSize` | Max stack trace size in bytes (default: 4KB) |
-| `WithLogger` | Custom function to log the panic |
-| `WithHandler` | Custom function to write the error response |
-| `WithDisableStackAll` | Do not dump all goroutine stacks |
+| Option                | What it does                                 |
+|-----------------------|----------------------------------------------|
+| `WithStackTrace`      | Include stack trace in logs (default: true)  |
+| `WithStackSize`       | Max stack trace size in bytes (default: 4KB) |
+| `WithLogger`          | Custom function to log the panic             |
+| `WithHandler`         | Custom function to write the error response  |
+| `WithDisableStackAll` | Do not dump all goroutine stacks             |
 
 Custom error response:
 
