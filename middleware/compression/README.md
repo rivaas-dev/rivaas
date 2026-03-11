@@ -49,14 +49,14 @@ func main() {
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithGzipLevel` | Gzip level 0–9 (higher = smaller but slower; default is standard) |
-| `WithBrotliLevel` | Brotli level 0–11 (default 4 for dynamic content) |
-| `WithBrotliDisabled` | Use only gzip and deflate |
-| `WithMinSize` | Do not compress responses smaller than this (bytes) |
-| `WithContentTypes` | Only compress these content types (default: text/*, application/json, etc.) |
-| `WithExcludePaths` | Paths that are never compressed |
+| Option               | What it does                                                                |
+|----------------------|-----------------------------------------------------------------------------|
+| `WithGzipLevel`      | Gzip level 0–9 (higher = smaller but slower; default is standard)           |
+| `WithBrotliLevel`    | Brotli level 0–11 (default 4 for dynamic content)                           |
+| `WithBrotliDisabled` | Use only gzip and deflate                                                   |
+| `WithMinSize`        | Do not compress responses smaller than this (bytes)                         |
+| `WithContentTypes`   | Only compress these content types (default: text/*, application/json, etc.) |
+| `WithExcludePaths`   | Paths that are never compressed                                             |
 
 Example with custom settings:
 
