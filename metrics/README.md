@@ -96,11 +96,11 @@ func main() {
 
 ## Contributing
 
-Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+Contributions are welcome! Please see the [main repository](..) for contribution guidelines.
 
 ## License
 
-Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+Apache License 2.0 – see [LICENSE](../LICENSE) for details.
 
 ---
 
