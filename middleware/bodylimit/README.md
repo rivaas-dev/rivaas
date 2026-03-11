@@ -54,11 +54,11 @@ func main() {
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithLimit` | Max body size in bytes (required; default 2MB if you use the zero value) |
-| `WithSkipPaths` | Paths that do not apply the limit (e.g. large uploads) |
-| `WithErrorHandler` | Custom response when body is too large (default: 413 JSON) |
+| Option             | What it does                                                             |
+|--------------------|--------------------------------------------------------------------------|
+| `WithLimit`        | Max body size in bytes (required; default 2MB if you use the zero value) |
+| `WithSkipPaths`    | Paths that do not apply the limit (e.g. large uploads)                   |
+| `WithErrorHandler` | Custom response when body is too large (default: 413 JSON)               |
 
 Custom error handler:
 
