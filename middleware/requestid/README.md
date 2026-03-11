@@ -54,11 +54,11 @@ Register requestid early so the ID is available to accesslog and other middlewar
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithHeader` | Header name for request ID (default: X-Request-ID) |
-| `WithULID` | Use ULID instead of UUID v7 (shorter IDs) |
-| `WithGenerator` | Your own function to generate IDs |
+| Option              | What it does                                            |
+|---------------------|---------------------------------------------------------|
+| `WithHeader`        | Header name for request ID (default: X-Request-ID)      |
+| `WithULID`          | Use ULID instead of UUID v7 (shorter IDs)               |
+| `WithGenerator`     | Your own function to generate IDs                       |
 | `WithAllowClientID` | Whether to accept an ID from the client (default: true) |
 
 Use ULID for shorter IDs:
