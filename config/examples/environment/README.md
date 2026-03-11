@@ -66,11 +66,11 @@ Environment variables follow this naming convention:
 
 ### Examples:
 
-| Environment Variable | Configuration Path | Struct Field |
-|---------------------|-------------------|--------------|
-| `WEBAPP_SERVER_HOST` | `server.host` | `Server.Host` |
+| Environment Variable           | Configuration Path      | Struct Field            |
+|--------------------------------|-------------------------|-------------------------|
+| `WEBAPP_SERVER_HOST`           | `server.host`           | `Server.Host`           |
 | `WEBAPP_DATABASE_PRIMARY_HOST` | `database.primary.host` | `Database.Primary.Host` |
-| `WEBAPP_AUTH_JWT_SECRET` | `auth.jwt.secret` | `Auth.JWT.Secret` |
+| `WEBAPP_AUTH_JWT_SECRET`       | `auth.jwt.secret`       | `Auth.JWT.Secret`       |
 
 ## Key Concepts
 

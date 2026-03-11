@@ -115,11 +115,11 @@ The example demonstrates configuration precedence where environment variables ov
 
 ### Examples:
 
-| YAML Value | Environment Variable | Final Value | Source |
-|------------|---------------------|-------------|---------|
-| `server.port: 3000` | `WEBAPP_SERVER_PORT=8080` | `8080` | Environment |
-| `server.host: localhost` | (not set) | `localhost` | YAML |
-| `features.debug_mode: true` | `WEBAPP_FEATURES_DEBUG_MODE=false` | `false` | Environment |
+| YAML Value                  | Environment Variable               | Final Value | Source      |
+|-----------------------------|------------------------------------|-------------|-------------|
+| `server.port: 3000`         | `WEBAPP_SERVER_PORT=8080`          | `8080`      | Environment |
+| `server.host: localhost`    | (not set)                          | `localhost` | YAML        |
+| `features.debug_mode: true` | `WEBAPP_FEATURES_DEBUG_MODE=false` | `false`     | Environment |
 
 ## Test Files
 

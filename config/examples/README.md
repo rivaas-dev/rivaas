@@ -19,7 +19,7 @@ A simple example showing the most basic usage of Config package - loading config
 
 **Best for:** Getting started with Config package, understanding basic concepts.
 
-### 2. [Environment Variables Example](./environment/)
+### 2. [Environment Variables Example](./environment)
 
 Demonstrates loading configuration from environment variables, following the Twelve-Factor App methodology.
 
@@ -33,7 +33,7 @@ Demonstrates loading configuration from environment variables, following the Twe
 
 **Best for:** Containerized applications, cloud deployments, following 12-factor app principles.
 
-### 3. [Mixed Configuration Example](./mixed/)
+### 3. [Mixed Configuration Example](./mixed)
 
 Shows how to combine YAML files and environment variables, with environment variables overriding YAML defaults.
 
@@ -47,7 +47,7 @@ Shows how to combine YAML files and environment variables, with environment vari
 
 **Best for:** Applications that need both default configuration files and environment-specific overrides.
 
-### 4. [Comprehensive Example](./comprehensive/)
+### 4. [Comprehensive Example](./comprehensive)
 
 A complete example demonstrating advanced Config package features with a realistic web application configuration.
 

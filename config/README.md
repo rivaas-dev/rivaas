@@ -81,7 +81,7 @@ func main() {
 
 ## Contributing
 
-Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+Contributions are welcome! Please see the [main repository](..) for contribution guidelines.
 
 ## License
 
