@@ -53,14 +53,14 @@ func main() {
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithRequestsPerSecond` | Average rate (tokens per second) |
-| `WithBurst` | Max burst size (default: same as rate) |
-| `WithKeyFunc` | How to identify the client (default: by IP) |
-| `WithSkipPaths` | Paths that are not rate limited |
-| `WithOnLimitExceeded` | Custom response when limit is hit |
-| `WithLogger` | Logger for rate limit events |
+| Option                  | What it does                                |
+|-------------------------|---------------------------------------------|
+| `WithRequestsPerSecond` | Average rate (tokens per second)            |
+| `WithBurst`             | Max burst size (default: same as rate)      |
+| `WithKeyFunc`           | How to identify the client (default: by IP) |
+| `WithSkipPaths`         | Paths that are not rate limited             |
+| `WithOnLimitExceeded`   | Custom response when limit is hit           |
+| `WithLogger`            | Logger for rate limit events                |
 
 Limit per user instead of per IP:
 
