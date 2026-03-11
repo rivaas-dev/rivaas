@@ -97,7 +97,7 @@ func skipPathsExample(r *router.Router) {
 	})
 }
 
-// Example 5: Deterministic sampling by request ID (e.g. from X-Request-ID header)
+// Example 5: Deterministic sampling by request ID (e.g., from X-Request-ID header)
 func requestIDIntegrationExample(r *router.Router) {
 	tracked := r.Group("/tracked")
 

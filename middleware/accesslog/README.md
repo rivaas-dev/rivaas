@@ -70,14 +70,14 @@ r.Use(accesslog.New(
 ))
 ```
 
-| Option | What it does |
-|--------|----------------|
-| `WithLogger` | Set the slog logger (required if you want custom output) |
-| `WithExcludePaths` | Do not log these exact paths |
-| `WithExcludePrefixes` | Do not log paths that start with these prefixes |
-| `WithSampleRate` | Log only a fraction of requests (0.1 = 10%) |
-| `WithSlowThreshold` | Always log requests slower than this duration |
-| `WithLogErrorsOnly` | Log only requests with status >= 400 |
+| Option                | What it does                                             |
+|-----------------------|----------------------------------------------------------|
+| `WithLogger`          | Set the slog logger (required if you want custom output) |
+| `WithExcludePaths`    | Do not log these exact paths                             |
+| `WithExcludePrefixes` | Do not log paths that start with these prefixes          |
+| `WithSampleRate`      | Log only a fraction of requests (0.1 = 10%)              |
+| `WithSlowThreshold`   | Always log requests slower than this duration            |
+| `WithLogErrorsOnly`   | Log only requests with status >= 400                     |
 
 ## Examples
 
