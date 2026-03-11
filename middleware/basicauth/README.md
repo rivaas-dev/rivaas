@@ -59,13 +59,13 @@ func main() {
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithUsers` | Map of username to password (simple setup) |
-| `WithValidator` | Your own function to check username/password (e.g. against a DB) |
-| `WithRealm` | Text shown in the browser login box (default: "Restricted") |
-| `WithSkipPaths` | Paths that do not require auth (e.g. `/health`) |
-| `WithUnauthorizedHandler` | Custom response when auth fails |
+| Option                    | What it does                                                     |
+|---------------------------|------------------------------------------------------------------|
+| `WithUsers`               | Map of username to password (simple setup)                       |
+| `WithValidator`           | Your own function to check username/password (e.g. against a DB) |
+| `WithRealm`               | Text shown in the browser login box (default: "Restricted")      |
+| `WithSkipPaths`           | Paths that do not require auth (e.g. `/health`)                  |
+| `WithUnauthorizedHandler` | Custom response when auth fails                                  |
 
 Using a custom validator:
 
