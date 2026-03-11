@@ -69,7 +69,7 @@ func WithDiscardUnknown() Option {
 }
 
 // WithRecursionLimit sets the maximum recursion depth for unmarshaling.
-// The default limit is 10000.
+// The default limit is 10,000.
 func WithRecursionLimit(limit int) Option {
 	return func(c *config) {
 		c.recursionLimit = limit
