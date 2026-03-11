@@ -68,6 +68,8 @@ func main() {
 }
 ```
 
+For HTTPS or mTLS, configure at construction with [WithTLS](https://pkg.go.dev/rivaas.dev/app#WithTLS) or [WithMTLS](https://pkg.go.dev/rivaas.dev/app#WithMTLS), then call `Start(ctx)`. Default port is 8080 for HTTP and 8443 for TLS/mTLS (override with [WithPort](https://pkg.go.dev/rivaas.dev/app#WithPort)).
+
 ## Learn More
 
 - **[Installation Guide](https://rivaas.dev/docs/guides/app/installation/)** - Set up the app package

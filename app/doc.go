@@ -256,6 +256,8 @@
 //	    ),
 //	)
 //
+// For HTTPS use WithTLS(certFile, keyFile); for mTLS use WithMTLS(serverCert, ...MTLSOption). Then call Start(ctx).
+// Default port is 8080 for HTTP and 8443 for TLS/mTLS; override with WithPort or RIVAAS_PORT.
 // Configuration is automatically validated to catch common misconfigurations.
 //
 // # Environment Variables
@@ -275,7 +277,7 @@
 //	  RIVAAS_SERVICE_VERSION        - Service version
 //
 //	Server:
-//	  RIVAAS_PORT                   - HTTP server port (e.g., "8080")
+//	  RIVAAS_PORT                   - Server port (default 8080 for HTTP, 8443 for TLS/mTLS; e.g., "8080", "443")
 //	  RIVAAS_HOST                   - HTTP server host/interface (e.g., "127.0.0.1")
 //	  RIVAAS_READ_TIMEOUT           - Request read timeout (e.g., "10s")
 //	  RIVAAS_WRITE_TIMEOUT          - Response write timeout (e.g., "10s")

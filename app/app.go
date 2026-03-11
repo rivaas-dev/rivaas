@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log/slog"
@@ -46,6 +47,7 @@ const (
 	DefaultVersion           = "1.0.0"
 	DefaultEnvironment       = "development"
 	DefaultPort              = 8080
+	DefaultTLSPort           = 8443 // Default port when serving TLS or mTLS (overridable with WithPort)
 	DefaultReadTimeout       = 10 * time.Second
 	DefaultWriteTimeout      = 10 * time.Second
 	DefaultIdleTimeout       = 60 * time.Second
@@ -122,6 +124,12 @@ type serverConfig struct {
 	readHeaderTimeout time.Duration
 	maxHeaderBytes    int
 	shutdownTimeout   time.Duration
+	// TLS (HTTPS): both set = serve HTTPS
+	tlsCertFile string
+	tlsKeyFile  string
+	// mTLS: serverCert present = serve mTLS
+	mtlsServerCert tls.Certificate
+	mtlsOpts       []MTLSOption
 }
 
 // ListenAddr returns the server listen address in "host:port" format.
@@ -289,6 +297,23 @@ func (c *config) validate() error {
 			// Merge server validation errors into the main error collection
 			errs.Errors = append(errs.Errors, serverErrs.Errors...)
 		}
+		// TLS and mTLS are mutually exclusive
+		hasTLS := c.server.tlsCertFile != "" || c.server.tlsKeyFile != ""
+		hasMTLS := len(c.server.mtlsServerCert.Certificate) > 0
+		if hasTLS && hasMTLS {
+			errs.Add(newInvalidValueError("server", nil, "cannot use both WithTLS and WithMTLS"))
+		}
+		if hasTLS {
+			if c.server.tlsCertFile == "" || c.server.tlsKeyFile == "" {
+				errs.Add(newInvalidValueError("server", nil, "both cert file and key file are required for WithTLS"))
+			}
+		}
+		if hasMTLS {
+			mtlsCfg := newMTLSConfig(c.server.mtlsServerCert, c.server.mtlsOpts...)
+			if mtlsErr := mtlsCfg.validate(); mtlsErr != nil {
+				errs.Add(newInvalidValueError("server", nil, mtlsErr.Error()))
+			}
+		}
 	}
 
 	// Validate OpenAPI configuration
@@ -344,7 +369,7 @@ func defaultConfig() *config {
 			readHeaderTimeout: DefaultReadHeaderTimeout,
 			maxHeaderBytes:    DefaultMaxHeaderBytes,
 			shutdownTimeout:   DefaultShutdownTimeout,
-		},
+		}, // tlsCertFile, tlsKeyFile, mtlsServerCert, mtlsOpts zero values = HTTP
 		middleware: &middlewareConfig{
 			functions: []HandlerFunc{},
 		},

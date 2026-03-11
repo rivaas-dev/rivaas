@@ -22,7 +22,7 @@ import (
 )
 
 // registerDebugEndpoints registers debug endpoints based on the provided settings.
-// This is called internally by app.New() when debug endpoints are configured.
+// app.New() calls this internally when debug endpoints are configured.
 func (a *App) registerDebugEndpoints(s *debugSettings) error {
 	if !s.pprofEnabled {
 		return nil // No debug features enabled

@@ -15,6 +15,7 @@
 package app
 
 import (
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -69,8 +70,9 @@ func WithEnvironment(env string) Option {
 	}
 }
 
-// WithPort sets the HTTP server port.
-// Default is 8080. Can be overridden by RIVAAS_PORT when [WithEnv] is used.
+// WithPort sets the server listen port.
+// Default is 8080 for HTTP; when using [WithTLS] or [WithMTLS] the default is 8443.
+// Override with WithPort(n) in all cases. Can be overridden by RIVAAS_PORT when [WithEnv] is used.
 //
 // Example:
 //
@@ -216,6 +218,54 @@ func WithServer(opts ...ServerOption) Option {
 		// Apply options to the existing server config (which already has defaults)
 		for _, opt := range opts {
 			opt(c.server)
+		}
+	}
+}
+
+// WithTLS configures the server to serve HTTPS using the given certificate and key files.
+// Only one of WithTLS or WithMTLS may be used. Both certFile and keyFile must be non-empty.
+// Default listen port is 8443 unless overridden by [WithPort] or RIVAAS_PORT when [WithEnv] is used.
+//
+// Example:
+//
+//	app.New(
+//	    app.WithServiceName("my-api"),
+//	    app.WithTLS("server.crt", "server.key"), // default port 8443; use WithPort(443) to override
+//	)
+//	// ...
+//	app.Start(ctx)
+func WithTLS(certFile, keyFile string) Option {
+	return func(c *config) {
+		c.server.tlsCertFile = certFile
+		c.server.tlsKeyFile = keyFile
+		if c.server.port == DefaultPort {
+			c.server.port = DefaultTLSPort
+		}
+	}
+}
+
+// WithMTLS configures the server to serve HTTPS with mutual TLS (mTLS) using the given
+// server certificate and options. Only one of WithTLS or WithMTLS may be used.
+// Default listen port is 8443 unless overridden by [WithPort] or RIVAAS_PORT when [WithEnv] is used.
+//
+// Example:
+//
+//	serverCert, _ := tls.LoadX509KeyPair("server.crt", "server.key")
+//	app.New(
+//	    app.WithServiceName("my-api"),
+//	    app.WithMTLS(serverCert,
+//	        app.WithClientCAs(caCertPool),
+//	        app.WithMinVersion(tls.VersionTLS13),
+//	    ), // default port 8443; use WithPort(443) to override
+//	)
+//	// ...
+//	app.Start(ctx)
+func WithMTLS(serverCert tls.Certificate, opts ...MTLSOption) Option {
+	return func(c *config) {
+		c.server.mtlsServerCert = serverCert
+		c.server.mtlsOpts = opts
+		if c.server.port == DefaultPort {
+			c.server.port = DefaultTLSPort
 		}
 	}
 }

@@ -79,35 +79,35 @@ curl http://localhost:8080/v1/popular?limit=5
 
 ### Posts
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/posts` | List posts (with pagination and filters) |
-| GET | `/posts/:slug` | Get post by slug |
-| POST | `/posts` | Create new post |
-| PUT | `/posts/:id` | Update post |
-| PATCH | `/posts/:id/publish` | Publish a draft post |
+| Method | Path                 | Description                              |
+|--------|----------------------|------------------------------------------|
+| GET    | `/posts`             | List posts (with pagination and filters) |
+| GET    | `/posts/:slug`       | Get post by slug                         |
+| POST   | `/posts`             | Create new post                          |
+| PUT    | `/posts/:id`         | Update post                              |
+| PATCH  | `/posts/:id/publish` | Publish a draft post                     |
 
 ### Authors
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/authors` | List all authors |
-| GET | `/authors/:id` | Get author profile |
-| GET | `/authors/:id/posts` | Get posts by author |
+| Method | Path                 | Description         |
+|--------|----------------------|---------------------|
+| GET    | `/authors`           | List all authors    |
+| GET    | `/authors/:id`       | Get author profile  |
+| GET    | `/authors/:id/posts` | Get posts by author |
 
 ### Comments
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/posts/:slug/comments` | List comments on a post |
-| POST | `/posts/:slug/comments` | Add comment to a post |
+| Method | Path                    | Description             |
+|--------|-------------------------|-------------------------|
+| GET    | `/posts/:slug/comments` | List comments on a post |
+| POST   | `/posts/:slug/comments` | Add comment to a post   |
 
 ### Statistics (Versioned API)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/v1/stats` | Blog statistics |
-| GET | `/v1/popular` | Most viewed posts |
+| Method | Path          | Description       |
+|--------|---------------|-------------------|
+| GET    | `/v1/stats`   | Blog statistics   |
+| GET    | `/v1/popular` | Most viewed posts |
 
 ## Configuration
 

@@ -232,7 +232,7 @@ func GetPostBySlug(c *app.Context) {
 // Request body:
 //   - title: Post title (required, max 200 chars)
 //   - slug: URL-friendly slug (required, lowercase-hyphen)
-//   - content: Post content in Markdown (required, max 50000 chars)
+//   - content: Post content in Markdown (required, max 50,000 chars)
 //   - excerpt: Short summary (optional)
 //   - authorId: Author ID (required)
 //   - tags: Array of tags (optional)
@@ -255,7 +255,7 @@ func CreatePost(c *app.Context) {
 		return
 	}
 
-	// Check if slug already exists
+	// Check if a slug already exists
 	if _, exists := postsBySlug[req.Slug]; exists {
 		HandleError(c, ErrSlugTaken)
 		return

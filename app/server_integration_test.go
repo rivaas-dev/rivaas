@@ -182,7 +182,7 @@ var _ = Describe("Server Start", func() {
 		})
 	})
 
-	Describe("StartTLS", func() {
+	Describe("Start with WithTLS", func() {
 		It("should serve HTTPS with self-signed certificate", func() {
 			const port = 58101
 			certPath, keyPath := writeTempSelfSignedCert()
@@ -194,6 +194,7 @@ var _ = Describe("Server Start", func() {
 				app.WithServiceVersion("1.0.0"),
 				app.WithPort(port),
 				app.WithServer(app.WithShutdownTimeout(2*time.Second)),
+				app.WithTLS(certPath, keyPath),
 			)
 			a.GET("/", func(c *app.Context) {
 				_ = c.String(http.StatusOK, "ok")
@@ -204,7 +205,7 @@ var _ = Describe("Server Start", func() {
 
 			serverErr := make(chan error, 1)
 			go func() {
-				serverErr <- a.StartTLS(ctx, certPath, keyPath)
+				serverErr <- a.Start(ctx)
 			}()
 
 			time.Sleep(400 * time.Millisecond)
@@ -229,7 +230,7 @@ var _ = Describe("Server Start", func() {
 		})
 	})
 
-	Describe("StartMTLS", func() {
+	Describe("Start with WithMTLS", func() {
 		It("should allow connection when WithAuthorize returns true", func() {
 			const port = 58102
 			caCert, caKey := generateCA()
@@ -251,6 +252,12 @@ var _ = Describe("Server Start", func() {
 				app.WithServiceVersion("1.0.0"),
 				app.WithPort(port),
 				app.WithServer(app.WithShutdownTimeout(2*time.Second)),
+				app.WithMTLS(serverTLS,
+					app.WithClientCAs(pool),
+					app.WithAuthorize(func(cert *x509.Certificate) (string, bool) {
+						return cert.Subject.CommonName, cert.Subject.CommonName == "allowed"
+					}),
+				),
 			)
 			a.GET("/", func(c *app.Context) {
 				_ = c.String(http.StatusOK, "ok")
@@ -261,12 +268,7 @@ var _ = Describe("Server Start", func() {
 
 			serverErr := make(chan error, 1)
 			go func() {
-				serverErr <- a.StartMTLS(ctx, serverTLS,
-					app.WithClientCAs(pool),
-					app.WithAuthorize(func(cert *x509.Certificate) (string, bool) {
-						return cert.Subject.CommonName, cert.Subject.CommonName == "allowed"
-					}),
-				)
+				serverErr <- a.Start(ctx)
 			}()
 
 			time.Sleep(400 * time.Millisecond)
@@ -319,6 +321,12 @@ var _ = Describe("Server Start", func() {
 				app.WithServiceVersion("1.0.0"),
 				app.WithPort(port),
 				app.WithServer(app.WithShutdownTimeout(2*time.Second)),
+				app.WithMTLS(serverTLS,
+					app.WithClientCAs(pool),
+					app.WithAuthorize(func(cert *x509.Certificate) (string, bool) {
+						return cert.Subject.CommonName, cert.Subject.CommonName == "allowed"
+					}),
+				),
 			)
 			a.GET("/", func(c *app.Context) {
 				_ = c.String(http.StatusOK, "ok")
@@ -329,12 +337,7 @@ var _ = Describe("Server Start", func() {
 
 			serverErr := make(chan error, 1)
 			go func() {
-				serverErr <- a.StartMTLS(ctx, serverTLS,
-					app.WithClientCAs(pool),
-					app.WithAuthorize(func(cert *x509.Certificate) (string, bool) {
-						return cert.Subject.CommonName, cert.Subject.CommonName == "allowed"
-					}),
-				)
+				serverErr <- a.Start(ctx)
 			}()
 
 			time.Sleep(400 * time.Millisecond)

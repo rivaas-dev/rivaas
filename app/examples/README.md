@@ -71,17 +71,17 @@ go test -v
 
 ## Key Differences
 
-| Feature | 01-quick-start | 02-blog |
-|---------|----------------|---------|
-| Lines of code | ~20 | ~800 |
-| Configuration | ❌ | ✅ YAML + Env vars |
-| Validation | ❌ | ✅ Method-based |
-| OpenAPI Docs | ❌ | ✅ Swagger UI |
-| Observability | ❌ | ✅ Metrics + Tracing + Logging |
-| Middleware | ❌ | ✅ Full stack |
-| Testing | ❌ | ✅ Integration tests |
-| API Versioning | ❌ | ✅ Path-based |
-| Production ready | ❌ | ✅ |
+| Feature          | 01-quick-start | 02-blog                       |
+|------------------|----------------|-------------------------------|
+| Lines of code    | ~20            | ~800                          |
+| Configuration    | ❌              | ✅ YAML + Env vars             |
+| Validation       | ❌              | ✅ Method-based                |
+| OpenAPI Docs     | ❌              | ✅ Swagger UI                  |
+| Observability    | ❌              | ✅ Metrics + Tracing + Logging |
+| Middleware       | ❌              | ✅ Full stack                  |
+| Testing          | ❌              | ✅ Integration tests           |
+| API Versioning   | ❌              | ✅ Path-based                  |
+| Production ready | ❌              | ✅                             |
 
 ## Running Requirements
 
