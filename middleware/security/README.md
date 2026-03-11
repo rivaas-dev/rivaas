@@ -51,15 +51,15 @@ func main() {
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithFrameOptions` | X-Frame-Options (e.g. DENY, SAMEORIGIN) |
-| `WithContentTypeNosniff` | X-Content-Type-Options: nosniff (default: true) |
-| `WithXSSProtection` | X-XSS-Protection value |
-| `WithReferrerPolicy` | Referrer-Policy value |
-| `WithPermissionsPolicy` | Permissions-Policy value |
-| `WithHSTS` | HTTP Strict Transport Security (maxAge, includeSubdomains, preload) |
-| `WithContentSecurityPolicy` | Content-Security-Policy value |
+| Option                      | What it does                                                        |
+|-----------------------------|---------------------------------------------------------------------|
+| `WithFrameOptions`          | X-Frame-Options (e.g. DENY, SAMEORIGIN)                             |
+| `WithContentTypeNosniff`    | X-Content-Type-Options: nosniff (default: true)                     |
+| `WithXSSProtection`         | X-XSS-Protection value                                              |
+| `WithReferrerPolicy`        | Referrer-Policy value                                               |
+| `WithPermissionsPolicy`     | Permissions-Policy value                                            |
+| `WithHSTS`                  | HTTP Strict Transport Security (maxAge, includeSubdomains, preload) |
+| `WithContentSecurityPolicy` | Content-Security-Policy value                                       |
 
 Example with HSTS and CSP:
 
