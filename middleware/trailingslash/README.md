@@ -62,8 +62,8 @@ See the package doc and example for when to use `Use` vs `Wrap`.
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
+| Option       | What it does                                       |
+|--------------|----------------------------------------------------|
 | `WithPolicy` | PolicyRemove (default), PolicyAdd, or PolicyStrict |
 
 Require trailing slashes (e.g. for a static site):
