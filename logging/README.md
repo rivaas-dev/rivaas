@@ -12,11 +12,11 @@ Structured logging for Rivaas using Go's standard `log/slog` package.
 
 ## Documentation
 
-- **[Installation](https://rivaas.dev/guides/logging/installation/)** - Get started with the logging package
-- **[User Guide](https://rivaas.dev/guides/logging/)** - Complete guide with tutorials and examples
-- **[API Reference](https://rivaas.dev/reference/packages/logging/)** - Detailed API documentation
-- **[Examples](https://rivaas.dev/guides/logging/examples/)** - Real-world usage patterns
-- **[Troubleshooting](https://rivaas.dev/reference/packages/logging/troubleshooting/)** - Common issues and solutions
+- **[Installation](https://rivaas.dev/guides/logging/installation/)** – Get started with the logging package
+- **[User Guide](https://rivaas.dev/guides/logging/)** – Complete guide with tutorials and examples
+- **[API Reference](https://rivaas.dev/reference/packages/logging/)** – Detailed API documentation
+- **[Examples](https://rivaas.dev/guides/logging/examples/)** – Real-world usage patterns
+- **[Troubleshooting](https://rivaas.dev/reference/packages/logging/troubleshooting/)** – Common issues and solutions
 
 ## Features
 
@@ -61,13 +61,13 @@ func main() {
 
 ## Learn More
 
-- **[Basic Usage](https://rivaas.dev/guides/logging/basic-usage/)** - Handler types and log levels
-- **[Configuration](https://rivaas.dev/guides/logging/configuration/)** - All configuration options
-- **[Context Logging](https://rivaas.dev/guides/logging/context-logging/)** - Trace correlation with OpenTelemetry
-- **[Best Practices](https://rivaas.dev/guides/logging/best-practices/)** - Production-ready patterns
-- **[Router Integration](https://rivaas.dev/guides/logging/router-integration/)** - Using with Rivaas router
-- **[Testing](https://rivaas.dev/guides/logging/testing/)** - Test utilities and patterns
-- **[Migration](https://rivaas.dev/guides/logging/migration/)** - Switch from other loggers
+- **[Basic Usage](https://rivaas.dev/guides/logging/basic-usage/)** – Handler types and log levels
+- **[Configuration](https://rivaas.dev/guides/logging/configuration/)** – All configuration options
+- **[Context Logging](https://rivaas.dev/guides/logging/context-logging/)** – Trace correlation with OpenTelemetry
+- **[Best Practices](https://rivaas.dev/guides/logging/best-practices/)** – Production-ready patterns
+- **[Router Integration](https://rivaas.dev/guides/logging/router-integration/)** – Using with Rivaas router
+- **[Testing](https://rivaas.dev/guides/logging/testing/)** – Test utilities and patterns
+- **[Migration](https://rivaas.dev/guides/logging/migration/)** – Switch from other loggers
 
 ## API Reference
 
@@ -75,18 +75,18 @@ For complete API documentation, see [pkg.go.dev/rivaas.dev/logging](https://pkg.
 
 ## Related Packages
 
-- [router](../router/) - High-performance HTTP router
-- [metrics](../metrics/) - OpenTelemetry metrics
-- [tracing](../tracing/) - Distributed tracing
-- [app](../app/) - Batteries-included framework
+- [router](../router) – High-performance HTTP router
+- [metrics](../metrics) – OpenTelemetry metrics
+- [tracing](../tracing) – Distributed tracing
+- [app](../app) – Batteries-included framework
 
 ## Contributing
 
-Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+Contributions are welcome! Please see the [main repository](..) for contribution guidelines.
 
 ## License
 
-Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+Apache License 2.0 – see [LICENSE](../LICENSE) for details.
 
 ---
 
