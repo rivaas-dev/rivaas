@@ -53,14 +53,14 @@ func main() {
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithAllowedOrigins` | Origins that can call your API (supports wildcards; no wildcards if using credentials) |
-| `WithAllowedMethods` | HTTP methods allowed in cross-origin requests |
-| `WithAllowedHeaders` | Request headers the client may send |
-| `WithExposedHeaders` | Response headers the client script can read |
-| `WithAllowCredentials` | Allow cookies/auth; then you must use exact origins (no *) |
-| `WithMaxAge` | How long (seconds) the browser can cache the preflight result |
+| Option                 | What it does                                                                           |
+|------------------------|----------------------------------------------------------------------------------------|
+| `WithAllowedOrigins`   | Origins that can call your API (supports wildcards; no wildcards if using credentials) |
+| `WithAllowedMethods`   | HTTP methods allowed in cross-origin requests                                          |
+| `WithAllowedHeaders`   | Request headers the client may send                                                    |
+| `WithExposedHeaders`   | Response headers the client script can read                                            |
+| `WithAllowCredentials` | Allow cookies/auth; then you must use exact origins (no *)                             |
+| `WithMaxAge`           | How long (seconds) the browser can cache the preflight result                          |
 
 Allow all origins (use only for development):
 
