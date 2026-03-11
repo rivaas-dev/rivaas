@@ -57,13 +57,13 @@ curl -X POST http://localhost:8080/users/123 \
 
 ## Configuration
 
-| Option | What it does |
-|--------|----------------|
-| `WithHeader` | Header name for method override (default: X-HTTP-Method-Override) |
-| `WithQueryParam` | Query or form field name (default: _method); set empty to disable |
-| `WithAllow` | Methods that can be set via override (default: PUT, PATCH, DELETE) |
-| `WithOnlyOn` | Only treat override when the request method is one of these (default: POST) |
-| `WithRequireCSRFToken` | When true, form-based override only if request is considered CSRF-verified |
+| Option                 | What it does                                                                |
+|------------------------|-----------------------------------------------------------------------------|
+| `WithHeader`           | Header name for method override (default: X-HTTP-Method-Override)           |
+| `WithQueryParam`       | Query or form field name (default: _method); set empty to disable           |
+| `WithAllow`            | Methods that can be set via override (default: PUT, PATCH, DELETE)          |
+| `WithOnlyOn`           | Only treat override when the request method is one of these (default: POST) |
+| `WithRequireCSRFToken` | When true, form-based override only if request is considered CSRF-verified  |
 
 Example with custom header and form field:
 
