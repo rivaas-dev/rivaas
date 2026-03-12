@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	rivaas.dev/middleware/cors v0.0.0
-	rivaas.dev/router v0.12.0
+	rivaas.dev/router v0.13.0
 )
 
 require (
