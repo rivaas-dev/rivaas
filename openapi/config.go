@@ -80,7 +80,7 @@ type API struct {
 
 	// ValidateSpec enables JSON Schema validation of generated specs.
 	// When enabled, Generate validates the output against the official
-	// OpenAPI meta-schema (3.0.x or 3.1.x based on target version).
+	// OpenAPI meta-schema (3.0.x or 3.1.x based on the target version).
 	// This catches specification errors early but adds ~1-5ms overhead.
 	// Default: false
 	ValidateSpec bool
@@ -432,7 +432,7 @@ func WithTag(name, desc string) Option {
 	}
 }
 
-// WithBearerAuth adds Bearer (JWT) authentication scheme.
+// WithBearerAuth adds a Bearer (JWT) authentication scheme.
 //
 // The name is used to reference this scheme in security requirements.
 // The description appears in Swagger UI to help users understand the authentication.
@@ -458,7 +458,7 @@ func WithBearerAuth(name, desc string) Option {
 	}
 }
 
-// WithAPIKey adds API key authentication scheme.
+// WithAPIKey adds an API key authentication scheme.
 //
 // Parameters:
 //   - name: Scheme name used in security requirements
@@ -497,7 +497,7 @@ const (
 	FlowAuthorizationCode OAuthFlowType = "authorizationCode"
 )
 
-// OAuth2Flow configures a single OAuth2 flow with explicit type.
+// OAuth2Flow configures a single OAuth2 flow with an explicit type.
 type OAuth2Flow struct {
 	// Type specifies the OAuth2 flow type (implicit, password, clientCredentials, authorizationCode).
 	Type OAuthFlowType
