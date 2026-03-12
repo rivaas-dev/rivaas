@@ -8,7 +8,7 @@ require (
 	rivaas.dev/middleware/cors v0.0.0
 	rivaas.dev/middleware/recovery v0.0.0
 	rivaas.dev/middleware/timeout v0.0.0
-	rivaas.dev/router v0.12.0
+	rivaas.dev/router v0.13.0
 )
 
 require (
