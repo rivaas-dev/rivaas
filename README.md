@@ -77,6 +77,8 @@ a, err := app.New(
 )
 ```
 
+In handlers use `c.StartSpan` / `c.FinishSpan` for child spans and `c.AddCounter`, `c.IncrementCounter`, `c.RecordHistogram`, and `c.SetGauge` for custom metrics.
+
 See [full-featured example](./app/examples/02-blog/) for a complete production setup.
 
 ## Installation
