@@ -78,6 +78,8 @@ func main() {
 }
 ```
 
+When using the [app](https://pkg.go.dev/rivaas.dev/app) package, enable tracing with `app.WithObservability(app.WithTracing(...))`. Use `c.SetSpanAttribute`, `c.AddSpanEvent`, and `c.StartSpan` / `c.FinishSpan` for child spans; use `c.Tracer()` only for advanced use (e.g. passing the tracer to another library).
+
 ## Learn More
 
 - **[Installation Guide](https://rivaas.dev/docs/guides/tracing/installation/)** - Get started

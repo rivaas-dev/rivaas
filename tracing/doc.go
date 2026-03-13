@@ -73,6 +73,15 @@
 //	    attribute.String("key", "user:123"),
 //	)
 //
+// # App integration
+//
+// When using the app package, enable tracing with
+// app.WithObservability(app.WithTracing(...)). Request spans are created with
+// the same behavior as the standalone middleware (W3C propagation, sampling,
+// standard attributes). From handlers, use c.StartSpan and c.FinishSpan for
+// child spans; use c.Tracer() only for advanced use (e.g. passing the tracer
+// to another library).
+//
 // # Context Propagation
 //
 // Automatically propagate trace context across service boundaries:
