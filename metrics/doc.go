@@ -81,6 +81,9 @@
 // See [Recorder.RecordHistogram], [Recorder.IncrementCounter], and [Recorder.SetGauge]
 // for custom metric recording.
 //
+// When using the app package, record custom metrics via [app.Context]:
+// IncrementCounter, AddCounter, RecordHistogram, and SetGauge.
+//
 // # Lifecycle Management
 //
 // For proper initialization and shutdown:

@@ -85,6 +85,8 @@ func main() {
 }
 ```
 
+When using the [app](https://pkg.go.dev/rivaas.dev/app) package, use `c.IncrementCounter`, `c.AddCounter`, `c.RecordHistogram`, and `c.SetGauge` on `app.Context` for custom metrics.
+
 ## Learn More
 
 - **[Basic Usage](https://rivaas.dev/docs/guides/metrics/basic-usage/)** - Fundamentals of metrics collection
