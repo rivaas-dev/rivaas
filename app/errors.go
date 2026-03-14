@@ -145,7 +145,7 @@ func newInvalidEnumError(field string, value any, validValues []string) *ConfigE
 }
 
 // newTimeoutError creates a [ConfigError] for an invalid timeout value.
-func newTimeoutError(field string, value time.Duration, _ string) *ConfigError {
+func newTimeoutError(field string, value time.Duration) *ConfigError {
 	return newFieldError(field, value,
 		fmt.Sprintf("timeout must be positive, got: %s", value),
 		"must be positive")

@@ -161,23 +161,23 @@ func (sc *serverConfig) Validate() *ValidationError {
 
 	// Validate timeouts are positive
 	if sc.readTimeout <= 0 {
-		errs.Add(newTimeoutError("server.readTimeout", sc.readTimeout, "must be positive"))
+		errs.Add(newTimeoutError("server.readTimeout", sc.readTimeout))
 	}
 
 	if sc.writeTimeout <= 0 {
-		errs.Add(newTimeoutError("server.writeTimeout", sc.writeTimeout, "must be positive"))
+		errs.Add(newTimeoutError("server.writeTimeout", sc.writeTimeout))
 	}
 
 	if sc.idleTimeout <= 0 {
-		errs.Add(newTimeoutError("server.idleTimeout", sc.idleTimeout, "must be positive"))
+		errs.Add(newTimeoutError("server.idleTimeout", sc.idleTimeout))
 	}
 
 	if sc.readHeaderTimeout <= 0 {
-		errs.Add(newTimeoutError("server.readHeaderTimeout", sc.readHeaderTimeout, "must be positive"))
+		errs.Add(newTimeoutError("server.readHeaderTimeout", sc.readHeaderTimeout))
 	}
 
 	if sc.shutdownTimeout <= 0 {
-		errs.Add(newTimeoutError("server.shutdownTimeout", sc.shutdownTimeout, "must be positive"))
+		errs.Add(newTimeoutError("server.shutdownTimeout", sc.shutdownTimeout))
 	}
 
 	// Validate max header bytes
