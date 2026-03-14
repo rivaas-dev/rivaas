@@ -267,7 +267,7 @@ func TestServerConfig_Validate(t *testing.T) {
 					tt.check(t, errs.ToError())
 				}
 			} else {
-				assert.NoError(t, errs.ToError(), "should not have errors")
+				assert.Nil(t, errs, "should return nil when valid")
 			}
 		})
 	}

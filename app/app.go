@@ -153,7 +153,7 @@ func (sc *serverConfig) ListenAddr() string {
 //	    writeTimeout:    5 * time.Second, // Invalid: read > write
 //	    shutdownTimeout: 100 * time.Millisecond, // Invalid: too short
 //	}
-//	if err := cfg.Validate(); err != nil {
+//	if errs := cfg.Validate(); errs != nil {
 //	    // Handle validation errors
 //	}
 func (sc *serverConfig) Validate() *ValidationError {
@@ -242,6 +242,9 @@ func (sc *serverConfig) Validate() *ValidationError {
 			"must be between 1 and 65535"))
 	}
 
+	if !errs.HasErrors() {
+		return nil
+	}
 	return &errs
 }
 
@@ -293,7 +296,7 @@ func (c *config) validate() error {
 	if c.server != nil {
 		// Use the dedicated Validate() method for better separation of concerns
 		serverErrs := c.server.Validate()
-		if serverErrs != nil && serverErrs.HasErrors() {
+		if serverErrs != nil {
 			// Merge server validation errors into the main error collection
 			errs.Errors = append(errs.Errors, serverErrs.Errors...)
 		}
