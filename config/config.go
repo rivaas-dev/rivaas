@@ -398,9 +398,9 @@ func WithValidator(fn func(map[string]any) error) Option {
 }
 
 // New creates a new Config instance with the provided options.
-// It iterates through the options and applies each one to the Config instance.
-// If any of the options return an error, the errors are collected and returned.
-// Returns a partially initialized Config along with any errors encountered.
+// Options are applied in order. If any option returns an error, New returns (nil, err)
+// so callers never receive a partially-initialized config. Use MustNew for main() or
+// when panic on error is acceptable.
 func New(options ...Option) (*Config, error) {
 	var errs error
 	c := &Config{
@@ -419,7 +419,10 @@ func New(options ...Option) (*Config, error) {
 		}
 	}
 
-	return c, errs //nolint:nilnil // Returning partial config with error is intentional
+	if errs != nil {
+		return nil, errs
+	}
+	return c, nil
 }
 
 // MustNew creates a new Config instance with the provided options.
