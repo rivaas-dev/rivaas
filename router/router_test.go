@@ -279,13 +279,6 @@ func TestResponseWriter_FlushNoOp(t *testing.T) {
 	assert.Equal(t, "test", w.Body.String(), "should still be able to write after flush on non-flushable writer")
 }
 
-// TestNoopLogger covers NoopLogger().
-func TestNoopLogger(t *testing.T) {
-	t.Parallel()
-	logger := NoopLogger()
-	require.NotNil(t, logger)
-}
-
 // TestResponseWriter_StatusCode_Size_Written covers responseWriter getters.
 func TestResponseWriter_StatusCode_Size_Written(t *testing.T) {
 	t.Parallel()

@@ -16,8 +16,6 @@ package router
 
 import (
 	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
 	"slices"
 	"sync"
@@ -29,15 +27,6 @@ import (
 	"rivaas.dev/router/route"
 	"rivaas.dev/router/version"
 )
-
-// noopLogger is a singleton no-op logger used when no observability is configured.
-var noopLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
-
-// NoopLogger returns the singleton no-op logger.
-// This is used by implementations of ObservabilityRecorder when logging is disabled.
-func NoopLogger() *slog.Logger {
-	return noopLogger
-}
 
 // Option defines functional options for router configuration.
 type Option func(*Router)
