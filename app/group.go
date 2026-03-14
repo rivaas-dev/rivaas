@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"rivaas.dev/openapi"
+	"rivaas.dev/router"
 	"rivaas.dev/router/route"
 )
 
@@ -99,7 +100,7 @@ func (g *Group) addRoute(method, path string, handler HandlerFunc, opts ...Route
 	}
 
 	// Build handler chain: group middleware → before options → handler → after options
-	allHandlers := make([]route.Handler, 0, len(g.middleware)+len(cfg.before)+1+len(cfg.after))
+	allHandlers := make([]router.HandlerFunc, 0, len(g.middleware)+len(cfg.before)+1+len(cfg.after))
 	for _, m := range g.middleware {
 		allHandlers = append(allHandlers, g.app.wrapHandler(m))
 	}
@@ -111,23 +112,29 @@ func (g *Group) addRoute(method, path string, handler HandlerFunc, opts ...Route
 		allHandlers = append(allHandlers, g.app.wrapHandler(h))
 	}
 
+	// Convert to []route.Handler for route.Group API (route package uses Handler = any to avoid import cycle)
+	routeHandlers := make([]route.Handler, 0, len(allHandlers))
+	for _, h := range allHandlers {
+		routeHandlers = append(routeHandlers, h)
+	}
+
 	// Register route with combined handlers
 	var rt *route.Route
 	switch method {
 	case http.MethodGet:
-		rt = g.router.GET(path, allHandlers...)
+		rt = g.router.GET(path, routeHandlers...)
 	case http.MethodPost:
-		rt = g.router.POST(path, allHandlers...)
+		rt = g.router.POST(path, routeHandlers...)
 	case http.MethodPut:
-		rt = g.router.PUT(path, allHandlers...)
+		rt = g.router.PUT(path, routeHandlers...)
 	case http.MethodDelete:
-		rt = g.router.DELETE(path, allHandlers...)
+		rt = g.router.DELETE(path, routeHandlers...)
 	case http.MethodPatch:
-		rt = g.router.PATCH(path, allHandlers...)
+		rt = g.router.PATCH(path, routeHandlers...)
 	case http.MethodHead:
-		rt = g.router.HEAD(path, allHandlers...)
+		rt = g.router.HEAD(path, routeHandlers...)
 	case http.MethodOptions:
-		rt = g.router.OPTIONS(path, allHandlers...)
+		rt = g.router.OPTIONS(path, routeHandlers...)
 	default:
 		panicUnsupportedHTTPMethod(method)
 	}
