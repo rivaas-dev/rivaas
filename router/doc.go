@@ -180,6 +180,12 @@
 //	    router.WithTracer(tracer),
 //	)
 //
+// # Errors
+//
+// The router package defines sentinel errors for routing, binding, and server concerns only.
+// For validation errors (e.g. from c.Bind or c.Validate), use rivaas.dev/validation and check
+// with errors.As(err, &validation.Error) or errors.Is(err, validation.ErrValidation).
+//
 // # Examples
 //
 // See the examples directory for complete working examples:

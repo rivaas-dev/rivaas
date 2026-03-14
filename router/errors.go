@@ -53,18 +53,6 @@ var (
 	// ErrArrayExceedsMax indicates that the JSON array exceeds the maximum allowed number of items.
 	ErrArrayExceedsMax = errors.New("array exceeds maximum items")
 
-	// ErrCannotValidateNilValue indicates that a nil value cannot be validated.
-	ErrCannotValidateNilValue = errors.New("cannot validate nil value")
-
-	// ErrCannotValidateInvalidValue indicates that an invalid value cannot be validated.
-	ErrCannotValidateInvalidValue = errors.New("cannot validate invalid value")
-
-	// ErrUnknownValidationStrategy indicates that an unknown validation strategy was encountered.
-	ErrUnknownValidationStrategy = errors.New("unknown validation strategy")
-
-	// ErrCannotRegisterValidators indicates that validators cannot be registered after the first use.
-	ErrCannotRegisterValidators = errors.New("cannot register validators after first use")
-
 	// ErrQueryInvalidInteger indicates that a query parameter contains an invalid integer.
 	ErrQueryInvalidInteger = errors.New("query: invalid integer")
 )

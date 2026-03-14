@@ -73,6 +73,8 @@ func main() {
 
 ## Learn More
 
+Validation errors from binding or validation are defined in the [validation package](https://rivaas.dev/docs/reference/packages/validation/) — use `validation.Err*` and `errors.As(err, &validation.Error)` for checks.
+
 - **[Getting Started](https://rivaas.dev/docs/guides/router/basic-usage/)** – Your first router
 - **[Route Patterns](https://rivaas.dev/docs/guides/router/route-patterns/)** – Static, params, wildcards
 - **[Middleware](https://rivaas.dev/docs/guides/router/middleware/)** – Built-in and custom
