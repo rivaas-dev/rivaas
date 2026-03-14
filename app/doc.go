@@ -135,6 +135,30 @@
 //   - Tracing: OpenTelemetry tracing with request context propagation
 //   - Logging: Structured logging with slog, including request-scoped fields
 //
+// Request spans use the same semantics as the tracing package: W3C trace context
+// extraction, sampling (e.g. WithSampleRate), and standard HTTP attributes
+// (http.method, http.url, http.route, http.status_code, service.name, etc.).
+//
+// From handlers, use [Context.SetSpanAttribute] and [Context.AddSpanEvent] on the
+// current span. For child spans (e.g. "db-query", "call-service"), use
+// [Context.StartSpan] and [Context.FinishSpan]—the single, discoverable way to create
+// and end child spans:
+//
+//	ctx, span := c.StartSpan("db-query")
+//	defer c.FinishSpan(span, 0)
+//	// use ctx for the operation so the child span is the active span
+//
+// Use [Context.Tracer] only when you need to pass the tracer to another library
+// (e.g. DB driver, HTTP client) or use tracer-specific options (inject/extract).
+//
+// For custom metrics from handlers, use [Context.RecordHistogram],
+// [Context.IncrementCounter], [Context.AddCounter], and [Context.SetGauge]:
+//
+//	c.IncrementCounter("requests_total")
+//	c.AddCounter("bytes_processed", 1024, attribute.String("type", "upload"))
+//	c.RecordHistogram("duration_seconds", 0.5)
+//	c.SetGauge("queue_size", 10)
+//
 // All observability features are optional and can be enabled independently:
 //
 //	app.New(

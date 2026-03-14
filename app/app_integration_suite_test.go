@@ -295,6 +295,51 @@ var _ = Describe("App Integration", func() {
 			})
 		})
 
+		Describe("Observability request span and context API", func() {
+			It("completes request with W3C trace-context headers when tracing enabled", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithObservability(app.WithTracing(tracing.WithNoop())),
+				)
+				a.GET("/traced", func(c *app.Context) {
+					Expect(c.String(http.StatusOK, "ok")).NotTo(HaveOccurred())
+				})
+
+				req := httptest.NewRequest(http.MethodGet, "/traced", nil)
+				req.Header.Set("Traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+				rec := httptest.NewRecorder()
+				a.Router().ServeHTTP(rec, req)
+
+				Expect(rec.Code).To(Equal(http.StatusOK))
+				Expect(rec.Body.String()).To(Equal("ok"))
+			})
+
+			It("handler using StartSpan, FinishSpan, AddCounter, IncrementCounter returns 200 without panic", func() {
+				a := app.MustNew(
+					app.WithServiceName("test"),
+					app.WithObservability(
+						app.WithTracing(tracing.WithNoop()),
+						app.WithMetrics(metrics.WithStdout()),
+					),
+				)
+				a.GET("/observability-demo", func(c *app.Context) {
+					ctx, span := c.StartSpan("child")
+					defer c.FinishSpan(span, 0)
+					_ = ctx
+					c.AddCounter("test_counter", 1)
+					c.IncrementCounter("test_inc")
+					Expect(c.String(http.StatusOK, "ok")).NotTo(HaveOccurred())
+				})
+
+				req := httptest.NewRequest(http.MethodGet, "/observability-demo", nil)
+				rec := httptest.NewRecorder()
+				a.Router().ServeHTTP(rec, req)
+
+				Expect(rec.Code).To(Equal(http.StatusOK))
+				Expect(rec.Body.String()).To(Equal("ok"))
+			})
+		})
+
 		Describe("BaseLogger", func() {
 			It("should never return nil when no logger is configured", func() {
 				a := app.MustNew(

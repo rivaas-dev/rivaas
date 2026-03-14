@@ -23,6 +23,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"rivaas.dev/app"
 	"rivaas.dev/metrics"
 	"rivaas.dev/tracing"
@@ -410,4 +412,59 @@ func Example_lifecycleHooks() {
 
 	fmt.Println("Lifecycle hooks registered")
 	// Output: Lifecycle hooks registered
+}
+
+// ExampleContext_StartSpan demonstrates creating a child span from a handler.
+// Use StartSpan and defer FinishSpan for custom spans (e.g. db-query, external call).
+func ExampleContext_StartSpan() {
+	a := app.MustNew(
+		app.WithObservability(app.WithTracing(tracing.WithNoop())),
+	)
+
+	a.GET("/users", func(c *app.Context) {
+		ctx, span := c.StartSpan("db-query")
+		defer c.FinishSpan(span, 0)
+		span.SetAttributes(attribute.String("db.operation", "list"))
+		_ = ctx // use ctx for DB call so the span is the parent
+		if err := c.JSON(http.StatusOK, map[string]string{"users": "list"}); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/users", nil)
+	resp, err := a.Test(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Status: %d\n", resp.StatusCode)
+	//nolint:errcheck // example cleanup
+	resp.Body.Close()
+	// Output: Status: 200
+}
+
+// ExampleContext_AddCounter demonstrates adding to a counter by an arbitrary amount.
+func ExampleContext_AddCounter() {
+	a := app.MustNew(
+		app.WithObservability(app.WithMetrics(metrics.WithStdout())),
+	)
+
+	a.POST("/upload", func(c *app.Context) {
+		// Simulate processing N bytes
+		bytesProcessed := int64(1024)
+		c.AddCounter("bytes_processed", bytesProcessed, attribute.String("type", "upload"))
+		c.IncrementCounter("uploads_total")
+		if err := c.JSON(http.StatusOK, map[string]string{"status": "ok"}); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/upload", nil)
+	resp, err := a.Test(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Status: %d\n", resp.StatusCode)
+	//nolint:errcheck // example cleanup
+	resp.Body.Close()
+	// Output: Status: 200
 }

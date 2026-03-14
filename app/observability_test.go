@@ -17,14 +17,17 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"rivaas.dev/logging"
 	"rivaas.dev/metrics"
@@ -647,6 +650,111 @@ func TestObservabilityResponseWriterImplementsMarkerInterface(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, ri.StatusCode())
 	assert.Equal(t, int64(4), ri.Size())
+}
+
+// TestObservabilityRecorder_RequestSpanLifecycle verifies that the app's observability
+// recorder uses StartRequestSpan and FinishRequestSpan for request spans, so that
+// W3C propagation, sampling, and standard HTTP attributes apply.
+func TestObservabilityRecorder_RequestSpanLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FinishRequestSpan called with status code", func(t *testing.T) {
+		t.Parallel()
+
+		var finishCalled bool
+		var capturedStatusCode int
+		var mu sync.Mutex
+		finishHook := func(_ trace.Span, statusCode int) {
+			mu.Lock()
+			finishCalled = true
+			capturedStatusCode = statusCode
+			mu.Unlock()
+		}
+
+		app := MustNew(
+			WithServiceName("test-service"),
+			WithObservability(
+				WithTracing(
+					tracing.WithNoop(),
+					tracing.WithSpanFinishHook(finishHook),
+				),
+			),
+		)
+		app.GET("/api/test", func(c *Context) {
+			require.NoError(t, c.String(http.StatusCreated, "created"))
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+		rec := httptest.NewRecorder()
+		app.Router().ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusCreated, rec.Code)
+		mu.Lock()
+		defer mu.Unlock()
+		assert.True(t, finishCalled, "FinishRequestSpan (span finish hook) should have been called")
+		assert.Equal(t, http.StatusCreated, capturedStatusCode)
+	})
+
+	t.Run("StartRequestSpan used and span is recording", func(t *testing.T) {
+		t.Parallel()
+
+		var startCalled bool
+		var spanRecording bool
+		var mu sync.Mutex
+		startHook := func(_ context.Context, span trace.Span, _ *http.Request) {
+			mu.Lock()
+			startCalled = true
+			spanRecording = span != nil && span.IsRecording()
+			mu.Unlock()
+		}
+
+		app := MustNew(
+			WithServiceName("test-service"),
+			WithObservability(
+				WithTracing(
+					tracing.WithNoop(),
+					tracing.WithSpanStartHook(startHook),
+				),
+			),
+		)
+		app.GET("/api/traced", func(c *Context) {
+			require.NoError(t, c.String(http.StatusOK, "ok"))
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/traced", nil)
+		req.Header.Set("Traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		rec := httptest.NewRecorder()
+		app.Router().ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		mu.Lock()
+		defer mu.Unlock()
+		assert.True(t, startCalled, "StartRequestSpan (span start hook) should have been called")
+		assert.True(t, spanRecording, "request span should be recording (StartRequestSpan creates recording span)")
+	})
+
+	t.Run("without tracing no span is created", func(t *testing.T) {
+		t.Parallel()
+
+		app := MustNew(
+			WithServiceName("test-service"),
+			// No WithTracing — observability without tracing
+			WithObservability(WithMetrics(metrics.WithStdout())),
+		)
+		app.GET("/api/notraced", func(c *Context) {
+			// Handler can still call observability methods; they no-op
+			assert.Nil(t, c.Tracer())
+			_, span := c.StartSpan("child")
+			assert.False(t, span.IsRecording())
+			c.FinishSpan(span, 0)
+			require.NoError(t, c.String(http.StatusOK, "ok"))
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/notraced", nil)
+		rec := httptest.NewRecorder()
+		app.Router().ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+	})
 }
 
 // ObservabilityWrappedWriter uses Go's structural typing (duck typing).

@@ -13,13 +13,13 @@ require (
 	go.opentelemetry.io/otel/trace v1.42.0
 	rivaas.dev/binding v0.7.6
 	rivaas.dev/errors v0.6.0
-	rivaas.dev/logging v0.6.1
-	rivaas.dev/metrics v0.6.5
-	rivaas.dev/middleware/recovery v0.2.1
-	rivaas.dev/openapi v0.5.4
-	rivaas.dev/router v0.13.0
-	rivaas.dev/tracing v0.6.2
-	rivaas.dev/validation v0.5.4
+	rivaas.dev/logging v0.6.2
+	rivaas.dev/metrics v0.6.6
+	rivaas.dev/middleware/recovery v0.2.2
+	rivaas.dev/openapi v0.5.5
+	rivaas.dev/router v0.13.1
+	rivaas.dev/tracing v0.6.3
+	rivaas.dev/validation v0.5.5
 )
 
 replace (

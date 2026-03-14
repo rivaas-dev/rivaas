@@ -6,14 +6,14 @@ require (
 	go.opentelemetry.io/otel v1.42.0
 	rivaas.dev/app v0.0.0
 	rivaas.dev/config v0.0.0
-	rivaas.dev/logging v0.6.1
-	rivaas.dev/metrics v0.6.5
+	rivaas.dev/logging v0.6.2
+	rivaas.dev/metrics v0.6.6
 	rivaas.dev/middleware/cors v0.0.0
 	rivaas.dev/middleware/requestid v0.0.0
 	rivaas.dev/middleware/timeout v0.0.0
-	rivaas.dev/openapi v0.5.4
-	rivaas.dev/router v0.13.0
-	rivaas.dev/tracing v0.6.2
+	rivaas.dev/openapi v0.5.5
+	rivaas.dev/router v0.13.1
+	rivaas.dev/tracing v0.6.3
 )
 
 replace (
@@ -107,7 +107,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
-	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
+	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.41.0 // indirect
@@ -119,6 +119,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rivaas.dev/binding v0.7.6 // indirect
 	rivaas.dev/errors v0.6.0 // indirect
-	rivaas.dev/middleware/recovery v0.2.1 // indirect
-	rivaas.dev/validation v0.5.4 // indirect
+	rivaas.dev/middleware/recovery v0.2.2 // indirect
+	rivaas.dev/validation v0.5.5 // indirect
 )

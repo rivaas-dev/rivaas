@@ -666,6 +666,36 @@ func (c *Context) Span() trace.Span {
 	return trace.SpanFromContext(c.RequestContext())
 }
 
+// Tracer returns the app's tracer, or nil if tracing is not configured.
+// Use Tracer() only when you need to pass the tracer to another library (e.g. DB driver,
+// HTTP client) or use tracer-specific options (inject/extract). For child spans in handlers,
+// use StartSpan and FinishSpan instead.
+func (c *Context) Tracer() *tracing.Tracer {
+	if c.app == nil {
+		return nil
+	}
+	return c.app.tracing
+}
+
+// StartSpan starts a child span with the given name. It is the single, discoverable way
+// to create child spans from handlers. Always end the span with FinishSpan (e.g. defer c.FinishSpan(span, 0)).
+// If tracing is nil or disabled, returns the request context and a non-recording span.
+func (c *Context) StartSpan(name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	if c.app == nil || c.app.tracing == nil || !c.app.tracing.IsEnabled() {
+		return c.RequestContext(), trace.SpanFromContext(c.RequestContext())
+	}
+	return c.app.tracing.StartSpan(c.RequestContext(), name, opts...)
+}
+
+// FinishSpan ends a child span started with StartSpan. Call it with defer after StartSpan
+// (e.g. defer c.FinishSpan(span, 0)). No-op if span is nil or not recording.
+func (c *Context) FinishSpan(span trace.Span, statusCode int) {
+	if c.app == nil || c.app.tracing == nil {
+		return
+	}
+	c.app.tracing.FinishSpan(span, statusCode)
+}
+
 // RecordHistogram records a custom histogram metric.
 // This is a no-op when metrics are not configured.
 func (c *Context) RecordHistogram(name string, value float64, attributes ...attribute.KeyValue) {
@@ -679,6 +709,14 @@ func (c *Context) RecordHistogram(name string, value float64, attributes ...attr
 func (c *Context) IncrementCounter(name string, attributes ...attribute.KeyValue) {
 	if c.app != nil && c.app.metrics != nil {
 		_ = c.app.metrics.IncrementCounter(c.RequestContext(), name, attributes...) //nolint:errcheck // metrics failures must not break request handling
+	}
+}
+
+// AddCounter adds a value to a custom counter metric.
+// This is a no-op when metrics are not configured.
+func (c *Context) AddCounter(name string, value int64, attributes ...attribute.KeyValue) {
+	if c.app != nil && c.app.metrics != nil {
+		_ = c.app.metrics.AddCounter(c.RequestContext(), name, value, attributes...) //nolint:errcheck // metrics failures must not break request handling
 	}
 }
 

@@ -17,12 +17,19 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"rivaas.dev/metrics"
+	"rivaas.dev/router"
+	"rivaas.dev/tracing"
 	"rivaas.dev/validation"
 )
 
@@ -538,4 +545,132 @@ func TestContext_ObservabilityMethods_NoPanic(t *testing.T) {
 	c.RecordHistogram("test_histogram", 1.0)
 	c.IncrementCounter("test_counter")
 	c.SetGauge("test_gauge", 42)
+	c.AddCounter("test_add_counter", 10)
+
+	// Tracer, StartSpan, FinishSpan — should no-op or return nil when tracing not configured
+	assert.Nil(t, c.Tracer())
+	ctx, childSpan := c.StartSpan("child-op")
+	require.NotNil(t, ctx)
+	require.NotNil(t, childSpan)
+	assert.False(t, childSpan.IsRecording(), "StartSpan should return non-recording span when tracing disabled")
+	c.FinishSpan(childSpan, 0)
+	c.FinishSpan(nil, 0) // no panic with nil span
+}
+
+// testContextWithTracing creates a Context with tracing enabled (noop provider) for testing.
+func testContextWithTracing(t *testing.T, method, path string, body any) *Context {
+	t.Helper()
+	a, err := New(
+		WithObservability(WithTracing(tracing.WithNoop())),
+	)
+	require.NoError(t, err)
+	var buf bytes.Buffer
+	if body != nil {
+		require.NoError(t, json.NewEncoder(&buf).Encode(body))
+	}
+	req := httptest.NewRequest(method, path, &buf)
+	req.Header.Set("Content-Type", "application/json")
+	rc := &router.Context{Request: req, Response: httptest.NewRecorder()}
+	c := a.contextPool.Get()
+	c.Context = rc
+	c.app = a
+	c.bindingMeta = nil
+	return c
+}
+
+// testContextWithMetrics creates a Context with metrics enabled (stdout provider) for testing.
+func testContextWithMetrics(t *testing.T, method, path string) *Context {
+	t.Helper()
+	a, err := New(
+		WithObservability(WithMetrics(metrics.WithStdout())),
+	)
+	require.NoError(t, err)
+	req := httptest.NewRequest(method, path, nil)
+	rc := &router.Context{Request: req, Response: httptest.NewRecorder()}
+	c := a.contextPool.Get()
+	c.Context = rc
+	c.app = a
+	c.bindingMeta = nil
+	return c
+}
+
+func TestContext_Tracer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("tracing disabled returns nil", func(t *testing.T) {
+		t.Parallel()
+		c, err := TestContextWithBody("GET", "/test", nil)
+		require.NoError(t, err)
+		assert.Nil(t, c.Tracer())
+	})
+
+	t.Run("tracing enabled returns non-nil tracer", func(t *testing.T) {
+		t.Parallel()
+		c := testContextWithTracing(t, "GET", "/test", nil)
+		tr := c.Tracer()
+		require.NotNil(t, tr)
+		assert.True(t, tr.IsEnabled())
+	})
+}
+
+func TestContext_StartSpan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("tracing disabled returns request context and non-recording span", func(t *testing.T) {
+		t.Parallel()
+		c, err := TestContextWithBody("GET", "/test", nil)
+		require.NoError(t, err)
+		ctx, span := c.StartSpan("db-query")
+		require.NotNil(t, ctx)
+		require.NotNil(t, span)
+		assert.False(t, span.IsRecording())
+	})
+
+	t.Run("tracing enabled returns context and recording span", func(t *testing.T) {
+		t.Parallel()
+		c := testContextWithTracing(t, "GET", "/test", nil)
+		ctx, span := c.StartSpan("db-query")
+		require.NotNil(t, ctx)
+		require.NotNil(t, span)
+		assert.True(t, span.IsRecording())
+		// End span to satisfy tracer
+		c.FinishSpan(span, 0)
+	})
+}
+
+func TestContext_FinishSpan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil span does not panic", func(t *testing.T) {
+		t.Parallel()
+		c, err := TestContextWithBody("GET", "/test", nil)
+		require.NoError(t, err)
+		c.FinishSpan(nil, http.StatusOK)
+	})
+
+	t.Run("non-recording span does not panic", func(t *testing.T) {
+		t.Parallel()
+		c, err := TestContextWithBody("GET", "/test", nil)
+		require.NoError(t, err)
+		_, span := c.StartSpan("noop")
+		c.FinishSpan(span, 0)
+	})
+}
+
+func TestContext_AddCounter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("metrics disabled is no-op", func(t *testing.T) {
+		t.Parallel()
+		c, err := TestContextWithBody("GET", "/test", nil)
+		require.NoError(t, err)
+		c.AddCounter("items_total", 42)
+	})
+
+	t.Run("metrics enabled does not panic", func(t *testing.T) {
+		t.Parallel()
+		c := testContextWithMetrics(t, "GET", "/test")
+		c.AddCounter("items_processed", 10)
+		c.AddCounter("bytes_total", 1024)
+	})
 }

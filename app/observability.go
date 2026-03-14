@@ -103,10 +103,10 @@ func (o *observabilityRecorder) OnRequestStart(ctx context.Context, req *http.Re
 	}
 
 	// Start tracing (if enabled)
+	// Use StartRequestSpan for W3C propagation, sampling, and standard HTTP attributes.
 	// Note: We start with raw path; will rename span to route pattern in OnRequestEnd
 	if o.tracing != nil && o.tracing.IsEnabled() {
-		spanName := req.Method + " " + req.URL.Path
-		ctx, state.span = o.tracing.StartSpan(ctx, spanName)
+		ctx, state.span = o.tracing.StartRequestSpan(ctx, req, req.URL.Path, false)
 	}
 
 	// Start metrics (if enabled)
@@ -154,9 +154,9 @@ func (o *observabilityRecorder) OnRequestEnd(ctx context.Context, state any, wri
 		s.span.SetName(spanName)
 	}
 
-	// Finish tracing
+	// Finish tracing (sets http.status_code and invokes span finish hook if configured)
 	if s.span != nil {
-		o.tracing.FinishSpan(s.span, statusCode)
+		o.tracing.FinishRequestSpan(s.span, statusCode)
 	}
 
 	// Finish metrics with route pattern (prevents cardinality explosion)
