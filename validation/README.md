@@ -56,6 +56,8 @@ if err := validation.Validate(ctx, &user); err != nil {
 }
 ```
 
+Use `errors.Is(err, validation.ErrValidation)` and the package's sentinel errors for programmatic checks (see [Error Handling](https://rivaas.dev/docs/guides/validation/error-handling/)).
+
 ## Validation Strategies
 
 ### 1. Struct Tags

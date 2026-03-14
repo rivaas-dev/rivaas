@@ -90,6 +90,12 @@
 //		return nil
 //	}
 //
+// # Sentinel errors
+//
+// Use errors.Is(err, ErrValidation) for validation failures. For specific cases (nil value,
+// invalid value, unknown strategy) see ErrCannotValidateNilValue, ErrCannotValidateInvalidValue,
+// and ErrUnknownValidationStrategy. These are the single source of truth for validation sentinels.
+//
 // # Thread Safety
 //
 // [Validator] instances are safe for concurrent use by multiple goroutines.
