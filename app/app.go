@@ -759,13 +759,7 @@ func (a *App) wrapHandler(handler HandlerFunc) router.HandlerFunc {
 		ac := a.contextPool.Get()
 
 		// Ensure cleanup even on panic
-		defer func() {
-			// Clear references before returning to pool
-			ac.Context = nil
-			ac.app = nil
-			ac.bindingMeta = nil
-			a.contextPool.Put(ac)
-		}()
+		defer a.contextPool.Put(ac)
 
 		// Initialize context
 		ac.Context = rc

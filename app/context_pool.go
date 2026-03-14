@@ -40,11 +40,8 @@ func (cp *contextPool) Get() *Context {
 	return cp.pool.Get().(*Context)
 }
 
-// Put returns a Context to the pool after resetting it.
-//
-// Cleanup is also performed in wrapHandler's defer to ensure
-// contexts are reset even if handlers panic. This method's cleanup
-// is idempotent and provides an additional safety layer.
+// Put returns a Context to the pool after resetting it. Reset is done here
+// so that returning a context to the pool has a single, clear definition.
 func (cp *contextPool) Put(c *Context) {
 	// Reset context state
 	c.Context = nil
