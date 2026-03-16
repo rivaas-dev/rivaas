@@ -205,27 +205,110 @@ type Recorder struct {
 // and makes it easier to integrate Rivaas into larger binaries that already
 // manage their own global meter provider.
 func New(opts ...Option) (*Recorder, error) {
-	recorder := newDefaultRecorder()
-
-	// Apply options
+	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(recorder)
+		opt(cfg)
 	}
-
-	// Validate configuration
-	if err := recorder.validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
-
-	// Initialize the provider
-	if err := recorder.initializeProvider(); err != nil {
-		return nil, fmt.Errorf("failed to initialize metrics: %w", err)
+	recorder, err := newRecorderFromConfig(cfg)
+	if err != nil {
+		return nil, err
 	}
-
 	return recorder, nil
 }
 
+// defaultConfig returns a config with default values.
+func defaultConfig() *config {
+	return &config{
+		serviceName:      "rivaas-service",
+		serviceVersion:   "1.0.0",
+		provider:         PrometheusProvider,
+		exportInterval:   30 * time.Second,
+		metricsPort:      ":9090",
+		metricsPath:      "/metrics",
+		autoStartServer:  true,
+		maxCustomMetrics: 1000,
+		durationBuckets:  DefaultDurationBuckets,
+		sizeBuckets:      DefaultSizeBuckets,
+	}
+}
+
+// validate checks the config and sets OTLP default endpoint if needed.
+func (c *config) validate() error {
+	if len(c.validationErrors) > 0 {
+		return fmt.Errorf("configuration errors: %v", c.validationErrors)
+	}
+	if c.providerSetCount > 1 {
+		return errors.New("conflicting provider options: only one of WithPrometheus, WithOTLP, or WithStdout can be used")
+	}
+	if c.serviceName == "" {
+		return errors.New("service name cannot be empty")
+	}
+	if c.serviceVersion == "" {
+		return errors.New("service version cannot be empty")
+	}
+	if c.maxCustomMetrics < 1 {
+		return fmt.Errorf("maxCustomMetrics must be at least 1, got %d", c.maxCustomMetrics)
+	}
+	switch c.provider {
+	case PrometheusProvider:
+		if c.metricsPort == "" {
+			return errors.New("metrics port cannot be empty for Prometheus provider")
+		}
+		if c.metricsPath == "" {
+			return errors.New("metrics path cannot be empty for Prometheus provider")
+		}
+	case OTLPProvider:
+		if c.otlpEndpoint == "" {
+			c.otlpEndpoint = "http://localhost:4318"
+		}
+	case StdoutProvider:
+	default:
+		return fmt.Errorf("unsupported metrics provider: %s", c.provider)
+	}
+	return nil
+}
+
+// newRecorderFromConfig builds a Recorder from a validated config.
+func newRecorderFromConfig(cfg *config) (*Recorder, error) {
+	r := &Recorder{
+		meterProvider:       cfg.meterProvider,
+		serviceName:         cfg.serviceName,
+		serviceVersion:      cfg.serviceVersion,
+		exportInterval:      cfg.exportInterval,
+		durationBuckets:     cfg.durationBuckets,
+		sizeBuckets:         cfg.sizeBuckets,
+		autoStartServer:     cfg.autoStartServer,
+		strictPort:          cfg.strictPort,
+		maxCustomMetrics:    cfg.maxCustomMetrics,
+		eventHandler:        cfg.eventHandler,
+		registerGlobal:      cfg.registerGlobal,
+		withoutScopeInfo:    cfg.withoutScopeInfo,
+		withoutTargetInfo:   cfg.withoutTargetInfo,
+		provider:            cfg.provider,
+		providerSetCount:    cfg.providerSetCount,
+		metricsPort:         cfg.metricsPort,
+		metricsPath:         cfg.metricsPath,
+		otlpEndpoint:        cfg.otlpEndpoint,
+		customMeterProvider: cfg.customMeterProvider,
+		enabled:             true,
+		customCounters:      make(map[string]metric.Int64Counter),
+		customHistograms:    make(map[string]metric.Float64Histogram),
+		customGauges:        make(map[string]metric.Float64Gauge),
+	}
+	if r.exportInterval > 0 && r.exportInterval < time.Second {
+		r.emitWarning("Export interval is very low, may cause high CPU usage", "interval", r.exportInterval)
+	}
+	if err := r.initializeProvider(); err != nil {
+		return nil, fmt.Errorf("failed to initialize metrics: %w", err)
+	}
+	return r, nil
+}
+
 // newDefaultRecorder creates a new Recorder with default values.
+// It is used by tests that need a Recorder without going through the config path.
 func newDefaultRecorder() *Recorder {
 	recorder := &Recorder{
 		enabled:          true,

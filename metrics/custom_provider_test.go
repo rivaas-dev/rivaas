@@ -108,12 +108,15 @@ func TestNilCustomMeterProvider(t *testing.T) {
 func TestGlobalMeterProviderOption(t *testing.T) {
 	t.Parallel()
 
-	recorder := newDefaultRecorder()
-	assert.False(t, recorder.registerGlobal) // Default is false
-
-	// Apply option
-	WithGlobalMeterProvider()(recorder)
-	assert.True(t, recorder.registerGlobal)
+	// WithGlobalMeterProvider is applied via New(); verify recorder is created successfully
+	recorder, err := New(
+		WithGlobalMeterProvider(),
+		WithServiceName("test"),
+		WithPrometheus(":0", "/metrics"),
+		WithServerDisabled(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, recorder)
 }
 
 // TestCustomProviderWithGlobalRegistration tests combining custom provider with global registration

@@ -23,7 +23,32 @@ import (
 )
 
 // Option defines functional options for Recorder configuration.
-type Option func(*Recorder)
+// Options apply to an internal config struct; the constructor builds the Recorder from the validated config.
+type Option func(*config)
+
+// config holds construction-time metrics configuration.
+type config struct {
+	meterProvider       metric.MeterProvider
+	serviceName         string
+	serviceVersion      string
+	exportInterval      time.Duration
+	durationBuckets     []float64
+	sizeBuckets         []float64
+	autoStartServer     bool
+	strictPort          bool
+	maxCustomMetrics    int
+	eventHandler        EventHandler
+	registerGlobal      bool
+	withoutScopeInfo    bool
+	withoutTargetInfo   bool
+	provider            Provider
+	providerSetCount    int
+	metricsPort         string
+	metricsPath         string
+	otlpEndpoint        string
+	customMeterProvider bool
+	validationErrors    []error
+}
 
 // WithMeterProvider allows you to provide a custom OpenTelemetry [metric.MeterProvider].
 // When using this option, the package will NOT set the global otel.SetMeterProvider()
@@ -46,10 +71,9 @@ type Option func(*Recorder)
 // Note: When using WithMeterProvider, provider options ([WithPrometheus], [WithOTLP], etc.)
 // are ignored since you're managing the provider yourself.
 func WithMeterProvider(provider metric.MeterProvider) Option {
-	return func(r *Recorder) {
-		r.meterProvider = provider
-		r.customMeterProvider = true
-		// Note: registerGlobal stays false unless explicitly set
+	return func(c *config) {
+		c.meterProvider = provider
+		c.customMeterProvider = true
 	}
 }
 
@@ -65,29 +89,29 @@ func WithMeterProvider(provider metric.MeterProvider) Option {
 //	    metrics.WithGlobalMeterProvider(), // Register as global default
 //	)
 func WithGlobalMeterProvider() Option {
-	return func(r *Recorder) {
-		r.registerGlobal = true
+	return func(c *config) {
+		c.registerGlobal = true
 	}
 }
 
 // WithServiceName sets the service name for metrics.
 func WithServiceName(name string) Option {
-	return func(r *Recorder) {
-		r.serviceName = name
+	return func(c *config) {
+		c.serviceName = name
 	}
 }
 
 // WithServiceVersion sets the service version for metrics.
 func WithServiceVersion(version string) Option {
-	return func(r *Recorder) {
-		r.serviceVersion = version
+	return func(c *config) {
+		c.serviceVersion = version
 	}
 }
 
 // WithExportInterval sets the export interval for OTLP and stdout metrics.
 func WithExportInterval(interval time.Duration) Option {
-	return func(r *Recorder) {
-		r.exportInterval = interval
+	return func(c *config) {
+		c.exportInterval = interval
 	}
 }
 
@@ -100,8 +124,8 @@ func WithExportInterval(interval time.Duration) Option {
 //	    metrics.WithDurationBuckets(0.01, 0.05, 0.1, 0.5, 1, 5), // in seconds
 //	)
 func WithDurationBuckets(buckets ...float64) Option {
-	return func(r *Recorder) {
-		r.durationBuckets = buckets
+	return func(c *config) {
+		c.durationBuckets = buckets
 	}
 }
 
@@ -114,16 +138,16 @@ func WithDurationBuckets(buckets ...float64) Option {
 //	    metrics.WithSizeBuckets(1000, 10000, 100000, 1000000), // in bytes
 //	)
 func WithSizeBuckets(buckets ...float64) Option {
-	return func(r *Recorder) {
-		r.sizeBuckets = buckets
+	return func(c *config) {
+		c.sizeBuckets = buckets
 	}
 }
 
 // WithServerDisabled disables the automatic metrics server for Prometheus.
 // Use this if you want to manually serve metrics via [Recorder.Handler].
 func WithServerDisabled() Option {
-	return func(r *Recorder) {
-		r.autoStartServer = false
+	return func(c *config) {
+		c.autoStartServer = false
 	}
 }
 
@@ -131,15 +155,15 @@ func WithServerDisabled() Option {
 // If the port is unavailable, initialization will fail instead of finding an alternative port.
 // This is useful when you need metrics on a specific port for monitoring integrations.
 func WithStrictPort() Option {
-	return func(r *Recorder) {
-		r.strictPort = true
+	return func(c *config) {
+		c.strictPort = true
 	}
 }
 
 // WithMaxCustomMetrics sets the maximum number of custom metrics allowed.
 func WithMaxCustomMetrics(maxLimit int) Option {
-	return func(r *Recorder) {
-		r.maxCustomMetrics = maxLimit
+	return func(c *config) {
+		c.maxCustomMetrics = maxLimit
 	}
 }
 
@@ -156,8 +180,8 @@ func WithMaxCustomMetrics(maxLimit int) Option {
 //	    myLogger.Log(e.Type, e.Message, e.Args...)
 //	}))
 func WithEventHandler(handler EventHandler) Option {
-	return func(r *Recorder) {
-		r.eventHandler = handler
+	return func(c *config) {
+		c.eventHandler = handler
 	}
 }
 
@@ -192,8 +216,8 @@ func WithLogger(logger *slog.Logger) Option {
 //	    metrics.WithoutScopeInfo(), // Remove otel_scope_* labels
 //	)
 func WithoutScopeInfo() Option {
-	return func(r *Recorder) {
-		r.withoutScopeInfo = true
+	return func(c *config) {
+		c.withoutScopeInfo = true
 	}
 }
 
@@ -212,8 +236,8 @@ func WithoutScopeInfo() Option {
 //	    metrics.WithoutTargetInfo(), // Remove target_info metric
 //	)
 func WithoutTargetInfo() Option {
-	return func(r *Recorder) {
-		r.withoutTargetInfo = true
+	return func(c *config) {
+		c.withoutTargetInfo = true
 	}
 }
 
@@ -227,19 +251,17 @@ func WithoutTargetInfo() Option {
 //	    metrics.WithServiceName("my-api"),
 //	)
 func WithPrometheus(port, path string) Option {
-	return func(r *Recorder) {
-		r.provider = PrometheusProvider
-		r.providerSetCount++
-		// Normalize and set port
+	return func(c *config) {
+		c.provider = PrometheusProvider
+		c.providerSetCount++
 		if port != "" && !strings.HasPrefix(port, ":") {
 			port = ":" + port
 		}
-		r.metricsPort = port
-		// Normalize and set path
+		c.metricsPort = port
 		if path != "" && !strings.HasPrefix(path, "/") {
 			path = "/" + path
 		}
-		r.metricsPath = path
+		c.metricsPath = path
 	}
 }
 
@@ -252,10 +274,10 @@ func WithPrometheus(port, path string) Option {
 //	    metrics.WithServiceName("my-api"),
 //	)
 func WithOTLP(endpoint string) Option {
-	return func(r *Recorder) {
-		r.provider = OTLPProvider
-		r.providerSetCount++
-		r.otlpEndpoint = endpoint
+	return func(c *config) {
+		c.provider = OTLPProvider
+		c.providerSetCount++
+		c.otlpEndpoint = endpoint
 	}
 }
 
@@ -268,8 +290,8 @@ func WithOTLP(endpoint string) Option {
 //	    metrics.WithExportInterval(time.Second),
 //	)
 func WithStdout() Option {
-	return func(r *Recorder) {
-		r.provider = StdoutProvider
-		r.providerSetCount++
+	return func(c *config) {
+		c.provider = StdoutProvider
+		c.providerSetCount++
 	}
 }
