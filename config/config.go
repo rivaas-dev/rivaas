@@ -438,6 +438,7 @@ func MustNew(options ...Option) *Config {
 }
 
 // Validator is an interface for structs that can validate their own configuration.
+// The validation package uses the same contract (validation.Validator); a type implementing either satisfies both.
 type Validator interface {
 	Validate() error
 }
