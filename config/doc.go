@@ -31,7 +31,8 @@
 //
 // # Quick Start
 //
-// Create a configuration instance with sources:
+// Create a configuration instance with sources. Options are applied in order;
+// any validation errors are reported when the config is built (by New or MustNew):
 //
 //	cfg := config.MustNew(
 //	    config.WithFile("config.yaml"),

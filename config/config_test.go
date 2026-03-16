@@ -113,6 +113,19 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNew_multipleValidationErrors(t *testing.T) {
+	t.Parallel()
+	cfg, err := New(
+		WithSource(nil),
+		WithBinding(nil),
+	)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	// Joined error should contain both validation messages
+	assert.Contains(t, err.Error(), "source cannot be nil")
+	assert.Contains(t, err.Error(), "binding target cannot be nil")
+}
+
 func TestNew_WithTag(t *testing.T) {
 	t.Parallel()
 
@@ -323,7 +336,7 @@ func TestMustNew(t *testing.T) {
 			}()
 			MustNew(WithSource(nil))
 		}()
-		require.Contains(t, panicMsg, "config: failed to create config")
+		require.Contains(t, panicMsg, "config: validation failed")
 	})
 }
 
