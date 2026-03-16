@@ -15,6 +15,7 @@
 package version
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -46,6 +47,9 @@ type Config struct {
 
 	// Clock function for testing
 	now func() time.Time
+
+	// validationErrors collects errors from options; reported in validate()
+	validationErrors []error
 }
 
 // LifecycleConfig holds lifecycle configuration for a specific version.
@@ -84,7 +88,8 @@ type Observer struct {
 }
 
 // Option configures the versioning engine.
-type Option func(*Config) error
+// Options apply to the config; validation errors are collected and reported by NewConfig.
+type Option func(*Config)
 
 // NewConfig creates a new Config with the given options.
 func NewConfig(opts ...Option) (*Config, error) {
@@ -94,9 +99,7 @@ func NewConfig(opts ...Option) (*Config, error) {
 	}
 
 	for _, opt := range opts {
-		if err := opt(cfg); err != nil {
-			return nil, fmt.Errorf("invalid option: %w", err)
-		}
+		opt(cfg)
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -108,6 +111,9 @@ func NewConfig(opts ...Option) (*Config, error) {
 
 // validate checks the configuration for errors.
 func (c *Config) validate() error {
+	if len(c.validationErrors) > 0 {
+		return errors.Join(c.validationErrors...)
+	}
 	if c.defaultVersion == "" {
 		return fmt.Errorf("%w: use version.WithDefault(\"v1\")", ErrDefaultRequired)
 	}
