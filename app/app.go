@@ -466,6 +466,7 @@ func New(opts ...Option) (*App, error) {
 			logging.WithServiceName(cfg.serviceName),
 			logging.WithServiceVersion(cfg.serviceVersion),
 			logging.WithEnvironment(cfg.environment),
+			logging.WithGlobalLogger(), // Set slog default so all slog usage uses app's logger
 		}
 		loggingOpts = append(loggingOpts, obsSettings.logging.options...)
 
