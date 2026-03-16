@@ -29,7 +29,23 @@ import (
 )
 
 // Option defines functional options for router configuration.
-type Option func(*Router)
+// Options apply to an internal config struct; the constructor builds the Router from the validated config.
+type Option func(*config)
+
+// config holds construction-time router configuration.
+// Options mutate config; New() validates config and builds the Router from it.
+type config struct {
+	diagnostics        DiagnosticHandler
+	bloomFilterSize    uint64
+	bloomHashFunctions int
+	checkCancellation  bool
+	useCompiledRoutes  bool
+	versionOpts        []version.Option
+	versionEngine      *version.Engine // Set in validate() from versionOpts
+	enableH2C          bool
+	serverTimeouts     *serverTimeouts
+	realip             *realIPConfig
+}
 
 // responseWriter is an alias for ResponseWriterWrapper for internal and test use.
 type responseWriter = ResponseWriterWrapper
@@ -71,7 +87,6 @@ type Router struct {
 
 	// Routing features
 	versionEngine *version.Engine    // API versioning engine for version detection
-	versionOpts   []version.Option   // Pending versioning options (validated during validate())
 	versionTrees  atomicVersionTrees // Version-specific route trees
 	versionCache  sync.Map           // Version-specific compiled routes
 
@@ -160,31 +175,76 @@ const (
 //	r.GET("/api/users", getUserHandler)
 //	http.ListenAndServe(":8080", r)
 func New(opts ...Option) (*Router, error) {
-	r := &Router{
-		bloomFilterSize:    defaultBloomFilterSize,
-		bloomHashFunctions: defaultBloomHashFunctions,
-		checkCancellation:  true,  // Enable cancellation checks by default
-		useCompiledRoutes:  false, // Tree traversal by default; opt-in via WithRouteCompilation(true)
-		namedRoutes:        make(map[string]*route.Route),
-	}
-
-	// Initialize the atomic route tree with empty method trees
-	initialTrees := &methodTrees{}
-	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(initialTrees))
-
-	// Initialize route compiler
-	r.routeCompiler = compiler.NewRouteCompiler(r.bloomFilterSize, r.bloomHashFunctions)
-
-	// Apply functional options
+	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(r)
+		opt(cfg)
 	}
-
-	// Validate configuration
-	if err := r.validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("router configuration validation failed: %w", err)
 	}
+	return newRouterFromConfig(cfg)
+}
 
+// defaultConfig returns a config with default values.
+func defaultConfig() *config {
+	return &config{
+		bloomFilterSize:    defaultBloomFilterSize,
+		bloomHashFunctions: defaultBloomHashFunctions,
+		checkCancellation:  true,
+		useCompiledRoutes:  false,
+	}
+}
+
+// validate checks the config and builds the version engine from versionOpts if present.
+func (c *config) validate() error {
+	if c.bloomFilterSize == 0 {
+		return ErrBloomFilterSizeZero
+	}
+	if c.bloomHashFunctions <= 0 {
+		return fmt.Errorf("%w: got %d", ErrBloomHashFunctionsInvalid, c.bloomHashFunctions)
+	}
+	if len(c.versionOpts) > 0 {
+		engine, err := version.New(c.versionOpts...)
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrVersioningConfigInvalid, err)
+		}
+		c.versionEngine = engine
+		c.versionOpts = nil
+	}
+	if c.serverTimeouts != nil {
+		if c.serverTimeouts.readHeader <= 0 {
+			return fmt.Errorf("%w: readHeaderTimeout must be positive", ErrServerTimeoutInvalid)
+		}
+		if c.serverTimeouts.read <= 0 {
+			return fmt.Errorf("%w: readTimeout must be positive", ErrServerTimeoutInvalid)
+		}
+		if c.serverTimeouts.write <= 0 {
+			return fmt.Errorf("%w: writeTimeout must be positive", ErrServerTimeoutInvalid)
+		}
+		if c.serverTimeouts.idle <= 0 {
+			return fmt.Errorf("%w: idleTimeout must be positive", ErrServerTimeoutInvalid)
+		}
+	}
+	return nil
+}
+
+// newRouterFromConfig builds a Router from a validated config.
+func newRouterFromConfig(cfg *config) (*Router, error) {
+	r := &Router{
+		diagnostics:        cfg.diagnostics,
+		bloomFilterSize:    cfg.bloomFilterSize,
+		bloomHashFunctions: cfg.bloomHashFunctions,
+		checkCancellation:  cfg.checkCancellation,
+		useCompiledRoutes:  cfg.useCompiledRoutes,
+		versionEngine:      cfg.versionEngine,
+		enableH2C:          cfg.enableH2C,
+		serverTimeouts:     cfg.serverTimeouts,
+		realip:             cfg.realip,
+		namedRoutes:        make(map[string]*route.Route),
+	}
+	initialTrees := &methodTrees{}
+	atomic.StorePointer(&r.routeTree.trees, unsafe.Pointer(initialTrees))
+	r.routeCompiler = compiler.NewRouteCompiler(r.bloomFilterSize, r.bloomHashFunctions)
 	return r, nil
 }
 
@@ -206,56 +266,6 @@ func MustNew(opts ...Option) *Router {
 	}
 
 	return r
-}
-
-// validate checks the router configuration for common errors.
-// This method is called automatically by New() to validate configuration.
-//
-// Validation checks:
-//   - Bloom filter parameters are positive
-//   - Versioning configuration is valid (if present)
-//   - Server timeouts are positive (if configured)
-//
-// Note: Routes are validated at registration time, not at router creation time,
-// because routes are registered after New() returns.
-func (r *Router) validate() error {
-	// Validate bloom filter configuration
-	// Note: bloomFilterSize is uint64, so it can only be 0 or positive
-	if r.bloomFilterSize == 0 {
-		return ErrBloomFilterSizeZero
-	}
-	if r.bloomHashFunctions <= 0 {
-		return fmt.Errorf("%w: got %d", ErrBloomHashFunctionsInvalid, r.bloomHashFunctions)
-	}
-
-	// Validate and create versioning engine from pending options
-	// This deferred creation ensures errors are returned through New() instead of panicking
-	if len(r.versionOpts) > 0 {
-		engine, err := version.New(r.versionOpts...)
-		if err != nil {
-			return fmt.Errorf("%w: %w", ErrVersioningConfigInvalid, err)
-		}
-		r.versionEngine = engine
-		r.versionOpts = nil // Clear pending options after successful creation
-	}
-
-	// Validate server timeouts if configured
-	if r.serverTimeouts != nil {
-		if r.serverTimeouts.readHeader <= 0 {
-			return fmt.Errorf("%w: readHeaderTimeout must be positive", ErrServerTimeoutInvalid)
-		}
-		if r.serverTimeouts.read <= 0 {
-			return fmt.Errorf("%w: readTimeout must be positive", ErrServerTimeoutInvalid)
-		}
-		if r.serverTimeouts.write <= 0 {
-			return fmt.Errorf("%w: writeTimeout must be positive", ErrServerTimeoutInvalid)
-		}
-		if r.serverTimeouts.idle <= 0 {
-			return fmt.Errorf("%w: idleTimeout must be positive", ErrServerTimeoutInvalid)
-		}
-	}
-
-	return nil
 }
 
 // SetObservabilityRecorder sets the unified observability recorder for the router.

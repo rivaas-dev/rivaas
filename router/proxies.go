@@ -172,18 +172,18 @@ func (cfg *realIPConfig) isTrusted(ip string) bool {
 //	    ),
 //	)
 func WithTrustedProxies(opts ...TrustedProxyOption) Option {
-	return func(r *Router) {
-		cfg := &trustedProxyConfig{}
+	return func(c *config) {
+		proxyCfg := &trustedProxyConfig{}
 		for _, opt := range opts {
-			opt(cfg)
+			opt(proxyCfg)
 		}
 
-		compiled, err := compileProxies(cfg)
+		compiled, err := compileProxies(proxyCfg)
 		if err != nil {
 			// Fail fast on invalid configuration
 			panic(fmt.Sprintf("invalid trusted proxy configuration: %v", err))
 		}
-		r.realip = compiled
+		c.realip = compiled
 	}
 }
 

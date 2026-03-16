@@ -55,8 +55,8 @@ import "time"
 //	    }
 //	})
 func WithDiagnostics(handler DiagnosticHandler) Option {
-	return func(r *Router) {
-		r.diagnostics = handler
+	return func(c *config) {
+		c.diagnostics = handler
 	}
 }
 
@@ -77,8 +77,8 @@ func WithDiagnostics(handler DiagnosticHandler) Option {
 //	r := router.MustNew(router.WithH2C(true))
 //	r.Serve(":8080")
 func WithH2C(enable bool) Option {
-	return func(r *Router) {
-		r.enableH2C = enable
+	return func(c *config) {
+		c.enableH2C = enable
 	}
 }
 
@@ -101,8 +101,8 @@ func WithH2C(enable bool) Option {
 //	    120*time.Second, // IdleTimeout
 //	))
 func WithServerTimeouts(readHeader, read, write, idle time.Duration) Option {
-	return func(r *Router) {
-		r.serverTimeouts = &serverTimeouts{
+	return func(c *config) {
+		c.serverTimeouts = &serverTimeouts{
 			readHeader: readHeader,
 			read:       read,
 			write:      write,
@@ -133,8 +133,8 @@ func defaultServerTimeouts() *serverTimeouts {
 //
 //	r := router.MustNew(router.WithBloomFilterSize(2000)) // For ~1000 routes
 func WithBloomFilterSize(size uint64) Option {
-	return func(r *Router) {
-		r.bloomFilterSize = size
+	return func(c *config) {
+		c.bloomFilterSize = size
 	}
 }
 
@@ -152,9 +152,9 @@ func WithBloomFilterSize(size uint64) Option {
 //
 //	r := router.MustNew(router.WithBloomFilterHashFunctions(4))
 func WithBloomFilterHashFunctions(numFuncs int) Option {
-	return func(r *Router) {
+	return func(c *config) {
 		// Clamp to reasonable range [1, 10]
-		r.bloomHashFunctions = max(1, min(numFuncs, 10))
+		c.bloomHashFunctions = max(1, min(numFuncs, 10))
 	}
 }
 
@@ -172,8 +172,8 @@ func WithBloomFilterHashFunctions(numFuncs int) Option {
 //
 //	r := router.MustNew(router.WithCancellationCheck(false))
 func WithCancellationCheck(enabled bool) Option {
-	return func(r *Router) {
-		r.checkCancellation = enabled
+	return func(c *config) {
+		c.checkCancellation = enabled
 	}
 }
 
@@ -190,8 +190,8 @@ func WithCancellationCheck(enabled bool) Option {
 //
 //	r := router.MustNew(router.WithoutCancellationCheck())
 func WithoutCancellationCheck() Option {
-	return func(r *Router) {
-		r.checkCancellation = false
+	return func(c *config) {
+		c.checkCancellation = false
 	}
 }
 
@@ -207,7 +207,7 @@ func WithoutCancellationCheck() Option {
 //
 //	r := router.MustNew(router.WithRouteCompilation(true))  // Opt-in for large APIs
 func WithRouteCompilation(enabled bool) Option {
-	return func(r *Router) {
-		r.useCompiledRoutes = enabled
+	return func(c *config) {
+		c.useCompiledRoutes = enabled
 	}
 }

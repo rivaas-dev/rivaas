@@ -60,10 +60,8 @@ import (
 //	    // Handle versioning configuration error
 //	}
 func WithVersioning(opts ...version.Option) Option {
-	return func(r *Router) {
-		// Store options for deferred validation in validate()
-		// This ensures errors are returned through New() instead of panicking
-		r.versionOpts = opts
+	return func(c *config) {
+		c.versionOpts = opts
 	}
 }
 
