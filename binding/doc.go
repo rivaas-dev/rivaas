@@ -627,7 +627,7 @@
 //	func CreateUserHandler(c *router.Context) {
 //	    user, err := binding.JSON[CreateUserRequest](c.Body())
 //	    if err != nil {
-//	        c.Error(err, http.StatusBadRequest)
+//	        c.JSON(http.StatusBadRequest, map[string]any{"error": err.Error()})
 //	        return
 //	    }
 //	    c.JSON(http.StatusCreated, user)
