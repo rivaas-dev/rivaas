@@ -274,8 +274,7 @@ func TestApp_Test_Context(t *testing.T) {
 			setupCtx: func(t *testing.T) context.Context {
 				t.Helper()
 				ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
-				_ = cancel // cancel will be called when context expires
-
+				t.Cleanup(cancel)
 				return ctx
 			},
 			wantErr: false,
