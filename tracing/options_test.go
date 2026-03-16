@@ -243,29 +243,6 @@ func TestWithCustomPropagator(t *testing.T) {
 	assert.NotNil(t, tracer.GetPropagator())
 }
 
-// TestWithEventHandler tests the WithEventHandler option.
-func TestWithEventHandler(t *testing.T) {
-	t.Parallel()
-
-	var capturedEvents []Event
-	handler := func(e Event) {
-		capturedEvents = append(capturedEvents, e)
-	}
-
-	tracer := MustNew(
-		WithServiceName("test"),
-		WithEventHandler(handler),
-	)
-	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
-
-	// Trigger an event by calling internal emit methods
-	tracer.emitInfo("test message", "key", "value")
-
-	assert.Len(t, capturedEvents, 1)
-	assert.Equal(t, EventInfo, capturedEvents[0].Type)
-	assert.Equal(t, "test message", capturedEvents[0].Message)
-}
-
 // TestWithLogger tests the WithLogger option.
 func TestWithLogger(t *testing.T) {
 	t.Parallel()
@@ -278,10 +255,10 @@ func TestWithLogger(t *testing.T) {
 	)
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-	assert.NotNil(t, tracer.eventHandler)
+	assert.NotNil(t, tracer.logger)
 }
 
-// TestWithLogger_NilLogger tests WithLogger with nil logger.
+// TestWithLogger_NilLogger tests WithLogger with nil logger (uses discard logger internally).
 func TestWithLogger_NilLogger(t *testing.T) {
 	t.Parallel()
 
@@ -291,11 +268,12 @@ func TestWithLogger_NilLogger(t *testing.T) {
 	)
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-	// Should not panic when emitting events with nil logger
-	tracer.emitInfo("test message")
-	tracer.emitWarning("warning message")
-	tracer.emitError("error message")
-	tracer.emitDebug("debug message")
+	// Logger is never nil (discard logger when nil passed); should not panic
+	require.NotNil(t, tracer.logger)
+	tracer.logger.Info("test message")
+	tracer.logger.Warn("warning message")
+	tracer.logger.Error("error message")
+	tracer.logger.Debug("debug message")
 }
 
 // TestWithSpanStartHook tests the WithSpanStartHook option.
@@ -521,37 +499,6 @@ func TestMultipleProviders(t *testing.T) {
 	}
 }
 
-// TestDefaultEventHandler tests the DefaultEventHandler function.
-func TestDefaultEventHandler(t *testing.T) {
-	t.Parallel()
-
-	t.Run("WithLogger", func(t *testing.T) {
-		t.Parallel()
-
-		logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-		handler := DefaultEventHandler(logger)
-
-		require.NotNil(t, handler)
-
-		// Should not panic for any event type
-		handler(Event{Type: EventError, Message: "error", Args: []any{"key", "value"}})
-		handler(Event{Type: EventWarning, Message: "warning", Args: nil})
-		handler(Event{Type: EventInfo, Message: "info", Args: nil})
-		handler(Event{Type: EventDebug, Message: "debug", Args: nil})
-	})
-
-	t.Run("WithNilLogger", func(t *testing.T) {
-		t.Parallel()
-
-		handler := DefaultEventHandler(nil)
-		require.NotNil(t, handler)
-
-		// Should not panic - no-op handler
-		handler(Event{Type: EventError, Message: "error", Args: nil})
-		handler(Event{Type: EventWarning, Message: "warning", Args: nil})
-	})
-}
-
 // TestOptionsCombination tests various option combinations.
 func TestOptionsCombination(t *testing.T) {
 	t.Parallel()
@@ -559,17 +506,12 @@ func TestOptionsCombination(t *testing.T) {
 	t.Run("AllCommonOptions", func(t *testing.T) {
 		t.Parallel()
 
-		var events []Event
-		eventHandler := func(e Event) {
-			events = append(events, e)
-		}
-
 		tracer := MustNew(
 			WithServiceName("combined-test"),
 			WithServiceVersion("v2.0.0"),
 			WithSampleRate(0.5),
 			WithNoop(),
-			WithEventHandler(eventHandler),
+			WithLogger(slog.Default()),
 		)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
@@ -577,7 +519,7 @@ func TestOptionsCombination(t *testing.T) {
 		assert.Equal(t, "v2.0.0", tracer.ServiceVersion())
 		assert.Equal(t, 0.5, tracer.sampleRate) //nolint:testifylint // exact sample rate comparison
 		assert.Equal(t, NoopProvider, tracer.GetProvider())
-		assert.NotNil(t, tracer.eventHandler)
+		assert.NotNil(t, tracer.logger)
 	})
 
 	t.Run("OverrideDefaults", func(t *testing.T) {

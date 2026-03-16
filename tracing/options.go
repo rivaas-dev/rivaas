@@ -39,7 +39,7 @@ type config struct {
 	samplingThreshold     uint64 // Set in validate() from sampleRate
 	tracer                trace.Tracer
 	propagator            propagation.TextMapPropagator
-	eventHandler          EventHandler
+	logger                *slog.Logger
 	spanStartHook         SpanStartHook
 	spanFinishHook        SpanFinishHook
 	provider              Provider
@@ -171,37 +171,20 @@ func WithCustomPropagator(propagator propagation.TextMapPropagator) Option {
 	}
 }
 
-// WithEventHandler sets a custom event handler for internal operational events.
-// Use this for advanced use cases like sending errors to Sentry, custom alerting,
-// or integrating with non-slog logging systems.
+// WithLogger sets the logger for internal operational events (errors, warnings, info, debug).
+// Internal events are logged at the appropriate slog level. If logger is nil or WithLogger is not called,
+// a discard logger is used and no internal output is produced.
 //
 // Example:
 //
-//	tracing.New(tracing.WithEventHandler(func(e tracing.Event) {
-//	    if e.Type == tracing.EventError {
-//	        sentry.CaptureMessage(e.Message)
-//	    }
-//	    myLogger.Log(e.Type, e.Message, e.Args...)
-//	}))
-func WithEventHandler(handler EventHandler) Option {
-	return func(c *config) {
-		c.eventHandler = handler
-	}
-}
-
-// WithLogger sets the logger for internal operational events using the default event handler.
-// This is a convenience wrapper around WithEventHandler that logs events to the provided slog.Logger.
-//
-// Example:
-//
-//	// Use stdlib slog
 //	tracing.New(tracing.WithLogger(slog.Default()))
 //
-//	// Use custom slog logger
-//	:= slog.New(slog.NewJSONHandler(os.Stdout, nil))
-//	tracing.New(tracing.WithLogger(logger))
+//	// No internal logging:
+//	tracing.New(tracing.WithOTLP("localhost:4317")) // omit WithLogger, or pass WithLogger(nil)
 func WithLogger(logger *slog.Logger) Option {
-	return WithEventHandler(DefaultEventHandler(logger))
+	return func(c *config) {
+		c.logger = logger
+	}
 }
 
 // WithSpanStartHook sets a callback that is invoked when a request span is started.

@@ -17,8 +17,10 @@
 package tracing
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -1565,23 +1567,19 @@ func TestValidate_SampleRateBetweenZeroAndOne(t *testing.T) {
 func TestValidate_OTLPDefaultEndpointWarning(t *testing.T) {
 	t.Parallel()
 
-	var warnings []string
-	handler := func(e Event) {
-		if e.Type == EventWarning {
-			warnings = append(warnings, e.Message)
-		}
-	}
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	tracer, err := New(
 		WithServiceName("test"),
 		WithOTLP(""),
-		WithEventHandler(handler),
+		WithLogger(logger),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, tracer)
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-	assert.Contains(t, warnings, "OTLP endpoint not specified, will use default")
+	assert.Contains(t, buf.String(), "OTLP endpoint not specified, will use default")
 }
 
 // TestTracer_StartSpan_CanceledContext covers StartSpan when context is already canceled.
@@ -1706,47 +1704,37 @@ func TestBuildAttribute_DefaultStringConversion(t *testing.T) {
 	assert.True(t, span.IsRecording())
 }
 
-// TestEventEmitters covers emitError, emitWarning, emitInfo, emitDebug via event handler.
+// TestEventEmitters covers logger output for warning, info, and debug levels.
 func TestEventEmitters(t *testing.T) {
 	t.Parallel()
 
-	var (
-		warnings []string
-		infos    []string
-		debugs   []string
-	)
-	handler := func(e Event) {
-		switch e.Type {
-		case EventWarning:
-			warnings = append(warnings, e.Message)
-		case EventInfo:
-			infos = append(infos, e.Message)
-		case EventDebug:
-			debugs = append(debugs, e.Message)
-		}
-	}
-
-	// emitWarning: OTLP empty endpoint
+	// Warning: OTLP empty endpoint
+	var warnBuf bytes.Buffer
+	warnLogger := slog.New(slog.NewTextHandler(&warnBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	tracer, err := New(
 		WithServiceName("test"),
 		WithOTLP(""),
-		WithEventHandler(handler),
+		WithLogger(warnLogger),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
-	assert.NotEmpty(t, warnings)
+	assert.NotEmpty(t, warnBuf.String())
 
-	// emitInfo: use Stdout so init emits info
+	// Info: use Stdout so init emits info
+	var infoBuf bytes.Buffer
+	infoLogger := slog.New(slog.NewTextHandler(&infoBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	tracer2, err := New(
 		WithServiceName("test"),
 		WithStdout(),
-		WithEventHandler(handler),
+		WithLogger(infoLogger),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { tracer2.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
-	assert.NotEmpty(t, infos)
+	assert.NotEmpty(t, infoBuf.String())
 
-	// emitDebug: use custom provider and Shutdown so we get debug messages
+	// Debug: use custom provider and Shutdown so we get debug messages
+	var debugBuf bytes.Buffer
+	debugLogger := slog.New(slog.NewTextHandler(&debugBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
 	require.NoError(t, err)
 	tp := sdktrace.NewTracerProvider(
@@ -1759,13 +1747,12 @@ func TestEventEmitters(t *testing.T) {
 	tracer3, err := New(
 		WithTracerProvider(tp),
 		WithServiceName("test"),
-		WithEventHandler(handler),
+		WithLogger(debugLogger),
 	)
 	require.NoError(t, err)
 	require.NoError(t, tracer3.Shutdown(t.Context()))
 	require.NoError(t, tp.Shutdown(t.Context()))
-	assert.NotEmpty(t, debugs)
-	// emitError is triggered when sdkProvider.Shutdown returns error; see TestTracer_Shutdown_ReturnsErrorWhenProviderFails
+	assert.NotEmpty(t, debugBuf.String())
 }
 
 // TestTraceContext_ReturnsContext covers TraceContext.

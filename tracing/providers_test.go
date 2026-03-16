@@ -17,8 +17,9 @@
 package tracing
 
 import (
+	"bytes"
 	"context"
-	"slices"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -96,27 +97,20 @@ func TestInitStdoutProvider_WithCustomProvider(t *testing.T) {
 func TestInitStdoutProvider_SkipsGlobalRegistration(t *testing.T) {
 	t.Parallel()
 
-	var debugMessages []string
-	handler := func(e Event) {
-		if e.Type == EventDebug {
-			debugMessages = append(debugMessages, e.Message)
-		}
-	}
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	tracer, err := New(
 		WithServiceName("test"),
 		WithStdout(),
-		WithEventHandler(handler),
+		WithLogger(logger),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, tracer)
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-	var found bool
-	if slices.Contains(debugMessages, "Skipping global tracer provider registration") {
-		found = true
-	}
-	assert.True(t, found, "expected debug message for skipping global registration")
+	assert.Contains(t, buf.String(), "Skipping global tracer provider registration",
+		"expected debug message for skipping global registration")
 }
 
 // TestInitOTLPProvider_WithCustomProvider covers initOTLPProvider with custom provider.

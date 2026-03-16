@@ -35,66 +35,6 @@ import (
 
 // Note: Option type and functional options are defined in options.go
 
-// EventType represents the severity of an internal operational event.
-type EventType int
-
-const (
-	// EventError indicates an error event (e.g., failed to export spans).
-	EventError EventType = iota
-	// EventWarning indicates a warning event (e.g., deprecated configuration).
-	EventWarning
-	// EventInfo indicates an informational event (e.g., tracing initialized).
-	EventInfo
-	// EventDebug indicates a debug event (e.g., detailed operation logs).
-	EventDebug
-)
-
-// Event represents an internal operational event from the tracing package.
-// Events are used to report errors, warnings, and informational messages
-// about the tracing system's operation.
-type Event struct {
-	Type    EventType
-	Message string
-	Args    []any // slog-style key-value pairs
-}
-
-// EventHandler processes internal operational events from the tracing package.
-// Implementations can log events, send them to monitoring systems, or take
-// custom actions based on event type.
-//
-// Example custom handler:
-//
-//	tracing.WithEventHandler(func(e tracing.Event) {
-//	    if e.Type == tracing.EventError {
-//	        sentry.CaptureMessage(e.Message)
-//	    }
-//	    slog.Default().Info(e.Message, e.Args...)
-//	})
-type EventHandler func(Event)
-
-// DefaultEventHandler returns an EventHandler that logs events to the provided slog.Logger.
-// This is the default implementation used by WithLogger.
-//
-// If logger is nil, returns a no-op handler that discards all events.
-func DefaultEventHandler(logger *slog.Logger) EventHandler {
-	if logger == nil {
-		return func(Event) {} // no-op
-	}
-
-	return func(e Event) {
-		switch e.Type {
-		case EventError:
-			logger.Error(e.Message, e.Args...)
-		case EventWarning:
-			logger.Warn(e.Message, e.Args...)
-		case EventInfo:
-			logger.Info(e.Message, e.Args...)
-		case EventDebug:
-			logger.Debug(e.Message, e.Args...)
-		}
-	}
-}
-
 const (
 	// DefaultServiceName is the default service name used for tracing when none is provided.
 	DefaultServiceName = "rivaas-service"
@@ -156,7 +96,7 @@ type Tracer struct {
 	propagator     propagation.TextMapPropagator
 	tracerProvider trace.TracerProvider
 	sdkProvider    *sdktrace.TracerProvider // SDK provider for shutdown (nil if custom)
-	eventHandler   EventHandler             // Handler for internal operational events
+	logger         *slog.Logger             // Logger for internal operational events; never nil (uses DiscardHandler when not set)
 	serviceName    string
 	serviceVersion string
 	provider       Provider
@@ -285,6 +225,10 @@ func (c *config) validate() error {
 
 // newTracerFromConfig builds a Tracer from a validated config.
 func newTracerFromConfig(cfg *config) (*Tracer, error) {
+	logger := cfg.logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
 	t := &Tracer{
 		tracerProvider:       cfg.tracerProvider,
 		customTracerProvider: cfg.customTracerProvider,
@@ -295,7 +239,7 @@ func newTracerFromConfig(cfg *config) (*Tracer, error) {
 		samplingThreshold:    cfg.samplingThreshold,
 		tracer:               cfg.tracer,
 		propagator:           cfg.propagator,
-		eventHandler:         cfg.eventHandler,
+		logger:               logger,
 		spanStartHook:        cfg.spanStartHook,
 		spanFinishHook:       cfg.spanFinishHook,
 		provider:             cfg.provider,
@@ -310,7 +254,7 @@ func newTracerFromConfig(cfg *config) (*Tracer, error) {
 		},
 	}
 	if cfg.otlpEndpointDefaulted {
-		t.emitWarning("OTLP endpoint not specified, will use default", "default", "localhost:4317")
+		t.logger.Warn("OTLP endpoint not specified, will use default", "default", "localhost:4317")
 	}
 	return t, nil
 }
@@ -434,16 +378,16 @@ func (t *Tracer) Shutdown(ctx context.Context) error {
 	t.shutdownOnce.Do(func() {
 		// Shutdown the SDK tracer provider if it exists and is NOT a custom provider
 		if t.sdkProvider != nil && !t.customTracerProvider {
-			t.emitDebug("Shutting down tracer provider")
+			t.logger.Debug("Shutting down tracer provider")
 			if err := t.sdkProvider.Shutdown(ctx); err != nil {
-				t.emitError("Error shutting down tracer provider", "error", err)
+				t.logger.Error("Error shutting down tracer provider", "error", err)
 				t.shutdownErr = fmt.Errorf("tracer provider shutdown: %w", err)
 
 				return
 			}
-			t.emitDebug("Tracer provider shut down successfully")
+			t.logger.Debug("Tracer provider shut down successfully")
 		} else if t.customTracerProvider {
-			t.emitDebug("Skipping shutdown of custom tracer provider (managed by user)")
+			t.logger.Debug("Skipping shutdown of custom tracer provider (managed by user)")
 		}
 	})
 
@@ -576,7 +520,7 @@ func (t *Tracer) StartRequestSpan(ctx context.Context, req *http.Request, path s
 	// Check if context is already canceled
 	select {
 	case <-ctx.Done():
-		t.emitDebug("Context canceled before span creation", "path", path, "method", req.Method)
+		t.logger.Debug("Context canceled before span creation", "path", path, "method", req.Method)
 		return ctx, trace.SpanFromContext(ctx)
 	default:
 	}
@@ -587,13 +531,13 @@ func (t *Tracer) StartRequestSpan(ctx context.Context, req *http.Request, path s
 	// Sampling decision using integer arithmetic
 	if t.sampleRate < 1.0 {
 		if t.sampleRate == 0.0 {
-			t.emitDebug("Request not sampled (0% sample rate)", "path", path, "method", req.Method)
+			t.logger.Debug("Request not sampled (0% sample rate)", "path", path, "method", req.Method)
 			return ctx, trace.SpanFromContext(ctx)
 		}
 		counter := t.samplingCounter.Add(1)
 		hash := counter * samplingMultiplier
 		if hash > t.samplingThreshold {
-			t.emitDebug("Request not sampled (probabilistic)", "path", path, "method", req.Method, "sample_rate", t.sampleRate)
+			t.logger.Debug("Request not sampled (probabilistic)", "path", path, "method", req.Method, "sample_rate", t.sampleRate)
 			return ctx, trace.SpanFromContext(ctx)
 		}
 	}
@@ -675,34 +619,6 @@ func buildAttribute(key string, value any) attribute.KeyValue {
 		return attribute.Bool(key, v)
 	default:
 		return attribute.String(key, fmt.Sprintf("%v", v))
-	}
-}
-
-// emitError emits an error event if an event handler is configured.
-func (t *Tracer) emitError(msg string, args ...any) {
-	if t.eventHandler != nil {
-		t.eventHandler(Event{Type: EventError, Message: msg, Args: args})
-	}
-}
-
-// emitWarning emits a warning event if an event handler is configured.
-func (t *Tracer) emitWarning(msg string, args ...any) {
-	if t.eventHandler != nil {
-		t.eventHandler(Event{Type: EventWarning, Message: msg, Args: args})
-	}
-}
-
-// emitInfo emits an info event if an event handler is configured.
-func (t *Tracer) emitInfo(msg string, args ...any) {
-	if t.eventHandler != nil {
-		t.eventHandler(Event{Type: EventInfo, Message: msg, Args: args})
-	}
-}
-
-// emitDebug emits a debug event if an event handler is configured.
-func (t *Tracer) emitDebug(msg string, args ...any) {
-	if t.eventHandler != nil {
-		t.eventHandler(Event{Type: EventDebug, Message: msg, Args: args})
 	}
 }
 
