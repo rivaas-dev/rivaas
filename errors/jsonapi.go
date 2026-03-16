@@ -28,7 +28,7 @@ import (
 //
 // Example:
 //
-//	formatter := errors.NewJSONAPI()
+//	formatter := errors.MustNew(errors.WithJSONAPI())
 //	response := formatter.Format(req, err)
 //	w.Header().Set("Content-Type", response.ContentType)
 //	w.WriteHeader(response.Status)
@@ -68,7 +68,7 @@ type jsonAPIErrorResponse struct {
 //
 // Example:
 //
-//	formatter := errors.NewJSONAPI()
+//	formatter := errors.MustNew(errors.WithJSONAPI())
 //	response := formatter.Format(req, err)
 //	w.Header().Set("Content-Type", response.ContentType)
 //	w.WriteHeader(response.Status)

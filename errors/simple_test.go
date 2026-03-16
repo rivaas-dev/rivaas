@@ -32,41 +32,42 @@ func TestSimple_Format(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		formatter  *Simple
+		formatter  Formatter
 		err        error
 		wantStatus int
 	}{
 		{
 			name:       "simple error",
-			formatter:  NewSimple(),
+			formatter:  MustNew(WithSimple()),
 			err:        &testError{message: "something went wrong"},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:       "error with code",
-			formatter:  NewSimple(),
+			formatter:  MustNew(WithSimple()),
 			err:        &testErrorWithCode{message: "validation failed", code: "validation_error"},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:       "error with status",
-			formatter:  NewSimple(),
+			formatter:  MustNew(WithSimple()),
 			err:        &testErrorWithStatus{message: "not found", status: http.StatusNotFound},
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "error with details",
-			formatter:  NewSimple(),
+			formatter:  MustNew(WithSimple()),
 			err:        &testErrorWithDetails{message: "validation failed", details: map[string]any{"field": "error"}},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name: "custom status resolver",
-			formatter: &Simple{
-				StatusResolver: func(err error) int {
+			formatter: MustNew(
+				WithSimple(),
+				WithStatusResolver(func(error) int {
 					return http.StatusTeapot
-				},
-			},
+				}),
+			),
 			err:        &testError{message: "test"},
 			wantStatus: http.StatusTeapot,
 		},
@@ -106,7 +107,7 @@ func TestSimple_Format(t *testing.T) {
 func TestSimple_MarshalJSON(t *testing.T) {
 	t.Parallel()
 
-	formatter := NewSimple()
+	formatter := MustNew(WithSimple())
 	err := &testErrorFull{
 		message: "bad request",
 		code:    "invalid_input",

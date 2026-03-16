@@ -14,8 +14,9 @@
 
 // Package errors provides framework-agnostic error formatting for HTTP responses.
 //
-// The package defines a Formatter interface and provides concrete implementations
-// for different error response formats:
+// Create a formatter with [New] or [MustNew] and functional options. The default (no options)
+// is RFC 9457 with empty base URL. Use [WithRFC9457], [WithJSONAPI], or [WithSimple] to choose
+// the format. The package defines a [Formatter] interface and concrete implementations:
 //   - RFC9457: RFC 9457 Problem Details (application/problem+json)
 //   - JSONAPI: JSON:API error responses (application/vnd.api+json)
 //   - Simple: Simple JSON error responses (application/json)
@@ -26,7 +27,11 @@
 //
 // # Quick Start
 //
-// Basic usage with RFC 9457 format:
+// Default formatter (RFC 9457, empty base URL):
+//
+//	formatter := errors.MustNew()
+//
+// Explicit formatter and options:
 //
 //	package main
 //
@@ -39,7 +44,7 @@
 //	func handler(w http.ResponseWriter, r *http.Request) {
 //		err := someOperation()
 //		if err != nil {
-//			formatter := errors.NewRFC9457("https://api.example.com/problems")
+//			formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
 //			response := formatter.Format(r, err)
 //			w.Header().Set("Content-Type", response.ContentType)
 //			w.WriteHeader(response.Status)
@@ -50,19 +55,13 @@
 //
 // JSON:API format:
 //
-//	formatter := errors.NewJSONAPI()
+//	formatter := errors.MustNew(errors.WithJSONAPI())
 //	response := formatter.Format(r, err)
-//	w.Header().Set("Content-Type", response.ContentType)
-//	w.WriteHeader(response.Status)
-//	json.NewEncoder(w).Encode(response.Body)
 //
 // Simple JSON format:
 //
-//	formatter := errors.NewSimple()
+//	formatter := errors.MustNew(errors.WithSimple())
 //	response := formatter.Format(r, err)
-//	w.Header().Set("Content-Type", response.ContentType)
-//	w.WriteHeader(response.Status)
-//	json.NewEncoder(w).Encode(response.Body)
 //
 // # Error Interfaces
 //

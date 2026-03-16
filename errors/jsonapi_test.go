@@ -32,35 +32,36 @@ func TestJSONAPI_Format(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		formatter  *JSONAPI
+		formatter  Formatter
 		err        error
 		wantStatus int
 	}{
 		{
 			name:       "simple error",
-			formatter:  NewJSONAPI(),
+			formatter:  MustNew(WithJSONAPI()),
 			err:        &testError{message: "something went wrong"},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:       "error with code",
-			formatter:  NewJSONAPI(),
+			formatter:  MustNew(WithJSONAPI()),
 			err:        &testErrorWithCode{message: "validation failed", code: "validation_error"},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:       "error with status",
-			formatter:  NewJSONAPI(),
+			formatter:  MustNew(WithJSONAPI()),
 			err:        &testErrorWithStatus{message: "not found", status: http.StatusNotFound},
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name: "custom status resolver",
-			formatter: &JSONAPI{
-				StatusResolver: func(err error) int {
+			formatter: MustNew(
+				WithJSONAPI(),
+				WithStatusResolver(func(error) int {
 					return http.StatusTeapot
-				},
-			},
+				}),
+			),
 			err:        &testError{message: "test"},
 			wantStatus: http.StatusTeapot,
 		},
@@ -90,7 +91,7 @@ func TestJSONAPI_Format(t *testing.T) {
 func TestJSONAPI_Format_WithDetails(t *testing.T) {
 	t.Parallel()
 
-	formatter := NewJSONAPI()
+	formatter := MustNew(WithJSONAPI())
 	err := &testErrorWithDetailsSlice{
 		message: "validation failed",
 		details: []map[string]any{

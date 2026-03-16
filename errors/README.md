@@ -49,7 +49,7 @@ func handleGetUser(w http.ResponseWriter, req *http.Request) {
     user, err := getUser(req.URL.Query().Get("id"))
     if err != nil {
         // Create a formatter
-        formatter := errors.NewRFC9457("https://api.example.com/problems")
+        formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
         
         // Format the error
         response := formatter.Format(req, err)
@@ -86,7 +86,7 @@ type User struct {
 RFC 9457 (formerly RFC 7807) provides a standardized way to represent errors in HTTP APIs.
 
 ```go
-formatter := errors.NewRFC9457("https://api.example.com/problems")
+formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
 response := formatter.Format(req, err)
 ```
 
@@ -191,7 +191,7 @@ formatter := &errors.RFC9457{
 JSON:API compliant error responses. The formatter automatically generates unique error IDs for tracking and converts field paths to JSON Pointer format (`/data/attributes/...`).
 
 ```go
-formatter := errors.NewJSONAPI()
+formatter := errors.MustNew(errors.WithJSONAPI())
 response := formatter.Format(req, err)
 ```
 
@@ -237,7 +237,7 @@ formatter := &errors.JSONAPI{
 Simple, straightforward JSON error responses. The `code` and `details` fields are optional and only included if the error implements the respective interfaces.
 
 ```go
-formatter := errors.NewSimple()
+formatter := errors.MustNew(errors.WithSimple())
 response := formatter.Format(req, err)
 ```
 
@@ -323,9 +323,9 @@ Use multiple formatters with content negotiation:
 
 ```go
 formatters := map[string]errors.Formatter{
-    "application/problem+json": errors.NewRFC9457("https://api.example.com/problems"),
-    "application/vnd.api+json": errors.NewJSONAPI(),
-    "application/json":         errors.NewSimple(),
+    "application/problem+json": errors.MustNew(errors.WithRFC9457("https://api.example.com/problems")),
+    "application/vnd.api+json": errors.MustNew(errors.WithJSONAPI()),
+    "application/json":         errors.MustNew(errors.WithSimple()),
 }
 
 // Select formatter based on Accept header
@@ -340,7 +340,7 @@ response := formatter.Format(req, err)
 
 ```go
 func errorHandler(w http.ResponseWriter, req *http.Request, err error) {
-    formatter := errors.NewRFC9457("https://api.example.com/problems")
+    formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
     response := formatter.Format(req, err)
     
     // Set headers before writing status
@@ -369,7 +369,7 @@ type MyContext struct {
 }
 
 func (c *MyContext) Error(err error) {
-    formatter := errors.NewRFC9457("https://api.example.com/problems")
+    formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
     response := formatter.Format(c.Request, err)
     
     // Set headers before status

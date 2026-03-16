@@ -15,6 +15,7 @@
 package errors
 
 import (
+	"fmt"
 	"net/http"
 )
 
@@ -23,7 +24,7 @@ import (
 //
 // Example:
 //
-//	formatter := errors.NewRFC9457("https://api.example.com/problems")
+//	formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
 //	response := formatter.Format(req, err)
 //	w.Header().Set("Content-Type", response.ContentType)
 //	w.WriteHeader(response.Status)
@@ -144,52 +145,63 @@ type ErrorCode interface {
 	Code() string
 }
 
-// NewRFC9457 creates a new RFC9457 formatter.
-// The baseURL parameter is prepended to problem type slugs to create full URIs.
+// New creates a new Formatter with the given options.
+// Default (no options) is RFC9457 with empty base URL.
+// Exactly one of WithRFC9457, WithJSONAPI, or WithSimple must be implied (default or explicit); passing multiple formatter types returns an error.
 //
 // Example:
 //
-//	formatter := errors.NewRFC9457("https://api.example.com/problems")
-//	response := formatter.Format(req, err)
-//
-// Parameters:
-//   - baseURL: Base URL for problem type URIs (e.g., "https://api.example.com/problems")
-//
-// Returns a new RFC9457 formatter instance.
-func NewRFC9457(baseURL string) *RFC9457 {
-	return &RFC9457{
-		BaseURL: baseURL,
+//	formatter, err := errors.New(errors.WithRFC9457("https://api.example.com/problems"))
+//	if err != nil {
+//	    return err
+//	}
+func New(opts ...Option) (Formatter, error) {
+	cfg := defaultConfig()
+	for _, opt := range opts {
+		opt(cfg)
 	}
+	if err := cfg.validate(); err != nil {
+		return nil, fmt.Errorf("errors: %w", err)
+	}
+	return formatterFromConfig(cfg), nil
 }
 
-// NewJSONAPI creates a new JSONAPI formatter.
+// MustNew creates a new Formatter or panics on error.
+// Use in main or app wiring where panic is acceptable.
 //
 // Example:
 //
-//	formatter := errors.NewJSONAPI()
-//	response := formatter.Format(req, err)
-//	w.Header().Set("Content-Type", response.ContentType)
-//	w.WriteHeader(response.Status)
-//	json.NewEncoder(w).Encode(response.Body)
-//
-// Returns a new JSONAPI formatter instance.
-func NewJSONAPI() *JSONAPI {
-	return &JSONAPI{}
+//	formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
+func MustNew(opts ...Option) Formatter {
+	f, err := New(opts...)
+	if err != nil {
+		panic(err)
+	}
+	return f
 }
 
-// NewSimple creates a new Simple formatter.
-//
-// Example:
-//
-//	formatter := errors.NewSimple()
-//	response := formatter.Format(req, err)
-//	w.Header().Set("Content-Type", response.ContentType)
-//	w.WriteHeader(response.Status)
-//	json.NewEncoder(w).Encode(response.Body)
-//
-// Returns a new Simple formatter instance.
-func NewSimple() *Simple {
-	return &Simple{}
+// formatterFromConfig builds a Formatter from validated config.
+func formatterFromConfig(cfg *config) Formatter {
+	switch cfg.kind {
+	case kindJSONAPI:
+		return &JSONAPI{
+			StatusResolver: cfg.statusResolver,
+		}
+	case kindSimple:
+		return &Simple{
+			StatusResolver: cfg.statusResolver,
+		}
+	case kindRFC9457, 0:
+		fallthrough
+	default:
+		return &RFC9457{
+			BaseURL:          cfg.rfc9457BaseURL,
+			TypeResolver:     cfg.typeResolver,
+			StatusResolver:   cfg.statusResolver,
+			ErrorIDGenerator: cfg.errorIDGenerator,
+			DisableErrorID:   cfg.disableErrorID,
+		}
+	}
 }
 
 // WithStatus wraps an error with an explicit HTTP status code.

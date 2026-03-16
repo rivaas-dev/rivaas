@@ -25,7 +25,7 @@ import (
 //
 // Example:
 //
-//	formatter := errors.NewSimple()
+//	formatter := errors.MustNew(errors.WithSimple())
 //	response := formatter.Format(req, err)
 //	w.Header().Set("Content-Type", response.ContentType)
 //	w.WriteHeader(response.Status)
@@ -41,7 +41,7 @@ type Simple struct {
 //
 // Example:
 //
-//	formatter := errors.NewSimple()
+//	formatter := errors.MustNew(errors.WithSimple())
 //	response := formatter.Format(req, err)
 //	w.Header().Set("Content-Type", response.ContentType)
 //	w.WriteHeader(response.Status)

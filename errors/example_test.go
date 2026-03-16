@@ -30,7 +30,7 @@ import (
 // ExampleRFC9457 demonstrates how to use the RFC9457 formatter.
 func ExampleRFC9457() {
 	// Create a formatter with a base URL for problem types
-	formatter := errors.NewRFC9457("https://api.example.com/problems")
+	formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
 
 	// Create a test error
 	err := stderrors.New("validation failed")
@@ -58,7 +58,7 @@ func ExampleRFC9457() {
 // ExampleJSONAPI demonstrates how to use the JSONAPI formatter.
 func ExampleJSONAPI() {
 	// Create a formatter
-	formatter := errors.NewJSONAPI()
+	formatter := errors.MustNew(errors.WithJSONAPI())
 
 	// Create a test error
 	err := stderrors.New("resource not found")
@@ -86,7 +86,7 @@ func ExampleJSONAPI() {
 // ExampleSimple demonstrates how to use the Simple formatter.
 func ExampleSimple() {
 	// Create a formatter
-	formatter := errors.NewSimple()
+	formatter := errors.MustNew(errors.WithSimple())
 
 	// Create a test error
 	err := stderrors.New("internal server error")
@@ -114,12 +114,12 @@ func ExampleSimple() {
 // ExampleRFC9457_customErrorID demonstrates custom error ID generation.
 func ExampleRFC9457_customErrorID() {
 	// Create a formatter with custom error ID generator
-	formatter := &errors.RFC9457{
-		BaseURL: "https://api.example.com/problems",
-		ErrorIDGenerator: func() string {
+	formatter := errors.MustNew(
+		errors.WithRFC9457("https://api.example.com/problems"),
+		errors.WithProblemErrorIDGenerator(func() string {
 			return "custom-id-12345"
-		},
-	}
+		}),
+	)
 
 	err := stderrors.New("test error")
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -135,10 +135,10 @@ func ExampleRFC9457_customErrorID() {
 // ExampleRFC9457_disableErrorID demonstrates disabling error ID generation.
 func ExampleRFC9457_disableErrorID() {
 	// Create a formatter with error ID disabled
-	formatter := &errors.RFC9457{
-		BaseURL:        "https://api.example.com/problems",
-		DisableErrorID: true,
-	}
+	formatter := errors.MustNew(
+		errors.WithRFC9457("https://api.example.com/problems"),
+		errors.WithDisableProblemErrorID(),
+	)
 
 	err := stderrors.New("test error")
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)

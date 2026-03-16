@@ -29,7 +29,7 @@ import (
 //
 // Example:
 //
-//	formatter := errors.NewRFC9457("https://api.example.com/problems")
+//	formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
 //	response := formatter.Format(req, err)
 //	w.Header().Set("Content-Type", response.ContentType)
 //	w.WriteHeader(response.Status)
@@ -112,7 +112,7 @@ func (p ProblemDetail) MarshalJSON() ([]byte, error) {
 //
 // Example:
 //
-//	formatter := errors.NewRFC9457("https://api.example.com/problems")
+//	formatter := errors.MustNew(errors.WithRFC9457("https://api.example.com/problems"))
 //	response := formatter.Format(req, err)
 //	w.Header().Set("Content-Type", response.ContentType)
 //	w.WriteHeader(response.Status)
