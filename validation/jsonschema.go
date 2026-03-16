@@ -40,7 +40,7 @@ type jsonschemaSchema = jsonschema.Schema
 
 // validateWithSchema validates using JSON Schema ([StrategyJSONSchema]).
 // The schema can be provided via [JSONSchemaProvider] interface or [WithCustomSchema] option.
-func (v *Validator) validateWithSchema(ctx context.Context, val any, cfg *config) error {
+func (v *Engine) validateWithSchema(ctx context.Context, val any, cfg *config) error {
 	schemaID, schemaJSON := getSchemaForValue(val, cfg)
 	if schemaJSON == "" {
 		return nil

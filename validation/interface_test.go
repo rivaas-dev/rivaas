@@ -761,14 +761,14 @@ func TestValidateWithInterface_NoContextProvided(t *testing.T) {
 	}
 }
 
-// userReturningFieldError implements ValidatorInterface and returns a FieldError from Validate().
+// userReturningFieldError implements Validator and returns a FieldError from Validate().
 type userReturningFieldError struct{}
 
 func (userReturningFieldError) Validate() error {
 	return FieldError{Path: "field", Code: "custom", Message: "field error"}
 }
 
-// userReturningManyErrors implements ValidatorInterface and returns *Error with many fields.
+// userReturningManyErrors implements Validator and returns *Error with many fields.
 type userReturningManyErrors struct{}
 
 func (userReturningManyErrors) Validate() error {
@@ -783,7 +783,7 @@ func (userReturningManyErrors) Validate() error {
 	}
 }
 
-// userReturningErrValidation implements ValidatorInterface and returns ErrValidation.
+// userReturningErrValidation implements Validator and returns ErrValidation.
 type userReturningErrValidation struct{}
 
 func (userReturningErrValidation) Validate() error {

@@ -33,15 +33,15 @@
 //		}
 //	}
 //
-// For more control, create a [Validator] instance with [New] or [MustNew]:
+// For more control, create an [Engine] with [New] or [MustNew]:
 //
-//	validator := validation.MustNew(
+//	engine := validation.MustNew(
 //		validation.WithRedactor(sensitiveFieldRedactor),
 //		validation.WithMaxErrors(10),
 //		validation.WithCustomTag("phone", phoneValidator),
 //	)
 //
-//	if err := validator.Validate(ctx, &user); err != nil {
+//	if err := engine.Validate(ctx, &user); err != nil {
 //		// Handle validation errors
 //	}
 //
@@ -51,7 +51,7 @@
 //
 //  1. Struct Tags - Using go-playground/validator tags (e.g., `validate:"required,email"`)
 //  2. JSON Schema - RFC-compliant JSON Schema validation via [JSONSchemaProvider] interface
-//  3. Custom Interfaces - Implement [ValidatorInterface] or [ValidatorWithContext] for custom validation logic
+//  3. Custom Interfaces - Implement [Validator] or [ValidatorWithContext] for custom validation logic
 //
 // The package automatically selects the best strategy based on the value type, or you can
 // explicitly choose a strategy using [WithStrategy].
@@ -61,11 +61,11 @@
 // For PATCH requests where only some fields are provided, use [ValidatePartial]:
 //
 //	presence, _ := validation.ComputePresence(rawJSON)
-//	err := validator.ValidatePartial(ctx, &user, presence)
+//	err := engine.ValidatePartial(ctx, &user, presence)
 //
 // # Custom Validation Interface
 //
-// Implement [ValidatorInterface] for custom validation logic:
+// Implement [Validator] for custom validation logic:
 //
 //	type User struct {
 //		Email string
@@ -98,8 +98,8 @@
 //
 // # Thread Safety
 //
-// [Validator] instances are safe for concurrent use by multiple goroutines.
-// The package-level functions use a default validator that is also thread-safe.
+// [Engine] instances are safe for concurrent use by multiple goroutines.
+// The package-level functions use a default engine that is also thread-safe.
 //
 // # Security
 //
@@ -115,6 +115,6 @@
 //
 //	import "rivaas.dev/validation"
 //
-//	validator := validation.MustNew()
-//	err := validator.Validate(ctx, &user)
+//	engine := validation.MustNew()
+//	err := engine.Validate(ctx, &user)
 package validation

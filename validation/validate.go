@@ -21,23 +21,23 @@ import (
 	"sync"
 )
 
-// Package-level validator state for convenience functions [Validate] and [ValidatePartial].
+// Package-level engine state for convenience functions [Validate] and [ValidatePartial].
 var (
-	defaultValidator     *Validator
-	defaultValidatorOnce sync.Once
+	defaultEngine     *Engine
+	defaultEngineOnce sync.Once
 )
 
-// getDefaultValidator returns the default [Validator], creating it if necessary.
-func getDefaultValidator() *Validator {
-	defaultValidatorOnce.Do(func() {
-		defaultValidator = MustNew()
+// getDefaultEngine returns the default [Engine], creating it if necessary.
+func getDefaultEngine() *Engine {
+	defaultEngineOnce.Do(func() {
+		defaultEngine = MustNew()
 	})
 
-	return defaultValidator
+	return defaultEngine
 }
 
-// Validate validates a value using the default [Validator].
-// For customized validation, create a Validator with [New] or [MustNew].
+// Validate validates a value using the default [Engine].
+// For customized validation, create an Engine with [New] or [MustNew].
 //
 // Validate returns nil if validation passes, or an [*Error] if validation fails.
 // The error can be type-asserted to *Error for structured field errors.
@@ -67,14 +67,14 @@ func getDefaultValidator() *Validator {
 //	    // Handle validation error
 //	}
 func Validate(ctx context.Context, v any, opts ...Option) error {
-	return getDefaultValidator().Validate(ctx, v, opts...)
+	return getDefaultEngine().Validate(ctx, v, opts...)
 }
 
-// ValidatePartial validates only fields present in the [PresenceMap] using the default [Validator].
+// ValidatePartial validates only fields present in the [PresenceMap] using the default [Engine].
 // ValidatePartial is useful for PATCH requests where only provided fields should be validated.
 // Use [ComputePresence] to create a PresenceMap from raw JSON.
 func ValidatePartial(ctx context.Context, v any, pm PresenceMap, opts ...Option) error {
-	return getDefaultValidator().ValidatePartial(ctx, v, pm, opts...)
+	return getDefaultEngine().ValidatePartial(ctx, v, pm, opts...)
 }
 
 // Validate validates a value using this validator's configuration.
@@ -90,9 +90,9 @@ func ValidatePartial(ctx context.Context, v any, pm PresenceMap, opts ...Option)
 //
 // Example:
 //
-//	validator := validation.MustNew(validation.WithMaxErrors(10))
+//	engine := validation.MustNew(validation.WithMaxErrors(10))
 //
-//	if err := validator.Validate(ctx, &req); err != nil {
+//	if err := engine.Validate(ctx, &req); err != nil {
 //	    var verr *validation.Error
 //	    if errors.As(err, &verr) {
 //	        // Handle structured validation errors
@@ -100,7 +100,7 @@ func ValidatePartial(ctx context.Context, v any, pm PresenceMap, opts ...Option)
 //	}
 //
 //nolint:contextcheck // intentional: WithContext option allows explicit context override
-func (v *Validator) Validate(ctx context.Context, val any, opts ...Option) error {
+func (v *Engine) Validate(ctx context.Context, val any, opts ...Option) error {
 	if val == nil {
 		return &Error{Fields: []FieldError{{Code: "nil", Message: ErrCannotValidateNilValue.Error()}}}
 	}
@@ -155,13 +155,13 @@ func (v *Validator) Validate(ctx context.Context, val any, opts ...Option) error
 // ValidatePartial validates only fields present in the [PresenceMap].
 // It is useful for PATCH requests where only provided fields should be validated.
 // Use [ComputePresence] to create a PresenceMap from raw JSON.
-func (v *Validator) ValidatePartial(ctx context.Context, val any, pm PresenceMap, opts ...Option) error {
+func (v *Engine) ValidatePartial(ctx context.Context, val any, pm PresenceMap, opts ...Option) error {
 	opts = append([]Option{WithPresence(pm), WithPartial(true)}, opts...)
 	return v.Validate(ctx, val, opts...)
 }
 
 // validateAll runs all applicable validation strategies and aggregates errors into an [*Error].
-func (v *Validator) validateAll(ctx context.Context, val any, cfg *config) error {
+func (v *Engine) validateAll(ctx context.Context, val any, cfg *config) error {
 	var all Error
 	strategies := []Strategy{StrategyInterface, StrategyTags, StrategyJSONSchema}
 	applied := 0
@@ -197,12 +197,12 @@ func (v *Validator) validateAll(ctx context.Context, val any, cfg *config) error
 }
 
 // isApplicable checks if a validation [Strategy] can apply to the value.
-func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy, cfg *config) bool {
+func (v *Engine) isApplicable(ctx context.Context, val any, strategy Strategy, cfg *config) bool {
 	switch strategy {
 	case StrategyInterface:
-		// Check if value implements ValidatorInterface or ValidatorWithContext
+		// Check if value implements Validator or ValidatorWithContext
 		// Check both value and pointer types
-		if _, ok := val.(ValidatorInterface); ok {
+		if _, ok := val.(Validator); ok {
 			return true
 		}
 		if ctx != nil {
@@ -213,7 +213,7 @@ func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy
 		// Also check if pointer type implements (for pointer receivers)
 		rv := reflect.ValueOf(val)
 		if rv.Kind() == reflect.Pointer && !rv.IsNil() {
-			if rv.Type().Implements(reflect.TypeFor[ValidatorInterface]()) {
+			if rv.Type().Implements(reflect.TypeFor[Validator]()) {
 				return true
 			}
 			if ctx != nil {
@@ -225,7 +225,7 @@ func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy
 		// Check if value can be addressed and pointer implements
 		if rv.IsValid() && rv.CanAddr() {
 			ptrType := rv.Addr().Type()
-			if ptrType.Implements(reflect.TypeFor[ValidatorInterface]()) {
+			if ptrType.Implements(reflect.TypeFor[Validator]()) {
 				return true
 			}
 			if ctx != nil {
@@ -277,7 +277,7 @@ func (v *Validator) isApplicable(ctx context.Context, val any, strategy Strategy
 }
 
 // determineStrategy automatically determines the best validation strategy.
-func (v *Validator) determineStrategy(ctx context.Context, val any, cfg *config) Strategy {
+func (v *Engine) determineStrategy(ctx context.Context, val any, cfg *config) Strategy {
 	// Priority order:
 	// 1. Interface validation (Validate/ValidateContext)
 	// 2. Tag validation (struct tags)
@@ -311,7 +311,7 @@ func (v *Validator) determineStrategy(ctx context.Context, val any, cfg *config)
 }
 
 // validateByStrategy dispatches to the appropriate validation function based on [Strategy].
-func (v *Validator) validateByStrategy(ctx context.Context, val any, strategy Strategy, cfg *config) error {
+func (v *Engine) validateByStrategy(ctx context.Context, val any, strategy Strategy, cfg *config) error {
 	switch strategy {
 	case StrategyInterface:
 		// Use original value (may be pointer) for interface validation

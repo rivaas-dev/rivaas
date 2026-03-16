@@ -1059,7 +1059,7 @@ func TestClone_WithMessageFuncs(t *testing.T) {
 	assert.NotEmpty(t, verr.Fields)
 }
 
-func TestValidator_SchemaCacheEviction(t *testing.T) {
+func TestEngine_SchemaCacheEviction(t *testing.T) {
 	t.Parallel()
 	// WithMaxCachedSchemas(2): fill cache with 3 schemas to trigger eviction of oldest
 	v := MustNew(WithStrategy(StrategyJSONSchema), WithMaxCachedSchemas(2))

@@ -53,7 +53,7 @@ const (
 
 // Redactor is a function that determines if a field should be redacted in error messages.
 // It returns true if the field at the given path should have its value hidden.
-// Use [WithRedactor] to configure a redactor for a [Validator].
+// Use [WithRedactor] to configure a redactor for an [Engine].
 //
 // Example:
 //
@@ -68,7 +68,7 @@ type customTag struct {
 	fn   validator.Func
 }
 
-// config holds internal validation configuration used by [Validator].
+// config holds internal validation configuration used by [Engine].
 type config struct {
 	strategy              Strategy
 	runAll                bool
@@ -127,7 +127,7 @@ func (c *config) clone() *config {
 }
 
 // Option is a functional option for configuring validation.
-// Options can be passed to [New], [MustNew], [Validate], or [Validator.Validate].
+// Options can be passed to [New], [MustNew], [Validate], or [Engine.Validate].
 type Option func(*config)
 
 // WithStrategy sets the validation strategy.
@@ -325,11 +325,11 @@ func WithMaxCachedSchemas(maxCachedSchemas int) Option {
 }
 
 // WithCustomTag registers a custom validation tag for use in struct tags.
-// Custom tags are registered when the [Validator] is created.
+// Custom tags are registered when the [Engine] is created.
 //
 // Example:
 //
-//	validator := validation.MustNew(
+//	engine := validation.MustNew(
 //	    validation.WithCustomTag("phone", func(fl validator.FieldLevel) bool {
 //	        return phoneRegex.MatchString(fl.Field().String())
 //	    }),
@@ -350,7 +350,7 @@ func WithCustomTag(name string, fn validator.Func) Option {
 //
 // Example:
 //
-//	validator := validation.MustNew(
+//	engine := validation.MustNew(
 //	    validation.WithMessages(map[string]string{
 //	        "required": "cannot be empty",
 //	        "email":    "invalid email format",
@@ -370,7 +370,7 @@ func WithMessages(messages map[string]string) Option {
 //
 // Example:
 //
-//	validator := validation.MustNew(
+//	engine := validation.MustNew(
 //	    validation.WithMessageFunc("min", func(param string, kind reflect.Kind) string {
 //	        if kind == reflect.String {
 //	            return fmt.Sprintf("too short (min %s chars)", param)

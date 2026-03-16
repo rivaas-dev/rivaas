@@ -1074,7 +1074,7 @@ func TestComputePresence_MaxDepth(t *testing.T) {
 	assert.NotNil(t, pm)
 }
 
-func TestValidatorInterface_WithContext(t *testing.T) {
+func TestValidator_WithContext(t *testing.T) {
 	t.Parallel()
 	type TestStruct struct {
 		Name string `json:"name"`

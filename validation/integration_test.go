@@ -286,8 +286,8 @@ func TestIntegration_ValidatorInstance(t *testing.T) {
 		APIKey   string `json:"api_key" validate:"required"` //nolint:tagliatelle // snake_case is intentional for API compatibility
 	}
 
-	// Create validator with custom configuration
-	validator, err := validation.New(
+	// Create engine with custom configuration
+	engine, err := validation.New(
 		validation.WithMaxErrors(5),
 		validation.WithRedactor(func(path string) bool {
 			return path == "password" || path == "api_key"
@@ -351,7 +351,7 @@ func TestIntegration_ValidatorInstance(t *testing.T) {
 			t.Parallel()
 
 			ctx := t.Context()
-			validateErr := validator.Validate(ctx, &tt.user)
+			validateErr := engine.Validate(ctx, &tt.user)
 
 			if tt.wantError {
 				require.Error(t, validateErr)

@@ -21,12 +21,12 @@ import (
 )
 
 // errNotImplemented is returned internally when a type doesn't implement
-// [ValidatorInterface] or [ValidatorWithContext].
+// [Validator] or [ValidatorWithContext].
 var errNotImplemented = errors.New("validator not implemented")
 
-// validateWithInterface validates using [ValidatorInterface] or [ValidatorWithContext] methods.
+// validateWithInterface validates using [Validator] or [ValidatorWithContext] methods.
 // This implements [StrategyInterface] validation.
-func (v *Validator) validateWithInterface(ctx context.Context, val any, cfg *config) error {
+func (v *Engine) validateWithInterface(ctx context.Context, val any, cfg *config) error {
 	// Prefer ValidatorWithContext if context is available
 	if ctx != nil {
 		if validator, ok := val.(ValidatorWithContext); ok {
@@ -47,8 +47,8 @@ func (v *Validator) validateWithInterface(ctx context.Context, val any, cfg *con
 		}
 	}
 
-	// Try ValidatorInterface interface
-	if validator, ok := val.(ValidatorInterface); ok {
+	// Try Validator interface
+	if validator, ok := val.(Validator); ok {
 		if err := validator.Validate(); err != nil {
 			return v.coerceToValidationErrors(err, cfg)
 		}
@@ -70,7 +70,7 @@ func (v *Validator) validateWithInterface(ctx context.Context, val any, cfg *con
 }
 
 // callValidator calls Validate() method using reflection to support both value and pointer receivers.
-func (v *Validator) callValidator(val any) error {
+func (v *Engine) callValidator(val any) error {
 	rv := reflect.ValueOf(val)
 	rt := reflect.TypeOf(val)
 
@@ -132,7 +132,7 @@ func (v *Validator) callValidator(val any) error {
 
 // callValidatorWithContext calls the ValidateContext() method using reflection.
 // It supports both value and pointer receivers for [ValidatorWithContext].
-func (v *Validator) callValidatorWithContext(ctx context.Context, val any) error {
+func (v *Engine) callValidatorWithContext(ctx context.Context, val any) error {
 	rv := reflect.ValueOf(val)
 	rt := reflect.TypeOf(val)
 
@@ -197,7 +197,7 @@ func (v *Validator) callValidatorWithContext(ctx context.Context, val any) error
 
 // coerceToValidationErrors converts an error to [*Error].
 // It handles [FieldError], [Error], and generic errors.
-func (v *Validator) coerceToValidationErrors(err error, cfg *config) error {
+func (v *Engine) coerceToValidationErrors(err error, cfg *config) error {
 	if err == nil {
 		return nil
 	}

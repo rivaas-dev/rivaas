@@ -26,7 +26,7 @@ import (
 
 // validateWithTags validates using go-playground/validator struct tags ([StrategyTags]).
 // It supports both full and partial validation modes.
-func (v *Validator) validateWithTags(val any, cfg *config) error {
+func (v *Engine) validateWithTags(val any, cfg *config) error {
 	if err := v.initTagValidator(); err != nil {
 		return fmt.Errorf("initialize tag validator: %w", err)
 	}
@@ -65,7 +65,7 @@ func (v *Validator) validateWithTags(val any, cfg *config) error {
 // validatePartialLeafsOnly validates only leaf fields present in the [PresenceMap].
 // It avoids enforcing "required" on nested fields that weren't provided,
 // making it suitable for PATCH request validation.
-func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
+func (v *Engine) validatePartialLeafsOnly(val any, cfg *config) error {
 	leaves := cfg.presence.LeafPaths()
 	if len(leaves) == 0 {
 		return nil
@@ -142,7 +142,7 @@ func (v *Validator) validatePartialLeafsOnly(val any, cfg *config) error {
 
 // resolvePath resolves a dot-path (e.g., "items.2.name") to its reflect.Value and StructField.
 // It returns (zero, zero, false) if the path cannot be resolved.
-func (v *Validator) resolvePath(val any, path string) (reflect.Value, reflect.StructField, bool) {
+func (v *Engine) resolvePath(val any, path string) (reflect.Value, reflect.StructField, bool) {
 	parts := strings.Split(path, ".")
 	currentVal := reflect.ValueOf(val)
 	var currentField reflect.StructField
@@ -222,7 +222,7 @@ func buildFieldMap(structType reflect.Type) map[string]int {
 }
 
 // formatTagErrors formats go-playground/validator errors into an [*Error] with stable codes.
-func (v *Validator) formatTagErrors(errs validator.ValidationErrors, structValue any, cfg *config) error {
+func (v *Engine) formatTagErrors(errs validator.ValidationErrors, structValue any, cfg *config) error {
 	var result Error
 	structType := reflect.TypeOf(structValue)
 	for structType.Kind() == reflect.Pointer {

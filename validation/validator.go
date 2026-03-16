@@ -25,27 +25,27 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-// Validator provides struct validation with configurable options.
+// Engine provides struct validation with configurable options.
 //
-// Use [New] or [MustNew] to create a configured Validator, or use package-level
+// Use [New] or [MustNew] to create a configured Engine, or use package-level
 // functions ([Validate], [ValidatePartial]) for zero-configuration validation.
 //
-// Validator supports three validation strategies (see [Strategy]):
+// Engine supports three validation strategies (see [Strategy]):
 //   - Struct tags via go-playground/validator ([StrategyTags])
 //   - JSON Schema validation ([StrategyJSONSchema])
 //   - Custom interface methods ([StrategyInterface])
 //
-// Validator is safe for concurrent use by multiple goroutines.
+// Engine is safe for concurrent use by multiple goroutines.
 //
 // Example:
 //
-//	validator := validation.MustNew(
+//	engine := validation.MustNew(
 //	    validation.WithRedactor(sensitiveRedactor),
 //	    validation.WithMaxErrors(10),
 //	)
 //
-//	err := validator.Validate(ctx, &user)
-type Validator struct {
+//	err := engine.Validate(ctx, &user)
+type Engine struct {
 	cfg *config
 
 	// Tag validator (go-playground/validator)
@@ -68,21 +68,21 @@ type Validator struct {
 	validatorWithContextTypeCache sync.Map // map[reflect.Type]bool
 }
 
-// New creates a [Validator] with the given options.
+// New creates an [Engine] with the given options.
 // New returns an error if configuration is invalid (e.g., negative maxErrors).
 //
 // See [Option] for available configuration options.
 //
 // Example:
 //
-//	validator, err := validation.New(
+//	engine, err := validation.New(
 //	    validation.WithMaxErrors(10),
 //	    validation.WithRedactor(sensitiveRedactor),
 //	)
 //	if err != nil {
-//	    return fmt.Errorf("failed to create validator: %w", err)
+//	    return fmt.Errorf("failed to create engine: %w", err)
 //	}
-func New(opts ...Option) (*Validator, error) {
+func New(opts ...Option) (*Engine, error) {
 	cfg := newConfig()
 	for _, opt := range opts {
 		opt(cfg)
@@ -92,7 +92,7 @@ func New(opts ...Option) (*Validator, error) {
 		return nil, err
 	}
 
-	v := &Validator{
+	v := &Engine{
 		cfg:         cfg,
 		schemaCache: make(map[string]*schemaCacheEntry),
 	}
@@ -104,18 +104,18 @@ func New(opts ...Option) (*Validator, error) {
 	return v, nil
 }
 
-// MustNew creates a [Validator] with the given options.
+// MustNew creates an [Engine] with the given options.
 // Panics if configuration is invalid.
 //
 // Use in main() or init() where panic on startup is acceptable.
 //
 // Example:
 //
-//	validator := validation.MustNew(
+//	engine := validation.MustNew(
 //	    validation.WithRedactor(sensitiveRedactor),
 //	    validation.WithMaxErrors(10),
 //	)
-func MustNew(opts ...Option) *Validator {
+func MustNew(opts ...Option) *Engine {
 	v, err := New(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("validation.MustNew: %v", err))
@@ -126,7 +126,7 @@ func MustNew(opts ...Option) *Validator {
 
 // initTagValidator initializes the go-playground/validator instance for [StrategyTags].
 // This method is safe for concurrent use.
-func (v *Validator) initTagValidator() error {
+func (v *Engine) initTagValidator() error {
 	v.tagValidatorOnce.Do(func() {
 		v.tagValidator = validator.New(validator.WithRequiredStructEnabled())
 
@@ -157,15 +157,15 @@ func (v *Validator) initTagValidator() error {
 	return v.tagValidatorErr
 }
 
-// typeImplementsValidator checks if a type implements [ValidatorInterface].
-func (v *Validator) typeImplementsValidator(t reflect.Type) bool {
+// typeImplementsValidator checks if a type implements [Validator].
+func (v *Engine) typeImplementsValidator(t reflect.Type) bool {
 	if cached, ok := v.validatorTypeCache.Load(t); ok {
 		if result, resultOk := cached.(bool); resultOk {
 			return result
 		}
 	}
 
-	implements := t.Implements(reflect.TypeFor[ValidatorInterface]())
+	implements := t.Implements(reflect.TypeFor[Validator]())
 
 	actual, loaded := v.validatorTypeCache.LoadOrStore(t, implements)
 	if loaded {
@@ -178,7 +178,7 @@ func (v *Validator) typeImplementsValidator(t reflect.Type) bool {
 }
 
 // typeImplementsValidatorWithContext checks if a type implements [ValidatorWithContext].
-func (v *Validator) typeImplementsValidatorWithContext(t reflect.Type) bool {
+func (v *Engine) typeImplementsValidatorWithContext(t reflect.Type) bool {
 	if cached, ok := v.validatorWithContextTypeCache.Load(t); ok {
 		if result, resultOk := cached.(bool); resultOk {
 			return result
@@ -198,7 +198,7 @@ func (v *Validator) typeImplementsValidatorWithContext(t reflect.Type) bool {
 }
 
 // getFieldMap returns a map of JSON field names to field indices for a struct type.
-func (v *Validator) getFieldMap(structType reflect.Type) map[string]int {
+func (v *Engine) getFieldMap(structType reflect.Type) map[string]int {
 	if cached, ok := v.fieldMapCache.Load(structType); ok {
 		if fieldMap, fieldMapOk := cached.(map[string]int); fieldMapOk {
 			return fieldMap
@@ -218,7 +218,7 @@ func (v *Validator) getFieldMap(structType reflect.Type) map[string]int {
 }
 
 // getCachedJSONPath gets or computes JSON path from validator namespace.
-func (v *Validator) getCachedJSONPath(ns string, structType reflect.Type) string {
+func (v *Engine) getCachedJSONPath(ns string, structType reflect.Type) string {
 	cacheVal, ok := v.pathCache.Load(structType)
 	if !ok {
 		newCache := &sync.Map{}
@@ -264,7 +264,7 @@ func (v *Validator) getCachedJSONPath(ns string, structType reflect.Type) string
 }
 
 // getOrCompileSchema gets a JSON Schema from cache or compiles a new one for [StrategyJSONSchema].
-func (v *Validator) getOrCompileSchema(id, schemaJSON string) (*jsonschemaSchema, error) {
+func (v *Engine) getOrCompileSchema(id, schemaJSON string) (*jsonschemaSchema, error) {
 	now := time.Now()
 
 	if id != "" {

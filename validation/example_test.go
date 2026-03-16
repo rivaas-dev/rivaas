@@ -48,17 +48,17 @@ func ExampleValidate() {
 	// email: must be a valid email address
 }
 
-// ExampleNew demonstrates creating a configured Validator instance.
+// ExampleNew demonstrates creating a configured Engine.
 func ExampleNew() {
-	// Create a validator with custom configuration
-	validator, err := validation.New(
+	// Create an engine with custom configuration
+	engine, err := validation.New(
 		validation.WithMaxErrors(5),
 		validation.WithRedactor(func(path string) bool {
 			return path == "password" || path == "token"
 		}),
 	)
 	if err != nil {
-		if _, printErr := fmt.Printf("Failed to create validator: %v\n", err); printErr != nil {
+		if _, printErr := fmt.Printf("Failed to create engine: %v\n", err); printErr != nil {
 			panic(printErr)
 		}
 
@@ -70,7 +70,7 @@ func ExampleNew() {
 	}
 
 	user := User{Email: "john@example.com"}
-	if validateErr := validator.Validate(context.Background(), &user); validateErr != nil {
+	if validateErr := engine.Validate(context.Background(), &user); validateErr != nil {
 		if _, err = fmt.Printf("Validation failed: %v\n", validateErr); err != nil {
 			panic(err)
 		}
@@ -82,10 +82,10 @@ func ExampleNew() {
 	// Output: Validation passed
 }
 
-// ExampleMustNew demonstrates creating a Validator with MustNew (panics on error).
+// ExampleMustNew demonstrates creating an Engine with MustNew (panics on error).
 func ExampleMustNew() {
 	// MustNew panics if configuration is invalid - suitable for use in main() or init()
-	validator := validation.MustNew(
+	engine := validation.MustNew(
 		validation.WithMaxErrors(10),
 	)
 
@@ -94,7 +94,7 @@ func ExampleMustNew() {
 	}
 
 	user := User{Name: "Alice"}
-	if err := validator.Validate(context.Background(), &user); err != nil {
+	if err := engine.Validate(context.Background(), &user); err != nil {
 		if _, printErr := fmt.Printf("Validation failed: %v\n", err); printErr != nil {
 			panic(printErr)
 		}
@@ -136,16 +136,16 @@ func ExampleValidatePartial() {
 	// Output: Validation passed
 }
 
-// ExampleValidator_Validate demonstrates using a Validator instance.
-func ExampleValidator_Validate() {
-	validator := validation.MustNew()
+// ExampleEngine_Validate demonstrates using an Engine.
+func ExampleEngine_Validate() {
+	engine := validation.MustNew()
 
 	type User struct {
 		Email string `json:"email" validate:"required,email"`
 	}
 
 	user := User{Email: "invalid-email"}
-	err := validator.Validate(context.Background(), &user)
+	err := engine.Validate(context.Background(), &user)
 	if err != nil {
 		var verr *validation.Error
 		if errors.As(err, &verr) {
