@@ -30,6 +30,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// invalidUTF8String is a string that marshals to JSON as a string value with raw bytes
+// (possibly invalid UTF-8). Used to test that ASCIIJSON escapes invalid UTF-8 byte-by-byte.
+type invalidUTF8String string
+
+func (s invalidUTF8String) MarshalJSON() ([]byte, error) {
+	return append(append([]byte{'"'}, []byte(s)...), '"'), nil
+}
+
 // TestIndentedJSON tests pretty-printed JSON rendering
 func TestIndentedJSON(t *testing.T) {
 	t.Parallel()
@@ -355,6 +363,24 @@ func TestASCIIJSON(t *testing.T) {
 				t.Helper()
 				// Should not have escape sequences for pure ASCII
 				assert.Equal(t, 0, strings.Count(body, "\\u"), "Pure ASCII should not have escape sequences")
+			},
+		},
+		{
+			name: "invalid UTF-8 escaped byte-by-byte",
+			data: map[string]interface{}{
+				// Invalid 2-byte sequence: 0xC0 (leading) + 0x41 ('A'), not a valid continuation byte
+				"bad": invalidUTF8String("\xc0A"),
+			},
+			expectedStatus: http.StatusOK,
+			checkBody: func(t *testing.T, body string) {
+				t.Helper()
+				// Output must be pure ASCII
+				for _, b := range []byte(body) {
+					assert.Less(t, b, byte(128), "Found non-ASCII byte: %d", b)
+				}
+				// Invalid leading byte must be escaped as \u00c0; 0x41 ('A') stays as-is
+				assert.Contains(t, body, "\\u00c0", "Invalid leading byte should be escaped as \\u00c0")
+				assert.Contains(t, body, "A", "Following ASCII byte should remain")
 			},
 		},
 	}

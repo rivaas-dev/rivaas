@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 	"unsafe"
 
 	"gopkg.in/yaml.v3"
@@ -487,6 +488,7 @@ func (c *Context) SecureJSON(code int, obj any, prefix ...string) error {
 // This ensures the response is pure ASCII, useful for legacy systems or strict compatibility.
 // Non-ASCII characters are escaped to their Unicode code point form: a single \uXXXX for the
 // BMP, or a surrogate pair \uHHHH\uLLLL for code points above U+FFFF.
+// Invalid UTF-8 in the encoded JSON is escaped byte-by-byte as \u00XX.
 //
 // Example:
 //
@@ -512,9 +514,9 @@ func (c *Context) ASCIIJSON(code int, obj any) error {
 	//
 	// What we do:
 	//   - Bytes with value < 128 are ASCII. We leave them as they are.
-	//   - Bytes >= 128 are (or are part of) a UTF-8 multi-byte character. We try to decode one full
-	//     character (rune) with decodeRuneInJSON. If that works, we escape that rune (see below) and
-	//     skip past its bytes. If it fails (bad or cut-off UTF-8), we escape that single byte as \u00XX.
+	//   - Bytes >= 128 are (or are part of) a UTF-8 multi-byte character. We decode one full
+	//     character (rune) with utf8.DecodeRune. If that succeeds, we escape that rune (see below) and
+	//     skip past its bytes. If it fails (invalid or cut-off UTF-8), we escape that single byte as \u00XX.
 	//
 	// How we escape a rune:
 	//   - BMP (Basic Multilingual Plane): code points U+0000 to U+FFFF. This is the first 65,536
@@ -546,23 +548,24 @@ func (c *Context) ASCIIJSON(code int, obj any) error {
 		b := jsonBytes[i]
 		if b >= 128 {
 			// Multi-byte UTF-8 sequence - decode and escape as Unicode
-			r, size := decodeRuneInJSON(jsonBytes[i:])
-			if size > 0 {
-				// Escape the full rune
-				if r <= 0xFFFF {
-					fmt.Fprintf(&result, "\\u%04x", r)
-				} else {
-					// Surrogate pair for runes > U+FFFF
-					r -= 0x10000
-					fmt.Fprintf(&result, "\\u%04x\\u%04x", 0xD800+(r>>10), 0xDC00+(r&0x3FF))
-				}
-				i += size
-
+			r, size := utf8.DecodeRune(jsonBytes[i:])
+			if size == 0 {
+				break
+			}
+			if size == 1 && r == utf8.RuneError {
+				// Invalid UTF-8: escape single byte
+				fmt.Fprintf(&result, "\\u%04x", b)
+				i++
 				continue
 			}
-			// Fallback: escape single byte
-			fmt.Fprintf(&result, "\\u%04x", b)
-			i++
+			// Valid rune: escape as \uXXXX or surrogate pair
+			if r <= 0xFFFF {
+				fmt.Fprintf(&result, "\\u%04x", r)
+			} else {
+				r -= 0x10000
+				fmt.Fprintf(&result, "\\u%04x\\u%04x", 0xD800+(r>>10), 0xDC00+(r&0x3FF))
+			}
+			i += size
 		} else {
 			// ASCII character - write as-is
 			result.WriteByte(b)
@@ -586,41 +589,6 @@ func (c *Context) ASCIIJSON(code int, obj any) error {
 	_, writeErr := c.Response.Write([]byte(result.String()))
 
 	return writeErr
-}
-
-// decodeRuneInJSON decodes one UTF-8 character (rune) from the start of b.
-// It returns that rune and how many bytes it used. If b is empty or the bytes
-// do not form a valid start of a UTF-8 sequence, it returns (0, 0). ASCIIJSON
-// uses this to decode multi-byte characters before escaping them as \uXXXX
-// or surrogate pairs.
-//
-// References:
-//   - UTF-8 definition and the standard: https://unicode.org/faq/utf_bom/
-//   - UTF-8 byte sequences: https://www.rfc-editor.org/rfc/rfc3629
-func decodeRuneInJSON(b []byte) (rune, int) {
-	if len(b) == 0 {
-		return 0, 0 // Nothing to decode; caller will escape byte-by-byte
-	}
-
-	// One byte: 0xxxxxxx (ASCII)
-	if b[0] < 128 {
-		return rune(b[0]), 1
-	}
-
-	// Two bytes: leading byte 110xxxxx (mask 0xE0); 5 bits from b[0], 6 from b[1]
-	if len(b) >= 2 && (b[0]&0xE0) == 0xC0 {
-		return rune((b[0]&0x1F))<<6 | rune(b[1]&0x3F), 2
-	}
-	// Three bytes: leading byte 1110xxxx (mask 0xF0); 4 bits from b[0], 6+6 from b[1], b[2]
-	if len(b) >= 3 && (b[0]&0xF0) == 0xE0 {
-		return rune((b[0]&0x0F))<<12 | rune((b[1]&0x3F))<<6 | rune(b[2]&0x3F), 3
-	}
-	// Four bytes: leading byte 11110xxx (mask 0xF8); 3 bits from b[0], 6+6+6 from b[1..3]
-	if len(b) >= 4 && (b[0]&0xF8) == 0xF0 {
-		return rune((b[0]&0x07))<<18 | rune((b[1]&0x3F))<<12 | rune((b[2]&0x3F))<<6 | rune(b[3]&0x3F), 4
-	}
-
-	return 0, 0 // Invalid or cut-off sequence; caller escapes one byte at a time
 }
 
 // String sends a plain text response.

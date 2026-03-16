@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -630,7 +631,7 @@ func TestFormat_DifferentStatusCodes(t *testing.T) {
 	codes := []int{http.StatusOK, http.StatusCreated, http.StatusNoContent, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}
 
 	for _, code := range codes {
-		t.Run(string(rune('0'+code/100)), func(t *testing.T) {
+		t.Run(strconv.Itoa(code), func(t *testing.T) {
 			t.Parallel()
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
