@@ -181,7 +181,7 @@ func TestContext_ManualErrorCollection(t *testing.T) {
 	// Use JSON and manually collect error if needed
 	err := c.JSON(http.StatusOK, make(chan int))
 	if err != nil {
-		c.Error(err)
+		c.CollectError(err)
 	}
 
 	assert.True(t, c.HasErrors(), "Expected error after manual collection")

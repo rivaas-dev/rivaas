@@ -1121,7 +1121,7 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 	return nil
 }
 
-// Error collects an error without immediately writing a response.
+// CollectError adds an error to the request's error list without writing a response.
 // This allows multiple errors to be collected during request processing
 // and handled later by middleware or handlers.
 //
@@ -1129,10 +1129,10 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 //
 //	func handler(c *router.Context) {
 //	    if err := validateUser(c); err != nil {
-//	        c.Error(err)
+//	        c.CollectError(err)
 //	    }
 //	    if err := validateEmail(c); err != nil {
-//	        c.Error(err)
+//	        c.CollectError(err)
 //	    }
 //
 //	    // Process all errors using standard library functions
@@ -1144,7 +1144,7 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 //	        return
 //	    }
 //	}
-func (c *Context) Error(err error) {
+func (c *Context) CollectError(err error) {
 	if err == nil {
 		return
 	}
@@ -1182,7 +1182,7 @@ func (c *Context) HasErrors() bool {
 }
 
 // WriteErrorResponse writes a simple HTTP error response.
-// Error formatting is handled by app.Context.Error() when router.Context is wrapped.
+// Error formatting is handled by app.Context.Fail() when router.Context is wrapped.
 func (c *Context) WriteErrorResponse(status int, message string) {
 	if rw, ok := c.Response.(WrittenChecker); !ok || !rw.Written() {
 		c.Response.WriteHeader(status)

@@ -170,19 +170,17 @@ func ExampleContext_Query() {
 	// Output: Query parameter handling configured
 }
 
-// ExampleContext_Error demonstrates error collection.
-func ExampleContext_Error() {
+// ExampleContext_CollectError demonstrates error collection.
+func ExampleContext_CollectError() {
 	r := router.MustNew()
 
 	r.POST("/users", func(c *router.Context) {
 		// Collect validation errors
 		if userID := c.Param("id"); userID == "" {
-			//nolint:errcheck // Example code, we don't care about the error here
-			c.Error(errors.New("user ID is required"))
+			c.CollectError(errors.New("user ID is required"))
 		}
 		if email := c.Query("email"); email == "" {
-			//nolint:errcheck // Example code, we don't care about the error here
-			c.Error(errors.New("email is required"))
+			c.CollectError(errors.New("email is required"))
 		}
 
 		// Check if any errors were collected
@@ -209,8 +207,8 @@ func ExampleContext_Errors() {
 
 	r.POST("/validate", func(c *router.Context) {
 		// Collect multiple errors
-		c.Error(errors.New("validation error 1"))
-		c.Error(errors.New("validation error 2"))
+		c.CollectError(errors.New("validation error 1"))
+		c.CollectError(errors.New("validation error 2"))
 
 		// Retrieve all errors
 		errors := c.Errors()
@@ -233,8 +231,7 @@ func ExampleContext_HasErrors() {
 	r.POST("/process", func(c *router.Context) {
 		// Perform validations
 		if c.Query("name") == "" {
-			//nolint:errcheck // Example code, we don't care about the error here
-			c.Error(errors.New("name is required"))
+			c.CollectError(errors.New("name is required"))
 		}
 
 		// Check if any errors exist
@@ -266,7 +263,7 @@ func ExampleContext_JSON() {
 		if err != nil {
 			// Handle error explicitly
 			slog.ErrorContext(c.Request.Context(), "failed to write JSON", "err", err)
-			c.Error(err) // Optionally collect it
+			c.CollectError(err) // Optionally collect it
 			c.WriteErrorResponse(http.StatusInternalServerError, "encoding failed")
 
 			return
@@ -277,15 +274,15 @@ func ExampleContext_JSON() {
 	// Output: Low-level JSON handler registered
 }
 
-// ExampleContext_Error_withErrorsJoin demonstrates combining errors with errors.Join.
-func ExampleContext_Error_withErrorsJoin() {
+// ExampleContext_CollectError_withErrorsJoin demonstrates combining errors with errors.Join.
+func ExampleContext_CollectError_withErrorsJoin() {
 	r := router.MustNew()
 
 	r.POST("/validate", func(c *router.Context) {
 		// Collect multiple errors
-		c.Error(errors.New("name is required"))
-		c.Error(errors.New("email is invalid"))
-		c.Error(errors.New("age must be positive"))
+		c.CollectError(errors.New("name is required"))
+		c.CollectError(errors.New("email is invalid"))
+		c.CollectError(errors.New("age must be positive"))
 
 		// Combine all errors using standard library
 		if c.HasErrors() {

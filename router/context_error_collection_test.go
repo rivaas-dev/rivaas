@@ -41,7 +41,7 @@ func TestContext_Error_Collection(t *testing.T) {
 
 	// Collect first error
 	err1 := errors.New("first error")
-	c.Error(err1)
+	c.CollectError(err1)
 
 	assert.True(t, c.HasErrors(), "Expected errors after collecting one")
 	collectedErrors := c.Errors()
@@ -50,7 +50,7 @@ func TestContext_Error_Collection(t *testing.T) {
 
 	// Collect second error
 	err2 := errors.New("second error")
-	c.Error(err2)
+	c.CollectError(err2)
 
 	assert.Len(t, c.Errors(), 2, "Expected 2 errors")
 	assert.Equal(t, err2, c.Errors()[1], "Expected second error to match")
@@ -65,17 +65,17 @@ func TestContext_Error_NilIgnored(t *testing.T) {
 	c := NewContext(w, req)
 
 	// Collecting nil should not add to errors
-	c.Error(nil)
+	c.CollectError(nil)
 
 	assert.False(t, c.HasErrors(), "Expected no errors after collecting nil")
 	assert.Nil(t, c.Errors(), "Expected nil errors slice after collecting nil")
 
 	// Collect real error
 	err := errors.New("real error")
-	c.Error(err)
+	c.CollectError(err)
 
 	// Collect nil again - should still only have one error
-	c.Error(nil)
+	c.CollectError(nil)
 
 	assert.Len(t, c.Errors(), 1, "Expected 1 error after collecting nil")
 }
@@ -125,7 +125,7 @@ func TestContext_Error_MultipleErrors(t *testing.T) {
 			c := NewContext(w, req)
 
 			for _, err := range tt.errors {
-				c.Error(err)
+				c.CollectError(err)
 			}
 
 			assert.True(t, c.HasErrors(), "Expected errors after collecting multiple")
@@ -152,9 +152,9 @@ func TestContext_Error_WithErrorsJoin(t *testing.T) {
 	err2 := errors.New("database error")
 	err3 := errors.New("network error")
 
-	c.Error(err1)
-	c.Error(err2)
-	c.Error(err3)
+	c.CollectError(err1)
+	c.CollectError(err2)
+	c.CollectError(err3)
 
 	// Join all errors
 	joinedErr := errors.Join(c.Errors()...)
@@ -174,9 +174,9 @@ func TestContext_Error_WithErrorsIs(t *testing.T) {
 	c := NewContext(w, req)
 
 	// Collect sentinel errors
-	c.Error(ErrContextResponseNil)
-	c.Error(ErrContentTypeNotAllowed)
-	c.Error(errors.New("generic error"))
+	c.CollectError(ErrContextResponseNil)
+	c.CollectError(ErrContentTypeNotAllowed)
+	c.CollectError(errors.New("generic error"))
 
 	// Check if specific errors exist
 	require.ErrorIs(t, c.Errors()[0], ErrContextResponseNil, "Expected first error to be ErrContextResponseNil")
@@ -203,7 +203,7 @@ func TestContext_Error_WithErrorsAs(t *testing.T) {
 	c := NewContext(w, req)
 
 	ce := &CustomError{Code: http.StatusBadRequest, Message: "bad request"}
-	c.Error(fmt.Errorf("wrapped: %w", ce))
+	c.CollectError(fmt.Errorf("wrapped: %w", ce))
 
 	// Try to extract custom error
 	var extracted *CustomError
@@ -222,8 +222,8 @@ func TestContext_Error_ResetClearsErrors(t *testing.T) {
 	c := NewContext(w, req)
 
 	// Collect errors
-	c.Error(errors.New("error 1"))
-	c.Error(errors.New("error 2"))
+	c.CollectError(errors.New("error 1"))
+	c.CollectError(errors.New("error 2"))
 
 	assert.True(t, c.HasErrors(), "Expected errors before reset")
 
@@ -258,8 +258,8 @@ func TestContext_JSON_CollectsErrors(t *testing.T) {
 
 	// If caller wants to collect, they must do so explicitly
 	if err != nil {
-		c.Error(err)
-		assert.True(t, c.HasErrors(), "Expected error to be collected after explicit c.Error() call")
+		c.CollectError(err)
+		assert.True(t, c.HasErrors(), "Expected error to be collected after explicit c.CollectError() call")
 
 		collectedErrors := c.Errors()
 		require.Len(t, collectedErrors, 1, "Expected 1 error after explicit collection")
@@ -293,7 +293,7 @@ func TestContext_JSON_ReturnsError(t *testing.T) {
 	assert.False(t, c.HasErrors(), "Expected JSON not to automatically collect errors")
 
 	// But we can manually collect it
-	c.Error(err)
+	c.CollectError(err)
 	assert.True(t, c.HasErrors(), "Expected error after manually collecting")
 }
 
@@ -411,7 +411,7 @@ func TestContext_ErrorCollection_MixedSuccessAndFailure(t *testing.T) {
 
 	// Explicitly collect the error
 	if err != nil {
-		c.Error(err)
+		c.CollectError(err)
 		assert.True(t, c.HasErrors(), "Expected error after explicit collection")
 	}
 
@@ -435,10 +435,10 @@ func TestContext_ErrorCollection_RealWorldScenario(t *testing.T) {
 	r.GET("/test", func(c *Context) {
 		// Simulate validation errors
 		if err := validateUserID(""); err != nil {
-			c.Error(err)
+			c.CollectError(err)
 		}
 		if err := validateEmail("invalid-email"); err != nil {
-			c.Error(err)
+			c.CollectError(err)
 		}
 
 		// Check if any errors were collected
