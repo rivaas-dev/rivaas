@@ -19,6 +19,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -95,6 +96,7 @@ func TestValidation(t *testing.T) {
 			metricsPort:      ":9090",
 			metricsPath:      "/metrics",
 			maxCustomMetrics: 1000,
+			logger:           slog.New(slog.DiscardHandler),
 		}
 		err := recorder.validate()
 		require.Error(t, err)
@@ -112,6 +114,7 @@ func TestValidation(t *testing.T) {
 			metricsPort:      ":9090",
 			metricsPath:      "/metrics",
 			maxCustomMetrics: 1000,
+			logger:           slog.New(slog.DiscardHandler),
 		}
 		err := recorder.validate()
 		require.Error(t, err)
@@ -129,6 +132,7 @@ func TestValidation(t *testing.T) {
 			metricsPort:      ":9090",
 			metricsPath:      "/metrics",
 			maxCustomMetrics: 0, // Invalid
+			logger:           slog.New(slog.DiscardHandler),
 		}
 		err := recorder.validate()
 		require.Error(t, err)
@@ -146,6 +150,7 @@ func TestValidation(t *testing.T) {
 			metricsPort:      "", // Invalid for Prometheus
 			metricsPath:      "/metrics",
 			maxCustomMetrics: 1000,
+			logger:           slog.New(slog.DiscardHandler),
 		}
 		err := recorder.validate()
 		require.Error(t, err)
@@ -163,6 +168,7 @@ func TestValidation(t *testing.T) {
 			metricsPort:      ":9090",
 			metricsPath:      "", // Invalid for Prometheus
 			maxCustomMetrics: 1000,
+			logger:           slog.New(slog.DiscardHandler),
 		}
 		err := recorder.validate()
 		require.Error(t, err)
@@ -178,6 +184,7 @@ func TestValidation(t *testing.T) {
 			serviceVersion:   "1.0.0",
 			provider:         "invalid", // Invalid
 			maxCustomMetrics: 1000,
+			logger:           slog.New(slog.DiscardHandler),
 		}
 		err := recorder.validate()
 		require.Error(t, err)
@@ -196,6 +203,7 @@ func TestValidation(t *testing.T) {
 			metricsPath:      "/metrics",
 			exportInterval:   30 * time.Second,
 			maxCustomMetrics: 1000,
+			logger:           slog.New(slog.DiscardHandler),
 		}
 		err := recorder.validate()
 		require.NoError(t, err)
@@ -717,6 +725,7 @@ func TestErrorMessages_ValidationErrors(t *testing.T) {
 				metricsPort:      ":9090",
 				metricsPath:      "/metrics",
 				maxCustomMetrics: 1000,
+				logger:           slog.New(slog.DiscardHandler),
 			},
 			wantSubstrings: []string{"service name", "empty"},
 		},
@@ -730,6 +739,7 @@ func TestErrorMessages_ValidationErrors(t *testing.T) {
 				metricsPort:      ":9090",
 				metricsPath:      "/metrics",
 				maxCustomMetrics: 1000,
+				logger:           slog.New(slog.DiscardHandler),
 			},
 			wantSubstrings: []string{"service version", "empty"},
 		},
@@ -743,6 +753,7 @@ func TestErrorMessages_ValidationErrors(t *testing.T) {
 				metricsPort:      ":9090",
 				metricsPath:      "/metrics",
 				maxCustomMetrics: 0,
+				logger:           slog.New(slog.DiscardHandler),
 			},
 			wantSubstrings: []string{"maxCustomMetrics", "at least 1"},
 		},
@@ -756,6 +767,7 @@ func TestErrorMessages_ValidationErrors(t *testing.T) {
 				metricsPort:      "",
 				metricsPath:      "/metrics",
 				maxCustomMetrics: 1000,
+				logger:           slog.New(slog.DiscardHandler),
 			},
 			wantSubstrings: []string{"metrics port", "empty"},
 		},
@@ -769,6 +781,7 @@ func TestErrorMessages_ValidationErrors(t *testing.T) {
 				metricsPort:      ":9090",
 				metricsPath:      "",
 				maxCustomMetrics: 1000,
+				logger:           slog.New(slog.DiscardHandler),
 			},
 			wantSubstrings: []string{"metrics path", "empty"},
 		},
@@ -780,6 +793,7 @@ func TestErrorMessages_ValidationErrors(t *testing.T) {
 				serviceVersion:   "1.0.0",
 				provider:         "invalid_provider",
 				maxCustomMetrics: 1000,
+				logger:           slog.New(slog.DiscardHandler),
 			},
 			wantSubstrings: []string{"unsupported", "provider", "invalid_provider"},
 		},

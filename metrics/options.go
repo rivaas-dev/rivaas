@@ -37,7 +37,7 @@ type config struct {
 	autoStartServer     bool
 	strictPort          bool
 	maxCustomMetrics    int
-	eventHandler        EventHandler
+	logger              *slog.Logger
 	registerGlobal      bool
 	withoutScopeInfo    bool
 	withoutTargetInfo   bool
@@ -167,37 +167,20 @@ func WithMaxCustomMetrics(maxLimit int) Option {
 	}
 }
 
-// WithEventHandler sets a custom [EventHandler] for internal operational events.
-// Use this for advanced use cases like sending errors to Sentry, custom alerting,
-// or integrating with non-slog logging systems.
+// WithLogger sets the logger for internal operational events (errors, warnings, info, debug).
+// Internal events are logged at the appropriate slog level. If logger is nil or WithLogger is not called,
+// a discard logger is used and no internal output is produced.
 //
 // Example:
 //
-//	metrics.New(metrics.WithEventHandler(func(e metrics.Event) {
-//	    if e.Type == metrics.EventError {
-//	        sentry.CaptureMessage(e.Message)
-//	    }
-//	    myLogger.Log(e.Type, e.Message, e.Args...)
-//	}))
-func WithEventHandler(handler EventHandler) Option {
-	return func(c *config) {
-		c.eventHandler = handler
-	}
-}
-
-// WithLogger sets the logger for internal operational events using the default event handler.
-// This is a convenience wrapper around [WithEventHandler] that logs events to the provided [slog.Logger].
-//
-// Example:
-//
-//	// Use stdlib slog
 //	metrics.New(metrics.WithLogger(slog.Default()))
 //
-//	// Use custom slog logger
-//	:= slog.New(slog.NewJSONHandler(os.Stdout, nil))
-//	metrics.New(metrics.WithLogger(logger))
+//	// No internal logging:
+//	metrics.New(metrics.WithPrometheus(":9090", "/metrics")) // omit WithLogger, or pass WithLogger(nil)
 func WithLogger(logger *slog.Logger) Option {
-	return WithEventHandler(DefaultEventHandler(logger))
+	return func(c *config) {
+		c.logger = logger
+	}
 }
 
 // WithoutScopeInfo configures the Prometheus exporter to omit instrumentation scope labels

@@ -108,7 +108,7 @@ func (r *Recorder) BeginRequest(ctx context.Context) *RequestMetrics {
 	// Warn once to help users catch misconfiguration, then silently skip.
 	if r.meter == nil {
 		r.warnNotStarted.Do(func() {
-			r.emitDebug("BeginRequest called before Start() - metrics will be skipped until Start() is called",
+			r.logger.Debug("BeginRequest called before Start() - metrics will be skipped until Start() is called",
 				"provider", r.provider)
 		})
 

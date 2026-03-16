@@ -44,66 +44,6 @@ var (
 	DefaultSizeBuckets = []float64{100, 1000, 10000, 100000, 1000000, 10000000}
 )
 
-// EventType represents the severity of an internal operational event.
-type EventType int
-
-const (
-	// EventError indicates an error event (e.g., failed to export metrics).
-	EventError EventType = iota
-	// EventWarning indicates a warning event (e.g., deprecated configuration).
-	EventWarning
-	// EventInfo indicates an informational event (e.g., metrics server started).
-	EventInfo
-	// EventDebug indicates a debug event (e.g., detailed operation logs).
-	EventDebug
-)
-
-// Event represents an internal operational event from the metrics package.
-// Events are used to report errors, warnings, and informational messages
-// about the metrics system's operation.
-type Event struct {
-	Type    EventType
-	Message string
-	Args    []any // slog-style key-value pairs
-}
-
-// EventHandler processes internal operational events from the metrics package.
-// Implementations can log events, send them to monitoring systems, or take
-// custom actions based on event type.
-//
-// Example custom handler:
-//
-//	metrics.WithEventHandler(func(e metrics.Event) {
-//	    if e.Type == metrics.EventError {
-//	        sentry.CaptureMessage(e.Message)
-//	    }
-//	    slog.Default().Info(e.Message, e.Args...)
-//	})
-type EventHandler func(Event)
-
-// DefaultEventHandler returns an EventHandler that logs events to the provided slog.Logger.
-// This is the default implementation used by WithLogger.
-//
-// If logger is nil, returns a no-op handler that discards all events.
-func DefaultEventHandler(logger *slog.Logger) EventHandler {
-	if logger == nil {
-		return func(Event) {} // no-op
-	}
-
-	return func(e Event) {
-		switch e.Type {
-		case EventError:
-			logger.Error(e.Message, e.Args...)
-		case EventWarning:
-			logger.Warn(e.Message, e.Args...)
-		case EventInfo:
-			logger.Info(e.Message, e.Args...)
-		case EventDebug:
-			logger.Debug(e.Message, e.Args...)
-		}
-	}
-}
-
 // Provider represents the available metrics providers.
 type Provider string
 
@@ -140,7 +80,7 @@ type Recorder struct {
 	prometheusHandler  http.Handler
 	prometheusRegistry *promclient.Registry // Custom Prometheus registry to avoid conflicts
 	metricsServer      *http.Server
-	eventHandler       EventHandler // Handler for internal operational events
+	logger             *slog.Logger // Logger for internal operational events; never nil (uses DiscardHandler when not set)
 
 	// Built-in HTTP metrics
 	requestDuration      metric.Float64Histogram
@@ -273,6 +213,10 @@ func (c *config) validate() error {
 
 // newRecorderFromConfig builds a Recorder from a validated config.
 func newRecorderFromConfig(cfg *config) (*Recorder, error) {
+	logger := cfg.logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
 	r := &Recorder{
 		meterProvider:       cfg.meterProvider,
 		serviceName:         cfg.serviceName,
@@ -283,7 +227,7 @@ func newRecorderFromConfig(cfg *config) (*Recorder, error) {
 		autoStartServer:     cfg.autoStartServer,
 		strictPort:          cfg.strictPort,
 		maxCustomMetrics:    cfg.maxCustomMetrics,
-		eventHandler:        cfg.eventHandler,
+		logger:              logger,
 		registerGlobal:      cfg.registerGlobal,
 		withoutScopeInfo:    cfg.withoutScopeInfo,
 		withoutTargetInfo:   cfg.withoutTargetInfo,
@@ -299,7 +243,7 @@ func newRecorderFromConfig(cfg *config) (*Recorder, error) {
 		customGauges:        make(map[string]metric.Float64Gauge),
 	}
 	if r.exportInterval > 0 && r.exportInterval < time.Second {
-		r.emitWarning("Export interval is very low, may cause high CPU usage", "interval", r.exportInterval)
+		r.logger.Warn("Export interval is very low, may cause high CPU usage", "interval", r.exportInterval)
 	}
 	if err := r.initializeProvider(); err != nil {
 		return nil, fmt.Errorf("failed to initialize metrics: %w", err)
@@ -321,6 +265,7 @@ func newDefaultRecorder() *Recorder {
 		autoStartServer:  true,
 		maxCustomMetrics: 1000,  // Limit to prevent unbounded metric creation
 		registerGlobal:   false, // Default: no global registration
+		logger:           slog.New(slog.DiscardHandler),
 		durationBuckets:  DefaultDurationBuckets,
 		sizeBuckets:      DefaultSizeBuckets,
 		customCounters:   make(map[string]metric.Int64Counter),
@@ -360,7 +305,7 @@ func (r *Recorder) validate() error {
 
 	// Validate export interval
 	if r.exportInterval < time.Second {
-		r.emitWarning("Export interval is very low, may cause high CPU usage", "interval", r.exportInterval)
+		r.logger.Warn("Export interval is very low, may cause high CPU usage", "interval", r.exportInterval)
 	}
 
 	// Validate provider-specific settings
@@ -374,7 +319,7 @@ func (r *Recorder) validate() error {
 		}
 	case OTLPProvider:
 		if r.otlpEndpoint == "" {
-			r.emitWarning("OTLP endpoint not specified, will use default", "default", "http://localhost:4318")
+			r.logger.Warn("OTLP endpoint not specified, will use default", "default", "http://localhost:4318")
 			r.otlpEndpoint = "http://localhost:4318"
 		}
 	case StdoutProvider:
@@ -519,7 +464,7 @@ func (r *Recorder) Shutdown(ctx context.Context) error {
 	// Flush and shutdown the meter provider if it supports it and is NOT a custom provider
 	// User-provided providers should be managed by the user
 	if r.customMeterProvider {
-		r.emitDebug("Skipping flush and shutdown of custom meter provider (managed by user)")
+		r.logger.Debug("Skipping flush and shutdown of custom meter provider (managed by user)")
 	} else if err := r.shutdownSDKMeterProvider(ctx); err != nil {
 		errs = append(errs, err)
 	}
@@ -543,20 +488,20 @@ func (r *Recorder) shutdownSDKMeterProvider(ctx context.Context) error {
 	// Explicitly flush pending metrics before shutdown
 	// This is especially important for push-based providers (OTLP, stdout)
 	// to ensure all buffered data is exported before the provider is closed
-	r.emitDebug("Flushing pending metrics")
+	r.logger.Debug("Flushing pending metrics")
 	if err := mp.ForceFlush(ctx); err != nil {
 		// Log warning but continue with shutdown - flush failure shouldn't block shutdown
-		r.emitWarning("metrics flush warning", "error", err)
+		r.logger.Warn("metrics flush warning", "error", err)
 	} else {
-		r.emitDebug("Metrics flushed successfully")
+		r.logger.Debug("Metrics flushed successfully")
 	}
 
-	r.emitDebug("Shutting down meter provider")
+	r.logger.Debug("Shutting down meter provider")
 	if err := mp.Shutdown(ctx); err != nil {
 		return fmt.Errorf("meter provider shutdown: %w", err)
 	}
 
-	r.emitDebug("Meter provider shut down successfully")
+	r.logger.Debug("Meter provider shut down successfully")
 
 	return nil
 }
@@ -579,11 +524,11 @@ func (r *Recorder) ForceFlush(ctx context.Context) error {
 	}
 
 	if mp, ok := r.meterProvider.(*sdkmetric.MeterProvider); ok {
-		r.emitDebug("Force flushing metrics")
+		r.logger.Debug("Force flushing metrics")
 		if err := mp.ForceFlush(ctx); err != nil {
 			return fmt.Errorf("metrics force flush: %w", err)
 		}
-		r.emitDebug("Metrics force flushed successfully")
+		r.logger.Debug("Metrics force flushed successfully")
 	}
 
 	return nil
@@ -602,32 +547,4 @@ func (r *Recorder) ServiceName() string {
 // ServiceVersion returns the service version.
 func (r *Recorder) ServiceVersion() string {
 	return r.serviceVersion
-}
-
-// emitError emits an error event if an event handler is configured.
-func (r *Recorder) emitError(msg string, args ...any) {
-	if r.eventHandler != nil {
-		r.eventHandler(Event{Type: EventError, Message: msg, Args: args})
-	}
-}
-
-// emitWarning emits a warning event if an event handler is configured.
-func (r *Recorder) emitWarning(msg string, args ...any) {
-	if r.eventHandler != nil {
-		r.eventHandler(Event{Type: EventWarning, Message: msg, Args: args})
-	}
-}
-
-// emitInfo emits an info event if an event handler is configured.
-func (r *Recorder) emitInfo(msg string, args ...any) {
-	if r.eventHandler != nil {
-		r.eventHandler(Event{Type: EventInfo, Message: msg, Args: args})
-	}
-}
-
-// emitDebug emits a debug event if an event handler is configured.
-func (r *Recorder) emitDebug(msg string, args ...any) {
-	if r.eventHandler != nil {
-		r.eventHandler(Event{Type: EventDebug, Message: msg, Args: args})
-	}
 }

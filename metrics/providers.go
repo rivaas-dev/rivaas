@@ -43,7 +43,7 @@ func (r *Recorder) initializeProvider() error {
 		if r.meterProvider == nil {
 			return errors.New("custom meter provider is nil")
 		}
-		r.emitDebug("Using custom user-provided meter provider")
+		r.logger.Debug("Using custom user-provided meter provider")
 		r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
 
 		return r.initializeMetrics()
@@ -102,10 +102,10 @@ func (r *Recorder) initPrometheusProvider() error {
 
 	// Set global meter provider only if requested
 	if r.registerGlobal {
-		r.emitDebug("Setting global OpenTelemetry meter provider", "provider", "prometheus")
+		r.logger.Debug("Setting global OpenTelemetry meter provider", "provider", "prometheus")
 		otel.SetMeterProvider(r.meterProvider)
 	} else {
-		r.emitDebug("Skipping global meter provider registration", "provider", "prometheus")
+		r.logger.Debug("Skipping global meter provider registration", "provider", "prometheus")
 	}
 
 	r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
@@ -173,10 +173,10 @@ func (r *Recorder) initOTLPProvider(ctx context.Context) error {
 
 	// Set global meter provider only if requested
 	if r.registerGlobal {
-		r.emitDebug("Setting global OpenTelemetry meter provider", "provider", "otlp")
+		r.logger.Debug("Setting global OpenTelemetry meter provider", "provider", "otlp")
 		otel.SetMeterProvider(r.meterProvider)
 	} else {
-		r.emitDebug("Skipping global meter provider registration", "provider", "otlp")
+		r.logger.Debug("Skipping global meter provider registration", "provider", "otlp")
 	}
 
 	r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
@@ -206,10 +206,10 @@ func (r *Recorder) initStdoutProvider() error {
 
 	// Set global meter provider only if requested
 	if r.registerGlobal {
-		r.emitDebug("Setting global OpenTelemetry meter provider", "provider", "stdout")
+		r.logger.Debug("Setting global OpenTelemetry meter provider", "provider", "stdout")
 		otel.SetMeterProvider(r.meterProvider)
 	} else {
-		r.emitDebug("Skipping global meter provider registration", "provider", "stdout")
+		r.logger.Debug("Skipping global meter provider registration", "provider", "stdout")
 	}
 
 	r.meter = r.meterProvider.Meter("rivaas.dev/metrics")
@@ -226,7 +226,7 @@ func (r *Recorder) startMetricsServer(ctx context.Context) {
 
 	// Check if shutting down
 	if r.isShuttingDown.Load() {
-		r.emitDebug("Not starting metrics server: shutdown in progress")
+		r.logger.Debug("Not starting metrics server: shutdown in progress")
 		return
 	}
 
@@ -239,20 +239,20 @@ func (r *Recorder) startMetricsServer(ctx context.Context) {
 		var lc net.ListenConfig
 		listener, listenErr := lc.Listen(ctx, "tcp", r.metricsPort)
 		if listenErr != nil {
-			r.emitError("Failed to start metrics server on required port (strict mode)",
+			r.logger.Error("Failed to start metrics server on required port (strict mode)",
 				"error", listenErr, "port", r.metricsPort)
 
 			return
 		}
 		if closeErr := listener.Close(); closeErr != nil {
-			r.emitError("Failed to close temporary metrics listener", "error", closeErr, "port", r.metricsPort)
+			r.logger.Error("Failed to close temporary metrics listener", "error", closeErr, "port", r.metricsPort)
 		}
 		actualPort = r.metricsPort
 	} else {
 		// Flexible mode: try to find an available port
 		actualPort, err = findAvailablePort(ctx, r.metricsPort)
 		if err != nil {
-			r.emitError("Failed to find available port for metrics server", "error", err, "preferred_port", r.metricsPort)
+			r.logger.Error("Failed to find available port for metrics server", "error", err, "preferred_port", r.metricsPort)
 			return
 		}
 	}
@@ -282,14 +282,14 @@ func (r *Recorder) startMetricsServer(ctx context.Context) {
 	go func() {
 		// Log which port we're actually using
 		if actualPort != capturedOriginalPort {
-			r.emitWarning("Metrics server using different port than requested",
+			r.logger.Warn("Metrics server using different port than requested",
 				"actual_address", actualPort+metricsPath,
 				"requested_port", capturedOriginalPort,
 				"path", metricsPath,
 				"reason", "requested port was unavailable",
 				"recommendation", "use WithStrictPort() to fail instead of auto-discovering")
 		} else {
-			r.emitInfo("Metrics server starting",
+			r.logger.Info("Metrics server starting",
 				"address", actualPort+metricsPath,
 				"path", metricsPath)
 		}
@@ -299,7 +299,7 @@ func (r *Recorder) startMetricsServer(ctx context.Context) {
 			r.serverMutex.Lock()
 			r.metricsServer = nil
 			r.serverMutex.Unlock()
-			r.emitError("Metrics server error", "error", serveErr)
+			r.logger.Error("Metrics server error", "error", serveErr)
 		}
 	}()
 }
@@ -312,12 +312,12 @@ func (r *Recorder) stopMetricsServer(ctx context.Context) error {
 	r.serverMutex.Unlock()
 
 	if server != nil {
-		r.emitDebug("Shutting down metrics server")
+		r.logger.Debug("Shutting down metrics server")
 		if err := server.Shutdown(ctx); err != nil {
-			r.emitError("Error shutting down metrics server", "error", err)
+			r.logger.Error("Error shutting down metrics server", "error", err)
 			return fmt.Errorf("metrics server shutdown: %w", err)
 		}
-		r.emitDebug("Metrics server shut down successfully")
+		r.logger.Debug("Metrics server shut down successfully")
 	}
 
 	return nil
