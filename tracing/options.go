@@ -25,8 +25,30 @@ import (
 )
 
 // Option defines functional options for Tracer configuration.
-// Options are applied during Tracer creation via New().
-type Option func(*Tracer)
+// Options apply to an internal config struct; the constructor builds the Tracer from the validated config.
+type Option func(*config)
+
+// config holds construction-time tracer configuration.
+type config struct {
+	tracerProvider        trace.TracerProvider
+	customTracerProvider  bool
+	registerGlobal        bool
+	serviceName           string
+	serviceVersion        string
+	sampleRate            float64
+	samplingThreshold     uint64 // Set in validate() from sampleRate
+	tracer                trace.Tracer
+	propagator            propagation.TextMapPropagator
+	eventHandler          EventHandler
+	spanStartHook         SpanStartHook
+	spanFinishHook        SpanFinishHook
+	provider              Provider
+	otlpEndpoint          string
+	otlpEndpointDefaulted bool // True when endpoint was empty and set to default in validate()
+	otlpInsecure          bool
+	providerSet           bool
+	validationErrors      []error
+}
 
 // WithTracerProvider allows you to provide a custom OpenTelemetry TracerProvider.
 // When using this option, the package will NOT set the global otel.SetTracerProvider()
@@ -52,9 +74,9 @@ type Option func(*Tracer)
 // Note: When using WithTracerProvider, provider options (WithOTLP, WithStdout, etc.)
 // are ignored since you're managing the provider yourself.
 func WithTracerProvider(provider trace.TracerProvider) Option {
-	return func(t *Tracer) {
-		t.tracerProvider = provider
-		t.customTracerProvider = true
+	return func(c *config) {
+		c.tracerProvider = provider
+		c.customTracerProvider = true
 	}
 }
 
@@ -70,8 +92,8 @@ func WithTracerProvider(provider trace.TracerProvider) Option {
 //	    tracing.WithGlobalTracerProvider(), // Register as global default
 //	)
 func WithGlobalTracerProvider() Option {
-	return func(t *Tracer) {
-		t.registerGlobal = true
+	return func(c *config) {
+		c.registerGlobal = true
 	}
 }
 
@@ -82,8 +104,8 @@ func WithGlobalTracerProvider() Option {
 //
 //	tracer := tracing.New(tracing.WithServiceName("my-api"))
 func WithServiceName(name string) Option {
-	return func(t *Tracer) {
-		t.serviceName = name
+	return func(c *config) {
+		c.serviceName = name
 	}
 }
 
@@ -94,8 +116,8 @@ func WithServiceName(name string) Option {
 //
 //	tracer := tracing.New(tracing.WithServiceVersion("v1.2.3"))
 func WithServiceVersion(version string) Option {
-	return func(t *Tracer) {
-		t.serviceVersion = version
+	return func(c *config) {
+		c.serviceVersion = version
 	}
 }
 
@@ -109,14 +131,14 @@ func WithServiceVersion(version string) Option {
 //
 //	tracer := tracing.New(tracing.WithSampleRate(0.1)) // Sample 10% of requests
 func WithSampleRate(rate float64) Option {
-	return func(t *Tracer) {
+	return func(c *config) {
 		if rate < 0.0 {
 			rate = 0.0
 		}
 		if rate > 1.0 {
 			rate = 1.0
 		}
-		t.sampleRate = rate
+		c.sampleRate = rate
 	}
 }
 
@@ -130,8 +152,8 @@ func WithSampleRate(rate float64) Option {
 //	tracer := tp.Tracer("my-tracer")
 //	t := tracing.New(tracing.WithCustomTracer(tracer))
 func WithCustomTracer(tracer trace.Tracer) Option {
-	return func(t *Tracer) {
-		t.tracer = tracer
+	return func(c *config) {
+		c.tracer = tracer
 	}
 }
 
@@ -144,8 +166,8 @@ func WithCustomTracer(tracer trace.Tracer) Option {
 //	prop := propagation.TraceContext{}
 //	tracer := tracing.New(tracing.WithCustomPropagator(prop))
 func WithCustomPropagator(propagator propagation.TextMapPropagator) Option {
-	return func(t *Tracer) {
-		t.propagator = propagator
+	return func(c *config) {
+		c.propagator = propagator
 	}
 }
 
@@ -162,8 +184,8 @@ func WithCustomPropagator(propagator propagation.TextMapPropagator) Option {
 //	    myLogger.Log(e.Type, e.Message, e.Args...)
 //	}))
 func WithEventHandler(handler EventHandler) Option {
-	return func(t *Tracer) {
-		t.eventHandler = handler
+	return func(c *config) {
+		c.eventHandler = handler
 	}
 }
 
@@ -195,8 +217,8 @@ func WithLogger(logger *slog.Logger) Option {
 //	}
 //	tracer := tracing.New(tracing.WithSpanStartHook(hook))
 func WithSpanStartHook(hook SpanStartHook) Option {
-	return func(t *Tracer) {
-		t.spanStartHook = hook
+	return func(c *config) {
+		c.spanStartHook = hook
 	}
 }
 
@@ -213,8 +235,8 @@ func WithSpanStartHook(hook SpanStartHook) Option {
 //	}
 //	tracer := tracing.New(tracing.WithSpanFinishHook(hook))
 func WithSpanFinishHook(hook SpanFinishHook) Option {
-	return func(t *Tracer) {
-		t.spanFinishHook = hook
+	return func(c *config) {
+		c.spanFinishHook = hook
 	}
 }
 
@@ -247,21 +269,20 @@ func OTLPInsecure() OTLPOption {
 //	// With insecure option:
 //	tracer := tracing.MustNew(tracing.WithOTLP("localhost:4317", tracing.OTLPInsecure()))
 func WithOTLP(endpoint string, opts ...OTLPOption) Option {
-	return func(t *Tracer) {
-		if t.providerSet {
-			t.validationErrors = append(t.validationErrors,
-				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", t.provider, OTLPProvider))
-
+	return func(c *config) {
+		if c.providerSet {
+			c.validationErrors = append(c.validationErrors,
+				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", c.provider, OTLPProvider))
 			return
 		}
-		t.provider = OTLPProvider
-		t.otlpEndpoint = endpoint
-		t.providerSet = true
-		cfg := &otlpConfig{}
+		c.provider = OTLPProvider
+		c.otlpEndpoint = endpoint
+		c.providerSet = true
+		otlpCfg := &otlpConfig{}
 		for _, opt := range opts {
-			opt(cfg)
+			opt(otlpCfg)
 		}
-		t.otlpInsecure = cfg.insecure
+		c.otlpInsecure = otlpCfg.insecure
 	}
 }
 
@@ -275,16 +296,15 @@ func WithOTLP(endpoint string, opts ...OTLPOption) Option {
 //
 //	tracer := tracing.MustNew(tracing.WithOTLPHTTP("http://localhost:4318"))
 func WithOTLPHTTP(endpoint string) Option {
-	return func(t *Tracer) {
-		if t.providerSet {
-			t.validationErrors = append(t.validationErrors,
-				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", t.provider, OTLPHTTPProvider))
-
+	return func(c *config) {
+		if c.providerSet {
+			c.validationErrors = append(c.validationErrors,
+				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", c.provider, OTLPHTTPProvider))
 			return
 		}
-		t.provider = OTLPHTTPProvider
-		t.otlpEndpoint = endpoint
-		t.providerSet = true
+		c.provider = OTLPHTTPProvider
+		c.otlpEndpoint = endpoint
+		c.providerSet = true
 	}
 }
 
@@ -297,15 +317,14 @@ func WithOTLPHTTP(endpoint string) Option {
 //
 //	tracer := tracing.MustNew(tracing.WithStdout())
 func WithStdout() Option {
-	return func(t *Tracer) {
-		if t.providerSet {
-			t.validationErrors = append(t.validationErrors,
-				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", t.provider, StdoutProvider))
-
+	return func(c *config) {
+		if c.providerSet {
+			c.validationErrors = append(c.validationErrors,
+				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", c.provider, StdoutProvider))
 			return
 		}
-		t.provider = StdoutProvider
-		t.providerSet = true
+		c.provider = StdoutProvider
+		c.providerSet = true
 	}
 }
 
@@ -318,15 +337,14 @@ func WithStdout() Option {
 //
 //	tracer := tracing.MustNew(tracing.WithNoop())
 func WithNoop() Option {
-	return func(t *Tracer) {
-		if t.providerSet {
-			t.validationErrors = append(t.validationErrors,
-				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", t.provider, NoopProvider))
-
+	return func(c *config) {
+		if c.providerSet {
+			c.validationErrors = append(c.validationErrors,
+				fmt.Errorf("provider: multiple providers configured (already have %q, cannot add %q); only one provider allowed", c.provider, NoopProvider))
 			return
 		}
-		t.provider = NoopProvider
-		t.providerSet = true
+		c.provider = NoopProvider
+		c.providerSet = true
 	}
 }
 

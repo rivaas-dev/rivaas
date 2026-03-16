@@ -185,9 +185,6 @@ type Tracer struct {
 	providerSet          bool        // Tracks if a provider option was explicitly configured
 	isStarted            atomic.Bool // Tracks if Start() has been called
 
-	// Validation errors (collected during option application)
-	validationErrors []error
-
 	// String pool for reusable string builders
 	spanNamePool sync.Pool
 }
@@ -217,49 +214,105 @@ type Tracer struct {
 //	}
 //	defer tracer.Shutdown(context.Background())
 func New(opts ...Option) (*Tracer, error) {
-	t := newDefaultTracer()
-
-	// Apply options
+	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(t)
+		opt(cfg)
 	}
-
-	// Validate configuration
-	if err := t.validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
-
-	// Initialize non-OTLP providers immediately (they don't need network)
-	// OTLP providers are deferred to Start(ctx) for proper context propagation
+	t, err := newTracerFromConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
 	if !t.requiresNetworkInit() {
-		if err := t.initializeProvider(); err != nil {
-			return nil, fmt.Errorf("failed to initialize tracing: %w", err)
+		if initErr := t.initializeProvider(); initErr != nil {
+			return nil, fmt.Errorf("failed to initialize tracing: %w", initErr)
 		}
 	}
-
 	return t, nil
 }
 
-// newDefaultTracer creates a new Tracer with default values.
-func newDefaultTracer() *Tracer {
-	t := &Tracer{
-		enabled:        true,
+// defaultConfig returns a config with default values.
+func defaultConfig() *config {
+	return &config{
 		serviceName:    DefaultServiceName,
 		serviceVersion: DefaultServiceVersion,
-		propagator:     otel.GetTextMapPropagator(),
 		sampleRate:     DefaultSampleRate,
 		provider:       NoopProvider,
-		otlpInsecure:   false,
+		propagator:     otel.GetTextMapPropagator(),
 	}
+}
 
-	// Initialize string pool for reusable string builders
-	t.spanNamePool = sync.Pool{
-		New: func() any {
-			return &strings.Builder{}
+// validate checks the config and sets samplingThreshold and OTLP default endpoint if needed.
+func (c *config) validate() error {
+	if len(c.validationErrors) > 0 {
+		var errMsgs []string
+		for _, err := range c.validationErrors {
+			errMsgs = append(errMsgs, err.Error())
+		}
+		return fmt.Errorf("validation errors: %s", strings.Join(errMsgs, "; "))
+	}
+	if c.serviceName == "" {
+		return errors.New("serviceName: cannot be empty")
+	}
+	if c.serviceVersion == "" {
+		return errors.New("serviceVersion: cannot be empty")
+	}
+	if c.sampleRate < 0.0 || c.sampleRate > 1.0 {
+		return fmt.Errorf("sampleRate: must be between 0.0 and 1.0, got %f", c.sampleRate)
+	}
+	if c.sampleRate > 0.0 && c.sampleRate < 1.0 {
+		c.samplingThreshold = uint64(c.sampleRate * float64(^uint64(0)))
+	} else if c.sampleRate == 1.0 {
+		c.samplingThreshold = ^uint64(0)
+	} else {
+		c.samplingThreshold = 0
+	}
+	switch c.provider {
+	case NoopProvider, StdoutProvider:
+		// no-op
+	case OTLPProvider, OTLPHTTPProvider:
+		if c.otlpEndpoint == "" {
+			c.otlpEndpointDefaulted = true
+			c.otlpEndpoint = "localhost:4317"
+		}
+	default:
+		return fmt.Errorf("provider: unsupported tracing provider %q", c.provider)
+	}
+	return nil
+}
+
+// newTracerFromConfig builds a Tracer from a validated config.
+func newTracerFromConfig(cfg *config) (*Tracer, error) {
+	t := &Tracer{
+		tracerProvider:       cfg.tracerProvider,
+		customTracerProvider: cfg.customTracerProvider,
+		registerGlobal:       cfg.registerGlobal,
+		serviceName:          cfg.serviceName,
+		serviceVersion:       cfg.serviceVersion,
+		sampleRate:           cfg.sampleRate,
+		samplingThreshold:    cfg.samplingThreshold,
+		tracer:               cfg.tracer,
+		propagator:           cfg.propagator,
+		eventHandler:         cfg.eventHandler,
+		spanStartHook:        cfg.spanStartHook,
+		spanFinishHook:       cfg.spanFinishHook,
+		provider:             cfg.provider,
+		otlpEndpoint:         cfg.otlpEndpoint,
+		otlpInsecure:         cfg.otlpInsecure,
+		providerSet:          cfg.providerSet,
+		enabled:              true,
+		spanNamePool: sync.Pool{
+			New: func() any {
+				return &strings.Builder{}
+			},
 		},
 	}
-
-	return t
+	if cfg.otlpEndpointDefaulted {
+		t.emitWarning("OTLP endpoint not specified, will use default", "default", "localhost:4317")
+	}
+	return t, nil
 }
 
 // MustNew creates a new Tracer with the given options.
@@ -280,60 +333,6 @@ func MustNew(opts ...Option) *Tracer {
 	}
 
 	return t
-}
-
-// validate checks that the configuration is valid.
-func (t *Tracer) validate() error {
-	// Check for validation errors collected during option application
-	if len(t.validationErrors) > 0 {
-		var errMsgs []string
-		for _, err := range t.validationErrors {
-			errMsgs = append(errMsgs, err.Error())
-		}
-
-		return fmt.Errorf("validation errors: %s", strings.Join(errMsgs, "; "))
-	}
-
-	// Validate service name
-	if t.serviceName == "" {
-		return errors.New("serviceName: cannot be empty")
-	}
-
-	// Validate service version
-	if t.serviceVersion == "" {
-		return errors.New("serviceVersion: cannot be empty")
-	}
-
-	// Validate sample rate
-	if t.sampleRate < 0.0 || t.sampleRate > 1.0 {
-		return fmt.Errorf("sampleRate: must be between 0.0 and 1.0, got %f", t.sampleRate)
-	}
-
-	// Precompute sampling threshold for integer-based sampling
-	if t.sampleRate > 0.0 && t.sampleRate < 1.0 {
-		t.samplingThreshold = uint64(t.sampleRate * float64(^uint64(0)))
-	} else if t.sampleRate == 1.0 {
-		t.samplingThreshold = ^uint64(0)
-	} else {
-		t.samplingThreshold = 0
-	}
-
-	// Validate provider-specific settings
-	switch t.provider {
-	case NoopProvider:
-		// No specific validation needed for noop
-	case StdoutProvider:
-		// No specific validation needed for stdout
-	case OTLPProvider, OTLPHTTPProvider:
-		if t.otlpEndpoint == "" {
-			t.emitWarning("OTLP endpoint not specified, will use default", "default", "localhost:4317")
-			t.otlpEndpoint = "localhost:4317"
-		}
-	default:
-		return fmt.Errorf("provider: unsupported tracing provider %q", t.provider)
-	}
-
-	return nil
 }
 
 // IsEnabled returns true if tracing is enabled.
