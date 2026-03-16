@@ -1247,12 +1247,6 @@ func (c *Context) RoutePattern() string {
 	return c.routePattern
 }
 
-// SetETag sets an ETag header for the response.
-// Supports both strong (default) and weak ETags per RFC 7232.
-//
-// Example:
-//
-
 // RequireContentType checks if the request Content-Type matches one of the allowed types.
 // Returns false and sends a 415 Unsupported Media Type problem if no match.
 // Supports suffix matching for patterns like "application/*+json".

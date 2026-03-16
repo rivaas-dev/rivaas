@@ -97,6 +97,12 @@ type CondOpts struct {
 }
 
 // SetETag sets the ETag response header.
+// It supports both strong (default) and weak ETags per RFC 7232.
+//
+// Example:
+//
+//	c.SetETag(ETag{Value: hash})
+//	c.SetETag(ETag{Value: "abc", Weak: true})
 func (c *Context) SetETag(tag ETag) {
 	if tag.Value == "" {
 		return
