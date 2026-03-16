@@ -259,6 +259,10 @@ type errorsConfig struct {
 	// Single formatter mode
 	formatter errors.Formatter
 
+	// initErr stores error from WithErrorFormatter when errors.New(opts...) failed.
+	// Reported during config.validate().
+	initErr error
+
 	// Multi-formatter mode with content negotiation
 	formatters    map[string]errors.Formatter
 	defaultFormat string
@@ -324,6 +328,11 @@ func (c *config) validate() error {
 		errs.Add(newInvalidValueError("openapi", nil, c.openapi.initErr.Error()))
 	}
 
+	// Validate error formatter configuration (from WithErrorFormatter(opts...))
+	if c.errors != nil && c.errors.initErr != nil {
+		errs.Add(newInvalidValueError("errors", nil, c.errors.initErr.Error()))
+	}
+
 	// Validate observability configuration
 	if c.observability != nil && len(c.observability.validationErrors) > 0 {
 		for _, err := range c.observability.validationErrors {
@@ -377,7 +386,7 @@ func defaultConfig() *config {
 			functions: []HandlerFunc{},
 		},
 		errors: &errorsConfig{
-			formatter: &errors.RFC9457{}, // Default to RFC 9457
+			formatter: errors.MustNew(), // Default to RFC 9457 with empty base URL
 		},
 	}
 }

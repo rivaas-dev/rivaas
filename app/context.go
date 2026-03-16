@@ -477,7 +477,7 @@ func (c *Context) selectFormatter() riverrors.Formatter {
 	cfg := c.app.config.errors
 	if cfg == nil {
 		// Fallback to default
-		return &riverrors.RFC9457{}
+		return riverrors.MustNew()
 	}
 
 	// Single formatter mode
@@ -509,11 +509,11 @@ func (c *Context) selectFormatter() riverrors.Formatter {
 		}
 
 		// Predictable fallback - always use RFC9457
-		return &riverrors.RFC9457{}
+		return riverrors.MustNew()
 	}
 
 	// Ultimate fallback
-	return &riverrors.RFC9457{}
+	return riverrors.MustNew()
 }
 
 // NotFound responds with a 404 Not Found error.

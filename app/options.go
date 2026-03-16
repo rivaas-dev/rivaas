@@ -395,37 +395,41 @@ func WithOpenAPI(opts ...openapi.Option) Option {
 	}
 }
 
-// WithErrorFormatter configures a single error formatter.
-// WithErrorFormatter sets the formatter used for all error responses.
+// WithErrorFormatter configures a single error formatter from options.
+// The app builds the formatter via errors.New(opts...); invalid options are reported during config validation.
+// Aligns with WithRouter and WithOpenAPI (accept options, app performs construction).
 //
 // Example:
 //
 //	app.New(
 //	    app.WithServiceName("my-service"),
-//	    app.WithErrorFormatter(&errors.RFC9457{
-//	        BaseURL: "https://api.example.com/problems",
-//	    }),
+//	    app.WithErrorFormatter(errors.WithRFC9457("https://api.example.com/problems")),
 //	)
-func WithErrorFormatter(formatter errors.Formatter) Option {
+func WithErrorFormatter(opts ...errors.Option) Option {
 	return func(c *config) {
 		if c.errors == nil {
 			c.errors = &errorsConfig{}
 		}
+		formatter, err := errors.New(opts...)
+		if err != nil {
+			c.errors.initErr = err
+			return
+		}
+		c.errors.initErr = nil
 		c.errors.formatter = formatter
 	}
 }
 
 // WithErrorFormatters uses the Accept header to determine which formatter is used.
+// Each formatter is built with errors.MustNew(...). No change to signature.
 //
 // Example:
 //
 //	app.New(
 //	    app.WithServiceName("my-service"),
 //	    app.WithErrorFormatters(map[string]errors.Formatter{
-//	        "application/problem+json": &errors.RFC9457{
-//	            BaseURL: "https://api.example.com/problems",
-//	        },
-//	        "application/json": &errors.Simple{},
+//	        "application/problem+json": errors.MustNew(errors.WithRFC9457("https://api.example.com/problems")),
+//	        "application/json":        errors.MustNew(errors.WithSimple()),
 //	    }),
 //	    app.WithDefaultErrorFormat("application/problem+json"),
 //	)
