@@ -117,21 +117,86 @@ type Logger struct {
 }
 
 // Option is a functional option for configuring the logger.
-type Option func(*Logger)
+// Options apply to an internal config struct; the constructor builds the Logger from the validated config.
+type Option func(*config)
 
-// defaultLogger returns a Logger with default configuration.
-func defaultLogger() *Logger {
-	return &Logger{
+// config holds construction-time logger configuration.
+type config struct {
+	handlerType    HandlerType
+	output         io.Writer
+	level          Level
+	serviceName    string
+	serviceVersion string
+	environment    string
+	addSource      bool
+	debugMode      bool
+	replaceAttr    func(groups []string, a slog.Attr) slog.Attr
+	samplingConfig *SamplingConfig
+	customLogger   *slog.Logger
+	useCustom      bool
+	registerGlobal bool
+}
+
+// defaultConfig returns a config with default values.
+func defaultConfig() *config {
+	return &config{
 		handlerType:    JSONHandler,
 		output:         os.Stdout,
 		level:          LevelInfo,
-		serviceName:    "",
-		serviceVersion: "",
-		environment:    "",
 		addSource:      false,
 		debugMode:      false,
-		registerGlobal: false, // Default: no global registration
+		registerGlobal: false,
 	}
+}
+
+// defaultLogger returns a Logger with default configuration.
+// It is used by tests that need a fully initialized Logger without options.
+func defaultLogger() *Logger {
+	cfg := defaultConfig()
+	l, err := newLoggerFromConfig(cfg)
+	if err != nil {
+		panic("defaultLogger: " + err.Error())
+	}
+	return l
+}
+
+// validate checks the config for errors.
+func (c *config) validate() error {
+	if c.output == nil {
+		return errors.New("output writer cannot be nil")
+	}
+	if c.useCustom && c.customLogger == nil {
+		return ErrNilLogger
+	}
+	if c.samplingConfig != nil {
+		if c.samplingConfig.Initial < 0 || c.samplingConfig.Thereafter < 0 {
+			return errors.New("sampling config values must be non-negative")
+		}
+	}
+	return nil
+}
+
+// newLoggerFromConfig builds a Logger from a validated config and initializes it.
+func newLoggerFromConfig(cfg *config) (*Logger, error) {
+	l := &Logger{
+		handlerType:    cfg.handlerType,
+		output:         cfg.output,
+		level:          cfg.level,
+		serviceName:    cfg.serviceName,
+		serviceVersion: cfg.serviceVersion,
+		environment:    cfg.environment,
+		addSource:      cfg.addSource,
+		debugMode:      cfg.debugMode,
+		replaceAttr:    cfg.replaceAttr,
+		samplingConfig: cfg.samplingConfig,
+		customLogger:   cfg.customLogger,
+		useCustom:      cfg.useCustom,
+		registerGlobal: cfg.registerGlobal,
+	}
+	if err := l.initialize(); err != nil {
+		return nil, err
+	}
+	return l, nil
 }
 
 // New creates a new Logger with the given options.
@@ -143,21 +208,14 @@ func defaultLogger() *Logger {
 // and makes it easier to integrate Rivaas into larger binaries that already
 // manage their own global logger.
 func New(opts ...Option) (*Logger, error) {
-	l := defaultLogger()
-
+	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(l)
+		opt(cfg)
 	}
-
-	if err := l.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
-
-	if err := l.initialize(); err != nil {
-		return nil, err
-	}
-
-	return l, nil
+	return newLoggerFromConfig(cfg)
 }
 
 // MustNew creates a new Logger or panics on error.
