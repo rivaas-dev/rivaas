@@ -167,7 +167,10 @@ const (
 //
 //	r, err := router.New(
 //	    router.WithH2C(true),
-//	    router.WithServerTimeouts(10*time.Second, 30*time.Second, 60*time.Second, 120*time.Second),
+//	    router.WithServerTimeouts(
+//	        router.WithReadTimeout(30*time.Second),
+//	        router.WithWriteTimeout(60*time.Second),
+//	    ),
 //	)
 //	if err != nil {
 //	    log.Fatalf("Invalid router configuration: %v", err)

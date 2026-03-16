@@ -82,8 +82,68 @@ func WithH2C(enable bool) Option {
 	}
 }
 
-// WithServerTimeouts configures HTTP server timeouts.
+// ServerTimeoutOption configures HTTP server timeouts when passed to [WithServerTimeouts].
+type ServerTimeoutOption func(*serverTimeouts)
+
+// WithReadHeaderTimeout sets the server read header timeout.
+// It configures how long the server waits to read request headers.
+//
+// Example:
+//
+//	r := router.MustNew(router.WithServerTimeouts(
+//	    router.WithReadHeaderTimeout(5 * time.Second),
+//	))
+func WithReadHeaderTimeout(d time.Duration) ServerTimeoutOption {
+	return func(s *serverTimeouts) {
+		s.readHeader = d
+	}
+}
+
+// WithReadTimeout sets the server read timeout.
+// It configures how long the server waits to read the entire request.
+//
+// Example:
+//
+//	r := router.MustNew(router.WithServerTimeouts(
+//	    router.WithReadTimeout(30 * time.Second),
+//	))
+func WithReadTimeout(d time.Duration) ServerTimeoutOption {
+	return func(s *serverTimeouts) {
+		s.read = d
+	}
+}
+
+// WithWriteTimeout sets the server write timeout.
+// It configures how long the server waits to write the response.
+//
+// Example:
+//
+//	r := router.MustNew(router.WithServerTimeouts(
+//	    router.WithWriteTimeout(60 * time.Second),
+//	))
+func WithWriteTimeout(d time.Duration) ServerTimeoutOption {
+	return func(s *serverTimeouts) {
+		s.write = d
+	}
+}
+
+// WithIdleTimeout sets the server idle timeout.
+// It configures how long the server waits for the next request on a keep-alive connection.
+//
+// Example:
+//
+//	r := router.MustNew(router.WithServerTimeouts(
+//	    router.WithIdleTimeout(120 * time.Second),
+//	))
+func WithIdleTimeout(d time.Duration) ServerTimeoutOption {
+	return func(s *serverTimeouts) {
+		s.idle = d
+	}
+}
+
+// WithServerTimeouts configures HTTP server timeouts using functional options.
 // These are critical for preventing slowloris attacks and resource exhaustion.
+// When no options are passed, server timeouts remain at their defaults (applied at serve time).
 //
 // Defaults (if not set):
 //
@@ -95,19 +155,21 @@ func WithH2C(enable bool) Option {
 // Example:
 //
 //	r := router.MustNew(router.WithServerTimeouts(
-//	    10*time.Second,  // ReadHeaderTimeout
-//	    30*time.Second,  // ReadTimeout
-//	    60*time.Second,  // WriteTimeout
-//	    120*time.Second, // IdleTimeout
+//	    router.WithReadHeaderTimeout(5 * time.Second),
+//	    router.WithReadTimeout(20 * time.Second),
+//	    router.WithWriteTimeout(60 * time.Second),
+//	    router.WithIdleTimeout(120 * time.Second),
 //	))
-func WithServerTimeouts(readHeader, read, write, idle time.Duration) Option {
+func WithServerTimeouts(opts ...ServerTimeoutOption) Option {
 	return func(c *config) {
-		c.serverTimeouts = &serverTimeouts{
-			readHeader: readHeader,
-			read:       read,
-			write:      write,
-			idle:       idle,
+		if len(opts) == 0 {
+			return
 		}
+		s := defaultServerTimeouts()
+		for _, opt := range opts {
+			opt(s)
+		}
+		c.serverTimeouts = s
 	}
 }
 

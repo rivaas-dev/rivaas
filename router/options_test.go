@@ -37,13 +37,31 @@ func TestWithServerTimeouts(t *testing.T) {
 	read := 30 * time.Second
 	write := 60 * time.Second
 	idle := 120 * time.Second
-	r, err := New(WithServerTimeouts(readHeader, read, write, idle))
+	r, err := New(WithServerTimeouts(
+		WithReadHeaderTimeout(readHeader),
+		WithReadTimeout(read),
+		WithWriteTimeout(write),
+		WithIdleTimeout(idle),
+	))
 	require.NoError(t, err)
 	require.NotNil(t, r.serverTimeouts)
 	assert.Equal(t, readHeader, r.serverTimeouts.readHeader)
 	assert.Equal(t, read, r.serverTimeouts.read)
 	assert.Equal(t, write, r.serverTimeouts.write)
 	assert.Equal(t, idle, r.serverTimeouts.idle)
+}
+
+func TestWithServerTimeouts_PartialOptions(t *testing.T) {
+	t.Parallel()
+	// Override only read timeout; others should stay at defaults.
+	def := defaultServerTimeouts()
+	r, err := New(WithServerTimeouts(WithReadTimeout(30 * time.Second)))
+	require.NoError(t, err)
+	require.NotNil(t, r.serverTimeouts)
+	assert.Equal(t, def.readHeader, r.serverTimeouts.readHeader, "readHeader should be default")
+	assert.Equal(t, 30*time.Second, r.serverTimeouts.read)
+	assert.Equal(t, def.write, r.serverTimeouts.write, "write should be default")
+	assert.Equal(t, def.idle, r.serverTimeouts.idle, "idle should be default")
 }
 
 func TestWithoutCancellationCheck(t *testing.T) {
