@@ -63,7 +63,7 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		failures := runChecks(ctx, s.liveness, timeout)
 
 		if len(failures) > 0 {
-			// 503 response - error formatting handled by app.Context.Error() if wrapped
+			// 503 response - error formatting handled by app.Context.Fail() if wrapped
 			c.WriteErrorResponse(http.StatusServiceUnavailable, "Service Not Healthy: One or more liveness checks failed")
 			return
 		}
@@ -92,7 +92,7 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		failures := runChecks(ctx, s.readiness, timeout)
 
 		if len(failures) > 0 {
-			// 503 response - error formatting handled by app.Context.Error() if wrapped
+			// 503 response - error formatting handled by app.Context.Fail() if wrapped
 			c.WriteErrorResponse(http.StatusServiceUnavailable, "Service Not Ready: One or more dependencies failed readiness")
 			return
 		}

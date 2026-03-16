@@ -415,8 +415,8 @@ func (c *Context) bindForm(out any) error {
 // See also [Context.FailStatus] for explicit status codes and convenience methods
 // like [Context.NotFound], [Context.BadRequest], [Context.Unauthorized].
 //
-// Note: This method shadows router.Context.Error() which collects errors without responding.
-// Use c.Fail() to send an error response, or c.Context.Error() to collect errors.
+// To collect multiple errors and respond later (e.g. multi-field validation), use
+// c.Context.CollectError(err), then c.Context.HasErrors() / c.Context.Errors() and send one response.
 func (c *Context) Fail(err error) {
 	if err == nil {
 		return

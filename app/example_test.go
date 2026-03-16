@@ -138,7 +138,7 @@ func ExampleContext_Bind() {
 	a.POST("/users", func(c *app.Context) {
 		var req CreateUserRequest
 		if err := c.Bind(&req); err != nil {
-			c.Error(err)
+			c.Fail(err)
 			return
 		}
 
@@ -166,7 +166,7 @@ func ExampleContext_Bind_withOptions() {
 	a.POST("/users", func(c *app.Context) {
 		var req CreateUserRequest
 		if err := c.Bind(&req, app.WithStrict()); err != nil {
-			c.Error(err)
+			c.Fail(err)
 			return
 		}
 
@@ -220,7 +220,7 @@ func ExampleBind() {
 	a.POST("/users", func(c *app.Context) {
 		req, err := app.Bind[CreateUserRequest](c)
 		if err != nil {
-			c.Error(err)
+			c.Fail(err)
 			return
 		}
 
@@ -275,7 +275,7 @@ func ExampleBindPatch() {
 	a.PATCH("/users/:id", func(c *app.Context) {
 		req, err := app.BindPatch[UpdateUserRequest](c)
 		if err != nil {
-			c.Error(err)
+			c.Fail(err)
 			return
 		}
 
@@ -306,7 +306,7 @@ func ExampleBindStrict() {
 	a.POST("/users", func(c *app.Context) {
 		req, err := app.BindStrict[CreateUserRequest](c)
 		if err != nil {
-			c.Error(err)
+			c.Fail(err)
 			return
 		}
 
@@ -334,7 +334,7 @@ func ExampleContext_BindOnly() {
 	a.POST("/users", func(c *app.Context) {
 		var req CreateUserRequest
 		if err := c.BindOnly(&req); err != nil {
-			c.Error(err)
+			c.Fail(err)
 			return
 		}
 
@@ -343,7 +343,7 @@ func ExampleContext_BindOnly() {
 
 		// Validate separately
 		if err := c.Validate(&req); err != nil {
-			c.Error(err)
+			c.Fail(err)
 			return
 		}
 
