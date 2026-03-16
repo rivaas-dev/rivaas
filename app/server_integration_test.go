@@ -42,7 +42,11 @@ import (
 var _ = Describe("Server Start", func() {
 	Describe("OpenAPI endpoints", func() {
 		It("should serve OpenAPI spec when app is started with WithOpenAPI", func() {
-			const port = 58100
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			Expect(err).NotTo(HaveOccurred())
+			port := listener.Addr().(*net.TCPAddr).Port
+			listener.Close()
+
 			a := app.MustNew(
 				app.WithServiceName("test"),
 				app.WithServiceVersion("1.0.0"),
@@ -62,12 +66,20 @@ var _ = Describe("Server Start", func() {
 				serverErr <- a.Start(ctx)
 			}()
 
-			// Wait for server to be ready
-			time.Sleep(400 * time.Millisecond)
-
 			specURL := fmt.Sprintf("http://127.0.0.1:%d/openapi.json", port)
-			resp, err := http.Get(specURL)
+			var resp *http.Response
+			for i := 0; i < 50; i++ {
+				time.Sleep(100 * time.Millisecond)
+				resp, err = http.Get(specURL)
+				if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
+					break
+				}
+				if resp != nil {
+					resp.Body.Close()
+				}
+			}
 			Expect(err).NotTo(HaveOccurred())
+			Expect(resp).NotTo(BeNil())
 			defer resp.Body.Close()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(resp.Header.Get("Content-Type")).To(ContainSubstring("application/json"))
