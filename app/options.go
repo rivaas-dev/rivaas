@@ -323,7 +323,7 @@ func WithoutDefaultMiddleware() Option {
 //	    app.WithServiceName("my-service"),
 //	    app.WithRouter(
 //	        router.WithBloomFilterSize(2000),
-//	        router.WithCancellationCheck(false),
+//	        router.WithoutCancellationCheck(),
 //	        router.WithTemplateRouting(true),
 //	        router.WithVersioning(),
 //	    ),

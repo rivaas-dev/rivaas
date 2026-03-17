@@ -35,7 +35,7 @@ func TestWithRouter(t *testing.T) {
 			WithServiceVersion("1.0.0"),
 			WithRouter(
 				router.WithBloomFilterSize(2000),
-				router.WithCancellationCheck(false),
+				router.WithoutCancellationCheck(),
 			),
 		)
 		require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestWithRouter(t *testing.T) {
 				router.WithBloomFilterSize(2000),
 			),
 			WithRouter(
-				router.WithCancellationCheck(false),
+				router.WithoutCancellationCheck(),
 				router.WithRouteCompilation(true),
 			),
 		)

@@ -1574,7 +1574,7 @@ func TestNew_RouterOptionsAccumulation(t *testing.T) {
 				router.WithBloomFilterSize(2000),
 			),
 			WithRouter(
-				router.WithCancellationCheck(false),
+				router.WithoutCancellationCheck(),
 				router.WithRouteCompilation(true),
 			),
 		)
