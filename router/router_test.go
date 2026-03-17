@@ -371,7 +371,12 @@ func TestWithCancellationCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := MustNew(WithCancellationCheck(tt.enabled))
+			var r *Router
+			if tt.enabled {
+				r = MustNew()
+			} else {
+				r = MustNew(WithoutCancellationCheck())
+			}
 
 			assert.Equal(t, tt.enabled, r.checkCancellation)
 
@@ -401,10 +406,10 @@ func TestWithCancellationCheck(t *testing.T) {
 // TestWithCancellationCheck_ContextCancelled tests that cancellation checking actually works
 func TestWithCancellationCheck_ContextCancelled(t *testing.T) {
 	t.Parallel()
-	// Test with cancellation checking enabled
+	// Test with cancellation checking enabled (default)
 	t.Run("enabled", func(t *testing.T) {
 		t.Parallel()
-		r := MustNew(WithCancellationCheck(true))
+		r := MustNew()
 
 		handlerCalled := false
 
@@ -430,7 +435,7 @@ func TestWithCancellationCheck_ContextCancelled(t *testing.T) {
 	// Test with cancellation checking disabled
 	t.Run("disabled", func(t *testing.T) {
 		t.Parallel()
-		r := MustNew(WithCancellationCheck(false))
+		r := MustNew(WithoutCancellationCheck())
 
 		handlerCalled := false
 

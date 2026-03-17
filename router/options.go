@@ -220,28 +220,9 @@ func WithBloomFilterHashFunctions(numFuncs int) Option {
 	}
 }
 
-// WithCancellationCheck returns a RouterOption that enables/disables context cancellation
-// checking in the middleware chain. When enabled, the router checks for canceled contexts
-// between each handler, preventing wasted work on timed-out requests.
-//
-// Default: true (enabled)
-//
-// Disable if:
-//   - You don't use request timeouts
-//   - You handle cancellation manually in handlers
-//
-// Example:
-//
-//	r := router.MustNew(router.WithCancellationCheck(false))
-func WithCancellationCheck(enabled bool) Option {
-	return func(c *config) {
-		c.checkCancellation = enabled
-	}
-}
-
 // WithoutCancellationCheck disables context cancellation checking in the middleware chain.
-// This is equivalent to WithCancellationCheck(false) but follows the design principle
-// of using "Without" prefix for disabling features that are enabled by default.
+// Cancellation checking is enabled by default: the router checks for canceled contexts
+// between each handler, preventing wasted work on timed-out requests.
 //
 // Use when:
 //   - You don't use request timeouts

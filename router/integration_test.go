@@ -202,7 +202,6 @@ var _ = Describe("Router Integration", func() {
 				r := router.MustNew(
 					router.WithBloomFilterSize(2000),
 					router.WithBloomFilterHashFunctions(5),
-					router.WithCancellationCheck(true),
 					router.WithRouteCompilation(true),
 				)
 
@@ -807,7 +806,7 @@ var _ = Describe("Router Integration", func() {
 				router.WithDiagnostics(handler),
 				router.WithBloomFilterSize(2000),
 				router.WithBloomFilterHashFunctions(5),
-				router.WithCancellationCheck(false),
+				router.WithoutCancellationCheck(),
 				router.WithRouteCompilation(true),
 			)
 

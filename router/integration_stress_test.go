@@ -270,7 +270,12 @@ var _ = Describe("Router Stress Tests", func() {
 			for _, enabled := range []bool{true, false} {
 				By("testing with cancellation check " + map[bool]string{true: "enabled", false: "disabled"}[enabled])
 
-				r := router.MustNew(router.WithCancellationCheck(enabled))
+				var r *router.Router
+				if enabled {
+					r = router.MustNew()
+				} else {
+					r = router.MustNew(router.WithoutCancellationCheck())
+				}
 
 				// Add multiple middleware to test the check happens in each
 				for range 5 {

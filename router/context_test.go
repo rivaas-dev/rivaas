@@ -300,7 +300,7 @@ func TestContext_Status_AlreadyWritten(t *testing.T) {
 //
 //nolint:paralleltest // Tests cancellation behavior
 func TestContext_Next_WithCancellation(t *testing.T) {
-	r := MustNew(WithCancellationCheck(true))
+	r := MustNew()
 
 	handlerCalled := false
 
@@ -332,7 +332,7 @@ func TestContext_Next_WithCancellation(t *testing.T) {
 func TestContext_Next_WithTimeout(t *testing.T) {
 	t.Parallel()
 
-	r := MustNew(WithCancellationCheck(true))
+	r := MustNew()
 
 	var callOrder []int
 
@@ -690,7 +690,7 @@ func TestContext_Status_MultipleWriters(t *testing.T) {
 func TestContext_Next_WithAbortAndCancellation(t *testing.T) {
 	t.Parallel()
 
-	r := MustNew(WithCancellationCheck(true))
+	r := MustNew()
 
 	handler1Called := false
 	handler2Called := false
