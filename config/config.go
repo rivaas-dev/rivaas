@@ -39,14 +39,26 @@ import (
 )
 
 // Option is a functional option that can be used to configure a Config instance.
-// Options apply to the config; validation errors are collected and reported by New/MustNew.
+// Options apply to an internal config struct; the constructor validates and builds the public Config from it.
 // Options must not be nil; passing nil results in a validation error at construction.
-type Option func(c *Config)
+type Option func(cfg *config)
+
+// config holds construction-time configuration. Options mutate config; New() validates and builds Config from it.
+type config struct {
+	sources            []Source
+	dumpers            []Dumper
+	binding            any
+	tagName            string
+	jsonSchemaCompiled *jsonschema.Schema
+	customValidators   []func(map[string]any) error
+	validationErrors   []error
+}
 
 // Config manages configuration data loaded from multiple sources.
 // It provides thread-safe access to configuration values and supports
 // binding to structs, validation, and dumping to files.
 //
+// Config is the runtime object returned by New/MustNew; use it for Load, Get, and Dump.
 // Config is safe for concurrent use by multiple goroutines.
 type Config struct {
 	values             *map[string]any
@@ -60,18 +72,16 @@ type Config struct {
 	// decoderConfig holds the cached decoder configuration for struct binding
 	decoderConfig *mapstructure.DecoderConfig
 	decoderOnce   sync.Once
-	// validationErrors collects errors from options; reported in validate()
-	validationErrors []error
 }
 
 // WithSource adds a source to the configuration loader.
 func WithSource(loader Source) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		if loader == nil {
-			c.validationErrors = append(c.validationErrors, errors.New("source cannot be nil"))
+			cfg.validationErrors = append(cfg.validationErrors, errors.New("source cannot be nil"))
 			return
 		}
-		c.sources = append(c.sources, loader)
+		cfg.sources = append(cfg.sources, loader)
 	}
 }
 
@@ -89,33 +99,33 @@ func WithSource(loader Source) Option {
 //	    config.WithFileDumper("output.yaml"),  // Auto-detects YAML
 //	)
 func WithFileDumper(path string) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		path = os.ExpandEnv(path)
 
 		format, err := detectFormat(path)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("file-dumper", "detect-format", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("file-dumper", "detect-format", err))
 			return
 		}
 
 		encoder, err := codec.GetEncoder(format)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("file-dumper", "get-encoder", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("file-dumper", "get-encoder", err))
 			return
 		}
 
-		c.dumpers = append(c.dumpers, dumper.NewFile(path, encoder))
+		cfg.dumpers = append(cfg.dumpers, dumper.NewFile(path, encoder))
 	}
 }
 
 // WithDumper adds a dumper to the configuration loader.
 func WithDumper(d Dumper) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		if d == nil {
-			c.validationErrors = append(c.validationErrors, errors.New("dumper cannot be nil"))
+			cfg.validationErrors = append(cfg.validationErrors, errors.New("dumper cannot be nil"))
 			return
 		}
-		c.dumpers = append(c.dumpers, d)
+		cfg.dumpers = append(cfg.dumpers, d)
 	}
 }
 
@@ -133,22 +143,22 @@ func WithDumper(d Dumper) Option {
 //	    config.WithFile("override.json"),   // Automatically detects JSON
 //	)
 func WithFile(path string) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		path = os.ExpandEnv(path)
 
 		format, err := detectFormat(path)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("file-source", "detect-format", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("file-source", "detect-format", err))
 			return
 		}
 
 		decoder, err := codec.GetDecoder(format)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("file-source", "get-decoder", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("file-source", "get-decoder", err))
 			return
 		}
 
-		c.sources = append(c.sources, source.NewFile(path, decoder))
+		cfg.sources = append(cfg.sources, source.NewFile(path, decoder))
 	}
 }
 
@@ -163,8 +173,8 @@ func WithFile(path string) Option {
 //	    config.WithEnv("APP_"),  // Loads APP_SERVER_PORT as server.port
 //	)
 func WithEnv(prefix string) Option {
-	return func(c *Config) {
-		c.sources = append(c.sources, source.NewOSEnvVar(prefix))
+	return func(cfg *config) {
+		cfg.sources = append(cfg.sources, source.NewOSEnvVar(prefix))
 	}
 }
 
@@ -188,9 +198,9 @@ func WithEnv(prefix string) Option {
 //	    config.WithConsul("production/service.yaml"),  // Fails at construction if CONSUL_HTTP_ADDR is unset
 //	)
 func WithConsul(path string) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "require-env", errors.New("CONSUL_HTTP_ADDR is not set")))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "require-env", errors.New("CONSUL_HTTP_ADDR is not set")))
 			return
 		}
 
@@ -198,23 +208,23 @@ func WithConsul(path string) Option {
 
 		format, err := detectFormat(path)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "detect-format", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "detect-format", err))
 			return
 		}
 
 		decoder, err := codec.GetDecoder(format)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "get-decoder", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "get-decoder", err))
 			return
 		}
 
 		l, err := source.NewConsul(path, decoder, nil)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "create-client", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "create-client", err))
 			return
 		}
 
-		c.sources = append(c.sources, l)
+		cfg.sources = append(cfg.sources, l)
 	}
 }
 
@@ -231,16 +241,16 @@ func WithConsul(path string) Option {
 //	    config.WithFileAs("config.dat", codec.TypeJSON),  // Wrong extension, specify JSON
 //	)
 func WithFileAs(path string, codecType codec.Type) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		path = os.ExpandEnv(path)
 
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("file-source", "get-decoder", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("file-source", "get-decoder", err))
 			return
 		}
 
-		c.sources = append(c.sources, source.NewFile(path, decoder))
+		cfg.sources = append(cfg.sources, source.NewFile(path, decoder))
 	}
 }
 
@@ -263,9 +273,9 @@ func WithFileAs(path string, codecType codec.Type) Option {
 //	    config.WithConsulAs("production/service", codec.TypeJSON),
 //	)
 func WithConsulAs(path string, codecType codec.Type) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "require-env", errors.New("CONSUL_HTTP_ADDR is not set")))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "require-env", errors.New("CONSUL_HTTP_ADDR is not set")))
 			return
 		}
 
@@ -273,17 +283,17 @@ func WithConsulAs(path string, codecType codec.Type) Option {
 
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "get-decoder", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "get-decoder", err))
 			return
 		}
 
 		l, err := source.NewConsul(path, decoder, nil)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "create-client", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "create-client", err))
 			return
 		}
 
-		c.sources = append(c.sources, l)
+		cfg.sources = append(cfg.sources, l)
 	}
 }
 
@@ -300,7 +310,7 @@ func WithConsulAs(path string, codecType codec.Type) Option {
 //	    config.WithConsulOptional("production/service.yaml"),  // No-op when CONSUL_HTTP_ADDR is unset
 //	)
 func WithConsulOptional(path string) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
 			return
 		}
@@ -309,23 +319,23 @@ func WithConsulOptional(path string) Option {
 
 		format, err := detectFormat(path)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "detect-format", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "detect-format", err))
 			return
 		}
 
 		decoder, err := codec.GetDecoder(format)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "get-decoder", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "get-decoder", err))
 			return
 		}
 
 		l, err := source.NewConsul(path, decoder, nil)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "create-client", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "create-client", err))
 			return
 		}
 
-		c.sources = append(c.sources, l)
+		cfg.sources = append(cfg.sources, l)
 	}
 }
 
@@ -341,7 +351,7 @@ func WithConsulOptional(path string) Option {
 //	    config.WithConsulAsOptional("production/service", codec.TypeJSON),
 //	)
 func WithConsulAsOptional(path string, codecType codec.Type) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
 			return
 		}
@@ -350,17 +360,17 @@ func WithConsulAsOptional(path string, codecType codec.Type) Option {
 
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "get-decoder", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "get-decoder", err))
 			return
 		}
 
 		l, err := source.NewConsul(path, decoder, nil)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("consul-source", "create-client", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("consul-source", "create-client", err))
 			return
 		}
 
-		c.sources = append(c.sources, l)
+		cfg.sources = append(cfg.sources, l)
 	}
 }
 
@@ -374,14 +384,14 @@ func WithConsulAsOptional(path string, codecType codec.Type) Option {
 //	    config.WithContent(yamlContent, codec.TypeYAML),
 //	)
 func WithContent(data []byte, codecType codec.Type) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		decoder, err := codec.GetDecoder(codecType)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("content-source", "get-decoder", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("content-source", "get-decoder", err))
 			return
 		}
 
-		c.sources = append(c.sources, source.NewFileContent(data, decoder))
+		cfg.sources = append(cfg.sources, source.NewFileContent(data, decoder))
 	}
 }
 
@@ -398,31 +408,31 @@ func WithContent(data []byte, codecType codec.Type) Option {
 //	    config.WithFileDumperAs("output", codec.TypeYAML),  // No extension, specify YAML
 //	)
 func WithFileDumperAs(path string, codecType codec.Type) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		path = os.ExpandEnv(path)
 
 		encoder, err := codec.GetEncoder(codecType)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, NewError("file-dumper", "get-encoder", err))
+			cfg.validationErrors = append(cfg.validationErrors, NewError("file-dumper", "get-encoder", err))
 			return
 		}
 
-		c.dumpers = append(c.dumpers, dumper.NewFile(path, encoder))
+		cfg.dumpers = append(cfg.dumpers, dumper.NewFile(path, encoder))
 	}
 }
 
 // WithBinding returns an Option that configures the Config instance to bind configuration data to a struct.
 func WithBinding(v any) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		if v == nil {
-			c.validationErrors = append(c.validationErrors, errors.New("binding target cannot be nil"))
+			cfg.validationErrors = append(cfg.validationErrors, errors.New("binding target cannot be nil"))
 			return
 		}
 		if reflect.TypeOf(v).Kind() != reflect.Pointer {
-			c.validationErrors = append(c.validationErrors, errors.New("binding target must be a pointer"))
+			cfg.validationErrors = append(cfg.validationErrors, errors.New("binding target must be a pointer"))
 			return
 		}
-		c.binding = v
+		cfg.binding = v
 	}
 }
 
@@ -441,18 +451,18 @@ func WithBinding(v any) Option {
 //	    config.WithTag("cfg"),  // Use "cfg" instead of "config"
 //	)
 func WithTag(tagName string) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		if tagName == "" {
-			c.validationErrors = append(c.validationErrors, errors.New("tag name cannot be empty"))
+			cfg.validationErrors = append(cfg.validationErrors, errors.New("tag name cannot be empty"))
 			return
 		}
-		c.tagName = tagName
+		cfg.tagName = tagName
 	}
 }
 
 // WithJSONSchema adds a JSON Schema for validation.
 func WithJSONSchema(schema []byte) Option {
-	return func(c *Config) {
+	return func(cfg *config) {
 		// Use a unique schema name to avoid caching issues
 		//nolint:gosec // rand.Int() is used for a unique schema name, not security sensitive
 		schemaName := fmt.Sprintf("inline_%d.json", rand.Int())
@@ -460,62 +470,78 @@ func WithJSONSchema(schema []byte) Option {
 
 		jsonSchema, err := jsonschema.UnmarshalJSON(bytes.NewReader(schema))
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, err)
+			cfg.validationErrors = append(cfg.validationErrors, err)
 			return
 		}
 
 		if err = compiler.AddResource(schemaName, jsonSchema); err != nil {
-			c.validationErrors = append(c.validationErrors, err)
+			cfg.validationErrors = append(cfg.validationErrors, err)
 			return
 		}
 		s, err := compiler.Compile(schemaName)
 		if err != nil {
-			c.validationErrors = append(c.validationErrors, err)
+			cfg.validationErrors = append(cfg.validationErrors, err)
 			return
 		}
-		c.jsonSchemaCompiled = s
+		cfg.jsonSchemaCompiled = s
 	}
 }
 
 // WithValidator adds a custom validation function.
 func WithValidator(fn func(map[string]any) error) Option {
-	return func(c *Config) {
-		c.customValidators = append(c.customValidators, fn)
+	return func(cfg *config) {
+		cfg.customValidators = append(cfg.customValidators, fn)
 	}
 }
 
 // validate reports any errors collected during option application.
-func (c *Config) validate() error {
-	if len(c.validationErrors) == 0 {
+func (cfg *config) validate() error {
+	if len(cfg.validationErrors) == 0 {
 		return nil
 	}
-	return errors.Join(c.validationErrors...)
+	return errors.Join(cfg.validationErrors...)
+}
+
+// defaultConfig returns a config with default values.
+func defaultConfig() *config {
+	return &config{
+		sources: []Source{},
+		tagName: "config",
+	}
+}
+
+// configFromConfig builds a Config from a validated config.
+func configFromConfig(cfg *config) *Config {
+	return &Config{
+		values:             &map[string]any{},
+		sources:            cfg.sources,
+		dumpers:            cfg.dumpers,
+		binding:            cfg.binding,
+		tagName:            cfg.tagName,
+		jsonSchemaCompiled: cfg.jsonSchemaCompiled,
+		customValidators:   cfg.customValidators,
+	}
 }
 
 // New creates a new Config instance with the provided options.
+// Options are applied to an internal config; after validation, the public Config is built from it.
 // Options are applied in order; validation errors are collected and reported after all options
 // are applied, so callers never receive a partially-initialized config. Options must not be nil—
 // passing a nil option results in a validation error. Use MustNew for main() or when panic on
 // error is acceptable.
 func New(opts ...Option) (*Config, error) {
-	c := &Config{
-		values:  &map[string]any{},
-		sources: []Source{},
-		tagName: "config", // Default tag name
-	}
-
+	cfg := defaultConfig()
 	for i, opt := range opts {
 		if opt == nil {
-			c.validationErrors = append(c.validationErrors, fmt.Errorf("config: option at index %d cannot be nil", i))
+			cfg.validationErrors = append(cfg.validationErrors, fmt.Errorf("config: option at index %d cannot be nil", i))
 			continue
 		}
-		opt(c)
+		opt(cfg)
 	}
-
-	if err := c.validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	return c, nil
+	return configFromConfig(cfg), nil
 }
 
 // MustNew creates a new Config instance with the provided options.

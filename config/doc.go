@@ -19,6 +19,11 @@
 // sources are merged in order, with later sources overriding earlier ones.
 // All configuration keys are case-insensitive.
 //
+// The package follows the same functional options pattern as other Rivaas packages:
+// options apply to an internal config struct, and the constructor validates and
+// builds the public Config from it. The returned Config is the runtime object
+// used for Load, Get, and Dump.
+//
 // # Key Features
 //
 //   - Multiple configuration sources (files, environment variables, Consul)
