@@ -405,17 +405,29 @@ func WithOpenAPI(opts ...openapi.Option) Option {
 	}
 }
 
-// WithErrorFormatter configures a single error formatter from options.
+// WithErrorFormatterFor configures an error formatter from options.
 // The app builds the formatter via errors.New(opts...); invalid options are reported during config validation.
-// Aligns with WithRouter and WithOpenAPI (accept options, app performs construction).
+//
+// Use empty mediaType ("") for a single formatter for all responses (no content negotiation).
+// Use a non-empty mediaType (e.g. "application/problem+json") to register a formatter for content negotiation;
+// multiple calls accumulate. Cannot mix: use either a single formatter ("") or content-negotiated formatters, not both.
 //
 // Example:
 //
+//	// Single formatter for all responses
 //	app.New(
 //	    app.WithServiceName("my-service"),
-//	    app.WithErrorFormatter(errors.WithRFC9457("https://api.example.com/problems")),
+//	    app.WithErrorFormatterFor("", errors.WithRFC9457("https://api.example.com/problems")),
 //	)
-func WithErrorFormatter(opts ...errors.Option) Option {
+//
+//	// Content negotiation by Accept header
+//	app.New(
+//	    app.WithServiceName("my-service"),
+//	    app.WithErrorFormatterFor("application/problem+json", errors.WithRFC9457("https://api.example.com/problems")),
+//	    app.WithErrorFormatterFor("application/json", errors.WithSimple()),
+//	    app.WithDefaultErrorFormat("application/problem+json"),
+//	)
+func WithErrorFormatterFor(mediaType string, opts ...errors.Option) Option {
 	return func(c *config) {
 		if c.errors == nil {
 			c.errors = &errorsConfig{}
@@ -426,12 +438,32 @@ func WithErrorFormatter(opts ...errors.Option) Option {
 			return
 		}
 		c.errors.initErr = nil
-		c.errors.formatter = formatter
+		if mediaType == "" {
+			if len(c.errors.formatters) > 0 {
+				c.errors.modeErr = fmt.Errorf("cannot use single error formatter when content-negotiated formatters are configured")
+				return
+			}
+			c.errors.formatter = formatter
+			c.errors.formatters = nil
+			c.errors.singleFormatterExplicitlySet = true
+			return
+		}
+		if c.errors.singleFormatterExplicitlySet {
+			c.errors.modeErr = fmt.Errorf("cannot use content-negotiated formatters when single error formatter is configured")
+			return
+		}
+		// Switch to content-negotiated mode: clear single formatter and add to map.
+		if c.errors.formatters == nil {
+			c.errors.formatters = make(map[string]errors.Formatter)
+		}
+		c.errors.formatters[mediaType] = formatter
+		c.errors.formatter = nil
 	}
 }
 
-// WithErrorFormatters uses the Accept header to determine which formatter is used.
-// Each formatter is built with errors.MustNew(...). No change to signature.
+// WithErrorFormatters configures multiple error formatters with content negotiation by Accept header.
+// Advanced: use when you need to pass pre-built or custom formatters. Prefer [WithErrorFormatterFor]
+// for option-based configuration.
 //
 // Example:
 //
@@ -449,16 +481,19 @@ func WithErrorFormatters(formatters map[string]errors.Formatter) Option {
 			c.errors = &errorsConfig{}
 		}
 		c.errors.formatters = formatters
+		c.errors.formatter = nil
+		c.errors.singleFormatterExplicitlySet = false
 	}
 }
 
 // WithDefaultErrorFormat sets the default format when no Accept header matches.
-// WithDefaultErrorFormat is only used when WithErrorFormatters is configured.
+// Only used when content-negotiated formatters are configured (via [WithErrorFormatterFor] with non-empty media types or [WithErrorFormatters]).
 //
 // Example:
 //
 //	app.New(
-//	    app.WithErrorFormatters(formatters),
+//	    app.WithErrorFormatterFor("application/problem+json", errors.WithRFC9457("...")),
+//	    app.WithErrorFormatterFor("application/json", errors.WithSimple()),
 //	    app.WithDefaultErrorFormat("application/problem+json"),
 //	)
 func WithDefaultErrorFormat(mediaType string) Option {

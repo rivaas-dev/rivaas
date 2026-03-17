@@ -262,9 +262,17 @@ type errorsConfig struct {
 	// Single formatter mode
 	formatter errors.Formatter
 
-	// initErr stores error from WithErrorFormatter when errors.New(opts...) failed.
+	// singleFormatterExplicitlySet is true when the user called WithErrorFormatterFor("", ...).
+	// Used to reject mixing with content-negotiated formatters.
+	singleFormatterExplicitlySet bool
+
+	// initErr stores error from WithErrorFormatterFor when errors.New(opts...) failed.
 	// Reported during config.validate().
 	initErr error
+
+	// modeErr is set when single and content-negotiated formatters are mixed.
+	// Reported during config.validate().
+	modeErr error
 
 	// Multi-formatter mode with content negotiation
 	formatters    map[string]errors.Formatter
@@ -331,9 +339,12 @@ func (c *config) validate() error {
 		errs.Add(newInvalidValueError("openapi", nil, c.openapi.initErr.Error()))
 	}
 
-	// Validate error formatter configuration (from WithErrorFormatter(opts...))
+	// Validate error formatter configuration (from WithErrorFormatterFor)
 	if c.errors != nil && c.errors.initErr != nil {
 		errs.Add(newInvalidValueError("errors", nil, c.errors.initErr.Error()))
+	}
+	if c.errors != nil && c.errors.modeErr != nil {
+		errs.Add(newInvalidValueError("errors", nil, c.errors.modeErr.Error()))
 	}
 
 	// Validate observability configuration
