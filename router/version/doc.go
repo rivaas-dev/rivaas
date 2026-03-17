@@ -19,7 +19,8 @@
 //
 // # Basic Usage
 //
-// Create a versioned router with detection strategies:
+// Create a versioned router with detection strategies.
+// An engine can be created with [New] (returns error) or [MustNew] (panics on error):
 //
 //	r := router.New(
 //	    router.WithVersioning(
@@ -65,6 +66,7 @@
 //
 // This package follows these principles:
 //
+//   - Constructors: both [New] and [MustNew] are provided (use MustNew in main/init, New when handling errors).
 //   - Progressive disclosure: simple cases are simple, complex cases are possible
 //   - Self-documenting: code reads like documentation
 //   - Cohesive: everything about a version is on the version object

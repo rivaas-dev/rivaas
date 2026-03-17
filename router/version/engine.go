@@ -45,6 +45,24 @@ func New(opts ...Option) (*Engine, error) {
 	return &Engine{config: cfg}, nil
 }
 
+// MustNew creates a new versioning engine with the given options.
+// It panics if configuration is invalid.
+// Use in main() or init() where panic on startup is acceptable.
+//
+// Example:
+//
+//	engine := version.MustNew(
+//	    version.WithHeaderDetection("X-API-Version"),
+//	    version.WithDefault("v1"),
+//	)
+func MustNew(opts ...Option) *Engine {
+	e, err := New(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("version.MustNew: %v", err))
+	}
+	return e
+}
+
 // DetectVersion detects the API version from the request.
 // Checks detectors in order until one returns a version.
 // Falls back to default version if none found.

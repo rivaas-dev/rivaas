@@ -96,6 +96,24 @@ func TestNewConfig(t *testing.T) {
 	})
 }
 
+func TestMustNew(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns engine with valid options", func(t *testing.T) {
+		t.Parallel()
+		engine := MustNew(WithDefault("v1"))
+		require.NotNil(t, engine)
+		assert.Equal(t, "v1", engine.Config().DefaultVersion())
+	})
+
+	t.Run("panics on invalid config", func(t *testing.T) {
+		t.Parallel()
+		require.Panics(t, func() {
+			MustNew(WithDefault(""))
+		})
+	})
+}
+
 func TestEngineDetectVersion(t *testing.T) {
 	t.Parallel()
 
