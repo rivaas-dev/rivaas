@@ -47,6 +47,18 @@ var (
 	validComponentNamePattern = regexp.MustCompile(`^[a-zA-Z0-9.\-_]+$`)
 )
 
+// config holds construction-time validator configuration.
+// Options mutate config; New builds the Validator from it.
+type config struct{}
+
+// Option configures the validator using the functional options pattern.
+// Options are applied in order. No options are required; defaults work for typical use.
+type Option func(*config)
+
+func defaultConfig() *config {
+	return &config{}
+}
+
 // Validator validates OpenAPI specifications against their meta-schemas.
 // Thread-safe. Compiles schemas once and caches them for reuse.
 type Validator struct {
@@ -55,22 +67,30 @@ type Validator struct {
 	mu       sync.RWMutex
 }
 
-// New creates a new Validator with embedded OpenAPI meta-schemas.
-// Construction cannot fail. MustNew is provided for API consistency with other Rivaas packages.
+// New creates a new Validator with the given options.
+// Construction currently cannot fail; the error return is for API consistency with other Rivaas packages.
 //
 // The validator uses santhosh-tekuri/jsonschema which supports both
 // JSON Schema draft-04 (for OpenAPI 3.0) and draft-2020-12 (for OpenAPI 3.1).
-func New() *Validator {
+func New(opts ...Option) (*Validator, error) {
+	cfg := defaultConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	return &Validator{
 		compiler: jsonschema.NewCompiler(),
 		schemas:  make(map[Version]*jsonschema.Schema),
-	}
+	}, nil
 }
 
-// MustNew creates a new Validator. It is provided for API consistency with other Rivaas packages;
-// construction cannot fail.
-func MustNew() *Validator {
-	return New()
+// MustNew creates a new Validator with the given options.
+// Panics if construction fails. Use in main() or init() where panic on startup is acceptable.
+func MustNew(opts ...Option) *Validator {
+	v, err := New(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("validate.MustNew: %v", err))
+	}
+	return v
 }
 
 // Validate validates an OpenAPI specification JSON against the meta-schema for the given version.
@@ -80,7 +100,7 @@ func MustNew() *Validator {
 //
 // Example:
 //
-//	validator := validate.New()
+//	validator := validate.MustNew()
 //	if err := validator.Validate(ctx, specJSON, validate.V31); err != nil {
 //	    log.Fatalf("Invalid OpenAPI spec: %v", err)
 //	}

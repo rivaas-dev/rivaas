@@ -54,10 +54,11 @@ func TestValidator_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			validator := New()
+			validator, err := New()
+			require.NoError(t, err)
 			ctx := context.Background()
 
-			err := validator.Validate(ctx, tt.spec, tt.version)
+			err = validator.Validate(ctx, tt.spec, tt.version)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -84,12 +85,21 @@ func TestMustNew(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	v, err := New()
+	require.NoError(t, err)
+	require.NotNil(t, v)
+}
+
 func TestValidator_Validate_caching(t *testing.T) {
 	t.Parallel()
 
 	// Call Validate twice with unsupported version; both should return error.
 	// Exercises that getOrCompile is used (second call hits same error path).
-	validator := New()
+	validator, err := New()
+	require.NoError(t, err)
 	ctx := context.Background()
 	spec := []byte(`{}`)
 

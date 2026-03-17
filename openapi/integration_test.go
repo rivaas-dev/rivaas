@@ -301,7 +301,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				"paths": {}
 			}`
 
-			validator := validate.New()
+			validator := validate.MustNew()
 			err := validator.Validate(context.Background(), []byte(validSpec), validate.V30)
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -313,7 +313,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				`{"openapi": "3.1.2", "info": {"title": "API 3", "version": "1.0.0"}, "paths": {}}`,
 			}
 
-			validator := validate.New()
+			validator := validate.MustNew()
 			for i, spec := range specs {
 				version := validate.V30
 				if i == 2 {
