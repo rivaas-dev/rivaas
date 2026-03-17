@@ -73,10 +73,18 @@ type SecurityReq struct {
 }
 
 // buildOperation creates an Operation from method, path, and options.
-func buildOperation(method, path string, opts ...OperationOption) Operation {
+// Returns an error if any option is nil (validation error, not panic).
+func buildOperation(method, path string, opts ...OperationOption) (Operation, error) {
 	// Validate path format
 	if err := validate.ValidatePath(path); err != nil {
 		panic(fmt.Sprintf("invalid path '%s': %v", path, err))
+	}
+
+	// Reject nil options with a validation error
+	for i, opt := range opts {
+		if opt == nil {
+			return Operation{}, fmt.Errorf("openapi: operation option at index %d cannot be nil", i)
+		}
 	}
 
 	doc := operationDoc{
@@ -93,7 +101,7 @@ func buildOperation(method, path string, opts ...OperationOption) Operation {
 		Method: method,
 		Path:   path,
 		doc:    doc,
-	}
+	}, nil
 }
 
 // GET creates an Operation for a GET request.
@@ -104,7 +112,7 @@ func buildOperation(method, path string, opts ...OperationOption) Operation {
 //	    openapi.WithSummary("Get user"),
 //	    openapi.WithResponse(200, User{}),
 //	)
-func GET(path string, opts ...OperationOption) Operation {
+func GET(path string, opts ...OperationOption) (Operation, error) {
 	return buildOperation(http.MethodGet, path, opts...)
 }
 
@@ -117,7 +125,7 @@ func GET(path string, opts ...OperationOption) Operation {
 //	    openapi.WithRequest(CreateUserRequest{}),
 //	    openapi.WithResponse(201, User{}),
 //	)
-func POST(path string, opts ...OperationOption) Operation {
+func POST(path string, opts ...OperationOption) (Operation, error) {
 	return buildOperation(http.MethodPost, path, opts...)
 }
 
@@ -130,7 +138,7 @@ func POST(path string, opts ...OperationOption) Operation {
 //	    openapi.WithRequest(UpdateUserRequest{}),
 //	    openapi.WithResponse(200, User{}),
 //	)
-func PUT(path string, opts ...OperationOption) Operation {
+func PUT(path string, opts ...OperationOption) (Operation, error) {
 	return buildOperation(http.MethodPut, path, opts...)
 }
 
@@ -143,7 +151,7 @@ func PUT(path string, opts ...OperationOption) Operation {
 //	    openapi.WithRequest(PatchUserRequest{}),
 //	    openapi.WithResponse(200, User{}),
 //	)
-func PATCH(path string, opts ...OperationOption) Operation {
+func PATCH(path string, opts ...OperationOption) (Operation, error) {
 	return buildOperation(http.MethodPatch, path, opts...)
 }
 
@@ -155,7 +163,7 @@ func PATCH(path string, opts ...OperationOption) Operation {
 //	    openapi.WithSummary("Delete user"),
 //	    openapi.WithResponse(204, nil),
 //	)
-func DELETE(path string, opts ...OperationOption) Operation {
+func DELETE(path string, opts ...OperationOption) (Operation, error) {
 	return buildOperation(http.MethodDelete, path, opts...)
 }
 
@@ -166,7 +174,7 @@ func DELETE(path string, opts ...OperationOption) Operation {
 //	openapi.HEAD("/users/:id",
 //	    openapi.WithSummary("Check user exists"),
 //	)
-func HEAD(path string, opts ...OperationOption) Operation {
+func HEAD(path string, opts ...OperationOption) (Operation, error) {
 	return buildOperation(http.MethodHead, path, opts...)
 }
 
@@ -177,7 +185,7 @@ func HEAD(path string, opts ...OperationOption) Operation {
 //	openapi.OPTIONS("/users",
 //	    openapi.WithSummary("Get supported methods"),
 //	)
-func OPTIONS(path string, opts ...OperationOption) Operation {
+func OPTIONS(path string, opts ...OperationOption) (Operation, error) {
 	return buildOperation(http.MethodOptions, path, opts...)
 }
 
@@ -188,7 +196,7 @@ func OPTIONS(path string, opts ...OperationOption) Operation {
 //	openapi.TRACE("/users/:id",
 //	    openapi.WithSummary("Trace request"),
 //	)
-func TRACE(path string, opts ...OperationOption) Operation {
+func TRACE(path string, opts ...OperationOption) (Operation, error) {
 	return buildOperation(http.MethodTrace, path, opts...)
 }
 
@@ -200,7 +208,7 @@ func TRACE(path string, opts ...OperationOption) Operation {
 //	openapi.Op("CUSTOM", "/resource",
 //	    openapi.WithSummary("Custom operation"),
 //	)
-func Op(method, path string, opts ...OperationOption) Operation {
+func Op(method, path string, opts ...OperationOption) (Operation, error) {
 	return buildOperation(method, path, opts...)
 }
 

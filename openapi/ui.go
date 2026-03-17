@@ -193,48 +193,52 @@ type UISnapshot interface {
 	ToJSON(specPath string) (string, error)
 }
 
-// UIConfig configures Swagger UI behavior and appearance.
-//
-// This type is used internally as the option target for [UIOption] and to build
-// the JavaScript configuration object that controls how Swagger UI renders and behaves.
-// [API.UI] returns a [UISnapshot] (implemented by UIConfig); do not use UIConfig for construction.
-type UIConfig struct {
-	// Navigation & Deep Linking
+// uiConfig holds Swagger UI configuration. Options mutate this internal type;
+// [API.UI] returns a [UISnapshot] built from it. Not exposed to callers.
+type uiConfig struct {
 	DeepLinking        bool
 	DisplayOperationID bool
 
-	// Display & Expansion
 	DocExpansion             DocExpansionMode
 	DefaultModelsExpandDepth int
 	DefaultModelExpandDepth  int
 	DefaultModelRendering    ModelRenderingMode
 
-	// Interaction
 	TryItOutEnabled        bool
 	RequestSnippetsEnabled bool
 	DisplayRequestDuration bool
 
-	// Filtering & Sorting
 	Filter           bool
 	MaxDisplayedTags int
 	OperationsSorter OperationsSorterMode
 	TagsSorter       TagsSorterMode
 
-	// Syntax Highlighting
 	SyntaxHighlight SyntaxHighlightConfig
 
-	// Network & Security
 	ValidatorURL           string
 	PersistAuthorization   bool
 	WithCredentials        bool
 	SupportedSubmitMethods []HTTPMethod
 
-	// Advanced
 	ShowExtensions       bool
 	ShowCommonExtensions bool
 
-	// Request Snippets Configuration
 	RequestSnippets RequestSnippetsConfig
+}
+
+// uiSnapshot implements UISnapshot from an internal uiConfig.
+type uiSnapshot struct {
+	c uiConfig
+}
+
+// ToJSON implements UISnapshot.
+func (s *uiSnapshot) ToJSON(specPath string) (string, error) {
+	return s.c.toJSON(specPath)
+}
+
+// toConfigMap returns the config map for tests in the same package.
+func (s *uiSnapshot) toConfigMap(specURL string) map[string]any {
+	return s.c.toConfigMap(specURL)
 }
 
 // SyntaxHighlightConfig controls syntax highlighting appearance in Swagger UI.
@@ -257,11 +261,8 @@ type RequestSnippetsConfig struct {
 }
 
 // defaultUIConfig returns sensible defaults for Swagger UI configuration.
-//
-// These defaults provide a good balance of functionality and usability
-// for most API documentation needs.
-func defaultUIConfig() UIConfig {
-	return UIConfig{
+func defaultUIConfig() uiConfig {
+	return uiConfig{
 		DeepLinking:              true,
 		DisplayOperationID:       false,
 		DocExpansion:             DocExpansionList,
@@ -279,35 +280,21 @@ func defaultUIConfig() UIConfig {
 			Activated: true,
 			Theme:     SyntaxThemeMonokai,
 		},
-		ValidatorURL:         "",
-		PersistAuthorization: true,
-		WithCredentials:      false,
-		SupportedSubmitMethods: []HTTPMethod{
-			MethodGet, MethodPut, MethodPost, MethodDelete,
-			MethodOptions, MethodHead, MethodPatch,
-		},
-		ShowExtensions:       false,
-		ShowCommonExtensions: true,
+		ValidatorURL:           "",
+		PersistAuthorization:   true,
+		WithCredentials:        false,
+		SupportedSubmitMethods: []HTTPMethod{MethodGet, MethodPut, MethodPost, MethodDelete, MethodOptions, MethodHead, MethodPatch},
+		ShowExtensions:         false,
+		ShowCommonExtensions:   true,
 		RequestSnippets: RequestSnippetsConfig{
-			Languages:       nil, // All languages
+			Languages:       nil,
 			DefaultExpanded: true,
 		},
 	}
 }
 
-// Validate checks if the UIConfig is valid and returns an error if any
-// configuration values are invalid.
-//
-// It validates:
-//   - DocExpansion mode (must be list, full, or none)
-//   - ModelRendering mode (must be example or model)
-//   - OperationsSorter mode (must be alpha, method, or empty)
-//   - TagsSorter mode (must be alpha or empty)
-//   - SyntaxTheme (must be a valid theme name)
-//   - RequestSnippetLanguage values (must be valid language identifiers)
-//   - HTTPMethod values (must be valid HTTP methods)
-//   - Numeric ranges (depths must be >= -1, maxDisplayedTags must be >= 0)
-func (c *UIConfig) Validate() error {
+// validate checks if the uiConfig is valid.
+func (c *uiConfig) validate() error {
 	// Validate DocExpansion
 	if c.DocExpansion != "" {
 		switch c.DocExpansion {
@@ -401,15 +388,8 @@ func (c *UIConfig) Validate() error {
 	return nil
 }
 
-// ToConfigMap converts UIConfig to a map suitable for JSON serialization.
-//
-// The returned map contains all configuration options in the format expected
-// by Swagger UI's JavaScript initialization. The specURL parameter specifies
-// the URL where the OpenAPI specification JSON can be fetched.
-//
-// This method is used internally to generate the JavaScript configuration
-// object that is embedded in the Swagger UI HTML page.
-func (c *UIConfig) ToConfigMap(specURL string) map[string]any {
+// toConfigMap converts uiConfig to a map suitable for JSON serialization.
+func (c *uiConfig) toConfigMap(specURL string) map[string]any {
 	m := map[string]any{
 		"url":                      specURL,
 		"dom_id":                   "#swagger-ui",
@@ -476,19 +456,12 @@ func (c *UIConfig) ToConfigMap(specURL string) map[string]any {
 	return m
 }
 
-// ToJSON converts UIConfig to a formatted JSON string for embedding in HTML.
-//
-// The returned JSON string is indented for readability and can be directly
-// embedded in the Swagger UI HTML template. The specURL parameter specifies
-// the URL where the OpenAPI specification JSON can be fetched.
-//
-// Returns an error if JSON serialization fails.
-func (c UIConfig) ToJSON(specURL string) (string, error) {
-	configMap := c.ToConfigMap(specURL)
+// toJSON converts uiConfig to a formatted JSON string for embedding in HTML.
+func (c uiConfig) toJSON(specURL string) (string, error) {
+	configMap := c.toConfigMap(specURL)
 	bytes, err := json.MarshalIndent(configMap, "\t\t", "  ")
 	if err != nil {
 		return "", err
 	}
-
 	return string(bytes), nil
 }

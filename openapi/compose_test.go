@@ -31,14 +31,16 @@ func TestWithOptions(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		op       Operation
+		buildOp  func(t *testing.T) Operation
 		validate func(t *testing.T, spec map[string]any)
 	}{
 		{
 			name: "single option applies correctly",
-			op: GET("/health",
-				WithOptions(WithSummary("Health check")),
-			),
+			buildOp: func(t *testing.T) Operation {
+				op, err := GET("/health", WithOptions(WithSummary("Health check")))
+				require.NoError(t, err)
+				return op
+			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
 				paths, ok := spec["paths"].(map[string]any)
@@ -52,13 +54,15 @@ func TestWithOptions(t *testing.T) {
 		},
 		{
 			name: "multiple options apply in order",
-			op: GET("/users",
-				WithOptions(
+			buildOp: func(t *testing.T) Operation {
+				op, err := GET("/users", WithOptions(
 					WithSummary("List users"),
 					WithTags("users"),
 					WithResponse(http.StatusOK, []struct{}{}),
-				),
-			),
+				))
+				require.NoError(t, err)
+				return op
+			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
 				paths, ok := spec["paths"].(map[string]any)
@@ -80,12 +84,14 @@ func TestWithOptions(t *testing.T) {
 		},
 		{
 			name: "later option overrides earlier",
-			op: GET("/item",
-				WithOptions(
+			buildOp: func(t *testing.T) Operation {
+				op, err := GET("/item", WithOptions(
 					WithSummary("First summary"),
 					WithSummary("Final summary"),
-				),
-			),
+				))
+				require.NoError(t, err)
+				return op
+			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
 				paths, ok := spec["paths"].(map[string]any)
@@ -99,7 +105,11 @@ func TestWithOptions(t *testing.T) {
 		},
 		{
 			name: "empty options is valid",
-			op:   GET("/root", WithOptions()),
+			buildOp: func(t *testing.T) Operation {
+				op, err := GET("/root", WithOptions())
+				require.NoError(t, err)
+				return op
+			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
 				paths, ok := spec["paths"].(map[string]any)
@@ -118,8 +128,9 @@ func TestWithOptions(t *testing.T) {
 
 			api := MustNew(WithTitle("Test API", "1.0.0"))
 			ctx := context.Background()
+			op := tt.buildOp(t)
 
-			result, err := api.Generate(ctx, tt.op)
+			result, err := api.Generate(ctx, op)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.NotEmpty(t, result.JSON)

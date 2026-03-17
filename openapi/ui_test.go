@@ -28,20 +28,20 @@ func TestUIConfig_Validate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		config       UIConfig
-		useDefaultUI bool // if true, config is ignored and UI snapshot from default API is used
-		wantErr      bool
-		contains     string
+		name     string
+		config   uiConfig
+		useAPI   bool // if true, get config from default API's UI snapshot
+		wantErr  bool
+		contains string
 	}{
 		{
-			name:         "default config is valid",
-			useDefaultUI: true,
-			wantErr:      false,
+			name:    "default config is valid",
+			useAPI:  true,
+			wantErr: false,
 		},
 		{
 			name: "zero value config is valid",
-			config: UIConfig{
+			config: uiConfig{
 				DefaultModelsExpandDepth: 0,
 				DefaultModelExpandDepth:  0,
 				MaxDisplayedTags:         0,
@@ -50,7 +50,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid DocExpansion",
-			config: UIConfig{
+			config: uiConfig{
 				DocExpansion: DocExpansionMode("invalid"),
 			},
 			wantErr:  true,
@@ -58,7 +58,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid DefaultModelRendering",
-			config: UIConfig{
+			config: uiConfig{
 				DefaultModelRendering: ModelRenderingMode("invalid"),
 			},
 			wantErr:  true,
@@ -66,7 +66,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid OperationsSorter",
-			config: UIConfig{
+			config: uiConfig{
 				OperationsSorter: OperationsSorterMode("invalid"),
 			},
 			wantErr:  true,
@@ -74,7 +74,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid TagsSorter",
-			config: UIConfig{
+			config: uiConfig{
 				TagsSorter: TagsSorterMode("invalid"),
 			},
 			wantErr:  true,
@@ -82,7 +82,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid SyntaxTheme",
-			config: UIConfig{
+			config: uiConfig{
 				SyntaxHighlight: SyntaxHighlightConfig{
 					Activated: true,
 					Theme:     SyntaxTheme("invalid"),
@@ -93,7 +93,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid RequestSnippet language",
-			config: UIConfig{
+			config: uiConfig{
 				RequestSnippets: RequestSnippetsConfig{
 					Languages: []RequestSnippetLanguage{"invalid"},
 				},
@@ -103,7 +103,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid HTTP method",
-			config: UIConfig{
+			config: uiConfig{
 				SupportedSubmitMethods: []HTTPMethod{"invalid"},
 			},
 			wantErr:  true,
@@ -111,7 +111,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "DefaultModelsExpandDepth less than -1",
-			config: UIConfig{
+			config: uiConfig{
 				DefaultModelsExpandDepth: -2,
 			},
 			wantErr:  true,
@@ -119,7 +119,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "DefaultModelExpandDepth less than -1",
-			config: UIConfig{
+			config: uiConfig{
 				DefaultModelExpandDepth: -2,
 			},
 			wantErr:  true,
@@ -127,7 +127,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "MaxDisplayedTags negative",
-			config: UIConfig{
+			config: uiConfig{
 				MaxDisplayedTags: -1,
 			},
 			wantErr:  true,
@@ -135,21 +135,21 @@ func TestUIConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "valid DocExpansion modes",
-			config: UIConfig{
+			config: uiConfig{
 				DocExpansion: DocExpansionFull,
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid OperationsSorter alpha",
-			config: UIConfig{
+			config: uiConfig{
 				OperationsSorter: OperationsSorterAlpha,
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid TagsSorter alpha",
-			config: UIConfig{
+			config: uiConfig{
 				TagsSorter: TagsSorterAlpha,
 			},
 			wantErr: false,
@@ -160,14 +160,14 @@ func TestUIConfig_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			config := tt.config
-			if tt.useDefaultUI {
+			c := tt.config
+			if tt.useAPI {
 				snapshot := MustNew(WithTitle("API", "1.0.0")).UI()
-				var ok bool
-				config, ok = snapshot.(UIConfig)
+				ss, ok := snapshot.(*uiSnapshot)
 				require.True(t, ok)
+				c = ss.c
 			}
-			err := config.Validate()
+			err := c.validate()
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.contains != "" {
@@ -184,17 +184,22 @@ func TestUIConfig_ToConfigMap(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		config   UIConfig
-		specURL  string
-		validate func(t *testing.T, m map[string]any)
+		name      string
+		buildSnap func(t *testing.T) *uiSnapshot
+		specURL   string
+		validate  func(t *testing.T, m map[string]any)
 	}{
 		{
 			name: "includes url and key options",
-			config: UIConfig{
-				DeepLinking:           true,
-				DocExpansion:          DocExpansionList,
-				DefaultModelRendering: ModelRenderingExample,
+			buildSnap: func(t *testing.T) *uiSnapshot {
+				snap := MustNew(WithTitle("API", "1.0.0"), WithSwaggerUI("/docs",
+					WithUIDeepLinking(true),
+					WithUIExpansion(DocExpansionList),
+					WithUIDefaultModelRendering(ModelRenderingExample),
+				)).UI()
+				ss, ok := snap.(*uiSnapshot)
+				require.True(t, ok)
+				return ss
 			},
 			specURL: "https://api.example.com/openapi.json",
 			validate: func(t *testing.T, m map[string]any) {
@@ -209,8 +214,11 @@ func TestUIConfig_ToConfigMap(t *testing.T) {
 		},
 		{
 			name: "validatorUrl nil for empty",
-			config: UIConfig{
-				ValidatorURL: "",
+			buildSnap: func(t *testing.T) *uiSnapshot {
+				snap := MustNew(WithTitle("API", "1.0.0"), WithSwaggerUI("/docs", WithUIValidator(""))).UI()
+				ss, ok := snap.(*uiSnapshot)
+				require.True(t, ok)
+				return ss
 			},
 			specURL: "/spec.json",
 			validate: func(t *testing.T, m map[string]any) {
@@ -220,8 +228,11 @@ func TestUIConfig_ToConfigMap(t *testing.T) {
 		},
 		{
 			name: "validatorUrl nil for none",
-			config: UIConfig{
-				ValidatorURL: ValidatorNone,
+			buildSnap: func(t *testing.T) *uiSnapshot {
+				snap := MustNew(WithTitle("API", "1.0.0"), WithSwaggerUI("/docs", WithUIValidator(ValidatorNone))).UI()
+				ss, ok := snap.(*uiSnapshot)
+				require.True(t, ok)
+				return ss
 			},
 			specURL: "/spec.json",
 			validate: func(t *testing.T, m map[string]any) {
@@ -231,8 +242,11 @@ func TestUIConfig_ToConfigMap(t *testing.T) {
 		},
 		{
 			name: "validatorUrl nil for local",
-			config: UIConfig{
-				ValidatorURL: ValidatorLocal,
+			buildSnap: func(t *testing.T) *uiSnapshot {
+				snap := MustNew(WithTitle("API", "1.0.0"), WithSwaggerUI("/docs", WithUIValidator(ValidatorLocal))).UI()
+				ss, ok := snap.(*uiSnapshot)
+				require.True(t, ok)
+				return ss
 			},
 			specURL: "/spec.json",
 			validate: func(t *testing.T, m map[string]any) {
@@ -242,8 +256,11 @@ func TestUIConfig_ToConfigMap(t *testing.T) {
 		},
 		{
 			name: "validatorUrl set for custom URL",
-			config: UIConfig{
-				ValidatorURL: "https://validator.swagger.io/validator",
+			buildSnap: func(t *testing.T) *uiSnapshot {
+				snap := MustNew(WithTitle("API", "1.0.0"), WithSwaggerUI("/docs", WithUIValidator("https://validator.swagger.io/validator"))).UI()
+				ss, ok := snap.(*uiSnapshot)
+				require.True(t, ok)
+				return ss
 			},
 			specURL: "/spec.json",
 			validate: func(t *testing.T, m map[string]any) {
@@ -253,8 +270,11 @@ func TestUIConfig_ToConfigMap(t *testing.T) {
 		},
 		{
 			name: "maxDisplayedTags omitted when 0",
-			config: UIConfig{
-				MaxDisplayedTags: 0,
+			buildSnap: func(t *testing.T) *uiSnapshot {
+				snap := MustNew(WithTitle("API", "1.0.0"), WithSwaggerUI("/docs", WithUIMaxDisplayedTags(0))).UI()
+				ss, ok := snap.(*uiSnapshot)
+				require.True(t, ok)
+				return ss
 			},
 			specURL: "/spec.json",
 			validate: func(t *testing.T, m map[string]any) {
@@ -265,8 +285,11 @@ func TestUIConfig_ToConfigMap(t *testing.T) {
 		},
 		{
 			name: "maxDisplayedTags included when positive",
-			config: UIConfig{
-				MaxDisplayedTags: 10,
+			buildSnap: func(t *testing.T) *uiSnapshot {
+				snap := MustNew(WithTitle("API", "1.0.0"), WithSwaggerUI("/docs", WithUIMaxDisplayedTags(10))).UI()
+				ss, ok := snap.(*uiSnapshot)
+				require.True(t, ok)
+				return ss
 			},
 			specURL: "/spec.json",
 			validate: func(t *testing.T, m map[string]any) {
@@ -276,13 +299,15 @@ func TestUIConfig_ToConfigMap(t *testing.T) {
 		},
 		{
 			name: "supportedSubmitMethods and requestSnippets when set",
-			config: UIConfig{
-				RequestSnippetsEnabled: true,
-				RequestSnippets: RequestSnippetsConfig{
-					Languages:       []RequestSnippetLanguage{SnippetCurlBash},
-					DefaultExpanded: true,
-				},
-				SupportedSubmitMethods: []HTTPMethod{MethodGet, MethodPost},
+			buildSnap: func(t *testing.T) *uiSnapshot {
+				snap := MustNew(WithTitle("API", "1.0.0"), WithSwaggerUI("/docs",
+					WithUIRequestSnippets(true, SnippetCurlBash),
+					WithUIRequestSnippetsExpanded(true),
+					WithUISupportedMethods(MethodGet, MethodPost),
+				)).UI()
+				ss, ok := snap.(*uiSnapshot)
+				require.True(t, ok)
+				return ss
 			},
 			specURL: "/spec.json",
 			validate: func(t *testing.T, m map[string]any) {
@@ -308,7 +333,8 @@ func TestUIConfig_ToConfigMap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			m := tt.config.ToConfigMap(tt.specURL)
+			snap := tt.buildSnap(t)
+			m := snap.toConfigMap(tt.specURL)
 			require.NotNil(t, m)
 			tt.validate(t, m)
 		})
@@ -321,10 +347,10 @@ func TestUIConfig_ToJSON(t *testing.T) {
 	t.Run("valid config produces valid JSON", func(t *testing.T) {
 		t.Parallel()
 
-		config := MustNew(WithTitle("API", "1.0.0")).UI()
+		snapshot := MustNew(WithTitle("API", "1.0.0")).UI()
 		specURL := "https://example.com/openapi.json"
 
-		jsonStr, err := config.ToJSON(specURL)
+		jsonStr, err := snapshot.ToJSON(specURL)
 		require.NoError(t, err)
 		require.NotEmpty(t, jsonStr)
 
@@ -337,13 +363,13 @@ func TestUIConfig_ToJSON(t *testing.T) {
 	t.Run("output round-trips and contains spec URL", func(t *testing.T) {
 		t.Parallel()
 
-		config := UIConfig{
-			DocExpansion: DocExpansionFull,
-			Filter:       true,
-		}
+		snapshot := MustNew(WithTitle("API", "1.0.0"), WithSwaggerUI("/docs",
+			WithUIExpansion(DocExpansionFull),
+			WithUIFilter(true),
+		)).UI()
 		specURL := "/docs/openapi.json"
 
-		jsonStr, err := config.ToJSON(specURL)
+		jsonStr, err := snapshot.ToJSON(specURL)
 		require.NoError(t, err)
 
 		var m map[string]any

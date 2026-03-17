@@ -65,7 +65,7 @@ func ExampleResponse_namedExamples() {
 	}
 
 	// Create an operation with named examples
-	op := openapi.GET("/users/:id",
+	op, err := openapi.GET("/users/:id",
 		openapi.WithSummary("Get user"),
 		openapi.WithDescription("Retrieves a user by ID"),
 		openapi.WithResponse(http.StatusOK, UserResponse{},
@@ -75,6 +75,10 @@ func ExampleResponse_namedExamples() {
 				example.WithSummary("Admin user")),
 		),
 	)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
 
 	fmt.Printf("Operation: %s %s\n", op.Method, op.Path)
 	// Output: Operation: GET /users/:id

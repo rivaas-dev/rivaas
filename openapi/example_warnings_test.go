@@ -19,9 +19,11 @@ func Example_warnings() {
 		openapi.WithInfoSummary("A modern API"), // 3.1-only feature
 	)
 
-	result, err := api.Generate(context.Background(),
-		openapi.GET("/health", openapi.WithResponse(200, map[string]string{})),
-	)
+	op, err := openapi.GET("/health", openapi.WithResponse(200, map[string]string{}))
+	if err != nil {
+		panic(err)
+	}
+	result, err := api.Generate(context.Background(), op)
 	if err != nil {
 		panic(err)
 	}
@@ -62,9 +64,11 @@ func Example_warningsStrictMode() {
 		openapi.WithInfoSummary("Summary"), // 3.1-only feature
 	)
 
-	_, err := api.Generate(context.Background(),
-		openapi.GET("/health", openapi.WithResponse(200, map[string]string{})),
-	)
+	op, err := openapi.GET("/health", openapi.WithResponse(200, map[string]string{}))
+	if err != nil {
+		panic(err)
+	}
+	_, err = api.Generate(context.Background(), op)
 	// In strict mode, using 3.1 features with 3.0 target returns an error
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -83,9 +87,11 @@ func Example_warningsFiltering() {
 		openapi.WithLicenseIdentifier("MIT", "MIT-0"), // 3.1 feature
 	)
 
-	result, err := api.Generate(context.Background(),
-		openapi.GET("/health", openapi.WithResponse(200, map[string]string{})),
-	)
+	op, err := openapi.GET("/health", openapi.WithResponse(200, map[string]string{}))
+	if err != nil {
+		panic(err)
+	}
+	result, err := api.Generate(context.Background(), op)
 	if err != nil {
 		panic(err)
 	}

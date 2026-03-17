@@ -32,7 +32,7 @@ func TestAPI_Generate(t *testing.T) {
 	type testCase struct {
 		name     string
 		api      *API
-		ops      []Operation
+		buildOps func(t *testing.T) []Operation
 		validate func(t *testing.T, spec map[string]any)
 	}
 
@@ -40,8 +40,10 @@ func TestAPI_Generate(t *testing.T) {
 		{
 			name: "minimal API produces valid spec",
 			api:  MustNew(WithTitle("Minimal API", "1.0.0")),
-			ops: []Operation{
-				GET("/health", WithSummary("Health check")),
+			buildOps: func(t *testing.T) []Operation {
+				op, err := GET("/health", WithSummary("Health check"))
+				require.NoError(t, err)
+				return []Operation{op}
 			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
@@ -63,8 +65,10 @@ func TestAPI_Generate(t *testing.T) {
 				WithServer("https://api.example.com", "Production"),
 				WithTag("users", "User operations"),
 			),
-			ops: []Operation{
-				GET("/users", WithSummary("List users"), WithTags("users")),
+			buildOps: func(t *testing.T) []Operation {
+				op, err := GET("/users", WithSummary("List users"), WithTags("users"))
+				require.NoError(t, err)
+				return []Operation{op}
 			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
@@ -89,8 +93,10 @@ func TestAPI_Generate(t *testing.T) {
 				WithBearerAuth("bearerAuth", "JWT"),
 				WithDefaultSecurity("bearerAuth"),
 			),
-			ops: []Operation{
-				GET("/protected", WithSummary("Protected"), WithSecurity("bearerAuth")),
+			buildOps: func(t *testing.T) []Operation {
+				op, err := GET("/protected", WithSummary("Protected"), WithSecurity("bearerAuth"))
+				require.NoError(t, err)
+				return []Operation{op}
 			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
@@ -111,8 +117,10 @@ func TestAPI_Generate(t *testing.T) {
 				WithTitle("API", "1.0.0"),
 				WithExternalDocs("https://example.com/docs", "API documentation"),
 			),
-			ops: []Operation{
-				GET("/", WithSummary("Root")),
+			buildOps: func(t *testing.T) []Operation {
+				op, err := GET("/", WithSummary("Root"))
+				require.NoError(t, err)
+				return []Operation{op}
 			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
@@ -125,8 +133,8 @@ func TestAPI_Generate(t *testing.T) {
 		{
 			name: "operation with request and response types",
 			api:  MustNew(WithTitle("API", "1.0.0")),
-			ops: []Operation{
-				POST("/users",
+			buildOps: func(t *testing.T) []Operation {
+				op, err := POST("/users",
 					WithSummary("Create user"),
 					WithRequest(struct {
 						Name string `json:"name"`
@@ -135,7 +143,9 @@ func TestAPI_Generate(t *testing.T) {
 						ID   string `json:"id"`
 						Name string `json:"name"`
 					}{}),
-				),
+				)
+				require.NoError(t, err)
+				return []Operation{op}
 			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
@@ -157,8 +167,10 @@ func TestAPI_Generate(t *testing.T) {
 		{
 			name: "version 3.1 produces 3.1.2 spec",
 			api:  MustNew(WithTitle("API", "1.0.0"), WithVersion(V31x)),
-			ops: []Operation{
-				GET("/health", WithSummary("Health")),
+			buildOps: func(t *testing.T) []Operation {
+				op, err := GET("/health", WithSummary("Health"))
+				require.NoError(t, err)
+				return []Operation{op}
 			},
 			validate: func(t *testing.T, spec map[string]any) {
 				t.Helper()
@@ -171,8 +183,9 @@ func TestAPI_Generate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ops := tt.buildOps(t)
 			ctx := context.Background()
-			result, err := tt.api.Generate(ctx, tt.ops...)
+			result, err := tt.api.Generate(ctx, ops...)
 
 			require.NoError(t, err)
 			require.NotNil(t, result)

@@ -38,7 +38,7 @@ type config struct {
 	uiPath           string
 	serveUI          bool
 	validateSpec     bool
-	ui               UIConfig
+	ui               uiConfig
 	validationErrors []error // Errors from nil options (e.g. WithSwaggerUI)
 }
 
@@ -77,7 +77,7 @@ type API struct {
 	uiPath          string
 	serveUI         bool
 	validateSpec    bool
-	ui              UIConfig
+	ui              uiConfig
 }
 
 // Option configures OpenAPI behavior using the functional options pattern.
@@ -150,7 +150,7 @@ func validateConfig(cfg *config) error {
 			return fmt.Errorf("openapi: server[%d]: %w", i, ErrServerVariablesNeedURL)
 		}
 	}
-	if err := cfg.ui.Validate(); err != nil {
+	if err := cfg.ui.validate(); err != nil {
 		return fmt.Errorf("openapi: %w", err)
 	}
 	for key := range cfg.extensions {
@@ -216,7 +216,7 @@ func MustNew(opts ...Option) *API {
 //
 // Use the returned [UISnapshot] for rendering (e.g. ToJSON); do not use it for construction.
 func (a *API) UI() UISnapshot {
-	return a.ui
+	return &uiSnapshot{c: a.ui}
 }
 
 // Info returns the API metadata (title, version, description, contact, license).
@@ -309,7 +309,7 @@ func (a *API) Validate() error {
 			return fmt.Errorf("openapi: server[%d]: %w", i, ErrServerVariablesNeedURL)
 		}
 	}
-	if err := a.ui.Validate(); err != nil {
+	if err := a.ui.validate(); err != nil {
 		return fmt.Errorf("openapi: %w", err)
 	}
 	for key := range a.extensions {

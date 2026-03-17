@@ -17,7 +17,7 @@ package openapi
 import "fmt"
 
 // UIOption configures Swagger UI behavior and appearance.
-type UIOption func(*UIConfig)
+type UIOption func(*uiConfig)
 
 // WithSwaggerUI enables Swagger UI at the given path with optional configuration.
 //
@@ -73,7 +73,7 @@ func WithoutSwaggerUI() Option {
 //	    openapi.WithUIDeepLinking(true),
 //	)
 func WithUIDeepLinking(enabled bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.DeepLinking = enabled
 	}
 }
@@ -89,7 +89,7 @@ func WithUIDeepLinking(enabled bool) UIOption {
 //	    openapi.WithUIDisplayOperationID(true),
 //	)
 func WithUIDisplayOperationID(show bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.DisplayOperationID = show
 	}
 }
@@ -107,7 +107,7 @@ func WithUIDisplayOperationID(show bool) UIOption {
 //	    openapi.WithUIExpansion(openapi.DocExpansionFull),
 //	)
 func WithUIExpansion(mode DocExpansionMode) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.DocExpansion = mode
 	}
 }
@@ -123,7 +123,7 @@ func WithUIExpansion(mode DocExpansionMode) UIOption {
 //	    openapi.WithUIModelsExpandDepth(2), // Expand 2 levels deep
 //	)
 func WithUIModelsExpandDepth(depth int) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.DefaultModelsExpandDepth = depth
 	}
 }
@@ -138,7 +138,7 @@ func WithUIModelsExpandDepth(depth int) UIOption {
 //	    openapi.WithUIModelExpandDepth(3),
 //	)
 func WithUIModelExpandDepth(depth int) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.DefaultModelExpandDepth = depth
 	}
 }
@@ -155,7 +155,7 @@ func WithUIModelExpandDepth(depth int) UIOption {
 //	    openapi.WithUIDefaultModelRendering(openapi.ModelRenderingModel),
 //	)
 func WithUIDefaultModelRendering(mode ModelRenderingMode) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.DefaultModelRendering = mode
 	}
 }
@@ -171,7 +171,7 @@ func WithUIDefaultModelRendering(mode ModelRenderingMode) UIOption {
 //	    openapi.WithUITryItOut(false), // Require users to click "Try it out"
 //	)
 func WithUITryItOut(enabled bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.TryItOutEnabled = enabled
 	}
 }
@@ -188,7 +188,7 @@ func WithUITryItOut(enabled bool) UIOption {
 //	    openapi.WithUIRequestSnippets(true, openapi.SnippetCurlBash, openapi.SnippetCurlPowerShell),
 //	)
 func WithUIRequestSnippets(enabled bool, languages ...RequestSnippetLanguage) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.RequestSnippetsEnabled = enabled
 		if len(languages) > 0 {
 			c.RequestSnippets.Languages = languages
@@ -207,7 +207,7 @@ func WithUIRequestSnippets(enabled bool, languages ...RequestSnippetLanguage) UI
 //	    openapi.WithUIRequestSnippetsExpanded(true),
 //	)
 func WithUIRequestSnippetsExpanded(expanded bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.RequestSnippets.DefaultExpanded = expanded
 	}
 }
@@ -223,7 +223,7 @@ func WithUIRequestSnippetsExpanded(expanded bool) UIOption {
 //	    openapi.WithUIDisplayRequestDuration(true),
 //	)
 func WithUIDisplayRequestDuration(show bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.DisplayRequestDuration = show
 	}
 }
@@ -239,7 +239,7 @@ func WithUIDisplayRequestDuration(show bool) UIOption {
 //	    openapi.WithUIFilter(true),
 //	)
 func WithUIFilter(enabled bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.Filter = enabled
 	}
 }
@@ -255,7 +255,7 @@ func WithUIFilter(enabled bool) UIOption {
 //	    openapi.WithUIMaxDisplayedTags(10), // Show only first 10 tags
 //	)
 func WithUIMaxDisplayedTags(max int) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.MaxDisplayedTags = max
 	}
 }
@@ -273,7 +273,7 @@ func WithUIMaxDisplayedTags(max int) UIOption {
 //	    openapi.WithUIOperationsSorter(openapi.OperationsSorterAlpha),
 //	)
 func WithUIOperationsSorter(mode OperationsSorterMode) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.OperationsSorter = mode
 	}
 }
@@ -290,7 +290,7 @@ func WithUIOperationsSorter(mode OperationsSorterMode) UIOption {
 //	    openapi.WithUITagsSorter(openapi.TagsSorterAlpha),
 //	)
 func WithUITagsSorter(mode TagsSorterMode) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.TagsSorter = mode
 	}
 }
@@ -306,7 +306,7 @@ func WithUITagsSorter(mode TagsSorterMode) UIOption {
 //	    openapi.WithUISyntaxHighlight(true),
 //	)
 func WithUISyntaxHighlight(enabled bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.SyntaxHighlight.Activated = enabled
 	}
 }
@@ -322,7 +322,7 @@ func WithUISyntaxHighlight(enabled bool) UIOption {
 //	    openapi.WithUISyntaxTheme(openapi.SyntaxThemeMonokai),
 //	)
 func WithUISyntaxTheme(theme SyntaxTheme) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.SyntaxHighlight.Theme = theme
 	}
 }
@@ -355,7 +355,7 @@ func WithUISyntaxTheme(theme SyntaxTheme) UIOption {
 //	    openapi.WithUIValidator(openapi.ValidatorNone),
 //	)
 func WithUIValidator(url string) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.ValidatorURL = url
 	}
 }
@@ -371,7 +371,7 @@ func WithUIValidator(url string) UIOption {
 //	    openapi.WithUIPersistAuth(true),
 //	)
 func WithUIPersistAuth(enabled bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.PersistAuthorization = enabled
 	}
 }
@@ -388,7 +388,7 @@ func WithUIPersistAuth(enabled bool) UIOption {
 //	    openapi.WithUIWithCredentials(true),
 //	)
 func WithUIWithCredentials(enabled bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.WithCredentials = enabled
 	}
 }
@@ -404,7 +404,7 @@ func WithUIWithCredentials(enabled bool) UIOption {
 //	    openapi.WithUISupportedMethods(openapi.MethodGet, openapi.MethodPost),
 //	)
 func WithUISupportedMethods(methods ...HTTPMethod) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.SupportedSubmitMethods = methods
 	}
 }
@@ -420,7 +420,7 @@ func WithUISupportedMethods(methods ...HTTPMethod) UIOption {
 //	    openapi.WithUIShowExtensions(true),
 //	)
 func WithUIShowExtensions(show bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.ShowExtensions = show
 	}
 }
@@ -436,7 +436,7 @@ func WithUIShowExtensions(show bool) UIOption {
 //	    openapi.WithUIShowCommonExtensions(true),
 //	)
 func WithUIShowCommonExtensions(show bool) UIOption {
-	return func(c *UIConfig) {
+	return func(c *uiConfig) {
 		c.ShowCommonExtensions = show
 	}
 }

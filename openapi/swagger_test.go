@@ -29,183 +29,183 @@ func TestWithSwaggerUI_appliesUIOptions(t *testing.T) {
 	tests := []struct {
 		name   string
 		opt    UIOption
-		assert func(t *testing.T, ui UIConfig)
+		assert func(t *testing.T, snap *uiSnapshot)
 	}{
 		{
 			name: "WithUIDeepLinking sets DeepLinking",
 			opt:  WithUIDeepLinking(false),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.False(t, ui.DeepLinking)
+				assert.False(t, snap.c.DeepLinking)
 			},
 		},
 		{
 			name: "WithUIDisplayOperationID sets DisplayOperationID",
 			opt:  WithUIDisplayOperationID(true),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.True(t, ui.DisplayOperationID)
+				assert.True(t, snap.c.DisplayOperationID)
 			},
 		},
 		{
 			name: "WithUIExpansion sets DocExpansion",
 			opt:  WithUIExpansion(DocExpansionFull),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, DocExpansionFull, ui.DocExpansion)
+				assert.Equal(t, DocExpansionFull, snap.c.DocExpansion)
 			},
 		},
 		{
 			name: "WithUIModelsExpandDepth sets DefaultModelsExpandDepth",
 			opt:  WithUIModelsExpandDepth(2),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, 2, ui.DefaultModelsExpandDepth)
+				assert.Equal(t, 2, snap.c.DefaultModelsExpandDepth)
 			},
 		},
 		{
 			name: "WithUIModelExpandDepth sets DefaultModelExpandDepth",
 			opt:  WithUIModelExpandDepth(3),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, 3, ui.DefaultModelExpandDepth)
+				assert.Equal(t, 3, snap.c.DefaultModelExpandDepth)
 			},
 		},
 		{
 			name: "WithUIDefaultModelRendering sets DefaultModelRendering",
 			opt:  WithUIDefaultModelRendering(ModelRenderingModel),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, ModelRenderingModel, ui.DefaultModelRendering)
+				assert.Equal(t, ModelRenderingModel, snap.c.DefaultModelRendering)
 			},
 		},
 		{
 			name: "WithUITryItOut sets TryItOutEnabled",
 			opt:  WithUITryItOut(false),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.False(t, ui.TryItOutEnabled)
+				assert.False(t, snap.c.TryItOutEnabled)
 			},
 		},
 		{
 			name: "WithUIRequestSnippets sets RequestSnippetsEnabled and Languages",
 			opt:  WithUIRequestSnippets(true, SnippetCurlBash, SnippetCurlPowerShell),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.True(t, ui.RequestSnippetsEnabled)
-				assert.Equal(t, []RequestSnippetLanguage{SnippetCurlBash, SnippetCurlPowerShell}, ui.RequestSnippets.Languages)
+				assert.True(t, snap.c.RequestSnippetsEnabled)
+				assert.Equal(t, []RequestSnippetLanguage{SnippetCurlBash, SnippetCurlPowerShell}, snap.c.RequestSnippets.Languages)
 			},
 		},
 		{
 			name: "WithUIRequestSnippetsExpanded sets RequestSnippets DefaultExpanded",
 			opt:  WithUIRequestSnippetsExpanded(true),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.True(t, ui.RequestSnippets.DefaultExpanded)
+				assert.True(t, snap.c.RequestSnippets.DefaultExpanded)
 			},
 		},
 		{
 			name: "WithUIDisplayRequestDuration sets DisplayRequestDuration",
 			opt:  WithUIDisplayRequestDuration(false),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.False(t, ui.DisplayRequestDuration)
+				assert.False(t, snap.c.DisplayRequestDuration)
 			},
 		},
 		{
 			name: "WithUIFilter sets Filter",
 			opt:  WithUIFilter(false),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.False(t, ui.Filter)
+				assert.False(t, snap.c.Filter)
 			},
 		},
 		{
 			name: "WithUIMaxDisplayedTags sets MaxDisplayedTags",
 			opt:  WithUIMaxDisplayedTags(10),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, 10, ui.MaxDisplayedTags)
+				assert.Equal(t, 10, snap.c.MaxDisplayedTags)
 			},
 		},
 		{
 			name: "WithUIOperationsSorter sets OperationsSorter",
 			opt:  WithUIOperationsSorter(OperationsSorterAlpha),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, OperationsSorterAlpha, ui.OperationsSorter)
+				assert.Equal(t, OperationsSorterAlpha, snap.c.OperationsSorter)
 			},
 		},
 		{
 			name: "WithUITagsSorter sets TagsSorter",
 			opt:  WithUITagsSorter(TagsSorterAlpha),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, TagsSorterAlpha, ui.TagsSorter)
+				assert.Equal(t, TagsSorterAlpha, snap.c.TagsSorter)
 			},
 		},
 		{
 			name: "WithUISyntaxHighlight sets SyntaxHighlight Activated",
 			opt:  WithUISyntaxHighlight(false),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.False(t, ui.SyntaxHighlight.Activated)
+				assert.False(t, snap.c.SyntaxHighlight.Activated)
 			},
 		},
 		{
 			name: "WithUISyntaxTheme sets SyntaxHighlight Theme",
 			opt:  WithUISyntaxTheme(SyntaxThemeAgate),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, SyntaxThemeAgate, ui.SyntaxHighlight.Theme)
+				assert.Equal(t, SyntaxThemeAgate, snap.c.SyntaxHighlight.Theme)
 			},
 		},
 		{
 			name: "WithUIValidator sets ValidatorURL",
 			opt:  WithUIValidator(ValidatorLocal),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, ValidatorLocal, ui.ValidatorURL)
+				assert.Equal(t, ValidatorLocal, snap.c.ValidatorURL)
 			},
 		},
 		{
 			name: "WithUIPersistAuth sets PersistAuthorization",
 			opt:  WithUIPersistAuth(false),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.False(t, ui.PersistAuthorization)
+				assert.False(t, snap.c.PersistAuthorization)
 			},
 		},
 		{
 			name: "WithUIWithCredentials sets WithCredentials",
 			opt:  WithUIWithCredentials(true),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.True(t, ui.WithCredentials)
+				assert.True(t, snap.c.WithCredentials)
 			},
 		},
 		{
 			name: "WithUISupportedMethods sets SupportedSubmitMethods",
 			opt:  WithUISupportedMethods(MethodGet, MethodPost),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.Equal(t, []HTTPMethod{MethodGet, MethodPost}, ui.SupportedSubmitMethods)
+				assert.Equal(t, []HTTPMethod{MethodGet, MethodPost}, snap.c.SupportedSubmitMethods)
 			},
 		},
 		{
 			name: "WithUIShowExtensions sets ShowExtensions",
 			opt:  WithUIShowExtensions(true),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.True(t, ui.ShowExtensions)
+				assert.True(t, snap.c.ShowExtensions)
 			},
 		},
 		{
 			name: "WithUIShowCommonExtensions sets ShowCommonExtensions",
 			opt:  WithUIShowCommonExtensions(false),
-			assert: func(t *testing.T, ui UIConfig) {
+			assert: func(t *testing.T, snap *uiSnapshot) {
 				t.Helper()
-				assert.False(t, ui.ShowCommonExtensions)
+				assert.False(t, snap.c.ShowCommonExtensions)
 			},
 		},
 	}
@@ -218,9 +218,9 @@ func TestWithSwaggerUI_appliesUIOptions(t *testing.T) {
 				WithTitle("API", "1.0.0"),
 				WithSwaggerUI("/docs", tt.opt),
 			)
-			ui, ok := api.UI().(UIConfig)
+			snap, ok := api.UI().(*uiSnapshot)
 			require.True(t, ok)
-			tt.assert(t, ui)
+			tt.assert(t, snap)
 		})
 	}
 }
@@ -239,13 +239,13 @@ func TestWithSwaggerUI_multipleOptions(t *testing.T) {
 		),
 	)
 
-	ui, ok := api.UI().(UIConfig)
+	snap, ok := api.UI().(*uiSnapshot)
 	require.True(t, ok)
-	assert.True(t, ui.DeepLinking)
-	assert.Equal(t, DocExpansionFull, ui.DocExpansion)
-	assert.Equal(t, 2, ui.DefaultModelsExpandDepth)
-	assert.False(t, ui.TryItOutEnabled)
-	assert.Equal(t, ValidatorLocal, ui.ValidatorURL)
+	assert.True(t, snap.c.DeepLinking)
+	assert.Equal(t, DocExpansionFull, snap.c.DocExpansion)
+	assert.Equal(t, 2, snap.c.DefaultModelsExpandDepth)
+	assert.False(t, snap.c.TryItOutEnabled)
+	assert.Equal(t, ValidatorLocal, snap.c.ValidatorURL)
 }
 
 func TestWithoutSwaggerUI_setsServeUIFalse(t *testing.T) {
