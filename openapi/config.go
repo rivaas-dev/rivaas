@@ -15,6 +15,7 @@
 package openapi
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -24,20 +25,21 @@ import (
 // config holds construction-time OpenAPI configuration.
 // Options mutate config; New() validates config and builds the API from it.
 type config struct {
-	info            model.Info
-	servers         []model.Server
-	tags            []model.Tag
-	securitySchemes map[string]*model.SecurityScheme
-	defaultSecurity []model.SecurityRequirement
-	externalDocs    *model.ExternalDocs
-	extensions      map[string]any
-	version         Version
-	strictDownlevel bool
-	specPath        string
-	uiPath          string
-	serveUI         bool
-	validateSpec    bool
-	ui              UIConfig
+	info             model.Info
+	servers          []model.Server
+	tags             []model.Tag
+	securitySchemes  map[string]*model.SecurityScheme
+	defaultSecurity  []model.SecurityRequirement
+	externalDocs     *model.ExternalDocs
+	extensions       map[string]any
+	version          Version
+	strictDownlevel  bool
+	specPath         string
+	uiPath           string
+	serveUI          bool
+	validateSpec     bool
+	ui               UIConfig
+	validationErrors []error // Errors from nil options (e.g. WithSwaggerUI)
 }
 
 // defaultConfig returns a config with default values.
@@ -115,7 +117,10 @@ const (
 //	}
 func New(opts ...Option) (*API, error) {
 	cfg := defaultConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("openapi: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 	if err := validateConfig(cfg); err != nil {
@@ -126,6 +131,9 @@ func New(opts ...Option) (*API, error) {
 
 // validateConfig checks that the config is valid.
 func validateConfig(cfg *config) error {
+	if len(cfg.validationErrors) > 0 {
+		return errors.Join(cfg.validationErrors...)
+	}
 	if cfg.info.Title == "" {
 		return ErrTitleRequired
 	}

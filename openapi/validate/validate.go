@@ -105,7 +105,10 @@ type Validator struct {
 // JSON Schema draft-04 (for OpenAPI 3.0) and draft-2020-12 (for OpenAPI 3.1).
 func New(opts ...Option) (*Validator, error) {
 	cfg := defaultConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("openapi/validate: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 	v := &Validator{

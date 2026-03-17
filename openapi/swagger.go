@@ -14,6 +14,8 @@
 
 package openapi
 
+import "fmt"
+
 // UIOption configures Swagger UI behavior and appearance.
 type UIOption func(*UIConfig)
 
@@ -36,7 +38,11 @@ func WithSwaggerUI(path string, opts ...UIOption) Option {
 	return func(c *config) {
 		c.serveUI = true
 		c.uiPath = path
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				c.validationErrors = append(c.validationErrors, fmt.Errorf("openapi: swagger UI option at index %d cannot be nil", i))
+				continue
+			}
 			opt(&c.ui)
 		}
 	}

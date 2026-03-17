@@ -17,6 +17,7 @@
 package openapi
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -404,6 +405,40 @@ func TestConfig_MustNewPanic(t *testing.T) {
 	assert.NotPanics(t, func() {
 		_ = MustNew(WithTitle("Test", "1.0.0"))
 	})
+}
+
+func TestNew_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := New(WithTitle("Test API", "1.0.0"), nil)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
+}
+
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithTitle("Test API", "1.0.0"), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
+}
+
+func TestNew_WithSwaggerUI_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+	_, err := New(WithTitle("Test", "1.0.0"), WithSwaggerUI("/docs", WithUIDeepLinking(true), nil))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "swagger UI option")
+	assert.Contains(t, err.Error(), "cannot be nil")
 }
 
 func TestConfig_AllOptions(t *testing.T) {

@@ -18,6 +18,7 @@ package validate
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -92,6 +93,32 @@ func TestNew(t *testing.T) {
 	v, err := New()
 	require.NoError(t, err)
 	require.NotNil(t, v)
+}
+
+func TestNew_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	v, err := New(WithVersions(V30), nil)
+	require.Error(t, err)
+	require.Nil(t, v)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
+}
+
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithVersions(V30), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
 }
 
 func TestValidator_Validate_caching(t *testing.T) {
