@@ -15,6 +15,8 @@
 package app
 
 import (
+	"fmt"
+
 	"rivaas.dev/binding"
 	"rivaas.dev/validation"
 )
@@ -128,7 +130,8 @@ func WithValidationOptions(opts ...validation.Option) BindOption {
 }
 
 // applyBindOptions creates a bindConfig with default values and applies the given options.
-func applyBindOptions(opts []BindOption) *bindConfig {
+// Returns an error if any option is nil.
+func applyBindOptions(opts []BindOption) (*bindConfig, error) {
 	cfg := &bindConfig{
 		strict:         false,
 		skipValidation: false,
@@ -138,9 +141,12 @@ func applyBindOptions(opts []BindOption) *bindConfig {
 		validationOpts: nil,
 	}
 
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("app: bind option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 
-	return cfg
+	return cfg, nil
 }

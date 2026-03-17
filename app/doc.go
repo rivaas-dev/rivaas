@@ -246,7 +246,7 @@
 //   - [MustBind]: Type-safe Must pattern
 //   - [BindOnly]: Bind without validation (for advanced use)
 //
-// Options for customization:
+// Options for customization. Bind and Validate options must not be nil; passing a nil option returns an error.
 //
 //   - [WithStrict]: Reject unknown JSON fields (Bind)
 //   - [WithPartial]: Partial validation for PATCH requests (Bind)

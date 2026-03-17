@@ -106,16 +106,19 @@ type bindingMetadata struct {
 // Note: For multipart forms with file uploads, files must be retrieved
 // separately using c.File() or c.Files().
 func (c *Context) Bind(out any, opts ...BindOption) error {
-	cfg := applyBindOptions(opts)
+	cfg, err := applyBindOptions(opts)
+	if err != nil {
+		return err
+	}
 
 	// Step 1: Binding
-	if err := c.bindInternal(out, cfg); err != nil {
+	if err = c.bindInternal(out, cfg); err != nil {
 		return err
 	}
 
 	// Step 2: Validation (unless skipped)
 	if !cfg.skipValidation {
-		if err := c.validateInternal(out, cfg); err != nil {
+		if err = c.validateInternal(out, cfg); err != nil {
 			return err
 		}
 	}
@@ -319,7 +322,10 @@ func (c *Context) MustBind(out any, opts ...BindOption) bool {
 //	    return
 //	}
 func (c *Context) BindOnly(out any, opts ...BindOption) error {
-	cfg := applyBindOptions(opts)
+	cfg, err := applyBindOptions(opts)
+	if err != nil {
+		return err
+	}
 	return c.bindInternal(out, cfg)
 }
 

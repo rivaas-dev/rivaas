@@ -258,11 +258,22 @@ func TestApplyBindOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := applyBindOptions(tt.opts)
+			cfg, err := applyBindOptions(tt.opts)
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantStrict, cfg.strict)
 			assert.Equal(t, tt.wantSkipValid, cfg.skipValidation)
 			assert.Equal(t, tt.wantPartial, cfg.partial)
 		})
 	}
+}
+
+func TestApplyBindOptions_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := applyBindOptions([]BindOption{WithStrict(), nil, WithPartial()})
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
 }
