@@ -80,7 +80,10 @@ type Engine struct {
 //	}
 func New(opts ...Option) (*Engine, error) {
 	cfg := newConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("validation: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 

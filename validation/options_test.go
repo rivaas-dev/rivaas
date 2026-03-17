@@ -79,6 +79,32 @@ func TestMustNew_PanicsOnInvalidConfig(t *testing.T) {
 	assert.Contains(t, fmt.Sprint(panicVal), "maxErrors")
 }
 
+func TestNew_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	v, err := New(WithMaxErrors(10), nil)
+	require.Error(t, err)
+	require.Nil(t, v)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
+}
+
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithMaxErrors(10), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
+}
+
 func TestWithRunAll(t *testing.T) {
 	t.Parallel()
 	type User struct {
