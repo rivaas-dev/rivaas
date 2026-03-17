@@ -321,52 +321,78 @@ func TestLifecycleOptions(t *testing.T) {
 
 	t.Run("deprecated", func(t *testing.T) {
 		t.Parallel()
-		lc := ApplyLifecycleOptions(Deprecated())
-		assert.True(t, lc.Deprecated)
-		assert.False(t, lc.DeprecatedSince.IsZero())
+		engine, err := New(WithDefault("v1"))
+		require.NoError(t, err)
+		engine.ApplyLifecycle("v1", Deprecated())
+
+		w := httptest.NewRecorder()
+		engine.SetLifecycleHeaders(w, "v1", "/users")
+		assert.Equal(t, "true", w.Header().Get("Deprecation"))
 	})
 
 	t.Run("deprecated since", func(t *testing.T) {
 		t.Parallel()
 		date := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-		lc := ApplyLifecycleOptions(DeprecatedSince(date))
-		assert.True(t, lc.Deprecated)
-		assert.Equal(t, date, lc.DeprecatedSince)
+		engine, err := New(WithDefault("v1"))
+		require.NoError(t, err)
+		engine.ApplyLifecycle("v1", DeprecatedSince(date))
+
+		w := httptest.NewRecorder()
+		engine.SetLifecycleHeaders(w, "v1", "/users")
+		assert.Equal(t, "true", w.Header().Get("Deprecation"))
 	})
 
 	t.Run("sunset", func(t *testing.T) {
 		t.Parallel()
 		date := time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)
-		lc := ApplyLifecycleOptions(Sunset(date))
-		assert.Equal(t, date, lc.SunsetDate)
+		engine, err := New(WithDefault("v1"))
+		require.NoError(t, err)
+		engine.ApplyLifecycle("v1", Deprecated(), Sunset(date))
+
+		w := httptest.NewRecorder()
+		engine.SetLifecycleHeaders(w, "v1", "/users")
+		assert.Equal(t, date.UTC().Format(http.TimeFormat), w.Header().Get("Sunset"))
 	})
 
 	t.Run("migration docs", func(t *testing.T) {
 		t.Parallel()
-		lc := ApplyLifecycleOptions(MigrationDocs("https://docs.example.com"))
-		assert.Equal(t, "https://docs.example.com", lc.MigrationURL)
+		engine, err := New(WithDefault("v1"))
+		require.NoError(t, err)
+		engine.ApplyLifecycle("v1", Deprecated(), MigrationDocs("https://docs.example.com"))
+
+		w := httptest.NewRecorder()
+		engine.SetLifecycleHeaders(w, "v1", "/users")
+		assert.Contains(t, w.Header().Get("Link"), "https://docs.example.com")
 	})
 
 	t.Run("successor version", func(t *testing.T) {
 		t.Parallel()
-		lc := ApplyLifecycleOptions(SuccessorVersion("v2"))
-		assert.Equal(t, "v2", lc.Successor)
+		engine, err := New(WithDefault("v1"))
+		require.NoError(t, err)
+		engine.ApplyLifecycle("v1", Deprecated(), SuccessorVersion("v2"))
+
+		w := httptest.NewRecorder()
+		engine.SetLifecycleHeaders(w, "v1", "/users")
+		assert.Equal(t, "true", w.Header().Get("Deprecation"))
 	})
 
 	t.Run("combined options", func(t *testing.T) {
 		t.Parallel()
 		date := time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)
-		lc := ApplyLifecycleOptions(
+		engine, err := New(WithDefault("v1"))
+		require.NoError(t, err)
+		engine.ApplyLifecycle("v1",
 			Deprecated(),
 			Sunset(date),
 			MigrationDocs("https://docs.example.com/migrate"),
 			SuccessorVersion("v2"),
 		)
 
-		assert.True(t, lc.Deprecated)
-		assert.Equal(t, date, lc.SunsetDate)
-		assert.Equal(t, "https://docs.example.com/migrate", lc.MigrationURL)
-		assert.Equal(t, "v2", lc.Successor)
+		w := httptest.NewRecorder()
+		engine.SetLifecycleHeaders(w, "v1", "/users")
+		assert.Equal(t, "true", w.Header().Get("Deprecation"))
+		assert.Equal(t, date.UTC().Format(http.TimeFormat), w.Header().Get("Sunset"))
+		assert.Contains(t, w.Header().Get("Link"), "https://docs.example.com/migrate")
 	})
 }
 
@@ -392,17 +418,9 @@ func TestEngineSetLifecycleHeaders(t *testing.T) {
 		t.Parallel()
 		sunsetDate := time.Now().Add(30 * 24 * time.Hour)
 
-		engine, err := New(
-			WithDefault("v1"),
-		)
+		engine, err := New(WithDefault("v1"))
 		require.NoError(t, err)
-
-		// Set lifecycle
-		lc := ApplyLifecycleOptions(
-			Deprecated(),
-			Sunset(sunsetDate),
-		)
-		engine.SetLifecycle("v1", lc)
+		engine.ApplyLifecycle("v1", Deprecated(), Sunset(sunsetDate))
 
 		w := httptest.NewRecorder()
 		isSunset := engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -416,18 +434,9 @@ func TestEngineSetLifecycleHeaders(t *testing.T) {
 		t.Parallel()
 		pastDate := time.Now().Add(-30 * 24 * time.Hour)
 
-		engine, err := New(
-			WithDefault("v1"),
-			WithSunsetEnforcement(),
-		)
+		engine, err := New(WithDefault("v1"), WithSunsetEnforcement())
 		require.NoError(t, err)
-
-		// Set lifecycle with past sunset
-		lc := ApplyLifecycleOptions(
-			Deprecated(),
-			Sunset(pastDate),
-		)
-		engine.SetLifecycle("v1", lc)
+		engine.ApplyLifecycle("v1", Deprecated(), Sunset(pastDate))
 
 		w := httptest.NewRecorder()
 		isSunset := engine.SetLifecycleHeaders(w, "v1", "/users")

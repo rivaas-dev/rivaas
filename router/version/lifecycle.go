@@ -17,8 +17,8 @@ package version
 import "time"
 
 // LifecycleOption configures a specific version's lifecycle.
-// These options are passed to r.Version("v1", opts...).
-type LifecycleOption func(*LifecycleConfig)
+// These options are passed to r.Version("v1", opts...) or VersionRouter.Configure(opts...).
+type LifecycleOption func(*lifecycleConfig)
 
 // Deprecated marks this version as deprecated.
 // The deprecation date is set to now.
@@ -27,10 +27,10 @@ type LifecycleOption func(*LifecycleConfig)
 //
 //	v1 := r.Version("v1", version.Deprecated())
 func Deprecated() LifecycleOption {
-	return func(lc *LifecycleConfig) {
-		lc.Deprecated = true
-		if lc.DeprecatedSince.IsZero() {
-			lc.DeprecatedSince = time.Now()
+	return func(lc *lifecycleConfig) {
+		lc.deprecated = true
+		if lc.deprecatedSince.IsZero() {
+			lc.deprecatedSince = time.Now()
 		}
 	}
 }
@@ -44,9 +44,9 @@ func Deprecated() LifecycleOption {
 //	    version.DeprecatedSince(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
 //	)
 func DeprecatedSince(date time.Time) LifecycleOption {
-	return func(lc *LifecycleConfig) {
-		lc.Deprecated = true
-		lc.DeprecatedSince = date
+	return func(lc *lifecycleConfig) {
+		lc.deprecated = true
+		lc.deprecatedSince = date
 	}
 }
 
@@ -60,8 +60,8 @@ func DeprecatedSince(date time.Time) LifecycleOption {
 //	    version.Sunset(time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)),
 //	)
 func Sunset(date time.Time) LifecycleOption {
-	return func(lc *LifecycleConfig) {
-		lc.SunsetDate = date
+	return func(lc *lifecycleConfig) {
+		lc.sunsetDate = date
 	}
 }
 
@@ -75,8 +75,8 @@ func Sunset(date time.Time) LifecycleOption {
 //	    version.MigrationDocs("https://docs.example.com/migrate/v1-to-v2"),
 //	)
 func MigrationDocs(url string) LifecycleOption {
-	return func(lc *LifecycleConfig) {
-		lc.MigrationURL = url
+	return func(lc *lifecycleConfig) {
+		lc.migrationURL = url
 	}
 }
 
@@ -90,17 +90,16 @@ func MigrationDocs(url string) LifecycleOption {
 //	    version.SuccessorVersion("v2"),
 //	)
 func SuccessorVersion(v string) LifecycleOption {
-	return func(lc *LifecycleConfig) {
-		lc.Successor = v
+	return func(lc *lifecycleConfig) {
+		lc.successor = v
 	}
 }
 
-// ApplyLifecycleOptions applies lifecycle options to a LifecycleConfig.
-func ApplyLifecycleOptions(opts ...LifecycleOption) *LifecycleConfig {
-	lc := &LifecycleConfig{}
+// applyLifecycleOptions builds a lifecycleConfig from options (internal use).
+func applyLifecycleOptions(opts ...LifecycleOption) *lifecycleConfig {
+	lc := &lifecycleConfig{}
 	for _, opt := range opts {
 		opt(lc)
 	}
-
 	return lc
 }

@@ -214,18 +214,18 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version, route strin
 
 	// Get lifecycle config for this version
 	lc := cfg.getLifecycle(version)
-	if lc == nil || !lc.Deprecated {
+	if lc == nil || !lc.deprecated {
 		return false // Not deprecated
 	}
 
 	now := cfg.nowTime()
 
 	// Check if version has been sunset
-	if cfg.enforceSunset && !lc.SunsetDate.IsZero() && now.After(lc.SunsetDate) {
+	if cfg.enforceSunset && !lc.sunsetDate.IsZero() && now.After(lc.sunsetDate) {
 		// Version is past sunset - set headers and return true
-		w.Header().Set("Sunset", lc.SunsetDate.UTC().Format(http.TimeFormat))
-		if lc.MigrationURL != "" {
-			w.Header().Set("Link", fmt.Sprintf("<%s>; rel=\"sunset\"", lc.MigrationURL))
+		w.Header().Set("Sunset", lc.sunsetDate.UTC().Format(http.TimeFormat))
+		if lc.migrationURL != "" {
+			w.Header().Set("Link", fmt.Sprintf("<%s>; rel=\"sunset\"", lc.migrationURL))
 		}
 
 		return true
@@ -233,17 +233,17 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version, route strin
 
 	// Version is deprecated but not yet sunset
 	w.Header().Set("Deprecation", "true")
-	if !lc.SunsetDate.IsZero() {
-		w.Header().Set("Sunset", lc.SunsetDate.UTC().Format(http.TimeFormat))
+	if !lc.sunsetDate.IsZero() {
+		w.Header().Set("Sunset", lc.sunsetDate.UTC().Format(http.TimeFormat))
 	}
 
 	// Add Link headers for documentation
-	if lc.MigrationURL != "" {
+	if lc.migrationURL != "" {
 		linkHeaders := []string{
-			fmt.Sprintf("<%s>; rel=\"deprecation\"", lc.MigrationURL),
+			fmt.Sprintf("<%s>; rel=\"deprecation\"", lc.migrationURL),
 		}
-		if !lc.SunsetDate.IsZero() {
-			linkHeaders = append(linkHeaders, fmt.Sprintf("<%s>; rel=\"sunset\"", lc.MigrationURL))
+		if !lc.sunsetDate.IsZero() {
+			linkHeaders = append(linkHeaders, fmt.Sprintf("<%s>; rel=\"sunset\"", lc.migrationURL))
 		}
 		w.Header().Set("Link", strings.Join(linkHeaders, ", "))
 	}
@@ -251,8 +251,8 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version, route strin
 	// Add Warning: 299 header if enabled
 	if cfg.sendWarning299 {
 		warningMsg := fmt.Sprintf("299 - \"API %s is deprecated", version)
-		if !lc.SunsetDate.IsZero() {
-			warningMsg += " and will be removed on " + lc.SunsetDate.Format(time.RFC3339)
+		if !lc.sunsetDate.IsZero() {
+			warningMsg += " and will be removed on " + lc.sunsetDate.Format(time.RFC3339)
 		}
 		warningMsg += ". Please upgrade to a supported version.\""
 		w.Header().Set("Warning", warningMsg)
@@ -274,19 +274,20 @@ func (e *Engine) DefaultVersion() string {
 	return e.config.defaultVersion
 }
 
-// SetLifecycle registers or updates the lifecycle configuration for a version.
-// Used by the router when r.Version("v1", version.Deprecated(), ...) is called.
-func (e *Engine) SetLifecycle(version string, lc *LifecycleConfig) {
-	if e == nil || e.config == nil || version == "" {
+// ApplyLifecycle applies lifecycle options for a version.
+// Options are merged with any existing lifecycle for that version (e.g. from a previous Version() or Configure() call).
+// Used by the router when r.Version("v1", opts...) or VersionRouter.Configure(opts...) is called.
+func (e *Engine) ApplyLifecycle(version string, opts ...LifecycleOption) {
+	if e == nil || e.config == nil || version == "" || len(opts) == 0 {
 		return
 	}
-	e.config.setLifecycle(version, lc)
-}
-
-// GetLifecycle returns the lifecycle configuration for a version, or nil if not configured.
-func (e *Engine) GetLifecycle(version string) *LifecycleConfig {
-	if e == nil || e.config == nil {
-		return nil
+	lc := e.config.getLifecycle(version)
+	if lc == nil {
+		lc = applyLifecycleOptions(opts...)
+	} else {
+		for _, opt := range opts {
+			opt(lc)
+		}
 	}
-	return e.config.getLifecycle(version)
+	e.config.setLifecycle(version, lc)
 }

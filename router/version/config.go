@@ -40,7 +40,7 @@ type config struct {
 	enforceSunset     bool // Return 410 Gone after sunset date
 
 	// Per-version lifecycle configurations
-	versionLifecycles map[string]*LifecycleConfig
+	versionLifecycles map[string]*lifecycleConfig
 
 	// observer holds callbacks for version detection events (configured via WithObserver options).
 	observer *observer
@@ -52,14 +52,14 @@ type config struct {
 	validationErrors []error
 }
 
-// LifecycleConfig holds lifecycle configuration for a specific version.
-// This is configured via lifecycle options passed to r.Version().
-type LifecycleConfig struct {
-	Deprecated      bool
-	DeprecatedSince time.Time
-	SunsetDate      time.Time
-	MigrationURL    string
-	Successor       string
+// lifecycleConfig holds lifecycle configuration for a specific version (internal).
+// Configured via lifecycle options passed to r.Version() or VersionRouter.Configure().
+type lifecycleConfig struct {
+	deprecated      bool
+	deprecatedSince time.Time
+	sunsetDate      time.Time
+	migrationURL    string
+	successor       string
 }
 
 // Detector defines the interface for version detection strategies.
@@ -88,7 +88,7 @@ type Option func(*config)
 func newConfig(opts ...Option) (*config, error) {
 	cfg := &config{
 		defaultVersion:    "v1", // Sensible default
-		versionLifecycles: make(map[string]*LifecycleConfig),
+		versionLifecycles: make(map[string]*lifecycleConfig),
 	}
 
 	for _, opt := range opts {
@@ -124,7 +124,7 @@ func (c *config) validate() error {
 }
 
 // getLifecycle returns the lifecycle config for a version, or nil if not configured (internal use).
-func (c *config) getLifecycle(version string) *LifecycleConfig {
+func (c *config) getLifecycle(version string) *lifecycleConfig {
 	if c.versionLifecycles == nil {
 		return nil
 	}
@@ -133,9 +133,9 @@ func (c *config) getLifecycle(version string) *LifecycleConfig {
 }
 
 // setLifecycle sets the lifecycle config for a version (internal use).
-func (c *config) setLifecycle(version string, lc *LifecycleConfig) {
+func (c *config) setLifecycle(version string, lc *lifecycleConfig) {
 	if c.versionLifecycles == nil {
-		c.versionLifecycles = make(map[string]*LifecycleConfig)
+		c.versionLifecycles = make(map[string]*lifecycleConfig)
 	}
 	c.versionLifecycles[version] = lc
 }

@@ -66,7 +66,7 @@
 //
 // This package follows these principles:
 //
-//   - Configuration is via functional options only; no user-facing config struct. [Engine] exposes narrow getters ([Engine.DefaultVersion], [Engine.GetLifecycle], [Engine.SetLifecycle]) when callers need specific values.
+//   - Configuration is via functional options only; no user-facing config struct. [Engine] exposes [Engine.DefaultVersion] and behavior such as [Engine.SetLifecycleHeaders] as needed.
 //   - Observer hooks (version detection events) are configured only via [WithObserver] and [OnDetected], [OnMissing], [OnInvalid], [OnDeprecatedUse]; no observer type is exported.
 //   - Constructors: both [New] and [MustNew] are provided (use MustNew in main/init, New when handling errors).
 //   - Progressive disclosure: simple cases are simple, complex cases are possible

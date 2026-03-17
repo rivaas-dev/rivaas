@@ -87,11 +87,11 @@ type atomicVersionTrees struct {
 	trees unsafe.Pointer // *map[string]map[string]*node (version -> method -> tree)
 }
 
-// VersionRouter represents a version-specific router with lifecycle configuration.
+// VersionRouter represents a version-specific router.
+// Lifecycle is configured via options passed to Version() or Configure() and stored in the version engine.
 type VersionRouter struct {
-	router    *Router
-	version   string
-	lifecycle *version.LifecycleConfig
+	router  *Router
+	version string
 }
 
 // Version returns the version string for this VersionRouter.
@@ -305,14 +305,8 @@ func (r *Router) Version(ver string, opts ...version.LifecycleOption) *VersionRo
 		version: ver,
 	}
 
-	// Apply lifecycle options if any
-	if len(opts) > 0 {
-		vr.lifecycle = version.ApplyLifecycleOptions(opts...)
-
-		// Register lifecycle with the engine
-		if r.versionEngine != nil {
-			r.versionEngine.SetLifecycle(ver, vr.lifecycle)
-		}
+	if len(opts) > 0 && r.versionEngine != nil {
+		r.versionEngine.ApplyLifecycle(ver, opts...)
 	}
 
 	return vr
@@ -336,18 +330,8 @@ func (vr *VersionRouter) Configure(opts ...version.LifecycleOption) *VersionRout
 		return vr
 	}
 
-	if vr.lifecycle == nil {
-		vr.lifecycle = &version.LifecycleConfig{}
-	}
-
-	// Apply options to existing lifecycle config
-	for _, opt := range opts {
-		opt(vr.lifecycle)
-	}
-
-	// Update engine's lifecycle config
 	if vr.router.versionEngine != nil {
-		vr.router.versionEngine.SetLifecycle(vr.version, vr.lifecycle)
+		vr.router.versionEngine.ApplyLifecycle(vr.version, opts...)
 	}
 
 	return vr
