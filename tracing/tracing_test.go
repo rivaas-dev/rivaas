@@ -1458,6 +1458,41 @@ func TestNewProviderOptions(t *testing.T) {
 	})
 }
 
+func TestNew_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	tracer, err := New(WithServiceName("test"), nil)
+	require.Error(t, err)
+	require.Nil(t, tracer)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
+}
+
+func TestNew_WithOTLP_NilNestedOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(WithServiceName("test"), WithOTLP("localhost:4317", nil))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OTLP option")
+	assert.Contains(t, err.Error(), "cannot be nil")
+}
+
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithServiceName("test"), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
+}
+
 // TestMultipleProvidersValidation tests that configuring multiple providers returns an error
 func TestMultipleProvidersValidation(t *testing.T) {
 	t.Parallel()

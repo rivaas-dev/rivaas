@@ -155,7 +155,10 @@ type Tracer struct {
 //	defer tracer.Shutdown(context.Background())
 func New(opts ...Option) (*Tracer, error) {
 	cfg := defaultConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("tracing: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 	if err := cfg.validate(); err != nil {

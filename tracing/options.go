@@ -262,7 +262,11 @@ func WithOTLP(endpoint string, opts ...OTLPOption) Option {
 		c.otlpEndpoint = endpoint
 		c.providerSet = true
 		otlpCfg := &otlpConfig{}
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				c.validationErrors = append(c.validationErrors, fmt.Errorf("tracing: OTLP option at index %d cannot be nil", i))
+				continue
+			}
 			opt(otlpCfg)
 		}
 		c.otlpInsecure = otlpCfg.insecure
