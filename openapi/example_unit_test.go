@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"rivaas.dev/openapi/example"
 )
 
 func TestNewExample(t *testing.T) {
@@ -29,7 +31,7 @@ func TestNewExample(t *testing.T) {
 		name        string
 		exName      string
 		value       any
-		opts        []ExampleOption
+		opts        []example.Option
 		wantName    string
 		wantValue   any
 		wantSummary string
@@ -46,7 +48,7 @@ func TestNewExample(t *testing.T) {
 			name:        "with summary",
 			exName:      "test",
 			value:       "value",
-			opts:        []ExampleOption{WithExampleSummary("Test summary")},
+			opts:        []example.Option{example.WithSummary("Test summary")},
 			wantName:    "test",
 			wantValue:   "value",
 			wantSummary: "Test summary",
@@ -55,7 +57,7 @@ func TestNewExample(t *testing.T) {
 			name:      "with description",
 			exName:    "test",
 			value:     42,
-			opts:      []ExampleOption{WithExampleDescription("Test description")},
+			opts:      []example.Option{example.WithDescription("Test description")},
 			wantName:  "test",
 			wantValue: 42,
 			wantDesc:  "Test description",
@@ -64,9 +66,9 @@ func TestNewExample(t *testing.T) {
 			name:   "with all options",
 			exName: "complete",
 			value:  struct{ ID int }{ID: 1},
-			opts: []ExampleOption{
-				WithExampleSummary("Summary"),
-				WithExampleDescription("Description"),
+			opts: []example.Option{
+				example.WithSummary("Summary"),
+				example.WithDescription("Description"),
 			},
 			wantName:    "complete",
 			wantValue:   struct{ ID int }{ID: 1},
@@ -92,7 +94,7 @@ func TestNewExample(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := NewExample(tt.exName, tt.value, tt.opts...)
+			ex := example.New(tt.exName, tt.value, tt.opts...)
 
 			assert.Equal(t, tt.wantName, ex.Name())
 			assert.Equal(t, tt.wantValue, ex.Value())
@@ -111,7 +113,7 @@ func TestExternalExample(t *testing.T) {
 		name        string
 		exName      string
 		url         string
-		opts        []ExampleOption
+		opts        []example.Option
 		wantName    string
 		wantURL     string
 		wantSummary string
@@ -127,7 +129,7 @@ func TestExternalExample(t *testing.T) {
 			name:        "with summary",
 			exName:      "xml",
 			url:         "https://example.com/data.xml",
-			opts:        []ExampleOption{WithExampleSummary("XML format")},
+			opts:        []example.Option{example.WithSummary("XML format")},
 			wantName:    "xml",
 			wantURL:     "https://example.com/data.xml",
 			wantSummary: "XML format",
@@ -144,7 +146,7 @@ func TestExternalExample(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := ExternalExample(tt.exName, tt.url, tt.opts...)
+			ex := example.NewExternal(tt.exName, tt.url, tt.opts...)
 
 			assert.Equal(t, tt.wantName, ex.Name())
 			assert.Equal(t, tt.wantURL, ex.ExternalValue())
@@ -172,7 +174,7 @@ func TestWithExampleSummary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := NewExample("test", nil, WithExampleSummary(tt.summary))
+			ex := example.New("test", nil, example.WithSummary(tt.summary))
 
 			assert.Equal(t, tt.want, ex.Summary())
 		})
@@ -196,7 +198,7 @@ func TestWithExampleDescription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := NewExample("test", nil, WithExampleDescription(tt.desc))
+			ex := example.New("test", nil, example.WithDescription(tt.desc))
 
 			assert.Equal(t, tt.want, ex.Description())
 		})
@@ -208,19 +210,19 @@ func TestExample_IsExternal(t *testing.T) {
 
 	t.Run("inline example is not external", func(t *testing.T) {
 		t.Parallel()
-		ex := NewExample("test", "value")
+		ex := example.New("test", "value")
 		assert.False(t, ex.IsExternal())
 	})
 
 	t.Run("external example is external", func(t *testing.T) {
 		t.Parallel()
-		ex := ExternalExample("test", "https://example.com/data.json")
+		ex := example.NewExternal("test", "https://example.com/data.json")
 		assert.True(t, ex.IsExternal())
 	})
 
 	t.Run("external with empty URL is not external", func(t *testing.T) {
 		t.Parallel()
-		ex := ExternalExample("test", "")
+		ex := example.NewExternal("test", "")
 		assert.False(t, ex.IsExternal())
 	})
 }

@@ -14,6 +14,7 @@
 
 // Package example provides types and constructors for OpenAPI Example Objects.
 //
+// Options apply to an internal config; the constructor builds the public Example from it.
 // Examples can be attached to request bodies and responses to help API consumers
 // understand expected data formats. Both inline values and external URLs are supported.
 //
@@ -36,6 +37,16 @@
 //	)
 package example
 
+// exampleConfig holds construction-time configuration for an Example.
+// Options mutate config; New/NewExternal build the public Example from it.
+type exampleConfig struct {
+	name          string
+	summary       string
+	description   string
+	value         any
+	externalValue string
+}
+
 // Example represents an OpenAPI Example Object.
 // See: https://spec.openapis.org/oas/v3.1.0#example-object
 //
@@ -50,7 +61,19 @@ type Example struct {
 }
 
 // Option configures an Example using the functional options pattern.
-type Option func(*Example)
+// Options apply to an internal config; the constructor builds the public type from it.
+type Option func(*exampleConfig)
+
+// exampleFromConfig builds an Example from a validated config.
+func exampleFromConfig(cfg *exampleConfig) Example {
+	return Example{
+		name:          cfg.name,
+		summary:       cfg.summary,
+		description:   cfg.description,
+		value:         cfg.value,
+		externalValue: cfg.externalValue,
+	}
+}
 
 // New creates a named example with an inline value.
 //
@@ -71,15 +94,14 @@ type Option func(*Example)
 //		example.WithDescription("Has elevated permissions"),
 //	)
 func New(name string, value any, opts ...Option) Example {
-	e := Example{
+	cfg := &exampleConfig{
 		name:  name,
 		value: value,
 	}
 	for _, opt := range opts {
-		opt(&e)
+		opt(cfg)
 	}
-
-	return e
+	return exampleFromConfig(cfg)
 }
 
 // NewExternal creates a named example pointing to an external URL.
@@ -102,15 +124,14 @@ func New(name string, value any, opts ...Option) Example {
 //		example.WithSummary("XML format response"),
 //	)
 func NewExternal(name, url string, opts ...Option) Example {
-	e := Example{
+	cfg := &exampleConfig{
 		name:          name,
 		externalValue: url,
 	}
 	for _, opt := range opts {
-		opt(&e)
+		opt(cfg)
 	}
-
-	return e
+	return exampleFromConfig(cfg)
 }
 
 // WithSummary sets a short description for the example.
@@ -122,8 +143,8 @@ func NewExternal(name, url string, opts ...Option) Example {
 //
 //	example.New("success", data, example.WithSummary("Successful response"))
 func WithSummary(summary string) Option {
-	return func(e *Example) {
-		e.summary = summary
+	return func(cfg *exampleConfig) {
+		cfg.summary = summary
 	}
 }
 
@@ -138,8 +159,8 @@ func WithSummary(summary string) Option {
 //		example.WithDescription("Users with admin role have full system access.\n\n**Note:** Admin users can modify all resources."),
 //	)
 func WithDescription(description string) Option {
-	return func(e *Example) {
-		e.description = description
+	return func(cfg *exampleConfig) {
+		cfg.description = description
 	}
 }
 
