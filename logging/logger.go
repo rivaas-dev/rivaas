@@ -198,7 +198,10 @@ func newLoggerFromConfig(cfg *config) (*Logger, error) {
 // manage their own global logger.
 func New(opts ...Option) (*Logger, error) {
 	cfg := defaultConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("logging: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 	if err := cfg.validate(); err != nil {

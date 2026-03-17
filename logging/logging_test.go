@@ -1112,6 +1112,32 @@ func TestMustNew_Panic(t *testing.T) {
 	})
 }
 
+func TestNew_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	logger, err := New(WithOutput(io.Discard), nil)
+	require.Error(t, err)
+	require.Nil(t, logger)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
+}
+
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithOutput(io.Discard), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
+}
+
 // TestLogger_Level_Filtering tests that logs below minimum level are filtered.
 func TestLogger_Level_Filtering(t *testing.T) {
 	t.Parallel()
