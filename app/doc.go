@@ -238,7 +238,7 @@
 //   - [Context.Bind]: Binds and validates request data (default behavior)
 //   - [Context.MustBind]: Bind and validate, write error on failure
 //   - [Context.BindOnly]: Bind without validation (for advanced use)
-//   - [Context.Validate]: Validate only (after BindOnly)
+//   - [Context.Validate]: Validate only (after BindOnly); accepts [ValidateOption] for app-scoped options
 //
 // Generic type-safe variants:
 //
@@ -248,11 +248,12 @@
 //
 // Options for customization:
 //
-//   - [WithStrict]: Reject unknown JSON fields
-//   - [WithPartial]: Partial validation for PATCH requests
+//   - [WithStrict]: Reject unknown JSON fields (Bind)
+//   - [WithPartial]: Partial validation for PATCH requests (Bind)
 //   - [WithoutValidation]: Skip validation step
 //   - [WithBindingOptions]: Pass options to binding package
-//   - [WithValidationOptions]: Pass options to validation package
+//   - [WithValidationOptions]: Pass options to validation package (Bind)
+//   - [WithValidatePartial], [WithValidateStrict], [WithValidateOptions]: Options for [Context.Validate]
 //   - [WithValidationEngine]: Use a custom validation engine for Bind/Validate (e.g. for redaction or test isolation)
 //
 // Example with options:

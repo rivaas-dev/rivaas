@@ -294,6 +294,22 @@ func TestContext_Validate(t *testing.T) {
 	}
 }
 
+func TestContext_Validate_WithOptions(t *testing.T) {
+	t.Parallel()
+
+	// WithValidatePartial and WithValidateOptions are accepted and applied
+	c, err := TestContextWithBody("POST", "/test", nil)
+	require.NoError(t, err)
+
+	req := testBindRequest{Name: "Alice", Email: "alice@example.com", Age: 30}
+	err = c.Validate(&req, WithValidatePartial())
+	assert.NoError(t, err)
+
+	// WithValidateOptions pass-through
+	err = c.Validate(&req, WithValidateOptions(validation.WithMaxErrors(10)))
+	assert.NoError(t, err)
+}
+
 func TestWithValidationEngine(t *testing.T) {
 	t.Parallel()
 

@@ -325,14 +325,15 @@ func (c *Context) BindOnly(out any, opts ...BindOption) error {
 
 // Validate validates a struct using the configured validation strategy.
 // Use after [BindOnly] for fine-grained control.
+// Options are app-scoped: use [WithValidatePartial], [WithValidateStrict], or [WithValidateOptions].
 //
 // Example:
 //
-//	if err := c.Validate(&req, validation.WithPartial(true)); err != nil {
+//	if err := c.Validate(&req, app.WithValidatePartial()); err != nil {
 //	    c.Fail(err)
 //	    return
 //	}
-func (c *Context) Validate(v any, opts ...validation.Option) error {
+func (c *Context) Validate(v any, opts ...ValidateOption) error {
 	ctx := c.Request.Context()
 
 	// Inject raw JSON if available
@@ -340,13 +341,21 @@ func (c *Context) Validate(v any, opts ...validation.Option) error {
 		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)
 	}
 
+	cfg := applyValidateOptions(opts)
+
 	allOpts := []validation.Option{
 		validation.WithContext(ctx),
 	}
 	if pm := c.Presence(); pm != nil {
 		allOpts = append(allOpts, validation.WithPresence(pm))
 	}
-	allOpts = append(allOpts, opts...)
+	if cfg.partial {
+		allOpts = append(allOpts, validation.WithPartial(true))
+	}
+	if cfg.strict {
+		allOpts = append(allOpts, validation.WithDisallowUnknownFields(true))
+	}
+	allOpts = append(allOpts, cfg.validationOpts...)
 
 	if c.app != nil && c.app.validationEngine != nil {
 		return c.app.validationEngine.Validate(ctx, v, allOpts...)
