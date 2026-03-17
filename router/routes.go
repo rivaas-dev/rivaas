@@ -15,6 +15,7 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -270,6 +271,31 @@ func (r *Router) OPTIONS(path string, handlers ...HandlerFunc) *route.Route {
 //	r.HEAD("/users/:id", checkUserExistsHandler)
 func (r *Router) HEAD(path string, handlers ...HandlerFunc) *route.Route {
 	return r.addRoute(http.MethodHead, path, handlers)
+}
+
+// Handle registers a route for the given HTTP method and path.
+// It is used by the app package to centralize the method switch.
+// Supported methods: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS.
+// Panics with a clear message for unsupported methods.
+func (r *Router) Handle(method, path string, handlers ...HandlerFunc) *route.Route {
+	switch method {
+	case http.MethodGet:
+		return r.addRoute(http.MethodGet, path, handlers)
+	case http.MethodPost:
+		return r.addRoute(http.MethodPost, path, handlers)
+	case http.MethodPut:
+		return r.addRoute(http.MethodPut, path, handlers)
+	case http.MethodDelete:
+		return r.addRoute(http.MethodDelete, path, handlers)
+	case http.MethodPatch:
+		return r.addRoute(http.MethodPatch, path, handlers)
+	case http.MethodHead:
+		return r.addRoute(http.MethodHead, path, handlers)
+	case http.MethodOptions:
+		return r.addRoute(http.MethodOptions, path, handlers)
+	default:
+		panic(fmt.Sprintf("router: unsupported HTTP method %q (supported: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)", method))
+	}
 }
 
 // addRoute adds a route with support for parameter constraints.

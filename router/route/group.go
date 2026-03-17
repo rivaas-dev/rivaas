@@ -15,6 +15,8 @@
 package route
 
 import (
+	"fmt"
+	"net/http"
 	"strings"
 )
 
@@ -193,6 +195,31 @@ func (g *Group) OPTIONS(path string, handlers ...Handler) *Route {
 //	api.HEAD("/users/:id", handler) // Final path: /api/v1/users/:id
 func (g *Group) HEAD(path string, handlers ...Handler) *Route {
 	return g.addRoute("HEAD", path, handlers)
+}
+
+// Handle registers a route for the given HTTP method and path.
+// It is used by the app package to centralize the method switch.
+// Supported methods: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS.
+// Panics with a clear message for unsupported methods.
+func (g *Group) Handle(method, path string, handlers ...Handler) *Route {
+	switch method {
+	case http.MethodGet:
+		return g.addRoute("GET", path, handlers)
+	case http.MethodPost:
+		return g.addRoute("POST", path, handlers)
+	case http.MethodPut:
+		return g.addRoute("PUT", path, handlers)
+	case http.MethodDelete:
+		return g.addRoute("DELETE", path, handlers)
+	case http.MethodPatch:
+		return g.addRoute("PATCH", path, handlers)
+	case http.MethodHead:
+		return g.addRoute("HEAD", path, handlers)
+	case http.MethodOptions:
+		return g.addRoute("OPTIONS", path, handlers)
+	default:
+		panic(fmt.Sprintf("route: unsupported HTTP method %q (supported: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)", method))
+	}
 }
 
 // addRoute adds a route to the group by combining the group's prefix with the path
