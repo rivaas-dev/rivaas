@@ -36,7 +36,7 @@ func ExampleNew() {
 		return
 	}
 
-	fmt.Printf("Title: %s, Version: %s\n", api.Info.Title, api.Info.Version)
+	fmt.Printf("Title: %s, Version: %s\n", api.Info().Title, api.Info().Version)
 	// Output: Title: My API, Version: 1.0.0
 }
 
@@ -47,7 +47,7 @@ func ExampleMustNew() {
 		openapi.WithSwaggerUI("/docs"),
 	)
 
-	fmt.Printf("UI enabled: %v\n", api.ServeUI)
+	fmt.Printf("UI enabled: %v\n", api.ServeUI())
 	// Output: UI enabled: true
 }
 

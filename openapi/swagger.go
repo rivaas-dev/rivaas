@@ -33,11 +33,11 @@ type UIOption func(*UIConfig)
 //	    ),
 //	)
 func WithSwaggerUI(path string, opts ...UIOption) Option {
-	return func(a *API) {
-		a.ServeUI = true
-		a.UIPath = path
+	return func(c *config) {
+		c.serveUI = true
+		c.uiPath = path
 		for _, opt := range opts {
-			opt(&a.ui)
+			opt(&c.ui)
 		}
 	}
 }
@@ -51,8 +51,8 @@ func WithSwaggerUI(path string, opts ...UIOption) Option {
 //	    openapi.WithoutSwaggerUI(),
 //	)
 func WithoutSwaggerUI() Option {
-	return func(a *API) {
-		a.ServeUI = false
+	return func(c *config) {
+		c.serveUI = false
 	}
 }
 

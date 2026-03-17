@@ -73,14 +73,14 @@ func (a *API) Generate(ctx context.Context, ops ...Operation) (*Result, error) {
 	}
 
 	// Copy extensions from API to model Spec
-	if len(a.Extensions) > 0 {
-		spec.Extensions = make(map[string]any, len(a.Extensions))
-		maps.Copy(spec.Extensions, a.Extensions)
+	if len(a.extensions) > 0 {
+		spec.Extensions = make(map[string]any, len(a.extensions))
+		maps.Copy(spec.Extensions, a.extensions)
 	}
 
 	// Project to target version
 	var exportVersion export.Version
-	switch a.Version {
+	switch a.version {
 	case V31x:
 		exportVersion = export.V31
 	case V30x:
@@ -90,11 +90,11 @@ func (a *API) Generate(ctx context.Context, ops ...Operation) (*Result, error) {
 	}
 	exportCfg := export.Config{
 		Version:         exportVersion,
-		StrictDownlevel: a.StrictDownlevel,
+		StrictDownlevel: a.strictDownlevel,
 	}
 
 	// Enable validation if configured (use shared validator for performance)
-	if a.ValidateSpec {
+	if a.validateSpec {
 		exportCfg.Validator = sharedValidator
 	}
 
@@ -112,30 +112,24 @@ func (a *API) Generate(ctx context.Context, ops ...Operation) (*Result, error) {
 
 // createBuilder creates a Builder from API.
 func createBuilder(a *API) *build.Builder {
-	// API already uses model types, so we can pass them directly
-	b := build.NewBuilder(a.Info)
+	b := build.NewBuilder(a.info)
 
-	// Set external documentation if provided
-	if a.ExternalDocs != nil {
-		b.SetExternalDocs(a.ExternalDocs)
+	if a.externalDocs != nil {
+		b.SetExternalDocs(a.externalDocs)
 	}
 
-	// Add servers
-	for _, srv := range a.Servers {
+	for _, srv := range a.servers {
 		if len(srv.Extensions) > 0 {
 			b.AddServerWithExtensions(srv.URL, srv.Description, srv.Extensions)
 		} else {
 			b.AddServer(srv.URL, srv.Description)
 		}
-
-		// Add server variables if present
 		for name, v := range srv.Variables {
 			b.AddServerVariable(name, v)
 		}
 	}
 
-	// Add tags
-	for _, tag := range a.Tags {
+	for _, tag := range a.tags {
 		if tag.ExternalDocs != nil {
 			b.AddTagWithExternalDocs(tag.Name, tag.Description, tag.ExternalDocs, tag.Extensions)
 		} else if len(tag.Extensions) > 0 {
@@ -145,14 +139,12 @@ func createBuilder(a *API) *build.Builder {
 		}
 	}
 
-	// Add security schemes
-	for name, ss := range a.SecuritySchemes {
+	for name, ss := range a.securitySchemes {
 		b.AddSecurityScheme(name, ss)
 	}
 
-	// Add global security requirements
-	if len(a.DefaultSecurity) > 0 {
-		b.SetGlobalSecurity(a.DefaultSecurity)
+	if len(a.defaultSecurity) > 0 {
+		b.SetGlobalSecurity(a.defaultSecurity)
 	}
 
 	return b

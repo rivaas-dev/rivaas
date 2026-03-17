@@ -252,5 +252,5 @@ func TestWithoutSwaggerUI_setsServeUIFalse(t *testing.T) {
 		WithoutSwaggerUI(),
 	)
 
-	assert.False(t, api.ServeUI)
+	assert.False(t, api.ServeUI())
 }

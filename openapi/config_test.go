@@ -120,8 +120,8 @@ func TestConfig_Validation(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, cfg)
-				assert.Equal(t, "Test API", cfg.Info.Title)
-				assert.Equal(t, "1.0.0", cfg.Info.Version)
+				assert.Equal(t, "Test API", cfg.Info().Title)
+				assert.Equal(t, "1.0.0", cfg.Info().Version)
 			}
 		})
 	}
@@ -134,11 +134,11 @@ func TestConfig_Defaults(t *testing.T) {
 		WithTitle("Test API", "1.0.0"),
 	)
 
-	assert.Equal(t, "/openapi.json", cfg.SpecPath)
-	assert.Equal(t, "/docs", cfg.UIPath)
-	assert.True(t, cfg.ServeUI)
-	assert.Equal(t, V30x, cfg.Version)
-	assert.False(t, cfg.StrictDownlevel)
+	assert.Equal(t, "/openapi.json", cfg.SpecPath())
+	assert.Equal(t, "/docs", cfg.UIPath())
+	assert.True(t, cfg.ServeUI())
+	assert.Equal(t, V30x, cfg.Version())
+	assert.False(t, cfg.StrictDownlevel())
 }
 
 func TestConfig_WithVersion(t *testing.T) {
@@ -161,7 +161,7 @@ func TestConfig_WithVersion(t *testing.T) {
 				WithVersion(tt.version),
 			)
 
-			assert.Equal(t, tt.expected, cfg.Version)
+			assert.Equal(t, tt.expected, cfg.Version())
 		})
 	}
 }
@@ -174,7 +174,7 @@ func TestConfig_WithStrictDownlevel(t *testing.T) {
 		WithStrictDownlevel(true),
 	)
 
-	assert.True(t, cfg.StrictDownlevel)
+	assert.True(t, cfg.StrictDownlevel())
 }
 
 func TestConfig_WithSwaggerUI(t *testing.T) {
@@ -198,8 +198,8 @@ func TestConfig_WithSwaggerUI(t *testing.T) {
 				WithSwaggerUI(tt.path),
 			)
 
-			assert.Equal(t, tt.expected, cfg.ServeUI)
-			assert.Equal(t, tt.expectedPath, cfg.UIPath)
+			assert.Equal(t, tt.expected, cfg.ServeUI())
+			assert.Equal(t, tt.expectedPath, cfg.UIPath())
 		})
 	}
 
@@ -210,7 +210,7 @@ func TestConfig_WithSwaggerUI(t *testing.T) {
 			WithoutSwaggerUI(),
 		)
 
-		assert.False(t, cfg.ServeUI)
+		assert.False(t, cfg.ServeUI())
 	})
 }
 
@@ -223,11 +223,11 @@ func TestConfig_WithServers(t *testing.T) {
 		WithServer("https://staging.example.com", "Staging"),
 	)
 
-	assert.Len(t, cfg.Servers, 2)
-	assert.Equal(t, "https://api.example.com", cfg.Servers[0].URL)
-	assert.Equal(t, "Production", cfg.Servers[0].Description)
-	assert.Equal(t, "https://staging.example.com", cfg.Servers[1].URL)
-	assert.Equal(t, "Staging", cfg.Servers[1].Description)
+	assert.Len(t, cfg.Servers(), 2)
+	assert.Equal(t, "https://api.example.com", cfg.Servers()[0].URL)
+	assert.Equal(t, "Production", cfg.Servers()[0].Description)
+	assert.Equal(t, "https://staging.example.com", cfg.Servers()[1].URL)
+	assert.Equal(t, "Staging", cfg.Servers()[1].Description)
 }
 
 func TestConfig_WithTags(t *testing.T) {
@@ -239,11 +239,11 @@ func TestConfig_WithTags(t *testing.T) {
 		WithTag("orders", "Order operations"),
 	)
 
-	assert.Len(t, cfg.Tags, 2)
-	assert.Equal(t, "users", cfg.Tags[0].Name)
-	assert.Equal(t, "User management operations", cfg.Tags[0].Description)
-	assert.Equal(t, "orders", cfg.Tags[1].Name)
-	assert.Equal(t, "Order operations", cfg.Tags[1].Description)
+	assert.Len(t, cfg.Tags(), 2)
+	assert.Equal(t, "users", cfg.Tags()[0].Name)
+	assert.Equal(t, "User management operations", cfg.Tags()[0].Description)
+	assert.Equal(t, "orders", cfg.Tags()[1].Name)
+	assert.Equal(t, "Order operations", cfg.Tags()[1].Description)
 }
 
 func TestConfig_WithSecuritySchemes(t *testing.T) {
@@ -255,15 +255,15 @@ func TestConfig_WithSecuritySchemes(t *testing.T) {
 		WithAPIKey("apiKey", "X-API-Key", InHeader, "API key"),
 	)
 
-	assert.Len(t, cfg.SecuritySchemes, 2)
+	assert.Len(t, cfg.SecuritySchemes(), 2)
 
-	bearer, ok := cfg.SecuritySchemes["bearerAuth"]
+	bearer, ok := cfg.SecuritySchemes()["bearerAuth"]
 	require.True(t, ok)
 	assert.Equal(t, "http", bearer.Type)
 	assert.Equal(t, "bearer", bearer.Scheme)
 	assert.Equal(t, "JWT", bearer.BearerFormat)
 
-	apiKey, ok := cfg.SecuritySchemes["apiKey"]
+	apiKey, ok := cfg.SecuritySchemes()["apiKey"]
 	require.True(t, ok)
 	assert.Equal(t, "apiKey", apiKey.Type)
 	assert.Equal(t, "X-API-Key", apiKey.Name)
@@ -279,15 +279,15 @@ func TestConfig_WithDefaultSecurity(t *testing.T) {
 		WithDefaultSecurity("oauth2", "read", "write"),
 	)
 
-	assert.Len(t, cfg.DefaultSecurity, 2)
+	assert.Len(t, cfg.DefaultSecurity(), 2)
 
 	// First requirement
-	req1 := cfg.DefaultSecurity[0]
+	req1 := cfg.DefaultSecurity()[0]
 	assert.Contains(t, req1, "bearerAuth")
 	assert.Empty(t, req1["bearerAuth"])
 
 	// Second requirement with scopes
-	req2 := cfg.DefaultSecurity[1]
+	req2 := cfg.DefaultSecurity()[1]
 	assert.Contains(t, req2, "oauth2")
 	assert.Equal(t, []string{"read", "write"}, req2["oauth2"])
 }
@@ -301,7 +301,7 @@ func TestConfig_InvalidVersion(t *testing.T) {
 		WithVersion("2.0.0"), // Not a valid OpenAPI version
 	)
 
-	assert.Equal(t, Version("2.0.0"), cfg.Version)
+	assert.Equal(t, Version("2.0.0"), cfg.Version())
 }
 
 func TestConfig_EmptyTitle(t *testing.T) {
@@ -335,21 +335,21 @@ func TestConfig_WithValidation(t *testing.T) {
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
 	)
-	assert.False(t, cfg.ValidateSpec)
+	assert.False(t, cfg.ValidateSpec())
 
 	// Enable validation
 	cfg2 := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithValidation(true),
 	)
-	assert.True(t, cfg2.ValidateSpec)
+	assert.True(t, cfg2.ValidateSpec())
 
 	// Explicitly disable validation
 	cfg3 := MustNew(
 		WithTitle("Test API", "1.0.0"),
 		WithValidation(false),
 	)
-	assert.False(t, cfg3.ValidateSpec)
+	assert.False(t, cfg3.ValidateSpec())
 }
 
 func TestConfig_MultipleServers(t *testing.T) {
@@ -362,10 +362,10 @@ func TestConfig_MultipleServers(t *testing.T) {
 		WithServer("https://api3.example.com", "Server 3"),
 	)
 
-	assert.Len(t, cfg.Servers, 3)
-	assert.Equal(t, "https://api1.example.com", cfg.Servers[0].URL)
-	assert.Equal(t, "https://api2.example.com", cfg.Servers[1].URL)
-	assert.Equal(t, "https://api3.example.com", cfg.Servers[2].URL)
+	assert.Len(t, cfg.Servers(), 3)
+	assert.Equal(t, "https://api1.example.com", cfg.Servers()[0].URL)
+	assert.Equal(t, "https://api2.example.com", cfg.Servers()[1].URL)
+	assert.Equal(t, "https://api3.example.com", cfg.Servers()[2].URL)
 }
 
 func TestConfig_DuplicateSecuritySchemes(t *testing.T) {
@@ -378,8 +378,8 @@ func TestConfig_DuplicateSecuritySchemes(t *testing.T) {
 		WithBearerAuth("auth", "Second description"),
 	)
 
-	assert.Len(t, cfg.SecuritySchemes, 1)
-	scheme, ok := cfg.SecuritySchemes["auth"]
+	assert.Len(t, cfg.SecuritySchemes(), 1)
+	scheme, ok := cfg.SecuritySchemes()["auth"]
 	require.True(t, ok)
 	assert.Equal(t, "Second description", scheme.Description)
 }
@@ -392,8 +392,8 @@ func TestConfig_EmptyServerURL(t *testing.T) {
 		WithServer("", "Empty URL"),
 	)
 
-	assert.Len(t, cfg.Servers, 1)
-	assert.Empty(t, cfg.Servers[0].URL)
+	assert.Len(t, cfg.Servers(), 1)
+	assert.Empty(t, cfg.Servers()[0].URL)
 }
 
 func TestConfig_MustNewPanic(t *testing.T) {
@@ -425,20 +425,20 @@ func TestConfig_AllOptions(t *testing.T) {
 		WithSwaggerUI("/api/docs"),
 	)
 
-	assert.Equal(t, "Test API", cfg.Info.Title)
-	assert.Equal(t, "1.0.0", cfg.Info.Version)
-	assert.Equal(t, "A comprehensive test", cfg.Info.Description)
-	assert.NotNil(t, cfg.Info.Contact)
-	assert.NotNil(t, cfg.Info.License)
-	assert.Len(t, cfg.Servers, 1)
-	assert.Len(t, cfg.Tags, 1)
-	assert.Len(t, cfg.SecuritySchemes, 2)
-	assert.Len(t, cfg.DefaultSecurity, 1)
-	assert.Equal(t, V31x, cfg.Version)
-	assert.True(t, cfg.StrictDownlevel)
-	assert.Equal(t, "/api/openapi.json", cfg.SpecPath)
-	assert.Equal(t, "/api/docs", cfg.UIPath)
-	assert.True(t, cfg.ServeUI)
+	assert.Equal(t, "Test API", cfg.Info().Title)
+	assert.Equal(t, "1.0.0", cfg.Info().Version)
+	assert.Equal(t, "A comprehensive test", cfg.Info().Description)
+	assert.NotNil(t, cfg.Info().Contact)
+	assert.NotNil(t, cfg.Info().License)
+	assert.Len(t, cfg.Servers(), 1)
+	assert.Len(t, cfg.Tags(), 1)
+	assert.Len(t, cfg.SecuritySchemes(), 2)
+	assert.Len(t, cfg.DefaultSecurity(), 1)
+	assert.Equal(t, V31x, cfg.Version())
+	assert.True(t, cfg.StrictDownlevel())
+	assert.Equal(t, "/api/openapi.json", cfg.SpecPath())
+	assert.Equal(t, "/api/docs", cfg.UIPath())
+	assert.True(t, cfg.ServeUI())
 }
 
 func TestConfig_WithExtension(t *testing.T) {
@@ -491,8 +491,8 @@ func TestConfig_WithExtension(t *testing.T) {
 			)
 
 			if !tt.wantErr {
-				require.NotNil(t, cfg.Extensions)
-				assert.Equal(t, tt.value, cfg.Extensions[tt.key])
+				require.NotNil(t, cfg.Extensions())
+				assert.Equal(t, tt.value, cfg.Extensions()[tt.key])
 			}
 		})
 	}
@@ -506,10 +506,10 @@ func TestConfig_WithExtension(t *testing.T) {
 			WithExtension("x-field2", "value2"),
 			WithExtension("x-field3", 123),
 		)
-		assert.Len(t, cfg.Extensions, 3)
-		assert.Equal(t, "value1", cfg.Extensions["x-field1"])
-		assert.Equal(t, "value2", cfg.Extensions["x-field2"])
-		assert.Equal(t, 123, cfg.Extensions["x-field3"])
+		assert.Len(t, cfg.Extensions(), 3)
+		assert.Equal(t, "value1", cfg.Extensions()["x-field1"])
+		assert.Equal(t, "value2", cfg.Extensions()["x-field2"])
+		assert.Equal(t, 123, cfg.Extensions()["x-field3"])
 	})
 }
 
@@ -591,7 +591,7 @@ func TestConfig_WithInfoSummary(t *testing.T) {
 		WithInfoSummary("A brief summary"),
 	)
 
-	assert.Equal(t, "A brief summary", cfg.Info.Summary)
+	assert.Equal(t, "A brief summary", cfg.Info().Summary)
 }
 
 func TestConfig_WithTermsOfService(t *testing.T) {
@@ -602,7 +602,7 @@ func TestConfig_WithTermsOfService(t *testing.T) {
 		WithTermsOfService("https://example.com/terms"),
 	)
 
-	assert.Equal(t, "https://example.com/terms", cfg.Info.TermsOfService)
+	assert.Equal(t, "https://example.com/terms", cfg.Info().TermsOfService)
 }
 
 func TestConfig_WithExternalDocs(t *testing.T) {
@@ -614,8 +614,8 @@ func TestConfig_WithExternalDocs(t *testing.T) {
 	)
 
 	require.NotNil(t, cfg.ExternalDocs)
-	assert.Equal(t, "https://example.com/docs", cfg.ExternalDocs.URL)
-	assert.Equal(t, "API Documentation", cfg.ExternalDocs.Description)
+	assert.Equal(t, "https://example.com/docs", cfg.ExternalDocs().URL)
+	assert.Equal(t, "API Documentation", cfg.ExternalDocs().Description)
 }
 
 func TestConfig_WithLicenseIdentifier(t *testing.T) {
@@ -626,10 +626,10 @@ func TestConfig_WithLicenseIdentifier(t *testing.T) {
 		WithLicenseIdentifier("MIT License", "MIT"),
 	)
 
-	require.NotNil(t, cfg.Info.License)
-	assert.Equal(t, "MIT License", cfg.Info.License.Name)
-	assert.Equal(t, "MIT", cfg.Info.License.Identifier)
-	assert.Empty(t, cfg.Info.License.URL)
+	require.NotNil(t, cfg.Info().License)
+	assert.Equal(t, "MIT License", cfg.Info().License.Name)
+	assert.Equal(t, "MIT", cfg.Info().License.Identifier)
+	assert.Empty(t, cfg.Info().License.URL)
 }
 
 func TestConfig_WithServerVariable(t *testing.T) {
@@ -641,9 +641,9 @@ func TestConfig_WithServerVariable(t *testing.T) {
 		WithServerVariable("host", "api", []string{"api", "staging"}, "Server hostname"),
 	)
 
-	require.Len(t, cfg.Servers, 1)
-	require.NotNil(t, cfg.Servers[0].Variables)
-	variable, ok := cfg.Servers[0].Variables["host"]
+	require.Len(t, cfg.Servers(), 1)
+	require.NotNil(t, cfg.Servers()[0].Variables)
+	variable, ok := cfg.Servers()[0].Variables["host"]
 	require.True(t, ok)
 	assert.Equal(t, "api", variable.Default)
 	assert.Equal(t, []string{"api", "staging"}, variable.Enum)
@@ -667,8 +667,8 @@ func TestConfig_WithOAuth2(t *testing.T) {
 			}),
 	)
 
-	require.Len(t, cfg.SecuritySchemes, 1)
-	scheme, ok := cfg.SecuritySchemes["oauth2"]
+	require.Len(t, cfg.SecuritySchemes(), 1)
+	scheme, ok := cfg.SecuritySchemes()["oauth2"]
 	require.True(t, ok)
 	assert.Equal(t, "oauth2", scheme.Type)
 	assert.Equal(t, "OAuth2 authentication", scheme.Description)
@@ -687,8 +687,8 @@ func TestConfig_WithOpenIDConnect(t *testing.T) {
 		WithOpenIDConnect("openId", "https://example.com/.well-known/openid-configuration", "OpenID Connect"),
 	)
 
-	require.Len(t, cfg.SecuritySchemes, 1)
-	scheme, ok := cfg.SecuritySchemes["openId"]
+	require.Len(t, cfg.SecuritySchemes(), 1)
+	scheme, ok := cfg.SecuritySchemes()["openId"]
 	require.True(t, ok)
 	assert.Equal(t, "openIdConnect", scheme.Type)
 	assert.Equal(t, "OpenID Connect", scheme.Description)

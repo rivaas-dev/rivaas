@@ -21,77 +21,67 @@ import (
 	"rivaas.dev/openapi/internal/model"
 )
 
+// config holds construction-time OpenAPI configuration.
+// Options mutate config; New() validates config and builds the API from it.
+type config struct {
+	info            model.Info
+	servers         []model.Server
+	tags            []model.Tag
+	securitySchemes map[string]*model.SecurityScheme
+	defaultSecurity []model.SecurityRequirement
+	externalDocs    *model.ExternalDocs
+	extensions      map[string]any
+	version         Version
+	strictDownlevel bool
+	specPath        string
+	uiPath          string
+	serveUI         bool
+	validateSpec    bool
+	ui              UIConfig
+}
+
+// defaultConfig returns a config with default values.
+func defaultConfig() *config {
+	return &config{
+		info: model.Info{
+			Title:   "API",
+			Version: "1.0.0",
+		},
+		securitySchemes: make(map[string]*model.SecurityScheme),
+		version:         V30x,
+		strictDownlevel: false,
+		specPath:        "/openapi.json",
+		uiPath:          "/docs",
+		serveUI:         true,
+		validateSpec:    false,
+		ui:              defaultUIConfig(),
+	}
+}
+
 // API holds OpenAPI configuration and defines an API specification.
-// All fields are public for functional options, but direct modification after creation
-// is not recommended. Use functional options to configure.
-//
+// Configuration is read-only after creation; use getters to read values.
 // Create instances using [New] or [MustNew].
 type API struct {
-	// Info contains API metadata (title, version, description, contact, license).
-	Info model.Info
-
-	// Servers lists available server URLs for the API.
-	Servers []model.Server
-
-	// Tags provides additional metadata for operations.
-	Tags []model.Tag
-
-	// SecuritySchemes defines available authentication/authorization schemes.
-	SecuritySchemes map[string]*model.SecurityScheme
-
-	// DefaultSecurity applies security requirements to all operations by default.
-	DefaultSecurity []model.SecurityRequirement
-
-	// ExternalDocs provides external documentation links.
-	ExternalDocs *model.ExternalDocs
-
-	// Extensions contains specification extensions (fields prefixed with x-).
-	// Extensions are added to the root of the OpenAPI specification.
-	//
-	// Direct mutation of this map after New/MustNew bypasses API.Validate().
-	// However, projection-time filtering via copyExtensions still applies:
-	// - Keys must start with "x-"
-	// - In OpenAPI 3.1.x, keys starting with "x-oai-" or "x-oas-" are reserved and will be filtered
-	//
-	// Prefer using WithExtension() option instead of direct mutation.
-	Extensions map[string]any
-
-	// Version is the target OpenAPI version.
-	// Use V30x or V31x constants.
-	// Default: V30x
-	Version Version
-
-	// StrictDownlevel causes projection to error (instead of warn) when
-	// 3.1-only features are used with a 3.0 target.
-	// Default: false
-	StrictDownlevel bool
-
-	// SpecPath is the HTTP path where the OpenAPI specification JSON is served.
-	// Default: "/openapi.json"
-	SpecPath string
-
-	// UIPath is the HTTP path where Swagger UI is served.
-	// Default: "/docs"
-	UIPath string
-
-	// ServeUI enables or disables Swagger UI serving.
-	// Default: true
-	ServeUI bool
-
-	// ValidateSpec enables JSON Schema validation of generated specs.
-	// When enabled, Generate validates the output against the official
-	// OpenAPI meta-schema (3.0.x or 3.1.x based on the target version).
-	// This catches specification errors early but adds ~1-5ms overhead.
-	// Default: false
-	ValidateSpec bool
-
-	// ui holds Swagger UI configuration (private to enforce functional options).
-	ui UIConfig
+	info            model.Info
+	servers         []model.Server
+	tags            []model.Tag
+	securitySchemes map[string]*model.SecurityScheme
+	defaultSecurity []model.SecurityRequirement
+	externalDocs    *model.ExternalDocs
+	extensions      map[string]any
+	version         Version
+	strictDownlevel bool
+	specPath        string
+	uiPath          string
+	serveUI         bool
+	validateSpec    bool
+	ui              UIConfig
 }
 
 // Option configures OpenAPI behavior using the functional options pattern.
+// Options apply to an internal config struct; the constructor builds the API from the validated config.
 // Options are applied in order, with later options potentially overriding earlier ones.
-type Option func(*API)
+type Option func(*config)
 
 // ParameterLocation represents where an API parameter can be located.
 type ParameterLocation string
@@ -124,31 +114,74 @@ const (
 //	    log.Fatal(err)
 //	}
 func New(opts ...Option) (*API, error) {
-	api := &API{
-		Info: model.Info{
-			Title:   "API",
-			Version: "1.0.0",
-		},
-		SecuritySchemes: make(map[string]*model.SecurityScheme),
-		Version:         V30x,
-		StrictDownlevel: false,
-		SpecPath:        "/openapi.json",
-		UIPath:          "/docs",
-		ServeUI:         true,
-		ValidateSpec:    false,
-		ui:              defaultUIConfig(),
-	}
-
+	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(api)
+		opt(cfg)
 	}
-
-	// Validate config
-	if err := api.Validate(); err != nil {
+	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
+	return apiFromConfig(cfg), nil
+}
 
-	return api, nil
+// validateConfig checks that the config is valid.
+func validateConfig(cfg *config) error {
+	if cfg.info.Title == "" {
+		return ErrTitleRequired
+	}
+	if cfg.info.Version == "" {
+		return ErrVersionRequired
+	}
+	if cfg.info.License != nil {
+		if cfg.info.License.Identifier != "" && cfg.info.License.URL != "" {
+			return ErrLicenseMutuallyExclusive
+		}
+	}
+	for i, server := range cfg.servers {
+		if len(server.Variables) > 0 && server.URL == "" {
+			return fmt.Errorf("openapi: server[%d]: %w", i, ErrServerVariablesNeedURL)
+		}
+	}
+	if err := cfg.ui.Validate(); err != nil {
+		return fmt.Errorf("openapi: %w", err)
+	}
+	for key := range cfg.extensions {
+		if !strings.HasPrefix(key, "x-") {
+			return fmt.Errorf("openapi: extension key must start with 'x-': %s", key)
+		}
+		if (cfg.version == V31x || cfg.version == Version("")) && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
+			return fmt.Errorf("openapi: extension key uses reserved prefix (x-oai- or x-oas-): %s", key)
+		}
+	}
+	for key := range cfg.info.Extensions {
+		if !strings.HasPrefix(key, "x-") {
+			return fmt.Errorf("openapi: info extension key must start with 'x-': %s", key)
+		}
+		if (cfg.version == V31x || cfg.version == Version("")) && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
+			return fmt.Errorf("openapi: info extension key uses reserved prefix (x-oai- or x-oas-): %s", key)
+		}
+	}
+	return nil
+}
+
+// apiFromConfig builds an API from a validated config.
+func apiFromConfig(cfg *config) *API {
+	return &API{
+		info:            cfg.info,
+		servers:         cfg.servers,
+		tags:            cfg.tags,
+		securitySchemes: cfg.securitySchemes,
+		defaultSecurity: cfg.defaultSecurity,
+		externalDocs:    cfg.externalDocs,
+		extensions:      cfg.extensions,
+		version:         cfg.version,
+		strictDownlevel: cfg.strictDownlevel,
+		specPath:        cfg.specPath,
+		uiPath:          cfg.uiPath,
+		serveUI:         cfg.serveUI,
+		validateSpec:    cfg.validateSpec,
+		ui:              cfg.ui,
+	}
 }
 
 // MustNew creates a new OpenAPI [API] and panics if validation fails.
@@ -178,6 +211,72 @@ func (a *API) UI() UIConfig {
 	return a.ui
 }
 
+// Info returns the API metadata (title, version, description, contact, license).
+// Do not modify the returned value.
+func (a *API) Info() model.Info {
+	return a.info
+}
+
+// Servers returns the list of server URLs. Do not modify the returned slice or its elements.
+func (a *API) Servers() []model.Server {
+	return a.servers
+}
+
+// Tags returns the tags. Do not modify the returned slice or its elements.
+func (a *API) Tags() []model.Tag {
+	return a.tags
+}
+
+// SecuritySchemes returns the security schemes map. Do not modify the returned map.
+func (a *API) SecuritySchemes() map[string]*model.SecurityScheme {
+	return a.securitySchemes
+}
+
+// DefaultSecurity returns the default security requirements. Do not modify the returned slice.
+func (a *API) DefaultSecurity() []model.SecurityRequirement {
+	return a.defaultSecurity
+}
+
+// ExternalDocs returns the external documentation link, or nil.
+func (a *API) ExternalDocs() *model.ExternalDocs {
+	return a.externalDocs
+}
+
+// Extensions returns the root-level specification extensions. Do not modify the returned map.
+func (a *API) Extensions() map[string]any {
+	return a.extensions
+}
+
+// Version returns the target OpenAPI version (V30x or V31x).
+func (a *API) Version() Version {
+	return a.version
+}
+
+// StrictDownlevel returns whether projection errors (instead of warns) for 3.1-only features when targeting 3.0.
+func (a *API) StrictDownlevel() bool {
+	return a.strictDownlevel
+}
+
+// SpecPath returns the HTTP path where the OpenAPI specification JSON is served.
+func (a *API) SpecPath() string {
+	return a.specPath
+}
+
+// UIPath returns the HTTP path where Swagger UI is served.
+func (a *API) UIPath() string {
+	return a.uiPath
+}
+
+// ServeUI returns whether Swagger UI is enabled.
+func (a *API) ServeUI() bool {
+	return a.serveUI
+}
+
+// ValidateSpec returns whether JSON Schema validation of generated specs is enabled.
+func (a *API) ValidateSpec() bool {
+	return a.validateSpec
+}
+
 // Validate checks if the [API] is valid.
 //
 // It ensures that required fields (title, version) are set and validates
@@ -186,54 +285,41 @@ func (a *API) UI() UIConfig {
 //
 // Validation is automatically called by [New] and [MustNew].
 func (a *API) Validate() error {
-	if a.Info.Title == "" {
+	if a.info.Title == "" {
 		return ErrTitleRequired
 	}
-	if a.Info.Version == "" {
+	if a.info.Version == "" {
 		return ErrVersionRequired
 	}
-
-	// Validate license: identifier and URL are mutually exclusive
-	if a.Info.License != nil {
-		if a.Info.License.Identifier != "" && a.Info.License.URL != "" {
+	if a.info.License != nil {
+		if a.info.License.Identifier != "" && a.info.License.URL != "" {
 			return ErrLicenseMutuallyExclusive
 		}
 	}
-
-	// Validate servers: variables require a server URL
-	for i, server := range a.Servers {
+	for i, server := range a.servers {
 		if len(server.Variables) > 0 && server.URL == "" {
 			return fmt.Errorf("openapi: server[%d]: %w", i, ErrServerVariablesNeedURL)
 		}
 	}
-
-	// Validate UI config
 	if err := a.ui.Validate(); err != nil {
 		return fmt.Errorf("openapi: %w", err)
 	}
-
-	// Validate root-level extensions
-	for key := range a.Extensions {
+	for key := range a.extensions {
 		if !strings.HasPrefix(key, "x-") {
 			return fmt.Errorf("openapi: extension key must start with 'x-': %s", key)
 		}
-		// Check reserved prefixes for 3.1.x
-		if (a.Version == V31x || a.Version == "") && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
+		if (a.version == V31x || a.version == Version("")) && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
 			return fmt.Errorf("openapi: extension key uses reserved prefix (x-oai- or x-oas-): %s", key)
 		}
 	}
-
-	// Validate Info extensions
-	for key := range a.Info.Extensions {
+	for key := range a.info.Extensions {
 		if !strings.HasPrefix(key, "x-") {
 			return fmt.Errorf("openapi: info extension key must start with 'x-': %s", key)
 		}
-		// Check reserved prefixes for 3.1.x
-		if (a.Version == V31x || a.Version == "") && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
+		if (a.version == V31x || a.version == Version("")) && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
 			return fmt.Errorf("openapi: info extension key uses reserved prefix (x-oai- or x-oas-): %s", key)
 		}
 	}
-
 	return nil
 }
 
@@ -245,9 +331,29 @@ func (a *API) Validate() error {
 //
 //	openapi.WithTitle("User Management API", "2.1.0")
 func WithTitle(title, version string) Option {
-	return func(a *API) {
-		a.Info.Title = title
-		a.Info.Version = version
+	return func(c *config) {
+		c.info.Title = title
+		c.info.Version = version
+	}
+}
+
+// WithTitleIfDefault sets the API title and version only if they are still the defaults
+// ("API" and "1.0.0"). Used by the app package to inject service name/version when
+// the user has not set a custom title. Option order does not matter.
+//
+// Example (typically used by app, not by users directly):
+//
+//	openapi.New(append(userOpts, openapi.WithTitleIfDefault(serviceName, serviceVersion))...)
+func WithTitleIfDefault(title, version string) Option {
+	return func(c *config) {
+		if c.info.Title == "API" && c.info.Version == "1.0.0" {
+			if title != "" {
+				c.info.Title = title
+			}
+			if version != "" {
+				c.info.Version = version
+			}
+		}
 	}
 }
 
@@ -260,8 +366,8 @@ func WithTitle(title, version string) Option {
 //
 //	openapi.WithInfoDescription("A RESTful API for managing users and their profiles.")
 func WithInfoDescription(desc string) Option {
-	return func(a *API) {
-		a.Info.Description = desc
+	return func(c *config) {
+		c.info.Description = desc
 	}
 }
 
@@ -272,15 +378,15 @@ func WithInfoDescription(desc string) Option {
 //
 //	openapi.WithInfoSummary("User Management API")
 func WithInfoSummary(summary string) Option {
-	return func(a *API) {
-		a.Info.Summary = summary
+	return func(c *config) {
+		c.info.Summary = summary
 	}
 }
 
 // WithTermsOfService sets the Terms of Service URL/URI.
 func WithTermsOfService(url string) Option {
-	return func(a *API) {
-		a.Info.TermsOfService = url
+	return func(c *config) {
+		c.info.TermsOfService = url
 	}
 }
 
@@ -293,18 +399,18 @@ func WithTermsOfService(url string) Option {
 //
 //	openapi.WithInfoExtension("x-api-category", "public")
 func WithInfoExtension(key string, value any) Option {
-	return func(a *API) {
-		if a.Info.Extensions == nil {
-			a.Info.Extensions = make(map[string]any)
+	return func(c *config) {
+		if c.info.Extensions == nil {
+			c.info.Extensions = make(map[string]any)
 		}
-		a.Info.Extensions[key] = value
+		c.info.Extensions[key] = value
 	}
 }
 
 // WithExternalDocs sets external documentation URL and optional description.
 func WithExternalDocs(url, description string) Option {
-	return func(a *API) {
-		a.ExternalDocs = &model.ExternalDocs{
+	return func(c *config) {
+		c.externalDocs = &model.ExternalDocs{
 			URL:         url,
 			Description: description,
 		}
@@ -319,8 +425,8 @@ func WithExternalDocs(url, description string) Option {
 //
 //	openapi.WithContact("API Support", "https://example.com/support", "support@example.com")
 func WithContact(name, url, email string) Option {
-	return func(a *API) {
-		a.Info.Contact = &model.Contact{
+	return func(c *config) {
+		c.info.Contact = &model.Contact{
 			Name:  name,
 			URL:   url,
 			Email: email,
@@ -338,8 +444,8 @@ func WithContact(name, url, email string) Option {
 //
 //	openapi.WithLicense("MIT", "https://opensource.org/licenses/MIT")
 func WithLicense(name, url string) Option {
-	return func(a *API) {
-		a.Info.License = &model.License{
+	return func(c *config) {
+		c.info.License = &model.License{
 			Name: name,
 			URL:  url,
 		}
@@ -356,8 +462,8 @@ func WithLicense(name, url string) Option {
 //
 //	openapi.WithLicenseIdentifier("Apache 2.0", "Apache-2.0")
 func WithLicenseIdentifier(name, identifier string) Option {
-	return func(a *API) {
-		a.Info.License = &model.License{
+	return func(c *config) {
+		c.info.License = &model.License{
 			Name:       name,
 			Identifier: identifier,
 		}
@@ -374,8 +480,8 @@ func WithLicenseIdentifier(name, identifier string) Option {
 //	openapi.WithServer("https://api.example.com", "Production"),
 //	openapi.WithServer("https://staging-api.example.com", "Staging"),
 func WithServer(url, desc string) Option {
-	return func(a *API) {
-		a.Servers = append(a.Servers, model.Server{
+	return func(c *config) {
+		c.servers = append(c.servers, model.Server{
 			URL:         url,
 			Description: desc,
 		})
@@ -396,12 +502,11 @@ func WithServer(url, desc string) Option {
 //	openapi.WithServerVariable("username", "demo", []string{"demo", "prod"}, "User subdomain"),
 //	openapi.WithServerVariable("port", "8443", []string{"8443", "443"}, "Server port"),
 func WithServerVariable(name, defaultValue string, enum []string, description string) Option {
-	return func(a *API) {
-		if len(a.Servers) == 0 {
-			// Create a placeholder server - validation will catch this in Validate()
-			a.Servers = append(a.Servers, model.Server{})
+	return func(c *config) {
+		if len(c.servers) == 0 {
+			c.servers = append(c.servers, model.Server{})
 		}
-		server := &a.Servers[len(a.Servers)-1]
+		server := &c.servers[len(c.servers)-1]
 		if server.Variables == nil {
 			server.Variables = make(map[string]*model.ServerVariable)
 		}
@@ -424,8 +529,8 @@ func WithServerVariable(name, defaultValue string, enum []string, description st
 //	openapi.WithTag("users", "User management operations"),
 //	openapi.WithTag("orders", "Order processing operations"),
 func WithTag(name, desc string) Option {
-	return func(a *API) {
-		a.Tags = append(a.Tags, model.Tag{
+	return func(c *config) {
+		c.tags = append(c.tags, model.Tag{
 			Name:        name,
 			Description: desc,
 		})
@@ -445,11 +550,11 @@ func WithTag(name, desc string) Option {
 //
 //	app.GET("/protected", handler).Bearer()
 func WithBearerAuth(name, desc string) Option {
-	return func(a *API) {
-		if a.SecuritySchemes == nil {
-			a.SecuritySchemes = make(map[string]*model.SecurityScheme)
+	return func(c *config) {
+		if c.securitySchemes == nil {
+			c.securitySchemes = make(map[string]*model.SecurityScheme)
 		}
-		a.SecuritySchemes[name] = &model.SecurityScheme{
+		c.securitySchemes[name] = &model.SecurityScheme{
 			Type:         "http",
 			Scheme:       "bearer",
 			BearerFormat: "JWT",
@@ -470,11 +575,11 @@ func WithBearerAuth(name, desc string) Option {
 //
 //	openapi.WithAPIKey("apiKey", "X-API-Key", openapi.InHeader, "API key in X-API-Key header")
 func WithAPIKey(name, paramName string, in ParameterLocation, desc string) Option {
-	return func(a *API) {
-		if a.SecuritySchemes == nil {
-			a.SecuritySchemes = make(map[string]*model.SecurityScheme)
+	return func(c *config) {
+		if c.securitySchemes == nil {
+			c.securitySchemes = make(map[string]*model.SecurityScheme)
 		}
-		a.SecuritySchemes[name] = &model.SecurityScheme{
+		c.securitySchemes[name] = &model.SecurityScheme{
 			Type:        "apiKey",
 			Name:        paramName,
 			In:          string(in),
@@ -539,9 +644,9 @@ type OAuth2Flow struct {
 //		},
 //	)
 func WithOAuth2(name, desc string, flows ...OAuth2Flow) Option {
-	return func(a *API) {
-		if a.SecuritySchemes == nil {
-			a.SecuritySchemes = make(map[string]*model.SecurityScheme)
+	return func(c *config) {
+		if c.securitySchemes == nil {
+			c.securitySchemes = make(map[string]*model.SecurityScheme)
 		}
 		oauthFlows := &model.OAuthFlows{}
 		for _, flow := range flows {
@@ -562,7 +667,7 @@ func WithOAuth2(name, desc string, flows ...OAuth2Flow) Option {
 				oauthFlows.AuthorizationCode = flowConfig
 			}
 		}
-		a.SecuritySchemes[name] = &model.SecurityScheme{
+		c.securitySchemes[name] = &model.SecurityScheme{
 			Type:        "oauth2",
 			Description: desc,
 			Flows:       oauthFlows,
@@ -581,11 +686,11 @@ func WithOAuth2(name, desc string, flows ...OAuth2Flow) Option {
 //
 //	openapi.WithOpenIDConnect("oidc", "https://example.com/.well-known/openid-configuration", "OpenID Connect authentication")
 func WithOpenIDConnect(name, url, desc string) Option {
-	return func(a *API) {
-		if a.SecuritySchemes == nil {
-			a.SecuritySchemes = make(map[string]*model.SecurityScheme)
+	return func(c *config) {
+		if c.securitySchemes == nil {
+			c.securitySchemes = make(map[string]*model.SecurityScheme)
 		}
-		a.SecuritySchemes[name] = &model.SecurityScheme{
+		c.securitySchemes[name] = &model.SecurityScheme{
 			Type:             "openIdConnect",
 			Description:      desc,
 			OpenIDConnectURL: url,
@@ -606,8 +711,8 @@ func WithOpenIDConnect(name, url, desc string) Option {
 //	// Apply OAuth with specific scopes
 //	openapi.WithDefaultSecurity("oauth2", "read", "write")
 func WithDefaultSecurity(scheme string, scopes ...string) Option {
-	return func(a *API) {
-		a.DefaultSecurity = append(a.DefaultSecurity, model.SecurityRequirement{
+	return func(c *config) {
+		c.defaultSecurity = append(c.defaultSecurity, model.SecurityRequirement{
 			scheme: scopes,
 		})
 	}
@@ -622,8 +727,8 @@ func WithDefaultSecurity(scheme string, scopes ...string) Option {
 //
 //	openapi.WithVersion(openapi.V31x)
 func WithVersion(version Version) Option {
-	return func(a *API) {
-		a.Version = version
+	return func(c *config) {
+		c.version = version
 	}
 }
 
@@ -636,8 +741,8 @@ func WithVersion(version Version) Option {
 //
 //	openapi.WithStrictDownlevel(true)
 func WithStrictDownlevel(strict bool) Option {
-	return func(a *API) {
-		a.StrictDownlevel = strict
+	return func(c *config) {
+		c.strictDownlevel = strict
 	}
 }
 
@@ -661,8 +766,8 @@ func WithStrictDownlevel(strict bool) Option {
 //
 //	openapi.WithValidation(false) // Disable for performance
 func WithValidation(enabled bool) Option {
-	return func(a *API) {
-		a.ValidateSpec = enabled
+	return func(c *config) {
+		c.validateSpec = enabled
 	}
 }
 
@@ -674,8 +779,8 @@ func WithValidation(enabled bool) Option {
 //
 //	openapi.WithSpecPath("/api/openapi.json")
 func WithSpecPath(path string) Option {
-	return func(a *API) {
-		a.SpecPath = path
+	return func(c *config) {
+		c.specPath = path
 	}
 }
 
@@ -694,10 +799,10 @@ func WithSpecPath(path string) Option {
 //	    {"lang": "curl", "source": "curl https://api.example.com/users"},
 //	})
 func WithExtension(key string, value any) Option {
-	return func(a *API) {
-		if a.Extensions == nil {
-			a.Extensions = make(map[string]any)
+	return func(c *config) {
+		if c.extensions == nil {
+			c.extensions = make(map[string]any)
 		}
-		a.Extensions[key] = value
+		c.extensions[key] = value
 	}
 }

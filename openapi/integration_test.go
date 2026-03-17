@@ -268,7 +268,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			)
 
 			// Default should have validation disabled
-			Expect(api.ValidateSpec).To(BeFalse())
+			Expect(api.ValidateSpec()).To(BeFalse())
 
 			result, err := api.Generate(context.Background(),
 				openapi.GET("/test",
@@ -286,7 +286,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				openapi.WithValidation(true),
 			)
 
-			Expect(api.ValidateSpec).To(BeTrue())
+			Expect(api.ValidateSpec()).To(BeTrue())
 		})
 
 		// Note: These tests use the embedded OpenAPI metaschemas which are complex
