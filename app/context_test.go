@@ -391,6 +391,29 @@ func TestContext_FailStatus(t *testing.T) {
 	assert.True(t, c.IsAborted())
 }
 
+func TestContext_Fail_withNilApp_doesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	a, err := New()
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rc := &router.Context{Request: req, Response: rec}
+
+	c := a.contextPool.Get()
+	c.Context = rc
+	// Intentionally leave c.app nil to simulate pool reuse or manual construction.
+
+	testErr := fmt.Errorf("test error")
+	c.Fail(testErr)
+
+	assert.True(t, c.IsAborted())
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Header().Get("Content-Type"), "application/json")
+	assert.Greater(t, rec.Body.Len(), 0)
+}
+
 func TestContext_NotFound(t *testing.T) {
 	t.Parallel()
 

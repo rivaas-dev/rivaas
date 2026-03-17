@@ -40,7 +40,11 @@ import (
 // Context embeds router.Context to provide all HTTP routing functionality while adding
 // high-level integration with binding and validation packages.
 //
-// Context instances are pooled by the App and reused across requests.
+// Context instances are pooled by the App and reused across requests. They are normally
+// created and initialized by the App (via the pool and wrapHandler). When constructing
+// a Context for tests (e.g. from the pool), set app for app-specific error formatter,
+// logging, and observability. If app is nil, methods like Fail() still work using the
+// default error formatter and slog.Default().
 type Context struct {
 	*router.Context // Embed router context for HTTP functionality
 
@@ -479,6 +483,9 @@ func (c *Context) fail(err error) {
 // selectFormatter chooses the appropriate formatter based on configuration.
 // selectFormatter is a private helper used by Fail().
 func (c *Context) selectFormatter() riverrors.Formatter {
+	if c.app == nil {
+		return riverrors.MustNew()
+	}
 	cfg := c.app.config.errors
 	if cfg == nil {
 		// Fallback to default
