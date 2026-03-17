@@ -14,13 +14,20 @@
 
 // Package validate provides OpenAPI specification validation functionality.
 // It validates OpenAPI specs against the official JSON Schema definitions.
+//
+// Create a validator with [New] or [MustNew]. Options are optional; use
+// [WithVersions] to restrict which OpenAPI versions are accepted. Use
+// [Validator.Validate] when you know the version, or [Validator.ValidateAuto]
+// to detect the version from the spec and validate in one call.
 package validate
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -49,7 +56,11 @@ var (
 
 // config holds construction-time validator configuration.
 // Options mutate config; New builds the Validator from it.
-type config struct{}
+type config struct {
+	// allowedVersions restricts which OpenAPI versions the validator accepts.
+	// Nil or empty means allow all supported versions (V30, V31).
+	allowedVersions map[Version]struct{}
+}
 
 // Option configures the validator using the functional options pattern.
 // Options are applied in order. No options are required; defaults work for typical use.
@@ -59,12 +70,32 @@ func defaultConfig() *config {
 	return &config{}
 }
 
+// WithVersions restricts the validator to the given OpenAPI versions.
+// Only specs for these versions will be compiled and accepted. Pass no arguments
+// or both V30 and V31 to allow all supported versions (default behavior).
+// Example: WithVersions(V31) for OpenAPI 3.1 only.
+func WithVersions(versions ...Version) Option {
+	return func(c *config) {
+		if len(versions) == 0 {
+			c.allowedVersions = nil
+			return
+		}
+		c.allowedVersions = make(map[Version]struct{}, len(versions))
+		for _, v := range versions {
+			if v == V30 || v == V31 {
+				c.allowedVersions[v] = struct{}{}
+			}
+		}
+	}
+}
+
 // Validator validates OpenAPI specifications against their meta-schemas.
 // Thread-safe. Compiles schemas once and caches them for reuse.
 type Validator struct {
-	compiler *jsonschema.Compiler
-	schemas  map[Version]*jsonschema.Schema
-	mu       sync.RWMutex
+	compiler        *jsonschema.Compiler
+	schemas         map[Version]*jsonschema.Schema
+	allowedVersions map[Version]struct{} // nil or empty = allow all supported
+	mu              sync.RWMutex
 }
 
 // New creates a new Validator with the given options.
@@ -77,10 +108,17 @@ func New(opts ...Option) (*Validator, error) {
 	for _, opt := range opts {
 		opt(cfg)
 	}
-	return &Validator{
+	v := &Validator{
 		compiler: jsonschema.NewCompiler(),
 		schemas:  make(map[Version]*jsonschema.Schema),
-	}, nil
+	}
+	if len(cfg.allowedVersions) > 0 {
+		v.allowedVersions = make(map[Version]struct{}, len(cfg.allowedVersions))
+		for ver := range cfg.allowedVersions {
+			v.allowedVersions[ver] = struct{}{}
+		}
+	}
+	return v, nil
 }
 
 // MustNew creates a new Validator with the given options.
@@ -112,8 +150,46 @@ func (v *Validator) Validate(ctx context.Context, specJSON []byte, version Versi
 	return schema.Validate(bytes.NewReader(specJSON))
 }
 
+// ValidateAuto detects the OpenAPI version from the spec's "openapi" field and validates
+// the specification against the corresponding meta-schema. Use this for a single-call
+// "validate this spec" flow when the version is not known in advance.
+// Returns an error if the spec is invalid JSON, missing the "openapi" field, or uses
+// an unsupported version (only 3.0.x and 3.1.x are supported).
+func (v *Validator) ValidateAuto(ctx context.Context, specJSON []byte) error {
+	var minimal struct {
+		OpenAPI string `json:"openapi"`
+	}
+	if err := json.Unmarshal(specJSON, &minimal); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+	s := strings.TrimSpace(minimal.OpenAPI)
+	if s == "" {
+		return fmt.Errorf("missing \"openapi\" field in specification")
+	}
+	var version Version
+	switch {
+	case strings.HasPrefix(s, "3.0"):
+		version = V30
+	case strings.HasPrefix(s, "3.1"):
+		version = V31
+	default:
+		return fmt.Errorf("unsupported openapi version %q (use 3.0.x or 3.1.x)", s)
+	}
+	return v.Validate(ctx, specJSON, version)
+}
+
 // getOrCompile returns a cached compiled schema or compiles it on first access.
 func (v *Validator) getOrCompile(version Version) (*jsonschema.Schema, error) {
+	if len(v.allowedVersions) > 0 {
+		if _, ok := v.allowedVersions[version]; !ok {
+			allowed := make([]string, 0, len(v.allowedVersions))
+			for ver := range v.allowedVersions {
+				allowed = append(allowed, string(ver))
+			}
+			return nil, fmt.Errorf("openapi version %s not allowed by this validator (allowed: %s)", version, strings.Join(allowed, ", "))
+		}
+	}
+
 	// Fast path: read lock for cache hit
 	v.mu.RLock()
 	if s, ok := v.schemas[version]; ok {

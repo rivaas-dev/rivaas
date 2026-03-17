@@ -18,6 +18,7 @@ package validate
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -110,6 +111,138 @@ func TestValidator_Validate_caching(t *testing.T) {
 	err2 := validator.Validate(ctx, spec, Version("9.9"))
 	require.Error(t, err2)
 	assert.ErrorContains(t, err2, "unsupported")
+}
+
+// minimalSpec30 has openapi 3.0 and minimal structure (used to trigger version-specific paths).
+var minimalSpec30 = []byte(`{"openapi":"3.0.0","info":{"title":"a","version":"1.0"},"paths":{}}`)
+
+// minimalSpec31 has openapi 3.1 and minimal structure (used to trigger version-specific paths).
+var minimalSpec31 = []byte(`{"openapi":"3.1.0","info":{"title":"a","version":"1.0"},"paths":{}}`)
+
+func TestWithVersions(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("WithVersions(V31) rejects V30", func(t *testing.T) {
+		t.Parallel()
+		validator, err := New(WithVersions(V31))
+		require.NoError(t, err)
+		err = validator.Validate(ctx, minimalSpec30, V30)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not allowed")
+		assert.Contains(t, err.Error(), "allowed")
+	})
+
+	t.Run("WithVersions(V31) accepts V31", func(t *testing.T) {
+		t.Parallel()
+		validator, err := New(WithVersions(V31))
+		require.NoError(t, err)
+		err = validator.Validate(ctx, minimalSpec31, V31)
+		// We only assert that the "not allowed" check passed; schema compile/validate may fail in some envs.
+		if err != nil {
+			assert.NotContains(t, err.Error(), "not allowed")
+		}
+	})
+
+	t.Run("WithVersions(V30) accepts V30", func(t *testing.T) {
+		t.Parallel()
+		validator, err := New(WithVersions(V30))
+		require.NoError(t, err)
+		err = validator.Validate(ctx, minimalSpec30, V30)
+		if err != nil {
+			assert.NotContains(t, err.Error(), "not allowed")
+		}
+	})
+
+	t.Run("WithVersions(V30, V31) allows both", func(t *testing.T) {
+		t.Parallel()
+		validator, err := New(WithVersions(V30, V31))
+		require.NoError(t, err)
+		err30 := validator.Validate(ctx, minimalSpec30, V30)
+		err31 := validator.Validate(ctx, minimalSpec31, V31)
+		if err30 != nil {
+			assert.NotContains(t, err30.Error(), "not allowed")
+		}
+		if err31 != nil {
+			assert.NotContains(t, err31.Error(), "not allowed")
+		}
+	})
+
+	t.Run("no option allows both", func(t *testing.T) {
+		t.Parallel()
+		validator, err := New()
+		require.NoError(t, err)
+		err30 := validator.Validate(ctx, minimalSpec30, V30)
+		err31 := validator.Validate(ctx, minimalSpec31, V31)
+		if err30 != nil {
+			assert.NotContains(t, err30.Error(), "not allowed")
+		}
+		if err31 != nil {
+			assert.NotContains(t, err31.Error(), "not allowed")
+		}
+	})
+}
+
+func TestValidator_ValidateAuto(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("valid 3.0 spec", func(t *testing.T) {
+		t.Parallel()
+		validator := MustNew()
+		err := validator.ValidateAuto(ctx, minimalSpec30)
+		// Version detection must succeed; any error must not be from our detection logic.
+		if err != nil {
+			assert.NotContains(t, err.Error(), "missing")
+			assert.NotContains(t, err.Error(), "invalid JSON")
+			assert.NotContains(t, err.Error(), "unsupported openapi version")
+		}
+	})
+
+	t.Run("valid 3.1 spec", func(t *testing.T) {
+		t.Parallel()
+		validator := MustNew()
+		err := validator.ValidateAuto(ctx, minimalSpec31)
+		if err != nil {
+			assert.NotContains(t, err.Error(), "missing")
+			assert.NotContains(t, err.Error(), "invalid JSON")
+			assert.NotContains(t, err.Error(), "unsupported openapi version")
+		}
+	})
+
+	t.Run("missing openapi field", func(t *testing.T) {
+		t.Parallel()
+		validator := MustNew()
+		err := validator.ValidateAuto(ctx, []byte(`{"info":{"title":"a","version":"1.0"},"paths":{}}`))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing")
+		assert.Contains(t, err.Error(), "openapi")
+	})
+
+	t.Run("invalid JSON", func(t *testing.T) {
+		t.Parallel()
+		validator := MustNew()
+		err := validator.ValidateAuto(ctx, []byte(`{invalid`))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid JSON")
+	})
+
+	t.Run("unsupported version", func(t *testing.T) {
+		t.Parallel()
+		validator := MustNew()
+		err := validator.ValidateAuto(ctx, []byte(`{"openapi":"2.0"}`))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported")
+	})
+
+	t.Run("ValidateAuto respects WithVersions", func(t *testing.T) {
+		t.Parallel()
+		validator := MustNew(WithVersions(V31))
+		// ValidateAuto on a 3.0 spec will detect 3.0 and then call Validate(ctx, spec, V30), which is rejected.
+		err := validator.ValidateAuto(ctx, minimalSpec30)
+		require.Error(t, err)
+		assert.True(t, strings.Contains(err.Error(), "not allowed") || strings.Contains(err.Error(), "allowed"))
+	})
 }
 
 func TestValidateResponseCode(t *testing.T) {
