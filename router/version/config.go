@@ -91,7 +91,11 @@ func newConfig(opts ...Option) (*config, error) {
 		versionLifecycles: make(map[string]*lifecycleConfig),
 	}
 
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			cfg.validationErrors = append(cfg.validationErrors, fmt.Errorf("version: option at index %d cannot be nil", i))
+			continue
+		}
 		opt(cfg)
 	}
 

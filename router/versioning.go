@@ -306,7 +306,9 @@ func (r *Router) Version(ver string, opts ...version.LifecycleOption) *VersionRo
 	}
 
 	if len(opts) > 0 && r.versionEngine != nil {
-		r.versionEngine.ApplyLifecycle(ver, opts...)
+		if err := r.versionEngine.ApplyLifecycle(ver, opts...); err != nil {
+			panic(err)
+		}
 	}
 
 	return vr
@@ -331,7 +333,9 @@ func (vr *VersionRouter) Configure(opts ...version.LifecycleOption) *VersionRout
 	}
 
 	if vr.router.versionEngine != nil {
-		vr.router.versionEngine.ApplyLifecycle(vr.version, opts...)
+		if err := vr.router.versionEngine.ApplyLifecycle(vr.version, opts...); err != nil {
+			panic(err)
+		}
 	}
 
 	return vr

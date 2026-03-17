@@ -262,17 +262,26 @@ func (e *Engine) DefaultVersion() string {
 // ApplyLifecycle applies lifecycle options for a version.
 // Options are merged with any existing lifecycle for that version (e.g. from a previous Version() or Configure() call).
 // Used by the router when r.Version("v1", opts...) or VersionRouter.Configure(opts...) is called.
-func (e *Engine) ApplyLifecycle(version string, opts ...LifecycleOption) {
+// Returns an error if any lifecycle option is nil.
+func (e *Engine) ApplyLifecycle(version string, opts ...LifecycleOption) error {
 	if version == "" || len(opts) == 0 {
-		return
+		return nil
 	}
 	lc := e.config.getLifecycle(version)
 	if lc == nil {
-		lc = applyLifecycleOptions(opts...)
+		var err error
+		lc, err = applyLifecycleOptions(opts...)
+		if err != nil {
+			return err
+		}
 	} else {
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				return fmt.Errorf("version: lifecycle option at index %d cannot be nil", i)
+			}
 			opt(lc)
 		}
 	}
 	e.config.setLifecycle(version, lc)
+	return nil
 }

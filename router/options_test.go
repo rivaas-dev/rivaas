@@ -64,6 +64,14 @@ func TestWithServerTimeouts_PartialOptions(t *testing.T) {
 	assert.Equal(t, def.idle, r.serverTimeouts.idle, "idle should be default")
 }
 
+func TestNew_WithServerTimeouts_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+	_, err := New(WithServerTimeouts(WithReadTimeout(time.Second), nil))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "server timeout option")
+	assert.Contains(t, err.Error(), "cannot be nil")
+}
+
 func TestWithoutCancellationCheck(t *testing.T) {
 	t.Parallel()
 	r, err := New(WithoutCancellationCheck())

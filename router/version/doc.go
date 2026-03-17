@@ -20,7 +20,8 @@
 // # Basic Usage
 //
 // Create a versioned router with detection strategies.
-// An engine can be created with [New] (returns error) or [MustNew] (panics on error):
+// An engine can be created with [New] (returns error) or [MustNew] (panics on error).
+// Options must not be nil; passing a nil option results in an error (or panic with MustNew).
 //
 //	r := router.New(
 //	    router.WithVersioning(
@@ -42,7 +43,8 @@
 //
 // # Version Lifecycle
 //
-// Configure per-version lifecycle using functional options:
+// Configure per-version lifecycle using functional options.
+// [Engine.ApplyLifecycle] returns an error if any lifecycle option is nil.
 //
 //	v1 := r.Version("v1",
 //	    version.Deprecated(),

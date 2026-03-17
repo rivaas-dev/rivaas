@@ -14,7 +14,10 @@
 
 package version
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // LifecycleOption configures a specific version's lifecycle.
 // These options are passed to r.Version("v1", opts...) or VersionRouter.Configure(opts...).
@@ -96,10 +99,13 @@ func SuccessorVersion(v string) LifecycleOption {
 }
 
 // applyLifecycleOptions builds a lifecycleConfig from options (internal use).
-func applyLifecycleOptions(opts ...LifecycleOption) *lifecycleConfig {
+func applyLifecycleOptions(opts ...LifecycleOption) (*lifecycleConfig, error) {
 	lc := &lifecycleConfig{}
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("version: lifecycle option at index %d cannot be nil", i)
+		}
 		opt(lc)
 	}
-	return lc
+	return lc, nil
 }

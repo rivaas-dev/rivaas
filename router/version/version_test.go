@@ -17,6 +17,7 @@
 package version
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -112,6 +113,32 @@ func TestMustNew(t *testing.T) {
 			MustNew(WithDefault(""))
 		})
 	})
+}
+
+func TestNew_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	engine, err := New(WithDefault("v1"), nil)
+	require.Error(t, err)
+	require.Nil(t, engine)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
+}
+
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithDefault("v1"), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
 }
 
 func TestEngineDetectVersion(t *testing.T) {
@@ -323,7 +350,7 @@ func TestLifecycleOptions(t *testing.T) {
 		t.Parallel()
 		engine, err := New(WithDefault("v1"))
 		require.NoError(t, err)
-		engine.ApplyLifecycle("v1", Deprecated())
+		require.NoError(t, engine.ApplyLifecycle("v1", Deprecated()))
 
 		w := httptest.NewRecorder()
 		engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -335,7 +362,7 @@ func TestLifecycleOptions(t *testing.T) {
 		date := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 		engine, err := New(WithDefault("v1"))
 		require.NoError(t, err)
-		engine.ApplyLifecycle("v1", DeprecatedSince(date))
+		require.NoError(t, engine.ApplyLifecycle("v1", DeprecatedSince(date)))
 
 		w := httptest.NewRecorder()
 		engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -347,7 +374,7 @@ func TestLifecycleOptions(t *testing.T) {
 		date := time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)
 		engine, err := New(WithDefault("v1"))
 		require.NoError(t, err)
-		engine.ApplyLifecycle("v1", Deprecated(), Sunset(date))
+		require.NoError(t, engine.ApplyLifecycle("v1", Deprecated(), Sunset(date)))
 
 		w := httptest.NewRecorder()
 		engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -358,7 +385,7 @@ func TestLifecycleOptions(t *testing.T) {
 		t.Parallel()
 		engine, err := New(WithDefault("v1"))
 		require.NoError(t, err)
-		engine.ApplyLifecycle("v1", Deprecated(), MigrationDocs("https://docs.example.com"))
+		require.NoError(t, engine.ApplyLifecycle("v1", Deprecated(), MigrationDocs("https://docs.example.com")))
 
 		w := httptest.NewRecorder()
 		engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -369,7 +396,7 @@ func TestLifecycleOptions(t *testing.T) {
 		t.Parallel()
 		engine, err := New(WithDefault("v1"))
 		require.NoError(t, err)
-		engine.ApplyLifecycle("v1", Deprecated(), SuccessorVersion("v2"))
+		require.NoError(t, engine.ApplyLifecycle("v1", Deprecated(), SuccessorVersion("v2")))
 
 		w := httptest.NewRecorder()
 		engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -381,12 +408,12 @@ func TestLifecycleOptions(t *testing.T) {
 		date := time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)
 		engine, err := New(WithDefault("v1"))
 		require.NoError(t, err)
-		engine.ApplyLifecycle("v1",
+		require.NoError(t, engine.ApplyLifecycle("v1",
 			Deprecated(),
 			Sunset(date),
 			MigrationDocs("https://docs.example.com/migrate"),
 			SuccessorVersion("v2"),
-		)
+		))
 
 		w := httptest.NewRecorder()
 		engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -420,7 +447,7 @@ func TestEngineSetLifecycleHeaders(t *testing.T) {
 
 		engine, err := New(WithDefault("v1"))
 		require.NoError(t, err)
-		engine.ApplyLifecycle("v1", Deprecated(), Sunset(sunsetDate))
+		require.NoError(t, engine.ApplyLifecycle("v1", Deprecated(), Sunset(sunsetDate)))
 
 		w := httptest.NewRecorder()
 		isSunset := engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -436,13 +463,24 @@ func TestEngineSetLifecycleHeaders(t *testing.T) {
 
 		engine, err := New(WithDefault("v1"), WithSunsetEnforcement())
 		require.NoError(t, err)
-		engine.ApplyLifecycle("v1", Deprecated(), Sunset(pastDate))
+		require.NoError(t, engine.ApplyLifecycle("v1", Deprecated(), Sunset(pastDate)))
 
 		w := httptest.NewRecorder()
 		isSunset := engine.SetLifecycleHeaders(w, "v1", "/users")
 
 		assert.True(t, isSunset)
 	})
+}
+
+func TestApplyLifecycle_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+	engine, err := New(WithDefault("v1"))
+	require.NoError(t, err)
+
+	err = engine.ApplyLifecycle("v1", Deprecated(), nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lifecycle option")
+	assert.Contains(t, err.Error(), "cannot be nil")
 }
 
 func TestPathStripping(t *testing.T) {
@@ -502,6 +540,14 @@ func TestConfig_Observer(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.NotNil(t, cfg.observer)
+}
+
+func TestNew_WithObserver_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+	_, err := New(WithDefault("v1"), WithObserver(OnDetected(func(_, _ string) {}), nil))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "observer option")
+	assert.Contains(t, err.Error(), "cannot be nil")
 }
 
 func TestEngine_ShouldApplyVersioning(t *testing.T) {

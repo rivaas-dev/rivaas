@@ -18,6 +18,7 @@ package router
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -38,6 +39,32 @@ func TestWithBloomFilterSize(t *testing.T) {
 	_, err := New(WithBloomFilterSize(0))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bloom filter size must be non-zero")
+}
+
+func TestNew_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	r, err := New(WithBloomFilterSize(1000), nil)
+	require.Error(t, err)
+	require.Nil(t, r)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
+}
+
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithBloomFilterSize(1000), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
 }
 
 // mockDiagnosticHandler implements the DiagnosticHandler interface for testing

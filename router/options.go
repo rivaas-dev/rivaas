@@ -14,7 +14,10 @@
 
 package router
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // WithDiagnostics sets a diagnostic handler for the router.
 //
@@ -166,7 +169,11 @@ func WithServerTimeouts(opts ...ServerTimeoutOption) Option {
 			return
 		}
 		s := defaultServerTimeouts()
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				c.validationErrors = append(c.validationErrors, fmt.Errorf("router: server timeout option at index %d cannot be nil", i))
+				continue
+			}
 			opt(s)
 		}
 		c.serverTimeouts = s

@@ -227,7 +227,11 @@ type ObserverOption func(*observer)
 func WithObserver(opts ...ObserverOption) Option {
 	return func(cfg *config) {
 		obs := &observer{}
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				cfg.validationErrors = append(cfg.validationErrors, fmt.Errorf("version: observer option at index %d cannot be nil", i))
+				continue
+			}
 			opt(obs)
 		}
 		cfg.observer = obs

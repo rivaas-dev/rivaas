@@ -15,6 +15,7 @@
 package router
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -45,6 +46,7 @@ type config struct {
 	enableH2C          bool
 	serverTimeouts     *serverTimeouts
 	realip             *realIPConfig
+	validationErrors   []error // Errors from nil options (e.g. WithServerTimeouts)
 }
 
 // responseWriter is an alias for ResponseWriterWrapper for internal and test use.
@@ -179,7 +181,10 @@ const (
 //	http.ListenAndServe(":8080", r)
 func New(opts ...Option) (*Router, error) {
 	cfg := defaultConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("router: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 	if err := cfg.validate(); err != nil {
@@ -200,6 +205,9 @@ func defaultConfig() *config {
 
 // validate checks the config and builds the version engine from versionOpts if present.
 func (c *config) validate() error {
+	if len(c.validationErrors) > 0 {
+		return errors.Join(c.validationErrors...)
+	}
 	if c.bloomFilterSize == 0 {
 		return ErrBloomFilterSizeZero
 	}
