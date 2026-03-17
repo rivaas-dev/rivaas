@@ -244,8 +244,7 @@
 //
 //   - [Bind]: Type-safe binding with generics
 //   - [MustBind]: Type-safe Must pattern
-//   - [BindPatch]: Bind with partial validation (PATCH endpoints)
-//   - [BindStrict]: Bind with unknown field rejection
+//   - [BindOnly]: Bind without validation (for advanced use)
 //
 // Options for customization:
 //
@@ -258,7 +257,7 @@
 // Example with options:
 //
 //	app.PATCH("/users/:id", func(c *app.Context) {
-//	    req, ok := app.MustBindPatch[UpdateUserRequest](c)
+//	    req, ok := app.MustBind[UpdateUserRequest](c, app.WithPartial())
 //	    if !ok {
 //	        return
 //	    }

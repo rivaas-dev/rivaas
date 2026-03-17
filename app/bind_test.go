@@ -293,7 +293,7 @@ func TestBindOnly(t *testing.T) {
 	}
 }
 
-func TestBindPatch(t *testing.T) {
+func TestMustBind_WithPartial(t *testing.T) {
 	t.Parallel()
 
 	type updateRequest struct {
@@ -305,81 +305,13 @@ func TestBindPatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req, err := BindPatch[updateRequest](c)
-	require.NoError(t, err)
-	assert.NotNil(t, req.Name)
-	assert.Equal(t, "Alice", *req.Name)
-}
-
-func TestMustBindPatch(t *testing.T) {
-	t.Parallel()
-
-	type updateRequest struct {
-		Name *string `json:"name" validate:"omitempty,min=2"`
-	}
-
-	c, err := TestContextWithBody("PATCH", "/test", map[string]any{
-		"name": "Alice",
-	})
-	require.NoError(t, err)
-
-	req, ok := MustBindPatch[updateRequest](c)
+	req, ok := MustBind[updateRequest](c, WithPartial())
 	require.True(t, ok)
 	assert.NotNil(t, req.Name)
 	assert.Equal(t, "Alice", *req.Name)
 }
 
-func TestBindStrict(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		body    any
-		wantErr bool
-	}{
-		{
-			name: "valid request without extra fields",
-			body: map[string]any{
-				"name":  "Alice",
-				"email": "alice@example.com",
-				"age":   30,
-			},
-			wantErr: false,
-		},
-		{
-			name: "request with unknown field fails",
-			body: map[string]any{
-				"name":    "Alice",
-				"email":   "alice@example.com",
-				"age":     30,
-				"unknown": "field",
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			c, err := TestContextWithBody("POST", "/test", tt.body)
-			require.NoError(t, err)
-
-			req, err := BindStrict[testBindRequest](c)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				body, ok := tt.body.(map[string]any)
-				require.True(t, ok)
-				assert.Equal(t, body["name"], req.Name)
-			}
-		})
-	}
-}
-
-func TestMustBindStrict(t *testing.T) {
+func TestMustBind_WithStrict(t *testing.T) {
 	t.Parallel()
 
 	c, err := TestContextWithBody("POST", "/test", map[string]any{
@@ -389,7 +321,7 @@ func TestMustBindStrict(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req, ok := MustBindStrict[testBindRequest](c)
+	req, ok := MustBind[testBindRequest](c, WithStrict())
 	require.True(t, ok)
 	assert.Equal(t, "Alice", req.Name)
 }

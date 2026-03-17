@@ -37,9 +37,10 @@ package app
 //	}
 //	// req is of type CreateUserRequest
 //
-// With options:
+// With options (e.g. PATCH with partial validation, or strict unknown-field rejection):
 //
 //	req, err := app.Bind[CreateUserRequest](c, app.WithStrict())
+//	req, err := app.Bind[UpdateUserRequest](c, app.WithPartial())
 func Bind[T any](c *Context, opts ...BindOption) (T, error) {
 	var out T
 	if err := c.Bind(&out, opts...); err != nil {
@@ -92,58 +93,4 @@ func BindOnly[T any](c *Context, opts ...BindOption) (T, error) {
 		return zero, err
 	}
 	return out, nil
-}
-
-// BindPatch binds with partial validation enabled.
-// Use for PATCH endpoints where only provided fields should be validated.
-//
-// Example:
-//
-//	req, err := app.BindPatch[UpdateUserRequest](c)
-//
-// Equivalent to:
-//
-//	req, err := app.Bind[UpdateUserRequest](c, app.WithPartial())
-func BindPatch[T any](c *Context, opts ...BindOption) (T, error) {
-	return Bind[T](c, append([]BindOption{WithPartial()}, opts...)...)
-}
-
-// MustBindPatch is the Must variant of [BindPatch].
-// It binds with partial validation and writes an error response on failure.
-//
-// Example:
-//
-//	req, ok := app.MustBindPatch[UpdateUserRequest](c)
-//	if !ok {
-//	    return // Error already written
-//	}
-func MustBindPatch[T any](c *Context, opts ...BindOption) (T, bool) {
-	return MustBind[T](c, append([]BindOption{WithPartial()}, opts...)...)
-}
-
-// BindStrict binds with unknown field rejection enabled.
-// Use when you want to catch typos and API drift.
-//
-// Example:
-//
-//	req, err := app.BindStrict[CreateUserRequest](c)
-//
-// Equivalent to:
-//
-//	req, err := app.Bind[CreateUserRequest](c, app.WithStrict())
-func BindStrict[T any](c *Context, opts ...BindOption) (T, error) {
-	return Bind[T](c, append([]BindOption{WithStrict()}, opts...)...)
-}
-
-// MustBindStrict is the Must variant of [BindStrict].
-// It binds with unknown field rejection and writes an error response on failure.
-//
-// Example:
-//
-//	req, ok := app.MustBindStrict[CreateUserRequest](c)
-//	if !ok {
-//	    return // Error already written
-//	}
-func MustBindStrict[T any](c *Context, opts ...BindOption) (T, bool) {
-	return MustBind[T](c, append([]BindOption{WithStrict()}, opts...)...)
 }

@@ -263,8 +263,8 @@ func ExampleMustBind() {
 	// Output: Handler with MustBind registered
 }
 
-// ExampleBindPatch demonstrates partial validation for PATCH endpoints.
-func ExampleBindPatch() {
+// Example_partialValidation demonstrates partial validation for PATCH endpoints using Bind with WithPartial.
+func Example_partialValidation() {
 	a := app.MustNew()
 
 	type UpdateUserRequest struct {
@@ -273,7 +273,7 @@ func ExampleBindPatch() {
 	}
 
 	a.PATCH("/users/:id", func(c *app.Context) {
-		req, err := app.BindPatch[UpdateUserRequest](c)
+		req, err := app.Bind[UpdateUserRequest](c, app.WithPartial())
 		if err != nil {
 			c.Fail(err)
 			return
@@ -294,8 +294,8 @@ func ExampleBindPatch() {
 	// Output: PATCH handler with partial validation registered
 }
 
-// ExampleBindStrict demonstrates strict mode for typo detection.
-func ExampleBindStrict() {
+// Example_strictBinding demonstrates strict mode for typo detection using Bind with WithStrict.
+func Example_strictBinding() {
 	a := app.MustNew()
 
 	type CreateUserRequest struct {
@@ -304,7 +304,7 @@ func ExampleBindStrict() {
 	}
 
 	a.POST("/users", func(c *app.Context) {
-		req, err := app.BindStrict[CreateUserRequest](c)
+		req, err := app.Bind[CreateUserRequest](c, app.WithStrict())
 		if err != nil {
 			c.Fail(err)
 			return
