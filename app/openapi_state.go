@@ -134,8 +134,8 @@ func (s *openapiState) ServeUI() bool {
 	return s.api.ServeUI()
 }
 
-// UIConfig returns the UI configuration for rendering Swagger UI.
+// UIConfig returns a read-only snapshot of the UI configuration for rendering Swagger UI.
 // Safe without lock: api is immutable after construction.
-func (s *openapiState) UIConfig() openapi.UIConfig {
+func (s *openapiState) UIConfig() openapi.UISnapshot {
 	return s.api.UI()
 }
