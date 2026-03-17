@@ -44,21 +44,29 @@ type ConfigError struct {
 	Message string
 	// Constraint is an optional constraint that was violated (e.g., "must be positive", "must be between X and Y")
 	Constraint string
+	// Hint is an optional suggestion for how to fix the error (e.g., which option or env var to use).
+	// When non-empty, Error() appends it to the returned string.
+	Hint string
 }
 
 // Error implements the error interface and returns a formatted error message.
 // It formats the ConfigError as a human-readable string.
+// When Hint is non-empty, it is appended in parentheses so the message is actionable.
 func (e *ConfigError) Error() string {
+	var base string
 	if e.Constraint != "" {
-		return fmt.Sprintf("configuration error in %s: %s (constraint: %s, value: %v)",
+		base = fmt.Sprintf("configuration error in %s: %s (constraint: %s, value: %v)",
 			e.Field, e.Message, e.Constraint, e.Value)
-	}
-	if e.Value != nil {
-		return fmt.Sprintf("configuration error in %s: %s (value: %v)",
+	} else if e.Value != nil {
+		base = fmt.Sprintf("configuration error in %s: %s (value: %v)",
 			e.Field, e.Message, e.Value)
+	} else {
+		base = fmt.Sprintf("configuration error in %s: %s", e.Field, e.Message)
 	}
-
-	return fmt.Sprintf("configuration error in %s: %s", e.Field, e.Message)
+	if e.Hint != "" {
+		return base + " (" + e.Hint + ")"
+	}
+	return base
 }
 
 // Unwrap returns nil as ConfigError is a leaf error type.
@@ -127,9 +135,11 @@ func newFieldError(field string, value any, message, constraint string) *ConfigE
 	}
 }
 
-// newEmptyFieldError creates a [ConfigError] for an empty required field.
-func newEmptyFieldError(field string) *ConfigError {
-	return newFieldError(field, nil, "cannot be empty", "required")
+// newEmptyFieldErrorWithHint creates a [ConfigError] for an empty required field with an optional fix hint.
+func newEmptyFieldErrorWithHint(field, hint string) *ConfigError {
+	e := newFieldError(field, nil, "cannot be empty", "required")
+	e.Hint = hint
+	return e
 }
 
 // newInvalidValueError creates a [ConfigError] for an invalid field value.

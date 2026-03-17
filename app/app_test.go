@@ -66,6 +66,7 @@ func TestNew_ValidationError(t *testing.T) {
 						if e.Field == "serviceName" {
 							found = true
 							assert.Equal(t, "cannot be empty", e.Message)
+							assert.Contains(t, e.Hint, "WithServiceName", "hint should tell user how to fix")
 						}
 					}
 					assert.True(t, found, "should have serviceName error")
@@ -77,6 +78,21 @@ func TestNew_ValidationError(t *testing.T) {
 			opts:        []Option{WithServiceName("test"), WithServiceVersion("")},
 			wantErr:     "serviceVersion",
 			wantErrType: &ValidationError{},
+			checkError: func(t *testing.T, err error) {
+				t.Helper()
+				var ve *ValidationError
+				if errors.As(err, &ve) {
+					found := false
+					for _, e := range ve.Errors {
+						if e.Field == "serviceVersion" {
+							found = true
+							assert.Equal(t, "cannot be empty", e.Message)
+							assert.Contains(t, e.Hint, "WithServiceVersion", "hint should tell user how to fix")
+						}
+					}
+					assert.True(t, found, "should have serviceVersion error")
+				}
+			},
 		},
 		{
 			name: "invalid environment",

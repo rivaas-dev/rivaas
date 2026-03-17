@@ -299,12 +299,12 @@ func (c *config) validate() error {
 
 	// Validate service name
 	if c.serviceName == "" {
-		errs.Add(newEmptyFieldError("serviceName"))
+		errs.Add(newEmptyFieldErrorWithHint("serviceName", "use app.WithServiceName(\"...\") or set RIVAAS_SERVICE_NAME"))
 	}
 
 	// Validate service version
 	if c.serviceVersion == "" {
-		errs.Add(newEmptyFieldError("serviceVersion"))
+		errs.Add(newEmptyFieldErrorWithHint("serviceVersion", "use app.WithServiceVersion(\"...\") or set RIVAAS_SERVICE_VERSION"))
 	}
 
 	// Validate environment
