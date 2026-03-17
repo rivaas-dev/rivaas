@@ -418,18 +418,18 @@ func (c *Config) validate() error {
 // Options are applied in order; validation errors are collected and reported after all options
 // are applied, so callers never receive a partially-initialized config. Use MustNew for main() or
 // when panic on error is acceptable.
-func New(options ...Option) (*Config, error) {
+func New(opts ...Option) (*Config, error) {
 	c := &Config{
 		values:  &map[string]any{},
 		sources: []Source{},
 		tagName: "config", // Default tag name
 	}
 
-	for _, option := range options {
-		if option == nil {
+	for _, opt := range opts {
+		if opt == nil {
 			continue // Skip nil options
 		}
-		option(c)
+		opt(c)
 	}
 
 	if err := c.validate(); err != nil {
@@ -442,8 +442,8 @@ func New(options ...Option) (*Config, error) {
 // It panics if validation fails after applying options.
 // Use this in main() or initialization code where panic is acceptable.
 // For cases where error handling is needed, use New() instead.
-func MustNew(options ...Option) *Config {
-	cfg, err := New(options...)
+func MustNew(opts ...Option) *Config {
+	cfg, err := New(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("config: validation failed: %v", err))
 	}
