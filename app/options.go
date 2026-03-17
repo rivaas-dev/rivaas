@@ -217,7 +217,11 @@ func WithShutdownTimeout(d time.Duration) ServerOption {
 func WithServer(opts ...ServerOption) Option {
 	return func(c *config) {
 		// Apply options to the existing server config (which already has defaults)
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				c.validationErrors = append(c.validationErrors, fmt.Errorf("app: server option at index %d cannot be nil", i))
+				continue
+			}
 			opt(c.server)
 		}
 	}
@@ -540,7 +544,11 @@ func WithObservability(opts ...ObservabilityOption) Option {
 		if c.observability == nil {
 			c.observability = defaultObservabilitySettings()
 		}
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				c.observability.validationErrors = append(c.observability.validationErrors, fmt.Errorf("app: observability option at index %d cannot be nil", i))
+				continue
+			}
 			opt(c.observability)
 		}
 	}

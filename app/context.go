@@ -341,7 +341,10 @@ func (c *Context) Validate(v any, opts ...ValidateOption) error {
 		ctx = validation.InjectRawJSONCtx(ctx, c.bindingMeta.rawBody)
 	}
 
-	cfg := applyValidateOptions(opts)
+	cfg, err := applyValidateOptions(opts)
+	if err != nil {
+		return err
+	}
 
 	allOpts := []validation.Option{
 		validation.WithContext(ctx),

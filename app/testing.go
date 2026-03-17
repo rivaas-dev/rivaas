@@ -81,7 +81,10 @@ func (a *App) Test(req *http.Request, opts ...TestOption) (*http.Response, error
 		ctx:     context.Background(),
 	}
 
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("app: test option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 

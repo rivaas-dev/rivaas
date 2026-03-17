@@ -15,6 +15,8 @@
 package app
 
 import (
+	"fmt"
+
 	"rivaas.dev/validation"
 )
 
@@ -79,14 +81,18 @@ func WithValidateOptions(opts ...validation.Option) ValidateOption {
 }
 
 // applyValidateOptions creates a validateConfig with default values and applies the given options.
-func applyValidateOptions(opts []ValidateOption) *validateConfig {
+// Returns an error if any option is nil.
+func applyValidateOptions(opts []ValidateOption) (*validateConfig, error) {
 	cfg := &validateConfig{
 		partial:        false,
 		strict:         false,
 		validationOpts: nil,
 	}
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("app: validate option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
-	return cfg
+	return cfg, nil
 }

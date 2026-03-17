@@ -18,6 +18,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -350,6 +351,50 @@ func TestNew_ValidConfigurations(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNew_NilOptionFails tests that New returns an error when a nil option is passed.
+func TestNew_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	app, err := New(WithServiceName("test"), WithServiceVersion("1.0.0"), nil)
+	require.Error(t, err)
+	require.Nil(t, app)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 2")
+}
+
+// TestMustNew_NilOptionPanics tests that MustNew panics when a nil option is passed.
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
+}
+
+func TestNew_WithServer_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+	_, err := New(WithServiceName("test"), WithServer(WithReadTimeout(time.Second), nil))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "server option")
+	assert.Contains(t, err.Error(), "cannot be nil")
+}
+
+func TestNew_WithObservability_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+	_, err := New(WithServiceName("test"), WithObservability(WithTracing(tracing.WithNoop()), nil))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "observability option")
+	assert.Contains(t, err.Error(), "cannot be nil")
 }
 
 // TestNew_ObservabilityInitialization tests that observability components

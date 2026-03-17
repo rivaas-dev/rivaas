@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"rivaas.dev/validation"
 )
@@ -25,7 +26,8 @@ import (
 func TestWithValidatePartial(t *testing.T) {
 	t.Parallel()
 
-	cfg := applyValidateOptions([]ValidateOption{WithValidatePartial()})
+	cfg, err := applyValidateOptions([]ValidateOption{WithValidatePartial()})
+	require.NoError(t, err)
 	assert.True(t, cfg.partial)
 	assert.False(t, cfg.strict)
 	assert.Nil(t, cfg.validationOpts)
@@ -34,7 +36,8 @@ func TestWithValidatePartial(t *testing.T) {
 func TestWithValidateStrict(t *testing.T) {
 	t.Parallel()
 
-	cfg := applyValidateOptions([]ValidateOption{WithValidateStrict()})
+	cfg, err := applyValidateOptions([]ValidateOption{WithValidateStrict()})
+	require.NoError(t, err)
 	assert.False(t, cfg.partial)
 	assert.True(t, cfg.strict)
 	assert.Nil(t, cfg.validationOpts)
@@ -44,7 +47,8 @@ func TestWithValidateOptions(t *testing.T) {
 	t.Parallel()
 
 	opt := validation.WithMaxErrors(3)
-	cfg := applyValidateOptions([]ValidateOption{WithValidateOptions(opt)})
+	cfg, err := applyValidateOptions([]ValidateOption{WithValidateOptions(opt)})
+	require.NoError(t, err)
 	assert.False(t, cfg.partial)
 	assert.False(t, cfg.strict)
 	assert.Len(t, cfg.validationOpts, 1)
@@ -98,11 +102,22 @@ func TestApplyValidateOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := applyValidateOptions(tt.opts)
+			cfg, err := applyValidateOptions(tt.opts)
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantPartial, cfg.partial)
 			assert.Equal(t, tt.wantStrict, cfg.strict)
 			assert.Len(t, cfg.validationOpts, tt.wantOptsLen)
 		})
 	}
+}
+
+func TestApplyValidateOptions_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := applyValidateOptions([]ValidateOption{WithValidatePartial(), nil, WithValidateStrict()})
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
 }

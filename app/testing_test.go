@@ -157,6 +157,27 @@ func TestApp_Test(t *testing.T) {
 	}
 }
 
+func TestApp_Test_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+	app := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
+	app.GET("/ok", func(c *Context) {
+		if err := c.String(http.StatusOK, "ok"); err != nil {
+			return
+		}
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/ok", nil)
+	resp, err := app.Test(req, WithTimeout(time.Second), nil)
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "test option")
+	assert.Contains(t, err.Error(), "cannot be nil")
+	if resp != nil {
+		//nolint:errcheck // close error irrelevant in test; resp is nil when nil option is passed
+		_ = resp.Body.Close()
+	}
+}
+
 // TestApp_Test_Timeout tests timeout functionality with context cancellation.
 func TestApp_Test_Timeout(t *testing.T) {
 	t.Parallel()

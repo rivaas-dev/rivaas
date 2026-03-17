@@ -103,6 +103,7 @@ type config struct {
 	debug            *debugSettings         // Debug endpoint settings (pprof)
 	validationEngine *validation.Engine     // Optional; when set, Bind/Validate use this engine
 	envErrors        []error                // Errors from environment variable parsing
+	validationErrors []error                // Errors from nil options (e.g. WithServer)
 }
 
 // metricsConfig holds metrics configuration settings.
@@ -291,6 +292,11 @@ type routerConfig struct {
 func (c *config) validate() error {
 	var errs ValidationError
 
+	// Options validation errors (e.g. nil server or observability options)
+	for _, e := range c.validationErrors {
+		errs.Add(newInvalidValueError("options", nil, e.Error()))
+	}
+
 	// Validate service name
 	if c.serviceName == "" {
 		errs.Add(newEmptyFieldError("serviceName"))
@@ -425,7 +431,10 @@ func New(opts ...Option) (*App, error) {
 	cfg := defaultConfig()
 
 	// Apply user options
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("app: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 
@@ -708,7 +717,10 @@ func (a *App) registerRouteWithTarget(target routeTarget, method, path string, h
 
 	// Apply options to build configuration
 	cfg := &routeConfig{}
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			panic(fmt.Sprintf("app: route option at index %d cannot be nil", i))
+		}
 		opt(cfg)
 	}
 
