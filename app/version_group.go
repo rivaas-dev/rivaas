@@ -15,7 +15,6 @@
 package app
 
 import (
-	"fmt"
 	"net/http"
 
 	"rivaas.dev/openapi"
@@ -46,68 +45,17 @@ type VersionGroup struct {
 
 // addRoute adds a route to the version group by combining the group's middleware with handlers.
 // addRoute is an internal method used by the HTTP method functions.
+// It delegates to the app's registerRouteWithTarget with a routeTarget for this version group.
 func (vg *VersionGroup) addRoute(method, path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
-	// Capture handler name and caller location before any other operations
-	handlerName := getHandlerFuncName(handler)
-	// Skip: getCallerLocation(1) → addRoute(2) → GET/POST/etc(3) → user code(4)
-	callerLoc := getCallerLocation(3)
-
-	// Apply route options
-	cfg := &routeConfig{}
-	for _, opt := range opts {
-		opt(cfg)
+	target := routeTarget{
+		prefixMiddleware: vg.middleware,
+		getFullPath:      func(p string) string { return vg.prefix + p },
+		version:          vg.versionRouter.Version(),
+		register: func(method, _, fullPath string, handlers []router.HandlerFunc) *route.Route {
+			return vg.versionRouter.Handle(method, fullPath, handlers...)
+		},
 	}
-
-	// Build handler chain: group middleware → before options → handler → after options
-	allHandlers := make([]router.HandlerFunc, 0, len(vg.middleware)+len(cfg.before)+1+len(cfg.after))
-	for _, m := range vg.middleware {
-		allHandlers = append(allHandlers, vg.app.wrapHandler(m))
-	}
-	for _, h := range cfg.before {
-		allHandlers = append(allHandlers, vg.app.wrapHandler(h))
-	}
-	allHandlers = append(allHandlers, vg.app.wrapHandler(handler))
-	for _, h := range cfg.after {
-		allHandlers = append(allHandlers, vg.app.wrapHandler(h))
-	}
-
-	// Build full path with prefix
-	fullPath := vg.prefix + path
-
-	// Register route with combined handlers
-	var rt *route.Route
-	switch method {
-	case http.MethodGet:
-		rt = vg.versionRouter.GET(fullPath, allHandlers...)
-	case http.MethodPost:
-		rt = vg.versionRouter.POST(fullPath, allHandlers...)
-	case http.MethodPut:
-		rt = vg.versionRouter.PUT(fullPath, allHandlers...)
-	case http.MethodDelete:
-		rt = vg.versionRouter.DELETE(fullPath, allHandlers...)
-	case http.MethodPatch:
-		rt = vg.versionRouter.PATCH(fullPath, allHandlers...)
-	case http.MethodHead:
-		rt = vg.versionRouter.HEAD(fullPath, allHandlers...)
-	case http.MethodOptions:
-		rt = vg.versionRouter.OPTIONS(fullPath, allHandlers...)
-	default:
-		panicUnsupportedHTTPMethod(method)
-	}
-
-	// Update route info with actual handler name and caller location
-	vg.app.router.UpdateRouteInfo(method, fullPath, vg.versionRouter.Version(), func(info *route.Info) {
-		info.HandlerName = fmt.Sprintf("%s (%s)", handlerName, callerLoc)
-	})
-
-	vg.app.fireRouteHook(rt)
-
-	// Register OpenAPI documentation if enabled
-	if vg.app.openapi != nil && !cfg.skipDoc && len(cfg.docOpts) > 0 {
-		vg.app.openapi.AddOperation(openapi.Op(method, fullPath, cfg.docOpts...))
-	}
-
-	return rt
+	return vg.app.registerRouteWithTarget(target, method, path, handler, opts...)
 }
 
 // GET adds a GET route to the version group.
@@ -242,3 +190,6 @@ func (vg *VersionGroup) Group(prefix string, middleware ...HandlerFunc) *Version
 		prefix:        vg.prefix + prefix,
 	}
 }
+
+// Ensure VersionGroup uses openapi package (referenced in doc examples).
+var _ = openapi.Op

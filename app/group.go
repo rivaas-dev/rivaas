@@ -15,7 +15,6 @@
 package app
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -87,73 +86,22 @@ func (g *Group) Group(prefix string, middleware ...HandlerFunc) *Group {
 
 // addRoute adds a route to the group by combining the group's middleware with handlers.
 // It returns the underlying route.Route for constraint configuration.
+// It delegates to the app's registerRouteWithTarget with a routeTarget for this group.
 func (g *Group) addRoute(method, path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
-	// Capture handler name and caller location before any other operations
-	handlerName := getHandlerFuncName(handler)
-	// Skip: getCallerLocation(1) → addRoute(2) → GET/POST/etc(3) → user code(4)
-	callerLoc := getCallerLocation(3)
-
-	// Apply route options
-	cfg := &routeConfig{}
-	for _, opt := range opts {
-		opt(cfg)
+	target := routeTarget{
+		prefixMiddleware: g.middleware,
+		getFullPath:      g.buildFullPath,
+		version:          "",
+		register: func(method, pathForRouter, _ string, handlers []router.HandlerFunc) *route.Route {
+			// route.Group expects []route.Handler (Handler = any)
+			routeHandlers := make([]route.Handler, 0, len(handlers))
+			for _, h := range handlers {
+				routeHandlers = append(routeHandlers, h)
+			}
+			return g.router.Handle(method, pathForRouter, routeHandlers...)
+		},
 	}
-
-	// Build handler chain: group middleware → before options → handler → after options
-	allHandlers := make([]router.HandlerFunc, 0, len(g.middleware)+len(cfg.before)+1+len(cfg.after))
-	for _, m := range g.middleware {
-		allHandlers = append(allHandlers, g.app.wrapHandler(m))
-	}
-	for _, h := range cfg.before {
-		allHandlers = append(allHandlers, g.app.wrapHandler(h))
-	}
-	allHandlers = append(allHandlers, g.app.wrapHandler(handler))
-	for _, h := range cfg.after {
-		allHandlers = append(allHandlers, g.app.wrapHandler(h))
-	}
-
-	// Convert to []route.Handler for route.Group API (route package uses Handler = any to avoid import cycle)
-	routeHandlers := make([]route.Handler, 0, len(allHandlers))
-	for _, h := range allHandlers {
-		routeHandlers = append(routeHandlers, h)
-	}
-
-	// Register route with combined handlers
-	var rt *route.Route
-	switch method {
-	case http.MethodGet:
-		rt = g.router.GET(path, routeHandlers...)
-	case http.MethodPost:
-		rt = g.router.POST(path, routeHandlers...)
-	case http.MethodPut:
-		rt = g.router.PUT(path, routeHandlers...)
-	case http.MethodDelete:
-		rt = g.router.DELETE(path, routeHandlers...)
-	case http.MethodPatch:
-		rt = g.router.PATCH(path, routeHandlers...)
-	case http.MethodHead:
-		rt = g.router.HEAD(path, routeHandlers...)
-	case http.MethodOptions:
-		rt = g.router.OPTIONS(path, routeHandlers...)
-	default:
-		panicUnsupportedHTTPMethod(method)
-	}
-
-	// Update route info with actual handler name and caller location
-	fullPath := g.buildFullPath(path)
-	g.app.router.UpdateRouteInfo(method, fullPath, "", func(info *route.Info) {
-		info.HandlerName = fmt.Sprintf("%s (%s)", handlerName, callerLoc)
-	})
-
-	// Fire route hook
-	g.app.fireRouteHook(rt)
-
-	// Register OpenAPI documentation if enabled
-	if g.app.openapi != nil && !cfg.skipDoc && len(cfg.docOpts) > 0 {
-		g.app.openapi.AddOperation(openapi.Op(method, fullPath, cfg.docOpts...))
-	}
-
-	return rt
+	return g.app.registerRouteWithTarget(target, method, path, handler, opts...)
 }
 
 // GET adds a GET route to the group with the group's prefix.

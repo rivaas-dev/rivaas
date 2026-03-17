@@ -664,20 +664,34 @@ func getHandlerFuncName(handler HandlerFunc) string {
 	return fullName
 }
 
-// panicUnsupportedHTTPMethod panics with a clear message when an unsupported HTTP method
-// is passed to registerRoute or addRoute. Used by App.registerRoute, Group.addRoute, and VersionGroup.addRoute.
-func panicUnsupportedHTTPMethod(method string) {
-	panic(fmt.Sprintf("app: unsupported HTTP method %q (supported: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)", method))
+// routeTarget parameterizes the single route registration path for App, Group, and VersionGroup.
+// registerRouteWithTarget is the single implementation for all three.
+type routeTarget struct {
+	prefixMiddleware []HandlerFunc
+	getFullPath      func(path string) string
+	version          string
+	register         func(method, path, fullPath string, handlers []router.HandlerFunc) *route.Route
 }
 
-// registerRoute is the internal implementation for all HTTP method shortcuts.
-// It applies route options, builds the handler chain, registers with the router,
-// and registers OpenAPI documentation if enabled.
-func (a *App) registerRoute(method, path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+// supportedHTTPMethods is the set of methods accepted by registerRouteWithTarget.
+// Invalid methods panic with a clear message (fail fast).
+var supportedHTTPMethods = map[string]bool{
+	http.MethodGet: true, http.MethodPost: true, http.MethodPut: true, http.MethodDelete: true,
+	http.MethodPatch: true, http.MethodHead: true, http.MethodOptions: true,
+}
+
+// registerRouteWithTarget performs the shared route registration logic used by App.registerRoute,
+// Group.addRoute, and VersionGroup.addRoute. It captures handler name and caller location,
+// applies options, builds the handler chain, delegates to the target's register callback,
+// then updates route info, fires hooks, and registers OpenAPI when applicable.
+func (a *App) registerRouteWithTarget(target routeTarget, method, path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	if !supportedHTTPMethods[method] {
+		panic(fmt.Sprintf("app: unsupported HTTP method %q (supported: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)", method))
+	}
 	// Capture handler name and caller location before any other operations
 	handlerName := getHandlerFuncName(handler)
-	// Skip: registerRoute(1) → GET/POST/etc(2) → user code(3)
-	callerLoc := getCallerLocation(3)
+	// Skip: registerRouteWithTarget(1) → registerRoute/addRoute(2) → GET/POST/etc(3) → user code(4)
+	callerLoc := getCallerLocation(4)
 
 	// Apply options to build configuration
 	cfg := &routeConfig{}
@@ -685,8 +699,11 @@ func (a *App) registerRoute(method, path string, handler HandlerFunc, opts ...Ro
 		opt(cfg)
 	}
 
-	// Build handler chain: before → handler → after
-	handlers := make([]router.HandlerFunc, 0, len(cfg.before)+1+len(cfg.after))
+	// Build handler chain: prefix middleware → before → handler → after
+	handlers := make([]router.HandlerFunc, 0, len(target.prefixMiddleware)+len(cfg.before)+1+len(cfg.after))
+	for _, h := range target.prefixMiddleware {
+		handlers = append(handlers, a.wrapHandler(h))
+	}
 	for _, h := range cfg.before {
 		handlers = append(handlers, a.wrapHandler(h))
 	}
@@ -695,29 +712,11 @@ func (a *App) registerRoute(method, path string, handler HandlerFunc, opts ...Ro
 		handlers = append(handlers, a.wrapHandler(h))
 	}
 
-	// Register with router
-	var rt *route.Route
-	switch method {
-	case http.MethodGet:
-		rt = a.router.GET(path, handlers...)
-	case http.MethodPost:
-		rt = a.router.POST(path, handlers...)
-	case http.MethodPut:
-		rt = a.router.PUT(path, handlers...)
-	case http.MethodDelete:
-		rt = a.router.DELETE(path, handlers...)
-	case http.MethodPatch:
-		rt = a.router.PATCH(path, handlers...)
-	case http.MethodHead:
-		rt = a.router.HEAD(path, handlers...)
-	case http.MethodOptions:
-		rt = a.router.OPTIONS(path, handlers...)
-	default:
-		panicUnsupportedHTTPMethod(method)
-	}
+	fullPath := target.getFullPath(path)
+	rt := target.register(method, path, fullPath, handlers)
 
 	// Update route info with actual handler name and caller location
-	a.router.UpdateRouteInfo(method, path, "", func(info *route.Info) {
+	a.router.UpdateRouteInfo(method, fullPath, target.version, func(info *route.Info) {
 		info.HandlerName = fmt.Sprintf("%s (%s)", handlerName, callerLoc)
 	})
 
@@ -726,10 +725,23 @@ func (a *App) registerRoute(method, path string, handler HandlerFunc, opts ...Ro
 
 	// Register OpenAPI documentation if enabled and not explicitly skipped
 	if a.openapi != nil && !cfg.skipDoc && len(cfg.docOpts) > 0 {
-		a.openapi.AddOperation(openapi.Op(method, path, cfg.docOpts...))
+		a.openapi.AddOperation(openapi.Op(method, fullPath, cfg.docOpts...))
 	}
 
 	return rt
+}
+
+// registerRoute is the internal implementation for all HTTP method shortcuts on App.
+// It delegates to registerRouteWithTarget with a routeTarget for the root router.
+func (a *App) registerRoute(method, path string, handler HandlerFunc, opts ...RouteOption) *route.Route {
+	target := routeTarget{
+		getFullPath: func(p string) string { return p },
+		version:     "",
+		register: func(_, pathForRouter, _ string, handlers []router.HandlerFunc) *route.Route {
+			return a.router.Handle(method, pathForRouter, handlers...)
+		},
+	}
+	return a.registerRouteWithTarget(target, method, path, handler, opts...)
 }
 
 // WrapHandler wraps an app.HandlerFunc to convert it to a router.HandlerFunc.
