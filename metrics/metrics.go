@@ -146,7 +146,10 @@ type Recorder struct {
 // manage their own global meter provider.
 func New(opts ...Option) (*Recorder, error) {
 	cfg := defaultConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("metrics: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 	if err := cfg.validate(); err != nil {

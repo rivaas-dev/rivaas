@@ -527,6 +527,32 @@ func TestMustNewPanics(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestNew_NilOptionFails(t *testing.T) {
+	t.Parallel()
+
+	recorder, err := New(WithStdout(), nil)
+	require.Error(t, err)
+	require.Nil(t, recorder)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
+}
+
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithStdout(), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
+}
+
 func TestCustomMetricsLimitEnforcement(t *testing.T) {
 	t.Parallel()
 
