@@ -62,10 +62,6 @@ type Engine struct {
 
 	// Field map cache: Type -> JSON field name -> field index
 	fieldMapCache sync.Map // map[reflect.Type]map[string]int
-
-	// Interface type caches
-	validatorTypeCache            sync.Map // map[reflect.Type]bool
-	validatorWithContextTypeCache sync.Map // map[reflect.Type]bool
 }
 
 // New creates an [Engine] with the given options.
@@ -155,46 +151,6 @@ func (v *Engine) initTagValidator() error {
 	})
 
 	return v.tagValidatorErr
-}
-
-// typeImplementsValidator checks if a type implements [Validator].
-func (v *Engine) typeImplementsValidator(t reflect.Type) bool {
-	if cached, ok := v.validatorTypeCache.Load(t); ok {
-		if result, resultOk := cached.(bool); resultOk {
-			return result
-		}
-	}
-
-	implements := t.Implements(reflect.TypeFor[Validator]())
-
-	actual, loaded := v.validatorTypeCache.LoadOrStore(t, implements)
-	if loaded {
-		if result, ok := actual.(bool); ok {
-			return result
-		}
-	}
-
-	return implements
-}
-
-// typeImplementsValidatorWithContext checks if a type implements [ValidatorWithContext].
-func (v *Engine) typeImplementsValidatorWithContext(t reflect.Type) bool {
-	if cached, ok := v.validatorWithContextTypeCache.Load(t); ok {
-		if result, resultOk := cached.(bool); resultOk {
-			return result
-		}
-	}
-
-	implements := t.Implements(reflect.TypeFor[ValidatorWithContext]())
-
-	actual, loaded := v.validatorWithContextTypeCache.LoadOrStore(t, implements)
-	if loaded {
-		if result, ok := actual.(bool); ok {
-			return result
-		}
-	}
-
-	return implements
 }
 
 // getFieldMap returns a map of JSON field names to field indices for a struct type.

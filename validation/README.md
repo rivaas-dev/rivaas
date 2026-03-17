@@ -93,6 +93,7 @@ func (u *User) Validate() error {
     }
     return nil
 }
+// When using a pointer receiver, pass a pointer: validation.Validate(ctx, &user)
 ```
 
 ## Learn More

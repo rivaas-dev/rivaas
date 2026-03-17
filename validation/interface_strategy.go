@@ -1,0 +1,91 @@
+// Copyright 2025 The Rivaas Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package validation
+
+import (
+	"context"
+	"errors"
+)
+
+// validateWithInterface validates using [Validator] or [ValidatorWithContext] methods.
+// This implements [StrategyInterface] validation.
+//
+// When a type implements [Validator] or [ValidatorWithContext] on a pointer receiver,
+// callers must pass a pointer to [Engine.Validate] or [Validate].
+func (v *Engine) validateWithInterface(ctx context.Context, val any, cfg *config) error {
+	// Prefer ValidatorWithContext if context is available
+	if ctx != nil {
+		if validator, ok := val.(ValidatorWithContext); ok {
+			if err := validator.ValidateContext(ctx); err != nil {
+				return v.coerceToValidationErrors(err, cfg)
+			}
+			return nil
+		}
+	}
+
+	// Try Validator interface
+	if validator, ok := val.(Validator); ok {
+		if err := validator.Validate(); err != nil {
+			return v.coerceToValidationErrors(err, cfg)
+		}
+		return nil
+	}
+
+	// No validator found
+	return nil
+}
+
+// coerceToValidationErrors converts an error to [*Error].
+// It handles [FieldError], [Error], and generic errors.
+func (v *Engine) coerceToValidationErrors(err error, cfg *config) error {
+	if err == nil {
+		return nil
+	}
+
+	// Already an Error
+	var verrs *Error
+	if errors.As(err, &verrs) {
+		if cfg.maxErrors > 0 && len(verrs.Fields) > cfg.maxErrors {
+			verrs.Fields = verrs.Fields[:cfg.maxErrors]
+			verrs.Truncated = true
+		}
+		verrs.Sort()
+
+		return verrs
+	}
+
+	// Already a FieldError
+	var fe FieldError
+	if errors.As(err, &fe) {
+		return &Error{Fields: []FieldError{fe}}
+	}
+
+	// Generic error - wrap it
+	result := &Error{
+		Fields: []FieldError{
+			{
+				Code:    "validation_error",
+				Message: err.Error(),
+			},
+		},
+	}
+
+	// Check if it's the sentinel error
+	if errors.Is(err, ErrValidation) {
+		return result
+	}
+
+	return result
+}

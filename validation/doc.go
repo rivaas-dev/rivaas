@@ -81,6 +81,8 @@
 //	// validation.Validate will automatically call u.Validate()
 //	err := validation.Validate(ctx, &user)
 //
+// When the method is on a pointer receiver, pass a pointer to [Validate] or [Engine.Validate].
+//
 // For context-aware validation, implement [ValidatorWithContext]:
 //
 //	func (u *User) ValidateContext(ctx context.Context) error {

@@ -200,8 +200,8 @@ func (v *Engine) validateAll(ctx context.Context, val any, cfg *config) error {
 func (v *Engine) isApplicable(ctx context.Context, val any, strategy Strategy, cfg *config) bool {
 	switch strategy {
 	case StrategyInterface:
-		// Check if value implements Validator or ValidatorWithContext
-		// Check both value and pointer types
+		// Check if value implements Validator or ValidatorWithContext (type assertion only).
+		// When the method is on a pointer receiver, callers must pass a pointer.
 		if _, ok := val.(Validator); ok {
 			return true
 		}
@@ -210,31 +210,6 @@ func (v *Engine) isApplicable(ctx context.Context, val any, strategy Strategy, c
 				return true
 			}
 		}
-		// Also check if pointer type implements (for pointer receivers)
-		rv := reflect.ValueOf(val)
-		if rv.Kind() == reflect.Pointer && !rv.IsNil() {
-			if rv.Type().Implements(reflect.TypeFor[Validator]()) {
-				return true
-			}
-			if ctx != nil {
-				if rv.Type().Implements(reflect.TypeFor[ValidatorWithContext]()) {
-					return true
-				}
-			}
-		}
-		// Check if value can be addressed and pointer implements
-		if rv.IsValid() && rv.CanAddr() {
-			ptrType := rv.Addr().Type()
-			if ptrType.Implements(reflect.TypeFor[Validator]()) {
-				return true
-			}
-			if ctx != nil {
-				if ptrType.Implements(reflect.TypeFor[ValidatorWithContext]()) {
-					return true
-				}
-			}
-		}
-
 		return false
 
 	case StrategyTags:
