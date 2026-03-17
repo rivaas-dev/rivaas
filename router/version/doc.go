@@ -67,6 +67,7 @@
 // This package follows these principles:
 //
 //   - Configuration is via functional options only; no user-facing config struct. [Engine] exposes [Engine.DefaultVersion] and behavior such as [Engine.SetLifecycleHeaders] as needed.
+//   - [Engine] must be created with [New] or [MustNew]; do not call methods on a nil Engine. Callers (e.g. the router) guard at the call site when versioning is optional.
 //   - Observer hooks (version detection events) are configured only via [WithObserver] and [OnDetected], [OnMissing], [OnInvalid], [OnDeprecatedUse]; no observer type is exported.
 //   - Constructors: both [New] and [MustNew] are provided (use MustNew in main/init, New when handling errors).
 //   - Progressive disclosure: simple cases are simple, complex cases are possible

@@ -24,6 +24,9 @@ import (
 
 // Engine manages API versioning, including version detection from requests
 // and lifecycle header management.
+//
+// An Engine must be created with [New] or [MustNew]. Do not call methods on a nil Engine;
+// callers (e.g. the router) must guard with a non-nil engine before use.
 type Engine struct {
 	config *config
 }
@@ -67,9 +70,6 @@ func MustNew(opts ...Option) *Engine {
 // Checks detectors in order until one returns a version.
 // Falls back to default version if none found.
 func (e *Engine) DetectVersion(req *http.Request) string {
-	if e == nil || e.config == nil {
-		return "v1" // Safe fallback
-	}
 	if req == nil {
 		return e.config.defaultVersion
 	}
@@ -133,10 +133,6 @@ func (e *Engine) notifyInvalid(version string) {
 
 // ShouldApplyVersioning determines if versioning should be applied to this path.
 func (e *Engine) ShouldApplyVersioning(path string) bool {
-	if e == nil || e.config == nil {
-		return false
-	}
-
 	// If no path detectors, always apply (header/query/accept work everywhere)
 	hasPathDetector := false
 	for _, d := range e.config.detectors {
@@ -165,10 +161,6 @@ func (e *Engine) ShouldApplyVersioning(path string) bool {
 
 // ExtractPathSegment extracts the version segment from a path for stripping.
 func (e *Engine) ExtractPathSegment(path string) (string, bool) {
-	if e == nil || e.config == nil {
-		return "", false
-	}
-
 	for _, d := range e.config.detectors {
 		if pd, ok := d.(*pathDetector); ok {
 			if segment, found := pd.ExtractSegment(path); found {
@@ -182,10 +174,6 @@ func (e *Engine) ExtractPathSegment(path string) (string, bool) {
 
 // StripPathVersion removes the version segment from a path.
 func (e *Engine) StripPathVersion(path, version string) string {
-	if e == nil || e.config == nil {
-		return path
-	}
-
 	for _, d := range e.config.detectors {
 		if pd, ok := d.(*pathDetector); ok {
 			stripped := pd.StripVersion(path, version)
@@ -201,7 +189,7 @@ func (e *Engine) StripPathVersion(path, version string) string {
 // SetLifecycleHeaders sets response headers for version lifecycle (deprecation, sunset).
 // Returns true if the version has passed its sunset date (caller should return 410 Gone).
 func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version, route string) bool {
-	if e == nil || e.config == nil || w == nil {
+	if w == nil {
 		return false
 	}
 
@@ -268,9 +256,6 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version, route strin
 
 // DefaultVersion returns the configured default version (e.g. when none is detected).
 func (e *Engine) DefaultVersion() string {
-	if e == nil || e.config == nil {
-		return "v1"
-	}
 	return e.config.defaultVersion
 }
 
@@ -278,7 +263,7 @@ func (e *Engine) DefaultVersion() string {
 // Options are merged with any existing lifecycle for that version (e.g. from a previous Version() or Configure() call).
 // Used by the router when r.Version("v1", opts...) or VersionRouter.Configure(opts...) is called.
 func (e *Engine) ApplyLifecycle(version string, opts ...LifecycleOption) {
-	if e == nil || e.config == nil || version == "" || len(opts) == 0 {
+	if version == "" || len(opts) == 0 {
 		return
 	}
 	lc := e.config.getLifecycle(version)

@@ -510,6 +510,12 @@ func TestEngine_ShouldApplyVersioning(t *testing.T) {
 	require.NoError(t, err)
 	// No path detector -> always apply when default is set
 	assert.True(t, engine.ShouldApplyVersioning("/any/path"))
-	// Nil engine
-	assert.False(t, (*Engine)(nil).ShouldApplyVersioning("/path"))
+}
+
+func TestEngine_NilReceiverPanics(t *testing.T) {
+	t.Parallel()
+	var nilEngine *Engine
+	require.Panics(t, func() { nilEngine.ShouldApplyVersioning("/path") })
+	require.Panics(t, func() { nilEngine.DefaultVersion() })
+	require.Panics(t, func() { nilEngine.DetectVersion(nil) })
 }
