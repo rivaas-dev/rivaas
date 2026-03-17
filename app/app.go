@@ -62,7 +62,7 @@ const (
 
 // HandlerFunc defines a handler function that receives an [Context].
 // HandlerFunc provides access to both router functionality and app-level features
-// like [Context.Bind] and [Context.BindAndValidate].
+// like [Context.Bind] and [Context.BindOnly] (use [Context.Validate] after BindOnly when needed).
 type HandlerFunc func(*Context)
 
 // noopLogger is a singleton no-op logger used when no logger is configured.
