@@ -70,9 +70,14 @@
 //
 //	config.WithEnv("APP_")  // Loads APP_SERVER_PORT as server.port
 //
-// Consul key-value store:
+// Consul key-value store (CONSUL_HTTP_ADDR required; construction fails if unset):
 //
 //	config.WithConsul("production/service.yaml")
+//
+// Optional Consul (no-op when CONSUL_HTTP_ADDR is unset, e.g. for local dev):
+//
+//	config.WithConsulOptional("production/service.yaml")
+//	config.WithConsulAsOptional("production/service", codec.TypeJSON)
 //
 // Raw content:
 //

@@ -1624,10 +1624,9 @@ func TestWithEnv(t *testing.T) {
 	assert.Len(t, cfg.sources, 1)
 }
 
-func TestWithConsul_SkipsWithoutEnvVar(t *testing.T) {
+func TestWithConsul_RequiresEnvVar(t *testing.T) {
 	t.Parallel()
 
-	// Ensure CONSUL_HTTP_ADDR is not set
 	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
 	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
 	defer func() {
@@ -1637,16 +1636,14 @@ func TestWithConsul_SkipsWithoutEnvVar(t *testing.T) {
 	}()
 
 	cfg, err := New(WithConsul("production/service.yaml"))
-	require.NoError(t, err)
-	assert.NotNil(t, cfg)
-	// Should have no sources since Consul was skipped
-	assert.Len(t, cfg.sources, 0)
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "CONSUL_HTTP_ADDR")
 }
 
-func TestWithConsulAs_SkipsWithoutEnvVar(t *testing.T) {
+func TestWithConsulAs_RequiresEnvVar(t *testing.T) {
 	t.Parallel()
 
-	// Ensure CONSUL_HTTP_ADDR is not set
 	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
 	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
 	defer func() {
@@ -1656,9 +1653,42 @@ func TestWithConsulAs_SkipsWithoutEnvVar(t *testing.T) {
 	}()
 
 	cfg, err := New(WithConsulAs("production/service", codec.TypeJSON))
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "CONSUL_HTTP_ADDR")
+}
+
+func TestWithConsulOptional_SkipsWithoutEnvVar(t *testing.T) {
+	t.Parallel()
+
+	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
+	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
+	defer func() {
+		if originalAddr != "" {
+			require.NoError(t, os.Setenv("CONSUL_HTTP_ADDR", originalAddr))
+		}
+	}()
+
+	cfg, err := New(WithConsulOptional("production/service.yaml"))
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
-	// Should have no sources since Consul was skipped
+	assert.Len(t, cfg.sources, 0)
+}
+
+func TestWithConsulAsOptional_SkipsWithoutEnvVar(t *testing.T) {
+	t.Parallel()
+
+	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
+	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
+	defer func() {
+		if originalAddr != "" {
+			require.NoError(t, os.Setenv("CONSUL_HTTP_ADDR", originalAddr))
+		}
+	}()
+
+	cfg, err := New(WithConsulAsOptional("production/service", codec.TypeJSON))
+	require.NoError(t, err)
+	assert.NotNil(t, cfg)
 	assert.Len(t, cfg.sources, 0)
 }
 

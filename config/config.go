@@ -172,25 +172,25 @@ func WithEnv(prefix string) Option {
 // The format is automatically detected from the path extension.
 // For custom formats, use WithConsulAs instead.
 //
-// If CONSUL_HTTP_ADDR is not set, this option is silently skipped, allowing
-// development without Consul while requiring it in production environments.
+// CONSUL_HTTP_ADDR is required. If it is not set, New/MustNew returns a validation error at construction.
+// For optional Consul (e.g. development without Consul), use WithConsulOptional instead.
 //
 // Paths support environment variable expansion using ${VAR} or $VAR syntax.
 // Example: "${APP_ENV}/service.yaml" expands to "production/service.yaml" when APP_ENV=production
 //
-// Required environment variables (production only):
+// Required environment variables:
 //   - CONSUL_HTTP_ADDR: The address of the Consul server (e.g., "http://localhost:8500")
 //   - CONSUL_HTTP_TOKEN: The access token for authentication with Consul (optional)
 //
 // Example:
 //
 //	cfg := config.MustNew(
-//	    config.WithConsul("production/service.yaml"),  // Auto-detects YAML, skipped without CONSUL_HTTP_ADDR
+//	    config.WithConsul("production/service.yaml"),  // Fails at construction if CONSUL_HTTP_ADDR is unset
 //	)
 func WithConsul(path string) Option {
 	return func(c *Config) {
-		// Silently skip if Consul is not configured
 		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
+			c.validationErrors = append(c.validationErrors, NewError("consul-source", "require-env", errors.New("CONSUL_HTTP_ADDR is not set")))
 			return
 		}
 
@@ -247,13 +247,13 @@ func WithFileAs(path string, codecType codec.Type) Option {
 // WithConsulAs returns an Option that configures the Config instance to load configuration data from a Consul server with explicit format.
 // Use this when you need to override the format detection.
 //
-// If CONSUL_HTTP_ADDR is not set, this option is silently skipped, allowing
-// development without Consul while requiring it in production environments.
+// CONSUL_HTTP_ADDR is required. If it is not set, New/MustNew returns a validation error at construction.
+// For optional Consul (e.g. development without Consul), use WithConsulAsOptional instead.
 //
 // Paths support environment variable expansion using ${VAR} or $VAR syntax.
 // Example: "${APP_ENV}/service" expands to "production/service" when APP_ENV=production
 //
-// Required environment variables (production only):
+// Required environment variables:
 //   - CONSUL_HTTP_ADDR: The address of the Consul server (e.g., "http://localhost:8500")
 //   - CONSUL_HTTP_TOKEN: The access token for authentication with Consul (optional)
 //
@@ -264,7 +264,84 @@ func WithFileAs(path string, codecType codec.Type) Option {
 //	)
 func WithConsulAs(path string, codecType codec.Type) Option {
 	return func(c *Config) {
-		// Silently skip if Consul is not configured
+		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
+			c.validationErrors = append(c.validationErrors, NewError("consul-source", "require-env", errors.New("CONSUL_HTTP_ADDR is not set")))
+			return
+		}
+
+		path = os.ExpandEnv(path)
+
+		decoder, err := codec.GetDecoder(codecType)
+		if err != nil {
+			c.validationErrors = append(c.validationErrors, NewError("consul-source", "get-decoder", err))
+			return
+		}
+
+		l, err := source.NewConsul(path, decoder, nil)
+		if err != nil {
+			c.validationErrors = append(c.validationErrors, NewError("consul-source", "create-client", err))
+			return
+		}
+
+		c.sources = append(c.sources, l)
+	}
+}
+
+// WithConsulOptional returns an Option that adds a Consul source only when CONSUL_HTTP_ADDR is set.
+// If CONSUL_HTTP_ADDR is not set, this option is a no-op (no source added, no error).
+// Use this for development without Consul; use WithConsul when Consul is required and should fail at construction if env is missing.
+//
+// The format is automatically detected from the path extension. Paths support environment variable expansion (${VAR} or $VAR).
+//
+// Example:
+//
+//	cfg := config.MustNew(
+//	    config.WithFile("config.yaml"),
+//	    config.WithConsulOptional("production/service.yaml"),  // No-op when CONSUL_HTTP_ADDR is unset
+//	)
+func WithConsulOptional(path string) Option {
+	return func(c *Config) {
+		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
+			return
+		}
+
+		path = os.ExpandEnv(path)
+
+		format, err := detectFormat(path)
+		if err != nil {
+			c.validationErrors = append(c.validationErrors, NewError("consul-source", "detect-format", err))
+			return
+		}
+
+		decoder, err := codec.GetDecoder(format)
+		if err != nil {
+			c.validationErrors = append(c.validationErrors, NewError("consul-source", "get-decoder", err))
+			return
+		}
+
+		l, err := source.NewConsul(path, decoder, nil)
+		if err != nil {
+			c.validationErrors = append(c.validationErrors, NewError("consul-source", "create-client", err))
+			return
+		}
+
+		c.sources = append(c.sources, l)
+	}
+}
+
+// WithConsulAsOptional returns an Option that adds a Consul source with explicit format only when CONSUL_HTTP_ADDR is set.
+// If CONSUL_HTTP_ADDR is not set, this option is a no-op (no source added, no error).
+// Use this for development without Consul; use WithConsulAs when Consul is required and should fail at construction if env is missing.
+//
+// Paths support environment variable expansion (${VAR} or $VAR).
+//
+// Example:
+//
+//	cfg := config.MustNew(
+//	    config.WithConsulAsOptional("production/service", codec.TypeJSON),
+//	)
+func WithConsulAsOptional(path string, codecType codec.Type) Option {
+	return func(c *Config) {
 		if os.Getenv("CONSUL_HTTP_ADDR") == "" {
 			return
 		}
