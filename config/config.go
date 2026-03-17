@@ -40,6 +40,7 @@ import (
 
 // Option is a functional option that can be used to configure a Config instance.
 // Options apply to the config; validation errors are collected and reported by New/MustNew.
+// Options must not be nil; passing nil results in a validation error at construction.
 type Option func(c *Config)
 
 // Config manages configuration data loaded from multiple sources.
@@ -416,8 +417,9 @@ func (c *Config) validate() error {
 
 // New creates a new Config instance with the provided options.
 // Options are applied in order; validation errors are collected and reported after all options
-// are applied, so callers never receive a partially-initialized config. Use MustNew for main() or
-// when panic on error is acceptable.
+// are applied, so callers never receive a partially-initialized config. Options must not be nil—
+// passing a nil option results in a validation error. Use MustNew for main() or when panic on
+// error is acceptable.
 func New(opts ...Option) (*Config, error) {
 	c := &Config{
 		values:  &map[string]any{},
@@ -425,9 +427,10 @@ func New(opts ...Option) (*Config, error) {
 		tagName: "config", // Default tag name
 	}
 
-	for _, opt := range opts {
+	for i, opt := range opts {
 		if opt == nil {
-			continue // Skip nil options
+			c.validationErrors = append(c.validationErrors, fmt.Errorf("config: option at index %d cannot be nil", i))
+			continue
 		}
 		opt(c)
 	}

@@ -184,19 +184,34 @@ func TestNew_WithTag(t *testing.T) {
 	}
 }
 
-func TestNew_NilOptionSkipped(t *testing.T) {
+func TestNew_NilOptionFails(t *testing.T) {
 	t.Parallel()
 
 	src1 := &mockSource{conf: map[string]any{"a": "1"}}
 	src2 := &mockSource{conf: map[string]any{"b": "2"}}
 	cfg, err := New(WithSource(src1), nil, WithSource(src2))
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
-	assert.Len(t, cfg.sources, 2, "nil option should be skipped, two sources applied")
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "cannot be nil")
+	assert.Contains(t, err.Error(), "option at index 1")
+}
 
-	require.NoError(t, cfg.Load(context.Background()))
-	assert.Equal(t, "1", cfg.String("a"))
-	assert.Equal(t, "2", cfg.String("b"))
+func TestMustNew_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	src := &mockSource{conf: map[string]any{"a": "1"}}
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprint(r)
+			}
+		}()
+		MustNew(WithSource(src), nil)
+	}()
+	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
+	assert.Contains(t, panicMsg, "cannot be nil")
+	assert.Contains(t, panicMsg, "option at index 1")
 }
 
 func TestNew_OptionErrorPaths(t *testing.T) {

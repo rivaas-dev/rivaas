@@ -32,7 +32,8 @@
 // # Quick Start
 //
 // Create a configuration instance with sources. Options are applied in order;
-// any validation errors are reported when the config is built (by New or MustNew):
+// any validation errors are reported when the config is built (by New or MustNew).
+// Options must not be nil; passing a nil option results in a validation error.
 //
 //	cfg := config.MustNew(
 //	    config.WithFile("config.yaml"),
