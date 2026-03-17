@@ -26,7 +26,7 @@ import (
 )
 
 // Shared validator instance for all generation (compiled once, reused)
-var sharedValidator = validate.New()
+var sharedValidator = validate.MustNew()
 
 // Generate produces an OpenAPI specification from operations.
 //

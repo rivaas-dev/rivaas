@@ -71,6 +71,19 @@ func TestValidator_Validate(t *testing.T) {
 	}
 }
 
+func TestMustNew(t *testing.T) {
+	t.Parallel()
+
+	v := MustNew()
+	require.NotNil(t, v)
+
+	// MustNew returns a usable validator (no panic when calling Validate).
+	ctx := context.Background()
+	err := v.Validate(ctx, []byte(`{}`), V30)
+	// Minimal spec is invalid; we only need to confirm Validate ran without panic.
+	assert.Error(t, err)
+}
+
 func TestValidator_Validate_caching(t *testing.T) {
 	t.Parallel()
 

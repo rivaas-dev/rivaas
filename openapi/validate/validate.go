@@ -56,6 +56,7 @@ type Validator struct {
 }
 
 // New creates a new Validator with embedded OpenAPI meta-schemas.
+// Construction cannot fail. MustNew is provided for API consistency with other Rivaas packages.
 //
 // The validator uses santhosh-tekuri/jsonschema which supports both
 // JSON Schema draft-04 (for OpenAPI 3.0) and draft-2020-12 (for OpenAPI 3.1).
@@ -64,6 +65,12 @@ func New() *Validator {
 		compiler: jsonschema.NewCompiler(),
 		schemas:  make(map[Version]*jsonschema.Schema),
 	}
+}
+
+// MustNew creates a new Validator. It is provided for API consistency with other Rivaas packages;
+// construction cannot fail.
+func MustNew() *Validator {
+	return New()
 }
 
 // Validate validates an OpenAPI specification JSON against the meta-schema for the given version.
