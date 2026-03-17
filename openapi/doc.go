@@ -77,7 +77,7 @@
 //   - API options configure the spec: WithTitle, WithServer, WithBearerAuth
 //   - Operation options configure routes: WithSummary, WithDescription, WithResponse, WithTags
 //
-// API configuration is read-only after creation. Use getters to read values (e.g. Info(), SpecPath(), ServeUI()).
+// API configuration is read-only after creation. Use getters to read values (e.g. Info(), SpecPath(), ServeUI(), UI()).
 //
 // Example:
 //

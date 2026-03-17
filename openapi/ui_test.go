@@ -28,15 +28,16 @@ func TestUIConfig_Validate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		config   UIConfig
-		wantErr  bool
-		contains string
+		name         string
+		config       UIConfig
+		useDefaultUI bool // if true, config is ignored and UI snapshot from default API is used
+		wantErr      bool
+		contains     string
 	}{
 		{
-			name:    "default config is valid",
-			config:  MustNew(WithTitle("API", "1.0.0")).UI(),
-			wantErr: false,
+			name:         "default config is valid",
+			useDefaultUI: true,
+			wantErr:      false,
 		},
 		{
 			name: "zero value config is valid",
@@ -159,7 +160,14 @@ func TestUIConfig_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.config.Validate()
+			config := tt.config
+			if tt.useDefaultUI {
+				snapshot := MustNew(WithTitle("API", "1.0.0")).UI()
+				var ok bool
+				config, ok = snapshot.(UIConfig)
+				require.True(t, ok)
+			}
+			err := config.Validate()
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.contains != "" {

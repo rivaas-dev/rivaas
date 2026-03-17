@@ -186,10 +186,18 @@ const (
 	ValidatorNone = "none"
 )
 
+// UISnapshot is the read-only contract returned by [API.UI].
+// Use it to render Swagger UI (e.g. via ToJSON); do not use for construction.
+// Configuration is done only via [UIOption] and [New] or [MustNew].
+type UISnapshot interface {
+	ToJSON(specPath string) (string, error)
+}
+
 // UIConfig configures Swagger UI behavior and appearance.
 //
-// This type is used internally to build the JavaScript configuration object
-// that controls how Swagger UI renders and behaves.
+// This type is used internally as the option target for [UIOption] and to build
+// the JavaScript configuration object that controls how Swagger UI renders and behaves.
+// [API.UI] returns a [UISnapshot] (implemented by UIConfig); do not use UIConfig for construction.
 type UIConfig struct {
 	// Navigation & Deep Linking
 	DeepLinking        bool
@@ -475,7 +483,7 @@ func (c *UIConfig) ToConfigMap(specURL string) map[string]any {
 // the URL where the OpenAPI specification JSON can be fetched.
 //
 // Returns an error if JSON serialization fails.
-func (c *UIConfig) ToJSON(specURL string) (string, error) {
+func (c UIConfig) ToJSON(specURL string) (string, error) {
 	configMap := c.ToConfigMap(specURL)
 	bytes, err := json.MarshalIndent(configMap, "\t\t", "  ")
 	if err != nil {

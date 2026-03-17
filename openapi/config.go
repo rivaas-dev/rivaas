@@ -212,10 +212,10 @@ func MustNew(opts ...Option) *API {
 	return api
 }
 
-// UI returns the Swagger UI configuration.
+// UI returns a read-only snapshot of the Swagger UI configuration.
 //
-// This provides access to UI settings for rendering the Swagger UI.
-func (a *API) UI() UIConfig {
+// Use the returned [UISnapshot] for rendering (e.g. ToJSON); do not use it for construction.
+func (a *API) UI() UISnapshot {
 	return a.ui
 }
 

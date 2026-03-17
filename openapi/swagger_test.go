@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWithSwaggerUI_appliesUIOptions(t *testing.T) {
@@ -217,7 +218,9 @@ func TestWithSwaggerUI_appliesUIOptions(t *testing.T) {
 				WithTitle("API", "1.0.0"),
 				WithSwaggerUI("/docs", tt.opt),
 			)
-			tt.assert(t, api.UI())
+			ui, ok := api.UI().(UIConfig)
+			require.True(t, ok)
+			tt.assert(t, ui)
 		})
 	}
 }
@@ -236,7 +239,8 @@ func TestWithSwaggerUI_multipleOptions(t *testing.T) {
 		),
 	)
 
-	ui := api.UI()
+	ui, ok := api.UI().(UIConfig)
+	require.True(t, ok)
 	assert.True(t, ui.DeepLinking)
 	assert.Equal(t, DocExpansionFull, ui.DocExpansion)
 	assert.Equal(t, 2, ui.DefaultModelsExpandDepth)
