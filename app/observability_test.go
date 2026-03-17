@@ -496,7 +496,7 @@ func TestWithMetricsSeparateServer(t *testing.T) {
 	})
 }
 
-func TestWithObservability_MultipleValidationErrors(t *testing.T) {
+func TestWithObservability_MultipleConfigErrors(t *testing.T) {
 	t.Parallel()
 
 	// Test that ALL observability validation errors are returned, not just the first one
@@ -516,10 +516,10 @@ func TestWithObservability_MultipleValidationErrors(t *testing.T) {
 		)
 		require.Error(t, err)
 
-		// Verify it's a ValidationError containing multiple errors
-		var ve *ValidationError
-		require.ErrorAs(t, err, &ve)
-		assert.GreaterOrEqual(t, len(ve.Errors), 3, "should have at least 3 observability errors")
+		// Verify it's a ConfigErrors containing multiple errors
+		var ce *ConfigErrors
+		require.ErrorAs(t, err, &ce)
+		assert.GreaterOrEqual(t, len(ce.Errors), 3, "should have at least 3 observability errors")
 
 		// Check that all invalid patterns are reported
 		errorStr := err.Error()
@@ -540,9 +540,9 @@ func TestWithObservability_MultipleValidationErrors(t *testing.T) {
 		require.Error(t, err)
 
 		// Should contain both errors
-		var ve *ValidationError
-		require.ErrorAs(t, err, &ve)
-		assert.GreaterOrEqual(t, len(ve.Errors), 2, "should have at least 2 errors (serviceName + observability)")
+		var ce *ConfigErrors
+		require.ErrorAs(t, err, &ce)
+		assert.GreaterOrEqual(t, len(ce.Errors), 2, "should have at least 2 errors (serviceName + observability)")
 
 		// Both errors should be present
 		errorStr := err.Error()

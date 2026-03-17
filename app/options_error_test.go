@@ -119,10 +119,10 @@ func TestWithErrorFormatterFor_InvalidOptions_ValidationFails(t *testing.T) {
 		WithErrorFormatterFor("", riverrors.WithRFC9457(""), riverrors.WithSimple()),
 	)
 	require.Error(t, err)
-	var ve *ValidationError
-	require.True(t, errors.As(err, &ve))
+	var ce *ConfigErrors
+	require.True(t, errors.As(err, &ce))
 	found := false
-	for _, e := range ve.Errors {
+	for _, e := range ce.Errors {
 		if e.Field == "errors" {
 			found = true
 			assert.Contains(t, e.Message, "errors:")

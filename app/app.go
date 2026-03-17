@@ -148,7 +148,7 @@ func (sc *serverConfig) ListenAddr() string {
 //   - ShutdownTimeout must be at least 1 second for proper graceful shutdown
 //   - MaxHeaderBytes must be at least 1KB to handle standard HTTP headers
 //
-// Validate returns a ValidationErrors containing all validation failures, or nil if valid.
+// Validate returns a ConfigErrors containing all validation failures, or nil if valid.
 //
 // Example:
 //
@@ -160,8 +160,8 @@ func (sc *serverConfig) ListenAddr() string {
 //	if errs := cfg.Validate(); errs != nil {
 //	    // Handle validation errors
 //	}
-func (sc *serverConfig) Validate() *ValidationError {
-	var errs ValidationError
+func (sc *serverConfig) Validate() *ConfigErrors {
+	var errs ConfigErrors
 
 	// Validate timeouts are positive
 	if sc.readTimeout <= 0 {
@@ -290,7 +290,7 @@ type routerConfig struct {
 // validate collects all validation errors before returning them, allowing users to
 // see all issues at once rather than one at a time.
 func (c *config) validate() error {
-	var errs ValidationError
+	var errs ConfigErrors
 
 	// Options validation errors (e.g. nil server or observability options)
 	for _, e := range c.validationErrors {

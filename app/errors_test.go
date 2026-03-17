@@ -43,3 +43,47 @@ func TestConfigError_Error_WithHint(t *testing.T) {
 	assert.Contains(t, got, "use app.WithServiceName")
 	assert.Contains(t, got, "RIVAAS_SERVICE_NAME")
 }
+
+func TestConfigErrors_Error_Empty(t *testing.T) {
+	t.Parallel()
+	var ce ConfigErrors
+	got := ce.Error()
+	assert.Equal(t, "config errors: (no errors)", got)
+}
+
+func TestConfigErrors_Error_One(t *testing.T) {
+	t.Parallel()
+	ce := &ConfigErrors{}
+	ce.Add(&ConfigError{Field: "port", Message: "must be positive"})
+	got := ce.Error()
+	assert.Equal(t, "configuration error in port: must be positive", got)
+}
+
+func TestConfigErrors_Error_Multiple(t *testing.T) {
+	t.Parallel()
+	ce := &ConfigErrors{}
+	ce.Add(&ConfigError{Field: "a", Message: "first"})
+	ce.Add(&ConfigError{Field: "b", Message: "second"})
+	got := ce.Error()
+	assert.Contains(t, got, "config errors (2):")
+	assert.Contains(t, got, "1. configuration error in a: first")
+	assert.Contains(t, got, "2. configuration error in b: second")
+}
+
+func TestConfigErrors_HasErrors(t *testing.T) {
+	t.Parallel()
+	var ce ConfigErrors
+	assert.False(t, ce.HasErrors())
+	ce.Add(&ConfigError{Field: "x", Message: "err"})
+	assert.True(t, ce.HasErrors())
+}
+
+func TestConfigErrors_ToError(t *testing.T) {
+	t.Parallel()
+	var ce ConfigErrors
+	assert.Nil(t, ce.ToError())
+	ce.Add(&ConfigError{Field: "x", Message: "err"})
+	err := ce.ToError()
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "configuration error in x")
+}

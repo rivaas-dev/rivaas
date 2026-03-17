@@ -37,32 +37,32 @@ import (
 	"rivaas.dev/tracing"
 )
 
-// TestNew_ValidationError tests that New returns appropriate structured errors
+// TestNew_ConfigErrors tests that New returns appropriate structured errors
 // for various invalid configuration scenarios.
-func TestNew_ValidationError(t *testing.T) {
+func TestNew_ConfigErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name        string
 		opts        []Option
 		wantErr     string
-		wantErrType any                     // Expected error type (ConfigError, ValidationError, etc.)
+		wantErrType any                     // Expected error type (ConfigError, ConfigErrors, etc.)
 		checkError  func(*testing.T, error) // Optional custom error checking
 	}{
 		{
 			name:        "empty service name",
 			opts:        []Option{WithServiceName(""), WithServiceVersion("1.0.0")},
 			wantErr:     "serviceName",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 			checkError: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				if errors.As(err, &ve) {
-					assert.True(t, ve.HasErrors())
-					assert.NotEmpty(t, ve.Errors)
+				var ce *ConfigErrors
+				if errors.As(err, &ce) {
+					assert.True(t, ce.HasErrors())
+					assert.NotEmpty(t, ce.Errors)
 					// Check that one of the errors is about serviceName
 					found := false
-					for _, e := range ve.Errors {
+					for _, e := range ce.Errors {
 						if e.Field == "serviceName" {
 							found = true
 							assert.Equal(t, "cannot be empty", e.Message)
@@ -77,13 +77,13 @@ func TestNew_ValidationError(t *testing.T) {
 			name:        "empty service version",
 			opts:        []Option{WithServiceName("test"), WithServiceVersion("")},
 			wantErr:     "serviceVersion",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 			checkError: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				if errors.As(err, &ve) {
+				var ce *ConfigErrors
+				if errors.As(err, &ce) {
 					found := false
-					for _, e := range ve.Errors {
+					for _, e := range ce.Errors {
 						if e.Field == "serviceVersion" {
 							found = true
 							assert.Equal(t, "cannot be empty", e.Message)
@@ -102,13 +102,13 @@ func TestNew_ValidationError(t *testing.T) {
 				WithEnvironment("staging"),
 			},
 			wantErr:     "environment",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 			checkError: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				if errors.As(err, &ve) {
+				var ce *ConfigErrors
+				if errors.As(err, &ce) {
 					found := false
-					for _, e := range ve.Errors {
+					for _, e := range ce.Errors {
 						if e.Field == "environment" {
 							found = true
 							assert.Equal(t, "staging", e.Value)
@@ -127,7 +127,7 @@ func TestNew_ValidationError(t *testing.T) {
 				WithServer(WithReadTimeout(-1 * time.Second)),
 			},
 			wantErr:     "server.readTimeout",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 		},
 		{
 			name: "zero write timeout",
@@ -137,7 +137,7 @@ func TestNew_ValidationError(t *testing.T) {
 				WithServer(WithWriteTimeout(0)),
 			},
 			wantErr:     "server.writeTimeout",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 		},
 		{
 			name: "negative idle timeout",
@@ -147,7 +147,7 @@ func TestNew_ValidationError(t *testing.T) {
 				WithServer(WithIdleTimeout(-5 * time.Second)),
 			},
 			wantErr:     "server.idleTimeout",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 		},
 		{
 			name: "zero read header timeout",
@@ -157,7 +157,7 @@ func TestNew_ValidationError(t *testing.T) {
 				WithServer(WithReadHeaderTimeout(0)),
 			},
 			wantErr:     "server.readHeaderTimeout",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 		},
 		{
 			name: "zero max header bytes",
@@ -167,7 +167,7 @@ func TestNew_ValidationError(t *testing.T) {
 				WithServer(WithMaxHeaderBytes(0)),
 			},
 			wantErr:     "server.maxHeaderBytes",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 		},
 		{
 			name: "negative shutdown timeout",
@@ -177,7 +177,7 @@ func TestNew_ValidationError(t *testing.T) {
 				WithServer(WithShutdownTimeout(-10 * time.Second)),
 			},
 			wantErr:     "server.shutdownTimeout",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 		},
 		{
 			name: "read timeout exceeds write timeout",
@@ -190,13 +190,13 @@ func TestNew_ValidationError(t *testing.T) {
 				),
 			},
 			wantErr:     "read timeout should not exceed write timeout",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 			checkError: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				if errors.As(err, &ve) {
+				var ce *ConfigErrors
+				if errors.As(err, &ce) {
 					found := false
-					for _, e := range ve.Errors {
+					for _, e := range ce.Errors {
 						if e.Field == "server.readTimeout" && strings.Contains(e.Message, "read timeout should not exceed") {
 							found = true
 						}
@@ -213,7 +213,7 @@ func TestNew_ValidationError(t *testing.T) {
 				WithServer(WithShutdownTimeout(100 * time.Millisecond)),
 			},
 			wantErr:     "must be at least 1 second",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 		},
 		{
 			name: "max header bytes too small",
@@ -223,26 +223,26 @@ func TestNew_ValidationError(t *testing.T) {
 				WithServer(WithMaxHeaderBytes(512)),
 			},
 			wantErr:     "must be at least 1KB",
-			wantErrType: &ValidationError{},
+			wantErrType: &ConfigErrors{},
 		},
 		{
-			name: "multiple validation errors",
+			name: "multiple config errors",
 			opts: []Option{
 				WithServiceName(""),
 				WithServiceVersion(""),
 				WithEnvironment("invalid"),
 				WithServer(WithReadTimeout(-1 * time.Second)),
 			},
-			wantErr:     "validation errors",
-			wantErrType: &ValidationError{},
+			wantErr:     "config errors",
+			wantErrType: &ConfigErrors{},
 			checkError: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				if errors.As(err, &ve) {
+				var ce *ConfigErrors
+				if errors.As(err, &ce) {
 					// Should have multiple errors
-					assert.Greater(t, len(ve.Errors), 1, "should have multiple validation errors")
+					assert.Greater(t, len(ce.Errors), 1, "should have multiple config errors")
 					// Check error message format
-					assert.Contains(t, err.Error(), "validation errors")
+					assert.Contains(t, err.Error(), "config errors")
 				}
 			},
 		},
@@ -270,7 +270,7 @@ func TestNew_ValidationError(t *testing.T) {
 				// Check error type if specified
 				if tt.wantErrType != nil {
 					// Use errors.As for type checking
-					var target *ValidationError
+					var target *ConfigErrors
 					if errors.As(err, &target) {
 						assert.NotNil(t, target)
 					}

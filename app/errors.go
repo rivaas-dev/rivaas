@@ -75,52 +75,52 @@ func (e *ConfigError) Unwrap() error {
 	return nil
 }
 
-// ValidationError represents multiple configuration validation errors.
-// ValidationError allows collecting all validation errors before returning them.
-type ValidationError struct {
+// ConfigErrors represents multiple configuration validation errors.
+// ConfigErrors allows collecting all config errors before returning them.
+type ConfigErrors struct {
 	Errors []*ConfigError
 }
 
 // Error implements the error interface and returns a formatted error message
-// listing all validation errors.
-func (ve *ValidationError) Error() string {
-	if len(ve.Errors) == 0 {
-		return "validation errors: (no errors)"
+// listing all config errors.
+func (ce *ConfigErrors) Error() string {
+	if len(ce.Errors) == 0 {
+		return "config errors: (no errors)"
 	}
-	if len(ve.Errors) == 1 {
-		return ve.Errors[0].Error()
+	if len(ce.Errors) == 1 {
+		return ce.Errors[0].Error()
 	}
 
 	var msg strings.Builder
-	fmt.Fprintf(&msg, "validation errors (%d):", len(ve.Errors))
-	for i, err := range ve.Errors {
+	fmt.Fprintf(&msg, "config errors (%d):", len(ce.Errors))
+	for i, err := range ce.Errors {
 		fmt.Fprintf(&msg, "\n  %d. %s", i+1, err.Error())
 	}
 
 	return msg.String()
 }
 
-// Add appends a new ConfigError to the ValidationError.
-// It collects validation errors for batch reporting.
-func (ve *ValidationError) Add(err *ConfigError) {
-	ve.Errors = append(ve.Errors, err)
+// Add appends a new ConfigError to the ConfigErrors.
+// It collects config errors for batch reporting.
+func (ce *ConfigErrors) Add(err *ConfigError) {
+	ce.Errors = append(ce.Errors, err)
 }
 
-// HasErrors returns true if there are any validation errors.
-// It checks if the ValidationError contains any errors.
-func (ve *ValidationError) HasErrors() bool {
-	return len(ve.Errors) > 0
+// HasErrors returns true if there are any config errors.
+// It checks if the ConfigErrors contains any errors.
+func (ce *ConfigErrors) HasErrors() bool {
+	return len(ce.Errors) > 0
 }
 
-// ToError returns nil if there are no errors, otherwise returns the ValidationError
+// ToError returns nil if there are no errors, otherwise returns the ConfigErrors
 // as an error.
-// It is useful for returning from validation functions.
-func (ve *ValidationError) ToError() error {
-	if !ve.HasErrors() {
+// It is useful for returning from config validation functions.
+func (ce *ConfigErrors) ToError() error {
+	if !ce.HasErrors() {
 		return nil
 	}
 
-	return ve
+	return ce
 }
 
 // Helper functions for creating common validation errors

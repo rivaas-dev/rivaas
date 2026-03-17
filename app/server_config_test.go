@@ -62,8 +62,8 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				var ce *ConfigErrors
+				require.ErrorAs(t, err, &ce, "should return ConfigErrors")
 				assert.Contains(t, err.Error(), "read timeout should not exceed write timeout")
 			},
 		},
@@ -81,8 +81,8 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				var ce *ConfigErrors
+				require.ErrorAs(t, err, &ce, "should return ConfigErrors")
 				assert.Contains(t, err.Error(), "must be at least 1 second")
 			},
 		},
@@ -100,8 +100,8 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				var ce *ConfigErrors
+				require.ErrorAs(t, err, &ce, "should return ConfigErrors")
 				assert.Contains(t, err.Error(), "must be at least 1KB")
 			},
 		},
@@ -119,8 +119,8 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				var ce *ConfigErrors
+				require.ErrorAs(t, err, &ce, "should return ConfigErrors")
 				assert.Contains(t, err.Error(), "server.readTimeout")
 			},
 		},
@@ -138,8 +138,8 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				var ce *ConfigErrors
+				require.ErrorAs(t, err, &ce, "should return ConfigErrors")
 				assert.Contains(t, err.Error(), "server.writeTimeout")
 			},
 		},
@@ -157,10 +157,10 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				var ce *ConfigErrors
+				require.ErrorAs(t, err, &ce, "should return ConfigErrors")
 				// Should have multiple errors
-				assert.Greater(t, len(ve.Errors), 1, "should have multiple validation errors")
+				assert.Greater(t, len(ce.Errors), 1, "should have multiple config errors")
 			},
 		},
 		{
@@ -229,8 +229,8 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				var ce *ConfigErrors
+				require.ErrorAs(t, err, &ce, "should return ConfigErrors")
 				assert.Contains(t, err.Error(), "server.port")
 			},
 		},
@@ -248,8 +248,8 @@ func TestServerConfig_Validate(t *testing.T) {
 			wantErr: true,
 			check: func(t *testing.T, err error) {
 				t.Helper()
-				var ve *ValidationError
-				require.ErrorAs(t, err, &ve, "should return ValidationErrors")
+				var ce *ConfigErrors
+				require.ErrorAs(t, err, &ce, "should return ConfigErrors")
 				assert.Contains(t, err.Error(), "server.port")
 			},
 		},
@@ -310,11 +310,11 @@ func TestServerConfig_Validate_Integration(t *testing.T) {
 		require.Error(t, err, "should return validation error")
 		assert.Nil(t, app, "app should be nil on validation error")
 
-		var ve *ValidationError
-		if errors.As(err, &ve) {
+		var ce *ConfigErrors
+		if errors.As(err, &ce) {
 			// Should have multiple server config errors
 			serverErrorCount := 0
-			for _, e := range ve.Errors {
+			for _, e := range ce.Errors {
 				if e.Field == "server.readTimeout" || e.Field == "server.maxHeaderBytes" ||
 					e.Field == "server.shutdownTimeout" {
 
