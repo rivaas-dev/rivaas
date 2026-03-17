@@ -74,17 +74,19 @@ var noopLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 // App wraps the router with integrated observability and common middleware.
 // Create an App using [New] or [MustNew].
 type App struct {
-	router           *router.Router
-	metrics          *metrics.Recorder
-	tracing          *tracing.Tracer
-	logging          *logging.Logger // Logger instance (can be nil, uses noopLogger fallback)
-	config           *config
-	hooks            *Hooks
-	readiness        *ReadinessManager
-	openapi          *openapiState // OpenAPI state (nil if disabled)
-	contextPool      *contextPool
-	validationEngine *validation.Engine // Optional; when set, Bind/Validate use this instead of validation.DefaultEngine
-	reloadMu         sync.Mutex         // Serializes concurrent reload executions
+	router                *router.Router
+	metrics               *metrics.Recorder
+	tracing               *tracing.Tracer
+	logging               *logging.Logger // Logger instance (can be nil, uses noopLogger fallback)
+	config                *config
+	hooks                 *Hooks
+	readiness             *ReadinessManager
+	openapi               *openapiState // OpenAPI state (nil if disabled)
+	contextPool           *contextPool
+	validationEngine      *validation.Engine // Optional; when set, Bind/Validate use this instead of validation.DefaultEngine
+	reloadMu              sync.Mutex         // Serializes concurrent reload executions
+	routeValidationErrors []error            // Errors from nil route options; reported by ValidateRoutes()
+	routeValidationMu     sync.Mutex         // Protects routeValidationErrors
 }
 
 // config holds the internal application configuration.
@@ -615,6 +617,24 @@ func (a *App) Router() *router.Router {
 	return a.router
 }
 
+// ValidateRoutes returns all route-option validation errors (e.g. nil route options)
+// collected during route registration. Call before starting the server (e.g. before
+// [Router].Freeze or before passing the app to a runner) so config errors are reported at init.
+// Returns nil if there are no route validation errors.
+func (a *App) ValidateRoutes() error {
+	a.routeValidationMu.Lock()
+	errs := a.routeValidationErrors
+	a.routeValidationMu.Unlock()
+	if len(errs) == 0 {
+		return nil
+	}
+	var ce ConfigErrors
+	for _, e := range errs {
+		ce.Add(newInvalidValueError("routes", nil, e.Error()))
+	}
+	return ce.ToError()
+}
+
 // Readiness returns the readiness manager for registering gates.
 //
 // Example:
@@ -719,7 +739,10 @@ func (a *App) registerRouteWithTarget(target routeTarget, method, path string, h
 	cfg := &routeConfig{}
 	for i, opt := range opts {
 		if opt == nil {
-			panic(fmt.Sprintf("app: route option at index %d cannot be nil", i))
+			a.routeValidationMu.Lock()
+			a.routeValidationErrors = append(a.routeValidationErrors, fmt.Errorf("app: route option at index %d cannot be nil", i))
+			a.routeValidationMu.Unlock()
+			continue
 		}
 		opt(cfg)
 	}
