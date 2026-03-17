@@ -42,8 +42,8 @@ type config struct {
 	// Per-version lifecycle configurations
 	versionLifecycles map[string]*LifecycleConfig
 
-	// Observer for version detection events
-	observer *Observer
+	// observer holds callbacks for version detection events (configured via WithObserver options).
+	observer *observer
 
 	// Clock function for testing
 	now func() time.Time
@@ -72,18 +72,11 @@ type Detector interface {
 	Method() string
 }
 
-// Observer holds callbacks for version detection events.
-type Observer struct {
-	// OnDetected is called when a version is successfully detected.
-	OnDetected func(version, method string)
-
-	// OnMissing is called when no version is detected (using default).
-	OnMissing func()
-
-	// OnInvalid is called when a detected version fails validation.
-	OnInvalid func(attempted string)
-
-	// OnDeprecatedUse is called when a deprecated version is accessed.
+// observer holds callbacks for version detection events (internal; configured via WithObserver options).
+type observer struct {
+	OnDetected      func(version, method string)
+	OnMissing       func()
+	OnInvalid       func(attempted string)
 	OnDeprecatedUse func(version, route string)
 }
 

@@ -209,12 +209,8 @@ func WithSunsetEnforcement() Option {
 	}
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Observer Options
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ObserverOption configures the version observer.
-type ObserverOption func(*Observer)
+// ObserverOption configures the version observer (applies to internal observer; no observer type is exported).
+type ObserverOption func(*observer)
 
 // WithObserver configures observability hooks for version detection events.
 //
@@ -230,7 +226,7 @@ type ObserverOption func(*Observer)
 //	)
 func WithObserver(opts ...ObserverOption) Option {
 	return func(cfg *config) {
-		obs := &Observer{}
+		obs := &observer{}
 		for _, opt := range opts {
 			opt(obs)
 		}
@@ -240,35 +236,31 @@ func WithObserver(opts ...ObserverOption) Option {
 
 // OnDetected sets the callback for successful version detection.
 func OnDetected(fn func(version, method string)) ObserverOption {
-	return func(o *Observer) {
+	return func(o *observer) {
 		o.OnDetected = fn
 	}
 }
 
 // OnMissing sets the callback for when no version is found (using default).
 func OnMissing(fn func()) ObserverOption {
-	return func(o *Observer) {
+	return func(o *observer) {
 		o.OnMissing = fn
 	}
 }
 
 // OnInvalid sets the callback for invalid version detection.
 func OnInvalid(fn func(attempted string)) ObserverOption {
-	return func(o *Observer) {
+	return func(o *observer) {
 		o.OnInvalid = fn
 	}
 }
 
 // OnDeprecatedUse sets the callback for deprecated version usage.
 func OnDeprecatedUse(fn func(version, route string)) ObserverOption {
-	return func(o *Observer) {
+	return func(o *observer) {
 		o.OnDeprecatedUse = fn
 	}
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Testing Options
-// ═══════════════════════════════════════════════════════════════════════════════
 
 // WithClock sets a custom clock function for testing.
 //
