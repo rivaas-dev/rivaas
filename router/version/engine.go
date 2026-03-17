@@ -25,7 +25,7 @@ import (
 // Engine manages API versioning, including version detection from requests
 // and lifecycle header management.
 type Engine struct {
-	config *Config
+	config *config
 }
 
 // New creates a new versioning engine with the given options.
@@ -37,7 +37,7 @@ type Engine struct {
 //	    version.WithDefault("v1"),
 //	)
 func New(opts ...Option) (*Engine, error) {
-	cfg, err := NewConfig(opts...)
+	cfg, err := newConfig(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -213,12 +213,12 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version, route strin
 	}
 
 	// Get lifecycle config for this version
-	lc := cfg.GetLifecycle(version)
+	lc := cfg.getLifecycle(version)
 	if lc == nil || !lc.Deprecated {
 		return false // Not deprecated
 	}
 
-	now := cfg.Now()
+	now := cfg.nowTime()
 
 	// Check if version has been sunset
 	if cfg.enforceSunset && !lc.SunsetDate.IsZero() && now.After(lc.SunsetDate) {
@@ -266,7 +266,27 @@ func (e *Engine) SetLifecycleHeaders(w http.ResponseWriter, version, route strin
 	return false
 }
 
-// Config returns the underlying configuration.
-func (e *Engine) Config() *Config {
-	return e.config
+// DefaultVersion returns the configured default version (e.g. when none is detected).
+func (e *Engine) DefaultVersion() string {
+	if e == nil || e.config == nil {
+		return "v1"
+	}
+	return e.config.defaultVersion
+}
+
+// SetLifecycle registers or updates the lifecycle configuration for a version.
+// Used by the router when r.Version("v1", version.Deprecated(), ...) is called.
+func (e *Engine) SetLifecycle(version string, lc *LifecycleConfig) {
+	if e == nil || e.config == nil || version == "" {
+		return
+	}
+	e.config.setLifecycle(version, lc)
+}
+
+// GetLifecycle returns the lifecycle configuration for a version, or nil if not configured.
+func (e *Engine) GetLifecycle(version string) *LifecycleConfig {
+	if e == nil || e.config == nil {
+		return nil
+	}
+	return e.config.getLifecycle(version)
 }

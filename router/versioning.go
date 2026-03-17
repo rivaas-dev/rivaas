@@ -115,9 +115,9 @@ func (r *Router) selectRoutingTree(method, ver string) *node {
 	}
 
 	// Fallback to default version tree if available
-	cfg := r.versionEngine.Config()
-	if cfg.DefaultVersion() != "" && ver != cfg.DefaultVersion() {
-		tree = r.getVersionTree(cfg.DefaultVersion(), method)
+	defaultVer := r.versionEngine.DefaultVersion()
+	if defaultVer != "" && ver != defaultVer {
+		tree = r.getVersionTree(defaultVer, method)
 		if tree != nil {
 			return tree
 		}
@@ -311,7 +311,7 @@ func (r *Router) Version(ver string, opts ...version.LifecycleOption) *VersionRo
 
 		// Register lifecycle with the engine
 		if r.versionEngine != nil {
-			r.versionEngine.Config().SetLifecycle(ver, vr.lifecycle)
+			r.versionEngine.SetLifecycle(ver, vr.lifecycle)
 		}
 	}
 
@@ -347,7 +347,7 @@ func (vr *VersionRouter) Configure(opts ...version.LifecycleOption) *VersionRout
 
 	// Update engine's lifecycle config
 	if vr.router.versionEngine != nil {
-		vr.router.versionEngine.Config().SetLifecycle(vr.version, vr.lifecycle)
+		vr.router.versionEngine.SetLifecycle(vr.version, vr.lifecycle)
 	}
 
 	return vr

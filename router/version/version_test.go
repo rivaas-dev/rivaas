@@ -31,64 +31,64 @@ func TestNewConfig(t *testing.T) {
 
 	t.Run("minimal config", func(t *testing.T) {
 		t.Parallel()
-		cfg, err := NewConfig(WithDefault("v1"))
+		cfg, err := newConfig(WithDefault("v1"))
 		require.NoError(t, err)
-		assert.Equal(t, "v1", cfg.DefaultVersion())
+		assert.Equal(t, "v1", cfg.defaultVersion)
 	})
 
 	t.Run("with header detection", func(t *testing.T) {
 		t.Parallel()
-		cfg, err := NewConfig(
+		cfg, err := newConfig(
 			WithHeaderDetection("X-API-Version"),
 			WithDefault("v1"),
 		)
 		require.NoError(t, err)
-		assert.Len(t, cfg.Detectors(), 1)
+		assert.Len(t, cfg.detectors, 1)
 	})
 
 	t.Run("with multiple detectors", func(t *testing.T) {
 		t.Parallel()
-		cfg, err := NewConfig(
+		cfg, err := newConfig(
 			WithPathDetection("/v{version}/"),
 			WithHeaderDetection("X-API-Version"),
 			WithQueryDetection("v"),
 			WithDefault("v1"),
 		)
 		require.NoError(t, err)
-		assert.Len(t, cfg.Detectors(), 3)
+		assert.Len(t, cfg.detectors, 3)
 	})
 
 	t.Run("with valid versions", func(t *testing.T) {
 		t.Parallel()
-		cfg, err := NewConfig(
+		cfg, err := newConfig(
 			WithDefault("v1"),
 			WithValidVersions("v1", "v2", "v3"),
 		)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"v1", "v2", "v3"}, cfg.ValidVersions())
+		assert.Equal(t, []string{"v1", "v2", "v3"}, cfg.validVersions)
 	})
 
 	t.Run("with response headers", func(t *testing.T) {
 		t.Parallel()
-		cfg, err := NewConfig(
+		cfg, err := newConfig(
 			WithDefault("v1"),
 			WithResponseHeaders(),
 			WithWarning299(),
 		)
 		require.NoError(t, err)
-		assert.True(t, cfg.SendVersionHeader())
-		assert.True(t, cfg.SendWarning299())
+		assert.True(t, cfg.sendVersionHeader)
+		assert.True(t, cfg.sendWarning299)
 	})
 
 	t.Run("empty default version fails", func(t *testing.T) {
 		t.Parallel()
-		_, err := NewConfig(WithDefault(""))
+		_, err := newConfig(WithDefault(""))
 		assert.Error(t, err)
 	})
 
 	t.Run("invalid path pattern fails", func(t *testing.T) {
 		t.Parallel()
-		_, err := NewConfig(
+		_, err := newConfig(
 			WithPathDetection("/users"), // Missing {version}
 			WithDefault("v1"),
 		)
@@ -103,7 +103,7 @@ func TestMustNew(t *testing.T) {
 		t.Parallel()
 		engine := MustNew(WithDefault("v1"))
 		require.NotNil(t, engine)
-		assert.Equal(t, "v1", engine.Config().DefaultVersion())
+		assert.Equal(t, "v1", engine.DefaultVersion())
 	})
 
 	t.Run("panics on invalid config", func(t *testing.T) {
@@ -402,7 +402,7 @@ func TestEngineSetLifecycleHeaders(t *testing.T) {
 			Deprecated(),
 			Sunset(sunsetDate),
 		)
-		engine.Config().SetLifecycle("v1", lc)
+		engine.SetLifecycle("v1", lc)
 
 		w := httptest.NewRecorder()
 		isSunset := engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -427,7 +427,7 @@ func TestEngineSetLifecycleHeaders(t *testing.T) {
 			Deprecated(),
 			Sunset(pastDate),
 		)
-		engine.Config().SetLifecycle("v1", lc)
+		engine.SetLifecycle("v1", lc)
 
 		w := httptest.NewRecorder()
 		isSunset := engine.SetLifecycleHeaders(w, "v1", "/users")
@@ -480,19 +480,19 @@ func TestPathStripping(t *testing.T) {
 
 func TestConfig_EnforceSunset(t *testing.T) {
 	t.Parallel()
-	cfg, err := NewConfig(WithDefault("v1"), WithSunsetEnforcement())
+	cfg, err := newConfig(WithDefault("v1"), WithSunsetEnforcement())
 	require.NoError(t, err)
-	assert.True(t, cfg.EnforceSunset())
+	assert.True(t, cfg.enforceSunset)
 }
 
 func TestConfig_Observer(t *testing.T) {
 	t.Parallel()
-	cfg, err := NewConfig(
+	cfg, err := newConfig(
 		WithDefault("v1"),
 		WithObserver(OnDetected(func(_, _ string) {}), OnMissing(func() {}), OnInvalid(func(_ string) {})),
 	)
 	require.NoError(t, err)
-	assert.NotNil(t, cfg.Observer())
+	assert.NotNil(t, cfg.observer)
 }
 
 func TestEngine_ShouldApplyVersioning(t *testing.T) {

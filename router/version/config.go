@@ -22,9 +22,9 @@ import (
 	"time"
 )
 
-// Config holds the versioning engine configuration.
-// This is configured via functional options passed to router.WithVersioning().
-type Config struct {
+// config holds the versioning engine configuration (internal).
+// It is built from functional options passed to router.WithVersioning().
+type config struct {
 	// Detection strategies (checked in order)
 	detectors []Detector
 
@@ -88,12 +88,12 @@ type Observer struct {
 }
 
 // Option configures the versioning engine.
-// Options apply to the config; validation errors are collected and reported by NewConfig.
-type Option func(*Config)
+// Options apply to the internal config; validation errors are collected and reported by New/MustNew.
+type Option func(*config)
 
-// NewConfig creates a new Config with the given options.
-func NewConfig(opts ...Option) (*Config, error) {
-	cfg := &Config{
+// newConfig creates a new config with the given options (internal use).
+func newConfig(opts ...Option) (*config, error) {
+	cfg := &config{
 		defaultVersion:    "v1", // Sensible default
 		versionLifecycles: make(map[string]*LifecycleConfig),
 	}
@@ -110,7 +110,7 @@ func NewConfig(opts ...Option) (*Config, error) {
 }
 
 // validate checks the configuration for errors.
-func (c *Config) validate() error {
+func (c *config) validate() error {
 	if len(c.validationErrors) > 0 {
 		return errors.Join(c.validationErrors...)
 	}
@@ -130,33 +130,8 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// DefaultVersion returns the configured default version.
-func (c *Config) DefaultVersion() string {
-	return c.defaultVersion
-}
-
-// ValidVersions returns the list of valid versions, or nil if not configured.
-func (c *Config) ValidVersions() []string {
-	return c.validVersions
-}
-
-// SendVersionHeader returns whether to send X-API-Version response header.
-func (c *Config) SendVersionHeader() bool {
-	return c.sendVersionHeader
-}
-
-// SendWarning299 returns whether to send Warning: 299 for deprecated versions.
-func (c *Config) SendWarning299() bool {
-	return c.sendWarning299
-}
-
-// EnforceSunset returns whether to return 410 Gone for sunset versions.
-func (c *Config) EnforceSunset() bool {
-	return c.enforceSunset
-}
-
-// GetLifecycle returns the lifecycle config for a version, or nil if not configured.
-func (c *Config) GetLifecycle(version string) *LifecycleConfig {
+// getLifecycle returns the lifecycle config for a version, or nil if not configured (internal use).
+func (c *config) getLifecycle(version string) *LifecycleConfig {
 	if c.versionLifecycles == nil {
 		return nil
 	}
@@ -164,29 +139,18 @@ func (c *Config) GetLifecycle(version string) *LifecycleConfig {
 	return c.versionLifecycles[version]
 }
 
-// SetLifecycle sets the lifecycle config for a version.
-func (c *Config) SetLifecycle(version string, lc *LifecycleConfig) {
+// setLifecycle sets the lifecycle config for a version (internal use).
+func (c *config) setLifecycle(version string, lc *LifecycleConfig) {
 	if c.versionLifecycles == nil {
 		c.versionLifecycles = make(map[string]*LifecycleConfig)
 	}
 	c.versionLifecycles[version] = lc
 }
 
-// Now returns the current time (injectable for testing).
-func (c *Config) Now() time.Time {
+// nowTime returns the current time (injectable for testing via WithClock).
+func (c *config) nowTime() time.Time {
 	if c.now != nil {
 		return c.now()
 	}
-
 	return time.Now()
-}
-
-// Observer returns the configured observer.
-func (c *Config) Observer() *Observer {
-	return c.observer
-}
-
-// Detectors returns the configured detectors.
-func (c *Config) Detectors() []Detector {
-	return c.detectors
 }

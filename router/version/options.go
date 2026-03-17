@@ -36,7 +36,7 @@ import (
 //	version.WithPathDetection("/v{version}/")
 //	// Matches: /v1/users, /v2/users
 func WithPathDetection(pattern string) Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		if pattern == "" {
 			cfg.validationErrors = append(cfg.validationErrors, ErrEmptyPathPattern)
 			return
@@ -59,7 +59,7 @@ func WithPathDetection(pattern string) Option {
 //	version.WithHeaderDetection("API-Version")
 //	// Client sends: API-Version: v2
 func WithHeaderDetection(headerName string) Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		if headerName == "" {
 			cfg.validationErrors = append(cfg.validationErrors, ErrEmptyHeaderName)
 			return
@@ -78,7 +78,7 @@ func WithHeaderDetection(headerName string) Option {
 //	version.WithQueryDetection("version")
 //	// Client sends: GET /users?version=v2
 func WithQueryDetection(paramName string) Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		if paramName == "" {
 			cfg.validationErrors = append(cfg.validationErrors, ErrEmptyQueryParam)
 			return
@@ -95,7 +95,7 @@ func WithQueryDetection(paramName string) Option {
 //	version.WithAcceptDetection("application/vnd.myapi.v{version}+json")
 //	// Client sends: Accept: application/vnd.myapi.v2+json
 func WithAcceptDetection(pattern string) Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		if pattern == "" {
 			cfg.validationErrors = append(cfg.validationErrors, ErrEmptyAcceptPattern)
 			return
@@ -119,7 +119,7 @@ func WithAcceptDetection(pattern string) Option {
 //	    return extractVersionFromToken(token)
 //	})
 func WithCustomDetection(fn func(*http.Request) string) Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		if fn == nil {
 			cfg.validationErrors = append(cfg.validationErrors, ErrNilCustomDetector)
 			return
@@ -139,7 +139,7 @@ func WithCustomDetection(fn func(*http.Request) string) Option {
 //
 //	version.WithDefault("v2")
 func WithDefault(version string) Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		if version == "" {
 			cfg.validationErrors = append(cfg.validationErrors, ErrEmptyDefaultVersion)
 			return
@@ -155,7 +155,7 @@ func WithDefault(version string) Option {
 //
 //	version.WithValidVersions("v1", "v2", "v3")
 func WithValidVersions(versions ...string) Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		if len(versions) == 0 {
 			cfg.validationErrors = append(cfg.validationErrors, ErrNoValidVersions)
 			return
@@ -181,7 +181,7 @@ func WithValidVersions(versions ...string) Option {
 //	version.WithResponseHeaders()
 //	// Response includes: X-API-Version: v2
 func WithResponseHeaders() Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		cfg.sendVersionHeader = true
 	}
 }
@@ -193,7 +193,7 @@ func WithResponseHeaders() Option {
 //	version.WithWarning299()
 //	// Response includes: Warning: 299 - "API v1 is deprecated..."
 func WithWarning299() Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		cfg.sendWarning299 = true
 	}
 }
@@ -204,7 +204,7 @@ func WithWarning299() Option {
 //
 //	version.WithSunsetEnforcement()
 func WithSunsetEnforcement() Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		cfg.enforceSunset = true
 	}
 }
@@ -229,7 +229,7 @@ type ObserverOption func(*Observer)
 //	    }),
 //	)
 func WithObserver(opts ...ObserverOption) Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		obs := &Observer{}
 		for _, opt := range opts {
 			opt(obs)
@@ -278,7 +278,7 @@ func OnDeprecatedUse(fn func(version, route string)) ObserverOption {
 //	    return time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 //	})
 func WithClock(nowFn func() time.Time) Option {
-	return func(cfg *Config) {
+	return func(cfg *config) {
 		cfg.now = nowFn
 	}
 }
