@@ -432,18 +432,6 @@ func New(opts ...Option) (*App, error) {
 		return nil, fmt.Errorf("failed to create router: %w", err)
 	}
 
-	// Finalize OpenAPI config: inject service name/version if not explicitly set.
-	// This happens after all options are applied, so option order doesn't matter.
-	if cfg.openapi != nil && cfg.openapi.enabled && cfg.openapi.config != nil {
-		openapiCfg := cfg.openapi.config
-		if openapiCfg.Info.Title == "API" && cfg.serviceName != "" {
-			openapiCfg.Info.Title = cfg.serviceName
-		}
-		if openapiCfg.Info.Version == "1.0.0" && cfg.serviceVersion != "" {
-			openapiCfg.Info.Version = cfg.serviceVersion
-		}
-	}
-
 	// Create app
 	var openapiSt *openapiState
 	if cfg.openapi != nil && cfg.openapi.enabled && cfg.openapi.config != nil {

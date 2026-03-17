@@ -119,19 +119,19 @@ func (s *openapiState) API() *openapi.API {
 // SpecPath returns the configured spec path (e.g., "/openapi.json").
 // Safe without lock: api is immutable after construction.
 func (s *openapiState) SpecPath() string {
-	return s.api.SpecPath
+	return s.api.SpecPath()
 }
 
 // UIPath returns the configured UI path (e.g., "/docs").
 // Safe without lock: api is immutable after construction.
 func (s *openapiState) UIPath() string {
-	return s.api.UIPath
+	return s.api.UIPath()
 }
 
 // ServeUI returns whether Swagger UI should be served.
 // Safe without lock: api is immutable after construction.
 func (s *openapiState) ServeUI() bool {
-	return s.api.ServeUI
+	return s.api.ServeUI()
 }
 
 // UIConfig returns the UI configuration for rendering Swagger UI.

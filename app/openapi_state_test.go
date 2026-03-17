@@ -36,9 +36,9 @@ func TestNewOpenapiState(t *testing.T) {
 	s := newOpenapiState(api)
 	require.NotNil(t, s)
 	assert.Equal(t, api, s.API())
-	assert.Equal(t, api.SpecPath, s.SpecPath())
-	assert.Equal(t, api.UIPath, s.UIPath())
-	assert.Equal(t, api.ServeUI, s.ServeUI())
+	assert.Equal(t, api.SpecPath(), s.SpecPath())
+	assert.Equal(t, api.UIPath(), s.UIPath())
+	assert.Equal(t, api.ServeUI(), s.ServeUI())
 	assert.NotNil(t, s.UIConfig())
 }
 

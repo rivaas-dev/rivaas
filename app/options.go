@@ -368,26 +368,18 @@ type openapiConfig struct {
 //	)
 func WithOpenAPI(opts ...openapi.Option) Option {
 	return func(c *config) {
-		// Create OpenAPI config with options
-		// Use New instead of MustNew to return errors during validation
+		// Inject service name/version into OpenAPI when still defaults (applied last so option order doesn't matter).
+		if c.serviceName != "" || c.serviceVersion != "" {
+			opts = append(opts, openapi.WithTitleIfDefault(c.serviceName, c.serviceVersion))
+		}
 		openapiCfg, err := openapi.New(opts...)
 		if err != nil {
-			// Store error to be checked during config validation.
-			// We can't return errors from functional options (they're void functions),
-			// so we defer error reporting until config.validate() is called.
-			// This allows users to see all configuration errors at once rather than
-			// failing on the first error encountered.
 			c.openapi = &openapiConfig{
 				enabled: true,
 				initErr: fmt.Errorf("failed to initialize OpenAPI: %w", err),
 			}
-
 			return
 		}
-
-		// Note: Service name/version injection happens in New() after all options
-		// are applied, so option order doesn't matter.
-
 		c.openapi = &openapiConfig{
 			enabled: true,
 			config:  openapiCfg,
