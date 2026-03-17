@@ -294,6 +294,31 @@ func TestContext_Validate(t *testing.T) {
 	}
 }
 
+func TestWithValidationEngine(t *testing.T) {
+	t.Parallel()
+
+	// App with custom engine that limits to 1 error (truncated)
+	engine := validation.MustNew(validation.WithMaxErrors(1))
+	a, err := New(
+		WithServiceName("test"),
+		WithValidationEngine(engine),
+	)
+	require.NoError(t, err)
+
+	// Bind request with multiple missing required fields; custom engine should return only 1 error
+	c, err := TestContextWithBodyAndApp(a, "POST", "/test", map[string]any{})
+	require.NoError(t, err)
+
+	var req testBindRequest
+	bindErr := c.Bind(&req)
+	require.Error(t, bindErr)
+
+	var verr *validation.Error
+	require.ErrorAs(t, bindErr, &verr)
+	assert.Len(t, verr.Fields, 1, "custom engine WithMaxErrors(1) should return at most 1 error")
+	assert.True(t, verr.Truncated, "error list should be truncated")
+}
+
 func TestContext_Presence(t *testing.T) {
 	t.Parallel()
 

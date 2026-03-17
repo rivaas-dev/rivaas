@@ -37,6 +37,7 @@ import (
 	"rivaas.dev/router"
 	"rivaas.dev/router/route"
 	"rivaas.dev/tracing"
+	"rivaas.dev/validation"
 
 	stderrors "errors"
 )
@@ -73,33 +74,35 @@ var noopLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 // App wraps the router with integrated observability and common middleware.
 // Create an App using [New] or [MustNew].
 type App struct {
-	router      *router.Router
-	metrics     *metrics.Recorder
-	tracing     *tracing.Tracer
-	logging     *logging.Logger // Logger instance (can be nil, uses noopLogger fallback)
-	config      *config
-	hooks       *Hooks
-	readiness   *ReadinessManager
-	openapi     *openapiState // OpenAPI state (nil if disabled)
-	contextPool *contextPool
-	reloadMu    sync.Mutex // Serializes concurrent reload executions
+	router           *router.Router
+	metrics          *metrics.Recorder
+	tracing          *tracing.Tracer
+	logging          *logging.Logger // Logger instance (can be nil, uses noopLogger fallback)
+	config           *config
+	hooks            *Hooks
+	readiness        *ReadinessManager
+	openapi          *openapiState // OpenAPI state (nil if disabled)
+	contextPool      *contextPool
+	validationEngine *validation.Engine // Optional; when set, Bind/Validate use this instead of validation.DefaultEngine
+	reloadMu         sync.Mutex         // Serializes concurrent reload executions
 }
 
 // config holds the internal application configuration.
 // config maintains encapsulation by keeping all fields private.
 type config struct {
-	serviceName    string
-	serviceVersion string
-	environment    string
-	server         *serverConfig
-	middleware     *middlewareConfig
-	router         *routerConfig
-	openapi        *openapiConfig
-	errors         *errorsConfig
-	observability  *observabilitySettings // Unified observability settings (metrics, tracing, logging)
-	health         *healthSettings        // Health endpoint settings (livez, readyz)
-	debug          *debugSettings         // Debug endpoint settings (pprof)
-	envErrors      []error                // Errors from environment variable parsing
+	serviceName      string
+	serviceVersion   string
+	environment      string
+	server           *serverConfig
+	middleware       *middlewareConfig
+	router           *routerConfig
+	openapi          *openapiConfig
+	errors           *errorsConfig
+	observability    *observabilitySettings // Unified observability settings (metrics, tracing, logging)
+	health           *healthSettings        // Health endpoint settings (livez, readyz)
+	debug            *debugSettings         // Debug endpoint settings (pprof)
+	validationEngine *validation.Engine     // Optional; when set, Bind/Validate use this engine
+	envErrors        []error                // Errors from environment variable parsing
 }
 
 // metricsConfig holds metrics configuration settings.
@@ -439,14 +442,13 @@ func New(opts ...Option) (*App, error) {
 	}
 
 	app := &App{
-		router: r,
-		config: cfg,
-		hooks:  &Hooks{},
-		readiness: &ReadinessManager{
-			gates: make(map[string]Gate),
-		},
-		openapi:     openapiSt,
-		contextPool: newContextPool(),
+		router:           r,
+		config:           cfg,
+		hooks:            &Hooks{},
+		readiness:        &ReadinessManager{gates: make(map[string]Gate)},
+		openapi:          openapiSt,
+		contextPool:      newContextPool(),
+		validationEngine: cfg.validationEngine,
 	}
 
 	// Get observability settings (use defaults if not configured)

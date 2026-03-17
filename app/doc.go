@@ -253,6 +253,7 @@
 //   - [WithoutValidation]: Skip validation step
 //   - [WithBindingOptions]: Pass options to binding package
 //   - [WithValidationOptions]: Pass options to validation package
+//   - [WithValidationEngine]: Use a custom validation engine for Bind/Validate (e.g. for redaction or test isolation)
 //
 // Example with options:
 //

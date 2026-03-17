@@ -223,6 +223,9 @@ func (c *Context) validateInternal(out any, cfg *bindConfig) error {
 	// Append user-provided validation options
 	valOpts = append(valOpts, cfg.validationOpts...)
 
+	if c.app != nil && c.app.validationEngine != nil {
+		return c.app.validationEngine.Validate(ctx, out, valOpts...)
+	}
 	return validation.Validate(ctx, out, valOpts...)
 }
 
@@ -345,6 +348,9 @@ func (c *Context) Validate(v any, opts ...validation.Option) error {
 	}
 	allOpts = append(allOpts, opts...)
 
+	if c.app != nil && c.app.validationEngine != nil {
+		return c.app.validationEngine.Validate(ctx, v, allOpts...)
+	}
 	return validation.Validate(ctx, v, allOpts...)
 }
 

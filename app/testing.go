@@ -196,6 +196,16 @@ type testingT interface {
 //	var req CreateUserRequest
 //	err = c.Bind(&req)
 func TestContextWithBody(method, path string, body any) (*Context, error) {
+	a, err := New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create app: %w", err)
+	}
+	return TestContextWithBodyAndApp(a, method, path, body)
+}
+
+// TestContextWithBodyAndApp creates a Context with JSON body using the given App.
+// Use this when testing app-specific configuration (e.g. [WithValidationEngine]).
+func TestContextWithBodyAndApp(a *App, method, path string, body any) (*Context, error) {
 	var buf bytes.Buffer
 	if body != nil {
 		if err := json.NewEncoder(&buf).Encode(body); err != nil {
@@ -206,19 +216,11 @@ func TestContextWithBody(method, path string, body any) (*Context, error) {
 	req := httptest.NewRequest(method, path, &buf)
 	req.Header.Set("Content-Type", "application/json")
 
-	// Create a minimal app for testing
-	a, err := New()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create app: %w", err)
-	}
-
-	// Create router context
 	rc := &router.Context{
 		Request:  req,
 		Response: httptest.NewRecorder(),
 	}
 
-	// Create app context from the pool
 	c := a.contextPool.Get()
 	c.Context = rc
 	c.app = a

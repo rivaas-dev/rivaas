@@ -22,6 +22,7 @@ import (
 	"rivaas.dev/errors"
 	"rivaas.dev/openapi"
 	"rivaas.dev/router"
+	"rivaas.dev/validation"
 )
 
 // Option defines functional options for app configuration.
@@ -336,6 +337,23 @@ func WithRouter(opts ...router.Option) Option {
 			c.router = &routerConfig{}
 		}
 		c.router.options = append(c.router.options, opts...)
+	}
+}
+
+// WithValidationEngine sets the validation engine used by [Context.Bind] and [Context.Validate].
+// When set, the app uses this engine instead of the package-level [validation.DefaultEngine].
+// Use this for custom validation configuration (e.g. redaction, MaxErrors) or test isolation.
+//
+// Example:
+//
+//	engine := validation.MustNew(validation.WithRedactor(myRedactor))
+//	app := app.MustNew(
+//	    app.WithServiceName("my-api"),
+//	    app.WithValidationEngine(engine),
+//	)
+func WithValidationEngine(engine *validation.Engine) Option {
+	return func(c *config) {
+		c.validationEngine = engine
 	}
 }
 
