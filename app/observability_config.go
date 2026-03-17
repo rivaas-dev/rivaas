@@ -254,6 +254,8 @@ type ObservabilityConfig struct {
 // into functional options and applies them via the existing WithObservability function.
 //
 // This function is ideal for loading observability configuration from files (YAML, JSON, etc.).
+// Invalid tracing, metrics, or logging configuration is reported when the app is constructed
+// (e.g. from [New]) as a validation error, not via panic.
 //
 // Example:
 //
@@ -263,33 +265,39 @@ type ObservabilityConfig struct {
 //	)
 func WithObservabilityFromConfig(cfg ObservabilityConfig) Option {
 	return func(c *config) {
+		if c.observability == nil {
+			c.observability = defaultObservabilitySettings()
+		}
 		var obsOpts []ObservabilityOption
 
 		// Tracing
 		if cfg.Tracing.Provider != "" {
 			tracingOpts, err := cfg.Tracing.options()
 			if err != nil {
-				panic(fmt.Sprintf("tracing config error: %v", err))
+				c.observability.validationErrors = append(c.observability.validationErrors, fmt.Errorf("tracing: %w", err))
+			} else {
+				obsOpts = append(obsOpts, WithTracing(tracingOpts...))
 			}
-			obsOpts = append(obsOpts, WithTracing(tracingOpts...))
 		}
 
 		// Metrics
 		if cfg.Metrics.Provider != "" {
 			metricsOpts, err := cfg.Metrics.options()
 			if err != nil {
-				panic(fmt.Sprintf("metrics config error: %v", err))
+				c.observability.validationErrors = append(c.observability.validationErrors, fmt.Errorf("metrics: %w", err))
+			} else {
+				obsOpts = append(obsOpts, WithMetrics(metricsOpts...))
 			}
-			obsOpts = append(obsOpts, WithMetrics(metricsOpts...))
 		}
 
 		// Logging
 		if cfg.Logging.Handler != "" {
 			loggingOpts, err := cfg.Logging.options()
 			if err != nil {
-				panic(fmt.Sprintf("logging config error: %v", err))
+				c.observability.validationErrors = append(c.observability.validationErrors, fmt.Errorf("logging: %w", err))
+			} else {
+				obsOpts = append(obsOpts, WithLogging(loggingOpts...))
 			}
-			obsOpts = append(obsOpts, WithLogging(loggingOpts...))
 		}
 
 		// Path exclusions

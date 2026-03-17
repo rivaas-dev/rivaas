@@ -257,17 +257,72 @@ func TestWithObservabilityFromConfig_excludePathsApplied(t *testing.T) {
 	assert.True(t, app.config.observability.pathFilter.shouldExclude("/admin/foo"))
 }
 
-func TestWithObservabilityFromConfig_invalidTracingProviderPanics(t *testing.T) {
+func TestWithObservabilityFromConfig_invalidTracingProviderReturnsError(t *testing.T) {
 	t.Parallel()
 
 	cfg := ObservabilityConfig{
 		Tracing: TracingConfig{Provider: TracingProvider("invalid")},
 	}
-	assert.Panics(t, func() {
-		MustNew(
+	_, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithObservabilityFromConfig(cfg),
+	)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "observability")
+	assert.ErrorContains(t, err, "tracing")
+	assert.ErrorContains(t, err, "unknown provider")
+}
+
+func TestWithObservabilityFromConfig_invalidMetricsProviderReturnsError(t *testing.T) {
+	t.Parallel()
+
+	cfg := ObservabilityConfig{
+		Metrics: MetricsConfig{Provider: MetricsProvider("invalid")},
+	}
+	_, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithObservabilityFromConfig(cfg),
+	)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "observability")
+	assert.ErrorContains(t, err, "metrics")
+	assert.ErrorContains(t, err, "unknown provider")
+}
+
+func TestWithObservabilityFromConfig_invalidLoggingConfigReturnsError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unknown handler", func(t *testing.T) {
+		t.Parallel()
+		cfg := ObservabilityConfig{
+			Logging: LoggingConfig{Handler: LoggingHandler("invalid"), Level: LoggingInfo},
+		}
+		_, err := New(
 			WithServiceName("test"),
 			WithServiceVersion("1.0.0"),
 			WithObservabilityFromConfig(cfg),
 		)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "observability")
+		assert.ErrorContains(t, err, "logging")
+		assert.ErrorContains(t, err, "unknown handler")
+	})
+
+	t.Run("unknown level", func(t *testing.T) {
+		t.Parallel()
+		cfg := ObservabilityConfig{
+			Logging: LoggingConfig{Handler: LoggingJSON, Level: LoggingLevel("invalid")},
+		}
+		_, err := New(
+			WithServiceName("test"),
+			WithServiceVersion("1.0.0"),
+			WithObservabilityFromConfig(cfg),
+		)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "observability")
+		assert.ErrorContains(t, err, "logging")
+		assert.ErrorContains(t, err, "unknown level")
 	})
 }
