@@ -95,54 +95,40 @@ func TestNew(t *testing.T) {
 	}
 }
 
-// Test validation
-func TestConfig_Validate(t *testing.T) {
+// TestNew_InvalidConfig tests that invalid configuration is rejected at construction time.
+func TestNew_InvalidConfig(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
-		cfg     *Logger
+		opts    []Option
 		wantErr bool
 	}{
 		{
-			name: "valid config",
-			cfg:  defaultLogger(),
-		},
-		{
-			name: "nil output",
-			cfg: &Logger{
-				output:      nil,
-				serviceName: "test",
-			},
-			wantErr: true,
-		},
-		{
-			name: "empty service name is valid",
-			cfg: &Logger{
-				output:      io.Discard,
-				serviceName: "",
-			},
+			name:    "valid default",
+			opts:    nil,
 			wantErr: false,
 		},
 		{
-			name: "nil custom logger",
-			cfg: &Logger{
-				output:       io.Discard,
-				serviceName:  "test",
-				useCustom:    true,
-				customLogger: nil,
-			},
+			name:    "valid empty service name",
+			opts:    []Option{WithServiceName("")},
+			wantErr: false,
+		},
+		{
+			name:    "nil output",
+			opts:    []Option{WithOutput(nil)},
+			wantErr: true,
+		},
+		{
+			name:    "nil custom logger",
+			opts:    []Option{WithCustomLogger(nil)},
 			wantErr: true,
 		},
 		{
 			name: "invalid sampling config",
-			cfg: &Logger{
-				output:      io.Discard,
-				serviceName: "test",
-				samplingConfig: &SamplingConfig{
-					Initial:    -1,
-					Thereafter: 100,
-				},
+			opts: []Option{
+				WithOutput(io.Discard),
+				WithSampling(SamplingConfig{Initial: -1, Thereafter: 100}),
 			},
 			wantErr: true,
 		},
@@ -152,7 +138,7 @@ func TestConfig_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.cfg.Validate()
+			_, err := New(tt.opts...)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -1069,28 +1055,6 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 
 	// Verify concurrent logging completed without errors
 	// All logs should have been written successfully
-}
-
-// TestLogger_Validate_Errors tests validation error cases.
-func TestLogger_Validate_Errors(t *testing.T) {
-	t.Parallel()
-
-	// Test with nil output
-	_, err := New(WithOutput(nil))
-	require.Error(t, err, "expected error with nil output")
-
-	// Empty service name is now valid (sensible defaults)
-	cfg := defaultLogger()
-	cfg.serviceName = ""
-	err = cfg.Validate()
-	require.NoError(t, err, "empty service name should be valid")
-
-	// Test with nil custom logger
-	cfg2 := defaultLogger()
-	cfg2.useCustom = true
-	cfg2.customLogger = nil
-	err = cfg2.Validate()
-	assert.Error(t, err, "expected error with nil custom logger")
 }
 
 // TestLogger_WithReplaceAttr tests custom attribute replacement.

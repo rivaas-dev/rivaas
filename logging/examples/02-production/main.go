@@ -85,7 +85,7 @@ func demonstrateValidation() {
 		fmt.Println("validation caught invalid config:", err)
 	}
 
-	// Invalid configuration can also be caught via Validate
+	// Invalid configuration is always reported at construction time by New().
 	fmt.Println()
 }
 

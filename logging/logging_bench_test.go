@@ -311,17 +311,6 @@ func BenchmarkWithSampling(b *testing.B) {
 	}
 }
 
-// Benchmark validation overhead
-func BenchmarkConfigValidation(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for b.Loop() {
-		cfg := defaultLogger()
-		//nolint:errcheck // Benchmark measures performance; error checking would skew results
-		cfg.Validate()
-	}
-}
-
 // Benchmark SetLevel
 func BenchmarkSetLevel(b *testing.B) {
 	logger := MustNew(WithJSONHandler(), WithOutput(io.Discard))

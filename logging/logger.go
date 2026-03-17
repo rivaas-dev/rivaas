@@ -149,17 +149,6 @@ func defaultConfig() *config {
 	}
 }
 
-// defaultLogger returns a Logger with default configuration.
-// It is used by tests that need a fully initialized Logger without options.
-func defaultLogger() *Logger {
-	cfg := defaultConfig()
-	l, err := newLoggerFromConfig(cfg)
-	if err != nil {
-		panic("defaultLogger: " + err.Error())
-	}
-	return l
-}
-
 // validate checks the config for errors.
 func (c *config) validate() error {
 	if c.output == nil {
@@ -226,25 +215,6 @@ func MustNew(opts ...Option) *Logger {
 	}
 
 	return l
-}
-
-// Validate checks if the configuration is valid.
-func (l *Logger) Validate() error {
-	if l.output == nil {
-		return errors.New("output writer cannot be nil")
-	}
-
-	if l.useCustom && l.customLogger == nil {
-		return ErrNilLogger
-	}
-
-	if l.samplingConfig != nil {
-		if l.samplingConfig.Initial < 0 || l.samplingConfig.Thereafter < 0 {
-			return errors.New("sampling config values must be non-negative")
-		}
-	}
-
-	return nil
 }
 
 // initialize sets up the logger with the configured handler.
