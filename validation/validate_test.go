@@ -1052,3 +1052,23 @@ func TestValidate_DetermineStrategyFallbackToTags(t *testing.T) {
 	err := Validate(t.Context(), &NoTags{})
 	assert.NoError(t, err)
 }
+
+// TestDefaultEngine_LazyInit verifies that DefaultEngine is set after the first
+// call to Validate and that the same engine is used on subsequent calls.
+func TestDefaultEngine_LazyInit(t *testing.T) {
+	t.Parallel()
+	type V struct {
+		A string `json:"a" validate:"required"`
+	}
+	ctx := t.Context()
+
+	// Trigger lazy init via Validate
+	err := Validate(ctx, &V{})
+	require.Error(t, err)
+	require.NotNil(t, DefaultEngine, "DefaultEngine should be set after first Validate call")
+
+	first := DefaultEngine
+	err2 := Validate(ctx, &V{A: "ok"})
+	assert.NoError(t, err2)
+	assert.Same(t, first, DefaultEngine, "DefaultEngine should be unchanged on second call")
+}

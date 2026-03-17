@@ -101,7 +101,10 @@
 // # Thread Safety
 //
 // [Engine] instances are safe for concurrent use by multiple goroutines.
-// The package-level functions use a default engine that is also thread-safe.
+// Package-level [Validate] and [ValidatePartial] use [DefaultEngine], which is
+// lazily initialized on first use (thread-safe). For test isolation or multiple
+// engines in the same process, create an Engine with [New] or [MustNew] and use
+// [Engine.Validate] instead of the package-level functions.
 //
 // # Security
 //
@@ -113,10 +116,16 @@
 //
 // # Standalone Usage
 //
-// This package can be used independently without the full Rivaas framework:
+// This package can be used independently without the full Rivaas framework.
+// Either use the package-level API (which uses [DefaultEngine]) or create an
+// explicit Engine:
 //
 //	import "rivaas.dev/validation"
 //
-//	engine := validation.MustNew()
+//	// Zero config: uses DefaultEngine (lazily initialized)
+//	err := validation.Validate(ctx, &user)
+//
+//	// Or create an engine for custom configuration
+//	engine := validation.MustNew(validation.WithMaxErrors(10))
 //	err := engine.Validate(ctx, &user)
 package validation

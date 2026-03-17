@@ -21,19 +21,23 @@ import (
 	"sync"
 )
 
-// Package-level engine state for convenience functions [Validate] and [ValidatePartial].
-var (
-	defaultEngine     *Engine
-	defaultEngineOnce sync.Once
-)
+// DefaultEngine is the [Engine] used by package-level [Validate] and [ValidatePartial].
+// It is lazily initialized on first use (thread-safe).
+//
+// For test isolation or multiple engines in the same process, create an Engine with
+// [New] or [MustNew] and use [Engine.Validate] instead of [Validate]. Tests may
+// replace DefaultEngine and restore it in a defer to customize the default (avoid
+// doing so in parallel tests that share the default).
+var DefaultEngine *Engine
+
+var defaultEngineOnce sync.Once
 
 // getDefaultEngine returns the default [Engine], creating it if necessary.
 func getDefaultEngine() *Engine {
 	defaultEngineOnce.Do(func() {
-		defaultEngine = MustNew()
+		DefaultEngine = MustNew()
 	})
-
-	return defaultEngine
+	return DefaultEngine
 }
 
 // Validate validates a value using the default [Engine].

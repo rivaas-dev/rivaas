@@ -58,6 +58,8 @@ if err := validation.Validate(ctx, &user); err != nil {
 
 Use `errors.Is(err, validation.ErrValidation)` and the package's sentinel errors for programmatic checks (see [Error Handling](https://rivaas.dev/docs/guides/validation/error-handling/)).
 
+The package-level `Validate` and `ValidatePartial` use [DefaultEngine](https://pkg.go.dev/rivaas.dev/validation#DefaultEngine), which is lazily initialized. You can replace it in tests (e.g. `validation.DefaultEngine = validation.MustNew(...)` and restore in `defer`). For test isolation or multiple engines, create an Engine with `New` or `MustNew` and use `engine.Validate` instead.
+
 ## Validation Strategies
 
 ### 1. Struct Tags
