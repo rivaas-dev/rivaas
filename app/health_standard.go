@@ -17,7 +17,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -45,6 +44,8 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		timeout = time.Second
 	}
 
+	logger := a.BaseLogger()
+
 	// GET /livez - Liveness probe (process health, no external deps)
 	a.Router().GET(livezPath, func(c *router.Context) {
 		c.Header("Cache-Control", "no-store")
@@ -52,7 +53,7 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		// No liveness checks = always healthy (process is running)
 		if len(s.liveness) == 0 {
 			if err := c.String(http.StatusOK, "ok"); err != nil {
-				slog.ErrorContext(c.RequestContext(), "failed to write livez response", "err", err)
+				logger.ErrorContext(c.RequestContext(), "failed to write livez response", "err", err)
 			}
 
 			return
@@ -69,7 +70,7 @@ func (a *App) registerHealthEndpoints(s *healthSettings) error {
 		}
 
 		if err := c.String(http.StatusOK, "ok"); err != nil {
-			slog.ErrorContext(c.RequestContext(), "failed to write livez response", "err", err)
+			logger.ErrorContext(c.RequestContext(), "failed to write livez response", "err", err)
 		}
 	})
 

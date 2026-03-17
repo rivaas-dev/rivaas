@@ -442,6 +442,11 @@ func (c *Context) fail(err error) {
 	// Abort handler chain to prevent further processing
 	c.Abort()
 
+	logger := slog.Default()
+	if c.app != nil {
+		logger = c.app.BaseLogger()
+	}
+
 	// Select a formatter based on configuration
 	formatter := c.selectFormatter()
 
@@ -449,7 +454,7 @@ func (c *Context) fail(err error) {
 	response := formatter.Format(c.Request, err)
 
 	// Log error with request context (trace_id/span_id injected automatically by contextHandler)
-	slog.ErrorContext(c.RequestContext(), "handler error",
+	logger.ErrorContext(c.RequestContext(), "handler error",
 		"error", err,
 		"method", c.Request.Method,
 		"path", c.Request.URL.Path,
@@ -467,7 +472,7 @@ func (c *Context) fail(err error) {
 	}
 
 	if jsonErr := c.JSON(response.Status, response.Body); jsonErr != nil {
-		slog.ErrorContext(c.RequestContext(), "failed to write JSON response", "err", jsonErr)
+		logger.ErrorContext(c.RequestContext(), "failed to write JSON response", "err", jsonErr)
 	}
 }
 
