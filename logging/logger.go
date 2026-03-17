@@ -56,20 +56,9 @@ const (
 //   - slog.Logger.Log() requires a context but we don't use it for cancellation
 var bgCtx = context.Background()
 
-// SamplingConfig configures log sampling to reduce volume in high-traffic scenarios.
-//
-// Sampling algorithm:
-//  1. Log the first 'Initial' entries unconditionally (e.g., first 100)
-//  2. After that, log 1 in every 'Thereafter' entries (e.g., 1 in 100)
-//  3. Reset the counter every 'Tick' interval to avoid indefinite accumulation
-//
-// Example: Initial=100, Thereafter=100, Tick=1m means:
-//   - Always log first 100 entries
-//   - Then log 1% of entries (1 in 100)
-//   - Every minute, reset counter (log next 100 again)
-//
-// This ensures you always see some recent activity while managing log volume.
-type SamplingConfig struct {
+// samplingConfig holds internal log sampling configuration.
+// Configure via WithSamplingInitial, WithSamplingThereafter, and WithSamplingTick.
+type samplingConfig struct {
 	Initial    int           // Log first N occurrences unconditionally
 	Thereafter int           // After Initial, log 1 of every M entries (0 = log all)
 	Tick       time.Duration // Reset sampling counter every interval (0 = never reset)
@@ -98,7 +87,7 @@ type Logger struct {
 	replaceAttr func(groups []string, a slog.Attr) slog.Attr
 
 	// Sampling
-	samplingConfig *SamplingConfig
+	samplingConfig *samplingConfig
 	sampleCounter  atomic.Int64
 	sampleTicker   *time.Ticker
 	sampleStop     chan struct{}
@@ -131,7 +120,7 @@ type config struct {
 	addSource      bool
 	debugMode      bool
 	replaceAttr    func(groups []string, a slog.Attr) slog.Attr
-	samplingConfig *SamplingConfig
+	samplingConfig *samplingConfig
 	customLogger   *slog.Logger
 	useCustom      bool
 	registerGlobal bool
@@ -254,9 +243,9 @@ func (l *Logger) samplingResetter() {
 // shouldSample determines if a log entry should be sampled based on the configured policy.
 //
 // Sampling behavior:
-//   - Logs the first [SamplingConfig.Initial] entries unconditionally
-//   - After that, logs 1 in every [SamplingConfig.Thereafter] entries
-//   - Resets the counter every [SamplingConfig.Tick] interval
+//   - Logs the first Initial entries unconditionally (see WithSamplingInitial)
+//   - After that, logs 1 in every Thereafter entries (see WithSamplingThereafter)
+//   - Resets the counter every Tick interval (see WithSamplingTick)
 //
 // Special cases:
 //   - Errors (level >= ERROR) bypass sampling to ensure critical issues are never dropped

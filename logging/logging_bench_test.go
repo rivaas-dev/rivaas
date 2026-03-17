@@ -150,10 +150,8 @@ func BenchmarkSampledLogging(b *testing.B) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(io.Discard),
-		WithSampling(SamplingConfig{
-			Initial:    10,
-			Thereafter: 100,
-		}),
+		WithSamplingInitial(10),
+		WithSamplingThereafter(100),
 	)
 
 	b.ResetTimer()
@@ -301,7 +299,8 @@ func BenchmarkWithSampling(b *testing.B) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(io.Discard),
-		WithSampling(SamplingConfig{Initial: 10, Thereafter: 100}),
+		WithSamplingInitial(10),
+		WithSamplingThereafter(100),
 	)
 
 	b.ResetTimer()
@@ -335,7 +334,8 @@ func BenchmarkDebugInfo(b *testing.B) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(io.Discard),
-		WithSampling(SamplingConfig{Initial: 10, Thereafter: 100}),
+		WithSamplingInitial(10),
+		WithSamplingThereafter(100),
 	)
 
 	b.ResetTimer()

@@ -40,10 +40,8 @@ func main() {
 		logging.WithServiceVersion("v2.1.0"),   // For version tracking
 		logging.WithEnvironment("production"),  // Environment tag
 		logging.WithSource(true),               // Include source location
-		logging.WithSampling(logging.SamplingConfig{
-			Initial:    5,  // Log first 5 messages of each type
-			Thereafter: 50, // Then log every 50th message
-		}),
+		logging.WithSamplingInitial(5),         // Log first 5 messages of each type
+		logging.WithSamplingThereafter(50),     // Then log every 50th message
 	)
 
 	// Structured logging with service context

@@ -63,11 +63,9 @@
 //
 //	logger := logging.MustNew(
 //	    logging.WithJSONHandler(),
-//	    logging.WithSampling(logging.SamplingConfig{
-//	        Initial:    100,          // Log first 100 entries
-//	        Thereafter: 100,          // Then log 1 in 100
-//	        Tick:       time.Minute,  // Reset every minute
-//	    }),
+//	    logging.WithSamplingInitial(100),        // Log first 100 entries
+//	    logging.WithSamplingThereafter(100),    // Then log 1 in 100
+//	    logging.WithSamplingTick(time.Minute),  // Reset every minute
 //	)
 //
 // Note: Errors (level >= ERROR) always bypass sampling.

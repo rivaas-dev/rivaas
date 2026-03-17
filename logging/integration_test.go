@@ -156,10 +156,8 @@ func TestIntegration_SamplingUnderLoad(t *testing.T) {
 	logger := logging.MustNew(
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
-		logging.WithSampling(logging.SamplingConfig{
-			Initial:    10,
-			Thereafter: 10, // Log 1 in every 10 after initial
-		}),
+		logging.WithSamplingInitial(10),
+		logging.WithSamplingThereafter(10), // Log 1 in every 10 after initial
 	)
 	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })
@@ -185,10 +183,8 @@ func TestIntegration_ErrorsNeverSampled(t *testing.T) {
 	logger := logging.MustNew(
 		logging.WithJSONHandler(),
 		logging.WithOutput(buf),
-		logging.WithSampling(logging.SamplingConfig{
-			Initial:    1,
-			Thereafter: 1000, // Aggressive sampling
-		}),
+		logging.WithSamplingInitial(1),
+		logging.WithSamplingThereafter(1000), // Aggressive sampling
 	)
 	//nolint:errcheck // Integration test: logger.Shutdown errors are not fatal for verification
 	t.Cleanup(func() { logger.Shutdown(t.Context()) })

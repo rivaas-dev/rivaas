@@ -17,6 +17,7 @@ package logging
 import (
 	"io"
 	"log/slog"
+	"time"
 )
 
 // WithHandlerType sets the logging handler type.
@@ -126,10 +127,37 @@ func WithGlobalLogger() Option {
 	}
 }
 
-// WithSampling enables log sampling to reduce volume in high-traffic scenarios.
-// See [SamplingConfig] for configuration options.
-func WithSampling(cfg SamplingConfig) Option {
+// WithSamplingInitial sets how many log entries to emit unconditionally before sampling.
+// Only has effect when used together with WithSamplingThereafter and/or WithSamplingTick.
+// Zero means no initial burst. Must be non-negative (validated at construction).
+func WithSamplingInitial(initial int) Option {
 	return func(c *config) {
-		c.samplingConfig = &cfg
+		if c.samplingConfig == nil {
+			c.samplingConfig = &samplingConfig{}
+		}
+		c.samplingConfig.Initial = initial
+	}
+}
+
+// WithSamplingThereafter sets the sampling rate after the initial burst:
+// log 1 in every N entries. Zero means log all after the initial phase.
+// Must be non-negative (validated at construction).
+func WithSamplingThereafter(thereafter int) Option {
+	return func(c *config) {
+		if c.samplingConfig == nil {
+			c.samplingConfig = &samplingConfig{}
+		}
+		c.samplingConfig.Thereafter = thereafter
+	}
+}
+
+// WithSamplingTick sets the interval at which the sampling counter is reset.
+// Zero means never reset. Enables sampling when set (with or without other sampling options).
+func WithSamplingTick(tick time.Duration) Option {
+	return func(c *config) {
+		if c.samplingConfig == nil {
+			c.samplingConfig = &samplingConfig{}
+		}
+		c.samplingConfig.Tick = tick
 	}
 }

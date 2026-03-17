@@ -226,18 +226,17 @@ func ExampleLogger_ErrorWithStack() {
 	)
 }
 
-// ExampleWithSampling demonstrates log sampling for high-traffic scenarios.
-// Sampling reduces log volume while maintaining visibility.
+// ExampleWithSamplingInitial demonstrates log sampling for high-traffic scenarios.
+// Use WithSamplingInitial, WithSamplingThereafter, and WithSamplingTick together
+// to control initial burst, sampling rate, and counter reset interval.
 //
 //nolint:testableexamples // Output is non-deterministic (sampling behavior varies)
-func ExampleWithSampling() {
+func ExampleWithSamplingInitial() {
 	logger := logging.MustNew(
 		logging.WithJSONHandler(),
-		logging.WithSampling(logging.SamplingConfig{
-			Initial:    100,         // Log first 100 entries unconditionally
-			Thereafter: 100,         // Then log 1 in every 100
-			Tick:       time.Minute, // Reset counter every minute
-		}),
+		logging.WithSamplingInitial(100),      // Log first 100 entries unconditionally
+		logging.WithSamplingThereafter(100),   // Then log 1 in every 100
+		logging.WithSamplingTick(time.Minute), // Reset counter every minute
 	)
 	//nolint:errcheck // Example test cleanup
 	defer logger.Shutdown(context.Background())

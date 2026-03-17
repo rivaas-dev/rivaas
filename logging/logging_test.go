@@ -128,7 +128,8 @@ func TestNew_InvalidConfig(t *testing.T) {
 			name: "invalid sampling config",
 			opts: []Option{
 				WithOutput(io.Discard),
-				WithSampling(SamplingConfig{Initial: -1, Thereafter: 100}),
+				WithSamplingInitial(-1),
+				WithSamplingThereafter(100),
 			},
 			wantErr: true,
 		},
@@ -239,10 +240,8 @@ func TestLogger_Sampling(t *testing.T) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(buf),
-		WithSampling(SamplingConfig{
-			Initial:    5,
-			Thereafter: 10,
-		}),
+		WithSamplingInitial(5),
+		WithSamplingThereafter(10),
 	)
 
 	// Log 50 messages
@@ -270,10 +269,8 @@ func TestLogger_Sampling_ErrorsAlwaysLogged(t *testing.T) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(buf),
-		WithSampling(SamplingConfig{
-			Initial:    1,
-			Thereafter: 100,
-		}),
+		WithSamplingInitial(1),
+		WithSamplingThereafter(100),
 	)
 
 	// Log many info messages and errors
@@ -324,11 +321,9 @@ func TestLogger_DebugInfo_IncludesSampling(t *testing.T) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(io.Discard),
-		WithSampling(SamplingConfig{
-			Initial:    5,
-			Thereafter: 10,
-			Tick:       time.Second,
-		}),
+		WithSamplingInitial(5),
+		WithSamplingThereafter(10),
+		WithSamplingTick(time.Second),
 	)
 
 	info := logger.DebugInfo()
@@ -427,11 +422,9 @@ func TestWithSampling_ConfigApplied(t *testing.T) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(buf),
-		WithSampling(SamplingConfig{
-			Initial:    2,
-			Thereafter: 5,
-			Tick:       100 * time.Millisecond,
-		}),
+		WithSamplingInitial(2),
+		WithSamplingThereafter(5),
+		WithSamplingTick(100*time.Millisecond),
 	)
 
 	// Log more than Initial; sampling should reduce output
@@ -929,11 +922,9 @@ func TestLogger_Sampling_WithTicker(t *testing.T) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(io.Discard),
-		WithSampling(SamplingConfig{
-			Initial:    2,
-			Thereafter: 5,
-			Tick:       50 * time.Millisecond,
-		}),
+		WithSamplingInitial(2),
+		WithSamplingThereafter(5),
+		WithSamplingTick(50*time.Millisecond),
 	)
 	t.Cleanup(func() {
 		//nolint:errcheck // Test cleanup
@@ -1207,7 +1198,8 @@ func TestLogger_Sampling_EdgeCases(t *testing.T) {
 	logger := MustNew(
 		WithJSONHandler(),
 		WithOutput(buf),
-		WithSampling(SamplingConfig{Initial: 0, Thereafter: 0}),
+		WithSamplingInitial(0),
+		WithSamplingThereafter(0),
 	)
 
 	for i := range 10 {
@@ -1247,7 +1239,8 @@ func BenchmarkCompareLoggingStrategies(b *testing.B) {
 		logger := MustNew(
 			WithJSONHandler(),
 			WithOutput(io.Discard),
-			WithSampling(SamplingConfig{Initial: 10, Thereafter: 100}),
+			WithSamplingInitial(10),
+			WithSamplingThereafter(100),
 		)
 		b.ResetTimer()
 		b.ReportAllocs()
