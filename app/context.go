@@ -36,6 +36,11 @@ import (
 	riverrors "rivaas.dev/errors"
 )
 
+// defaultFormatter is the package-level default RFC9457 formatter used when app
+// has no error config or when content negotiation has no match. Pre-allocated
+// to avoid allocating on every error response.
+var defaultFormatter = riverrors.MustNew()
+
 // Context wraps router.Context with app-level features including binding and validation.
 // Context embeds router.Context to provide all HTTP routing functionality while adding
 // high-level integration with binding and validation packages.
@@ -508,12 +513,12 @@ func (c *Context) fail(err error) {
 // selectFormatter is a private helper used by Fail().
 func (c *Context) selectFormatter() riverrors.Formatter {
 	if c.app == nil {
-		return riverrors.MustNew()
+		return defaultFormatter
 	}
 	cfg := c.app.config.errors
 	if cfg == nil {
 		// Fallback to default
-		return riverrors.MustNew()
+		return defaultFormatter
 	}
 
 	// Single formatter mode
@@ -545,11 +550,11 @@ func (c *Context) selectFormatter() riverrors.Formatter {
 		}
 
 		// Predictable fallback - always use RFC9457
-		return riverrors.MustNew()
+		return defaultFormatter
 	}
 
 	// Ultimate fallback
-	return riverrors.MustNew()
+	return defaultFormatter
 }
 
 // NotFound responds with a 404 Not Found error.
