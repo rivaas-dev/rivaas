@@ -25,10 +25,10 @@ import (
 )
 
 // openapiState manages OpenAPI specification state for the app.
-// This replaces the openapi.Manager with app-local state management.
+// It holds the *openapi.API and delegates spec generation to api.Spec(ctx).
+// Operations are added via api.AddOperation; caching is app-local.
 type openapiState struct {
 	api *openapi.API
-	ops []openapi.Operation
 
 	// Cache
 	specCache []byte
@@ -40,10 +40,7 @@ type openapiState struct {
 
 // newOpenapiState creates a new OpenAPI state manager.
 func newOpenapiState(api *openapi.API) *openapiState {
-	return &openapiState{
-		api: api,
-		ops: make([]openapi.Operation, 0),
-	}
+	return &openapiState{api: api}
 }
 
 // AddOperation adds an operation to the OpenAPI spec.
@@ -52,7 +49,7 @@ func (s *openapiState) AddOperation(op openapi.Operation) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.ops = append(s.ops, op)
+	s.api.AddOperation(op)
 
 	// Invalidate cache
 	s.specCache = nil
@@ -82,7 +79,7 @@ func (s *openapiState) GenerateSpec(ctx context.Context) ([]byte, string, error)
 	}
 
 	// Generate spec using API method
-	result, err := s.api.Generate(ctx, s.ops...)
+	result, err := s.api.Spec(ctx)
 	if err != nil {
 		return nil, "", err
 	}

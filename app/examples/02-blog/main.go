@@ -147,7 +147,7 @@ func main() {
 		// OpenAPI documentation
 		app.WithOpenAPI(
 			openapi.WithTitle("blog-api", "v1.0.0"),
-			openapi.WithInfoDescription("A full-featured blog API demonstrating Rivaas framework capabilities"),
+			openapi.WithDescription("A full-featured blog API demonstrating Rivaas framework capabilities"),
 			openapi.WithServer("http://localhost:8080", "Local development"),
 			openapi.WithSwaggerUI(
 				"/docs",

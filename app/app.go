@@ -783,7 +783,7 @@ func (a *App) registerRouteWithTarget(target routeTarget, method, path string, h
 
 	// Register OpenAPI documentation if enabled and not explicitly skipped
 	if a.openapi != nil && !cfg.skipDoc && len(cfg.docOpts) > 0 {
-		op, err := openapi.Op(method, fullPath, cfg.docOpts...)
+		op, err := openapi.WithOp(method, fullPath, cfg.docOpts...)
 		if err != nil {
 			panic(err)
 		}

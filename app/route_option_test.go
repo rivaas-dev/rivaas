@@ -50,7 +50,7 @@ func TestWithDoc_appendsDocOpts(t *testing.T) {
 	t.Parallel()
 
 	cfg := &routeConfig{}
-	WithDoc(openapi.WithSummary("Get user"), openapi.WithDescription("Retrieves a user"))(cfg)
+	WithDoc(openapi.WithSummary("Get user"), openapi.WithOperationDescription("Retrieves a user"))(cfg)
 	assert.Len(t, cfg.docOpts, 2)
 	assert.False(t, cfg.skipDoc)
 }

@@ -192,4 +192,4 @@ func (vg *VersionGroup) Group(prefix string, middleware ...HandlerFunc) *Version
 }
 
 // Ensure VersionGroup uses openapi package (referenced in doc examples).
-var _ = openapi.Op
+var _ = openapi.WithOp

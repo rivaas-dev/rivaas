@@ -225,4 +225,4 @@ func (g *Group) buildFullPath(path string) string {
 }
 
 // Ensure Group uses openapi package (used in addRoute)
-var _ = openapi.Op
+var _ = openapi.WithOp
