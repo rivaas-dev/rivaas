@@ -102,8 +102,6 @@ type Recorder struct {
 	durationBuckets []float64 // Custom buckets for request duration histogram
 	sizeBuckets     []float64 // Custom buckets for request/response size histograms
 
-	validationErrors []error // Collected during option application
-
 	exportInterval time.Duration
 
 	// Atomic counter for tracking custom metric failures (used for testing/monitoring)
@@ -277,61 +275,6 @@ func newDefaultRecorder() *Recorder {
 	}
 
 	return recorder
-}
-
-// validate checks that the configuration is valid.
-func (r *Recorder) validate() error {
-	// Check for errors collected during option application
-	if len(r.validationErrors) > 0 {
-		return fmt.Errorf("configuration errors: %v", r.validationErrors)
-	}
-
-	// Check for conflicting provider options
-	if r.providerSetCount > 1 {
-		return errors.New("conflicting provider options: only one of WithPrometheus, WithOTLP, or WithStdout can be used")
-	}
-
-	// Validate service name
-	if r.serviceName == "" {
-		return errors.New("service name cannot be empty")
-	}
-
-	// Validate service version
-	if r.serviceVersion == "" {
-		return errors.New("service version cannot be empty")
-	}
-
-	// Validate max custom metrics
-	if r.maxCustomMetrics < 1 {
-		return fmt.Errorf("maxCustomMetrics must be at least 1, got %d", r.maxCustomMetrics)
-	}
-
-	// Validate export interval
-	if r.exportInterval < time.Second {
-		r.logger.Warn("Export interval is very low, may cause high CPU usage", "interval", r.exportInterval)
-	}
-
-	// Validate provider-specific settings
-	switch r.provider {
-	case PrometheusProvider:
-		if r.metricsPort == "" {
-			return errors.New("metrics port cannot be empty for Prometheus provider")
-		}
-		if r.metricsPath == "" {
-			return errors.New("metrics path cannot be empty for Prometheus provider")
-		}
-	case OTLPProvider:
-		if r.otlpEndpoint == "" {
-			r.logger.Warn("OTLP endpoint not specified, will use default", "default", "http://localhost:4318")
-			r.otlpEndpoint = "http://localhost:4318"
-		}
-	case StdoutProvider:
-		// No specific validation needed for stdout
-	default:
-		return fmt.Errorf("unsupported metrics provider: %s", r.provider)
-	}
-
-	return nil
 }
 
 // MustNew creates a new [Recorder] with the given options.

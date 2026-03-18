@@ -19,7 +19,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -88,125 +87,80 @@ func TestValidation(t *testing.T) {
 
 	t.Run("EmptyServiceName", func(t *testing.T) {
 		t.Parallel()
-		recorder := &Recorder{
-			enabled:          true,
-			serviceName:      "", // Invalid
-			serviceVersion:   "1.0.0",
-			provider:         PrometheusProvider,
-			metricsPort:      ":9090",
-			metricsPath:      "/metrics",
-			maxCustomMetrics: 1000,
-			logger:           slog.New(slog.DiscardHandler),
-		}
-		err := recorder.validate()
+		_, err := New(
+			WithServiceName(""),
+			WithPrometheus(":9090", "/metrics"),
+			WithServerDisabled(),
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "service name cannot be empty")
 	})
 
 	t.Run("EmptyServiceVersion", func(t *testing.T) {
 		t.Parallel()
-
-		recorder := &Recorder{
-			enabled:          true,
-			serviceName:      "test-service",
-			serviceVersion:   "", // Invalid
-			provider:         PrometheusProvider,
-			metricsPort:      ":9090",
-			metricsPath:      "/metrics",
-			maxCustomMetrics: 1000,
-			logger:           slog.New(slog.DiscardHandler),
-		}
-		err := recorder.validate()
+		_, err := New(
+			WithServiceVersion(""),
+			WithPrometheus(":9090", "/metrics"),
+			WithServerDisabled(),
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "service version cannot be empty")
 	})
 
 	t.Run("InvalidMaxCustomMetrics", func(t *testing.T) {
 		t.Parallel()
-
-		recorder := &Recorder{
-			enabled:          true,
-			serviceName:      "test-service",
-			serviceVersion:   "1.0.0",
-			provider:         PrometheusProvider,
-			metricsPort:      ":9090",
-			metricsPath:      "/metrics",
-			maxCustomMetrics: 0, // Invalid
-			logger:           slog.New(slog.DiscardHandler),
-		}
-		err := recorder.validate()
+		_, err := New(
+			WithMaxCustomMetrics(0),
+			WithPrometheus(":9090", "/metrics"),
+			WithServiceName("test-service"),
+			WithServerDisabled(),
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "maxCustomMetrics must be at least 1")
 	})
 
 	t.Run("EmptyMetricsPortForPrometheus", func(t *testing.T) {
 		t.Parallel()
-
-		recorder := &Recorder{
-			enabled:          true,
-			serviceName:      "test-service",
-			serviceVersion:   "1.0.0",
-			provider:         PrometheusProvider,
-			metricsPort:      "", // Invalid for Prometheus
-			metricsPath:      "/metrics",
-			maxCustomMetrics: 1000,
-			logger:           slog.New(slog.DiscardHandler),
-		}
-		err := recorder.validate()
+		_, err := New(
+			WithPrometheus("", "/metrics"),
+			WithServiceName("test-service"),
+			WithServerDisabled(),
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "metrics port cannot be empty")
 	})
 
 	t.Run("EmptyMetricsPathForPrometheus", func(t *testing.T) {
 		t.Parallel()
-
-		recorder := &Recorder{
-			enabled:          true,
-			serviceName:      "test-service",
-			serviceVersion:   "1.0.0",
-			provider:         PrometheusProvider,
-			metricsPort:      ":9090",
-			metricsPath:      "", // Invalid for Prometheus
-			maxCustomMetrics: 1000,
-			logger:           slog.New(slog.DiscardHandler),
-		}
-		err := recorder.validate()
+		_, err := New(
+			WithPrometheus(":9090", ""),
+			WithServiceName("test-service"),
+			WithServerDisabled(),
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "metrics path cannot be empty")
 	})
 
 	t.Run("UnsupportedProvider", func(t *testing.T) {
 		t.Parallel()
-
-		recorder := &Recorder{
-			enabled:          true,
-			serviceName:      "test-service",
-			serviceVersion:   "1.0.0",
-			provider:         "invalid", // Invalid
-			maxCustomMetrics: 1000,
-			logger:           slog.New(slog.DiscardHandler),
-		}
-		err := recorder.validate()
+		cfg := defaultConfig()
+		cfg.provider = "invalid"
+		err := cfg.validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported metrics provider")
 	})
 
 	t.Run("ValidConfiguration", func(t *testing.T) {
 		t.Parallel()
-
-		recorder := &Recorder{
-			enabled:          true,
-			serviceName:      "test-service",
-			serviceVersion:   "1.0.0",
-			provider:         PrometheusProvider,
-			metricsPort:      ":9090",
-			metricsPath:      "/metrics",
-			exportInterval:   30 * time.Second,
-			maxCustomMetrics: 1000,
-			logger:           slog.New(slog.DiscardHandler),
-		}
-		err := recorder.validate()
+		recorder, err := New(
+			WithPrometheus(":9090", "/metrics"),
+			WithServiceName("test-service"),
+			WithServerDisabled(),
+		)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			recorder.Shutdown(t.Context()) //nolint:errcheck // Validation test cleanup
+		})
 	})
 }
 
@@ -712,90 +666,54 @@ func TestErrorMessages_ValidationErrors(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		recorder       *Recorder
+		opts           []Option
 		wantSubstrings []string
 	}{
 		{
 			name: "EmptyServiceName",
-			recorder: &Recorder{
-				enabled:          true,
-				serviceName:      "",
-				serviceVersion:   "1.0.0",
-				provider:         PrometheusProvider,
-				metricsPort:      ":9090",
-				metricsPath:      "/metrics",
-				maxCustomMetrics: 1000,
-				logger:           slog.New(slog.DiscardHandler),
+			opts: []Option{
+				WithServiceName(""),
+				WithPrometheus(":9090", "/metrics"),
+				WithServerDisabled(),
 			},
 			wantSubstrings: []string{"service name", "empty"},
 		},
 		{
 			name: "EmptyServiceVersion",
-			recorder: &Recorder{
-				enabled:          true,
-				serviceName:      "test-service",
-				serviceVersion:   "",
-				provider:         PrometheusProvider,
-				metricsPort:      ":9090",
-				metricsPath:      "/metrics",
-				maxCustomMetrics: 1000,
-				logger:           slog.New(slog.DiscardHandler),
+			opts: []Option{
+				WithServiceVersion(""),
+				WithPrometheus(":9090", "/metrics"),
+				WithServerDisabled(),
 			},
 			wantSubstrings: []string{"service version", "empty"},
 		},
 		{
 			name: "InvalidMaxCustomMetrics",
-			recorder: &Recorder{
-				enabled:          true,
-				serviceName:      "test-service",
-				serviceVersion:   "1.0.0",
-				provider:         PrometheusProvider,
-				metricsPort:      ":9090",
-				metricsPath:      "/metrics",
-				maxCustomMetrics: 0,
-				logger:           slog.New(slog.DiscardHandler),
+			opts: []Option{
+				WithMaxCustomMetrics(0),
+				WithPrometheus(":9090", "/metrics"),
+				WithServiceName("test-service"),
+				WithServerDisabled(),
 			},
 			wantSubstrings: []string{"maxCustomMetrics", "at least 1"},
 		},
 		{
 			name: "EmptyMetricsPort",
-			recorder: &Recorder{
-				enabled:          true,
-				serviceName:      "test-service",
-				serviceVersion:   "1.0.0",
-				provider:         PrometheusProvider,
-				metricsPort:      "",
-				metricsPath:      "/metrics",
-				maxCustomMetrics: 1000,
-				logger:           slog.New(slog.DiscardHandler),
+			opts: []Option{
+				WithPrometheus("", "/metrics"),
+				WithServiceName("test-service"),
+				WithServerDisabled(),
 			},
 			wantSubstrings: []string{"metrics port", "empty"},
 		},
 		{
 			name: "EmptyMetricsPath",
-			recorder: &Recorder{
-				enabled:          true,
-				serviceName:      "test-service",
-				serviceVersion:   "1.0.0",
-				provider:         PrometheusProvider,
-				metricsPort:      ":9090",
-				metricsPath:      "",
-				maxCustomMetrics: 1000,
-				logger:           slog.New(slog.DiscardHandler),
+			opts: []Option{
+				WithPrometheus(":9090", ""),
+				WithServiceName("test-service"),
+				WithServerDisabled(),
 			},
 			wantSubstrings: []string{"metrics path", "empty"},
-		},
-		{
-			name: "UnsupportedProvider",
-			recorder: &Recorder{
-				enabled:          true,
-				serviceName:      "test-service",
-				serviceVersion:   "1.0.0",
-				provider:         "invalid_provider",
-				maxCustomMetrics: 1000,
-				logger:           slog.New(slog.DiscardHandler),
-			},
-			wantSubstrings: []string{"unsupported", "provider", "invalid_provider"},
 		},
 	}
 
@@ -803,7 +721,7 @@ func TestErrorMessages_ValidationErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.recorder.validate()
+			_, err := New(tt.opts...)
 			require.Error(t, err, "Expected validation error for %s", tt.name)
 
 			errMsg := err.Error()
@@ -813,6 +731,18 @@ func TestErrorMessages_ValidationErrors(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("UnsupportedProvider", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultConfig()
+		cfg.provider = "invalid_provider"
+		err := cfg.validate()
+		require.Error(t, err)
+		errMsg := err.Error()
+		assert.Contains(t, errMsg, "unsupported")
+		assert.Contains(t, errMsg, "provider")
+		assert.Contains(t, errMsg, "invalid_provider")
+	})
 }
 
 // TestErrorMessages_HandlerNotAvailable verifies that Handler() errors are clear.
