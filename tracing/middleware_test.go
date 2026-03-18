@@ -289,9 +289,16 @@ func TestMustMiddleware_NilOptionPanics(t *testing.T) {
 
 	tracer := TestingTracer(t)
 	var nilOpt MiddlewareOption
-	assert.PanicsWithValue(t, "tracing.MustMiddleware: middleware validation errors: middleware option at index 1 cannot be nil", func() {
+	var recovered interface{}
+	func() {
+		defer func() { recovered = recover() }()
 		MustMiddleware(tracer, WithExcludePaths("/health"), nilOpt)
-	})
+	}()
+	require.NotNil(t, recovered, "MustMiddleware with nil option should panic")
+	err, ok := recovered.(error)
+	require.True(t, ok, "panic value should be an error for unwrapping")
+	require.NotNil(t, err)
+	assert.Contains(t, err.Error(), "cannot be nil")
 }
 
 // TestMustMiddleware_ValidOptionsSucceeds covers MustMiddleware.
@@ -865,28 +872,33 @@ func TestContextTracing_Helper(t *testing.T) {
 		assert.NotNil(t, ct.GetTracer())
 	})
 
-	t.Run("with nil span", func(t *testing.T) {
-		t.Parallel()
-
-		tracer := TestingTracer(t)
-		ct := NewContextTracing(t.Context(), tracer, nil)
-
-		assert.Empty(t, ct.TraceID())
-		assert.Empty(t, ct.SpanID())
-
-		// Should not panic
-		ct.SetSpanAttribute("key", "value")
-		ct.AddSpanEvent("event")
-	})
-
 	t.Run("with nil context panics", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		// Nil context should panic (consistent with stdlib context functions)
-		assert.Panics(t, func() {
+		assert.PanicsWithValue(t, "tracing: nil context passed to NewContextTracing", func() {
 			//nolint:staticcheck // Intentionally testing nil context handling
 			NewContextTracing(nil, tracer, nil)
+		})
+	})
+
+	t.Run("with nil tracer panics", func(t *testing.T) {
+		t.Parallel()
+
+		tracer := TestingTracer(t)
+		ctx, span := tracer.StartSpan(t.Context(), "test-span")
+		defer tracer.FinishSpan(span, http.StatusOK)
+		assert.PanicsWithValue(t, "tracing: tracer cannot be nil", func() {
+			NewContextTracing(ctx, nil, span)
+		})
+	})
+
+	t.Run("with nil span panics", func(t *testing.T) {
+		t.Parallel()
+
+		tracer := TestingTracer(t)
+		assert.PanicsWithValue(t, "tracing: span cannot be nil", func() {
+			NewContextTracing(t.Context(), tracer, nil)
 		})
 	})
 

@@ -117,6 +117,9 @@ type Tracer struct {
 	shutdownOnce sync.Once
 	shutdownErr  error
 
+	// One-time warning when OTLP is used without calling Start(ctx)
+	otlpNotStartedWarnOnce sync.Once
+
 	// Small types and booleans at end
 	otlpInsecure         bool
 	enabled              bool
@@ -200,6 +203,9 @@ func (c *config) validate() error {
 		}
 		return fmt.Errorf("validation errors: %s", strings.Join(errMsgs, "; "))
 	}
+	if c.customTracerProvider && c.tracerProvider == nil {
+		return errors.New("tracerProvider: cannot be nil when using WithTracerProvider")
+	}
 	if c.serviceName == "" {
 		return errors.New("serviceName: cannot be empty")
 	}
@@ -267,7 +273,8 @@ func newTracerFromConfig(cfg *config) (*Tracer, error) {
 }
 
 // MustNew creates a new Tracer with the given options.
-// It panics if the tracing provider fails to initialize.
+// It panics with an error if the tracing provider fails to initialize.
+// Callers that recover from the panic get an error they can unwrap with errors.Is/errors.As.
 // Use this for convenience when you want to panic on initialization errors.
 //
 // Example:
@@ -280,7 +287,7 @@ func newTracerFromConfig(cfg *config) (*Tracer, error) {
 func MustNew(opts ...Option) *Tracer {
 	t, err := New(opts...)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to initialize tracing: %v", err))
+		panic(err)
 	}
 
 	return t
@@ -324,6 +331,13 @@ func (t *Tracer) GetProvider() Provider {
 // OTLP providers need network connections and should be initialized in Start(ctx).
 func (t *Tracer) requiresNetworkInit() bool {
 	return t.provider == OTLPProvider || t.provider == OTLPHTTPProvider
+}
+
+// logOtlpNotStartedWarning logs a one-time warning when OTLP is used without calling Start(ctx).
+func (t *Tracer) logOtlpNotStartedWarning() {
+	t.otlpNotStartedWarnOnce.Do(func() {
+		t.logger.Warn("OTLP tracer not started: call Start(ctx) before creating spans; traces will not be exported")
+	})
 }
 
 // Start initializes OTLP providers that require network connections.
@@ -425,6 +439,9 @@ func (t *Tracer) StartSpan(ctx context.Context, name string, opts ...trace.SpanS
 	default:
 	}
 
+	if t.requiresNetworkInit() && !t.isStarted.Load() {
+		t.logOtlpNotStartedWarning()
+	}
 	return t.tracer.Start(ctx, name, opts...) //nolint:spancheck // span is returned to caller who manages its lifecycle
 }
 

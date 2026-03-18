@@ -878,14 +878,14 @@ func TestContextTracing(t *testing.T) {
 		assert.NotNil(t, ct.GetTracer())
 	})
 
-	t.Run("NilContext", func(t *testing.T) {
+	t.Run("NilSpanPanics", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ct := NewContextTracing(t.Context(), tracer, nil)
-
-		ctx := ct.TraceContext()
-		assert.NotNil(t, ctx)
+		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+		assert.PanicsWithValue(t, "tracing: span cannot be nil", func() {
+			NewContextTracing(t.Context(), tracer, nil)
+		})
 	})
 
 	t.Run("ContextTracingMethods", func(t *testing.T) {
@@ -906,20 +906,14 @@ func TestContextTracing(t *testing.T) {
 		assert.NotNil(t, spanID)
 	})
 
-	t.Run("ContextTracingNilSpan", func(t *testing.T) {
+	t.Run("ContextTracingNilSpanPanics", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := MustNew()
-		ctx := t.Context()
-		ct := NewContextTracing(ctx, tracer, nil)
-
-		ct.SetSpanAttribute("key", "value")
-		ct.AddSpanEvent("event")
-		traceID := ct.TraceID()
-		spanID := ct.SpanID()
-
-		assert.Empty(t, traceID)
-		assert.Empty(t, spanID)
+		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+		assert.PanicsWithValue(t, "tracing: span cannot be nil", func() {
+			NewContextTracing(t.Context(), tracer, nil)
+		})
 	})
 }
 
@@ -1480,17 +1474,44 @@ func TestNew_WithOTLP_NilNestedOptionReturnsError(t *testing.T) {
 func TestMustNew_NilOptionPanics(t *testing.T) {
 	t.Parallel()
 
-	var panicMsg string
+	var recovered interface{}
 	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				panicMsg = fmt.Sprint(r)
-			}
-		}()
+		defer func() { recovered = recover() }()
 		MustNew(WithServiceName("test"), nil)
 	}()
-	require.NotEmpty(t, panicMsg, "MustNew with nil option should panic")
-	assert.Contains(t, panicMsg, "cannot be nil")
+	require.NotNil(t, recovered, "MustNew with nil option should panic")
+	err, ok := recovered.(error)
+	require.True(t, ok, "panic value should be an error for unwrapping")
+	require.NotNil(t, err)
+	assert.Contains(t, err.Error(), "cannot be nil")
+}
+
+// TestWithTracerProvider_NilReturnsError verifies that WithTracerProvider(nil) causes New to return an error.
+func TestWithTracerProvider_NilReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tracer, err := New(WithTracerProvider(nil), WithServiceName("test"))
+	require.Error(t, err)
+	assert.Nil(t, tracer)
+	assert.Contains(t, err.Error(), "tracerProvider")
+	assert.Contains(t, err.Error(), "cannot be nil")
+}
+
+// TestMustNew_WithTracerProviderNilPanics verifies that MustNew panics with an error when WithTracerProvider(nil) is used.
+func TestMustNew_WithTracerProviderNilPanics(t *testing.T) {
+	t.Parallel()
+
+	var recovered interface{}
+	func() {
+		defer func() { recovered = recover() }()
+		MustNew(WithTracerProvider(nil), WithServiceName("test"))
+	}()
+	require.NotNil(t, recovered, "MustNew with WithTracerProvider(nil) should panic")
+	err, ok := recovered.(error)
+	require.True(t, ok, "panic value should be an error for unwrapping")
+	require.NotNil(t, err)
+	assert.Contains(t, err.Error(), "tracerProvider")
+	assert.Contains(t, err.Error(), "cannot be nil")
 }
 
 // TestMultipleProvidersValidation tests that configuring multiple providers returns an error

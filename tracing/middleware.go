@@ -326,7 +326,8 @@ func Middleware(tracer *Tracer, opts ...MiddlewareOption) (func(http.Handler) ht
 }
 
 // MustMiddleware creates a middleware function for standalone HTTP integration.
-// It panics if tracer is nil or any middleware option is invalid (e.g., nil option, invalid regex pattern).
+// It panics with an error if tracer is nil or any middleware option is invalid (e.g., nil option, invalid regex pattern).
+// Callers that recover from the panic get an error they can unwrap with errors.Is/errors.As.
 // This is a convenience wrapper around Middleware for consistency with MustNew.
 //
 // Example:
@@ -345,7 +346,7 @@ func Middleware(tracer *Tracer, opts ...MiddlewareOption) (func(http.Handler) ht
 func MustMiddleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) http.Handler {
 	handler, err := Middleware(tracer, opts...)
 	if err != nil {
-		panic(fmt.Sprintf("tracing.MustMiddleware: %v", err))
+		panic(err)
 	}
 	return handler
 }
@@ -380,6 +381,9 @@ func startMiddlewareSpan(ctx context.Context, t *Tracer, cfg *middlewareConfig, 
 	spanName = sb.String()
 	t.spanNamePool.Put(sb)
 
+	if t.requiresNetworkInit() && !t.isStarted.Load() {
+		t.logOtlpNotStartedWarning()
+	}
 	// Start span
 	ctx, span := t.tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindServer))
 
@@ -544,9 +548,16 @@ type ContextTracing struct {
 }
 
 // NewContextTracing creates a new context tracing helper.
+// Panics if ctx, tracer, or span is nil.
 func NewContextTracing(ctx context.Context, tracer *Tracer, span trace.Span) *ContextTracing {
 	if ctx == nil {
 		panic("tracing: nil context passed to NewContextTracing")
+	}
+	if tracer == nil {
+		panic("tracing: tracer cannot be nil")
+	}
+	if span == nil {
+		panic("tracing: span cannot be nil")
 	}
 
 	return &ContextTracing{
