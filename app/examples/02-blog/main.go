@@ -187,7 +187,7 @@ func main() {
 	a.GET("/posts", handlers.ListPosts,
 		app.WithDoc(
 			openapi.WithSummary("List posts"),
-			openapi.WithDescription("Retrieves a paginated list of blog posts with optional filtering"),
+			openapi.WithOperationDescription("Retrieves a paginated list of blog posts with optional filtering"),
 			openapi.WithRequest(handlers.ListPostsParams{}),
 			openapi.WithResponse(http.StatusOK, map[string]any{
 				"posts":   []handlers.PostResponse{},
@@ -202,7 +202,7 @@ func main() {
 	a.GET("/posts/:slug", handlers.GetPostBySlug,
 		app.WithDoc(
 			openapi.WithSummary("Get post by slug"),
-			openapi.WithDescription("Retrieves a single blog post by its URL slug"),
+			openapi.WithOperationDescription("Retrieves a single blog post by its URL slug"),
 			openapi.WithResponse(http.StatusOK, handlers.PostResponse{}),
 			openapi.WithResponse(http.StatusNotFound, handlers.APIError{}),
 			openapi.WithTags("posts"),
@@ -212,7 +212,7 @@ func main() {
 	a.POST("/posts", handlers.CreatePost,
 		app.WithDoc(
 			openapi.WithSummary("Create post"),
-			openapi.WithDescription("Creates a new blog post"),
+			openapi.WithOperationDescription("Creates a new blog post"),
 			openapi.WithRequest(handlers.CreatePostRequest{}),
 			openapi.WithResponse(http.StatusCreated, handlers.PostResponse{}),
 			openapi.WithResponse(http.StatusBadRequest, handlers.APIError{}),
@@ -223,7 +223,7 @@ func main() {
 	a.PUT("/posts/:id", handlers.UpdatePost,
 		app.WithDoc(
 			openapi.WithSummary("Update post"),
-			openapi.WithDescription("Updates an existing blog post"),
+			openapi.WithOperationDescription("Updates an existing blog post"),
 			openapi.WithRequest(handlers.UpdatePostRequest{}),
 			openapi.WithResponse(http.StatusOK, handlers.PostResponse{}),
 			openapi.WithResponse(http.StatusNotFound, handlers.APIError{}),
@@ -234,7 +234,7 @@ func main() {
 	a.PATCH("/posts/:id/publish", handlers.PublishPost,
 		app.WithDoc(
 			openapi.WithSummary("Publish post"),
-			openapi.WithDescription("Publishes a draft post"),
+			openapi.WithOperationDescription("Publishes a draft post"),
 			openapi.WithResponse(http.StatusOK, handlers.PostResponse{}),
 			openapi.WithResponse(http.StatusNotFound, handlers.APIError{}),
 			openapi.WithResponse(http.StatusBadRequest, handlers.APIError{}),
@@ -246,7 +246,7 @@ func main() {
 	a.GET("/authors", handlers.ListAuthors,
 		app.WithDoc(
 			openapi.WithSummary("List authors"),
-			openapi.WithDescription("Retrieves a list of all blog authors"),
+			openapi.WithOperationDescription("Retrieves a list of all blog authors"),
 			openapi.WithResponse(http.StatusOK, map[string]any{
 				"authors": []handlers.Author{},
 				"total":   0,
@@ -258,7 +258,7 @@ func main() {
 	a.GET("/authors/:id", handlers.GetAuthor,
 		app.WithDoc(
 			openapi.WithSummary("Get author"),
-			openapi.WithDescription("Retrieves an author profile by ID"),
+			openapi.WithOperationDescription("Retrieves an author profile by ID"),
 			openapi.WithResponse(http.StatusOK, handlers.Author{}),
 			openapi.WithResponse(http.StatusNotFound, handlers.APIError{}),
 			openapi.WithTags("authors"),
@@ -268,7 +268,7 @@ func main() {
 	a.GET("/authors/:id/posts", handlers.GetAuthorPosts,
 		app.WithDoc(
 			openapi.WithSummary("Get author posts"),
-			openapi.WithDescription("Retrieves all posts by a specific author"),
+			openapi.WithOperationDescription("Retrieves all posts by a specific author"),
 			openapi.WithResponse(http.StatusOK, map[string]any{
 				"authorId": 1,
 				"posts":    []handlers.PostResponse{},
@@ -284,7 +284,7 @@ func main() {
 		a.GET("/posts/:slug/comments", handlers.ListComments,
 			app.WithDoc(
 				openapi.WithSummary("List comments"),
-				openapi.WithDescription("Retrieves all comments for a blog post"),
+				openapi.WithOperationDescription("Retrieves all comments for a blog post"),
 				openapi.WithResponse(http.StatusOK, map[string]any{
 					"postId":   1,
 					"comments": []handlers.CommentResponse{},
@@ -298,7 +298,7 @@ func main() {
 		a.POST("/posts/:slug/comments", handlers.CreateComment,
 			app.WithDoc(
 				openapi.WithSummary("Create comment"),
-				openapi.WithDescription("Adds a new comment to a blog post"),
+				openapi.WithOperationDescription("Adds a new comment to a blog post"),
 				openapi.WithRequest(handlers.CreateCommentRequest{}),
 				openapi.WithResponse(http.StatusCreated, handlers.CommentResponse{}),
 				openapi.WithResponse(http.StatusNotFound, handlers.APIError{}),
@@ -314,7 +314,7 @@ func main() {
 	v1.GET("/stats", handlers.GetBlogStats,
 		app.WithDoc(
 			openapi.WithSummary("Blog statistics"),
-			openapi.WithDescription("Retrieves overall blog statistics"),
+			openapi.WithOperationDescription("Retrieves overall blog statistics"),
 			openapi.WithResponse(http.StatusOK, handlers.BlogStatsResponse{}),
 			openapi.WithTags("stats"),
 		),
@@ -323,7 +323,7 @@ func main() {
 	v1.GET("/popular", handlers.GetPopularPosts,
 		app.WithDoc(
 			openapi.WithSummary("Popular posts"),
-			openapi.WithDescription("Retrieves the most viewed blog posts"),
+			openapi.WithOperationDescription("Retrieves the most viewed blog posts"),
 			openapi.WithResponse(http.StatusOK, map[string]any{
 				"posts": []handlers.PopularPostResponse{},
 				"total": 0,
