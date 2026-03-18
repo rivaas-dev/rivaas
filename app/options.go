@@ -363,15 +363,18 @@ func WithValidationEngine(engine *validation.Engine) Option {
 
 // openapiConfig holds OpenAPI configuration for the app layer.
 // openapiConfig stores OpenAPI settings and initialization state.
+// options is set by WithOpenAPI and consumed in config.validate() to build config.
 type openapiConfig struct {
 	enabled bool
+	options []openapi.Option // raw options until finalization in validate()
 	config  *openapi.API
 	initErr error // Stores initialization error to be checked during validation
 }
 
 // WithOpenAPI enables OpenAPI specification generation with the given options.
 // Service name and version are automatically injected from app-level configuration
-// if not explicitly set via openapi.WithTitle(). Option order does not matter.
+// after all options are applied (in config validation), so option order does not matter.
+// If not explicitly set via openapi.WithTitle(), the app's service name and version are used.
 //
 // Example:
 //
@@ -390,21 +393,9 @@ type openapiConfig struct {
 //	)
 func WithOpenAPI(opts ...openapi.Option) Option {
 	return func(c *config) {
-		// Inject service name/version into OpenAPI when still defaults (applied last so option order doesn't matter).
-		if c.serviceName != "" || c.serviceVersion != "" {
-			opts = append(opts, openapi.WithTitleIfDefault(c.serviceName, c.serviceVersion))
-		}
-		openapiCfg, err := openapi.New(opts...)
-		if err != nil {
-			c.openapi = &openapiConfig{
-				enabled: true,
-				initErr: fmt.Errorf("failed to initialize OpenAPI: %w", err),
-			}
-			return
-		}
 		c.openapi = &openapiConfig{
 			enabled: true,
-			config:  openapiCfg,
+			options: opts,
 		}
 	}
 }

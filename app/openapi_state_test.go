@@ -137,3 +137,23 @@ func TestOpenapiState_accessorsMatchAPI(t *testing.T) {
 	assert.Equal(t, "/api/docs", s.UIPath())
 	assert.True(t, s.ServeUI())
 }
+
+// TestWithOpenAPI_optionOrderDoesNotMatter ensures that service name and version
+// are injected into the OpenAPI spec regardless of option order. WithOpenAPI is
+// called before WithServiceName/WithServiceVersion; injection happens in
+// config.validate() after all options are applied.
+func TestWithOpenAPI_optionOrderDoesNotMatter(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(
+		WithOpenAPI(), // no openapi.WithTitle — defaults used until finalization
+		WithServiceName("my-svc"),
+		WithServiceVersion("1.2.3"),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, a.openapi)
+
+	info := a.openapi.API().Info()
+	assert.Equal(t, "my-svc", info.Title, "OpenAPI title should be app service name regardless of option order")
+	assert.Equal(t, "1.2.3", info.Version, "OpenAPI version should be app service version regardless of option order")
+}

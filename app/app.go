@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -340,6 +341,15 @@ func (c *config) validate() error {
 				errs.Add(newInvalidValueError("server", nil, mtlsErr.Error()))
 			}
 		}
+	}
+
+	// Finalize OpenAPI: build from stored options and inject service name/version (so option order does not matter).
+	if c.openapi != nil && c.openapi.enabled {
+		finalOpts := append(slices.Clone(c.openapi.options), openapi.WithTitleIfDefault(c.serviceName, c.serviceVersion))
+		openapiCfg, err := openapi.New(finalOpts...)
+		c.openapi.config = openapiCfg
+		c.openapi.initErr = err
+		c.openapi.options = nil
 	}
 
 	// Validate OpenAPI configuration
