@@ -73,11 +73,11 @@ type SecurityReq struct {
 }
 
 // buildOperation creates an Operation from method, path, and options.
-// Returns an error if any option is nil (validation error, not panic).
+// Returns an error if the path is invalid or if any option is nil (validation error, not panic).
 func buildOperation(method, path string, opts ...OperationOption) (Operation, error) {
 	// Validate path format
 	if err := validate.ValidatePath(path); err != nil {
-		panic(fmt.Sprintf("invalid path '%s': %v", path, err))
+		return Operation{}, fmt.Errorf("openapi: invalid path %q: %w", path, err)
 	}
 
 	// Reject nil options with a validation error

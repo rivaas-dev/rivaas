@@ -49,3 +49,26 @@ func TestGET_validOptionsSucceeds(t *testing.T) {
 	assert.Equal(t, "GET", op.Method)
 	assert.Equal(t, "/health", op.Path)
 }
+
+func TestWithGET_invalidPathReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"empty path", ""},
+		{"missing leading slash", "users"},
+		{"invalid param", "/users/:/posts"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			op, err := WithGET(tt.path, WithSummary("x"))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "openapi: invalid path")
+			assert.Contains(t, err.Error(), tt.path)
+			assert.Equal(t, Operation{}, op)
+		})
+	}
+}

@@ -657,7 +657,7 @@ type OAuth2Flow struct {
 //		},
 //		openapi.OAuth2Flow{
 //			Type:     openapi.FlowClientCredentials,
-//			TokenUrl: "https://example.com/oauth/token",
+//			TokenURL: "https://example.com/oauth/token",
 //			Scopes:   map[string]string{"read": "Read access"},
 //		},
 //	)

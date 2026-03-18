@@ -14,32 +14,35 @@
 
 package openapi
 
+import "fmt"
+
 // WithOptions composes multiple OperationOptions into a single option.
 //
 // This enables creating reusable option sets for common patterns across operations.
 // Options are applied in the order they are provided, with later options potentially
 // overriding values set by earlier options.
 //
+// WithOptions returns an error if any element of opts is nil (validation at compose time).
+//
 // Example:
 //
-//	// Define reusable option sets
-//	var (
-//	    CommonErrors = openapi.WithOptions(
-//	        openapi.WithResponse(400, Error{}),
-//	        openapi.WithResponse(401, Error{}),
-//	        openapi.WithResponse(500, Error{}),
-//	    )
-//
-//	    AuthRequired = openapi.WithOptions(
-//	        openapi.WithSecurity("jwt"),
-//	    )
-//
-//	    UserEndpoint = openapi.WithOptions(
-//	        openapi.WithTags("users"),
-//	        AuthRequired,
-//	        CommonErrors,
-//	    )
+//	// Define reusable option sets (check error at init)
+//	CommonErrors, err := openapi.WithOptions(
+//	    openapi.WithResponse(400, Error{}),
+//	    openapi.WithResponse(401, Error{}),
+//	    openapi.WithResponse(500, Error{}),
 //	)
+//	if err != nil {
+//	    // handle err
+//	}
+//	UserEndpoint, err := openapi.WithOptions(
+//	    openapi.WithTags("users"),
+//	    AuthRequired,
+//	    CommonErrors,
+//	)
+//	if err != nil {
+//	    // handle err
+//	}
 //
 //	// Apply composed options to operations
 //	openapi.WithGET("/users/:id",
@@ -47,17 +50,21 @@ package openapi
 //	    openapi.WithSummary("Get user"),
 //	    openapi.WithResponse(200, User{}),
 //	)
-//
 //	openapi.WithPOST("/users",
 //	    UserEndpoint,
 //	    openapi.WithSummary("Create user"),
 //	    openapi.WithRequest(CreateUser{}),
 //	    openapi.WithResponse(201, User{}),
 //	)
-func WithOptions(opts ...OperationOption) OperationOption {
+func WithOptions(opts ...OperationOption) (OperationOption, error) {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("openapi: operation option at index %d cannot be nil", i)
+		}
+	}
 	return func(d *operationDoc) {
 		for _, opt := range opts {
 			opt(d)
 		}
-	}
+	}, nil
 }

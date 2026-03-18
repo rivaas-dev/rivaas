@@ -37,7 +37,9 @@ func TestWithOptions(t *testing.T) {
 		{
 			name: "single option applies correctly",
 			buildOp: func(t *testing.T) Operation {
-				op, err := WithGET("/health", WithOptions(WithSummary("Health check")))
+				opt, err := WithOptions(WithSummary("Health check"))
+				require.NoError(t, err)
+				op, err := WithGET("/health", opt)
 				require.NoError(t, err)
 				return op
 			},
@@ -55,11 +57,13 @@ func TestWithOptions(t *testing.T) {
 		{
 			name: "multiple options apply in order",
 			buildOp: func(t *testing.T) Operation {
-				op, err := WithGET("/users", WithOptions(
+				opt, err := WithOptions(
 					WithSummary("List users"),
 					WithTags("users"),
 					WithResponse(http.StatusOK, []struct{}{}),
-				))
+				)
+				require.NoError(t, err)
+				op, err := WithGET("/users", opt)
 				require.NoError(t, err)
 				return op
 			},
@@ -85,10 +89,12 @@ func TestWithOptions(t *testing.T) {
 		{
 			name: "later option overrides earlier",
 			buildOp: func(t *testing.T) Operation {
-				op, err := WithGET("/item", WithOptions(
+				opt, err := WithOptions(
 					WithSummary("First summary"),
 					WithSummary("Final summary"),
-				))
+				)
+				require.NoError(t, err)
+				op, err := WithGET("/item", opt)
 				require.NoError(t, err)
 				return op
 			},
@@ -106,7 +112,9 @@ func TestWithOptions(t *testing.T) {
 		{
 			name: "empty options is valid",
 			buildOp: func(t *testing.T) Operation {
-				op, err := WithGET("/root", WithOptions())
+				opt, err := WithOptions()
+				require.NoError(t, err)
+				op, err := WithGET("/root", opt)
 				require.NoError(t, err)
 				return op
 			},
@@ -143,4 +151,18 @@ func TestWithOptions(t *testing.T) {
 			tt.validate(t, spec)
 		})
 	}
+}
+
+func TestWithOptions_rejectsNilOption(t *testing.T) {
+	t.Parallel()
+
+	opt, err := WithOptions(WithSummary("ok"), nil)
+	require.Error(t, err)
+	assert.Nil(t, opt)
+	assert.Contains(t, err.Error(), "operation option at index 1 cannot be nil")
+
+	opt, err = WithOptions(nil)
+	require.Error(t, err)
+	assert.Nil(t, opt)
+	assert.Contains(t, err.Error(), "operation option at index 0 cannot be nil")
 }
