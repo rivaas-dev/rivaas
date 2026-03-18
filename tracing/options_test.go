@@ -145,54 +145,19 @@ func TestWithServiceVersion(t *testing.T) {
 func TestWithSampleRate(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	validTests := []struct {
 		name         string
 		rate         float64
 		expectedRate float64
 	}{
-		{
-			name:         "100 percent",
-			rate:         1.0,
-			expectedRate: 1.0,
-		},
-		{
-			name:         "50 percent",
-			rate:         0.5,
-			expectedRate: 0.5,
-		},
-		{
-			name:         "0 percent",
-			rate:         0.0,
-			expectedRate: 0.0,
-		},
-		{
-			name:         "10 percent",
-			rate:         0.1,
-			expectedRate: 0.1,
-		},
-		{
-			name:         "negative rate clamped to 0",
-			rate:         -0.5,
-			expectedRate: 0.0,
-		},
-		{
-			name:         "rate above 1 clamped to 1",
-			rate:         1.5,
-			expectedRate: 1.0,
-		},
-		{
-			name:         "extremely negative rate clamped to 0",
-			rate:         -999.9,
-			expectedRate: 0.0,
-		},
-		{
-			name:         "extremely high rate clamped to 1",
-			rate:         999.9,
-			expectedRate: 1.0,
-		},
+		{"100 percent", 1.0, 1.0},
+		{"50 percent", 0.5, 0.5},
+		{"0 percent", 0.0, 0.0},
+		{"10 percent", 0.1, 0.1},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range validTests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -203,6 +168,34 @@ func TestWithSampleRate(t *testing.T) {
 			t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 			assert.Equal(t, tt.expectedRate, tracer.sampleRate) //nolint:testifylint // exact sample rate comparison
+		})
+	}
+
+	invalidRates := []struct {
+		name string
+		rate float64
+	}{
+		{"negative rate", -0.5},
+		{"rate above 1", 1.5},
+		{"extremely negative", -999.9},
+		{"extremely high", 999.9},
+	}
+
+	for _, tc := range invalidRates {
+		tc := tc
+		t.Run("New_rejects_"+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := New(WithServiceName("test"), WithSampleRate(tc.rate))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "sampleRate")
+		})
+		t.Run("MustNew_panics_"+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Panics(t, func() {
+				MustNew(WithServiceName("test"), WithSampleRate(tc.rate))
+			})
 		})
 	}
 }

@@ -119,7 +119,11 @@ func TestingMiddleware(tb testing.TB, middlewareOpts ...MiddlewareOption) func(h
 
 	tracer := TestingTracer(tb)
 
-	return Middleware(tracer, middlewareOpts...)
+	handler, err := Middleware(tracer, middlewareOpts...)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return handler
 }
 
 // TestingMiddlewareWithTracer creates test middleware with a custom tracer.
@@ -139,5 +143,9 @@ func TestingMiddleware(tb testing.TB, middlewareOpts ...MiddlewareOption) func(h
 func TestingMiddlewareWithTracer(tb testing.TB, tracer *Tracer, middlewareOpts ...MiddlewareOption) func(http.Handler) http.Handler {
 	tb.Helper()
 
-	return Middleware(tracer, middlewareOpts...)
+	handler, err := Middleware(tracer, middlewareOpts...)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return handler
 }

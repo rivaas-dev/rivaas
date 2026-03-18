@@ -178,11 +178,15 @@ func ExampleMiddleware() {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Use Middleware (panics on invalid options like invalid regex)
-	handler := tracing.Middleware(tracer,
+	// Use Middleware (returns error for invalid options; use MustMiddleware to panic)
+	mw, err := tracing.Middleware(tracer,
 		tracing.WithExcludePaths("/health", "/metrics", "/ready"),
 		tracing.WithHeaders("X-Request-ID", "X-Correlation-ID"),
-	)(mux)
+	)
+	if err != nil {
+		panic(err)
+	}
+	handler := mw(mux)
 
 	// Use handler...
 	_ = handler

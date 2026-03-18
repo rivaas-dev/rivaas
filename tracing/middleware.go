@@ -252,7 +252,8 @@ func WithoutParams() MiddlewareOption {
 // without using the app package.
 //
 // Path filtering, header recording, and param recording are configured via MiddlewareOption.
-// Panics if any middleware option is invalid (e.g., invalid regex pattern).
+// Returns an error if tracer is nil or any middleware option is invalid (e.g., nil option, invalid regex pattern).
+// Use MustMiddleware for the panic-on-error variant.
 //
 // Example:
 //
@@ -261,24 +262,29 @@ func WithoutParams() MiddlewareOption {
 //	    tracing.WithServiceName("my-api"),
 //	)
 //
-//	handler := tracing.Middleware(tracer,
+//	handler, err := tracing.Middleware(tracer,
 //	    tracing.WithExcludePaths("/health", "/metrics"),
 //	    tracing.WithHeaders("X-Request-ID"),
-//	)(mux)
-//
-//	http.ListenAndServe(":8080", handler)
-func Middleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) http.Handler {
+//	)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	http.ListenAndServe(":8080", handler(mux))
+func Middleware(tracer *Tracer, opts ...MiddlewareOption) (func(http.Handler) http.Handler, error) {
 	if tracer == nil {
-		panic("tracing.Middleware: tracer cannot be nil")
+		return nil, errors.New("tracing.Middleware: tracer cannot be nil")
 	}
 	cfg := newMiddlewareConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			cfg.validationErrors = append(cfg.validationErrors, fmt.Errorf("middleware option at index %d cannot be nil", i))
+			continue
+		}
 		opt(cfg)
 	}
 
-	// Validate configuration - panic on error for consistent API
 	if err := cfg.validate(); err != nil {
-		panic(fmt.Sprintf("tracing.Middleware: %v", err))
+		return nil, err
 	}
 
 	return func(next http.Handler) http.Handler {
@@ -316,11 +322,11 @@ func Middleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) htt
 			// Finish tracing
 			tracer.FinishRequestSpan(span, rw.StatusCode())
 		})
-	}
+	}, nil
 }
 
 // MustMiddleware creates a middleware function for standalone HTTP integration.
-// It panics if any middleware option is invalid (e.g., invalid regex pattern).
+// It panics if tracer is nil or any middleware option is invalid (e.g., nil option, invalid regex pattern).
 // This is a convenience wrapper around Middleware for consistency with MustNew.
 //
 // Example:
@@ -337,7 +343,11 @@ func Middleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) htt
 //
 //	http.ListenAndServe(":8080", handler)
 func MustMiddleware(tracer *Tracer, opts ...MiddlewareOption) func(http.Handler) http.Handler {
-	return Middleware(tracer, opts...)
+	handler, err := Middleware(tracer, opts...)
+	if err != nil {
+		panic(fmt.Sprintf("tracing.MustMiddleware: %v", err))
+	}
+	return handler
 }
 
 // startMiddlewareSpan starts a span for HTTP request with middleware configuration.

@@ -66,7 +66,7 @@ func TestTracingWithHTTP(t *testing.T) {
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 	// Create HTTP handler with tracing middleware
-	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		//nolint:errcheck // Test handler
 		w.Write([]byte(`{"status":"ok"}`))
@@ -117,7 +117,7 @@ func TestTracingMiddleware(t *testing.T) {
 	})
 
 	// Wrap with tracing middleware (with path exclusion)
-	middleware := Middleware(tracer, WithExcludePaths("/health"))
+	middleware := MustMiddleware(tracer, WithExcludePaths("/health"))
 	wrappedHandler := middleware(handler)
 
 	// Test the wrapped handler
@@ -154,7 +154,7 @@ func TestTracingIntegration(t *testing.T) {
 	})
 
 	// Wrap with tracing middleware
-	handler := Middleware(tracer, WithExcludePaths("/health"))(mux)
+	handler := MustMiddleware(tracer, WithExcludePaths("/health"))(mux)
 
 	// Test normal route
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -189,16 +189,16 @@ func TestSamplingRate(t *testing.T) {
 	t.Run("SampleRateValidation", func(t *testing.T) {
 		t.Parallel()
 
-		// Test clamping of sample rate
-		tracer := MustNew(WithServiceName("test"), WithSampleRate(1.5))
-		assert.InEpsilon(t, 1.0, tracer.sampleRate, 0.001)
-		tracer.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+		// Out-of-range rates cause MustNew to panic
+		assert.Panics(t, func() {
+			MustNew(WithServiceName("test"), WithSampleRate(1.5))
+		})
+		assert.Panics(t, func() {
+			MustNew(WithServiceName("test"), WithSampleRate(-0.5))
+		})
 
-		tracer = MustNew(WithServiceName("test"), WithSampleRate(-0.5))
-		assert.InDelta(t, 0.0, tracer.sampleRate, 0.001)
-		tracer.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
-
-		tracer = MustNew(WithServiceName("test"), WithSampleRate(0.5))
+		// Valid rate succeeds
+		tracer := MustNew(WithServiceName("test"), WithSampleRate(0.5))
 		assert.InEpsilon(t, 0.5, tracer.sampleRate, 0.001)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 	})
@@ -213,7 +213,7 @@ func TestSamplingRate(t *testing.T) {
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 		// All requests should be traced
-		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			//nolint:errcheck // Test handler
 			w.Write([]byte(`{"status":"ok"}`))
@@ -236,7 +236,7 @@ func TestSamplingRate(t *testing.T) {
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 		// No requests should be traced
-		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			//nolint:errcheck // Test handler
 			w.Write([]byte(`{"status":"ok"}`))
@@ -258,7 +258,7 @@ func TestSamplingRate(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			//nolint:errcheck // Test handler
 			w.Write([]byte(`{"status":"ok"}`))
@@ -288,7 +288,7 @@ func TestParameterRecording(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			//nolint:errcheck // Test handler
 			w.Write([]byte(`{"status":"ok"}`))
@@ -309,7 +309,7 @@ func TestParameterRecording(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			//nolint:errcheck // Test handler
 			w.Write([]byte(`{"status":"ok"}`))
@@ -417,7 +417,7 @@ func TestErrorStatusCodes(t *testing.T) {
 			w.Write([]byte(body))
 		})
 	}
-	handler := Middleware(tracer)(mux)
+	handler := MustMiddleware(tracer)(mux)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -441,7 +441,7 @@ func TestConcurrentResponseWriter(t *testing.T) {
 	)
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		//nolint:errcheck // Test handler
 		w.Write([]byte(`{"status":"ok"}`))
@@ -469,7 +469,7 @@ func TestContextTracingHelpers(t *testing.T) {
 	)
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-	handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		SetSpanAttributeFromContext(ctx, "string", "value")
@@ -561,17 +561,17 @@ func TestTracer_EdgeCases(t *testing.T) {
 	t.Run("ExtremelyLargeSampleRate", func(t *testing.T) {
 		t.Parallel()
 
-		tracer := MustNew(WithServiceName("test"), WithSampleRate(999.9))
-		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
-		assert.InEpsilon(t, 1.0, tracer.sampleRate, 0.001)
+		assert.Panics(t, func() {
+			MustNew(WithServiceName("test"), WithSampleRate(999.9))
+		})
 	})
 
 	t.Run("NegativeSampleRate", func(t *testing.T) {
 		t.Parallel()
 
-		tracer := MustNew(WithServiceName("test"), WithSampleRate(-999.9))
-		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
-		assert.InDelta(t, 0.0, tracer.sampleRate, 0.001)
+		assert.Panics(t, func() {
+			MustNew(WithServiceName("test"), WithSampleRate(-999.9))
+		})
 	})
 
 	t.Run("NilHeaders", func(t *testing.T) {
@@ -746,7 +746,7 @@ func TestDisabledRecording(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer, WithoutParams())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			//nolint:errcheck // Test handler
 			w.Write([]byte(`{"status":"ok"}`))
@@ -773,7 +773,7 @@ func TestDisabledRecording(t *testing.T) {
 			tracer.Shutdown(ctx) //nolint:errcheck // Test cleanup
 		})
 
-		handler := Middleware(tracer, WithHeaders("X-Request-ID", "User-Agent"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer, WithHeaders("X-Request-ID", "User-Agent"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			//nolint:errcheck // Test handler
 			w.Write([]byte(`{"status":"ok"}`))
@@ -807,7 +807,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 			w.Write([]byte("OK"))
 		})
 
-		middleware := Middleware(tracer)
+		middleware := MustMiddleware(tracer)
 		wrappedHandler := middleware(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -829,7 +829,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		middleware := Middleware(tracer, WithExcludePaths("/health"))
+		middleware := MustMiddleware(tracer, WithExcludePaths("/health"))
 		wrappedHandler := middleware(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -848,7 +848,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		middleware := Middleware(tracer)
+		middleware := MustMiddleware(tracer)
 		wrappedHandler := middleware(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -1063,7 +1063,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1093,7 +1093,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		}))
 
@@ -1126,7 +1126,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1160,7 +1160,7 @@ func TestSpanLifecycleHooks(t *testing.T) {
 		)
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1183,7 +1183,7 @@ func TestGranularParameterRecording(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer, WithRecordParams("user_id", "request_id"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer, WithRecordParams("user_id", "request_id"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1200,7 +1200,7 @@ func TestGranularParameterRecording(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer, WithExcludeParams("password", "token", "api_key"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer, WithExcludeParams("password", "token", "api_key"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1314,7 +1314,7 @@ func TestExcludePathPattern(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer,
+		handler := MustMiddleware(tracer,
 			WithExcludePatterns("^/internal/.*", "^/(health|ready|live)"),
 		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -1336,7 +1336,7 @@ func TestExcludePathPattern(t *testing.T) {
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 		assert.Panics(t, func() {
-			Middleware(tracer,
+			MustMiddleware(tracer,
 				WithExcludePatterns("[invalid"),
 			)
 		})
@@ -1353,7 +1353,7 @@ func TestExcludePrefixes(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer, WithExcludePrefixes("/debug/"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handler := MustMiddleware(tracer, WithExcludePrefixes("/debug/"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 
@@ -1371,7 +1371,7 @@ func TestExcludePrefixes(t *testing.T) {
 		tracer := MustNew(WithServiceName("test"))
 		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
-		handler := Middleware(tracer,
+		handler := MustMiddleware(tracer,
 			WithExcludePrefixes("/debug/", "/internal/", "/admin/"),
 		)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)

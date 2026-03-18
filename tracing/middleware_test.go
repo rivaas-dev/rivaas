@@ -71,7 +71,7 @@ func TestWithExcludePaths(t *testing.T) {
 			t.Parallel()
 
 			tracer := TestingTracer(t)
-			middleware := Middleware(tracer, WithExcludePaths(tt.excludePaths...))
+			middleware := MustMiddleware(tracer, WithExcludePaths(tt.excludePaths...))
 
 			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
@@ -96,13 +96,13 @@ func TestWithExcludePaths_RespectsMaxExcludedPaths(t *testing.T) {
 	}
 
 	tracer := TestingTracer(t)
-	middleware := Middleware(tracer, WithExcludePaths(paths...))
+	middleware := MustMiddleware(tracer, WithExcludePaths(paths...))
 
 	var spanCreated bool
 	tracerWithHook := TestingTracer(t, WithSpanStartHook(func(_ context.Context, _ trace.Span, _ *http.Request) {
 		spanCreated = true
 	}))
-	middlewareWithHook := Middleware(tracerWithHook, WithExcludePaths(paths...))
+	middlewareWithHook := MustMiddleware(tracerWithHook, WithExcludePaths(paths...))
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -167,7 +167,7 @@ func TestWithExcludePrefixes(t *testing.T) {
 			t.Parallel()
 
 			tracer := TestingTracer(t)
-			middleware := Middleware(tracer, WithExcludePrefixes(tt.excludePrefixes...))
+			middleware := MustMiddleware(tracer, WithExcludePrefixes(tt.excludePrefixes...))
 
 			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
@@ -190,7 +190,7 @@ func TestWithExcludePatterns(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := Middleware(tracer,
+		middleware := MustMiddleware(tracer,
 			WithExcludePatterns(`^/api/v\d+/health$`, `^/internal/.*`),
 		)
 
@@ -208,12 +208,12 @@ func TestWithExcludePatterns(t *testing.T) {
 		}
 	})
 
-	t.Run("Middleware panics on invalid pattern", func(t *testing.T) {
+	t.Run("MustMiddleware panics on invalid pattern", func(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
 		assert.Panics(t, func() {
-			Middleware(tracer, WithExcludePatterns("[invalid"))
+			MustMiddleware(tracer, WithExcludePatterns("[invalid"))
 		})
 	})
 
@@ -224,29 +224,73 @@ func TestWithExcludePatterns(t *testing.T) {
 		var panicVal any
 		func() {
 			defer func() { panicVal = recover() }()
-			Middleware(tracer, WithExcludePatterns("[", "^/health"))
+			MustMiddleware(tracer, WithExcludePatterns("[", "^/health"))
 		}()
 		require.NotNil(t, panicVal, "expected panic")
 		assert.Contains(t, fmt.Sprint(panicVal), "excludePatterns")
 	})
 }
 
-// TestMiddleware_InvalidOptionPanics covers panic when cfg.validate() returns error.
-func TestMiddleware_InvalidOptionPanics(t *testing.T) {
+// TestMiddleware_InvalidOptionReturnsError covers Middleware returning an error for invalid options.
+func TestMiddleware_InvalidOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tracer := TestingTracer(t)
+	handler, err := Middleware(tracer, WithExcludePatterns("["))
+	require.Error(t, err)
+	assert.Nil(t, handler)
+	assert.Contains(t, err.Error(), "excludePatterns")
+}
+
+// TestMustMiddleware_InvalidOptionPanics covers MustMiddleware panicking for invalid options.
+func TestMustMiddleware_InvalidOptionPanics(t *testing.T) {
 	t.Parallel()
 
 	tracer := TestingTracer(t)
 	assert.Panics(t, func() {
-		Middleware(tracer, WithExcludePatterns("["))
+		MustMiddleware(tracer, WithExcludePatterns("["))
 	})
 }
 
-// TestMiddleware_NilTracerPanics covers panic when tracer is nil.
-func TestMiddleware_NilTracerPanics(t *testing.T) {
+// TestMiddleware_NilTracerReturnsError covers Middleware returning an error when tracer is nil.
+func TestMiddleware_NilTracerReturnsError(t *testing.T) {
+	t.Parallel()
+
+	handler, err := Middleware(nil)
+	require.Error(t, err)
+	assert.Nil(t, handler)
+	assert.Contains(t, err.Error(), "tracer cannot be nil")
+}
+
+// TestMustMiddleware_NilTracerPanics covers MustMiddleware panicking when tracer is nil.
+func TestMustMiddleware_NilTracerPanics(t *testing.T) {
 	t.Parallel()
 
 	assert.Panics(t, func() {
-		Middleware(nil)
+		MustMiddleware(nil)
+	})
+}
+
+// TestMiddleware_NilOptionReturnsError covers Middleware returning an error when a middleware option is nil.
+func TestMiddleware_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tracer := TestingTracer(t)
+	var nilOpt MiddlewareOption
+	handler, err := Middleware(tracer, WithExcludePaths("/health"), nilOpt)
+	require.Error(t, err)
+	assert.Nil(t, handler)
+	assert.Contains(t, err.Error(), "middleware option at index 1 cannot be nil")
+}
+
+// TestMustMiddleware_NilOptionPanics covers MustMiddleware panicking when a middleware option is nil.
+func TestMustMiddleware_NilOptionPanics(t *testing.T) {
+	t.Parallel()
+
+	tracer := TestingTracer(t)
+	var nilOpt MiddlewareOption
+	assert.PanicsWithValue(t, "tracing.MustMiddleware: middleware validation errors: middleware option at index 1 cannot be nil", func() {
+		MustMiddleware(tracer, WithExcludePaths("/health"), nilOpt)
 	})
 }
 
@@ -271,7 +315,7 @@ func TestMiddleware_ProbabilisticSamplingSkipsSomeSpans(t *testing.T) {
 	t.Parallel()
 
 	tracer := TestingTracer(t, WithSampleRate(0.0001))
-	middleware := Middleware(tracer)
+	middleware := MustMiddleware(tracer)
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -290,7 +334,7 @@ func TestResponseWriter_StatusCode_ReturnsOKWhenWriteOnly(t *testing.T) {
 	t.Parallel()
 
 	tracer := TestingTracer(t)
-	middleware := Middleware(tracer)
+	middleware := MustMiddleware(tracer)
 
 	var capturedRW *responseWriter
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -317,7 +361,7 @@ func TestWithHeaders(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := Middleware(tracer, WithHeaders("X-Request-ID", "X-Correlation-ID"))
+		middleware := MustMiddleware(tracer, WithHeaders("X-Request-ID", "X-Correlation-ID"))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -337,7 +381,7 @@ func TestWithHeaders(t *testing.T) {
 
 		tracer := TestingTracer(t)
 		// Authorization and Cookie should be filtered out
-		middleware := Middleware(tracer, WithHeaders("X-Request-ID", "Authorization", "Cookie"))
+		middleware := MustMiddleware(tracer, WithHeaders("X-Request-ID", "Authorization", "Cookie"))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -379,7 +423,7 @@ func TestWithHeaders(t *testing.T) {
 				t.Parallel()
 
 				tracer := TestingTracer(t)
-				middleware := Middleware(tracer, WithHeaders(tt.headers...))
+				middleware := MustMiddleware(tracer, WithHeaders(tt.headers...))
 
 				handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
@@ -403,7 +447,7 @@ func TestWithRecordParams(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := Middleware(tracer, WithRecordParams("user_id", "page"))
+		middleware := MustMiddleware(tracer, WithRecordParams("user_id", "page"))
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -420,7 +464,7 @@ func TestWithRecordParams(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := Middleware(tracer, WithRecordParams())
+		middleware := MustMiddleware(tracer, WithRecordParams())
 
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -439,7 +483,7 @@ func TestWithExcludeParams(t *testing.T) {
 	t.Parallel()
 
 	tracer := TestingTracer(t)
-	middleware := Middleware(tracer, WithExcludeParams("password", "token", "api_key"))
+	middleware := MustMiddleware(tracer, WithExcludeParams("password", "token", "api_key"))
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -457,7 +501,7 @@ func TestWithoutParams(t *testing.T) {
 	t.Parallel()
 
 	tracer := TestingTracer(t)
-	middleware := Middleware(tracer, WithoutParams())
+	middleware := MustMiddleware(tracer, WithoutParams())
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -482,7 +526,7 @@ func TestMiddleware_BasicFunctionality(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t)
-		middleware := Middleware(tracer)
+		middleware := MustMiddleware(tracer)
 
 		handlerCalled := false
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -505,7 +549,7 @@ func TestMiddleware_BasicFunctionality(t *testing.T) {
 		t.Parallel()
 
 		tracer := TestingTracer(t, WithSampleRate(0.0))
-		middleware := Middleware(tracer)
+		middleware := MustMiddleware(tracer)
 
 		handlerCalled := false
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -531,7 +575,7 @@ func TestMiddleware_BasicFunctionality(t *testing.T) {
 		// Tracer is enabled (default) but samples 0% of requests; startMiddlewareSpan
 		// is still called and returns early without creating a span.
 		tracer := TestingTracer(t, WithSampleRate(0))
-		middleware := Middleware(tracer)
+		middleware := MustMiddleware(tracer)
 
 		handlerCalled := false
 		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -568,7 +612,7 @@ func TestMiddleware_StatusCodes(t *testing.T) {
 			t.Parallel()
 
 			tracer := TestingTracer(t)
-			middleware := Middleware(tracer)
+			middleware := MustMiddleware(tracer)
 
 			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(code)
@@ -602,7 +646,7 @@ func TestMiddleware_HTTPMethods(t *testing.T) {
 			t.Parallel()
 
 			tracer := TestingTracer(t)
-			middleware := Middleware(tracer)
+			middleware := MustMiddleware(tracer)
 
 			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, method, r.Method)
@@ -880,7 +924,7 @@ func TestMiddlewareConfig_Validation(t *testing.T) {
 
 		tracer := TestingTracer(t)
 		assert.Panics(t, func() {
-			Middleware(tracer, WithExcludePatterns("[invalid", "(unclosed"))
+			MustMiddleware(tracer, WithExcludePatterns("[invalid", "(unclosed"))
 		})
 	})
 
@@ -974,7 +1018,7 @@ func TestTracingMiddlewareDoubleWrappingPrevention(t *testing.T) {
 	t.Parallel()
 
 	tracer := TestingTracer(t)
-	middleware := Middleware(tracer)
+	middleware := MustMiddleware(tracer)
 
 	// Create a pre-wrapped writer
 	preWrappedWriter := httptest.NewRecorder()
@@ -1000,7 +1044,7 @@ func TestTracingMiddlewareWithExcludedPathsNoWrapping(t *testing.T) {
 	t.Parallel()
 
 	tracer := TestingTracer(t)
-	middleware := Middleware(tracer, WithExcludePaths("/health"))
+	middleware := MustMiddleware(tracer, WithExcludePaths("/health"))
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if writer is wrapped

@@ -122,7 +122,7 @@ func WithServiceVersion(version string) Option {
 }
 
 // WithSampleRate sets the sampling rate (0.0 to 1.0).
-// Values outside this range will be clamped to valid bounds.
+// Values outside this range cause a validation error at tracer creation.
 //
 // A rate of 1.0 samples all requests, 0.5 samples 50%, and 0.0 samples none.
 // Sampling decisions are made per-request based on the configured rate.
@@ -132,12 +132,6 @@ func WithServiceVersion(version string) Option {
 //	tracer := tracing.New(tracing.WithSampleRate(0.1)) // Sample 10% of requests
 func WithSampleRate(rate float64) Option {
 	return func(c *config) {
-		if rate < 0.0 {
-			rate = 0.0
-		}
-		if rate > 1.0 {
-			rate = 1.0
-		}
 		c.sampleRate = rate
 	}
 }

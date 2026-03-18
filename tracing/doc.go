@@ -53,13 +53,15 @@
 //	)
 //	defer tracer.Shutdown(context.Background())
 //
-//	// Use Middleware for HTTP handlers (panics on invalid options like bad regex)
-//	handler := tracing.Middleware(tracer,
+//	// Use Middleware for HTTP handlers (returns error; use MustMiddleware to panic)
+//	handler, err := tracing.Middleware(tracer,
 //	    tracing.WithExcludePaths("/health", "/metrics"),
 //	    tracing.WithHeaders("X-Request-ID"),
-//	)(mux)
-//
-//	http.ListenAndServe(":8080", handler)
+//	)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	http.ListenAndServe(":8080", handler(mux))
 //
 // # Custom Spans
 //
@@ -118,11 +120,15 @@
 //
 // Exclude specific paths from tracing via middleware options:
 //
-//	handler := tracing.Middleware(tracer,
+//	handler, err := tracing.Middleware(tracer,
 //	    tracing.WithExcludePaths("/health", "/metrics", "/ready"),
 //	    tracing.WithExcludePrefixes("/debug/"),
 //	    tracing.WithExcludePatterns("^/internal/.*"),
-//	)(mux)
+//	)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	// ... use handler(mux)
 //
 // # Custom Tracer Provider
 //
