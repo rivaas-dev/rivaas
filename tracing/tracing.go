@@ -665,8 +665,3 @@ func AddSpanEventFromContext(ctx context.Context, name string, attrs ...attribut
 		span.AddEvent(name, trace.WithAttributes(attrs...))
 	}
 }
-
-// TraceContext returns the context as-is (it should already contain trace information).
-func TraceContext(ctx context.Context) context.Context {
-	return ctx
-}

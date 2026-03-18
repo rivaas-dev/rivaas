@@ -1789,12 +1789,3 @@ func TestEventEmitters(t *testing.T) {
 	require.NoError(t, tp.Shutdown(t.Context()))
 	assert.NotEmpty(t, debugBuf.String())
 }
-
-// TestTraceContext_ReturnsContext covers TraceContext.
-func TestTraceContext_ReturnsContext(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	out := TraceContext(ctx)
-	assert.Equal(t, ctx, out)
-}
