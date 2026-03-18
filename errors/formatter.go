@@ -157,7 +157,10 @@ type ErrorCode interface {
 //	}
 func New(opts ...Option) (Formatter, error) {
 	cfg := defaultConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("errors: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 	if err := cfg.validate(); err != nil {
