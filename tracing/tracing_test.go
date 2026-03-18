@@ -1514,6 +1514,51 @@ func TestMustNew_WithTracerProviderNilPanics(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot be nil")
 }
 
+// TestWithTracerProvider_WithProviderOptionReturnsError verifies that combining WithTracerProvider with a provider option returns a validation error.
+func TestWithTracerProvider_WithProviderOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	res := resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName("test"))
+	tp := sdktrace.NewTracerProvider(sdktrace.WithResource(res))
+	t.Cleanup(func() { tp.Shutdown(context.Background()) }) //nolint:errcheck // Test cleanup
+
+	t.Run("WithOTLP", func(t *testing.T) {
+		tracer, err := New(WithTracerProvider(tp), WithServiceName("test"), WithOTLP("localhost:4317"))
+		require.Error(t, err)
+		assert.Nil(t, tracer)
+		assert.Contains(t, err.Error(), "invalid configuration")
+		assert.Contains(t, err.Error(), "cannot combine WithTracerProvider with provider options")
+	})
+
+	t.Run("WithStdout", func(t *testing.T) {
+		tracer, err := New(WithTracerProvider(tp), WithServiceName("test"), WithStdout())
+		require.Error(t, err)
+		assert.Nil(t, tracer)
+		assert.Contains(t, err.Error(), "cannot combine WithTracerProvider with provider options")
+	})
+
+	t.Run("WithNoop", func(t *testing.T) {
+		tracer, err := New(WithTracerProvider(tp), WithServiceName("test"), WithNoop())
+		require.Error(t, err)
+		assert.Nil(t, tracer)
+		assert.Contains(t, err.Error(), "cannot combine WithTracerProvider with provider options")
+	})
+
+	t.Run("WithOTLPHTTP", func(t *testing.T) {
+		tracer, err := New(WithTracerProvider(tp), WithServiceName("test"), WithOTLPHTTP("http://localhost:4318"))
+		require.Error(t, err)
+		assert.Nil(t, tracer)
+		assert.Contains(t, err.Error(), "cannot combine WithTracerProvider with provider options")
+	})
+
+	t.Run("WithTracerProvider_and_WithServiceName_only_succeeds", func(t *testing.T) {
+		tracer, err := New(WithTracerProvider(tp), WithServiceName("test"))
+		require.NoError(t, err)
+		require.NotNil(t, tracer)
+		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+	})
+}
+
 // TestMultipleProvidersValidation tests that configuring multiple providers returns an error
 func TestMultipleProvidersValidation(t *testing.T) {
 	t.Parallel()
@@ -1675,6 +1720,49 @@ func TestTracer_Start_Idempotent(t *testing.T) {
 	err2 := tracer.Start(ctx)
 	require.NoError(t, err2)
 	assert.Nil(t, err2)
+}
+
+// TestTracer_RequiresStart_and_IsStarted cover RequiresStart() and IsStarted() for different providers.
+func TestTracer_RequiresStart_and_IsStarted(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Noop", func(t *testing.T) {
+		tracer := MustNew(WithServiceName("test"), WithNoop())
+		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+		require.False(t, tracer.RequiresStart())
+		require.False(t, tracer.IsStarted())
+		require.NoError(t, tracer.Start(t.Context()))
+		require.True(t, tracer.IsStarted())
+	})
+
+	t.Run("Stdout", func(t *testing.T) {
+		tracer := MustNew(WithServiceName("test"), WithStdout())
+		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+		require.False(t, tracer.RequiresStart())
+		require.False(t, tracer.IsStarted())
+		require.NoError(t, tracer.Start(t.Context()))
+		require.True(t, tracer.IsStarted())
+	})
+
+	t.Run("OTLP_before_Start", func(t *testing.T) {
+		tracer, err := New(WithServiceName("test"), WithOTLP("localhost:4317", OTLPInsecure()))
+		require.NoError(t, err)
+		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+		require.True(t, tracer.RequiresStart())
+		require.False(t, tracer.IsStarted())
+	})
+
+	t.Run("OTLP_after_Start", func(t *testing.T) {
+		tracer, err := New(WithServiceName("test"), WithOTLP("localhost:4317", OTLPInsecure()))
+		require.NoError(t, err)
+		t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+		require.True(t, tracer.RequiresStart())
+		require.False(t, tracer.IsStarted())
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancel()
+		require.NoError(t, tracer.Start(ctx))
+		require.True(t, tracer.IsStarted())
+	})
 }
 
 // TestTracer_Start_OTLPInitError covers Start with OTLP; init may fail on invalid endpoint or timeout.

@@ -50,7 +50,6 @@ func TestInitNoopProvider_WithCustomProviderAndGlobalRegistration(t *testing.T) 
 	tracer, err := New(
 		WithTracerProvider(customTP),
 		WithGlobalTracerProvider(),
-		WithNoop(),
 		WithServiceName("test"),
 	)
 	require.NoError(t, err)
@@ -80,7 +79,6 @@ func TestInitStdoutProvider_WithCustomProvider(t *testing.T) {
 
 	tracer, err := New(
 		WithTracerProvider(customTP),
-		WithStdout(),
 		WithServiceName("test"),
 	)
 	require.NoError(t, err)
@@ -130,17 +128,11 @@ func TestInitOTLPProvider_WithCustomProvider(t *testing.T) {
 
 	tracer, err := New(
 		WithTracerProvider(customTP),
-		WithOTLP("localhost:4317", OTLPInsecure()),
 		WithServiceName("test"),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, tracer)
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
-
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	err = tracer.Start(ctx)
-	require.NoError(t, err)
 
 	assert.True(t, tracer.customTracerProvider)
 	_, span := tracer.StartSpan(t.Context(), "test")
@@ -165,17 +157,11 @@ func TestInitOTLPHTTPProvider_WithCustomProvider(t *testing.T) {
 
 	tracer, err := New(
 		WithTracerProvider(customTP),
-		WithOTLPHTTP("http://localhost:4318"),
 		WithServiceName("test"),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, tracer)
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
-
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	err = tracer.Start(ctx)
-	require.NoError(t, err)
 
 	assert.True(t, tracer.customTracerProvider)
 	_, span := tracer.StartSpan(t.Context(), "test")

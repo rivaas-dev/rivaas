@@ -45,9 +45,11 @@
 //
 // # OTLP and Start
 //
-// With OTLP providers, the tracer is not fully operational until Start(ctx) is called.
-// You must call Start(ctx) before exporting traces; otherwise no traces will be sent
-// and no error is returned at New.
+// With OTLP providers, you must call Start(ctx) before exporting traces. If you forget,
+// New() does not return an error and no traces are exported; a one-time log warning
+// is emitted when the first span is created. Use RequiresStart() to detect when a tracer
+// requires Start (true for OTLP), and IsStarted() to assert that Start(ctx) has been
+// called (e.g. in tests or wiring code).
 //
 // # HTTP Middleware
 //

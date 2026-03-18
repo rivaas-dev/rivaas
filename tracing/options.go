@@ -71,8 +71,9 @@ type config struct {
 //	}
 //	defer tp.Shutdown(context.Background())
 //
-// Note: When using WithTracerProvider, provider options (WithOTLP, WithStdout, etc.)
-// are ignored since you're managing the provider yourself.
+// Combining WithTracerProvider with any provider option (WithOTLP, WithStdout, WithNoop,
+// WithOTLPHTTP) is invalid and results in a validation error from New().
+// Use only one: either WithTracerProvider or a single provider option.
 func WithTracerProvider(provider trace.TracerProvider) Option {
 	return func(c *config) {
 		c.tracerProvider = provider

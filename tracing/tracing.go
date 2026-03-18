@@ -137,8 +137,8 @@ type Tracer struct {
 // For a version that panics on error, use MustNew.
 //
 // When using OTLP options (WithOTLP, WithOTLPHTTP), callers must call Start(ctx)
-// before any traces are exported. Forgetting to call Start will result in no traces
-// and no error from New.
+// before any traces are exported. Forgetting to call Start results in no traces and
+// no error from New(); only a one-time log warning is emitted when the first span is created.
 //
 // By default, this function does NOT set the global OpenTelemetry tracer provider.
 // Use WithGlobalTracerProvider() if you want to register the tracer provider as the global default.
@@ -205,6 +205,9 @@ func (c *config) validate() error {
 	}
 	if c.customTracerProvider && c.tracerProvider == nil {
 		return errors.New("tracerProvider: cannot be nil when using WithTracerProvider")
+	}
+	if c.customTracerProvider && c.providerSet {
+		return errors.New("cannot combine WithTracerProvider with provider options (WithOTLP, WithStdout, WithNoop, WithOTLPHTTP): provider options are ignored when using WithTracerProvider; use only one")
 	}
 	if c.serviceName == "" {
 		return errors.New("serviceName: cannot be empty")
@@ -325,6 +328,19 @@ func (t *Tracer) GetProvider() Provider {
 	}
 
 	return t.provider
+}
+
+// RequiresStart returns true if the tracer uses an OTLP provider and therefore
+// requires Start(ctx) to be called before traces are exported. Use in tests or
+// wiring code to assert that Start must be called.
+func (t *Tracer) RequiresStart() bool {
+	return t.requiresNetworkInit()
+}
+
+// IsStarted returns true after Start() has been called. Use in tests or wiring code
+// to assert that the tracer was started when required (e.g. when RequiresStart() is true).
+func (t *Tracer) IsStarted() bool {
+	return t.isStarted.Load()
 }
 
 // requiresNetworkInit returns true if the provider requires network initialization.
