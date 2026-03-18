@@ -43,7 +43,7 @@ func TestConfig_Validation(t *testing.T) {
 			name: "with all options",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithInfoDescription("Test description"),
+				WithDescription("Test description"),
 				WithContact("Support", "https://example.com", "support@example.com"),
 				WithLicense("MIT", "https://opensource.org/licenses/MIT"),
 				WithServer("https://api.example.com", "Production"),
@@ -95,7 +95,7 @@ func TestConfig_Validation(t *testing.T) {
 			name: "with default security",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithDefaultSecurity("bearerAuth"),
+				WithDefaultSecurity(SecurityRequirement("bearerAuth")),
 			},
 			wantError: "",
 		},
@@ -276,8 +276,8 @@ func TestConfig_WithDefaultSecurity(t *testing.T) {
 
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
-		WithDefaultSecurity("bearerAuth"),
-		WithDefaultSecurity("oauth2", "read", "write"),
+		WithDefaultSecurity(SecurityRequirement("bearerAuth")),
+		WithDefaultSecurity(SecurityRequirement("oauth2", "read", "write")),
 	)
 
 	assert.Len(t, cfg.DefaultSecurity(), 2)
@@ -329,7 +329,7 @@ func TestConfig_EmptyVersion(t *testing.T) {
 	assert.Contains(t, err.Error(), "version is required")
 }
 
-func TestConfig_WithValidation(t *testing.T) {
+func TestConfig_WithValidateSpec(t *testing.T) {
 	t.Parallel()
 
 	// Default should have validation disabled for backward compatibility
@@ -341,14 +341,14 @@ func TestConfig_WithValidation(t *testing.T) {
 	// Enable validation
 	cfg2 := MustNew(
 		WithTitle("Test API", "1.0.0"),
-		WithValidation(true),
+		WithValidateSpec(true),
 	)
 	assert.True(t, cfg2.ValidateSpec())
 
 	// Explicitly disable validation
 	cfg3 := MustNew(
 		WithTitle("Test API", "1.0.0"),
-		WithValidation(false),
+		WithValidateSpec(false),
 	)
 	assert.False(t, cfg3.ValidateSpec())
 }
@@ -446,14 +446,14 @@ func TestConfig_AllOptions(t *testing.T) {
 
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
-		WithInfoDescription("A comprehensive test"),
+		WithDescription("A comprehensive test"),
 		WithContact("Support", "https://example.com", "support@example.com"),
 		WithLicense("MIT", "https://opensource.org/licenses/MIT"),
 		WithServer("https://api.example.com", "Production"),
 		WithTag("users", "User operations"),
 		WithBearerAuth("bearer", "JWT auth"),
 		WithAPIKey("apiKey", "X-API-Key", InHeader, "API key"),
-		WithDefaultSecurity("bearer"),
+		WithDefaultSecurity(SecurityRequirement("bearer")),
 		WithVersion(V31x),
 		WithStrictDownlevel(true),
 		WithSpecPath("/api/openapi.json"),

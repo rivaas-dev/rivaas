@@ -26,7 +26,7 @@ import (
 func TestGET_nilOptionReturnsError(t *testing.T) {
 	t.Parallel()
 
-	op, err := GET("/health", WithSummary("ok"), nil)
+	op, err := WithGET("/health", WithSummary("ok"), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "option at index 1 cannot be nil")
 	assert.Equal(t, Operation{}, op)
@@ -35,7 +35,7 @@ func TestGET_nilOptionReturnsError(t *testing.T) {
 func TestGET_nilOptionAtIndexZeroReturnsError(t *testing.T) {
 	t.Parallel()
 
-	op, err := GET("/health", nil)
+	op, err := WithGET("/health", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
 	assert.Equal(t, Operation{}, op)
@@ -44,7 +44,7 @@ func TestGET_nilOptionAtIndexZeroReturnsError(t *testing.T) {
 func TestGET_validOptionsSucceeds(t *testing.T) {
 	t.Parallel()
 
-	op, err := GET("/health", WithSummary("Health check"))
+	op, err := WithGET("/health", WithSummary("Health check"))
 	require.NoError(t, err)
 	assert.Equal(t, "GET", op.Method)
 	assert.Equal(t, "/health", op.Path)

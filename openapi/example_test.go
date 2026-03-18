@@ -28,7 +28,7 @@ import (
 func ExampleNew() {
 	api, err := openapi.New(
 		openapi.WithTitle("My API", "1.0.0"),
-		openapi.WithInfoDescription("API for managing users"),
+		openapi.WithDescription("API for managing users"),
 		openapi.WithServer("http://localhost:8080", "Local development"),
 	)
 	if err != nil {
@@ -52,14 +52,14 @@ func ExampleMustNew() {
 }
 
 // ExampleAPI_Generate demonstrates generating an OpenAPI specification.
-func ExampleAPI_Generate() {
+func ExampleAPI_Spec() {
 	api := openapi.MustNew(
 		openapi.WithTitle("User API", "1.0.0"),
 	)
 
-	op, err := openapi.GET("/users/:id",
+	op, err := openapi.WithGET("/users/:id",
 		openapi.WithSummary("Get user"),
-		openapi.WithDescription("Retrieves a user by ID"),
+		openapi.WithOperationDescription("Retrieves a user by ID"),
 		openapi.WithTags("users"),
 	)
 	if err != nil {
@@ -67,7 +67,8 @@ func ExampleAPI_Generate() {
 		return
 	}
 
-	result, err := api.Generate(context.Background(), op)
+	api.AddOperation(op)
+	result, err := api.Spec(context.Background())
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -77,11 +78,11 @@ func ExampleAPI_Generate() {
 	// Output: Generated spec: true
 }
 
-// ExampleGET demonstrates creating a GET operation.
-func ExampleGET() {
-	op, err := openapi.GET("/users/:id",
+// ExampleWithGET demonstrates creating a GET operation.
+func ExampleWithGET() {
+	op, err := openapi.WithGET("/users/:id",
 		openapi.WithSummary("Get user"),
-		openapi.WithDescription("Retrieves a user by ID"),
+		openapi.WithOperationDescription("Retrieves a user by ID"),
 		openapi.WithResponse(http.StatusOK, User{}),
 	)
 	if err != nil {
@@ -93,9 +94,9 @@ func ExampleGET() {
 	// Output: Method: GET, Path: /users/:id
 }
 
-// ExamplePOST demonstrates creating a POST operation.
-func ExamplePOST() {
-	op, err := openapi.POST("/users",
+// ExampleWithPOST demonstrates creating a POST operation.
+func ExampleWithPOST() {
+	op, err := openapi.WithPOST("/users",
 		openapi.WithSummary("Create user"),
 		openapi.WithRequest(CreateUserRequest{}),
 		openapi.WithResponse(http.StatusCreated, User{}),
@@ -109,9 +110,9 @@ func ExamplePOST() {
 	// Output: Method: POST, Path: /users
 }
 
-// ExampleDELETE demonstrates creating a DELETE operation.
-func ExampleDELETE() {
-	op, err := openapi.DELETE("/users/:id",
+// ExampleWithDELETE demonstrates creating a DELETE operation.
+func ExampleWithDELETE() {
+	op, err := openapi.WithDELETE("/users/:id",
 		openapi.WithSummary("Delete user"),
 		openapi.WithResponse(http.StatusNoContent, nil),
 	)
@@ -126,7 +127,7 @@ func ExampleDELETE() {
 
 // ExampleWithSummary demonstrates setting an operation summary.
 func ExampleWithSummary() {
-	op, err := openapi.GET("/users", openapi.WithSummary("List all users"))
+	op, err := openapi.WithGET("/users", openapi.WithSummary("List all users"))
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -138,7 +139,7 @@ func ExampleWithSummary() {
 
 // ExampleWithTags demonstrates adding tags to an operation.
 func ExampleWithTags() {
-	op, err := openapi.GET("/users/:id", openapi.WithTags("users", "admin"))
+	op, err := openapi.WithGET("/users/:id", openapi.WithTags("users", "admin"))
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -150,7 +151,7 @@ func ExampleWithTags() {
 
 // ExampleWithSecurity demonstrates adding security requirements.
 func ExampleWithSecurity() {
-	op, err := openapi.GET("/users/:id",
+	op, err := openapi.WithGET("/users/:id",
 		openapi.WithSecurity("bearerAuth"),
 		openapi.WithSecurity("oauth2", "read:users", "write:users"),
 	)
@@ -165,7 +166,7 @@ func ExampleWithSecurity() {
 
 // ExampleWithDeprecated demonstrates marking an operation as deprecated.
 func ExampleWithDeprecated() {
-	op, err := openapi.GET("/old-endpoint",
+	op, err := openapi.WithGET("/old-endpoint",
 		openapi.WithSummary("Old endpoint"),
 		openapi.WithDeprecated(),
 	)
@@ -186,7 +187,7 @@ type User struct {
 
 // ExampleWithResponse demonstrates setting response schemas.
 func ExampleWithResponse() {
-	op, err := openapi.GET("/users/:id",
+	op, err := openapi.WithGET("/users/:id",
 		openapi.WithSummary("Get user"),
 		openapi.WithResponse(200, User{}),
 	)
@@ -207,7 +208,7 @@ type CreateUserRequest struct {
 
 // ExampleWithRequest demonstrates setting request schemas.
 func ExampleWithRequest() {
-	op, err := openapi.POST("/users",
+	op, err := openapi.WithPOST("/users",
 		openapi.WithSummary("Create user"),
 		openapi.WithRequest(CreateUserRequest{}),
 	)

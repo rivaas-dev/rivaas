@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAPI_Generate(t *testing.T) {
+func TestAPI_Spec(t *testing.T) {
 	t.Parallel()
 
 	type testCase struct {
@@ -41,7 +41,7 @@ func TestAPI_Generate(t *testing.T) {
 			name: "minimal API produces valid spec",
 			api:  MustNew(WithTitle("Minimal API", "1.0.0")),
 			buildOps: func(t *testing.T) []Operation {
-				op, err := GET("/health", WithSummary("Health check"))
+				op, err := WithGET("/health", WithSummary("Health check"))
 				require.NoError(t, err)
 				return []Operation{op}
 			},
@@ -66,7 +66,7 @@ func TestAPI_Generate(t *testing.T) {
 				WithTag("users", "User operations"),
 			),
 			buildOps: func(t *testing.T) []Operation {
-				op, err := GET("/users", WithSummary("List users"), WithTags("users"))
+				op, err := WithGET("/users", WithSummary("List users"), WithTags("users"))
 				require.NoError(t, err)
 				return []Operation{op}
 			},
@@ -91,10 +91,10 @@ func TestAPI_Generate(t *testing.T) {
 			api: MustNew(
 				WithTitle("API", "1.0.0"),
 				WithBearerAuth("bearerAuth", "JWT"),
-				WithDefaultSecurity("bearerAuth"),
+				WithDefaultSecurity(SecurityRequirement("bearerAuth")),
 			),
 			buildOps: func(t *testing.T) []Operation {
-				op, err := GET("/protected", WithSummary("Protected"), WithSecurity("bearerAuth"))
+				op, err := WithGET("/protected", WithSummary("Protected"), WithSecurity("bearerAuth"))
 				require.NoError(t, err)
 				return []Operation{op}
 			},
@@ -118,7 +118,7 @@ func TestAPI_Generate(t *testing.T) {
 				WithExternalDocs("https://example.com/docs", "API documentation"),
 			),
 			buildOps: func(t *testing.T) []Operation {
-				op, err := GET("/", WithSummary("Root"))
+				op, err := WithGET("/", WithSummary("Root"))
 				require.NoError(t, err)
 				return []Operation{op}
 			},
@@ -134,7 +134,7 @@ func TestAPI_Generate(t *testing.T) {
 			name: "operation with request and response types",
 			api:  MustNew(WithTitle("API", "1.0.0")),
 			buildOps: func(t *testing.T) []Operation {
-				op, err := POST("/users",
+				op, err := WithPOST("/users",
 					WithSummary("Create user"),
 					WithRequest(struct {
 						Name string `json:"name"`
@@ -168,7 +168,7 @@ func TestAPI_Generate(t *testing.T) {
 			name: "version 3.1 produces 3.1.2 spec",
 			api:  MustNew(WithTitle("API", "1.0.0"), WithVersion(V31x)),
 			buildOps: func(t *testing.T) []Operation {
-				op, err := GET("/health", WithSummary("Health"))
+				op, err := WithGET("/health", WithSummary("Health"))
 				require.NoError(t, err)
 				return []Operation{op}
 			},
@@ -184,8 +184,9 @@ func TestAPI_Generate(t *testing.T) {
 			t.Parallel()
 
 			ops := tt.buildOps(t)
+			tt.api.AddOperation(ops...)
 			ctx := context.Background()
-			result, err := tt.api.Generate(ctx, ops...)
+			result, err := tt.api.Spec(ctx)
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -200,19 +201,39 @@ func TestAPI_Generate(t *testing.T) {
 	}
 }
 
-func TestAPI_Generate_ErrorCase(t *testing.T) {
+func TestAPI_Spec_EmptyOperations(t *testing.T) {
 	t.Parallel()
 
-	t.Run("empty operations with default version returns error", func(t *testing.T) {
+	t.Run("empty operations with OpenAPI 3.1 produces valid spec with no paths", func(t *testing.T) {
+		t.Parallel()
+
+		api := MustNew(WithTitle("API", "1.0.0"), WithVersion(V31x))
+		ctx := context.Background()
+
+		result, err := api.Spec(ctx)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotEmpty(t, result.JSON)
+		var spec map[string]any
+		err = json.Unmarshal(result.JSON, &spec)
+		require.NoError(t, err)
+		// OpenAPI 3.1 with no operations may omit "paths" or have "paths": {} or null
+		paths, ok := spec["paths"].(map[string]any)
+		if ok {
+			assert.Empty(t, paths)
+		}
+	})
+
+	t.Run("empty operations with OpenAPI 3.0 returns error", func(t *testing.T) {
 		t.Parallel()
 
 		api := MustNew(WithTitle("API", "1.0.0"))
 		ctx := context.Background()
 
-		result, err := api.Generate(ctx)
+		_, err := api.Spec(ctx)
 
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.ErrorContains(t, err, "paths")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "paths")
 	})
 }

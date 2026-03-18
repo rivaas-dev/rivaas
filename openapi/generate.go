@@ -28,39 +28,28 @@ import (
 // Shared validator instance for all generation (compiled once, reused)
 var sharedValidator = validate.MustNew()
 
-// Generate produces an OpenAPI specification from operations.
-//
-// This is a pure function with no side effects. It takes configuration and operations
-// as input and produces JSON/YAML bytes as output. Caching and state management are
-// the caller's responsibility.
+// Spec produces an OpenAPI specification from the API's current configuration and
+// operations (from [WithOperations] and/or [API.AddOperation]). Pure function of
+// current API state; no side effects. Caching is the caller's responsibility.
 //
 // Example:
 //
 //	api := openapi.MustNew(
 //	    openapi.WithTitle("My API", "1.0.0"),
-//	    openapi.WithBearerAuth("bearerAuth", "JWT"),
-//	)
-//
-//	result, err := api.Generate(ctx,
-//	    openapi.GET("/users/:id",
-//	        openapi.Summary("Get user"),
-//	        openapi.Response(200, UserResponse{}),
-//	    ),
-//	    openapi.POST("/users",
-//	        openapi.Summary("Create user"),
-//	        openapi.Request(CreateUserRequest{}),
-//	        openapi.Response(201, UserResponse{}),
+//	    openapi.WithOperations(
+//	        openapi.WithGET("/users/:id", openapi.WithSummary("Get user"), openapi.WithResponse(200, User{})),
+//	        openapi.WithPOST("/users", openapi.WithSummary("Create user"), openapi.WithRequest(CreateUserRequest{}), openapi.WithResponse(201, User{})),
 //	    ),
 //	)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	fmt.Println(string(result.JSON))
-func (a *API) Generate(ctx context.Context, ops ...Operation) (*Result, error) {
-	// Create builder from config
-	builder := createBuilder(a)
+//	spec, err := api.Spec(ctx)
+//	// or: api.AddOperation(openapi.WithGET(...)); spec, err := api.Spec(ctx)
+func (a *API) Spec(ctx context.Context) (*Result, error) {
+	a.operationsMu.RLock()
+	ops := make([]Operation, 0, len(a.operations))
+	ops = append(ops, a.operations...)
+	a.operationsMu.RUnlock()
 
-	// Convert operations to enriched routes
+	builder := createBuilder(a)
 	enriched := make([]build.EnrichedRoute, 0, len(ops))
 	for _, op := range ops {
 		enriched = append(enriched, convertOperation(op))
@@ -108,6 +97,17 @@ func (a *API) Generate(ctx context.Context, ops ...Operation) (*Result, error) {
 		YAML:     result.YAML,
 		Warnings: result.Warnings,
 	}, nil
+}
+
+// AddOperation adds one or more operations to the API. Safe for concurrent use.
+// Call [Spec] to generate the spec including these operations.
+func (a *API) AddOperation(ops ...Operation) {
+	if len(ops) == 0 {
+		return
+	}
+	a.operationsMu.Lock()
+	defer a.operationsMu.Unlock()
+	a.operations = append(a.operations, ops...)
 }
 
 // createBuilder creates a Builder from API.

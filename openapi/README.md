@@ -22,9 +22,9 @@ This README provides a quick overview. For comprehensive guides, tutorials, and 
 
 ## Features
 
-- **Clean API** - Builder-style `API.Generate()` method
+- **Clean API** - `API.Spec(ctx)` and `API.AddOperation()`; operations from `WithOperations` or added incrementally
 - **Type-Safe Version Selection** - `V30x` and `V31x` constants
-- **Fluent HTTP Method Constructors** - `GET()`, `POST()`, `PUT()`, etc.
+- **Operation Builders** - `WithGET()`, `WithPOST()`, `WithPUT()`, etc.
 - **Automatic Parameter Discovery** - Extracts parameters from struct tags
 - **Schema Generation** - Converts Go types to OpenAPI schemas
 - **Swagger UI Configuration** - Built-in, customizable UI
@@ -66,28 +66,16 @@ type CreateUserRequest struct {
 func main() {
     api := openapi.MustNew(
         openapi.WithTitle("My API", "1.0.0"),
-        openapi.WithInfoDescription("API for managing users"),
+        openapi.WithDescription("API for managing users"),
         openapi.WithServer("http://localhost:8080", "Local development"),
         openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
     )
+    getOp, _ := openapi.WithGET("/users/:id", openapi.WithSummary("Get user"), openapi.WithResponse(200, User{}), openapi.WithSecurity("bearerAuth"))
+    postOp, _ := openapi.WithPOST("/users", openapi.WithSummary("Create user"), openapi.WithRequest(CreateUserRequest{}), openapi.WithResponse(201, User{}))
+    delOp, _ := openapi.WithDELETE("/users/:id", openapi.WithSummary("Delete user"), openapi.WithResponse(204, nil), openapi.WithSecurity("bearerAuth"))
+    api.AddOperation(getOp, postOp, delOp)
 
-    result, err := api.Generate(context.Background(),
-        openapi.GET("/users/:id",
-            openapi.WithSummary("Get user"),
-            openapi.WithResponse(200, User{}),
-            openapi.WithSecurity("bearerAuth"),
-        ),
-        openapi.POST("/users",
-            openapi.WithSummary("Create user"),
-            openapi.WithRequest(CreateUserRequest{}),
-            openapi.WithResponse(201, User{}),
-        ),
-        openapi.DELETE("/users/:id",
-            openapi.WithSummary("Delete user"),
-            openapi.WithResponse(204, nil),
-            openapi.WithSecurity("bearerAuth"),
-        ),
-    )
+    result, err := api.Spec(context.Background())
     if err != nil {
         log.Fatal(err)
     }

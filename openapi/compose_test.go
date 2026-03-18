@@ -37,7 +37,7 @@ func TestWithOptions(t *testing.T) {
 		{
 			name: "single option applies correctly",
 			buildOp: func(t *testing.T) Operation {
-				op, err := GET("/health", WithOptions(WithSummary("Health check")))
+				op, err := WithGET("/health", WithOptions(WithSummary("Health check")))
 				require.NoError(t, err)
 				return op
 			},
@@ -55,7 +55,7 @@ func TestWithOptions(t *testing.T) {
 		{
 			name: "multiple options apply in order",
 			buildOp: func(t *testing.T) Operation {
-				op, err := GET("/users", WithOptions(
+				op, err := WithGET("/users", WithOptions(
 					WithSummary("List users"),
 					WithTags("users"),
 					WithResponse(http.StatusOK, []struct{}{}),
@@ -85,7 +85,7 @@ func TestWithOptions(t *testing.T) {
 		{
 			name: "later option overrides earlier",
 			buildOp: func(t *testing.T) Operation {
-				op, err := GET("/item", WithOptions(
+				op, err := WithGET("/item", WithOptions(
 					WithSummary("First summary"),
 					WithSummary("Final summary"),
 				))
@@ -106,7 +106,7 @@ func TestWithOptions(t *testing.T) {
 		{
 			name: "empty options is valid",
 			buildOp: func(t *testing.T) Operation {
-				op, err := GET("/root", WithOptions())
+				op, err := WithGET("/root", WithOptions())
 				require.NoError(t, err)
 				return op
 			},
@@ -130,7 +130,8 @@ func TestWithOptions(t *testing.T) {
 			ctx := context.Background()
 			op := tt.buildOp(t)
 
-			result, err := api.Generate(ctx, op)
+			api.AddOperation(op)
+			result, err := api.Spec(ctx)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.NotEmpty(t, result.JSON)

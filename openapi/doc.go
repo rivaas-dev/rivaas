@@ -19,7 +19,7 @@
 //
 // # Features
 //
-//   - HTTP method constructors (GET, POST, PUT, etc.) for clean operation definitions
+//   - Operation builders (WithGET, WithPOST, WithPUT, etc.) for clean operation definitions
 //   - Automatic parameter discovery from struct tags (query, path, header, cookie)
 //   - Request/response body schema generation from Go types
 //   - Swagger UI integration with customizable appearance
@@ -31,44 +31,26 @@
 //
 // # Quick Start
 //
-//	import (
-//	    "context"
-//	    "net/http"
-//	    "rivaas.dev/openapi"
-//	)
+// Declarative: pass operations at construction.
 //
-//	// Create OpenAPI configuration
-//	cfg := openapi.MustNew(
+//	api := openapi.MustNew(
 //	    openapi.WithTitle("My API", "1.0.0"),
-//	    openapi.WithInfoDescription("API description"),
-//	    openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
+//	    openapi.WithDescription("API description"),
+//	    openapi.WithBearerAuth("bearerAuth", "JWT"),
 //	    openapi.WithServer("http://localhost:8080", "Local development"),
+//	    openapi.WithOperations(
+//	        openapi.WithGET("/users/:id", openapi.WithSummary("Get user"), openapi.WithResponse(200, UserResponse{}), openapi.WithTags("users"), openapi.WithSecurity("bearerAuth")),
+//	        openapi.WithPOST("/users", openapi.WithSummary("Create user"), openapi.WithRequest(CreateUserRequest{}), openapi.WithResponse(201, UserResponse{}), openapi.WithTags("users")),
+//	    ),
 //	)
+//	result, err := api.Spec(context.Background())
 //
-//	// Define operations
-//	ops := []openapi.Operation{
-//	    openapi.GET("/users/:id",
-//	        openapi.WithSummary("Get user"),
-//	        openapi.WithDescription("Retrieves a user by ID"),
-//	        openapi.WithResponse(http.StatusOK, UserResponse{}),
-//	        openapi.WithTags("users"),
-//	        openapi.WithSecurity("bearerAuth"),
-//	    ),
-//	    openapi.POST("/users",
-//	        openapi.WithSummary("Create user"),
-//	        openapi.WithRequest(CreateUserRequest{}),
-//	        openapi.WithResponse(http.StatusCreated, UserResponse{}),
-//	        openapi.WithTags("users"),
-//	    ),
-//	}
+// Incremental: add operations after construction.
 //
-//	// Generate OpenAPI specification
-//	result, err := cfg.Generate(context.Background(), ops...)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//
-//	// Use result.JSON for the OpenAPI specification
+//	api := openapi.MustNew(openapi.WithTitle("My API", "1.0.0"))
+//	op, _ := openapi.WithGET("/users/:id", openapi.WithSummary("Get user"), openapi.WithResponse(200, UserResponse{}))
+//	api.AddOperation(op)
+//	result, err := api.Spec(context.Background())
 //
 // # Configuration vs Operations
 //
@@ -81,11 +63,11 @@
 //
 // Example:
 //
-//	cfg := openapi.MustNew(
+//	api := openapi.MustNew(
 //	    openapi.WithTitle("My API", "1.0.0"),  // API option
 //	)
 //
-//	openapi.GET("/users/:id",
+//	openapi.WithGET("/users/:id",
 //	    openapi.WithSummary("Get user"),       // Operation option
 //	    openapi.WithResponse(200, User{}),     // Operation option
 //	)
@@ -134,12 +116,12 @@
 // Generated specifications can be validated against the official OpenAPI meta-schemas.
 // Validation is opt-in to avoid performance overhead:
 //
-//	cfg := openapi.MustNew(
+//	api := openapi.MustNew(
 //	    openapi.WithTitle("My API", "1.0.0"),
-//	    openapi.WithValidation(true), // Enable validation
+//	    openapi.WithValidateSpec(true), // Enable validation
 //	)
 //
-//	result, err := cfg.Generate(context.Background(), ops...)
+//	result, err := api.Spec(context.Background())
 //	if err != nil {
 //	    log.Fatal(err) // Will fail if spec is invalid
 //	}

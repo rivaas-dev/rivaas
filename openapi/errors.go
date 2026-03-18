@@ -44,7 +44,7 @@ var (
 	ErrPathInvalidParameter = errors.New("openapi: invalid path parameter format")
 )
 
-// Validation Errors (when WithValidation enabled)
+// Validation Errors (when WithValidateSpec enabled)
 var (
 	// ErrSpecValidationFailed indicates the generated spec failed JSON Schema validation.
 	ErrSpecValidationFailed = errors.New("openapi: generated spec failed JSON Schema validation")

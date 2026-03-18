@@ -33,7 +33,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 		It("should generate complete OpenAPI specification", func() {
 			api := openapi.MustNew(
 				openapi.WithTitle("Test API", "1.0.0"),
-				openapi.WithInfoDescription("Integration test API"),
+				openapi.WithDescription("Integration test API"),
 				openapi.WithServer("http://localhost:8080", "Local development"),
 				openapi.WithTag("users", "User operations"),
 				openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
@@ -56,18 +56,18 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			}
 
 			// Generate spec using HTTP method constructors
-			getByIDOp, err := openapi.GET("/users/:id",
+			getByIDOp, err := openapi.WithGET("/users/:id",
 				openapi.WithSummary("Get user"),
-				openapi.WithDescription("Retrieves a user by ID"),
+				openapi.WithOperationDescription("Retrieves a user by ID"),
 				openapi.WithResponse(http.StatusOK, User{}),
 				openapi.WithResponse(http.StatusNotFound, ErrorResponse{}),
 				openapi.WithTags("users"),
 				openapi.WithSecurity("bearerAuth"),
 			)
 			Expect(err).NotTo(HaveOccurred())
-			postOp, err := openapi.POST("/users",
+			postOp, err := openapi.WithPOST("/users",
 				openapi.WithSummary("Create user"),
-				openapi.WithDescription("Creates a new user"),
+				openapi.WithOperationDescription("Creates a new user"),
 				openapi.WithRequest(CreateUserRequest{}),
 				openapi.WithResponse(http.StatusCreated, User{}),
 				openapi.WithResponse(http.StatusBadRequest, ErrorResponse{}),
@@ -75,16 +75,17 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				openapi.WithSecurity("bearerAuth"),
 			)
 			Expect(err).NotTo(HaveOccurred())
-			listOp, err := openapi.GET("/users",
+			listOp, err := openapi.WithGET("/users",
 				openapi.WithSummary("List users"),
-				openapi.WithDescription("Retrieves a list of users"),
+				openapi.WithOperationDescription("Retrieves a list of users"),
 				openapi.WithResponse(http.StatusOK, []User{}),
 				openapi.WithTags("users"),
 				openapi.WithSecurity("bearerAuth"),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			result, err := api.Generate(context.Background(), getByIDOp, postOp, listOp)
+			api.AddOperation(getByIDOp, postOp, listOp)
+			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred(), "should generate spec successfully")
 			Expect(result.JSON).NotTo(BeEmpty(), "spec JSON should not be empty")
 
@@ -121,9 +122,10 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				openapi.WithVersion(openapi.V31x),
 			)
 
-			healthOp, err := openapi.GET("/health", openapi.WithSummary("Health check"))
+			healthOp, err := openapi.WithGET("/health", openapi.WithSummary("Health check"))
 			Expect(err).NotTo(HaveOccurred())
-			result, err := api.Generate(context.Background(), healthOp)
+			api.AddOperation(healthOp)
+			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 
 			var spec map[string]any
@@ -138,7 +140,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				openapi.WithVersion(openapi.V31x),
 			)
 
-			result, err := api.Generate(context.Background())
+			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.JSON).NotTo(BeEmpty())
 
@@ -154,19 +156,19 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 
 	Describe("HTTP Method Constructors", func() {
 		It("should create operations with correct HTTP methods", func() {
-			getOp, err := openapi.GET("/resource", openapi.WithSummary("Get"))
+			getOp, err := openapi.WithGET("/resource", openapi.WithSummary("Get"))
 			Expect(err).NotTo(HaveOccurred())
-			postOp, err := openapi.POST("/resource", openapi.WithSummary("Create"))
+			postOp, err := openapi.WithPOST("/resource", openapi.WithSummary("Create"))
 			Expect(err).NotTo(HaveOccurred())
-			putOp, err := openapi.PUT("/resource/:id", openapi.WithSummary("Update"))
+			putOp, err := openapi.WithPUT("/resource/:id", openapi.WithSummary("Update"))
 			Expect(err).NotTo(HaveOccurred())
-			patchOp, err := openapi.PATCH("/resource/:id", openapi.WithSummary("Patch"))
+			patchOp, err := openapi.WithPATCH("/resource/:id", openapi.WithSummary("Patch"))
 			Expect(err).NotTo(HaveOccurred())
-			deleteOp, err := openapi.DELETE("/resource/:id", openapi.WithSummary("Delete"))
+			deleteOp, err := openapi.WithDELETE("/resource/:id", openapi.WithSummary("Delete"))
 			Expect(err).NotTo(HaveOccurred())
-			headOp, err := openapi.HEAD("/resource/:id", openapi.WithSummary("Head"))
+			headOp, err := openapi.WithHEAD("/resource/:id", openapi.WithSummary("Head"))
 			Expect(err).NotTo(HaveOccurred())
-			optionsOp, err := openapi.OPTIONS("/resource", openapi.WithSummary("Options"))
+			optionsOp, err := openapi.WithOPTIONS("/resource", openapi.WithSummary("Options"))
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(getOp.Method).To(Equal(http.MethodGet))
@@ -179,14 +181,14 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 		})
 
 		It("should create custom method operations with Op()", func() {
-			op, err := openapi.Op("CUSTOM", "/resource", openapi.WithSummary("Custom"))
+			op, err := openapi.WithOp("CUSTOM", "/resource", openapi.WithSummary("Custom"))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(op.Method).To(Equal("CUSTOM"))
 			Expect(op.Path).To(Equal("/resource"))
 		})
 
 		It("should create TRACE operations", func() {
-			traceOp, err := openapi.TRACE("/resource/:id", openapi.WithSummary("Trace"))
+			traceOp, err := openapi.WithTRACE("/resource/:id", openapi.WithSummary("Trace"))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(traceOp.Method).To(Equal(http.MethodTrace))
 			Expect(traceOp.Path).To(Equal("/resource/:id"))
@@ -229,13 +231,14 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				openapi.WithTitle("Test API", "1.0.0"),
 			)
 
-			op, err := openapi.GET("/users/:id",
+			op, err := openapi.WithGET("/users/:id",
 				openapi.WithSummary("Get user"),
 				openapi.WithOperationExtension("x-rate-limit", 100),
 				openapi.WithOperationExtension("x-internal", true),
 			)
 			Expect(err).NotTo(HaveOccurred())
-			result, err := api.Generate(context.Background(), op)
+			api.AddOperation(op)
+			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.JSON).NotTo(BeEmpty())
 		})
@@ -252,12 +255,13 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				Name string `json:"name"`
 			}
 
-			op, err := openapi.GET("/users/:id",
+			op, err := openapi.WithGET("/users/:id",
 				openapi.WithSummary("Get user"),
 				openapi.WithResponse(http.StatusOK, User{}),
 			)
 			Expect(err).NotTo(HaveOccurred())
-			result, err := api.Generate(context.Background(), op)
+			api.AddOperation(op)
+			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.JSON).NotTo(BeEmpty(), "JSON output should not be empty")
 			Expect(result.YAML).NotTo(BeEmpty(), "YAML output should not be empty")
@@ -278,12 +282,13 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			// Default should have validation disabled
 			Expect(api.ValidateSpec()).To(BeFalse())
 
-			op, err := openapi.GET("/test",
+			op, err := openapi.WithGET("/test",
 				openapi.WithSummary("Test endpoint"),
 				openapi.WithResponse(http.StatusOK, struct{}{}),
 			)
 			Expect(err).NotTo(HaveOccurred())
-			result, err := api.Generate(context.Background(), op)
+			api.AddOperation(op)
+			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.JSON).NotTo(BeEmpty())
 		})
@@ -291,7 +296,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 		It("should allow enabling validation", func() {
 			api := openapi.MustNew(
 				openapi.WithTitle("Test API", "1.0.0"),
-				openapi.WithValidation(true),
+				openapi.WithValidateSpec(true),
 			)
 
 			Expect(api.ValidateSpec()).To(BeTrue())

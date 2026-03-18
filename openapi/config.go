@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"rivaas.dev/openapi/internal/model"
 )
@@ -39,6 +40,7 @@ type config struct {
 	serveUI          bool
 	validateSpec     bool
 	ui               uiConfig
+	operations       []Operation
 	validationErrors []error // Errors from nil options (e.g. WithSwaggerUI)
 }
 
@@ -62,6 +64,7 @@ func defaultConfig() *config {
 
 // API holds OpenAPI configuration and defines an API specification.
 // Configuration is read-only after creation; use getters to read values.
+// Operations can be set at construction via [WithOperations] or added later via [API.AddOperation].
 // Create instances using [New] or [MustNew].
 type API struct {
 	info            model.Info
@@ -78,6 +81,8 @@ type API struct {
 	serveUI         bool
 	validateSpec    bool
 	ui              uiConfig
+	operations      []Operation
+	operationsMu    sync.RWMutex
 }
 
 // Option configures OpenAPI behavior using the functional options pattern.
@@ -109,7 +114,7 @@ const (
 //
 //	api, err := openapi.New(
 //	    openapi.WithTitle("My API", "1.0.0"),
-//	    openapi.WithInfoDescription("API description"),
+//	    openapi.WithDescription("API description"),
 //	    openapi.WithBearerAuth("bearerAuth", "JWT authentication"),
 //	)
 //	if err != nil {
@@ -174,6 +179,10 @@ func validateConfig(cfg *config) error {
 
 // apiFromConfig builds an API from a validated config.
 func apiFromConfig(cfg *config) *API {
+	ops := cfg.operations
+	if ops == nil {
+		ops = []Operation{}
+	}
 	return &API{
 		info:            cfg.info,
 		servers:         cfg.servers,
@@ -189,6 +198,7 @@ func apiFromConfig(cfg *config) *API {
 		serveUI:         cfg.serveUI,
 		validateSpec:    cfg.validateSpec,
 		ui:              cfg.ui,
+		operations:      ops,
 	}
 }
 
@@ -201,7 +211,7 @@ func apiFromConfig(cfg *config) *API {
 //
 //	api := openapi.MustNew(
 //	    openapi.WithTitle("My API", "1.0.0"),
-//	    openapi.WithInfoDescription("API description"),
+//	    openapi.WithDescription("API description"),
 //	)
 func MustNew(opts ...Option) *API {
 	api, err := New(opts...)
@@ -365,15 +375,15 @@ func WithTitleIfDefault(title, version string) Option {
 	}
 }
 
-// WithInfoDescription sets the API description in the Info object.
+// WithDescription sets the API description in the Info object.
 //
 // The description supports Markdown formatting and appears in the OpenAPI spec
 // and Swagger UI.
 //
 // Example:
 //
-//	openapi.WithInfoDescription("A RESTful API for managing users and their profiles.")
-func WithInfoDescription(desc string) Option {
+//	openapi.WithDescription("A RESTful API for managing users and their profiles.")
+func WithDescription(desc string) Option {
 	return func(c *config) {
 		c.info.Description = desc
 	}
@@ -706,23 +716,33 @@ func WithOpenIDConnect(name, url, desc string) Option {
 	}
 }
 
-// WithDefaultSecurity sets default security requirements applied to all operations.
-//
-// Operations can override this by specifying their own security requirements
-// using RouteWrapper.Security() or RouteWrapper.Bearer().
+// SecurityRequirement builds a [SecurityReq] for use with [WithDefaultSecurity] or [WithSecurity].
 //
 // Example:
 //
-//	// Apply Bearer auth to all operations by default
-//	openapi.WithDefaultSecurity("bearerAuth")
+//	openapi.WithDefaultSecurity(
+//	    openapi.SecurityRequirement("bearerAuth"),
+//	    openapi.SecurityRequirement("oauth2", "read", "write"),
+//	)
+func SecurityRequirement(scheme string, scopes ...string) SecurityReq {
+	return SecurityReq{Scheme: scheme, Scopes: scopes}
+}
+
+// WithDefaultSecurity sets default security requirements applied to all operations.
 //
-//	// Apply OAuth with specific scopes
-//	openapi.WithDefaultSecurity("oauth2", "read", "write")
-func WithDefaultSecurity(scheme string, scopes ...string) Option {
+// Operations can override this via [WithSecurity] on the operation.
+//
+// Example:
+//
+//	openapi.WithDefaultSecurity(openapi.SecurityRequirement("bearerAuth"))
+//	openapi.WithDefaultSecurity(openapi.SecurityRequirement("oauth2", "read", "write"))
+func WithDefaultSecurity(requirements ...SecurityReq) Option {
 	return func(c *config) {
-		c.defaultSecurity = append(c.defaultSecurity, model.SecurityRequirement{
-			scheme: scopes,
-		})
+		for _, r := range requirements {
+			c.defaultSecurity = append(c.defaultSecurity, model.SecurityRequirement{
+				r.Scheme: r.Scopes,
+			})
+		}
 	}
 }
 
@@ -754,9 +774,27 @@ func WithStrictDownlevel(strict bool) Option {
 	}
 }
 
-// WithValidation enables or disables JSON Schema validation of the generated OpenAPI spec.
+// WithOperations sets the operations included in the API at construction.
+// Can be empty. Operations can also be added after construction via [API.AddOperation].
 //
-// When enabled, Generate() validates the output against the official
+// Example:
+//
+//	openapi.MustNew(
+//	    openapi.WithTitle("My API", "1.0.0"),
+//	    openapi.WithOperations(
+//	        openapi.WithGET("/users/:id", openapi.WithSummary("Get user"), openapi.WithResponse(200, User{})),
+//	        openapi.WithPOST("/users", openapi.WithSummary("Create user"), openapi.WithRequest(CreateUserRequest{}), openapi.WithResponse(201, User{})),
+//	    ),
+//	)
+func WithOperations(ops ...Operation) Option {
+	return func(c *config) {
+		c.operations = ops
+	}
+}
+
+// WithValidateSpec enables or disables JSON Schema validation of the generated OpenAPI spec.
+//
+// When enabled, Spec() validates the output against the official
 // OpenAPI meta-schema and returns an error if the spec is invalid.
 //
 // This is useful for:
@@ -764,18 +802,17 @@ func WithStrictDownlevel(strict bool) Option {
 //   - CI/CD: Ensure generated specs are valid before deployment
 //   - Testing: Verify spec correctness in tests
 //
-// Performance: Adds ~1-5ms overhead per generation. The default is false
-// for backward compatibility. Enable for development and testing to catch
-// errors early.
+// Performance: Adds ~1-5ms overhead per generation. The default is false.
+// Enable for development and testing to catch errors early.
 //
 // Default: false
 //
 // Example:
 //
-//	openapi.WithValidation(false) // Disable for performance
-func WithValidation(enabled bool) Option {
+//	openapi.WithValidateSpec(true)
+func WithValidateSpec(validate bool) Option {
 	return func(c *config) {
-		c.validateSpec = enabled
+		c.validateSpec = validate
 	}
 }
 

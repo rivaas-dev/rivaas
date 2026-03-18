@@ -42,13 +42,13 @@ package openapi
 //	)
 //
 //	// Apply composed options to operations
-//	openapi.GET("/users/:id",
+//	openapi.WithGET("/users/:id",
 //	    UserEndpoint,
 //	    openapi.WithSummary("Get user"),
 //	    openapi.WithResponse(200, User{}),
 //	)
 //
-//	openapi.POST("/users",
+//	openapi.WithPOST("/users",
 //	    UserEndpoint,
 //	    openapi.WithSummary("Create user"),
 //	    openapi.WithRequest(CreateUser{}),
