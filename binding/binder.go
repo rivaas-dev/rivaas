@@ -62,7 +62,10 @@ type Binder struct {
 //	}
 func New(opts ...Option) (*Binder, error) {
 	cfg := defaultConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("binding: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 	if err := cfg.validate(); err != nil {
