@@ -55,30 +55,30 @@ type observabilityRecorder struct {
 
 // observabilityConfig configures the unified observability recorder.
 type observabilityConfig struct {
-	Metrics           *metrics.Recorder
-	Tracing           *tracing.Tracer
-	Logger            *slog.Logger
-	PathFilter        *pathFilter
-	LogAccessRequests bool
-	LogErrorsOnly     bool
-	SlowThreshold     time.Duration
+	metrics           *metrics.Recorder
+	tracing           *tracing.Tracer
+	logger            *slog.Logger
+	pathFilter        *pathFilter
+	logAccessRequests bool
+	logErrorsOnly     bool
+	slowThreshold     time.Duration
 }
 
 // newObservabilityRecorder creates an [observabilityRecorder] from configuration.
 func newObservabilityRecorder(cfg *observabilityConfig) router.ObservabilityRecorder {
-	pf := cfg.PathFilter
+	pf := cfg.pathFilter
 	if pf == nil {
 		pf = newPathFilterWithDefaults()
 	}
 
 	return &observabilityRecorder{
-		metrics:           cfg.Metrics,
-		tracing:           cfg.Tracing,
-		logger:            cfg.Logger,
+		metrics:           cfg.metrics,
+		tracing:           cfg.tracing,
+		logger:            cfg.logger,
 		pathFilter:        pf,
-		logAccessRequests: cfg.LogAccessRequests,
-		logErrorsOnly:     cfg.LogErrorsOnly,
-		slowThreshold:     cfg.SlowThreshold,
+		logAccessRequests: cfg.logAccessRequests,
+		logErrorsOnly:     cfg.logErrorsOnly,
+		slowThreshold:     cfg.slowThreshold,
 	}
 }
 

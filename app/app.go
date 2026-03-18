@@ -560,13 +560,13 @@ func New(opts ...Option) (*App, error) {
 		logErrorsOnly := effectiveLogErrorsOnly(obsSettings, cfg.environment == EnvironmentProduction)
 
 		obsRecorder := newObservabilityRecorder(&observabilityConfig{
-			Metrics:           metricsCfg,
-			Tracing:           tracingCfg,
-			Logger:            slogger,
-			PathFilter:        obsSettings.pathFilter,
-			LogAccessRequests: obsSettings.accessLogging,
-			LogErrorsOnly:     logErrorsOnly,
-			SlowThreshold:     obsSettings.slowThreshold,
+			metrics:           metricsCfg,
+			tracing:           tracingCfg,
+			logger:            slogger,
+			pathFilter:        obsSettings.pathFilter,
+			logAccessRequests: obsSettings.accessLogging,
+			logErrorsOnly:     logErrorsOnly,
+			slowThreshold:     obsSettings.slowThreshold,
 		})
 		r.SetObservabilityRecorder(obsRecorder)
 	}
