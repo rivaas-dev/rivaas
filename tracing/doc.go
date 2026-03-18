@@ -43,6 +43,12 @@
 //   - WithOTLP(endpoint): Sends traces to OTLP collector via gRPC (for production)
 //   - WithOTLPHTTP(endpoint): Sends traces to OTLP collector via HTTP
 //
+// # OTLP and Start
+//
+// With OTLP providers, the tracer is not fully operational until Start(ctx) is called.
+// You must call Start(ctx) before exporting traces; otherwise no traces will be sent
+// and no error is returned at New.
+//
 // # HTTP Middleware
 //
 // Use the middleware for automatic request tracing:
@@ -74,6 +80,11 @@
 //	tracer.AddSpanEvent(span, "cache_hit",
 //	    attribute.String("key", "user:123"),
 //	)
+//
+// When you only have context (e.g. from middleware), use SetSpanAttributeFromContext
+// and AddSpanEventFromContext; when you have the *Tracer and span, use
+// tracer.SetSpanAttribute and tracer.AddSpanEvent. The two styles are equivalent;
+// the context helpers are for use when the tracer is not in scope.
 //
 // # App integration
 //

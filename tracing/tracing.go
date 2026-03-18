@@ -133,6 +133,10 @@ type Tracer struct {
 // Returns an error if the tracing provider fails to initialize.
 // For a version that panics on error, use MustNew.
 //
+// When using OTLP options (WithOTLP, WithOTLPHTTP), callers must call Start(ctx)
+// before any traces are exported. Forgetting to call Start will result in no traces
+// and no error from New.
+//
 // By default, this function does NOT set the global OpenTelemetry tracer provider.
 // Use WithGlobalTracerProvider() if you want to register the tracer provider as the global default.
 //
@@ -323,6 +327,8 @@ func (t *Tracer) requiresNetworkInit() bool {
 }
 
 // Start initializes OTLP providers that require network connections.
+// When using OTLP options (WithOTLP, WithOTLPHTTP), callers must call Start(ctx)
+// before traces are exported; forgetting it will result in no traces (and no error at New).
 // The context is used for the OTLP connection establishment.
 // This method is idempotent; calling it multiple times is safe.
 //
@@ -648,6 +654,9 @@ func SpanID(ctx context.Context) string {
 }
 
 // SetSpanAttributeFromContext adds an attribute to the current span from context.
+// It is a convenience for when you only have a context (e.g. in HTTP handlers that
+// receive context from the tracing middleware). It operates on the span in context
+// and is the context-based equivalent of tracer.SetSpanAttribute(span, key, value).
 // This is a no-op if tracing is not active.
 func SetSpanAttributeFromContext(ctx context.Context, key string, value any) {
 	span := trace.SpanFromContext(ctx)
@@ -658,6 +667,9 @@ func SetSpanAttributeFromContext(ctx context.Context, key string, value any) {
 }
 
 // AddSpanEventFromContext adds an event to the current span from context.
+// It is a convenience for when you only have a context (e.g. in HTTP handlers that
+// receive context from the tracing middleware). It operates on the span in context
+// and is the context-based equivalent of tracer.AddSpanEvent(span, name, attrs...).
 // This is a no-op if tracing is not active.
 func AddSpanEventFromContext(ctx context.Context, name string, attrs ...attribute.KeyValue) {
 	span := trace.SpanFromContext(ctx)
