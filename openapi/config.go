@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"rivaas.dev/openapi/internal/model"
+	"rivaas.dev/openapi/validate"
 )
 
 // config holds construction-time OpenAPI configuration.
@@ -134,6 +135,24 @@ func New(opts ...Option) (*API, error) {
 	return apiFromConfig(cfg), nil
 }
 
+// validateOperations checks that each operation has non-empty Method and Path and a valid path format.
+func validateOperations(ops []Operation) error {
+	var errs []error
+	for i, op := range ops {
+		if op.Method == "" || op.Path == "" {
+			errs = append(errs, fmt.Errorf("openapi: operation at index %d: method and path are required", i))
+			continue
+		}
+		if err := validate.ValidatePath(op.Path); err != nil {
+			errs = append(errs, fmt.Errorf("openapi: operation at index %d: invalid path %q: %w", i, op.Path, err))
+		}
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return errors.Join(errs...)
+}
+
 // validateConfig checks that the config is valid.
 func validateConfig(cfg *config) error {
 	if len(cfg.validationErrors) > 0 {
@@ -153,6 +172,11 @@ func validateConfig(cfg *config) error {
 	for i, server := range cfg.servers {
 		if len(server.Variables) > 0 && server.URL == "" {
 			return fmt.Errorf("openapi: server[%d]: %w", i, ErrServerVariablesNeedURL)
+		}
+	}
+	if len(cfg.operations) > 0 {
+		if err := validateOperations(cfg.operations); err != nil {
+			return err
 		}
 	}
 	if err := cfg.ui.validate(); err != nil {
@@ -229,35 +253,161 @@ func (a *API) UI() UISnapshot {
 	return &uiSnapshot{c: a.ui}
 }
 
+// infoToDTO copies model.Info to public Info DTO.
+func infoToDTO(m model.Info) Info {
+	out := Info{
+		Title:          m.Title,
+		Summary:        m.Summary,
+		Description:    m.Description,
+		TermsOfService: m.TermsOfService,
+		Version:        m.Version,
+		Extensions:     m.Extensions,
+	}
+	if m.Contact != nil {
+		out.Contact = &Contact{Name: m.Contact.Name, URL: m.Contact.URL, Email: m.Contact.Email}
+	}
+	if m.License != nil {
+		out.License = &License{Name: m.License.Name, Identifier: m.License.Identifier, URL: m.License.URL}
+	}
+	return out
+}
+
+// serversToDTO copies model servers to public Server DTOs.
+func serversToDTO(s []model.Server) []Server {
+	out := make([]Server, 0, len(s))
+	for i := range s {
+		svr := Server{URL: s[i].URL, Description: s[i].Description}
+		if len(s[i].Variables) > 0 {
+			svr.Variables = make(map[string]*ServerVariable)
+			for k, v := range s[i].Variables {
+				if v != nil {
+					svr.Variables[k] = &ServerVariable{Enum: v.Enum, Default: v.Default, Description: v.Description}
+				}
+			}
+		}
+		out = append(out, svr)
+	}
+	return out
+}
+
+// tagsToDTO copies model tags to public Tag DTOs.
+func tagsToDTO(t []model.Tag) []Tag {
+	out := make([]Tag, 0, len(t))
+	for i := range t {
+		out = append(out, Tag{Name: t[i].Name, Description: t[i].Description})
+	}
+	return out
+}
+
+// securitySchemeToDTO copies model.SecurityScheme to public SecurityScheme DTO.
+func securitySchemeToDTO(m *model.SecurityScheme) *SecurityScheme {
+	if m == nil {
+		return nil
+	}
+	out := &SecurityScheme{
+		Type:             m.Type,
+		Description:      m.Description,
+		Name:             m.Name,
+		In:               m.In,
+		Scheme:           m.Scheme,
+		BearerFormat:     m.BearerFormat,
+		OpenIDConnectURL: m.OpenIDConnectURL,
+	}
+	if m.Flows != nil {
+		out.Flows = &OAuth2Flows{}
+		if m.Flows.AuthorizationCode != nil {
+			out.Flows.AuthorizationCode = &OAuth2FlowInfo{
+				AuthorizationURL: m.Flows.AuthorizationCode.AuthorizationURL,
+				TokenURL:         m.Flows.AuthorizationCode.TokenURL,
+				RefreshURL:       m.Flows.AuthorizationCode.RefreshURL,
+				Scopes:           m.Flows.AuthorizationCode.Scopes,
+			}
+		}
+		if m.Flows.Implicit != nil {
+			out.Flows.Implicit = &OAuth2FlowInfo{
+				AuthorizationURL: m.Flows.Implicit.AuthorizationURL,
+				TokenURL:         m.Flows.Implicit.TokenURL,
+				RefreshURL:       m.Flows.Implicit.RefreshURL,
+				Scopes:           m.Flows.Implicit.Scopes,
+			}
+		}
+		if m.Flows.Password != nil {
+			out.Flows.Password = &OAuth2FlowInfo{
+				AuthorizationURL: m.Flows.Password.AuthorizationURL,
+				TokenURL:         m.Flows.Password.TokenURL,
+				RefreshURL:       m.Flows.Password.RefreshURL,
+				Scopes:           m.Flows.Password.Scopes,
+			}
+		}
+		if m.Flows.ClientCredentials != nil {
+			out.Flows.ClientCredentials = &OAuth2FlowInfo{
+				AuthorizationURL: m.Flows.ClientCredentials.AuthorizationURL,
+				TokenURL:         m.Flows.ClientCredentials.TokenURL,
+				RefreshURL:       m.Flows.ClientCredentials.RefreshURL,
+				Scopes:           m.Flows.ClientCredentials.Scopes,
+			}
+		}
+	}
+	return out
+}
+
+// defaultSecurityToDTO copies model security requirements to public SecurityRequirement DTOs.
+func defaultSecurityToDTO(s []model.SecurityRequirement) []SecurityRequirement {
+	out := make([]SecurityRequirement, 0, len(s))
+	for i := range s {
+		clone := make(SecurityRequirement, len(s[i]))
+		for k, v := range s[i] {
+			clone[k] = append([]string(nil), v...)
+		}
+		out = append(out, clone)
+	}
+	return out
+}
+
+// externalDocsToDTO copies model.ExternalDocs to public ExternalDocs DTO.
+func externalDocsToDTO(m *model.ExternalDocs) *ExternalDocs {
+	if m == nil {
+		return nil
+	}
+	return &ExternalDocs{URL: m.URL, Description: m.Description}
+}
+
 // Info returns the API metadata (title, version, description, contact, license).
 // Do not modify the returned value.
-func (a *API) Info() model.Info {
-	return a.info
+func (a *API) Info() Info {
+	return infoToDTO(a.info)
 }
 
 // Servers returns the list of server URLs. Do not modify the returned slice or its elements.
-func (a *API) Servers() []model.Server {
-	return a.servers
+func (a *API) Servers() []Server {
+	return serversToDTO(a.servers)
 }
 
 // Tags returns the tags. Do not modify the returned slice or its elements.
-func (a *API) Tags() []model.Tag {
-	return a.tags
+func (a *API) Tags() []Tag {
+	return tagsToDTO(a.tags)
 }
 
 // SecuritySchemes returns the security schemes map. Do not modify the returned map.
-func (a *API) SecuritySchemes() map[string]*model.SecurityScheme {
-	return a.securitySchemes
+func (a *API) SecuritySchemes() map[string]*SecurityScheme {
+	if len(a.securitySchemes) == 0 {
+		return nil
+	}
+	out := make(map[string]*SecurityScheme, len(a.securitySchemes))
+	for k, v := range a.securitySchemes {
+		out[k] = securitySchemeToDTO(v)
+	}
+	return out
 }
 
 // DefaultSecurity returns the default security requirements. Do not modify the returned slice.
-func (a *API) DefaultSecurity() []model.SecurityRequirement {
-	return a.defaultSecurity
+func (a *API) DefaultSecurity() []SecurityRequirement {
+	return defaultSecurityToDTO(a.defaultSecurity)
 }
 
 // ExternalDocs returns the external documentation link, or nil.
-func (a *API) ExternalDocs() *model.ExternalDocs {
-	return a.externalDocs
+func (a *API) ExternalDocs() *ExternalDocs {
+	return externalDocsToDTO(a.externalDocs)
 }
 
 // Extensions returns the root-level specification extensions. Do not modify the returned map.
@@ -302,43 +452,28 @@ func (a *API) ValidateSpec() bool {
 // validation failures.
 //
 // Validation is automatically called by [New] and [MustNew].
+// Validate uses the same rules as [New]; it does not validate operations
+// (see [AddOperation] for operation validation at add time).
 func (a *API) Validate() error {
-	if a.info.Title == "" {
-		return ErrTitleRequired
+	cfg := &config{
+		info:            a.info,
+		servers:         a.servers,
+		tags:            a.tags,
+		securitySchemes: a.securitySchemes,
+		defaultSecurity: a.defaultSecurity,
+		externalDocs:    a.externalDocs,
+		extensions:      a.extensions,
+		version:         a.version,
+		strictDownlevel: a.strictDownlevel,
+		specPath:        a.specPath,
+		uiPath:          a.uiPath,
+		serveUI:         a.serveUI,
+		validateSpec:    a.validateSpec,
+		ui:              a.ui,
+		// operations intentionally omitted: re-validation uses same validateConfig
+		// but operations are validated at AddOperation / WithOperations time
 	}
-	if a.info.Version == "" {
-		return ErrVersionRequired
-	}
-	if a.info.License != nil {
-		if a.info.License.Identifier != "" && a.info.License.URL != "" {
-			return ErrLicenseMutuallyExclusive
-		}
-	}
-	for i, server := range a.servers {
-		if len(server.Variables) > 0 && server.URL == "" {
-			return fmt.Errorf("openapi: server[%d]: %w", i, ErrServerVariablesNeedURL)
-		}
-	}
-	if err := a.ui.validate(); err != nil {
-		return fmt.Errorf("openapi: %w", err)
-	}
-	for key := range a.extensions {
-		if !strings.HasPrefix(key, "x-") {
-			return fmt.Errorf("openapi: extension key must start with 'x-': %s", key)
-		}
-		if (a.version == V31x || a.version == Version("")) && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
-			return fmt.Errorf("openapi: extension key uses reserved prefix (x-oai- or x-oas-): %s", key)
-		}
-	}
-	for key := range a.info.Extensions {
-		if !strings.HasPrefix(key, "x-") {
-			return fmt.Errorf("openapi: info extension key must start with 'x-': %s", key)
-		}
-		if (a.version == V31x || a.version == Version("")) && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
-			return fmt.Errorf("openapi: info extension key uses reserved prefix (x-oai- or x-oas-): %s", key)
-		}
-	}
-	return nil
+	return validateConfig(cfg)
 }
 
 // WithTitle sets the API title and version.
@@ -606,90 +741,108 @@ func WithAPIKey(name, paramName string, in ParameterLocation, desc string) Optio
 	}
 }
 
-// OAuthFlowType represents the type of OAuth2 flow.
-type OAuthFlowType string
-
-const (
-	// FlowImplicit represents the OAuth2 implicit flow.
-	FlowImplicit OAuthFlowType = "implicit"
-	// FlowPassword represents the OAuth2 resource owner password flow.
-	FlowPassword OAuthFlowType = "password"
-	// FlowClientCredentials represents the OAuth2 client credentials flow.
-	FlowClientCredentials OAuthFlowType = "clientCredentials"
-	// FlowAuthorizationCode represents the OAuth2 authorization code flow.
-	FlowAuthorizationCode OAuthFlowType = "authorizationCode"
-)
-
-// OAuth2Flow configures a single OAuth2 flow with an explicit type.
-type OAuth2Flow struct {
-	// Type specifies the OAuth2 flow type (implicit, password, clientCredentials, authorizationCode).
-	Type OAuthFlowType
-
-	// AuthorizationURL is required for implicit and authorizationCode flows.
-	AuthorizationURL string
-
-	// TokenURL is required for password, clientCredentials, and authorizationCode flows.
-	TokenURL string
-
-	// RefreshURL is optional for all flows.
-	RefreshURL string
-
-	// Scopes maps scope names to descriptions (required, can be empty).
-	Scopes map[string]string
+// setOAuth2Flow ensures a scheme named name exists as oauth2 and sets the given flow on it.
+// If desc is non-empty and the scheme is new, Description is set.
+func setOAuth2Flow(c *config, name, desc string, flow *model.OAuthFlow, setter func(*model.OAuthFlows, *model.OAuthFlow)) {
+	if c.securitySchemes == nil {
+		c.securitySchemes = make(map[string]*model.SecurityScheme)
+	}
+	existing := c.securitySchemes[name]
+	if existing != nil && existing.Type == "oauth2" && existing.Flows != nil {
+		setter(existing.Flows, flow)
+		if desc != "" {
+			existing.Description = desc
+		}
+		return
+	}
+	oauthFlows := &model.OAuthFlows{}
+	setter(oauthFlows, flow)
+	c.securitySchemes[name] = &model.SecurityScheme{
+		Type:        "oauth2",
+		Description: desc,
+		Flows:       oauthFlows,
+	}
 }
 
-// WithOAuth2 adds OAuth2 authentication scheme.
+// WithOAuth2AuthorizationCode adds the OAuth2 authorization code flow to the named scheme.
 //
-// At least one flow must be configured. Use OAuth2Flow to configure each flow type.
-// Multiple flows can be provided to support different OAuth2 flow types.
+// authURL and tokenURL are required. refreshURL is optional. scopes maps scope names to descriptions (can be nil or empty).
+// If a scheme with the same name already exists (e.g. from another flow option), the flow is merged into it.
 //
 // Example:
 //
-//	openapi.WithOAuth2("oauth2", "OAuth2 authentication",
-//		openapi.OAuth2Flow{
-//			Type:             openapi.FlowAuthorizationCode,
-//			AuthorizationURL: "https://example.com/oauth/authorize",
-//			TokenURL:         "https://example.com/oauth/token",
-//			Scopes: map[string]string{
-//				"read":  "Read access",
-//				"write": "Write access",
-//			},
-//		},
-//		openapi.OAuth2Flow{
-//			Type:     openapi.FlowClientCredentials,
-//			TokenURL: "https://example.com/oauth/token",
-//			Scopes:   map[string]string{"read": "Read access"},
-//		},
-//	)
-func WithOAuth2(name, desc string, flows ...OAuth2Flow) Option {
+//	openapi.WithOAuth2AuthorizationCode("oauth2", "OAuth2 authentication",
+//	    "https://example.com/oauth/authorize", "https://example.com/oauth/token", "https://example.com/oauth/refresh",
+//	    map[string]string{"read": "Read access", "write": "Write access"})
+func WithOAuth2AuthorizationCode(name, desc, authURL, tokenURL, refreshURL string, scopes map[string]string) Option {
 	return func(c *config) {
-		if c.securitySchemes == nil {
-			c.securitySchemes = make(map[string]*model.SecurityScheme)
+		flow := &model.OAuthFlow{
+			AuthorizationURL: authURL,
+			TokenURL:         tokenURL,
+			RefreshURL:       refreshURL,
+			Scopes:           scopes,
 		}
-		oauthFlows := &model.OAuthFlows{}
-		for _, flow := range flows {
-			flowConfig := &model.OAuthFlow{
-				AuthorizationURL: flow.AuthorizationURL,
-				TokenURL:         flow.TokenURL,
-				RefreshURL:       flow.RefreshURL,
-				Scopes:           flow.Scopes,
-			}
-			switch flow.Type {
-			case FlowImplicit:
-				oauthFlows.Implicit = flowConfig
-			case FlowPassword:
-				oauthFlows.Password = flowConfig
-			case FlowClientCredentials:
-				oauthFlows.ClientCredentials = flowConfig
-			case FlowAuthorizationCode:
-				oauthFlows.AuthorizationCode = flowConfig
-			}
+		setOAuth2Flow(c, name, desc, flow, func(flows *model.OAuthFlows, f *model.OAuthFlow) { flows.AuthorizationCode = f })
+	}
+}
+
+// WithOAuth2Implicit adds the OAuth2 implicit flow to the named scheme.
+//
+// authURL is required. refreshURL is optional. scopes maps scope names to descriptions (can be nil or empty).
+//
+// Example:
+//
+//	openapi.WithOAuth2Implicit("oauth2", "OAuth2 authentication",
+//	    "https://example.com/oauth/authorize", "https://example.com/oauth/refresh",
+//	    map[string]string{"read": "Read access"})
+func WithOAuth2Implicit(name, desc, authURL, refreshURL string, scopes map[string]string) Option {
+	return func(c *config) {
+		flow := &model.OAuthFlow{
+			AuthorizationURL: authURL,
+			RefreshURL:       refreshURL,
+			Scopes:           scopes,
 		}
-		c.securitySchemes[name] = &model.SecurityScheme{
-			Type:        "oauth2",
-			Description: desc,
-			Flows:       oauthFlows,
+		setOAuth2Flow(c, name, desc, flow, func(flows *model.OAuthFlows, f *model.OAuthFlow) { flows.Implicit = f })
+	}
+}
+
+// WithOAuth2Password adds the OAuth2 resource owner password flow to the named scheme.
+//
+// tokenURL is required. refreshURL is optional. scopes maps scope names to descriptions (can be nil or empty).
+//
+// Example:
+//
+//	openapi.WithOAuth2Password("oauth2", "OAuth2 authentication",
+//	    "https://example.com/oauth/token", "https://example.com/oauth/refresh",
+//	    map[string]string{"read": "Read access"})
+func WithOAuth2Password(name, desc, tokenURL, refreshURL string, scopes map[string]string) Option {
+	return func(c *config) {
+		flow := &model.OAuthFlow{
+			TokenURL:   tokenURL,
+			RefreshURL: refreshURL,
+			Scopes:     scopes,
 		}
+		setOAuth2Flow(c, name, desc, flow, func(flows *model.OAuthFlows, f *model.OAuthFlow) { flows.Password = f })
+	}
+}
+
+// WithOAuth2ClientCredentials adds the OAuth2 client credentials flow to the named scheme.
+//
+// tokenURL is required. refreshURL is optional. scopes maps scope names to descriptions (can be nil or empty).
+//
+// Example:
+//
+//	openapi.WithOAuth2ClientCredentials("oauth2", "OAuth2 authentication",
+//	    "https://example.com/oauth/token", "",
+//	    map[string]string{"api": "API access"})
+func WithOAuth2ClientCredentials(name, desc, tokenURL, refreshURL string, scopes map[string]string) Option {
+	return func(c *config) {
+		flow := &model.OAuthFlow{
+			TokenURL:   tokenURL,
+			RefreshURL: refreshURL,
+			Scopes:     scopes,
+		}
+		setOAuth2Flow(c, name, desc, flow, func(flows *model.OAuthFlows, f *model.OAuthFlow) { flows.ClientCredentials = f })
 	}
 }
 
@@ -716,15 +869,15 @@ func WithOpenIDConnect(name, url, desc string) Option {
 	}
 }
 
-// SecurityRequirement builds a [SecurityReq] for use with [WithDefaultSecurity] or [WithSecurity].
+// RequireSecurity builds a [SecurityReq] for use with [WithDefaultSecurity] or [WithSecurity].
 //
 // Example:
 //
 //	openapi.WithDefaultSecurity(
-//	    openapi.SecurityRequirement("bearerAuth"),
-//	    openapi.SecurityRequirement("oauth2", "read", "write"),
+//	    openapi.RequireSecurity("bearerAuth"),
+//	    openapi.RequireSecurity("oauth2", "read", "write"),
 //	)
-func SecurityRequirement(scheme string, scopes ...string) SecurityReq {
+func RequireSecurity(scheme string, scopes ...string) SecurityReq {
 	return SecurityReq{Scheme: scheme, Scopes: scopes}
 }
 
@@ -734,8 +887,8 @@ func SecurityRequirement(scheme string, scopes ...string) SecurityReq {
 //
 // Example:
 //
-//	openapi.WithDefaultSecurity(openapi.SecurityRequirement("bearerAuth"))
-//	openapi.WithDefaultSecurity(openapi.SecurityRequirement("oauth2", "read", "write"))
+//	openapi.WithDefaultSecurity(openapi.RequireSecurity("bearerAuth"))
+//	openapi.WithDefaultSecurity(openapi.RequireSecurity("oauth2", "read", "write"))
 func WithDefaultSecurity(requirements ...SecurityReq) Option {
 	return func(c *config) {
 		for _, r := range requirements {

@@ -138,7 +138,7 @@ func TestWithOptions(t *testing.T) {
 			ctx := context.Background()
 			op := tt.buildOp(t)
 
-			api.AddOperation(op)
+			require.NoError(t, api.AddOperation(op))
 			result, err := api.Spec(ctx)
 			require.NoError(t, err)
 			require.NotNil(t, result)

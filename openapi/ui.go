@@ -213,7 +213,7 @@ type uiConfig struct {
 	OperationsSorter OperationsSorterMode
 	TagsSorter       TagsSorterMode
 
-	SyntaxHighlight SyntaxHighlightConfig
+	SyntaxHighlight syntaxHighlightConfig
 
 	ValidatorURL           string
 	PersistAuthorization   bool
@@ -223,7 +223,7 @@ type uiConfig struct {
 	ShowExtensions       bool
 	ShowCommonExtensions bool
 
-	RequestSnippets RequestSnippetsConfig
+	RequestSnippets requestSnippetsConfig
 }
 
 // uiSnapshot implements UISnapshot from an internal uiConfig.
@@ -241,22 +241,17 @@ func (s *uiSnapshot) toConfigMap(specURL string) map[string]any {
 	return s.c.toConfigMap(specURL)
 }
 
-// SyntaxHighlightConfig controls syntax highlighting appearance in Swagger UI.
-type SyntaxHighlightConfig struct {
-	// Activated enables or disables syntax highlighting.
+// syntaxHighlightConfig controls syntax highlighting appearance in Swagger UI.
+// Configure via [WithUISyntaxTheme] and related UIOptions.
+type syntaxHighlightConfig struct {
 	Activated bool
-
-	// Theme specifies the color scheme for syntax highlighting.
-	Theme SyntaxTheme
+	Theme     SyntaxTheme
 }
 
-// RequestSnippetsConfig controls code snippet generation for API requests.
-type RequestSnippetsConfig struct {
-	// Languages specifies which snippet languages to generate.
-	// If empty, all available languages are included.
-	Languages []RequestSnippetLanguage
-
-	// DefaultExpanded determines if snippet sections are expanded by default.
+// requestSnippetsConfig controls code snippet generation for API requests.
+// Configure via [WithUIRequestSnippets] and related UIOptions.
+type requestSnippetsConfig struct {
+	Languages       []RequestSnippetLanguage
 	DefaultExpanded bool
 }
 
@@ -276,7 +271,7 @@ func defaultUIConfig() uiConfig {
 		MaxDisplayedTags:         0,
 		OperationsSorter:         OperationsSorterNone,
 		TagsSorter:               TagsSorterNone,
-		SyntaxHighlight: SyntaxHighlightConfig{
+		SyntaxHighlight: syntaxHighlightConfig{
 			Activated: true,
 			Theme:     SyntaxThemeMonokai,
 		},
@@ -286,7 +281,7 @@ func defaultUIConfig() uiConfig {
 		SupportedSubmitMethods: []HTTPMethod{MethodGet, MethodPut, MethodPost, MethodDelete, MethodOptions, MethodHead, MethodPatch},
 		ShowExtensions:         false,
 		ShowCommonExtensions:   true,
-		RequestSnippets: RequestSnippetsConfig{
+		RequestSnippets: requestSnippetsConfig{
 			Languages:       nil,
 			DefaultExpanded: true,
 		},

@@ -73,7 +73,9 @@ func main() {
     getOp, _ := openapi.WithGET("/users/:id", openapi.WithSummary("Get user"), openapi.WithResponse(200, User{}), openapi.WithSecurity("bearerAuth"))
     postOp, _ := openapi.WithPOST("/users", openapi.WithSummary("Create user"), openapi.WithRequest(CreateUserRequest{}), openapi.WithResponse(201, User{}))
     delOp, _ := openapi.WithDELETE("/users/:id", openapi.WithSummary("Delete user"), openapi.WithResponse(204, nil), openapi.WithSecurity("bearerAuth"))
-    api.AddOperation(getOp, postOp, delOp)
+    if err := api.AddOperation(getOp, postOp, delOp); err != nil {
+        log.Fatal(err)
+    }
 
     result, err := api.Spec(context.Background())
     if err != nil {

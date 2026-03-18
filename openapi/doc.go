@@ -49,7 +49,7 @@
 //
 //	api := openapi.MustNew(openapi.WithTitle("My API", "1.0.0"))
 //	op, _ := openapi.WithGET("/users/:id", openapi.WithSummary("Get user"), openapi.WithResponse(200, UserResponse{}))
-//	api.AddOperation(op)
+//	_ = api.AddOperation(op) // returns error if operation is invalid
 //	result, err := api.Spec(context.Background())
 //
 // # Configuration vs Operations

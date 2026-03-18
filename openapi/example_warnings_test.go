@@ -19,15 +19,12 @@ func Example_warnings() {
 		openapi.WithInfoSummary("A modern API"), // 3.1-only feature
 	)
 
-	op, err := openapi.WithGET("/health", openapi.WithResponse(200, map[string]string{}))
-	if err != nil {
-		panic(err)
-	}
+	//nolint:errcheck // ignore error for example
+	op, _ := openapi.WithGET("/health", openapi.WithResponse(200, map[string]string{}))
+	//nolint:errcheck // ignore error for example
 	api.AddOperation(op)
-	result, err := api.Spec(context.Background())
-	if err != nil {
-		panic(err)
-	}
+	//nolint:errcheck // ignore error for example
+	result, _ := api.Spec(context.Background())
 
 	// Simple warning check
 	if len(result.Warnings) > 0 {
@@ -69,7 +66,9 @@ func Example_warningsStrictMode() {
 	if err != nil {
 		panic(err)
 	}
-	api.AddOperation(op)
+	if addErr := api.AddOperation(op); addErr != nil {
+		panic(addErr)
+	}
 	_, err = api.Spec(context.Background())
 	// In strict mode, using 3.1 features with 3.0 target returns an error
 	if err != nil {
@@ -89,11 +88,14 @@ func Example_warningsFiltering() {
 		openapi.WithLicenseIdentifier("MIT", "MIT-0"), // 3.1 feature
 	)
 
+	//
 	op, err := openapi.WithGET("/health", openapi.WithResponse(200, map[string]string{}))
 	if err != nil {
 		panic(err)
 	}
-	api.AddOperation(op)
+	if addErr := api.AddOperation(op); addErr != nil {
+		panic(addErr)
+	}
 	result, err := api.Spec(context.Background())
 	if err != nil {
 		panic(err)

@@ -95,7 +95,7 @@ func TestConfig_Validation(t *testing.T) {
 			name: "with default security",
 			options: []Option{
 				WithTitle("Test API", "1.0.0"),
-				WithDefaultSecurity(SecurityRequirement("bearerAuth")),
+				WithDefaultSecurity(RequireSecurity("bearerAuth")),
 			},
 			wantError: "",
 		},
@@ -276,8 +276,8 @@ func TestConfig_WithDefaultSecurity(t *testing.T) {
 
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
-		WithDefaultSecurity(SecurityRequirement("bearerAuth")),
-		WithDefaultSecurity(SecurityRequirement("oauth2", "read", "write")),
+		WithDefaultSecurity(RequireSecurity("bearerAuth")),
+		WithDefaultSecurity(RequireSecurity("oauth2", "read", "write")),
 	)
 
 	assert.Len(t, cfg.DefaultSecurity(), 2)
@@ -453,7 +453,7 @@ func TestConfig_AllOptions(t *testing.T) {
 		WithTag("users", "User operations"),
 		WithBearerAuth("bearer", "JWT auth"),
 		WithAPIKey("apiKey", "X-API-Key", InHeader, "API key"),
-		WithDefaultSecurity(SecurityRequirement("bearer")),
+		WithDefaultSecurity(RequireSecurity("bearer")),
 		WithVersion(V31x),
 		WithStrictDownlevel(true),
 		WithSpecPath("/api/openapi.json"),
@@ -685,21 +685,14 @@ func TestConfig_WithServerVariable(t *testing.T) {
 	assert.Equal(t, "Server hostname", variable.Description)
 }
 
-func TestConfig_WithOAuth2(t *testing.T) {
+func TestConfig_WithOAuth2AuthorizationCode(t *testing.T) {
 	t.Parallel()
 
 	cfg := MustNew(
 		WithTitle("Test API", "1.0.0"),
-		WithOAuth2("oauth2", "OAuth2 authentication",
-			OAuth2Flow{
-				Type:             FlowAuthorizationCode,
-				AuthorizationURL: "https://example.com/oauth/authorize",
-				TokenURL:         "https://example.com/oauth/token",
-				Scopes: map[string]string{
-					"read":  "Read access",
-					"write": "Write access",
-				},
-			}),
+		WithOAuth2AuthorizationCode("oauth2", "OAuth2 authentication",
+			"https://example.com/oauth/authorize", "https://example.com/oauth/token", "",
+			map[string]string{"read": "Read access", "write": "Write access"}),
 	)
 
 	require.Len(t, cfg.SecuritySchemes(), 1)

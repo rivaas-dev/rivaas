@@ -25,7 +25,9 @@ re-exported from the main openapi package:
 
 	import "rivaas.dev/openapi"
 
-	api.AddOperation(ops...)
+	if err := api.AddOperation(ops...); err != nil {
+	    log.Fatal(err)
+	}
 	result, _ := api.Spec(ctx)
 	if len(result.Warnings) > 0 {
 	    fmt.Printf("Generated with %d warnings\n", len(result.Warnings))
@@ -40,7 +42,9 @@ Import this package for type-safe warning code comparisons:
 	    "rivaas.dev/openapi/diag"
 	)
 
-	api.AddOperation(ops...)
+	if err := api.AddOperation(ops...); err != nil {
+	    log.Fatal(err)
+	}
 	result, _ := api.Spec(ctx)
 
 	// Type-safe check with IDE autocomplete

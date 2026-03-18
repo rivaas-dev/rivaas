@@ -67,7 +67,10 @@ func ExampleAPI_Spec() {
 		return
 	}
 
-	api.AddOperation(op)
+	if addErr := api.AddOperation(op); addErr != nil {
+		fmt.Printf("Error: %v\n", addErr)
+		return
+	}
 	result, err := api.Spec(context.Background())
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)

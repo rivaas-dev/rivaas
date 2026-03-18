@@ -91,7 +91,7 @@ func TestAPI_Spec(t *testing.T) {
 			api: MustNew(
 				WithTitle("API", "1.0.0"),
 				WithBearerAuth("bearerAuth", "JWT"),
-				WithDefaultSecurity(SecurityRequirement("bearerAuth")),
+				WithDefaultSecurity(RequireSecurity("bearerAuth")),
 			),
 			buildOps: func(t *testing.T) []Operation {
 				op, err := WithGET("/protected", WithSummary("Protected"), WithSecurity("bearerAuth"))
@@ -184,7 +184,7 @@ func TestAPI_Spec(t *testing.T) {
 			t.Parallel()
 
 			ops := tt.buildOps(t)
-			tt.api.AddOperation(ops...)
+			require.NoError(t, tt.api.AddOperation(ops...))
 			ctx := context.Background()
 			result, err := tt.api.Spec(ctx)
 

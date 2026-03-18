@@ -101,13 +101,19 @@ func (a *API) Spec(ctx context.Context) (*Result, error) {
 
 // AddOperation adds one or more operations to the API. Safe for concurrent use.
 // Call [Spec] to generate the spec including these operations.
-func (a *API) AddOperation(ops ...Operation) {
+// Returns an error if any operation has empty Method or Path or an invalid path format;
+// on error no operations are added.
+func (a *API) AddOperation(ops ...Operation) error {
 	if len(ops) == 0 {
-		return
+		return nil
+	}
+	if err := validateOperations(ops); err != nil {
+		return err
 	}
 	a.operationsMu.Lock()
 	defer a.operationsMu.Unlock()
 	a.operations = append(a.operations, ops...)
+	return nil
 }
 
 // createBuilder creates a Builder from API.

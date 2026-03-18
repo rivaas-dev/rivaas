@@ -84,7 +84,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			api.AddOperation(getByIDOp, postOp, listOp)
+			Expect(api.AddOperation(getByIDOp, postOp, listOp)).To(Succeed())
 			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred(), "should generate spec successfully")
 			Expect(result.JSON).NotTo(BeEmpty(), "spec JSON should not be empty")
@@ -124,7 +124,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 
 			healthOp, err := openapi.WithGET("/health", openapi.WithSummary("Health check"))
 			Expect(err).NotTo(HaveOccurred())
-			api.AddOperation(healthOp)
+			Expect(api.AddOperation(healthOp)).To(Succeed())
 			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 
@@ -237,7 +237,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				openapi.WithOperationExtension("x-internal", true),
 			)
 			Expect(err).NotTo(HaveOccurred())
-			api.AddOperation(op)
+			Expect(api.AddOperation(op)).To(Succeed())
 			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.JSON).NotTo(BeEmpty())
@@ -260,7 +260,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				openapi.WithResponse(http.StatusOK, User{}),
 			)
 			Expect(err).NotTo(HaveOccurred())
-			api.AddOperation(op)
+			Expect(api.AddOperation(op)).To(Succeed())
 			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.JSON).NotTo(BeEmpty(), "JSON output should not be empty")
@@ -287,7 +287,7 @@ var _ = Describe("OpenAPI Integration", Label("integration"), func() {
 				openapi.WithResponse(http.StatusOK, struct{}{}),
 			)
 			Expect(err).NotTo(HaveOccurred())
-			api.AddOperation(op)
+			Expect(api.AddOperation(op)).To(Succeed())
 			result, err := api.Spec(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.JSON).NotTo(BeEmpty())

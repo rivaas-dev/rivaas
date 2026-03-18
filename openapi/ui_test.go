@@ -83,7 +83,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		{
 			name: "invalid SyntaxTheme",
 			config: uiConfig{
-				SyntaxHighlight: SyntaxHighlightConfig{
+				SyntaxHighlight: syntaxHighlightConfig{
 					Activated: true,
 					Theme:     SyntaxTheme("invalid"),
 				},
@@ -94,7 +94,7 @@ func TestUIConfig_Validate(t *testing.T) {
 		{
 			name: "invalid RequestSnippet language",
 			config: uiConfig{
-				RequestSnippets: RequestSnippetsConfig{
+				RequestSnippets: requestSnippetsConfig{
 					Languages: []RequestSnippetLanguage{"invalid"},
 				},
 			},
