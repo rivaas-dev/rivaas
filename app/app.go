@@ -787,7 +787,9 @@ func (a *App) registerRouteWithTarget(target routeTarget, method, path string, h
 		if err != nil {
 			panic(err)
 		}
-		a.openapi.AddOperation(op)
+		if addErr := a.openapi.AddOperation(op); addErr != nil {
+			panic(addErr)
+		}
 	}
 
 	return rt

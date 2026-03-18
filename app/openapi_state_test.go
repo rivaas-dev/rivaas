@@ -50,7 +50,7 @@ func TestOpenapiState_AddOperation_invalidatesCache(t *testing.T) {
 
 	op, err := openapi.WithOp("GET", "/", openapi.WithSummary("root"))
 	require.NoError(t, err)
-	s.AddOperation(op)
+	require.NoError(t, s.AddOperation(op))
 	ctx := context.Background()
 	spec1, etag1, err := s.GenerateSpec(ctx)
 	require.NoError(t, err)
@@ -66,7 +66,7 @@ func TestOpenapiState_AddOperation_invalidatesCache(t *testing.T) {
 	// Add another operation invalidates cache
 	op2, err := openapi.WithOp("GET", "/other", openapi.WithSummary("other"))
 	require.NoError(t, err)
-	s.AddOperation(op2)
+	require.NoError(t, s.AddOperation(op2))
 	spec3, etag3, err := s.GenerateSpec(ctx)
 	require.NoError(t, err)
 	assert.NotEqual(t, spec1, spec3)
@@ -81,7 +81,7 @@ func TestOpenapiState_GenerateSpec_cacheHit(t *testing.T) {
 	s := newOpenapiState(api)
 	op, err := openapi.WithOp("GET", "/", openapi.WithSummary("root"))
 	require.NoError(t, err)
-	s.AddOperation(op)
+	require.NoError(t, s.AddOperation(op))
 
 	ctx := context.Background()
 	spec, etag, err := s.GenerateSpec(ctx)
@@ -106,7 +106,7 @@ func TestOpenapiState_Warnings_afterGenerateReturnsCopy(t *testing.T) {
 	s := newOpenapiState(api)
 	op, err := openapi.WithOp("GET", "/", openapi.WithSummary("root"))
 	require.NoError(t, err)
-	s.AddOperation(op)
+	require.NoError(t, s.AddOperation(op))
 	_, _, err = s.GenerateSpec(context.Background())
 	require.NoError(t, err)
 

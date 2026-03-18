@@ -45,16 +45,20 @@ func newOpenapiState(api *openapi.API) *openapiState {
 
 // AddOperation adds an operation to the OpenAPI spec.
 // This invalidates the cached spec.
-func (s *openapiState) AddOperation(op openapi.Operation) {
+// Returns an error if the operation is invalid (e.g. empty method or path).
+func (s *openapiState) AddOperation(op openapi.Operation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.api.AddOperation(op)
+	if err := s.api.AddOperation(op); err != nil {
+		return err
+	}
 
 	// Invalidate cache
 	s.specCache = nil
 	s.specETag = ""
 	s.warnings = nil
+	return nil
 }
 
 // GenerateSpec generates the OpenAPI specification.
