@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	rivaas.dev/binding v0.0.0
 	rivaas.dev/middleware/bodylimit v0.0.0
-	rivaas.dev/router v0.13.1
+	rivaas.dev/router v0.15.0
 )
 
 require (
