@@ -850,10 +850,6 @@ func TestResponseWriter_Hijack(t *testing.T) {
 	})
 }
 
-// =============================================================================
-// Context Tracing Helper Tests
-// =============================================================================
-
 // TestContextTracing_Helper tests the ContextTracing helper.
 func TestContextTracing_Helper(t *testing.T) {
 	t.Parallel()
@@ -863,7 +859,7 @@ func TestContextTracing_Helper(t *testing.T) {
 
 		tracer := TestingTracer(t)
 		ctx, span := tracer.StartSpan(t.Context(), "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		ct := NewContextTracing(ctx, tracer, span)
 
@@ -887,7 +883,7 @@ func TestContextTracing_Helper(t *testing.T) {
 
 		tracer := TestingTracer(t)
 		ctx, span := tracer.StartSpan(t.Context(), "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 		assert.PanicsWithValue(t, "tracing: tracer cannot be nil", func() {
 			NewContextTracing(ctx, nil, span)
 		})
@@ -907,7 +903,7 @@ func TestContextTracing_Helper(t *testing.T) {
 
 		tracer := TestingTracer(t)
 		ctx, span := tracer.StartSpan(t.Context(), "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		ct := NewContextTracing(ctx, tracer, span)
 

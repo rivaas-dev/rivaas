@@ -19,6 +19,7 @@ package tracing
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -507,7 +508,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		_, span := tracer.StartSpan(ctx, "test")
 		tracer.SetSpanAttribute(span, "key", "value")
 		tracer.AddSpanEvent(span, "event")
-		tracer.FinishSpan(span, http.StatusOK)
+		tracer.FinishSpan(span)
 
 		assert.NotNil(t, span)
 	})
@@ -533,9 +534,9 @@ func TestTracer_EdgeCases(t *testing.T) {
 		_, span := tracer.StartSpan(ctx, "test")
 
 		// Should be safe to call multiple times
-		tracer.FinishSpan(span, http.StatusOK)
-		tracer.FinishSpan(span, http.StatusOK)
-		tracer.FinishSpan(span, http.StatusOK)
+		tracer.FinishSpan(span)
+		tracer.FinishSpan(span)
+		tracer.FinishSpan(span)
 
 		assert.NotNil(t, span)
 	})
@@ -618,7 +619,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 
 		tracer.SetSpanAttribute(nil, "key", "value")
 		tracer.AddSpanEvent(nil, "event")
-		tracer.FinishSpan(nil, http.StatusOK)
+		tracer.FinishSpan(nil)
 
 		// If we reach here without panic, the test passes
 	})
@@ -629,7 +630,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		tracer := MustNew()
 		ctx := t.Context()
 		_, span := tracer.StartSpan(ctx, "test")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		longValue := string(make([]byte, 10000))
 		tracer.SetSpanAttribute(span, "long_key", longValue)
@@ -643,7 +644,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 		tracer := MustNew()
 		ctx := t.Context()
 		_, span := tracer.StartSpan(ctx, "test")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		tracer.SetSpanAttribute(span, "key-with-dashes", "value")
 		tracer.SetSpanAttribute(span, "key.with.dots", "value")
@@ -664,7 +665,7 @@ func TestTracer_EdgeCases(t *testing.T) {
 			wg.Go(func() {
 				_, span := tracer.StartSpan(ctx, "test")
 				tracer.SetSpanAttribute(span, "key", "value")
-				tracer.FinishSpan(span, http.StatusOK)
+				tracer.FinishSpan(span)
 			})
 		}
 
@@ -688,7 +689,7 @@ func TestTraceContextPropagation(t *testing.T) {
 		ctx = tracer.ExtractTraceContext(ctx, headers)
 
 		ctx, span := tracer.StartSpan(ctx, "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		assert.NotNil(t, span)
 
@@ -711,7 +712,7 @@ func TestContextCancellation(t *testing.T) {
 		cancel()
 
 		ctx, span := tracer.StartSpan(ctx, "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		require.Error(t, ctx.Err())
 		assert.Equal(t, context.Canceled, ctx.Err())
@@ -726,7 +727,7 @@ func TestContextCancellation(t *testing.T) {
 		defer cancel()
 
 		ctx, span := tracer.StartSpan(ctx, "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		assert.NotNil(t, span)
 
@@ -869,7 +870,7 @@ func TestContextTracing(t *testing.T) {
 		tracer := MustNew()
 		ctx := t.Context()
 		ctx, span := tracer.StartSpan(ctx, "test")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		ct := NewContextTracing(ctx, tracer, span)
 
@@ -893,7 +894,7 @@ func TestContextTracing(t *testing.T) {
 
 		tracer := MustNew()
 		ctx, span := tracer.StartSpan(t.Context(), "test")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		ct := NewContextTracing(ctx, tracer, span)
 
@@ -1694,7 +1695,7 @@ func TestTracer_StartSpan_CanceledContext(t *testing.T) {
 	cancel()
 
 	_, span := tracer.StartSpan(ctx, "test")
-	defer tracer.FinishSpan(span, http.StatusOK)
+	defer tracer.FinishSpan(span)
 
 	assert.False(t, span.IsRecording(), "span should not be recording when context is canceled")
 }
@@ -1819,8 +1820,149 @@ func TestTracer_FinishSpan_StatusCodeError(t *testing.T) {
 	_, span := tracer.StartSpan(t.Context(), "test")
 	require.True(t, span.IsRecording())
 
-	tracer.FinishSpan(span, http.StatusNotFound)
+	tracer.FinishSpanWithHTTPStatus(span, http.StatusNotFound)
 	// No panic and span is ended
+}
+
+// TestTracer_FinishSpan covers FinishSpan(span) for success; nil span does not panic.
+func TestTracer_FinishSpan(t *testing.T) {
+	t.Parallel()
+
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	t.Run("Success", func(t *testing.T) {
+		_, span := tracer.StartSpan(t.Context(), "test")
+		require.NotNil(t, span)
+		tracer.FinishSpan(span)
+	})
+
+	t.Run("NilSpanNoPanic", func(t *testing.T) {
+		tracer.FinishSpan(nil)
+	})
+}
+
+// TestTracer_FinishSpanWithHTTPStatus covers status Ok for 2xx and Error for 5xx.
+func TestTracer_FinishSpanWithHTTPStatus(t *testing.T) {
+	t.Parallel()
+
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	t.Run("200Ok", func(t *testing.T) {
+		_, span := tracer.StartSpan(t.Context(), "test")
+		tracer.FinishSpanWithHTTPStatus(span, 200)
+	})
+
+	t.Run("500Error", func(t *testing.T) {
+		_, span := tracer.StartSpan(t.Context(), "test")
+		tracer.FinishSpanWithHTTPStatus(span, 500)
+	})
+}
+
+// TestTracer_FinishSpanWithError covers FinishSpanWithError with a sentinel error; nil span / nil err no panic.
+func TestTracer_FinishSpanWithError(t *testing.T) {
+	t.Parallel()
+
+	sentinel := errors.New("test error")
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	t.Run("WithError", func(t *testing.T) {
+		_, span := tracer.StartSpan(t.Context(), "test")
+		tracer.FinishSpanWithError(span, sentinel)
+	})
+
+	t.Run("NilSpanNoPanic", func(t *testing.T) {
+		tracer.FinishSpanWithError(nil, sentinel)
+	})
+
+	t.Run("NilErrNoPanic", func(t *testing.T) {
+		_, span := tracer.StartSpan(t.Context(), "test")
+		tracer.FinishSpanWithError(span, nil)
+	})
+}
+
+// TestTracer_RecordError covers RecordError then FinishSpan; span is not ended by RecordError.
+func TestTracer_RecordError(t *testing.T) {
+	t.Parallel()
+
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	_, span := tracer.StartSpan(t.Context(), "test")
+	tracer.RecordError(span, errors.New("recorded"))
+	require.True(t, span.IsRecording(), "span should still be recording after RecordError")
+	tracer.FinishSpan(span)
+}
+
+// TestCopyTraceContext verifies the returned context carries the same trace ID for child spans.
+func TestCopyTraceContext(t *testing.T) {
+	t.Parallel()
+
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	t.Run("SameTraceID", func(t *testing.T) {
+		ctx, span := tracer.StartSpan(t.Context(), "parent")
+		parentTraceID := span.SpanContext().TraceID().String()
+		traceCtx := CopyTraceContext(ctx)
+		childCtx, childSpan := tracer.StartSpan(traceCtx, "child")
+		childTraceID := trace.SpanFromContext(childCtx).SpanContext().TraceID().String()
+		tracer.FinishSpan(childSpan)
+		tracer.FinishSpan(span)
+		assert.Equal(t, parentTraceID, childTraceID, "child should be in same trace")
+	})
+
+	t.Run("NoSpanReturnsBackground", func(t *testing.T) {
+		bg := context.Background()
+		traceCtx := CopyTraceContext(bg)
+		assert.Equal(t, bg, traceCtx, "CopyTraceContext(background) should return background or equivalent")
+	})
+}
+
+// TestRecordErrorFromContext records error on span in context; no panic when no span or nil err.
+func TestRecordErrorFromContext(t *testing.T) {
+	t.Parallel()
+
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	t.Run("RecordingSpan", func(t *testing.T) {
+		ctx, span := tracer.StartSpan(t.Context(), "test")
+		RecordErrorFromContext(ctx, errors.New("from context"))
+		tracer.FinishSpan(span)
+	})
+
+	t.Run("NoSpanNoPanic", func(t *testing.T) {
+		RecordErrorFromContext(t.Context(), errors.New("no span"))
+	})
+
+	t.Run("NilErrNoPanic", func(t *testing.T) {
+		ctx, span := tracer.StartSpan(t.Context(), "test")
+		RecordErrorFromContext(ctx, nil)
+		tracer.FinishSpan(span)
+	})
+}
+
+// TestTracer_WithSpan covers WithSpan: fn nil -> success finish, fn error -> error finish and return.
+func TestTracer_WithSpan(t *testing.T) {
+	t.Parallel()
+
+	tracer := MustNew()
+	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
+
+	t.Run("Success", func(t *testing.T) {
+		err := tracer.WithSpan(t.Context(), "op", func(context.Context) error { return nil })
+		require.NoError(t, err)
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		sentinel := errors.New("withspan err")
+		err := tracer.WithSpan(t.Context(), "op", func(context.Context) error { return sentinel })
+		require.Error(t, err)
+		assert.Same(t, sentinel, err)
+	})
 }
 
 // TestAddSpanEventFromContext_NoOpWhenNotRecording covers AddSpanEventFromContext with no recording span.
@@ -1841,7 +1983,7 @@ func TestBuildAttribute_DefaultStringConversion(t *testing.T) {
 	t.Cleanup(func() { tracer.Shutdown(t.Context()) }) //nolint:errcheck // Test cleanup
 
 	_, span := tracer.StartSpan(t.Context(), "test")
-	defer tracer.FinishSpan(span, http.StatusOK)
+	defer tracer.FinishSpan(span)
 
 	// Struct type uses default fmt.Sprintf path
 	tracer.SetSpanAttribute(span, "struct_attr", struct{ X int }{42})

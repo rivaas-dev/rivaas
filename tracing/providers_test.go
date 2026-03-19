@@ -59,7 +59,7 @@ func TestInitNoopProvider_WithCustomProviderAndGlobalRegistration(t *testing.T) 
 	assert.True(t, tracer.customTracerProvider)
 	_, span := tracer.StartSpan(t.Context(), "test")
 	require.NotNil(t, span)
-	tracer.FinishSpan(span, 200)
+	tracer.FinishSpanWithHTTPStatus(span, 200)
 }
 
 // TestInitStdoutProvider_WithCustomProvider covers initStdoutProvider with custom provider.
@@ -88,7 +88,7 @@ func TestInitStdoutProvider_WithCustomProvider(t *testing.T) {
 	assert.True(t, tracer.customTracerProvider)
 	_, span := tracer.StartSpan(t.Context(), "test")
 	require.NotNil(t, span)
-	tracer.FinishSpan(span, 200)
+	tracer.FinishSpanWithHTTPStatus(span, 200)
 }
 
 // TestInitStdoutProvider_SkipsGlobalRegistration covers initStdoutProvider "Skipping global" branch.
@@ -137,7 +137,7 @@ func TestInitOTLPProvider_WithCustomProvider(t *testing.T) {
 	assert.True(t, tracer.customTracerProvider)
 	_, span := tracer.StartSpan(t.Context(), "test")
 	require.NotNil(t, span)
-	tracer.FinishSpan(span, 200)
+	tracer.FinishSpanWithHTTPStatus(span, 200)
 }
 
 // TestInitOTLPHTTPProvider_WithCustomProvider covers initOTLPHTTPProvider with custom provider.
@@ -166,7 +166,7 @@ func TestInitOTLPHTTPProvider_WithCustomProvider(t *testing.T) {
 	assert.True(t, tracer.customTracerProvider)
 	_, span := tracer.StartSpan(t.Context(), "test")
 	require.NotNil(t, span)
-	tracer.FinishSpan(span, 200)
+	tracer.FinishSpanWithHTTPStatus(span, 200)
 }
 
 // TestInitOTLPHTTPProvider_StripsHttpPrefixAndPath covers endpoint parsing (http prefix and path stripping).

@@ -70,7 +70,7 @@ func TestTestingTracerWithStdout_CreatesTracer(t *testing.T) {
 	ctx, span := tracer.StartSpan(t.Context(), "test-span")
 	require.NotNil(t, ctx)
 	require.NotNil(t, span)
-	tracer.FinishSpan(span, http.StatusOK)
+	tracer.FinishSpan(span)
 }
 
 // TestTestingMiddleware_WrapsHandler covers TestingMiddleware.

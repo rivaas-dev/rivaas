@@ -92,13 +92,13 @@ func BenchmarkSpanOperations(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
 			_, span := tracer.StartSpan(ctx, "test-span")
-			tracer.FinishSpan(span, http.StatusOK)
+			tracer.FinishSpan(span)
 		}
 	})
 
 	b.Run("SetStringAttribute", func(b *testing.B) {
 		_, span := tracer.StartSpan(ctx, "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -109,7 +109,7 @@ func BenchmarkSpanOperations(b *testing.B) {
 
 	b.Run("SetIntAttribute", func(b *testing.B) {
 		_, span := tracer.StartSpan(ctx, "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -120,7 +120,7 @@ func BenchmarkSpanOperations(b *testing.B) {
 
 	b.Run("SetBoolAttribute", func(b *testing.B) {
 		_, span := tracer.StartSpan(ctx, "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -131,7 +131,7 @@ func BenchmarkSpanOperations(b *testing.B) {
 
 	b.Run("AddEvent", func(b *testing.B) {
 		_, span := tracer.StartSpan(ctx, "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -142,7 +142,7 @@ func BenchmarkSpanOperations(b *testing.B) {
 
 	b.Run("AddEventWithAttributes", func(b *testing.B) {
 		_, span := tracer.StartSpan(ctx, "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -173,7 +173,7 @@ func BenchmarkContextPropagation(b *testing.B) {
 
 	b.Run("InjectTraceContext", func(b *testing.B) {
 		newCtx, span := tracer.StartSpan(ctx, "test-span")
-		defer tracer.FinishSpan(span, http.StatusOK)
+		defer tracer.FinishSpan(span)
 
 		b.ResetTimer()
 		b.ReportAllocs()

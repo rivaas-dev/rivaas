@@ -76,7 +76,10 @@
 // Create and manage spans using the provided methods:
 //
 //	ctx, span := tracer.StartSpan(ctx, "database-query")
-//	defer tracer.FinishSpan(span, http.StatusOK)
+//	defer tracer.FinishSpan(span)
+//
+// Use FinishSpan(span) for success (no HTTP status), or FinishSpanWithHTTPStatus(span, statusCode)
+// for request-level spans. Use FinishSpanWithError(span, err) when the span fails.
 //
 //	tracer.SetSpanAttribute(span, "user.id", "123")
 //	tracer.AddSpanEvent(span, "cache_hit",
@@ -88,14 +91,47 @@
 // tracer.SetSpanAttribute and tracer.AddSpanEvent. The two styles are equivalent;
 // the context helpers are for use when the tracer is not in scope.
 //
+// # Error handling
+//
+// When a span fails, call FinishSpanWithError(span, err) to record the error and end the span.
+// To record an error but continue (e.g. retry), use RecordError(span, err); then call
+// FinishSpan or FinishSpanWithError when the span ends.
+//
+//	if err := step(); err != nil {
+//	    tracer.RecordError(span, err)
+//	}
+//	defer tracer.FinishSpan(span)
+//
+// # Context propagation (goroutines)
+//
+// Use CopyTraceContext(ctx) when starting goroutines or background work so new spans
+// link to the same trace:
+//
+//	traceCtx := tracing.CopyTraceContext(r.Context())
+//	go func() {
+//	    _, span := tracer.StartSpan(traceCtx, "async-job")
+//	    defer tracer.FinishSpan(span)
+//	    doAsyncWork(ctx)
+//	}()
+//
+// # WithSpan
+//
+// Run a function under a span; the span is finished with success or error based on
+// the returned error:
+//
+//	err := tracer.WithSpan(ctx, "process-order", func(ctx context.Context) error {
+//	    return processOrder(ctx, id)
+//	})
+//
 // # App integration
 //
 // When using the app package, enable tracing with
 // app.WithObservability(app.WithTracing(...)). Request spans are created with
 // the same behavior as the standalone middleware (W3C propagation, sampling,
-// standard attributes). From handlers, use c.StartSpan and c.FinishSpan for
-// child spans; use c.Tracer() only for advanced use (e.g. passing the tracer
-// to another library).
+// standard attributes). From handlers, use c.StartSpan, c.FinishSpan,
+// c.FinishSpanWithHTTPStatus, c.FinishSpanWithError, c.RecordError, c.CopyTraceContext,
+// and c.WithSpan with the same semantics as the tracing package; use c.Tracer()
+// only for advanced use (e.g. passing the tracer to another library).
 //
 // # Context Propagation
 //

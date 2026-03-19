@@ -63,7 +63,7 @@ func TestWithCustomTracerProvider(t *testing.T) {
 	ctx, span := config.StartSpan(t.Context(), "test-span")
 	assert.NotNil(t, ctx)
 	assert.NotNil(t, span)
-	config.FinishSpan(span, 200)
+	config.FinishSpanWithHTTPStatus(span, 200)
 
 	// Shutdown should NOT shut down the custom provider (user manages it)
 	err = config.Shutdown(t.Context())
@@ -150,11 +150,11 @@ func TestMultipleIndependentTracingConfigurations(t *testing.T) {
 	// Both configurations should work independently
 	ctx1, span1 := config1.StartSpan(t.Context(), "operation-1")
 	assert.NotNil(t, ctx1)
-	config1.FinishSpan(span1, 200)
+	config1.FinishSpanWithHTTPStatus(span1, 200)
 
 	ctx2, span2 := config2.StartSpan(t.Context(), "operation-2")
 	assert.NotNil(t, ctx2)
-	config2.FinishSpan(span2, 200)
+	config2.FinishSpanWithHTTPStatus(span2, 200)
 
 	// Cleanup - shutdown configs first (they won't shutdown the custom providers)
 	assert.NoError(t, config1.Shutdown(t.Context()))

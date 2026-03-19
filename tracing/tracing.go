@@ -442,7 +442,7 @@ func (t *Tracer) Shutdown(ctx context.Context) error {
 // Example:
 //
 //	ctx, span := tracer.StartSpan(ctx, "database-query")
-//	defer tracer.FinishSpan(span, http.StatusOK)
+//	defer tracer.FinishSpan(span)
 func (t *Tracer) StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	if !t.enabled {
 		return ctx, trace.SpanFromContext(ctx)
@@ -461,28 +461,93 @@ func (t *Tracer) StartSpan(ctx context.Context, name string, opts ...trace.SpanS
 	return t.tracer.Start(ctx, name, opts...) //nolint:spancheck // span is returned to caller who manages its lifecycle
 }
 
-// FinishSpan completes the span with the given status code.
-// Sets the span status based on the HTTP status code:
-//   - 2xx-3xx: Success (codes.Ok)
-//   - 4xx-5xx: Error (codes.Error)
-//
-// This method is safe to call multiple times; subsequent calls are no-ops.
+// FinishSpan ends the span with status Ok. Use for child spans that complete
+// successfully and have no HTTP status. Safe to call multiple times; subsequent
+// calls are no-ops.
 //
 // Example:
 //
-//	defer tracer.FinishSpan(span, http.StatusOK)
-func (t *Tracer) FinishSpan(span trace.Span, statusCode int) {
+//	defer tracer.FinishSpan(span)
+func (t *Tracer) FinishSpan(span trace.Span) {
 	if !t.enabled || span == nil || !span.IsRecording() {
 		return
 	}
-
-	if statusCode >= 400 {
-		span.SetStatus(codes.Error, fmt.Sprintf("HTTP %d", statusCode))
-	} else {
-		span.SetStatus(codes.Ok, "")
-	}
-
+	span.SetStatus(codes.Ok, "")
 	span.End()
+}
+
+// FinishSpanWithHTTPStatus ends the span and sets status from the HTTP status code:
+// 2xx-3xx → Ok, 4xx-5xx → Error. Use for request-level spans or when you have
+// an HTTP status. Safe to call multiple times; subsequent calls are no-ops.
+//
+// Example:
+//
+//	defer tracer.FinishSpanWithHTTPStatus(span, rw.Status())
+func (t *Tracer) FinishSpanWithHTTPStatus(span trace.Span, statusCode int) {
+	if !t.enabled || span == nil || !span.IsRecording() {
+		return
+	}
+	setStatusFromHTTPCodeAndEnd(span, statusCode)
+}
+
+// FinishSpanWithError marks the span as failed with the given error, sets standard
+// error attributes (exception.type, exception.message, error), and ends the span.
+// Status description is err.Error(). Safe to call multiple times; subsequent calls
+// are no-ops.
+//
+// Example:
+//
+//	if err != nil {
+//	    tracer.FinishSpanWithError(span, err)
+//	    return err
+//	}
+//	tracer.FinishSpan(span)
+func (t *Tracer) FinishSpanWithError(span trace.Span, err error) {
+	if !t.enabled || span == nil || !span.IsRecording() {
+		return
+	}
+	if err != nil {
+		setErrorAttributes(span, err)
+		span.SetStatus(codes.Error, err.Error())
+	} else {
+		span.SetStatus(codes.Error, "")
+	}
+	span.End()
+}
+
+// RecordError records an error on the span without ending it. Sets exception.type,
+// exception.message, and the legacy "error" attribute, and sets span status to Error.
+// Use when an error occurs mid-span and you want to record it but continue (e.g. retry).
+// Call FinishSpan or FinishSpanWithError when the span ends.
+func (t *Tracer) RecordError(span trace.Span, err error) {
+	if !t.enabled || span == nil || !span.IsRecording() || err == nil {
+		return
+	}
+	setErrorAttributes(span, err)
+	span.SetStatus(codes.Error, err.Error())
+}
+
+// WithSpan runs fn under a new span with the given name. The span is finished with
+// success (FinishSpan) if fn returns nil, or with error (FinishSpanWithError) if fn
+// returns a non-nil error. Returns the error from fn.
+//
+// Example:
+//
+//	err := tracer.WithSpan(ctx, "process-order", func(ctx context.Context) error {
+//	    return processOrder(ctx, id)
+//	})
+func (t *Tracer) WithSpan(ctx context.Context, name string, fn func(context.Context) error) error {
+	ctx, span := t.StartSpan(ctx, name)
+	var err error
+	defer func() {
+		if err != nil {
+			t.FinishSpanWithError(span, err)
+		} else {
+			t.FinishSpan(span)
+		}
+	}()
+	err = fn(ctx)
+	return err
 }
 
 // SetSpanAttribute adds an attribute to the span with type-safe handling.
@@ -631,19 +696,38 @@ func (t *Tracer) FinishRequestSpan(span trace.Span, statusCode int) {
 	// Set status code attribute
 	span.SetAttributes(attribute.Int("http.status_code", statusCode))
 
-	// Set status based on status code
-	if statusCode >= 400 {
-		span.SetStatus(codes.Error, fmt.Sprintf("HTTP %d", statusCode))
-	} else {
-		span.SetStatus(codes.Ok, "")
-	}
-
 	// Invoke span finish hook if configured
 	if t.spanFinishHook != nil {
 		t.spanFinishHook(span, statusCode)
 	}
 
+	setStatusFromHTTPCodeAndEnd(span, statusCode)
+}
+
+// setStatusFromHTTPCodeAndEnd sets span status from HTTP status code (2xx-3xx → Ok,
+// 4xx-5xx → Error) and ends the span. Shared by FinishSpanWithHTTPStatus and FinishRequestSpan.
+func setStatusFromHTTPCodeAndEnd(span trace.Span, statusCode int) {
+	if statusCode >= 400 {
+		span.SetStatus(codes.Error, fmt.Sprintf("HTTP %d", statusCode))
+	} else {
+		span.SetStatus(codes.Ok, "")
+	}
 	span.End()
+}
+
+// setErrorAttributes sets standard error attributes on the span (exception.type,
+// exception.message, and legacy "error"). Used by FinishSpanWithError and RecordError.
+func setErrorAttributes(span trace.Span, err error) {
+	if span == nil || !span.IsRecording() || err == nil {
+		return
+	}
+	msg := err.Error()
+	typ := fmt.Sprintf("%T", err)
+	span.SetAttributes(
+		attribute.String("exception.type", typ),
+		attribute.String("exception.message", msg),
+		attribute.String("error", msg),
+	)
 }
 
 // buildAttribute creates an OpenTelemetry attribute from a key-value pair.
@@ -662,6 +746,28 @@ func buildAttribute(key string, value any) attribute.KeyValue {
 	default:
 		return attribute.String(key, fmt.Sprintf("%v", v))
 	}
+}
+
+// CopyTraceContext returns a new context that carries the current trace (span context)
+// from ctx but has no active span. Use when starting goroutines or background work
+// so that new spans created in that context are linked to the same trace.
+//
+// If ctx has no valid span context, returns context.Background().
+//
+// Example:
+//
+//	traceCtx := tracing.CopyTraceContext(r.Context())
+//	go func() {
+//	    _, span := tracer.StartSpan(traceCtx, "async-job")
+//	    defer tracer.FinishSpan(span)
+//	    doAsyncWork(ctx)
+//	}()
+func CopyTraceContext(ctx context.Context) context.Context {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
+		return context.Background()
+	}
+	return trace.ContextWithRemoteSpanContext(context.Background(), span.SpanContext())
 }
 
 // TraceID returns the current trace ID from the active span in the context.
@@ -709,4 +815,16 @@ func AddSpanEventFromContext(ctx context.Context, name string, attrs ...attribut
 	if span.IsRecording() {
 		span.AddEvent(name, trace.WithAttributes(attrs...))
 	}
+}
+
+// RecordErrorFromContext records an error on the current span in ctx without ending it.
+// Sets exception.type, exception.message, and span status to Error. No-op if ctx has
+// no recording span or err is nil.
+func RecordErrorFromContext(ctx context.Context, err error) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() || err == nil {
+		return
+	}
+	setErrorAttributes(span, err)
+	span.SetStatus(codes.Error, err.Error())
 }

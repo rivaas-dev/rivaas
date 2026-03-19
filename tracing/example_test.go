@@ -84,7 +84,7 @@ func ExampleTracer_StartSpan() {
 
 	ctx := context.Background()
 	_, span := tracer.StartSpan(ctx, "database-query")
-	defer tracer.FinishSpan(span, http.StatusOK)
+	defer tracer.FinishSpan(span)
 
 	tracer.SetSpanAttribute(span, "db.query", "SELECT * FROM users")
 	tracer.SetSpanAttribute(span, "db.rows", 10)
@@ -105,7 +105,7 @@ func ExampleTracer_AddSpanEvent() {
 
 	ctx := context.Background()
 	ctx, span := tracer.StartSpan(ctx, "cache-operation")
-	defer tracer.FinishSpan(span, http.StatusOK)
+	defer tracer.FinishSpan(span)
 
 	tracer.AddSpanEvent(span, "cache_hit",
 		attribute.String("key", "user:123"),
@@ -116,7 +116,95 @@ func ExampleTracer_AddSpanEvent() {
 	// Output:
 }
 
-// ExampleExtractTraceContext demonstrates extracting trace context from headers.
+// ExampleTracer_FinishSpan demonstrates ending a span with success.
+func ExampleTracer_FinishSpan() {
+	tracer := tracing.MustNew(
+		tracing.WithServiceName("my-service"),
+		tracing.WithStdout(),
+	)
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
+
+	ctx, span := tracer.StartSpan(context.Background(), "operation")
+	defer tracer.FinishSpan(span)
+	_ = ctx
+	// Output:
+}
+
+// ExampleTracer_FinishSpanWithError demonstrates ending a span with an error.
+func ExampleTracer_FinishSpanWithError() {
+	tracer := tracing.MustNew(
+		tracing.WithServiceName("my-service"),
+		tracing.WithStdout(),
+	)
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
+
+	ctx, span := tracer.StartSpan(context.Background(), "operation")
+	err := doWork(ctx)
+	if err != nil {
+		tracer.FinishSpanWithError(span, err)
+		return
+	}
+	tracer.FinishSpan(span)
+	// Output:
+}
+
+func doWork(context.Context) error {
+	return nil
+}
+
+// ExampleTracer_WithSpan demonstrates running a function under a span.
+func ExampleTracer_WithSpan() {
+	tracer := tracing.MustNew(
+		tracing.WithServiceName("my-service"),
+		tracing.WithStdout(),
+	)
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
+
+	err := tracer.WithSpan(context.Background(), "process-order", func(ctx context.Context) error {
+		// Simulate work
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	// Output:
+}
+
+// ExampleCopyTraceContext demonstrates propagating trace context to a goroutine.
+func ExampleCopyTraceContext() {
+	tracer := tracing.MustNew(
+		tracing.WithServiceName("my-service"),
+		tracing.WithStdout(),
+	)
+	defer func() {
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
+
+	ctx, span := tracer.StartSpan(context.Background(), "parent")
+	traceCtx := tracing.CopyTraceContext(ctx)
+	go func() {
+		_, childSpan := tracer.StartSpan(traceCtx, "async-job")
+		defer tracer.FinishSpan(childSpan)
+	}()
+	tracer.FinishSpan(span)
+	// Output:
+}
+
+// ExampleTracer_ExtractTraceContext demonstrates extracting trace context from headers.
 func ExampleTracer_ExtractTraceContext() {
 	ctx := context.Background()
 	tracer := tracing.MustNew(
@@ -137,7 +225,7 @@ func ExampleTracer_ExtractTraceContext() {
 
 	ctx = tracer.ExtractTraceContext(ctx, req.Header)
 	ctx, span := tracer.StartSpan(ctx, "process-request")
-	defer tracer.FinishSpan(span, http.StatusOK)
+	defer tracer.FinishSpan(span)
 	// Output:
 }
 
