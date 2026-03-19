@@ -7,7 +7,7 @@ require (
 	go.opentelemetry.io/otel v1.42.0
 	go.opentelemetry.io/otel/trace v1.42.0
 	golang.org/x/term v0.41.0
-	rivaas.dev/router v0.13.1
+	rivaas.dev/router v0.15.0
 )
 
 require (
