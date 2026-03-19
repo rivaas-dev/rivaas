@@ -36,7 +36,7 @@
 //
 // # Providers
 //
-// Three providers are supported with convenient options:
+// These providers are supported with convenient options:
 //
 //   - WithNoop() (default): No traces exported (safe default)
 //   - WithStdout(): Prints traces to stdout (for development/testing)

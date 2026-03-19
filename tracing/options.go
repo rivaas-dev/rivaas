@@ -88,7 +88,7 @@ func WithTracerProvider(provider trace.TracerProvider) Option {
 //
 // Example:
 //
-//	tracer := tracing.New(
+//	tracer, err := tracing.New(
 //	    tracing.WithOTLP("localhost:4317"),
 //	    tracing.WithGlobalTracerProvider(), // Register as global default
 //	)
@@ -143,9 +143,9 @@ func WithSampleRate(rate float64) Option {
 //
 // Example:
 //
-//	tp := trace.NewTracerProvider(...)
-//	tracer := tp.Tracer("my-tracer")
-//	t := tracing.New(tracing.WithCustomTracer(tracer))
+//	tp := sdktrace.NewTracerProvider()
+//	customTracer := tp.Tracer("my-tracer")
+//	t, err := tracing.New(tracing.WithCustomTracer(customTracer))
 func WithCustomTracer(tracer trace.Tracer) Option {
 	return func(c *config) {
 		c.tracer = tracer
