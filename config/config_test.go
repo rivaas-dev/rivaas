@@ -1625,15 +1625,8 @@ func TestWithEnv(t *testing.T) {
 }
 
 func TestWithConsul_RequiresEnvVar(t *testing.T) {
-	t.Parallel()
-
-	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
-	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
-	defer func() {
-		if originalAddr != "" {
-			require.NoError(t, os.Setenv("CONSUL_HTTP_ADDR", originalAddr))
-		}
-	}()
+	// Cannot use t.Parallel() with t.Setenv (testing package restriction).
+	t.Setenv("CONSUL_HTTP_ADDR", "")
 
 	cfg, err := New(WithConsul("production/service.yaml"))
 	require.Error(t, err)
@@ -1642,15 +1635,7 @@ func TestWithConsul_RequiresEnvVar(t *testing.T) {
 }
 
 func TestWithConsulAs_RequiresEnvVar(t *testing.T) {
-	t.Parallel()
-
-	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
-	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
-	defer func() {
-		if originalAddr != "" {
-			require.NoError(t, os.Setenv("CONSUL_HTTP_ADDR", originalAddr))
-		}
-	}()
+	t.Setenv("CONSUL_HTTP_ADDR", "")
 
 	cfg, err := New(WithConsulAs("production/service", codec.TypeJSON))
 	require.Error(t, err)
@@ -1659,15 +1644,7 @@ func TestWithConsulAs_RequiresEnvVar(t *testing.T) {
 }
 
 func TestWithConsulOptional_SkipsWithoutEnvVar(t *testing.T) {
-	t.Parallel()
-
-	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
-	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
-	defer func() {
-		if originalAddr != "" {
-			require.NoError(t, os.Setenv("CONSUL_HTTP_ADDR", originalAddr))
-		}
-	}()
+	t.Setenv("CONSUL_HTTP_ADDR", "")
 
 	cfg, err := New(WithConsulOptional("production/service.yaml"))
 	require.NoError(t, err)
@@ -1676,15 +1653,7 @@ func TestWithConsulOptional_SkipsWithoutEnvVar(t *testing.T) {
 }
 
 func TestWithConsulAsOptional_SkipsWithoutEnvVar(t *testing.T) {
-	t.Parallel()
-
-	originalAddr := os.Getenv("CONSUL_HTTP_ADDR")
-	require.NoError(t, os.Unsetenv("CONSUL_HTTP_ADDR"))
-	defer func() {
-		if originalAddr != "" {
-			require.NoError(t, os.Setenv("CONSUL_HTTP_ADDR", originalAddr))
-		}
-	}()
+	t.Setenv("CONSUL_HTTP_ADDR", "")
 
 	cfg, err := New(WithConsulAsOptional("production/service", codec.TypeJSON))
 	require.NoError(t, err)
