@@ -11,15 +11,15 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.42.0
 	go.opentelemetry.io/otel/trace v1.42.0
-	rivaas.dev/binding v0.7.6
-	rivaas.dev/errors v0.6.0
-	rivaas.dev/logging v0.6.2
-	rivaas.dev/metrics v0.6.6
-	rivaas.dev/middleware/recovery v0.2.2
-	rivaas.dev/openapi v0.5.5
-	rivaas.dev/router v0.13.1
-	rivaas.dev/tracing v0.6.3
-	rivaas.dev/validation v0.5.5
+	rivaas.dev/binding v0.8.0
+	rivaas.dev/errors v0.7.0
+	rivaas.dev/logging v0.7.0
+	rivaas.dev/metrics v0.7.0
+	rivaas.dev/middleware/recovery v0.3.0
+	rivaas.dev/openapi v0.6.0
+	rivaas.dev/router v0.15.0
+	rivaas.dev/tracing v0.7.0
+	rivaas.dev/validation v0.7.0
 )
 
 replace (
@@ -96,9 +96,9 @@ require (
 	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260311181403-84a4fc48630c // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260311181403-84a4fc48630c // indirect
-	google.golang.org/grpc v1.79.2 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260316180232-0b37fe3546d5 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260316180232-0b37fe3546d5 // indirect
+	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
