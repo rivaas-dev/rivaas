@@ -18,6 +18,7 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -423,7 +424,7 @@ func ExampleContext_StartSpan() {
 
 	a.GET("/users", func(c *app.Context) {
 		ctx, span := c.StartSpan("db-query")
-		defer c.FinishSpan(span, 0)
+		defer c.FinishSpan(span)
 		span.SetAttributes(attribute.String("db.operation", "list"))
 		_ = ctx // use ctx for DB call so the span is the parent
 		if err := c.JSON(http.StatusOK, map[string]string{"users": "list"}); err != nil {
@@ -432,6 +433,86 @@ func ExampleContext_StartSpan() {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/users", nil)
+	resp, err := a.Test(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Status: %d\n", resp.StatusCode)
+	//nolint:errcheck // example cleanup
+	resp.Body.Close()
+	// Output: Status: 200
+}
+
+// ExampleContext_FinishSpan demonstrates ending a child span with success.
+func ExampleContext_FinishSpan() {
+	a := app.MustNew(
+		app.WithObservability(app.WithTracing(tracing.WithNoop())),
+	)
+	a.GET("/ping", func(c *app.Context) {
+		_, span := c.StartSpan("check")
+		defer c.FinishSpan(span)
+		if err := c.JSON(http.StatusOK, map[string]string{"ok": "true"}); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
+	})
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	resp, err := a.Test(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Status: %d\n", resp.StatusCode)
+	//nolint:errcheck // example cleanup
+	resp.Body.Close()
+	// Output: Status: 200
+}
+
+// ExampleContext_FinishSpanWithError demonstrates ending a span with an error.
+func ExampleContext_FinishSpanWithError() {
+	a := app.MustNew(
+		app.WithObservability(app.WithTracing(tracing.WithNoop())),
+	)
+	a.GET("/fail", func(c *app.Context) {
+		_, span := c.StartSpan("op")
+		err := errors.New("something failed")
+		c.FinishSpanWithError(span, err)
+		if werr := c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()}); werr != nil {
+			log.Printf("Failed to write response: %v", werr)
+		}
+	})
+	req := httptest.NewRequest(http.MethodGet, "/fail", nil)
+	resp, err := a.Test(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Status: %d\n", resp.StatusCode)
+	//nolint:errcheck // example cleanup
+	resp.Body.Close()
+	// Output: Status: 500
+}
+
+// ExampleContext_WithSpan demonstrates running a function under a span.
+func ExampleContext_WithSpan() {
+	a := app.MustNew(
+		app.WithObservability(app.WithTracing(tracing.WithNoop())),
+	)
+	a.GET("/user/:id", func(c *app.Context) {
+		id := c.Param("id")
+		err := c.WithSpan("fetch-user", func(ctx context.Context) error {
+			_ = ctx
+			_ = id
+			return nil
+		})
+		if err != nil {
+			if werr := c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()}); werr != nil {
+				log.Printf("Failed to write response: %v", werr)
+			}
+			return
+		}
+		if werr := c.JSON(http.StatusOK, map[string]string{"id": id}); werr != nil {
+			log.Printf("Failed to write response: %v", werr)
+		}
+	})
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
 	resp, err := a.Test(req)
 	if err != nil {
 		log.Fatal(err)

@@ -746,7 +746,7 @@ func TestObservabilityRecorder_RequestSpanLifecycle(t *testing.T) {
 			assert.Nil(t, c.Tracer())
 			_, span := c.StartSpan("child")
 			assert.False(t, span.IsRecording())
-			c.FinishSpan(span, 0)
+			c.FinishSpan(span)
 			require.NoError(t, c.String(http.StatusOK, "ok"))
 		})
 

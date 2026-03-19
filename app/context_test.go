@@ -18,7 +18,9 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -617,8 +619,8 @@ func TestContext_ObservabilityMethods_NoPanic(t *testing.T) {
 	require.NotNil(t, ctx)
 	require.NotNil(t, childSpan)
 	assert.False(t, childSpan.IsRecording(), "StartSpan should return non-recording span when tracing disabled")
-	c.FinishSpan(childSpan, 0)
-	c.FinishSpan(nil, 0) // no panic with nil span
+	c.FinishSpan(childSpan)
+	c.FinishSpan(nil) // no panic with nil span
 }
 
 // testContextWithTracing creates a Context with tracing enabled (noop provider) for testing.
@@ -698,7 +700,7 @@ func TestContext_StartSpan(t *testing.T) {
 		require.NotNil(t, span)
 		assert.True(t, span.IsRecording())
 		// End span to satisfy tracer
-		c.FinishSpan(span, 0)
+		c.FinishSpan(span)
 	})
 }
 
@@ -709,7 +711,7 @@ func TestContext_FinishSpan(t *testing.T) {
 		t.Parallel()
 		c, err := TestContextWithBody("GET", "/test", nil)
 		require.NoError(t, err)
-		c.FinishSpan(nil, http.StatusOK)
+		c.FinishSpan(nil)
 	})
 
 	t.Run("non-recording span does not panic", func(t *testing.T) {
@@ -717,7 +719,69 @@ func TestContext_FinishSpan(t *testing.T) {
 		c, err := TestContextWithBody("GET", "/test", nil)
 		require.NoError(t, err)
 		_, span := c.StartSpan("noop")
-		c.FinishSpan(span, 0)
+		c.FinishSpan(span)
+	})
+
+	t.Run("tracing enabled span ends without panic", func(t *testing.T) {
+		t.Parallel()
+		c := testContextWithTracing(t, "GET", "/test", nil)
+		_, span := c.StartSpan("child")
+		c.FinishSpan(span)
+	})
+}
+
+func TestContext_FinishSpanWithHTTPStatus(t *testing.T) {
+	t.Parallel()
+
+	c := testContextWithTracing(t, "GET", "/test", nil)
+	_, span := c.StartSpan("child")
+	c.FinishSpanWithHTTPStatus(span, http.StatusNotFound)
+}
+
+func TestContext_FinishSpanWithError(t *testing.T) {
+	t.Parallel()
+
+	c := testContextWithTracing(t, "GET", "/test", nil)
+	_, span := c.StartSpan("child")
+	c.FinishSpanWithError(span, errors.New("handler error"))
+}
+
+func TestContext_RecordError(t *testing.T) {
+	t.Parallel()
+
+	c := testContextWithTracing(t, "GET", "/test", nil)
+	c.RecordError(errors.New("recorded error"))
+}
+
+func TestContext_CopyTraceContext(t *testing.T) {
+	t.Parallel()
+
+	c := testContextWithTracing(t, "GET", "/test", nil)
+	traceCtx := c.CopyTraceContext()
+	require.NotNil(t, traceCtx)
+	// Start a span from the copied context; it should be in the same trace
+	tr := c.Tracer()
+	require.NotNil(t, tr)
+	_, childSpan := tr.StartSpan(traceCtx, "async-job")
+	require.True(t, childSpan.SpanContext().TraceID().String() == c.TraceID() || c.TraceID() == "", "child should share trace or request has no trace yet")
+	tr.FinishSpan(childSpan)
+}
+
+func TestContext_WithSpan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success", func(t *testing.T) {
+		c := testContextWithTracing(t, "GET", "/test", nil)
+		err := c.WithSpan("op", func(context.Context) error { return nil })
+		require.NoError(t, err)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		c := testContextWithTracing(t, "GET", "/test", nil)
+		sentinel := errors.New("withspan error")
+		err := c.WithSpan("op", func(context.Context) error { return sentinel })
+		require.Error(t, err)
+		assert.Same(t, sentinel, err)
 	})
 }
 

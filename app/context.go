@@ -719,7 +719,8 @@ func (c *Context) Tracer() *tracing.Tracer {
 }
 
 // StartSpan starts a child span with the given name. It is the single, discoverable way
-// to create child spans from handlers. Always end the span with FinishSpan (e.g. defer c.FinishSpan(span, 0)).
+// to create child spans from handlers. Always end the span with FinishSpan or
+// FinishSpanWithHTTPStatus (e.g. defer c.FinishSpan(span)).
 // If tracing is nil or disabled, returns the request context and a non-recording span.
 func (c *Context) StartSpan(name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	if c.app == nil || c.app.tracing == nil || !c.app.tracing.IsEnabled() {
@@ -728,13 +729,70 @@ func (c *Context) StartSpan(name string, opts ...trace.SpanStartOption) (context
 	return c.app.tracing.StartSpan(c.RequestContext(), name, opts...)
 }
 
-// FinishSpan ends a child span started with StartSpan. Call it with defer after StartSpan
-// (e.g. defer c.FinishSpan(span, 0)). No-op if span is nil or not recording.
-func (c *Context) FinishSpan(span trace.Span, statusCode int) {
+// FinishSpan ends a child span with status Ok. Use for spans that complete successfully
+// and have no HTTP status. Delegates to tracing.FinishSpan. No-op if app/tracing nil.
+func (c *Context) FinishSpan(span trace.Span) {
 	if c.app == nil || c.app.tracing == nil {
 		return
 	}
-	c.app.tracing.FinishSpan(span, statusCode)
+	c.app.tracing.FinishSpan(span)
+}
+
+// FinishSpanWithHTTPStatus ends a child span and sets status from the HTTP status code.
+// Delegates to tracing.FinishSpanWithHTTPStatus. No-op if app/tracing nil.
+func (c *Context) FinishSpanWithHTTPStatus(span trace.Span, statusCode int) {
+	if c.app == nil || c.app.tracing == nil {
+		return
+	}
+	c.app.tracing.FinishSpanWithHTTPStatus(span, statusCode)
+}
+
+// FinishSpanWithError marks the span as failed with the given error and ends it.
+// Delegates to tracing.FinishSpanWithError. No-op if app/tracing nil.
+func (c *Context) FinishSpanWithError(span trace.Span, err error) {
+	if c.app == nil || c.app.tracing == nil {
+		return
+	}
+	c.app.tracing.FinishSpanWithError(span, err)
+}
+
+// RecordError records an error on the current request span without ending it.
+// Delegates to tracing.RecordErrorFromContext(c.RequestContext(), err). No-op if app/tracing nil.
+func (c *Context) RecordError(err error) {
+	if c.app == nil || c.app.tracing == nil {
+		return
+	}
+	tracing.RecordErrorFromContext(c.RequestContext(), err)
+}
+
+// CopyTraceContext returns a new context that carries the current trace for use in
+// goroutines or background work. Delegates to tracing.CopyTraceContext(c.RequestContext()).
+func (c *Context) CopyTraceContext() context.Context {
+	if c.app == nil || c.app.tracing == nil {
+		return context.Background()
+	}
+	return tracing.CopyTraceContext(c.RequestContext())
+}
+
+// WithSpan runs fn under a new span with the given name. The span is finished with
+// success if fn returns nil, or with error if fn returns non-nil. Returns the error from fn.
+// No-op if app/tracing nil (runs fn and returns its error). Delegates to StartSpan and
+// FinishSpan/FinishSpanWithError.
+func (c *Context) WithSpan(name string, fn func(context.Context) error) error {
+	if c.app == nil || c.app.tracing == nil || !c.app.tracing.IsEnabled() {
+		return fn(c.RequestContext())
+	}
+	ctx, span := c.StartSpan(name)
+	var err error
+	defer func() {
+		if err != nil {
+			c.FinishSpanWithError(span, err)
+		} else {
+			c.FinishSpan(span)
+		}
+	}()
+	err = fn(ctx)
+	return err
 }
 
 // RecordHistogram records a custom histogram metric.

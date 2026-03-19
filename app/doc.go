@@ -141,12 +141,16 @@
 //
 // From handlers, use [Context.SetSpanAttribute] and [Context.AddSpanEvent] on the
 // current span. For child spans (e.g. "db-query", "call-service"), use
-// [Context.StartSpan] and [Context.FinishSpan]—the single, discoverable way to create
-// and end child spans:
+// [Context.StartSpan] and [Context.FinishSpan] for success, or [Context.FinishSpanWithHTTPStatus]
+// when you have an HTTP status, or [Context.FinishSpanWithError] when the span fails.
+// Use [Context.RecordError] to record an error on the request span without ending it.
+// Use [Context.CopyTraceContext] to get a context for goroutines that share the same trace.
+// Use [Context.WithSpan] to run a function under a span that is finished from the returned error:
 //
 //	ctx, span := c.StartSpan("db-query")
-//	defer c.FinishSpan(span, 0)
-//	// use ctx for the operation so the child span is the active span
+//	defer c.FinishSpan(span)
+//	// or: defer func() { if err != nil { c.FinishSpanWithError(span, err) } else { c.FinishSpan(span) } }()
+//	// or: err := c.WithSpan("fetch-user", func(ctx context.Context) error { ... })
 //
 // Use [Context.Tracer] only when you need to pass the tracer to another library
 // (e.g. DB driver, HTTP client) or use tracer-specific options (inject/extract).

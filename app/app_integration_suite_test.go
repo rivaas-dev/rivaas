@@ -324,7 +324,7 @@ var _ = Describe("App Integration", func() {
 				)
 				a.GET("/observability-demo", func(c *app.Context) {
 					ctx, span := c.StartSpan("child")
-					defer c.FinishSpan(span, 0)
+					defer c.FinishSpan(span)
 					_ = ctx
 					c.AddCounter("test_counter", 1)
 					c.IncrementCounter("test_inc")
