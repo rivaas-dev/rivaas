@@ -56,10 +56,13 @@
 //
 // The package uses two distinct types of options, both with the With* prefix:
 //
-//   - API options configure the spec: WithTitle, WithServer, WithBearerAuth
-//   - Operation options configure routes: WithSummary, WithDescription, WithResponse, WithTags
+// API options configure the spec (use in New/MustNew):
+//   - WithTitle, WithDescription, WithServer, WithBearerAuth
 //
-// API configuration is read-only after creation. Use getters to read values (e.g. Info(), SpecPath(), ServeUI(), UI()).
+// Operation options configure routes (use in WithGET, WithPOST, etc.):
+//   - WithSummary, WithDescription, WithResponse, WithTags, WithSecurity
+//
+// API configuration is read-only after creation. Use getters to read values.
 //
 // Example:
 //
@@ -135,4 +138,9 @@
 //	if err := validate.ValidateSpecJSON(specJSON); err != nil {
 //	    log.Fatal(err)
 //	}
+//
+// # Standalone Usage
+//
+// This package works independently without the full Rivaas framework. Use it
+// with any Go HTTP handler (net/http, Gin, Echo, etc.).
 package openapi
