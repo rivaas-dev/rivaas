@@ -16,6 +16,11 @@
 // for Go applications. It supports multiple exporters (Stdout, OTLP, Noop)
 // and integrates seamlessly with HTTP frameworks.
 //
+// The tracing package follows the functional options pattern:
+//   - Options apply to an internal config struct
+//   - New() validates the config and builds the Tracer from it
+//   - New() returns (*Tracer, error); MustNew() panics on error
+//
 // # Basic Usage
 //
 //	import (
@@ -45,11 +50,21 @@
 //
 // # OTLP and Start
 //
-// With OTLP providers, you must call Start(ctx) before exporting traces. If you forget,
-// New() does not return an error and no traces are exported; a one-time log warning
-// is emitted when the first span is created. Use RequiresStart() to detect when a tracer
-// requires Start (true for OTLP), and IsStarted() to assert that Start(ctx) has been
-// called (e.g. in tests or wiring code).
+// With OTLP providers (WithOTLP or WithOTLPHTTP), you must call Start(ctx) before exporting traces:
+//
+//	tracer := tracing.MustNew(
+//	    tracing.WithServiceName("my-service"),
+//	    tracing.WithOTLP("localhost:4317"),
+//	)
+//	if err := tracer.Start(ctx); err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer tracer.Shutdown(context.Background())
+//
+// If you forget to call Start(), New() does not return an error and no traces are exported;
+// a one-time log warning is emitted when the first span is created. Use RequiresStart() to
+// detect when a tracer requires Start (returns true for OTLP providers), and IsStarted() to
+// assert that Start(ctx) has been called (e.g. in tests or wiring code).
 //
 // # HTTP Middleware
 //
@@ -70,6 +85,9 @@
 //	    log.Fatal(err)
 //	}
 //	http.ListenAndServe(":8080", handler(mux))
+//
+// Middleware options (e.g., WithExcludePaths) must not be nil. Passing a nil option
+// returns a validation error from Middleware() or causes MustMiddleware() to panic.
 //
 // # Custom Spans
 //
@@ -187,4 +205,9 @@
 //	    tracing.WithServiceName("my-service"),
 //	    tracing.WithTracerProvider(customProvider),
 //	)
+//
+// # Standalone Usage
+//
+// This package works independently without the full Rivaas framework. Use it
+// with any Go HTTP handler (net/http, Gin, Echo, etc.).
 package tracing
