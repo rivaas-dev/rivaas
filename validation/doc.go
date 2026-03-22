@@ -102,9 +102,19 @@
 //
 // [Engine] instances are safe for concurrent use by multiple goroutines.
 // Package-level [Validate] and [ValidatePartial] use [DefaultEngine], which is
-// lazily initialized on first use (thread-safe). For test isolation or multiple
-// engines in the same process, create an Engine with [New] or [MustNew] and use
-// [Engine.Validate] instead of the package-level functions.
+// lazily initialized on first use (thread-safe).
+//
+// For test isolation, replace DefaultEngine in tests (save the original and restore in defer):
+//
+//	func TestMyValidation(t *testing.T) {
+//	    orig := validation.DefaultEngine
+//	    defer func() { validation.DefaultEngine = orig }()
+//	    validation.DefaultEngine = validation.MustNew(validation.WithMaxErrors(1))
+//	    // ... test code
+//	}
+//
+// For multiple engines in the same process, create an Engine explicitly with [New] or [MustNew]
+// and use [Engine.Validate] instead of the package-level functions.
 //
 // # Security
 //
