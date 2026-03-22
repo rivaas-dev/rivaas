@@ -49,8 +49,10 @@
 //
 // # Constructor Pattern
 //
-// The app package follows a pragmatic constructor pattern:
+// The app package follows the functional options pattern used throughout Rivaas:
 //
+//   - Options apply to an internal config struct (not the App type directly)
+//   - New() validates the config and builds the App from the validated config
 //   - New() returns (*App, error) because app initialization can fail.
 //     The app initializes external resources (metrics, tracing, logging) that may fail
 //     to connect to backends, validate configurations, or allocate resources.
@@ -63,6 +65,13 @@
 //
 //   - Grouping options (e.g., WithServer, WithRouter) accept sub-options
 //     to organize related settings and reduce API surface.
+//
+// # Option Validation
+//
+// Options must not be nil. Passing a nil option to New(), MustNew(), or methods
+// that accept options (e.g., Test) returns a validation error, not a panic.
+// This applies to both top-level options (e.g., WithServer) and nested options
+// (e.g., WithReadTimeout inside WithServer).
 //
 // # Quick Start
 //
@@ -209,6 +218,10 @@
 //   - Request binding (JSON, form, query parameters)
 //   - Request validation
 //   - Access to observability (metrics, tracing, logging)
+//
+// The app uses a single handler type (app.HandlerFunc, which wraps router.HandlerFunc)
+// for consistency across groups, version groups, and individual routes. This ensures
+// the integration layer remains predictable and middleware composition is uniform.
 //
 // Example:
 //

@@ -16,11 +16,11 @@ A batteries-included web framework built on the Rivaas router with integrated ob
 
 - **Batteries-Included** - Pre-configured with sensible defaults for rapid development
 - **Integrated Observability** - Built-in metrics (Prometheus/OTLP), tracing (OpenTelemetry), and structured logging (slog)
-- **Request Binding & Validation** - Automatic request parsing with comprehensive validation strategies
-- **OpenAPI Generation** - Automatic OpenAPI spec generation with Swagger UI
+- **Request Binding & Validation** – Automatic request parsing with comprehensive validation strategies
+- **OpenAPI Generation** – Automatic OpenAPI spec generation with Swagger UI
 - **Lifecycle Hooks** - OnStart, OnReady, OnShutdown, OnStop for initialization and cleanup
 - **Health Endpoints** - Kubernetes-compatible liveness and readiness probes
-- **Graceful Shutdown** - Proper server shutdown with configurable timeouts
+- **Graceful Shutdown** – Proper server shutdown with configurable timeouts
 - **Environment-Aware** - Development and production modes with appropriate defaults
 
 ## Installation
@@ -68,23 +68,23 @@ func main() {
 }
 ```
 
-For HTTPS or mTLS, configure at construction with [WithTLS](https://pkg.go.dev/rivaas.dev/app#WithTLS) or [WithMTLS](https://pkg.go.dev/rivaas.dev/app#WithMTLS), then call `Start(ctx)`. Default port is 8080 for HTTP and 8443 for TLS/mTLS (override with [WithPort](https://pkg.go.dev/rivaas.dev/app#WithPort)).
+For HTTPS or mTLS, configure at construction with [WithTLS](https://pkg.go.dev/rivaas.dev/app#WithTLS) or [WithMTLS](https://pkg.go.dev/rivaas.dev/app#WithMTLS), then call `Start(ctx)`. The default port is 8080 for HTTP and 8443 for TLS/mTLS (override with [WithPort](https://pkg.go.dev/rivaas.dev/app#WithPort)).
 
-**Custom tracing:** In handlers use `c.SetSpanAttribute`, `c.AddSpanEvent`, and for child spans `c.StartSpan("name")` with `defer c.FinishSpan(span, statusCode)`. Use `c.Tracer()` only for advanced use (e.g. passing the tracer to another library). Request spans support W3C propagation and sampling.
+**Custom tracing:** In handlers use `c.SetSpanAttribute`, `c.AddSpanEvent`, and for child spans `c.StartSpan("name")` with `defer c.FinishSpan(span, statusCode)`. Use `c.Tracer()` only for advanced use (e.g., passing the tracer to another library). Request spans support W3C propagation and sampling.
 
 **Custom metrics:** Use `c.IncrementCounter`, `c.AddCounter`, `c.RecordHistogram`, and `c.SetGauge` on `app.Context`.
 
 ## Learn More
 
-- **[Installation Guide](https://rivaas.dev/docs/guides/app/installation/)** - Set up the app package
-- **[Basic Usage](https://rivaas.dev/docs/guides/app/basic-usage/)** - Learn the fundamentals
+- **[Installation Guide](https://rivaas.dev/docs/guides/app/installation/)** – Set up the app package
+- **[Basic Usage](https://rivaas.dev/docs/guides/app/basic-usage/)** – Learn the fundamentals
 - **[Configuration](https://rivaas.dev/docs/guides/app/configuration/)** - Configure your application
-- **[Observability](https://rivaas.dev/docs/guides/app/observability/)** - Integrate metrics, tracing, and logging
+- **[Observability](https://rivaas.dev/docs/guides/app/observability/)** – Integrate metrics, tracing, and logging
 - **[Context](https://rivaas.dev/docs/guides/app/context/)** - Request binding and validation
-- **[Lifecycle](https://rivaas.dev/docs/guides/app/lifecycle/)** - Use lifecycle hooks
-- **[Health Endpoints](https://rivaas.dev/docs/guides/app/health-endpoints/)** - Configure health checks
-- **[Examples](https://rivaas.dev/docs/guides/app/examples/)** - Complete working examples
-- **[Migration Guide](https://rivaas.dev/docs/guides/app/migration/)** - Migrate from router package
+- **[Lifecycle](https://rivaas.dev/docs/guides/app/lifecycle/)** – Use lifecycle hooks
+- **[Health Endpoints](https://rivaas.dev/docs/guides/app/health-endpoints/)** – Configure health checks
+- **[Examples](https://rivaas.dev/docs/guides/app/examples/)** – Complete working examples
+- **[Migration Guide](https://rivaas.dev/docs/guides/app/migration/)** – Migrate from router package
 
 ## API Reference
 
@@ -92,11 +92,11 @@ See [pkg.go.dev/rivaas.dev/app](https://pkg.go.dev/rivaas.dev/app) for complete 
 
 ## Contributing
 
-Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+Contributions are welcome! Please see the [main repository](..) for contribution guidelines.
 
 ## License
 
-Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+Apache License 2.0 – see [LICENSE](../LICENSE) for details.
 
 ---
 

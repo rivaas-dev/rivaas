@@ -59,7 +59,7 @@ func WithContext(ctx context.Context) TestOption {
 // Test executes an HTTP request against the app without starting a server.
 // Test is useful for unit testing handlers and middleware.
 //
-// The request is executed in a goroutine with optional timeout via context.
+// The request is executed in a goroutine with an optional timeout via context.
 // If a timeout occurs, Test returns an error immediately, but the handler
 // goroutine may continue running until it completes (the router's ServeHTTP
 // cannot be canceled mid-execution). This is acceptable for test scenarios
@@ -182,6 +182,8 @@ func ExpectJSON(t testingT, resp *http.Response, statusCode int, out any) {
 }
 
 // testingT is a minimal interface for testing.T to allow use with other test frameworks.
+// This interface is compatible with testing.T, testify/assert, and similar frameworks
+// that provide an Errorf method for reporting test failures.
 type testingT interface {
 	Errorf(format string, args ...any)
 }

@@ -133,7 +133,7 @@ func (vg *VersionGroup) OPTIONS(path string, handler HandlerFunc, opts ...RouteO
 // Middleware is executed after the router's global middleware but before
 // the route-specific handlers.
 //
-// It applies middleware to all subsequent routes registered in this version group.
+// It applies middleware to all later routes registered in this version group.
 //
 // Example:
 //
