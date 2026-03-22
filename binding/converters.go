@@ -79,7 +79,10 @@ func TimeConverter(layouts ...string) func(string) (time.Time, error) {
 //	    })),
 //	)
 //
-// The converter first checks aliases, then falls back to time.ParseDuration.
+//	// Query: ?timeout=fast  -> 100ms
+//	// Query: ?timeout=1h30m -> 1h30m (standard duration strings still work)
+//
+// The converter first checks aliases (case-insensitive), then falls back to time.ParseDuration.
 func DurationConverter(aliases map[string]time.Duration) func(string) (time.Duration, error) {
 	return func(s string) (time.Duration, error) {
 		s = strings.TrimSpace(s)
@@ -140,6 +143,9 @@ func DurationConverter(aliases map[string]time.Duration) func(string) (time.Dura
 //	    )),
 //	)
 //
+//	// Query: ?status=ACTIVE   -> StatusActive (case-insensitive)
+//	// Query: ?status=unknown  -> error with list of valid values
+//
 // The comparison is case-insensitive for better UX.
 func EnumConverter[T ~string](allowed ...T) func(string) (T, error) {
 	if len(allowed) == 0 {
@@ -189,6 +195,10 @@ func EnumConverter[T ~string](allowed ...T) func(string) (T, error) {
 //	        []string{"disabled", "inactive", "off"},  // falsy values
 //	    )),
 //	)
+//
+//	// Query: ?feature=enabled  -> true
+//	// Query: ?feature=off      -> false
+//	// Query: ?feature=          -> false (empty defaults to false)
 //
 // The comparison is case-insensitive. Empty strings default to false.
 func BoolConverter(truthy, falsy []string) func(string) (bool, error) {

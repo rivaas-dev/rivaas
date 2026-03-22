@@ -22,6 +22,11 @@
 // Note: For validation (required fields, enum constraints, etc.), use the
 // rivaas.dev/validation package separately after binding.
 //
+// The binding package follows the functional options pattern:
+//   - Options apply to an internal config struct
+//   - New() validates the config and builds the Binder from it
+//   - New() returns (*Binder, error); MustNew() panics on error
+//
 // # Quick Start
 //
 // The package provides both generic and non-generic APIs:
@@ -679,4 +684,9 @@
 //
 // All error types implement standard error interfaces and integrate with
 // rivaas.dev/errors for HTTP status code mapping.
+//
+// # Standalone Usage
+//
+// This package works independently without the full Rivaas framework. Use it
+// with any Go HTTP handler (net/http, Gin, Echo, etc.).
 package binding

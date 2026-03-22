@@ -199,7 +199,7 @@ func (e *BindError) hint() string {
 		return ""
 	}
 
-	// Decimal point in integer field
+	// Decimal point in an integer field
 	if isIntType(e.Type) && strings.Contains(e.Value, ".") {
 		return "use float type for decimal values"
 	}

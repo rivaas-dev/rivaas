@@ -114,21 +114,21 @@ req, err := binder.Query[Request](r.URL.Query())
 ## Learn More
 
 - **[Basic Usage](https://rivaas.dev/docs/guides/binding/basic-usage/)** - Request binding fundamentals
-- **[Query Parameters](https://rivaas.dev/docs/guides/binding/query-parameters/)** - URL query binding
+- **[Query Parameters](https://rivaas.dev/docs/guides/binding/query-parameters/)** – URL query binding
 - **[JSON Binding](https://rivaas.dev/docs/guides/binding/json-binding/)** - Request body binding
 - **[Multi-Source](https://rivaas.dev/docs/guides/binding/multi-source/)** - Combine multiple sources
-- **[Struct Tags](https://rivaas.dev/docs/guides/binding/struct-tags/)** - Tag syntax reference
-- **[Type Support](https://rivaas.dev/docs/guides/binding/type-support/)** - All supported types
+- **[Struct Tags](https://rivaas.dev/docs/guides/binding/struct-tags/)** – Tag syntax reference
+- **[Type Support](https://rivaas.dev/docs/guides/binding/type-support/)** – All supported types
 - **[Error Handling](https://rivaas.dev/docs/guides/binding/error-handling/)** - Error patterns
-- **[Advanced Usage](https://rivaas.dev/docs/guides/binding/advanced-usage/)** - Custom converters and binders
+- **[Advanced Usage](https://rivaas.dev/docs/guides/binding/advanced-usage/)** – Custom converters and binders
 
 ## Contributing
 
-Contributions are welcome! Please see the [main repository](../) for contribution guidelines.
+Contributions are welcome! Please see the [main repository](..) for contribution guidelines.
 
 ## License
 
-Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+Apache License 2.0 – see [LICENSE](../LICENSE) for details.
 
 ---
 
