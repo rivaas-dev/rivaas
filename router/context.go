@@ -1216,13 +1216,31 @@ func (c *Context) RoutePattern() string {
 }
 
 // RequireContentType checks if the request Content-Type matches one of the allowed types.
-// Returns false and sends a 415 Unsupported Media Type problem if no match.
-// Supports suffix matching for patterns like "application/*+json".
+// Returns false and sends a 415 Unsupported Media Type response if no match is found.
+//
+// This method performs intelligent content type validation:
+//   - Parses media type and parameters from Content-Type header
+//   - Supports exact matching (e.g., "application/json")
+//   - Supports wildcard suffix patterns (e.g., "application/*+json" matches "application/problem+json")
+//   - Validates JSON charset (must be utf-8 if specified)
+//   - Automatically allows GET/DELETE without Content-Type
+//   - Requires Content-Type for POST/PUT/PATCH
 //
 // Example:
 //
+//	// Require JSON
 //	if !c.RequireContentType("application/json") {
 //		return // 415 already sent
+//	}
+//
+//	// Allow multiple content types
+//	if !c.RequireContentType("application/json", "application/xml") {
+//		return // 415 already sent
+//	}
+//
+//	// Support JSON variants with wildcard
+//	if !c.RequireContentType("application/json", "application/*+json") {
+//		return // 415 already sent, supports problem+json, hal+json, etc.
 //	}
 func (c *Context) RequireContentType(allowed ...string) bool {
 	ct := c.Request.Header.Get("Content-Type")
@@ -1271,13 +1289,17 @@ func (c *Context) unsupportedMediaTypeProblem(_ string, _ []string) bool {
 }
 
 // RequireContentTypeJSON checks if the request Content-Type is JSON.
-// Returns false and sends a 415 problem if not JSON.
+// Returns false and sends a 415 Unsupported Media Type response if not JSON.
+//
+// This is a convenience wrapper for RequireContentType("application/json", "application/*+json").
+// It accepts both standard JSON and JSON variants (e.g., application/problem+json, application/hal+json).
 //
 // Example:
 //
 //	if !c.RequireContentTypeJSON() {
 //		return // 415 already sent
 //	}
+//	// Safe to parse JSON body here
 func (c *Context) RequireContentTypeJSON() bool {
 	return c.RequireContentType("application/json", "application/*+json")
 }

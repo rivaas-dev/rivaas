@@ -38,8 +38,10 @@
 //
 // # Constructor Pattern
 //
-// The router follows the standard Rivaas constructor pattern:
+// The router follows the functional options pattern used throughout Rivaas:
 //
+//   - Options apply to an internal config struct (not the Router type directly)
+//   - New() validates the config and builds the Router from the validated config
 //   - New() returns (*Router, error) for cases where error handling is needed.
 //     Configuration is validated at startup rather than at runtime.
 //
@@ -49,6 +51,12 @@
 //   - All configuration options use the "With" prefix for consistency (e.g., WithH2C, WithVersioning).
 //
 //   - Grouping options (e.g., WithServerTimeouts) accept multiple related settings to reduce API surface.
+//
+// # Route Options
+//
+// Route options passed to GET, POST, PUT, DELETE, PATCH, etc., must not be nil.
+// Passing a nil route option results in a validation error reported by ValidateRoutes(),
+// not a panic. This ensures fail-fast behavior at startup.
 //
 // Example:
 //
@@ -185,6 +193,11 @@
 // The router package defines sentinel errors for routing, binding, and server concerns only.
 // For validation errors (e.g. from c.Bind or c.Validate), use rivaas.dev/validation and check
 // with errors.As(err, &validation.Error) or errors.Is(err, validation.ErrValidation).
+//
+// # Standalone Usage
+//
+// This package works independently without the full Rivaas framework. Use it
+// with any Go HTTP handler (net/http, Gin, Echo, etc.).
 //
 // # Examples
 //
