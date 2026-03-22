@@ -25,6 +25,11 @@
 // HTTP handler. Domain errors can implement optional interfaces (ErrorType,
 // ErrorDetails, ErrorCode) to control status codes and provide structured details.
 //
+// The errors package follows the functional options pattern:
+//   - Options (WithRFC9457, WithJSONAPI, WithSimple) apply to an internal config
+//   - New() validates the config and builds the Formatter from it
+//   - New() returns (Formatter, error); MustNew() panics on error
+//
 // # Quick Start
 //
 // Default formatter (RFC 9457, empty base URL):
@@ -94,6 +99,11 @@
 //	func (e ValidationError) Code() string {
 //		return e.Code
 //	}
+//
+// # Standalone Usage
+//
+// This package works independently without the full Rivaas framework. Use it
+// with any Go HTTP handler (net/http, Gin, Echo, etc.).
 //
 // # Examples
 //
