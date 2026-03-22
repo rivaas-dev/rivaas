@@ -23,6 +23,11 @@
 // providers without code changes (e.g., migrating from ELK to Datadog, or adding
 // sampling in high-traffic systems).
 //
+// The logging package follows the functional options pattern:
+//   - Options apply to an internal config struct
+//   - New() validates the config and builds the Logger from it
+//   - New() returns (*Logger, error); MustNew() panics on error
+//
 // # Basic Usage
 //
 //	logger := logging.MustNew(logging.WithConsoleHandler())
@@ -103,6 +108,11 @@
 //
 //	slog.InfoContext(ctx, "processing request", "user_id", userID)
 //	// Automatically includes trace_id and span_id if context has active span
+//
+// # Standalone Usage
+//
+// This package works independently without the full Rivaas framework. Use it
+// with any Go application.
 //
 // See the README for more examples and configuration options.
 package logging
