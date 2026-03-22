@@ -15,6 +15,11 @@
 // Package metrics provides OpenTelemetry-based metrics collection for Go applications.
 // It supports multiple exporters (Prometheus, OTLP, stdout) and integrates with the Rivaas router.
 //
+// The metrics package follows the functional options pattern:
+//   - Options apply to an internal config struct
+//   - New() validates the config and builds the Recorder from it
+//   - New() returns (*Recorder, error); MustNew() panics on error
+//
 // # Basic Usage
 //
 //	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -56,11 +61,12 @@
 //   - [StdoutProvider]: Prints metrics to stdout (for development/testing)
 //
 // Provider initialization timing:
-//   - Prometheus: Initialized in New(), server starts in Start()
-//   - OTLP: Deferred to Start() for lifecycle context
-//   - Stdout: Initialized in New(), works without Start()
+//   - Prometheus: Meter provider initialized in New() (cannot fail), HTTP server starts in Start()
+//   - OTLP: Deferred to Start() because OTLP requires a lifecycle context for cleanup
+//   - Stdout: Initialized in New() (cannot fail), works immediately without Start()
 //
-// For OTLP provider, you must call Start(ctx) before recording metrics.
+// If you forget to call Start() with an OTLP provider, no metrics are exported.
+// This is by design to avoid background goroutines and resource leaks.
 //
 // # Custom Metrics
 //
@@ -102,4 +108,9 @@
 //
 // Sensitive headers (Authorization, Cookie, X-API-Key, etc.) are automatically
 // filtered out when using [WithHeaders] to prevent accidental credential exposure.
+//
+// # Standalone Usage
+//
+// This package works independently without the full Rivaas framework. Use it
+// with any Go HTTP handler (net/http, Gin, Echo, etc.).
 package metrics
