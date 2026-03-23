@@ -110,6 +110,20 @@ func TestWithMTLS_Only_SetsPortTo8443(t *testing.T) {
 	assert.Equal(t, 8443, a.config.server.port)
 }
 
+func TestWithMTLS_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	serverCert := tls.Certificate{Certificate: [][]byte{[]byte("dummy")}}
+	_, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithMTLS(serverCert, nil),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mTLS option")
+	assert.Contains(t, err.Error(), "cannot be nil")
+}
+
 func TestWithPort_BeforeWithTLS_Prevents8443(t *testing.T) {
 	t.Parallel()
 

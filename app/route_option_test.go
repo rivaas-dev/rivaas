@@ -91,3 +91,12 @@ func TestRouteOptions_accumulatesMultipleCalls(t *testing.T) {
 	assert.Len(t, cfg.before, 2)
 	assert.Len(t, cfg.docOpts, 2)
 }
+
+func TestRouteOptions_nilOptionCollectsValidationError(t *testing.T) {
+	t.Parallel()
+
+	cfg := &routeConfig{}
+	RouteOptions(nil)(cfg)
+	assert.Len(t, cfg.validationErrors, 1)
+	assert.Contains(t, cfg.validationErrors[0].Error(), "route option at index 0 cannot be nil")
+}

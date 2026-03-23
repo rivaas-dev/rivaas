@@ -15,6 +15,9 @@
 package app
 
 import (
+	"errors"
+	"strconv"
+
 	"rivaas.dev/openapi"
 )
 
@@ -25,10 +28,11 @@ type RouteOption func(*routeConfig)
 
 // routeConfig accumulates all route configuration.
 type routeConfig struct {
-	before  []HandlerFunc
-	after   []HandlerFunc
-	docOpts []openapi.OperationOption
-	skipDoc bool // Set to true to explicitly skip documentation
+	before           []HandlerFunc
+	after            []HandlerFunc
+	docOpts          []openapi.OperationOption
+	skipDoc          bool // Set to true to explicitly skip documentation
+	validationErrors []error
 }
 
 // WithBefore adds pre-handler middleware to the route.
@@ -115,7 +119,11 @@ func WithoutDoc() RouteOption {
 //	)
 func RouteOptions(opts ...RouteOption) RouteOption {
 	return func(c *routeConfig) {
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				c.validationErrors = append(c.validationErrors, errors.New("app: route option at index "+strconv.Itoa(i)+" cannot be nil"))
+				continue
+			}
 			opt(c)
 		}
 	}

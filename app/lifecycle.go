@@ -51,6 +51,9 @@ func (a *App) OnStart(fn func(context.Context) error) error {
 	if a.router.Frozen() {
 		return ErrRouterFrozen
 	}
+	if fn == nil {
+		return fmt.Errorf("app: OnStart hook cannot be nil")
+	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onStart = append(a.hooks.onStart, fn)
@@ -73,6 +76,9 @@ func (a *App) OnStart(fn func(context.Context) error) error {
 func (a *App) OnReady(fn func()) error {
 	if a.router.Frozen() {
 		return ErrRouterFrozen
+	}
+	if fn == nil {
+		return fmt.Errorf("app: OnReady hook cannot be nil")
 	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
@@ -115,6 +121,9 @@ func (a *App) OnReload(fn func(context.Context) error) error {
 	if a.router.Frozen() {
 		return ErrRouterFrozen
 	}
+	if fn == nil {
+		return fmt.Errorf("app: OnReload hook cannot be nil")
+	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onReload = append(a.hooks.onReload, fn)
@@ -138,6 +147,9 @@ func (a *App) OnShutdown(fn func(context.Context)) error {
 	if a.router.Frozen() {
 		return ErrRouterFrozen
 	}
+	if fn == nil {
+		return fmt.Errorf("app: OnShutdown hook cannot be nil")
+	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onShutdown = append(a.hooks.onShutdown, fn)
@@ -160,6 +172,9 @@ func (a *App) OnStop(fn func()) error {
 	if a.router.Frozen() {
 		return ErrRouterFrozen
 	}
+	if fn == nil {
+		return fmt.Errorf("app: OnStop hook cannot be nil")
+	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()
 	a.hooks.onStop = append(a.hooks.onStop, fn)
@@ -181,6 +196,9 @@ func (a *App) OnStop(fn func()) error {
 func (a *App) OnRoute(fn func(*route.Route)) error {
 	if a.router.Frozen() {
 		return ErrRouterFrozen
+	}
+	if fn == nil {
+		return fmt.Errorf("app: OnRoute hook cannot be nil")
 	}
 	a.hooks.mu.Lock()
 	defer a.hooks.mu.Unlock()

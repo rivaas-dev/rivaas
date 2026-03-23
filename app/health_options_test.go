@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -124,4 +125,20 @@ func TestHealthOptions_withMultipleOptions(t *testing.T) {
 	rec = httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusNoContent, rec.Code)
+}
+
+func TestWithHealthEndpoints_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithHealthEndpoints(nil),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "health option")
+	assert.Contains(t, err.Error(), "cannot be nil")
+
+	var ce *ConfigErrors
+	require.True(t, errors.As(err, &ce))
 }

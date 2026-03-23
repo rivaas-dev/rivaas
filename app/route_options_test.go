@@ -15,6 +15,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -82,4 +83,32 @@ func TestValidateRoutes_NoErrors_ReturnsNil(t *testing.T) {
 
 	err = a.ValidateRoutes()
 	assert.NoError(t, err)
+}
+
+func TestRouteOption_ComposedNilOption_ValidatedByValidateRoutes(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(WithServiceName("test"), WithServiceVersion("1.0.0"))
+	require.NoError(t, err)
+
+	a.GET("/wrapped", func(c *Context) {}, RouteOptions(nil))
+
+	err = a.ValidateRoutes()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "route option at index 0 cannot be nil")
+}
+
+func TestStart_FailsWhenRouteValidationErrorsExist(t *testing.T) {
+	t.Parallel()
+
+	a := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
+	a.GET("/invalid", func(c *Context) {}, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := a.Start(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "route validation failed")
+	assert.Contains(t, err.Error(), "route option at index 0 cannot be nil")
 }

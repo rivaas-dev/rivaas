@@ -15,6 +15,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -52,6 +53,11 @@ type Group struct {
 //	api.Use(AuthMiddleware(), LoggingMiddleware())
 //	api.GET("/users", getUsersHandler) // Will execute auth + logging + handler
 func (g *Group) Use(middleware ...HandlerFunc) {
+	for i, m := range middleware {
+		if m == nil {
+			panic(fmt.Sprintf("app: group middleware at index %d cannot be nil", i))
+		}
+	}
 	g.middleware = append(g.middleware, middleware...)
 }
 
@@ -65,6 +71,11 @@ func (g *Group) Use(middleware ...HandlerFunc) {
 //	v1 := api.Group("/v1")  // Creates /api/v1 prefix
 //	v1.GET("/users", handler)  // Matches /api/v1/users
 func (g *Group) Group(prefix string, middleware ...HandlerFunc) *Group {
+	for i, m := range middleware {
+		if m == nil {
+			panic(fmt.Sprintf("app: group middleware at index %d cannot be nil", i))
+		}
+	}
 	// Build full prefix for nested group
 	fullPrefix := g.buildFullPath(prefix)
 

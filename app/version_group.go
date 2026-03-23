@@ -15,6 +15,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 
 	"rivaas.dev/openapi"
@@ -141,6 +142,11 @@ func (vg *VersionGroup) OPTIONS(path string, handler HandlerFunc, opts ...RouteO
 //	v1.Use(AuthMiddleware(), LoggingMiddleware())
 //	v1.GET("/users", getUsersHandler) // Will execute auth + logging + handler
 func (vg *VersionGroup) Use(middleware ...HandlerFunc) {
+	for i, m := range middleware {
+		if m == nil {
+			panic(fmt.Sprintf("app: version group middleware at index %d cannot be nil", i))
+		}
+	}
 	vg.middleware = append(vg.middleware, middleware...)
 }
 
@@ -178,6 +184,11 @@ func (vg *VersionGroup) Any(path string, handler HandlerFunc, opts ...RouteOptio
 //	api := v1.Group("/api", AuthMiddleware())  // Creates /api prefix within v1
 //	api.GET("/users", handler)                 // Matches /api/users in v1
 func (vg *VersionGroup) Group(prefix string, middleware ...HandlerFunc) *VersionGroup {
+	for i, m := range middleware {
+		if m == nil {
+			panic(fmt.Sprintf("app: version group middleware at index %d cannot be nil", i))
+		}
+	}
 	// Combine parent middleware with new middleware
 	allMiddleware := make([]HandlerFunc, 0, len(vg.middleware)+len(middleware))
 	allMiddleware = append(allMiddleware, vg.middleware...)

@@ -756,6 +756,11 @@ func (a *App) registerRouteWithTarget(target routeTarget, method, path string, h
 		}
 		opt(cfg)
 	}
+	if len(cfg.validationErrors) > 0 {
+		a.routeValidationMu.Lock()
+		a.routeValidationErrors = append(a.routeValidationErrors, cfg.validationErrors...)
+		a.routeValidationMu.Unlock()
+	}
 
 	// Build handler chain: prefix middleware → before → handler → after
 	handlers := make([]router.HandlerFunc, 0, len(target.prefixMiddleware)+len(cfg.before)+1+len(cfg.after))
@@ -966,7 +971,10 @@ func (a *App) OPTIONS(path string, handler HandlerFunc, opts ...RouteOption) *ro
 //	app.GET("/users", handler) // Will execute auth + logging + handler
 func (a *App) Use(middleware ...HandlerFunc) {
 	routerMiddleware := make([]router.HandlerFunc, 0, len(middleware))
-	for _, m := range middleware {
+	for i, m := range middleware {
+		if m == nil {
+			panic(fmt.Sprintf("app: middleware at index %d cannot be nil", i))
+		}
 		routerMiddleware = append(routerMiddleware, a.wrapHandler(m))
 	}
 	a.router.Use(routerMiddleware...)
@@ -982,6 +990,11 @@ func (a *App) Use(middleware ...HandlerFunc) {
 //	api.GET("/users", handler)    // handler receives *app.Context
 //	api.POST("/users", handler)    // handler receives *app.Context
 func (a *App) Group(prefix string, middleware ...HandlerFunc) *Group {
+	for i, m := range middleware {
+		if m == nil {
+			panic(fmt.Sprintf("app: group middleware at index %d cannot be nil", i))
+		}
+	}
 	// Create router group without middleware (we handle it at route registration time)
 	routerGroup := a.router.Group(prefix)
 	return &Group{

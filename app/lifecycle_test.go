@@ -107,3 +107,48 @@ func TestOnRoute_returnsErrorWhenRouterAlreadyFrozen(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrRouterFrozen), "expected ErrRouterFrozen")
 }
+
+func TestLifecycleHooks_NilCallbacksReturnError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		run  func(*App) error
+	}{
+		{
+			name: "OnStart",
+			run:  func(a *App) error { return a.OnStart(nil) },
+		},
+		{
+			name: "OnReady",
+			run:  func(a *App) error { return a.OnReady(nil) },
+		},
+		{
+			name: "OnReload",
+			run:  func(a *App) error { return a.OnReload(nil) },
+		},
+		{
+			name: "OnShutdown",
+			run:  func(a *App) error { return a.OnShutdown(nil) },
+		},
+		{
+			name: "OnStop",
+			run:  func(a *App) error { return a.OnStop(nil) },
+		},
+		{
+			name: "OnRoute",
+			run:  func(a *App) error { return a.OnRoute(nil) },
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			a := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
+			err := tt.run(a)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "cannot be nil")
+		})
+	}
+}

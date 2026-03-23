@@ -268,7 +268,14 @@ func WithTLS(certFile, keyFile string) Option {
 func WithMTLS(serverCert tls.Certificate, opts ...MTLSOption) Option {
 	return func(c *config) {
 		c.server.mtlsServerCert = serverCert
-		c.server.mtlsOpts = opts
+		c.server.mtlsOpts = c.server.mtlsOpts[:0]
+		for i, opt := range opts {
+			if opt == nil {
+				c.validationErrors = append(c.validationErrors, fmt.Errorf("app: mTLS option at index %d cannot be nil", i))
+				continue
+			}
+			c.server.mtlsOpts = append(c.server.mtlsOpts, opt)
+		}
 		if c.server.port == DefaultPort {
 			c.server.port = DefaultTLSPort
 		}
@@ -296,7 +303,13 @@ func WithMiddleware(middlewares ...HandlerFunc) Option {
 		if c.middleware == nil {
 			c.middleware = &middlewareConfig{}
 		}
-		c.middleware.functions = append(c.middleware.functions, middlewares...)
+		for i, middleware := range middlewares {
+			if middleware == nil {
+				c.validationErrors = append(c.validationErrors, fmt.Errorf("app: middleware at index %d cannot be nil", i))
+				continue
+			}
+			c.middleware.functions = append(c.middleware.functions, middleware)
+		}
 	}
 }
 

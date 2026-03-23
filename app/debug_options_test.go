@@ -17,6 +17,7 @@
 package app
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -125,4 +126,20 @@ func TestWithDebugEndpoints_combinesOptions(t *testing.T) {
 	assert.NotNil(t, app.config.debug)
 	assert.Equal(t, "/_debug", app.config.debug.prefix)
 	assert.True(t, app.config.debug.pprofEnabled)
+}
+
+func TestWithDebugEndpoints_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithDebugEndpoints(nil),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "debug option")
+	assert.Contains(t, err.Error(), "cannot be nil")
+
+	var ce *ConfigErrors
+	require.True(t, errors.As(err, &ce))
 }

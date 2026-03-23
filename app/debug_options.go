@@ -14,6 +14,8 @@
 
 package app
 
+import "fmt"
+
 // DebugOption configures debug endpoint settings.
 // These options configure pprof and other debug endpoints.
 type DebugOption func(*debugSettings)
@@ -145,7 +147,11 @@ func WithDebugEndpoints(opts ...DebugOption) Option {
 		if c.debug == nil {
 			c.debug = defaultDebugSettings()
 		}
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				c.validationErrors = append(c.validationErrors, fmt.Errorf("app: debug option at index %d cannot be nil", i))
+				continue
+			}
 			opt(c.debug)
 		}
 	}

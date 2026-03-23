@@ -45,6 +45,9 @@ func newMTLSConfig(serverCert tls.Certificate, opts ...MTLSOption) *mtlsConfig {
 	}
 
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(cfg)
 	}
 

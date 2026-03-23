@@ -52,7 +52,9 @@
 // The app package follows the functional options pattern used throughout Rivaas:
 //
 //   - Options apply to an internal config struct (not the App type directly)
+//
 //   - New() validates the config and builds the App from the validated config
+//
 //   - New() returns (*App, error) because app initialization can fail.
 //     The app initializes external resources (metrics, tracing, logging) that may fail
 //     to connect to backends, validate configurations, or allocate resources.

@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -219,7 +220,11 @@ func WithHealthEndpoints(opts ...HealthOption) Option {
 		if c.health == nil {
 			c.health = defaultHealthSettings()
 		}
-		for _, opt := range opts {
+		for i, opt := range opts {
+			if opt == nil {
+				c.validationErrors = append(c.validationErrors, fmt.Errorf("app: health option at index %d cannot be nil", i))
+				continue
+			}
 			opt(c.health)
 		}
 	}

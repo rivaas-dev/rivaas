@@ -310,6 +310,11 @@ func (a *App) registerOpenAPIEndpoints() {
 func (a *App) Start(ctx context.Context) error {
 	addr := a.config.server.ListenAddr()
 
+	// Validate route options before any startup side effects.
+	if err := a.ValidateRoutes(); err != nil {
+		return fmt.Errorf("route validation failed: %w", err)
+	}
+
 	// Start observability servers (metrics, etc.)
 	if err := a.startObservability(ctx); err != nil {
 		return fmt.Errorf("failed to start observability: %w", err)

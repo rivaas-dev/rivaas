@@ -413,6 +413,82 @@ func TestNew_WithObservability_NilOptionReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot be nil")
 }
 
+func TestNew_WithMiddleware_NilMiddlewareReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithMiddleware(nil),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "middleware at index 0 cannot be nil")
+}
+
+func TestAppUse_NilMiddlewarePanics(t *testing.T) {
+	t.Parallel()
+
+	a := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
+	assert.PanicsWithValue(t, "app: middleware at index 0 cannot be nil", func() {
+		a.Use(nil)
+	})
+}
+
+func TestAppGroup_NilMiddlewarePanics(t *testing.T) {
+	t.Parallel()
+
+	a := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
+	assert.PanicsWithValue(t, "app: group middleware at index 0 cannot be nil", func() {
+		a.Group("/api", nil)
+	})
+}
+
+func TestGroupUse_NilMiddlewarePanics(t *testing.T) {
+	t.Parallel()
+
+	a := MustNew(WithServiceName("test"), WithServiceVersion("1.0.0"))
+	g := a.Group("/api")
+	assert.PanicsWithValue(t, "app: group middleware at index 0 cannot be nil", func() {
+		g.Use(nil)
+	})
+}
+
+func TestVersionGroupUse_NilMiddlewarePanics(t *testing.T) {
+	t.Parallel()
+
+	a := MustNew(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithRouter(router.WithVersioning(
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1"),
+		)),
+	)
+	v1 := a.Version("v1")
+	assert.PanicsWithValue(t, "app: version group middleware at index 0 cannot be nil", func() {
+		v1.Use(nil)
+	})
+}
+
+func TestVersionGroupGroup_NilMiddlewarePanics(t *testing.T) {
+	t.Parallel()
+
+	a := MustNew(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithRouter(router.WithVersioning(
+			version.WithPathDetection("/v{version}/"),
+			version.WithDefault("v1"),
+			version.WithValidVersions("v1"),
+		)),
+	)
+	v1 := a.Version("v1")
+	assert.PanicsWithValue(t, "app: version group middleware at index 0 cannot be nil", func() {
+		v1.Group("/api", nil)
+	})
+}
+
 // TestNew_ObservabilityInitialization tests that observability components
 // (logging, metrics, tracing) are correctly initialized when enabled,
 // including support for both options-based and prebuilt configurations.
