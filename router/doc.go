@@ -41,7 +41,9 @@
 // The router follows the functional options pattern used throughout Rivaas:
 //
 //   - Options apply to an internal config struct (not the Router type directly)
+//
 //   - New() validates the config and builds the Router from the validated config
+//
 //   - New() returns (*Router, error) for cases where error handling is needed.
 //     Configuration is validated at startup rather than at runtime.
 //
