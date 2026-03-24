@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
@@ -92,7 +93,8 @@ func TestNew(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := New(tt.exName, tt.value, tt.opts...)
+			ex, err := New(tt.exName, tt.value, tt.opts...)
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantName, ex.Name())
 			assert.Equal(t, tt.wantValue, ex.Value())
@@ -144,7 +146,8 @@ func TestNewExternal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := NewExternal(tt.exName, tt.url, tt.opts...)
+			ex, err := NewExternal(tt.exName, tt.url, tt.opts...)
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantName, ex.Name())
 			assert.Equal(t, tt.wantURL, ex.ExternalValue())
@@ -172,7 +175,8 @@ func TestWithSummary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := New("test", nil, WithSummary(tt.summary))
+			ex, err := New("test", nil, WithSummary(tt.summary))
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.want, ex.Summary())
 		})
@@ -196,7 +200,8 @@ func TestWithDescription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := New("test", nil, WithDescription(tt.desc))
+			ex, err := New("test", nil, WithDescription(tt.desc))
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.want, ex.Description())
 		})
@@ -208,19 +213,54 @@ func TestExample_IsExternal(t *testing.T) {
 
 	t.Run("inline example is not external", func(t *testing.T) {
 		t.Parallel()
-		ex := New("test", "value")
+		ex, err := New("test", "value")
+		require.NoError(t, err)
 		assert.False(t, ex.IsExternal())
 	})
 
 	t.Run("external example is external", func(t *testing.T) {
 		t.Parallel()
-		ex := NewExternal("test", "https://example.com/data.json")
+		ex, err := NewExternal("test", "https://example.com/data.json")
+		require.NoError(t, err)
 		assert.True(t, ex.IsExternal())
 	})
 
 	t.Run("external with empty URL is not external", func(t *testing.T) {
 		t.Parallel()
-		ex := NewExternal("test", "")
+		ex, err := NewExternal("test", "")
+		require.NoError(t, err)
 		assert.False(t, ex.IsExternal())
+	})
+}
+
+func TestNew_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := New("test", "value", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+}
+
+func TestNewExternal_NilOptionReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewExternal("test", "https://example.com/data.json", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+}
+
+func TestMustNew_PanicsOnNilOption(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, "example.MustNew: openapi/example: option at index 0 cannot be nil", func() {
+		_ = MustNew("test", "value", nil)
+	})
+}
+
+func TestMustNewExternal_PanicsOnNilOption(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, "example.MustNewExternal: openapi/example: option at index 0 cannot be nil", func() {
+		_ = MustNewExternal("test", "https://example.com/data.json", nil)
 	})
 }

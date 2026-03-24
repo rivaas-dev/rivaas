@@ -15,14 +15,14 @@
 package openapi
 
 // Named examples for request and response bodies are created with the example package.
-// Use example.New and example.NewExternal from rivaas.dev/openapi/example and pass
+// Use example.MustNew and example.MustNewExternal from rivaas.dev/openapi/example and pass
 // the result to WithRequest or WithResponse:
 //
 //	import "rivaas.dev/openapi/example"
 //
 //	openapi.WithRequest(CreateUserRequest{},
-//	    example.New("minimal", CreateUserRequest{Name: "J", Email: "j@example.com"}),
+//	    example.MustNew("minimal", CreateUserRequest{Name: "J", Email: "j@example.com"}),
 //	)
 //	openapi.WithResponse(200, User{},
-//	    example.New("success", User{ID: 1, Name: "John"}, example.WithSummary("Success")),
+//	    example.MustNew("success", User{ID: 1, Name: "John"}, example.WithSummary("Success")),
 //	)

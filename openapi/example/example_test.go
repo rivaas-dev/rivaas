@@ -31,14 +31,14 @@ func ExampleNew() {
 		Name string `json:"name"`
 	}
 
-	ex := example.New("success", User{ID: 123, Name: "John"})
+	ex := example.MustNew("success", User{ID: 123, Name: "John"})
 	fmt.Printf("Name: %s, Value: %+v\n", ex.Name(), ex.Value())
 	// Output: Name: success, Value: {ID:123 Name:John}
 }
 
 // ExampleNew_withOptions demonstrates creating an example with options.
 func ExampleNew_withOptions() {
-	ex := example.New("admin", map[string]any{"id": 1, "role": "admin"},
+	ex := example.MustNew("admin", map[string]any{"id": 1, "role": "admin"},
 		example.WithSummary("Admin user response"),
 		example.WithDescription("Users with admin role have elevated permissions"),
 	)
@@ -49,7 +49,7 @@ func ExampleNew_withOptions() {
 
 // ExampleNewExternal demonstrates creating an external example.
 func ExampleNewExternal() {
-	ex := example.NewExternal("large-dataset", "https://api.example.com/examples/large.json",
+	ex := example.MustNewExternal("large-dataset", "https://api.example.com/examples/large.json",
 		example.WithSummary("Large response dataset"),
 	)
 
@@ -69,9 +69,9 @@ func ExampleResponse_namedExamples() {
 		openapi.WithSummary("Get user"),
 		openapi.WithOperationDescription("Retrieves a user by ID"),
 		openapi.WithResponse(http.StatusOK, UserResponse{},
-			example.New("regular", UserResponse{ID: 123, Name: "John"},
+			example.MustNew("regular", UserResponse{ID: 123, Name: "John"},
 				example.WithSummary("Regular user")),
-			example.New("admin", UserResponse{ID: 1, Name: "Admin"},
+			example.MustNew("admin", UserResponse{ID: 1, Name: "Admin"},
 				example.WithSummary("Admin user")),
 		),
 	)

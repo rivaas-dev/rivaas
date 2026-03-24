@@ -23,19 +23,21 @@
 //	import "rivaas.dev/openapi/example"
 //
 //	// Inline example
-//	example.New("success", UserResponse{ID: 123, Name: "John"})
+//	example.MustNew("success", UserResponse{ID: 123, Name: "John"})
 //
 //	// With metadata
-//	example.New("admin", UserResponse{ID: 1, Role: "admin"},
+//	example.MustNew("admin", UserResponse{ID: 1, Role: "admin"},
 //		example.WithSummary("Admin user response"),
 //		example.WithDescription("Users with admin role have elevated permissions"),
 //	)
 //
 //	// External URL example
-//	example.NewExternal("large", "https://api.example.com/examples/large.json",
+//	example.MustNewExternal("large", "https://api.example.com/examples/large.json",
 //		example.WithSummary("Large dataset"),
 //	)
 package example
+
+import "fmt"
 
 // exampleConfig holds construction-time configuration for an Example.
 // Options mutate config; New/NewExternal build the public Example from it.
@@ -75,6 +77,16 @@ func exampleFromConfig(cfg *exampleConfig) Example {
 	}
 }
 
+func applyOptions(cfg *exampleConfig, opts ...Option) error {
+	for i, opt := range opts {
+		if opt == nil {
+			return fmt.Errorf("openapi/example: option at index %d cannot be nil", i)
+		}
+		opt(cfg)
+	}
+	return nil
+}
+
 // New creates a named example with an inline value.
 //
 // The name is used as the key in the OpenAPI examples map. It must be unique
@@ -87,21 +99,36 @@ func exampleFromConfig(cfg *exampleConfig) Example {
 //
 // Example:
 //
-//	example.New("success", UserResponse{ID: 123, Name: "John"})
+//	ex, err := example.New("success", UserResponse{ID: 123, Name: "John"})
+//	if err != nil {
+//	    // handle error
+//	}
 //
-//	example.New("admin", UserResponse{ID: 1, Role: "admin"},
+//	ex, err := example.New("admin", UserResponse{ID: 1, Role: "admin"},
 //		example.WithSummary("Admin user"),
 //		example.WithDescription("Has elevated permissions"),
 //	)
-func New(name string, value any, opts ...Option) Example {
+//	if err != nil {
+//	    // handle error
+//	}
+func New(name string, value any, opts ...Option) (Example, error) {
 	cfg := &exampleConfig{
 		name:  name,
 		value: value,
 	}
-	for _, opt := range opts {
-		opt(cfg)
+	if err := applyOptions(cfg, opts...); err != nil {
+		return Example{}, err
 	}
-	return exampleFromConfig(cfg)
+	return exampleFromConfig(cfg), nil
+}
+
+// MustNew creates a named inline example and panics if option validation fails.
+func MustNew(name string, value any, opts ...Option) Example {
+	ex, err := New(name, value, opts...)
+	if err != nil {
+		panic(fmt.Sprintf("example.MustNew: %v", err))
+	}
+	return ex
 }
 
 // NewExternal creates a named example pointing to an external URL.
@@ -118,20 +145,35 @@ func New(name string, value any, opts ...Option) Example {
 //
 // Example:
 //
-//	example.NewExternal("large", "https://api.example.com/examples/large.json")
+//	ex, err := example.NewExternal("large", "https://api.example.com/examples/large.json")
+//	if err != nil {
+//	    // handle error
+//	}
 //
-//	example.NewExternal("xml-format", "https://api.example.com/examples/user.xml",
+//	ex, err := example.NewExternal("xml-format", "https://api.example.com/examples/user.xml",
 //		example.WithSummary("XML format response"),
 //	)
-func NewExternal(name, url string, opts ...Option) Example {
+//	if err != nil {
+//	    // handle error
+//	}
+func NewExternal(name, url string, opts ...Option) (Example, error) {
 	cfg := &exampleConfig{
 		name:          name,
 		externalValue: url,
 	}
-	for _, opt := range opts {
-		opt(cfg)
+	if err := applyOptions(cfg, opts...); err != nil {
+		return Example{}, err
 	}
-	return exampleFromConfig(cfg)
+	return exampleFromConfig(cfg), nil
+}
+
+// MustNewExternal creates a named external example and panics if option validation fails.
+func MustNewExternal(name, url string, opts ...Option) Example {
+	ex, err := NewExternal(name, url, opts...)
+	if err != nil {
+		panic(fmt.Sprintf("example.MustNewExternal: %v", err))
+	}
+	return ex
 }
 
 // WithSummary sets a short description for the example.
@@ -141,7 +183,7 @@ func NewExternal(name, url string, opts ...Option) Example {
 //
 // Example:
 //
-//	example.New("success", data, example.WithSummary("Successful response"))
+//	example.MustNew("success", data, example.WithSummary("Successful response"))
 func WithSummary(summary string) Option {
 	return func(cfg *exampleConfig) {
 		cfg.summary = summary
@@ -155,7 +197,7 @@ func WithSummary(summary string) Option {
 //
 // Example:
 //
-//	example.New("admin", data,
+//	example.MustNew("admin", data,
 //		example.WithDescription("Users with admin role have full system access.\n\n**Note:** Admin users can modify all resources."),
 //	)
 func WithDescription(description string) Option {

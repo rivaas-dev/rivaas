@@ -237,3 +237,33 @@ func TestAPI_Spec_EmptyOperations(t *testing.T) {
 		assert.Contains(t, err.Error(), "paths")
 	})
 }
+
+func TestAPI_Spec_InvalidConfiguredVersion(t *testing.T) {
+	t.Parallel()
+
+	api := MustNew(WithTitle("API", "1.0.0"))
+	api.version = Version("2.0.0")
+
+	_, err := api.Spec(context.Background())
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidVersion)
+}
+
+func TestAPI_AddOperation_OperationExtensionValidation(t *testing.T) {
+	t.Parallel()
+
+	invalidPrefixOp, err := WithGET("/users", WithOperationExtension("trace", "enabled"))
+	require.NoError(t, err)
+
+	api := MustNew(WithTitle("API", "1.0.0"), WithVersion(V31x))
+	err = api.AddOperation(invalidPrefixOp)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operation extension key must start with 'x-'")
+
+	reservedPrefixOp, err := WithGET("/users", WithOperationExtension("x-oai-custom", "enabled"))
+	require.NoError(t, err)
+	err = api.AddOperation(reservedPrefixOp)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operation extension key uses reserved prefix")
+}

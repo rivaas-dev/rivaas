@@ -135,8 +135,18 @@ func New(opts ...Option) (*API, error) {
 	return apiFromConfig(cfg), nil
 }
 
+func validateExtensionKey(version Version, key, subject string) error {
+	if !strings.HasPrefix(key, "x-") {
+		return fmt.Errorf("openapi: %s must start with 'x-': %s", subject, key)
+	}
+	if version == V31x && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
+		return fmt.Errorf("openapi: %s uses reserved prefix (x-oai- or x-oas-): %s", subject, key)
+	}
+	return nil
+}
+
 // validateOperations checks that each operation has non-empty Method and Path and a valid path format.
-func validateOperations(ops []Operation) error {
+func validateOperations(ops []Operation, version Version) error {
 	var errs []error
 	for i, op := range ops {
 		if op.Method == "" || op.Path == "" {
@@ -145,6 +155,11 @@ func validateOperations(ops []Operation) error {
 		}
 		if err := validate.ValidatePath(op.Path); err != nil {
 			errs = append(errs, fmt.Errorf("openapi: operation at index %d: invalid path %q: %w", i, op.Path, err))
+		}
+		for key := range op.doc.Extensions {
+			if err := validateExtensionKey(version, key, "operation extension key"); err != nil {
+				errs = append(errs, fmt.Errorf("openapi: operation at index %d: %w", i, err))
+			}
 		}
 	}
 	if len(errs) == 0 {
@@ -157,6 +172,9 @@ func validateOperations(ops []Operation) error {
 func validateConfig(cfg *config) error {
 	if len(cfg.validationErrors) > 0 {
 		return errors.Join(cfg.validationErrors...)
+	}
+	if cfg.version != V30x && cfg.version != V31x {
+		return fmt.Errorf("%w: %q (use %s or %s)", ErrInvalidVersion, cfg.version, V30x, V31x)
 	}
 	if cfg.info.Title == "" {
 		return ErrTitleRequired
@@ -175,7 +193,7 @@ func validateConfig(cfg *config) error {
 		}
 	}
 	if len(cfg.operations) > 0 {
-		if err := validateOperations(cfg.operations); err != nil {
+		if err := validateOperations(cfg.operations, cfg.version); err != nil {
 			return err
 		}
 	}
@@ -183,19 +201,13 @@ func validateConfig(cfg *config) error {
 		return fmt.Errorf("openapi: %w", err)
 	}
 	for key := range cfg.extensions {
-		if !strings.HasPrefix(key, "x-") {
-			return fmt.Errorf("openapi: extension key must start with 'x-': %s", key)
-		}
-		if (cfg.version == V31x || cfg.version == Version("")) && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
-			return fmt.Errorf("openapi: extension key uses reserved prefix (x-oai- or x-oas-): %s", key)
+		if err := validateExtensionKey(cfg.version, key, "extension key"); err != nil {
+			return err
 		}
 	}
 	for key := range cfg.info.Extensions {
-		if !strings.HasPrefix(key, "x-") {
-			return fmt.Errorf("openapi: info extension key must start with 'x-': %s", key)
-		}
-		if (cfg.version == V31x || cfg.version == Version("")) && (strings.HasPrefix(key, "x-oai-") || strings.HasPrefix(key, "x-oas-")) {
-			return fmt.Errorf("openapi: info extension key uses reserved prefix (x-oai- or x-oas-): %s", key)
+		if err := validateExtensionKey(cfg.version, key, "info extension key"); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -253,6 +265,54 @@ func (a *API) UI() UISnapshot {
 	return &uiSnapshot{c: a.ui}
 }
 
+func cloneStringSlice(src []string) []string {
+	if src == nil {
+		return nil
+	}
+	return append([]string(nil), src...)
+}
+
+func cloneStringMap(src map[string]string) map[string]string {
+	if src == nil {
+		return nil
+	}
+	out := make(map[string]string, len(src))
+	for k, v := range src {
+		out[k] = v
+	}
+	return out
+}
+
+func deepCopyAny(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		return cloneAnyMap(x)
+	case []any:
+		out := make([]any, 0, len(x))
+		for i := range x {
+			out = append(out, deepCopyAny(x[i]))
+		}
+		return out
+	case []string:
+		return cloneStringSlice(x)
+	case map[string]string:
+		return cloneStringMap(x)
+	default:
+		return v
+	}
+}
+
+func cloneAnyMap(src map[string]any) map[string]any {
+	if src == nil {
+		return nil
+	}
+	out := make(map[string]any, len(src))
+	for k, v := range src {
+		out[k] = deepCopyAny(v)
+	}
+	return out
+}
+
 // infoToDTO copies model.Info to public Info DTO.
 func infoToDTO(m model.Info) Info {
 	out := Info{
@@ -261,7 +321,7 @@ func infoToDTO(m model.Info) Info {
 		Description:    m.Description,
 		TermsOfService: m.TermsOfService,
 		Version:        m.Version,
-		Extensions:     m.Extensions,
+		Extensions:     cloneAnyMap(m.Extensions),
 	}
 	if m.Contact != nil {
 		out.Contact = &Contact{Name: m.Contact.Name, URL: m.Contact.URL, Email: m.Contact.Email}
@@ -281,7 +341,7 @@ func serversToDTO(s []model.Server) []Server {
 			svr.Variables = make(map[string]*ServerVariable)
 			for k, v := range s[i].Variables {
 				if v != nil {
-					svr.Variables[k] = &ServerVariable{Enum: v.Enum, Default: v.Default, Description: v.Description}
+					svr.Variables[k] = &ServerVariable{Enum: cloneStringSlice(v.Enum), Default: v.Default, Description: v.Description}
 				}
 			}
 		}
@@ -320,7 +380,7 @@ func securitySchemeToDTO(m *model.SecurityScheme) *SecurityScheme {
 				AuthorizationURL: m.Flows.AuthorizationCode.AuthorizationURL,
 				TokenURL:         m.Flows.AuthorizationCode.TokenURL,
 				RefreshURL:       m.Flows.AuthorizationCode.RefreshURL,
-				Scopes:           m.Flows.AuthorizationCode.Scopes,
+				Scopes:           cloneStringMap(m.Flows.AuthorizationCode.Scopes),
 			}
 		}
 		if m.Flows.Implicit != nil {
@@ -328,7 +388,7 @@ func securitySchemeToDTO(m *model.SecurityScheme) *SecurityScheme {
 				AuthorizationURL: m.Flows.Implicit.AuthorizationURL,
 				TokenURL:         m.Flows.Implicit.TokenURL,
 				RefreshURL:       m.Flows.Implicit.RefreshURL,
-				Scopes:           m.Flows.Implicit.Scopes,
+				Scopes:           cloneStringMap(m.Flows.Implicit.Scopes),
 			}
 		}
 		if m.Flows.Password != nil {
@@ -336,7 +396,7 @@ func securitySchemeToDTO(m *model.SecurityScheme) *SecurityScheme {
 				AuthorizationURL: m.Flows.Password.AuthorizationURL,
 				TokenURL:         m.Flows.Password.TokenURL,
 				RefreshURL:       m.Flows.Password.RefreshURL,
-				Scopes:           m.Flows.Password.Scopes,
+				Scopes:           cloneStringMap(m.Flows.Password.Scopes),
 			}
 		}
 		if m.Flows.ClientCredentials != nil {
@@ -344,7 +404,7 @@ func securitySchemeToDTO(m *model.SecurityScheme) *SecurityScheme {
 				AuthorizationURL: m.Flows.ClientCredentials.AuthorizationURL,
 				TokenURL:         m.Flows.ClientCredentials.TokenURL,
 				RefreshURL:       m.Flows.ClientCredentials.RefreshURL,
-				Scopes:           m.Flows.ClientCredentials.Scopes,
+				Scopes:           cloneStringMap(m.Flows.ClientCredentials.Scopes),
 			}
 		}
 	}
@@ -412,7 +472,7 @@ func (a *API) ExternalDocs() *ExternalDocs {
 
 // Extensions returns the root-level specification extensions. Do not modify the returned map.
 func (a *API) Extensions() map[string]any {
-	return a.extensions
+	return cloneAnyMap(a.extensions)
 }
 
 // Version returns the target OpenAPI version (V30x or V31x).

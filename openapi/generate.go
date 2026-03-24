@@ -75,7 +75,7 @@ func (a *API) Spec(ctx context.Context) (*Result, error) {
 	case V30x:
 		exportVersion = export.V30
 	default:
-		exportVersion = export.V30 // Default to 3.0.4
+		return nil, fmt.Errorf("%w: %q (use %s or %s)", ErrInvalidVersion, a.version, V30x, V31x)
 	}
 	exportCfg := export.Config{
 		Version:         exportVersion,
@@ -107,7 +107,7 @@ func (a *API) AddOperation(ops ...Operation) error {
 	if len(ops) == 0 {
 		return nil
 	}
-	if err := validateOperations(ops); err != nil {
+	if err := validateOperations(ops, a.version); err != nil {
 		return err
 	}
 	a.operationsMu.Lock()

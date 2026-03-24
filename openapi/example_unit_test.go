@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"rivaas.dev/openapi/example"
 )
@@ -94,7 +95,8 @@ func TestNewExample(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := example.New(tt.exName, tt.value, tt.opts...)
+			ex, err := example.New(tt.exName, tt.value, tt.opts...)
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantName, ex.Name())
 			assert.Equal(t, tt.wantValue, ex.Value())
@@ -146,7 +148,8 @@ func TestExternalExample(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := example.NewExternal(tt.exName, tt.url, tt.opts...)
+			ex, err := example.NewExternal(tt.exName, tt.url, tt.opts...)
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantName, ex.Name())
 			assert.Equal(t, tt.wantURL, ex.ExternalValue())
@@ -174,7 +177,8 @@ func TestWithExampleSummary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := example.New("test", nil, example.WithSummary(tt.summary))
+			ex, err := example.New("test", nil, example.WithSummary(tt.summary))
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.want, ex.Summary())
 		})
@@ -198,7 +202,8 @@ func TestWithExampleDescription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ex := example.New("test", nil, example.WithDescription(tt.desc))
+			ex, err := example.New("test", nil, example.WithDescription(tt.desc))
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.want, ex.Description())
 		})
@@ -210,19 +215,22 @@ func TestExample_IsExternal(t *testing.T) {
 
 	t.Run("inline example is not external", func(t *testing.T) {
 		t.Parallel()
-		ex := example.New("test", "value")
+		ex, err := example.New("test", "value")
+		require.NoError(t, err)
 		assert.False(t, ex.IsExternal())
 	})
 
 	t.Run("external example is external", func(t *testing.T) {
 		t.Parallel()
-		ex := example.NewExternal("test", "https://example.com/data.json")
+		ex, err := example.NewExternal("test", "https://example.com/data.json")
+		require.NoError(t, err)
 		assert.True(t, ex.IsExternal())
 	})
 
 	t.Run("external with empty URL is not external", func(t *testing.T) {
 		t.Parallel()
-		ex := example.NewExternal("test", "")
+		ex, err := example.NewExternal("test", "")
+		require.NoError(t, err)
 		assert.False(t, ex.IsExternal())
 	})
 }

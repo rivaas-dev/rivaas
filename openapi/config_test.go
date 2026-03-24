@@ -293,16 +293,70 @@ func TestConfig_WithDefaultSecurity(t *testing.T) {
 	assert.Equal(t, []string{"read", "write"}, req2["oauth2"])
 }
 
+func TestConfig_GettersReturnDefensiveCopies(t *testing.T) {
+	t.Parallel()
+
+	cfg := MustNew(
+		WithTitle("Test API", "1.0.0"),
+		WithInfoExtension("x-info", map[string]any{
+			"nested": []any{"original"},
+		}),
+		WithExtension("x-root", map[string]any{
+			"nested": []any{"original"},
+		}),
+		WithServer("https://{host}.example.com", "server"),
+		WithServerVariable("host", "api", []string{"api", "staging"}, "host"),
+		WithOAuth2Password("oauth2", "OAuth2", "https://example.com/token", "", map[string]string{
+			"read": "Read access",
+		}),
+	)
+
+	info := cfg.Info()
+	infoNested, ok := info.Extensions["x-info"].(map[string]any)
+	require.True(t, ok)
+	infoNested["nested"] = []any{"mutated"}
+	info.Extensions["x-added"] = true
+
+	root := cfg.Extensions()
+	rootNested, ok := root["x-root"].(map[string]any)
+	require.True(t, ok)
+	rootNested["nested"] = []any{"mutated"}
+	root["x-added"] = true
+
+	servers := cfg.Servers()
+	servers[0].Variables["host"].Enum[0] = "mutated"
+
+	schemes := cfg.SecuritySchemes()
+	schemes["oauth2"].Flows.Password.Scopes["read"] = "Mutated scope"
+
+	freshInfo := cfg.Info()
+	freshInfoNested, ok := freshInfo.Extensions["x-info"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"original"}, freshInfoNested["nested"])
+	assert.NotContains(t, freshInfo.Extensions, "x-added")
+
+	freshRoot := cfg.Extensions()
+	freshRootNested, ok := freshRoot["x-root"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"original"}, freshRootNested["nested"])
+	assert.NotContains(t, freshRoot, "x-added")
+
+	freshServers := cfg.Servers()
+	assert.Equal(t, "api", freshServers[0].Variables["host"].Enum[0])
+
+	freshSchemes := cfg.SecuritySchemes()
+	assert.Equal(t, "Read access", freshSchemes["oauth2"].Flows.Password.Scopes["read"])
+}
+
 func TestConfig_InvalidVersion(t *testing.T) {
 	t.Parallel()
 
-	// Invalid versions should still be accepted (validation happens at export time)
-	cfg := MustNew(
+	_, err := New(
 		WithTitle("Test API", "1.0.0"),
 		WithVersion("2.0.0"), // Not a valid OpenAPI version
 	)
-
-	assert.Equal(t, Version("2.0.0"), cfg.Version())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidVersion)
 }
 
 func TestConfig_EmptyTitle(t *testing.T) {
@@ -605,13 +659,83 @@ func TestConfig_ExtensionValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			cfg, err := New(tt.options...)
+			cfg, newErr := New(tt.options...)
 
 			if tt.wantError != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantError)
+				require.Error(t, newErr)
+				assert.Contains(t, newErr.Error(), tt.wantError)
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, newErr)
+				require.NotNil(t, cfg)
+			}
+		})
+	}
+}
+
+func TestConfig_OperationExtensionValidation(t *testing.T) {
+	t.Parallel()
+
+	validOp, err := WithGET("/users", WithOperationExtension("x-trace", "enabled"))
+	require.NoError(t, err)
+
+	invalidPrefixOp, err := WithGET("/users", WithOperationExtension("trace", "enabled"))
+	require.NoError(t, err)
+
+	reservedPrefixOp, err := WithGET("/users", WithOperationExtension("x-oai-custom", "enabled"))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		options   []Option
+		wantError string
+	}{
+		{
+			name: "invalid operation extension key - no x- prefix",
+			options: []Option{
+				WithTitle("Test API", "1.0.0"),
+				WithOperations(invalidPrefixOp),
+			},
+			wantError: "operation extension key must start with 'x-'",
+		},
+		{
+			name: "reserved operation extension key in 3.1",
+			options: []Option{
+				WithTitle("Test API", "1.0.0"),
+				WithVersion(V31x),
+				WithOperations(reservedPrefixOp),
+			},
+			wantError: "operation extension key uses reserved prefix",
+		},
+		{
+			name: "reserved operation extension key allowed in 3.0",
+			options: []Option{
+				WithTitle("Test API", "1.0.0"),
+				WithVersion(V30x),
+				WithOperations(reservedPrefixOp),
+			},
+			wantError: "",
+		},
+		{
+			name: "valid operation extension key",
+			options: []Option{
+				WithTitle("Test API", "1.0.0"),
+				WithVersion(V31x),
+				WithOperations(validOp),
+			},
+			wantError: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, newErr := New(tt.options...)
+
+			if tt.wantError != "" {
+				require.Error(t, newErr)
+				assert.Contains(t, newErr.Error(), tt.wantError)
+			} else {
+				require.NoError(t, newErr)
 				require.NotNil(t, cfg)
 			}
 		})
