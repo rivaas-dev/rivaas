@@ -101,9 +101,14 @@ func JSONReaderTo(r io.Reader, out any, opts ...Option) error {
 
 // bindJSONReaderInternal binds JSON from an io.Reader.
 func bindJSONReaderInternal(out any, r io.Reader, cfg *config) error {
-	// For Warn/Error policies, we need the raw bytes to walk the structure
-	if cfg.unknownFields == UnknownWarn || cfg.unknownFields == UnknownError {
-		// Read body into memory
+	// For Warn/Error policies we need the raw bytes to walk the structure.
+	// We also need buffered bytes when the target struct has defaults, so we
+	// can build the presence map after decoding.
+	needsBuffer := cfg.unknownFields == UnknownWarn ||
+		cfg.unknownFields == UnknownError ||
+		jsonStructHasDefaults(out)
+
+	if needsBuffer {
 		body, err := io.ReadAll(r)
 		if err != nil {
 			cfg.trackError()
@@ -113,7 +118,7 @@ func bindJSONReaderInternal(out any, r io.Reader, cfg *config) error {
 		return bindJSONBytesInternal(out, body, cfg)
 	}
 
-	// No unknown field detection needed
+	// Fast path: no unknown-field detection, no defaults — stream decode.
 	decoder := json.NewDecoder(r)
 	if cfg.jsonUseNumber {
 		decoder.UseNumber()
@@ -173,6 +178,17 @@ func bindJSONBytesInternal(out any, body []byte, cfg *config) error {
 		}
 	}
 
+	// Post-decode: apply default:"..." values to fields absent from the payload.
+	// Only parse the raw map when the struct actually has defaults.
+	if jsonStructHasDefaults(out) {
+		var raw map[string]json.RawMessage
+		if unmarshalErr := json.Unmarshal(body, &raw); unmarshalErr == nil {
+			if defaultsErr := applyJSONDefaults(out, raw, cfg); defaultsErr != nil {
+				return defaultsErr
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -225,6 +241,118 @@ func bindJSONWithWarnings(ctx context.Context, out any, body []byte, cfg *config
 	_ = unknowns
 
 	return nil
+}
+
+// applyJSONDefaults walks a decoded struct and applies default:"..." values
+// to fields whose JSON key was absent from the payload. Presence is determined
+// by the raw map produced from json.Unmarshal into map[string]json.RawMessage.
+// For nested structs whose parent key IS present, the function recurses into
+// the nested raw value.
+func applyJSONDefaults(out any, raw map[string]json.RawMessage, cfg *config) error {
+	v := reflect.ValueOf(out)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+
+	return applyJSONDefaultsToValue(v, raw, cfg)
+}
+
+// applyJSONDefaultsToValue is the recursive core that operates on reflect.Value.
+func applyJSONDefaultsToValue(v reflect.Value, raw map[string]json.RawMessage, cfg *config) error {
+	info := getStructInfo(v.Type(), TagJSON)
+	if !info.hasDefaults {
+		return nil
+	}
+
+	for _, field := range info.fields {
+		jsonKey := field.tagName
+		if jsonKey == "" || jsonKey == "-" {
+			continue
+		}
+
+		rawVal, present := raw[jsonKey]
+
+		// Recurse into nested structs that are present in the payload
+		if field.isStruct && present {
+			fv := v.FieldByIndex(field.index)
+			if !fv.CanSet() {
+				continue
+			}
+
+			var nested map[string]json.RawMessage
+			if unmarshalErr := json.Unmarshal(rawVal, &nested); unmarshalErr == nil {
+				if recurseErr := applyJSONDefaultsToValue(fv, nested, cfg); recurseErr != nil {
+					return recurseErr
+				}
+			}
+
+			continue
+		}
+
+		if field.defaultValue == "" {
+			continue
+		}
+
+		if present {
+			continue
+		}
+
+		fv := v.FieldByIndex(field.index)
+		if !fv.CanSet() {
+			continue
+		}
+
+		if applied := applyTypedDefault(v, field); applied {
+			continue
+		}
+
+		// Fallback: runtime conversion for slices and scalars
+		if field.isSlice {
+			values := splitAndTrimCSV(field.defaultValue)
+			if err := setSliceField(fv, values, cfg); err != nil {
+				return &BindError{
+					Field:  field.name,
+					Source: SourceJSON,
+					Value:  field.defaultValue,
+					Type:   fv.Type(),
+					Err:    err,
+				}
+			}
+		} else {
+			if err := setField(fv, field.defaultValue, field.isPtr, cfg); err != nil {
+				return &BindError{
+					Field:  field.name,
+					Source: SourceJSON,
+					Value:  field.defaultValue,
+					Type:   fv.Type(),
+					Err:    err,
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// jsonStructHasDefaults checks whether the target type has any default tags
+// when parsed for JSON binding. Returns false for non-struct types.
+func jsonStructHasDefaults(out any) bool {
+	t := reflect.TypeOf(out)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
+	if t.Kind() != reflect.Struct {
+		return false
+	}
+
+	info := getStructInfo(t, TagJSON)
+
+	return info.hasDefaults
 }
 
 // extractUnknownFieldName parses json.Decoder error to extract field name.

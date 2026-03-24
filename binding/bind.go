@@ -607,6 +607,9 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 		// Handle slice fields
 		if field.isSlice {
 			values := getter.GetAll(field.tagName)
+			if len(values) == 0 && field.defaultValue != "" {
+				values = splitAndTrimCSV(field.defaultValue)
+			}
 			if err := setSliceField(fieldValue, values, cfg); err != nil {
 				bindErr := &BindError{
 					Field:  field.name,
@@ -668,13 +671,14 @@ func parseStructInfo(t reflect.Type, tagName string) *structInfo {
 
 		// Validate default tag: ensure it's compatible with field type
 		if field.defaultValue != "" {
-			// Basic validation check (full validation happens at runtime)
-			if field.isSlice || field.isMap {
-				if err := invalidTagf("field %s: default tag not supported for slices/maps",
+			if field.isMap {
+				if err := invalidTagf("field %s: default tag not supported for maps",
 					field.name); err != nil {
 					continue
 				}
 			}
+
+			info.hasDefaults = true
 		}
 	}
 
@@ -773,21 +777,26 @@ func parseStructType(t reflect.Type, tagName string, indexPrefix []int) *structI
 		// Compute typed default value
 		var typedDefault any
 		hasTypedDefault := false
-		if defaultValue != "" && !isSlice && !isMap {
-			// Attempt to convert default value to typed form
-			// Use default config for conversion (time layouts, etc.)
+		if defaultValue != "" && !isMap {
 			defaultCfg := defaultConfig()
-			if convertedVal, err := convertToType(defaultValue, field.Type, defaultCfg); err == nil {
-				typedDefault = convertedVal.Interface()
-				hasTypedDefault = true
+			if isSlice {
+				if converted, err := convertSliceDefault(defaultValue, fieldType, defaultCfg); err == nil {
+					typedDefault = converted
+					hasTypedDefault = true
+				} else {
+					//nolint:errcheck // Debug: panics; Prod: error intentionally ignored, fallback to runtime conversion
+					invalidTagf("field %s: invalid default value %q for type %s: %v",
+						field.Name, defaultValue, field.Type, err)
+				}
 			} else {
-				// Use invalidTagf which panics in debug builds, returns error in prod
-				//nolint:errcheck // Debug: panics; Prod: error intentionally ignored, fallback to runtime conversion
-				invalidTagf("field %s: invalid default value %q for type %s: %v",
-					field.Name, defaultValue, field.Type, err)
-				// In debug builds: invalidTagf panics above, preventing startup with invalid config
-				// In production builds: error is ignored, we continue without typed default
-				// The default value will be converted at runtime when actually used
+				if convertedVal, err := convertToType(defaultValue, field.Type, defaultCfg); err == nil {
+					typedDefault = convertedVal.Interface()
+					hasTypedDefault = true
+				} else {
+					//nolint:errcheck // Debug: panics; Prod: error intentionally ignored, fallback to runtime conversion
+					invalidTagf("field %s: invalid default value %q for type %s: %v",
+						field.Name, defaultValue, field.Type, err)
+				}
 			}
 		}
 

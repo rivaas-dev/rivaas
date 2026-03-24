@@ -250,7 +250,19 @@
 //
 // # Special Tags
 //
-//   - default:"value": Default value when field is not present
+//   - default:"value": Default value when field is not present in the input.
+//     Works for all binding sources: query, path, header, cookie, form, and JSON body.
+//     Supported for all primitive types (string, int*, uint*, float*, bool),
+//     time.Time, time.Duration, net.IP, url.URL, and their pointer variants.
+//     For slices, use comma-separated values: default:"a,b,c"
+//     Whitespace around comma-separated elements is trimmed.
+//     Not supported for map fields.
+//
+//     For JSON body binding, defaults are applied after decoding. A field
+//     explicitly sent as its zero value (e.g. {"active": false}) is NOT
+//     overwritten by the default — only fields absent from the JSON payload
+//     receive their default value. This also works for nested structs when the
+//     parent key is present in the JSON.
 //
 // For validation constraints (required, enum, etc.), use the rivaas.dev/validation
 // package with the `validate` struct tag.

@@ -53,7 +53,8 @@ type fieldInfo struct {
 // structInfo holds cached parsing information for a struct type.
 // It contains the list of fields with their binding metadata for a given tag type.
 type structInfo struct {
-	fields []fieldInfo
+	fields      []fieldInfo
+	hasDefaults bool // true if any field has a non-empty defaultValue
 }
 
 // Type references for special type handling.

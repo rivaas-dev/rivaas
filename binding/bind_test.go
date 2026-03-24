@@ -1493,3 +1493,586 @@ func TestApplyTypedDefault_Pointer(t *testing.T) {
 	require.NotNil(t, out.Age)
 	assert.Equal(t, 99, *out.Age)
 }
+
+// TestDefaults_Scalars battle-tests default tag for every supported scalar type.
+func TestDefaults_Scalars(t *testing.T) {
+	t.Parallel()
+
+	t.Run("int8 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V int8 `query:"v" default:"127"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, int8(127), p.V)
+	})
+
+	t.Run("int16 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V int16 `query:"v" default:"-100"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, int16(-100), p.V)
+	})
+
+	t.Run("int32 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V int32 `query:"v" default:"100000"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, int32(100000), p.V)
+	})
+
+	t.Run("int64 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V int64 `query:"v" default:"9999999"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, int64(9999999), p.V)
+	})
+
+	t.Run("uint default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V uint `query:"v" default:"10"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, uint(10), p.V)
+	})
+
+	t.Run("uint8 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V uint8 `query:"v" default:"255"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, uint8(255), p.V)
+	})
+
+	t.Run("uint16 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V uint16 `query:"v" default:"1000"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, uint16(1000), p.V)
+	})
+
+	t.Run("uint32 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V uint32 `query:"v" default:"70000"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, uint32(70000), p.V)
+	})
+
+	t.Run("uint64 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V uint64 `query:"v" default:"123456789"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, uint64(123456789), p.V)
+	})
+
+	t.Run("float32 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V float32 `query:"v" default:"3.14"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.InDelta(t, float32(3.14), p.V, 0.001)
+	})
+
+	t.Run("bool default false", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Active bool `query:"active" default:"false"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.False(t, p.Active)
+	})
+
+	t.Run("bool default yes", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Active bool `query:"active" default:"yes"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.True(t, p.Active)
+	})
+
+	t.Run("bool default 0", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Active bool `query:"active" default:"0"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.False(t, p.Active)
+	})
+
+	t.Run("bool default 1", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Active bool `query:"active" default:"1"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.True(t, p.Active)
+	})
+
+	t.Run("bool default on", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Active bool `query:"active" default:"on"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.True(t, p.Active)
+	})
+
+	t.Run("time.Duration default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Timeout time.Duration `query:"timeout" default:"5s"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, 5*time.Second, p.Timeout)
+	})
+
+	t.Run("time.Duration default complex", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Timeout time.Duration `query:"timeout" default:"1h30m"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, 90*time.Minute, p.Timeout)
+	})
+}
+
+// TestDefaults_Pointers battle-tests default tag for pointer types.
+func TestDefaults_Pointers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("*string default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Name *string `query:"name" default:"hello"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		require.NotNil(t, p.Name)
+		assert.Equal(t, "hello", *p.Name)
+	})
+
+	t.Run("*bool default true", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Active *bool `query:"active" default:"true"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		require.NotNil(t, p.Active)
+		assert.True(t, *p.Active)
+	})
+
+	t.Run("*bool default false distinguishes from nil", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Active *bool `query:"active" default:"false"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		require.NotNil(t, p.Active, "*bool with default:\"false\" must not be nil")
+		assert.False(t, *p.Active)
+	})
+
+	t.Run("*float64 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Price *float64 `query:"price" default:"3.14"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		require.NotNil(t, p.Price)
+		assert.Equal(t, 3.14, *p.Price) //nolint:testifylint // exact decimal comparison
+	})
+
+	t.Run("*int64 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Count *int64 `query:"count" default:"999"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		require.NotNil(t, p.Count)
+		assert.Equal(t, int64(999), *p.Count)
+	})
+
+	t.Run("*uint default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Limit *uint `query:"limit" default:"7"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		require.NotNil(t, p.Limit)
+		assert.Equal(t, uint(7), *p.Limit)
+	})
+
+	t.Run("*time.Duration default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			TTL *time.Duration `query:"ttl" default:"10m"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		require.NotNil(t, p.TTL)
+		assert.Equal(t, 10*time.Minute, *p.TTL)
+	})
+}
+
+// TestDefaults_Slices battle-tests default tag for slice types.
+func TestDefaults_Slices(t *testing.T) {
+	t.Parallel()
+
+	t.Run("[]string default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Tags []string `query:"tags" default:"a,b,c"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, []string{"a", "b", "c"}, p.Tags)
+	})
+
+	t.Run("[]string single element", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Tags []string `query:"tags" default:"only"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, []string{"only"}, p.Tags)
+	})
+
+	t.Run("[]string with spaces trimmed", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Tags []string `query:"tags" default:" a , b , c "`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, []string{"a", "b", "c"}, p.Tags)
+	})
+
+	t.Run("[]int default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			IDs []int `query:"ids" default:"1,2,3"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, []int{1, 2, 3}, p.IDs)
+	})
+
+	t.Run("[]int64 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			IDs []int64 `query:"ids" default:"100,200"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, []int64{100, 200}, p.IDs)
+	})
+
+	t.Run("[]uint default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			IDs []uint `query:"ids" default:"1,2,3"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, []uint{1, 2, 3}, p.IDs)
+	})
+
+	t.Run("[]float64 default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Scores []float64 `query:"scores" default:"1.1,2.2,3.3"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, []float64{1.1, 2.2, 3.3}, p.Scores) //nolint:testifylint // exact decimal comparison
+	})
+
+	t.Run("[]bool default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Flags []bool `query:"flags" default:"true,false,true"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, []bool{true, false, true}, p.Flags)
+	})
+
+	t.Run("[]time.Duration default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Timeouts []time.Duration `query:"timeouts" default:"1s,2m,3h"`
+		}
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, []time.Duration{1 * time.Second, 2 * time.Minute, 3 * time.Hour}, p.Timeouts)
+	})
+}
+
+// TestDefaults_Overrides verifies provided values always win over defaults.
+func TestDefaults_Overrides(t *testing.T) {
+	t.Parallel()
+
+	t.Run("int override", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Page int `query:"page" default:"10"`
+		}
+		v := url.Values{}
+		v.Set("page", "5")
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(v), TagQuery, &p))
+		assert.Equal(t, 5, p.Page)
+	})
+
+	t.Run("bool override", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Active bool `query:"active" default:"true"`
+		}
+		v := url.Values{}
+		v.Set("active", "false")
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(v), TagQuery, &p))
+		assert.False(t, p.Active)
+	})
+
+	t.Run("float64 override", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Price float64 `query:"price" default:"9.99"`
+		}
+		v := url.Values{}
+		v.Set("price", "19.99")
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(v), TagQuery, &p))
+		assert.Equal(t, 19.99, p.Price) //nolint:testifylint // exact decimal comparison
+	})
+
+	t.Run("*int override", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Age *int `query:"age" default:"25"`
+		}
+		v := url.Values{}
+		v.Set("age", "30")
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(v), TagQuery, &p))
+		require.NotNil(t, p.Age)
+		assert.Equal(t, 30, *p.Age)
+	})
+
+	t.Run("[]string override", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Tags []string `query:"tags" default:"a,b"`
+		}
+		v := url.Values{}
+		v.Add("tags", "x")
+		v.Add("tags", "y")
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(v), TagQuery, &p))
+		assert.Equal(t, []string{"x", "y"}, p.Tags)
+	})
+
+	t.Run("[]int override", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			IDs []int `query:"ids" default:"1,2"`
+		}
+		v := url.Values{}
+		v.Add("ids", "10")
+		v.Add("ids", "20")
+		var p P
+		require.NoError(t, Raw(NewQueryGetter(v), TagQuery, &p))
+		assert.Equal(t, []int{10, 20}, p.IDs)
+	})
+}
+
+// TestDefaults_CrossSource verifies defaults work across different binding sources.
+func TestDefaults_CrossSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run("form string default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Name string `form:"name" default:"anon"`
+		}
+		var p P
+		require.NoError(t, Raw(NewFormGetter(url.Values{}), TagForm, &p))
+		assert.Equal(t, "anon", p.Name)
+	})
+
+	t.Run("form []string default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Tags []string `form:"tags" default:"a,b"`
+		}
+		var p P
+		require.NoError(t, Raw(NewFormGetter(url.Values{}), TagForm, &p))
+		assert.Equal(t, []string{"a", "b"}, p.Tags)
+	})
+
+	t.Run("header string default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Mode string `header:"X-Mode" default:"standard"`
+		}
+		var p P
+		require.NoError(t, Raw(NewHeaderGetter(http.Header{}), TagHeader, &p))
+		assert.Equal(t, "standard", p.Mode)
+	})
+
+	t.Run("path string default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			Version string `path:"version" default:"v1"`
+		}
+		var p P
+		require.NoError(t, Raw(NewPathGetter(map[string]string{}), TagPath, &p))
+		assert.Equal(t, "v1", p.Version)
+	})
+}
+
+// TestDefaults_InvalidDefaults tests that invalid default values cause errors at bind time
+// (in production builds, invalid defaults are detected at parse time but silently
+// absorbed; they then fail at runtime when no input is provided).
+func TestDefaults_InvalidDefaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("int invalid default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V int `query:"v" default:"abc"`
+		}
+		var p P
+		err := Raw(NewQueryGetter(url.Values{}), TagQuery, &p)
+		require.Error(t, err, "int with default:\"abc\" must fail")
+	})
+
+	t.Run("uint negative default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V uint `query:"v" default:"-1"`
+		}
+		var p P
+		err := Raw(NewQueryGetter(url.Values{}), TagQuery, &p)
+		require.Error(t, err, "uint with default:\"-1\" must fail")
+	})
+
+	t.Run("float invalid default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V float64 `query:"v" default:"xyz"`
+		}
+		var p P
+		err := Raw(NewQueryGetter(url.Values{}), TagQuery, &p)
+		require.Error(t, err, "float64 with default:\"xyz\" must fail")
+	})
+
+	t.Run("bool invalid default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V bool `query:"v" default:"maybe"`
+		}
+		var p P
+		err := Raw(NewQueryGetter(url.Values{}), TagQuery, &p)
+		require.Error(t, err, "bool with default:\"maybe\" must fail")
+	})
+
+	t.Run("[]int invalid default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V []int `query:"v" default:"a,b"`
+		}
+		var p P
+		err := Raw(NewQueryGetter(url.Values{}), TagQuery, &p)
+		require.Error(t, err, "[]int with default:\"a,b\" must fail")
+	})
+
+	t.Run("[]float64 mixed invalid default", func(t *testing.T) {
+		t.Parallel()
+		type P struct {
+			V []float64 `query:"v" default:"1.1,bad"`
+		}
+		var p P
+		err := Raw(NewQueryGetter(url.Values{}), TagQuery, &p)
+		require.Error(t, err, "[]float64 with default:\"1.1,bad\" must fail")
+	})
+}
+
+// TestDefaults_Integration tests a realistic multi-field struct like a blog API.
+func TestDefaults_Integration(t *testing.T) {
+	t.Parallel()
+
+	type ListPostsParams struct {
+		Page    int      `query:"page" default:"1"`
+		PerPage int      `query:"perPage" default:"10"`
+		Tags    []string `query:"tags" default:"general"`
+		SortBy  string   `query:"sortBy" default:"date"`
+		Active  bool     `query:"active" default:"true"`
+	}
+
+	t.Run("all defaults", func(t *testing.T) {
+		t.Parallel()
+		var p ListPostsParams
+		require.NoError(t, Raw(NewQueryGetter(url.Values{}), TagQuery, &p))
+		assert.Equal(t, 1, p.Page)
+		assert.Equal(t, 10, p.PerPage)
+		assert.Equal(t, []string{"general"}, p.Tags)
+		assert.Equal(t, "date", p.SortBy)
+		assert.True(t, p.Active)
+	})
+
+	t.Run("partial override", func(t *testing.T) {
+		t.Parallel()
+		v := url.Values{}
+		v.Set("page", "3")
+		v.Add("tags", "go")
+		v.Add("tags", "web")
+		var p ListPostsParams
+		require.NoError(t, Raw(NewQueryGetter(v), TagQuery, &p))
+		assert.Equal(t, 3, p.Page)
+		assert.Equal(t, 10, p.PerPage)
+		assert.Equal(t, []string{"go", "web"}, p.Tags)
+		assert.Equal(t, "date", p.SortBy)
+		assert.True(t, p.Active)
+	})
+}

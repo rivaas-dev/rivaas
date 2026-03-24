@@ -338,6 +338,34 @@ func parseTime(value string, opts *config) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("%w %q (tried RFC3339, date-only, and other common formats)", ErrUnableToParseTime, value)
 }
 
+// convertSliceDefault converts a comma-separated default string into a typed slice.
+// Each element is trimmed and converted via setFieldValue.
+func convertSliceDefault(value string, sliceType reflect.Type, cfg *config) (any, error) {
+	parts := strings.Split(value, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+
+	slice := reflect.MakeSlice(sliceType, len(parts), len(parts))
+	for i, part := range parts {
+		if err := setFieldValue(slice.Index(i), part, cfg); err != nil {
+			return nil, fmt.Errorf("element %d: %w", i, err)
+		}
+	}
+
+	return slice.Interface(), nil
+}
+
+// splitAndTrimCSV splits a comma-separated string and trims whitespace from each element.
+func splitAndTrimCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+
+	return parts
+}
+
 // convertToType converts a string value to the target reflect.Type.
 // It handles interface{} types and delegates to setFieldValue for concrete types.
 func convertToType(value string, targetType reflect.Type, opts *config) (reflect.Value, error) {
