@@ -11,15 +11,15 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.42.0
 	go.opentelemetry.io/otel/trace v1.42.0
-	rivaas.dev/binding v0.8.0
-	rivaas.dev/errors v0.7.0
-	rivaas.dev/logging v0.7.0
-	rivaas.dev/metrics v0.7.0
+	rivaas.dev/binding v0.9.0
+	rivaas.dev/errors v0.7.1
+	rivaas.dev/logging v0.7.1
+	rivaas.dev/metrics v0.7.1
 	rivaas.dev/middleware/recovery v0.3.0
-	rivaas.dev/openapi v0.6.0
-	rivaas.dev/router v0.15.0
-	rivaas.dev/tracing v0.7.0
-	rivaas.dev/validation v0.7.0
+	rivaas.dev/openapi v0.7.0
+	rivaas.dev/router v0.15.1
+	rivaas.dev/tracing v0.7.1
+	rivaas.dev/validation v0.7.1
 )
 
 replace (
