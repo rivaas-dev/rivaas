@@ -102,7 +102,9 @@ func MustNew(opts ...Option) *Binder {
 //	params, err := binding.QueryWith[ListParams](binder, r.URL.Query())
 func QueryWith[T any](b *Binder, values url.Values) (T, error) {
 	var result T
-	if err := bindFromSource(&result, NewQueryGetter(values), TagQuery, b.cfg); err != nil {
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewQueryGetter(values), TagQuery, cfg); err != nil {
 		return result, err
 	}
 
@@ -116,7 +118,9 @@ func QueryWith[T any](b *Binder, values url.Values) (T, error) {
 //	params, err := binding.PathWith[GetUserParams](binder, pathParams)
 func PathWith[T any](b *Binder, params map[string]string) (T, error) {
 	var result T
-	if err := bindFromSource(&result, NewPathGetter(params), TagPath, b.cfg); err != nil {
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewPathGetter(params), TagPath, cfg); err != nil {
 		return result, err
 	}
 
@@ -130,7 +134,9 @@ func PathWith[T any](b *Binder, params map[string]string) (T, error) {
 //	data, err := binding.FormWith[FormData](binder, r.PostForm)
 func FormWith[T any](b *Binder, values url.Values) (T, error) {
 	var result T
-	if err := bindFromSource(&result, NewFormGetter(values), TagForm, b.cfg); err != nil {
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewFormGetter(values), TagForm, cfg); err != nil {
 		return result, err
 	}
 
@@ -144,7 +150,9 @@ func FormWith[T any](b *Binder, values url.Values) (T, error) {
 //	headers, err := binding.HeaderWith[RequestHeaders](binder, r.Header)
 func HeaderWith[T any](b *Binder, h http.Header) (T, error) {
 	var result T
-	if err := bindFromSource(&result, NewHeaderGetter(h), TagHeader, b.cfg); err != nil {
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewHeaderGetter(h), TagHeader, cfg); err != nil {
 		return result, err
 	}
 
@@ -158,7 +166,9 @@ func HeaderWith[T any](b *Binder, h http.Header) (T, error) {
 //	session, err := binding.CookieWith[SessionData](binder, r.Cookies())
 func CookieWith[T any](b *Binder, cookies []*http.Cookie) (T, error) {
 	var result T
-	if err := bindFromSource(&result, NewCookieGetter(cookies), TagCookie, b.cfg); err != nil {
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	if err := bindFromSource(&result, NewCookieGetter(cookies), TagCookie, cfg); err != nil {
 		return result, err
 	}
 
@@ -172,7 +182,9 @@ func CookieWith[T any](b *Binder, cookies []*http.Cookie) (T, error) {
 //	user, err := binding.JSONWith[CreateUserRequest](binder, body)
 func JSONWith[T any](b *Binder, body []byte) (T, error) {
 	var result T
-	if err := bindJSONBytesInternal(&result, body, b.cfg); err != nil {
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	if err := bindJSONBytesInternal(&result, body, cfg); err != nil {
 		return result, err
 	}
 
@@ -186,7 +198,9 @@ func JSONWith[T any](b *Binder, body []byte) (T, error) {
 //	user, err := binding.JSONReaderWith[CreateUserRequest](binder, r.Body)
 func JSONReaderWith[T any](b *Binder, r io.Reader) (T, error) {
 	var result T
-	if err := bindJSONReaderInternal(&result, r, b.cfg); err != nil {
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	if err := bindJSONReaderInternal(&result, r, cfg); err != nil {
 		return result, err
 	}
 
@@ -200,7 +214,9 @@ func JSONReaderWith[T any](b *Binder, r io.Reader) (T, error) {
 //	user, err := binding.XMLWith[CreateUserRequest](binder, body)
 func XMLWith[T any](b *Binder, body []byte) (T, error) {
 	var result T
-	if err := bindXMLBytesInternal(&result, body, b.cfg); err != nil {
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	if err := bindXMLBytesInternal(&result, body, cfg); err != nil {
 		return result, err
 	}
 
@@ -214,7 +230,9 @@ func XMLWith[T any](b *Binder, body []byte) (T, error) {
 //	user, err := binding.XMLReaderWith[CreateUserRequest](binder, r.Body)
 func XMLReaderWith[T any](b *Binder, r io.Reader) (T, error) {
 	var result T
-	if err := bindXMLReaderInternal(&result, r, b.cfg); err != nil {
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	if err := bindXMLReaderInternal(&result, r, cfg); err != nil {
 		return result, err
 	}
 
@@ -232,9 +250,12 @@ func XMLReaderWith[T any](b *Binder, r io.Reader) (T, error) {
 //	)
 func BindWith[T any](b *Binder, opts ...Option) (T, error) {
 	var result T
-	// Merge binder config with per-call options
 	cfg := b.cfg.clone()
-	for _, opt := range opts {
+	defer cfg.finish()
+	for i, opt := range opts {
+		if opt == nil {
+			return result, fmt.Errorf("binding: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 	if err := bindMultiSource(&result, cfg); err != nil {
@@ -251,7 +272,9 @@ func BindWith[T any](b *Binder, opts ...Option) (T, error) {
 //	var params ListParams
 //	err := binder.QueryTo(r.URL.Query(), &params)
 func (b *Binder) QueryTo(values url.Values, out any) error {
-	return bindFromSource(out, NewQueryGetter(values), TagQuery, b.cfg)
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	return bindFromSource(out, NewQueryGetter(values), TagQuery, cfg)
 }
 
 // PathTo binds URL path parameters to out.
@@ -261,7 +284,9 @@ func (b *Binder) QueryTo(values url.Values, out any) error {
 //	var params GetUserParams
 //	err := binder.PathTo(pathParams, &params)
 func (b *Binder) PathTo(params map[string]string, out any) error {
-	return bindFromSource(out, NewPathGetter(params), TagPath, b.cfg)
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	return bindFromSource(out, NewPathGetter(params), TagPath, cfg)
 }
 
 // FormTo binds form data to out.
@@ -271,7 +296,9 @@ func (b *Binder) PathTo(params map[string]string, out any) error {
 //	var data FormData
 //	err := binder.FormTo(r.PostForm, &data)
 func (b *Binder) FormTo(values url.Values, out any) error {
-	return bindFromSource(out, NewFormGetter(values), TagForm, b.cfg)
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	return bindFromSource(out, NewFormGetter(values), TagForm, cfg)
 }
 
 // HeaderTo binds HTTP headers to out.
@@ -281,7 +308,9 @@ func (b *Binder) FormTo(values url.Values, out any) error {
 //	var headers RequestHeaders
 //	err := binder.HeaderTo(r.Header, &headers)
 func (b *Binder) HeaderTo(h http.Header, out any) error {
-	return bindFromSource(out, NewHeaderGetter(h), TagHeader, b.cfg)
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	return bindFromSource(out, NewHeaderGetter(h), TagHeader, cfg)
 }
 
 // CookieTo binds cookies to out.
@@ -291,7 +320,9 @@ func (b *Binder) HeaderTo(h http.Header, out any) error {
 //	var session SessionData
 //	err := binder.CookieTo(r.Cookies(), &session)
 func (b *Binder) CookieTo(cookies []*http.Cookie, out any) error {
-	return bindFromSource(out, NewCookieGetter(cookies), TagCookie, b.cfg)
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	return bindFromSource(out, NewCookieGetter(cookies), TagCookie, cfg)
 }
 
 // JSONTo binds JSON bytes to out.
@@ -301,7 +332,9 @@ func (b *Binder) CookieTo(cookies []*http.Cookie, out any) error {
 //	var user CreateUserRequest
 //	err := binder.JSONTo(body, &user)
 func (b *Binder) JSONTo(body []byte, out any) error {
-	return bindJSONBytesInternal(out, body, b.cfg)
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	return bindJSONBytesInternal(out, body, cfg)
 }
 
 // JSONReaderTo binds JSON from an io.Reader to out.
@@ -311,7 +344,9 @@ func (b *Binder) JSONTo(body []byte, out any) error {
 //	var user CreateUserRequest
 //	err := binder.JSONReaderTo(r.Body, &user)
 func (b *Binder) JSONReaderTo(r io.Reader, out any) error {
-	return bindJSONReaderInternal(out, r, b.cfg)
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	return bindJSONReaderInternal(out, r, cfg)
 }
 
 // XMLTo binds XML bytes to out.
@@ -321,7 +356,9 @@ func (b *Binder) JSONReaderTo(r io.Reader, out any) error {
 //	var user CreateUserRequest
 //	err := binder.XMLTo(body, &user)
 func (b *Binder) XMLTo(body []byte, out any) error {
-	return bindXMLBytesInternal(out, body, b.cfg)
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	return bindXMLBytesInternal(out, body, cfg)
 }
 
 // XMLReaderTo binds XML from an io.Reader to out.
@@ -331,7 +368,9 @@ func (b *Binder) XMLTo(body []byte, out any) error {
 //	var user CreateUserRequest
 //	err := binder.XMLReaderTo(r.Body, &user)
 func (b *Binder) XMLReaderTo(r io.Reader, out any) error {
-	return bindXMLReaderInternal(out, r, b.cfg)
+	cfg := b.cfg.clone()
+	defer cfg.finish()
+	return bindXMLReaderInternal(out, r, cfg)
 }
 
 // BindTo binds from one or more sources specified via From* options.
@@ -345,9 +384,12 @@ func (b *Binder) XMLReaderTo(r io.Reader, out any) error {
 //	    binding.FromJSON(body),
 //	)
 func (b *Binder) BindTo(out any, opts ...Option) error {
-	// Merge binder config with per-call options
 	cfg := b.cfg.clone()
-	for _, opt := range opts {
+	defer cfg.finish()
+	for i, opt := range opts {
+		if opt == nil {
+			return fmt.Errorf("binding: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 

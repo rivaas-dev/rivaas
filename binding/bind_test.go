@@ -2076,3 +2076,122 @@ func TestDefaults_Integration(t *testing.T) {
 		assert.True(t, p.Active)
 	})
 }
+
+func TestNilOptionPackageLevelFunctions(t *testing.T) {
+	t.Parallel()
+
+	type Simple struct {
+		Name string `query:"name" json:"name" path:"name" form:"name" header:"Name" cookie:"name"`
+	}
+
+	t.Run("Query", func(t *testing.T) {
+		t.Parallel()
+		_, err := Query[Simple](url.Values{}, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("Path", func(t *testing.T) {
+		t.Parallel()
+		_, err := Path[Simple](map[string]string{}, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("Form", func(t *testing.T) {
+		t.Parallel()
+		_, err := Form[Simple](url.Values{}, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("Header", func(t *testing.T) {
+		t.Parallel()
+		_, err := Header[Simple](http.Header{}, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("Cookie", func(t *testing.T) {
+		t.Parallel()
+		_, err := Cookie[Simple]([]*http.Cookie{}, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("Bind", func(t *testing.T) {
+		t.Parallel()
+		_, err := Bind[Simple](nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("QueryTo", func(t *testing.T) {
+		t.Parallel()
+		var out Simple
+		err := QueryTo(url.Values{}, &out, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("PathTo", func(t *testing.T) {
+		t.Parallel()
+		var out Simple
+		err := PathTo(map[string]string{}, &out, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("FormTo", func(t *testing.T) {
+		t.Parallel()
+		var out Simple
+		err := FormTo(url.Values{}, &out, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("Raw", func(t *testing.T) {
+		t.Parallel()
+		var out Simple
+		err := Raw(NewQueryGetter(url.Values{}), TagQuery, &out, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("RawInto", func(t *testing.T) {
+		t.Parallel()
+		_, err := RawInto[Simple](NewQueryGetter(url.Values{}), TagQuery, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+	})
+
+	t.Run("nil at non-zero index", func(t *testing.T) {
+		t.Parallel()
+		_, err := Query[Simple](url.Values{}, WithMaxDepth(10), nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "option at index 1 cannot be nil")
+	})
+}
+
+func TestBindMultiSource_UnsupportedFormat(t *testing.T) {
+	t.Parallel()
+
+	type Req struct {
+		Name string `query:"name"`
+	}
+
+	noopGetter := NewQueryGetter(url.Values{})
+
+	tags := []string{TagYAML, TagTOML, TagMsgPack, TagProto}
+	for _, tag := range tags {
+		t.Run(tag, func(t *testing.T) {
+			t.Parallel()
+			_, err := Bind[Req](
+				FromQuery(url.Values{"name": {"test"}}),
+				FromGetter(noopGetter, tag),
+			)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tag+" source passed via FromGetter is not handled by Bind")
+		})
+	}
+}

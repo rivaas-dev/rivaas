@@ -262,7 +262,8 @@ price = 300
 	assert.Equal(t, 300, catalog.Products[2].Price)
 }
 
-// TestFromTOML tests binding.BindTo with toml.FromTOML as a source.
+// TestFromTOML tests that binding.BindTo correctly rejects toml.FromTOML
+// sources that cannot be handled by the generic multi-source binder.
 func TestFromTOML(t *testing.T) {
 	t.Parallel()
 
@@ -282,11 +283,12 @@ name = "myapp"
 		binding.FromQuery(values),
 		FromTOML(body),
 	)
-	require.NoError(t, err)
-	assert.Equal(t, 3, out.Page)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "toml source passed via FromGetter is not handled by Bind")
 }
 
-// TestFromTOMLReader tests binding.BindTo with toml.FromTOMLReader as a source.
+// TestFromTOMLReader tests that binding.BindTo correctly rejects toml.FromTOMLReader
+// sources that cannot be handled by the generic multi-source binder.
 func TestFromTOMLReader(t *testing.T) {
 	t.Parallel()
 
@@ -302,6 +304,6 @@ func TestFromTOMLReader(t *testing.T) {
 		binding.FromQuery(values),
 		FromTOMLReader(bytes.NewReader(body)),
 	)
-	require.NoError(t, err)
-	assert.Equal(t, 1, out.Page)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "toml source passed via FromGetter is not handled by Bind")
 }

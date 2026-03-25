@@ -15,6 +15,7 @@
 package binding
 
 import (
+	"bytes"
 	"encoding/xml"
 	"io"
 )
@@ -31,9 +32,12 @@ import (
 //   - [BindError]: field-level binding errors with detailed context
 func XML[T any](body []byte, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindXMLBytesInternal(&result, body, cfg); err != nil {
+	if err = bindXMLBytesInternal(&result, body, cfg); err != nil {
 		return result, err
 	}
 
@@ -52,9 +56,12 @@ func XML[T any](body []byte, opts ...Option) (T, error) {
 //   - [BindError]: field-level binding errors with detailed context
 func XMLReader[T any](r io.Reader, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindXMLReaderInternal(&result, r, cfg); err != nil {
+	if err = bindXMLReaderInternal(&result, r, cfg); err != nil {
 		return result, err
 	}
 
@@ -68,7 +75,10 @@ func XMLReader[T any](r io.Reader, opts ...Option) (T, error) {
 //	var user CreateUserRequest
 //	err := binding.XMLTo(body, &user)
 func XMLTo(body []byte, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindXMLBytesInternal(out, body, cfg)
@@ -81,7 +91,10 @@ func XMLTo(body []byte, out any, opts ...Option) error {
 //	var user CreateUserRequest
 //	err := binding.XMLReaderTo(r.Body, &user)
 func XMLReaderTo(r io.Reader, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindXMLReaderInternal(out, r, cfg)
@@ -104,7 +117,12 @@ func bindXMLReaderInternal(out any, r io.Reader, cfg *config) error {
 
 // bindXMLBytesInternal is the internal implementation for XML byte binding.
 func bindXMLBytesInternal(out any, body []byte, cfg *config) error {
-	if err := xml.Unmarshal(body, out); err != nil {
+	decoder := xml.NewDecoder(bytes.NewReader(body))
+	if cfg.xmlStrict {
+		decoder.Strict = true
+	}
+
+	if err := decoder.Decode(out); err != nil {
 		cfg.trackError()
 		return err
 	}

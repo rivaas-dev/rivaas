@@ -261,7 +261,7 @@ func TestJSONReader_ErrorCase(t *testing.T) {
 	})
 }
 
-// TestBindJSON_UnknownWarn tests UnknownWarn policy: unknown fields are reported via callback but binding succeeds.
+// TestBindJSON_UnknownWarn tests UnknownWarn policy: unknown fields are collected in Result.Unknown but binding succeeds.
 func TestBindJSON_UnknownWarn(t *testing.T) {
 	t.Parallel()
 
@@ -271,20 +271,16 @@ func TestBindJSON_UnknownWarn(t *testing.T) {
 	}
 
 	body := []byte(`{"name":"John","email":"john@example.com","unknown":"x"}`)
-	var unknownPaths []string
+	var result Result
 	var out User
 	err := JSONTo(body, &out,
 		WithUnknownFields(UnknownWarn),
-		WithEvents(Events{
-			UnknownField: func(path string) {
-				unknownPaths = append(unknownPaths, path)
-			},
-		}))
+		WithResult(&result))
 	require.NoError(t, err)
 	assert.Equal(t, "John", out.Name)
 	assert.Equal(t, "john@example.com", out.Email)
-	require.Len(t, unknownPaths, 1)
-	assert.Equal(t, "unknown", unknownPaths[0])
+	require.Len(t, result.Unknown, 1)
+	assert.Equal(t, "unknown", result.Unknown[0])
 }
 
 // TestBindJSON_UnknownWarn_Nested tests UnknownWarn with nested struct and unknown field at nested level.
@@ -300,20 +296,16 @@ func TestBindJSON_UnknownWarn_Nested(t *testing.T) {
 	}
 
 	body := []byte(`{"name":"Alice","address":{"city":"NYC","unknown_nested":"y"}}`)
-	var unknownPaths []string
+	var result Result
 	var out User
 	err := JSONTo(body, &out,
 		WithUnknownFields(UnknownWarn),
-		WithEvents(Events{
-			UnknownField: func(path string) {
-				unknownPaths = append(unknownPaths, path)
-			},
-		}))
+		WithResult(&result))
 	require.NoError(t, err)
 	assert.Equal(t, "Alice", out.Name)
 	assert.Equal(t, "NYC", out.Address.City)
-	require.Len(t, unknownPaths, 1)
-	assert.Equal(t, "address.unknown_nested", unknownPaths[0])
+	require.Len(t, result.Unknown, 1)
+	assert.Equal(t, "address.unknown_nested", result.Unknown[0])
 }
 
 // ---------------------------------------------------------------------------
@@ -944,18 +936,14 @@ func TestBindJSON_Defaults_WithUnknownWarn(t *testing.T) {
 		Count int    `json:"count" default:"42"`
 	}
 
-	var warnings []string
+	var result Result
 	p, err := JSON[P]([]byte(`{"extra":"x"}`),
 		WithUnknownFields(UnknownWarn),
-		WithEvents(Events{
-			UnknownField: func(path string) {
-				warnings = append(warnings, path)
-			},
-		}))
+		WithResult(&result))
 	require.NoError(t, err)
 	assert.Equal(t, "anon", p.Name)
 	assert.Equal(t, 42, p.Count)
-	assert.Contains(t, warnings, "extra")
+	assert.Contains(t, result.Unknown, "extra")
 }
 
 // TestBindJSON_Defaults_NoDefaultsStruct verifies no overhead for structs without defaults.

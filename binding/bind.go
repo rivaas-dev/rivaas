@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"time"
 )
 
 // Query binds URL query parameters to type T.
@@ -38,9 +39,12 @@ import (
 //   - [BindError]: field-level binding errors with detailed context
 func Query[T any](values url.Values, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindFromSource(&result, NewQueryGetter(values), TagQuery, cfg); err != nil {
+	if err = bindFromSource(&result, NewQueryGetter(values), TagQuery, cfg); err != nil {
 		return result, err
 	}
 
@@ -54,9 +58,12 @@ func Query[T any](values url.Values, opts ...Option) (T, error) {
 //	params, err := binding.Path[GetUserParams](pathParams)
 func Path[T any](params map[string]string, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindFromSource(&result, NewPathGetter(params), TagPath, cfg); err != nil {
+	if err = bindFromSource(&result, NewPathGetter(params), TagPath, cfg); err != nil {
 		return result, err
 	}
 
@@ -77,9 +84,12 @@ func Path[T any](params map[string]string, opts ...Option) (T, error) {
 //   - [BindError]: field-level binding errors with detailed context
 func Form[T any](values url.Values, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindFromSource(&result, NewFormGetter(values), TagForm, cfg); err != nil {
+	if err = bindFromSource(&result, NewFormGetter(values), TagForm, cfg); err != nil {
 		return result, err
 	}
 
@@ -93,9 +103,12 @@ func Form[T any](values url.Values, opts ...Option) (T, error) {
 //	headers, err := binding.Header[RequestHeaders](r.Header)
 func Header[T any](h http.Header, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindFromSource(&result, NewHeaderGetter(h), TagHeader, cfg); err != nil {
+	if err = bindFromSource(&result, NewHeaderGetter(h), TagHeader, cfg); err != nil {
 		return result, err
 	}
 
@@ -114,9 +127,12 @@ func Header[T any](h http.Header, opts ...Option) (T, error) {
 //   - [BindError]: field-level binding errors with detailed context
 func Cookie[T any](cookies []*http.Cookie, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindFromSource(&result, NewCookieGetter(cookies), TagCookie, cfg); err != nil {
+	if err = bindFromSource(&result, NewCookieGetter(cookies), TagCookie, cfg); err != nil {
 		return result, err
 	}
 
@@ -149,9 +165,12 @@ func Cookie[T any](cookies []*http.Cookie, opts ...Option) (T, error) {
 //   - [BindError]: field-level binding errors with detailed context
 func Multipart[T any](form *multipart.Form, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindFromSource(&result, NewMultipartGetter(form), TagForm, cfg); err != nil {
+	if err = bindFromSource(&result, NewMultipartGetter(form), TagForm, cfg); err != nil {
 		return result, err
 	}
 
@@ -177,9 +196,12 @@ func Multipart[T any](form *multipart.Form, opts ...Option) (T, error) {
 //   - [MultiError]: when [WithAllErrors] is used and multiple errors occur
 func Bind[T any](opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindMultiSource(&result, cfg); err != nil {
+	if err = bindMultiSource(&result, cfg); err != nil {
 		return result, err
 	}
 
@@ -193,7 +215,10 @@ func Bind[T any](opts ...Option) (T, error) {
 //	var params ListParams
 //	err := binding.QueryTo(r.URL.Query(), &params)
 func QueryTo(values url.Values, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindFromSource(out, NewQueryGetter(values), TagQuery, cfg)
@@ -206,7 +231,10 @@ func QueryTo(values url.Values, out any, opts ...Option) error {
 //	var params GetUserParams
 //	err := binding.PathTo(pathParams, &params)
 func PathTo(params map[string]string, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindFromSource(out, NewPathGetter(params), TagPath, cfg)
@@ -219,7 +247,10 @@ func PathTo(params map[string]string, out any, opts ...Option) error {
 //	var data FormData
 //	err := binding.FormTo(r.PostForm, &data)
 func FormTo(values url.Values, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindFromSource(out, NewFormGetter(values), TagForm, cfg)
@@ -232,7 +263,10 @@ func FormTo(values url.Values, out any, opts ...Option) error {
 //	var headers RequestHeaders
 //	err := binding.HeaderTo(r.Header, &headers)
 func HeaderTo(h http.Header, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindFromSource(out, NewHeaderGetter(h), TagHeader, cfg)
@@ -245,7 +279,10 @@ func HeaderTo(h http.Header, out any, opts ...Option) error {
 //	var session SessionData
 //	err := binding.CookieTo(r.Cookies(), &session)
 func CookieTo(cookies []*http.Cookie, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindFromSource(out, NewCookieGetter(cookies), TagCookie, cfg)
@@ -265,7 +302,10 @@ func CookieTo(cookies []*http.Cookie, out any, opts ...Option) error {
 //	var req UploadRequest
 //	err := binding.MultipartTo(r.MultipartForm, &req)
 func MultipartTo(form *multipart.Form, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindFromSource(out, NewMultipartGetter(form), TagForm, cfg)
@@ -282,7 +322,10 @@ func MultipartTo(form *multipart.Form, out any, opts ...Option) error {
 //	    binding.FromJSON(body),
 //	)
 func BindTo(out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindMultiSource(out, cfg)
@@ -303,7 +346,10 @@ func BindTo(out any, opts ...Option) error {
 //   - [ErrMaxDepthExceeded]: struct nesting exceeds maximum depth
 //   - [BindError]: field-level binding errors with detailed context
 func Raw(getter ValueGetter, tag string, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindFromSource(out, getter, tag, cfg)
@@ -322,9 +368,12 @@ func Raw(getter ValueGetter, tag string, out any, opts ...Option) error {
 //   - [BindError]: field-level binding errors with detailed context
 func RawInto[T any](getter ValueGetter, tag string, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindFromSource(&result, getter, tag, cfg); err != nil {
+	if err = bindFromSource(&result, getter, tag, cfg); err != nil {
 		return result, err
 	}
 
@@ -332,14 +381,22 @@ func RawInto[T any](getter ValueGetter, tag string, opts ...Option) (T, error) {
 }
 
 // applyOptions creates a new config with default values and applies the given options.
-// It returns a configured config instance ready for use in binding operations.
-func applyOptions(opts []Option) *config {
+// It validates that no option is nil (returning an error instead of panicking)
+// and returns a configured config instance ready for use in binding operations.
+func applyOptions(opts []Option) (*config, error) {
 	cfg := defaultConfig()
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("binding: option at index %d cannot be nil", i)
+		}
 		opt(cfg)
 	}
 
-	return cfg
+	if cfg.result != nil {
+		cfg.startTime = time.Now()
+	}
+
+	return cfg, nil
 }
 
 // bindFromSource binds values from a single source.
@@ -450,6 +507,20 @@ func bindMultiSource(out any, cfg *config) error {
 			continue
 		}
 
+		// Sub-package sources (YAML, TOML, MsgPack, Proto) use FromGetter with
+		// a no-op ValueGetter. They cannot be handled by the generic field
+		// binder — callers must use the sub-package's direct function instead.
+		switch src.tag {
+		case TagYAML, TagTOML, TagMsgPack, TagProto:
+			err := fmt.Errorf("binding: %s source passed via FromGetter is not handled by Bind; "+
+				"use the sub-package's direct function instead (e.g., yaml.YAML[T])", src.tag)
+			if cfg.allErrors {
+				errs = append(errs, err)
+				continue
+			}
+			return err
+		}
+
 		// Check if struct has this tag
 		if HasStructTag(elem.Type(), src.tag) {
 			info := getStructInfo(elem.Type(), src.tag)
@@ -480,9 +551,6 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 		cfg.trackError()
 		return fmt.Errorf("%w of %d", ErrMaxDepthExceeded, cfg.maxDepth)
 	}
-
-	// Cache event presence flags once per bind call
-	evtFlags := cfg.eventFlags()
 
 	// Track errors for allErrors mode
 	var multiErr *MultiError
@@ -517,7 +585,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 
 				return bindErr
 			}
-			cfg.trackField(field.name, tagName, evtFlags)
+			cfg.trackField()
 
 			continue
 		}
@@ -541,7 +609,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 
 				return bindErr
 			}
-			cfg.trackField(field.name, tagName, evtFlags)
+			cfg.trackField()
 
 			continue
 		}
@@ -566,7 +634,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 
 				return bindErr
 			}
-			cfg.trackField(field.name, tagName, evtFlags)
+			cfg.trackField()
 
 			continue
 		}
@@ -590,7 +658,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 		// Apply default value if no value provided and default is specified
 		if !hasValue && field.defaultValue != "" {
 			if applied := applyTypedDefault(elem, field); applied {
-				cfg.trackField(field.name, tagName, evtFlags)
+				cfg.trackField()
 
 				continue
 			}
@@ -626,7 +694,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 
 				return bindErr
 			}
-			cfg.trackField(field.name, tagName, evtFlags)
+			cfg.trackField()
 
 			continue
 		}
@@ -649,7 +717,7 @@ func bindFieldsWithDepth(elem reflect.Value, getter ValueGetter, tagName string,
 			return bindErr
 		}
 
-		cfg.trackField(field.name, tagName, evtFlags)
+		cfg.trackField()
 	}
 
 	if cfg.allErrors && multiErr.HasErrors() {

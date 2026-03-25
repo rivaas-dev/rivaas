@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -414,9 +415,10 @@ func TestOptions_ConcurrencySafety(t *testing.T) {
 
 		opt := WithMaxDepth(10)
 
-		// Apply multiple times - should work
-		opts1 := applyOptions([]Option{opt})
-		opts2 := applyOptions([]Option{opt})
+		opts1, err1 := applyOptions([]Option{opt})
+		require.NoError(t, err1)
+		opts2, err2 := applyOptions([]Option{opt})
+		require.NoError(t, err2)
 
 		assert.Equal(t, 10, opts1.maxDepth)
 		assert.Equal(t, 10, opts2.maxDepth)
@@ -426,8 +428,10 @@ func TestOptions_ConcurrencySafety(t *testing.T) {
 	t.Run("options instances are independent", func(t *testing.T) {
 		t.Parallel()
 
-		opts1 := applyOptions([]Option{WithMaxDepth(10)})
-		opts2 := applyOptions([]Option{WithMaxDepth(20)})
+		opts1, err1 := applyOptions([]Option{WithMaxDepth(10)})
+		require.NoError(t, err1)
+		opts2, err2 := applyOptions([]Option{WithMaxDepth(20)})
+		require.NoError(t, err2)
 
 		assert.Equal(t, 10, opts1.maxDepth)
 		assert.Equal(t, 20, opts2.maxDepth)
@@ -463,25 +467,23 @@ func TestConfig_Validate(t *testing.T) {
 	})
 }
 
-// TestConfig_Finish_CallsDone tests that finish invokes events.Done when set.
-func TestConfig_Finish_CallsDone(t *testing.T) {
+// TestWithResult_PopulatedAfterBind tests that Result is populated after a successful bind.
+func TestWithResult_PopulatedAfterBind(t *testing.T) {
 	t.Parallel()
 
-	var doneCalled bool
 	type Params struct {
 		Name string `query:"name"`
 	}
 	values := url.Values{}
 	values.Set("name", "test")
 	var out Params
+	var result Result
 	err := Raw(NewQueryGetter(values), TagQuery, &out,
-		WithEvents(Events{
-			Done: func(stats Stats) {
-				doneCalled = true
-			},
-		}))
+		WithResult(&result))
 	require.NoError(t, err)
-	assert.True(t, doneCalled, "Done callback should have been invoked")
+	assert.Equal(t, 1, result.FieldsBound)
+	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.Equal(t, 0, result.Errors)
 }
 
 // TestFromForm tests BindTo with FromForm.
@@ -559,11 +561,10 @@ func TestWithStrictJSON(t *testing.T) {
 	assert.ErrorAs(t, err, &unknownErr)
 }
 
-// TestWithEvents_FieldBound tests that FieldBound callback is invoked.
-func TestWithEvents_FieldBound(t *testing.T) {
+// TestWithResult_FieldsBound tests that FieldsBound counts all bound fields.
+func TestWithResult_FieldsBound(t *testing.T) {
 	t.Parallel()
 
-	var boundFields []string
 	type Params struct {
 		Name string `query:"name"`
 		Age  int    `query:"age"`
@@ -572,16 +573,42 @@ func TestWithEvents_FieldBound(t *testing.T) {
 	values.Set("name", "alice")
 	values.Set("age", "30")
 	var out Params
+	var result Result
 	err := Raw(NewQueryGetter(values), TagQuery, &out,
-		WithEvents(Events{
-			FieldBound: func(name, tag string) {
-				boundFields = append(boundFields, name)
-			},
-		}))
+		WithResult(&result))
 	require.NoError(t, err)
-	require.Len(t, boundFields, 2)
-	assert.Contains(t, boundFields, "Name")
-	assert.Contains(t, boundFields, "Age")
+	assert.Equal(t, 2, result.FieldsBound)
+}
+
+// TestWithResult_NilPointer tests that passing nil to WithResult is a no-op.
+func TestWithResult_NilPointer(t *testing.T) {
+	t.Parallel()
+
+	type Params struct {
+		Name string `query:"name"`
+	}
+	values := url.Values{}
+	values.Set("name", "test")
+	var out Params
+	err := Raw(NewQueryGetter(values), TagQuery, &out,
+		WithResult(nil))
+	require.NoError(t, err)
+	assert.Equal(t, "test", out.Name)
+}
+
+// TestWithResult_NotSet tests that binding works normally without WithResult.
+func TestWithResult_NotSet(t *testing.T) {
+	t.Parallel()
+
+	type Params struct {
+		Name string `query:"name"`
+	}
+	values := url.Values{}
+	values.Set("name", "test")
+	var out Params
+	err := Raw(NewQueryGetter(values), TagQuery, &out)
+	require.NoError(t, err)
+	assert.Equal(t, "test", out.Name)
 }
 
 // TestWithKeyNormalizer tests header binding with key normalizer.

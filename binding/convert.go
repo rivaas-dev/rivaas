@@ -367,9 +367,9 @@ func splitAndTrimCSV(s string) []string {
 }
 
 // convertToType converts a string value to the target reflect.Type.
-// It handles interface{} types and delegates to setFieldValue for concrete types.
+// It handles any types and delegates to setFieldValue for concrete types.
 func convertToType(value string, targetType reflect.Type, opts *config) (reflect.Value, error) {
-	// Handle any (interface{})
+	// Handle any
 	if targetType.Kind() == reflect.Interface {
 		return reflect.ValueOf(value), nil
 	}

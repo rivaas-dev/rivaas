@@ -18,8 +18,10 @@ package binding
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -379,4 +381,75 @@ func TestBinder_JSONReaderTo_Error(t *testing.T) {
 	var out User
 	err = binder.JSONReaderTo(bytes.NewReader([]byte("invalid")), &out)
 	require.Error(t, err)
+}
+
+func TestBindWith_NilOption(t *testing.T) {
+	t.Parallel()
+
+	binder, err := New()
+	require.NoError(t, err)
+
+	type Req struct {
+		Name string `query:"name"`
+	}
+
+	_, err = BindWith[Req](binder, FromQuery(url.Values{"name": {"test"}}), nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "option at index 1 cannot be nil")
+}
+
+func TestBinderBindTo_NilOption(t *testing.T) {
+	t.Parallel()
+
+	binder, err := New()
+	require.NoError(t, err)
+
+	type Req struct {
+		Name string `query:"name"`
+	}
+
+	var out Req
+	err = binder.BindTo(&out, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "option at index 0 cannot be nil")
+}
+
+func TestBinderConcurrentSafety(t *testing.T) {
+	t.Parallel()
+
+	binder, err := New()
+	require.NoError(t, err)
+
+	type User struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	const goroutines = 100
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	errs := make(chan error, goroutines)
+
+	for i := range goroutines {
+		go func(idx int) {
+			defer wg.Done()
+			body := []byte(fmt.Sprintf(`{"name":"user%d","email":"user%d@test.com"}`, idx, idx))
+			var user User
+			if bindErr := binder.JSONTo(body, &user); bindErr != nil {
+				errs <- bindErr
+				return
+			}
+			expected := fmt.Sprintf("user%d", idx)
+			if user.Name != expected {
+				errs <- fmt.Errorf("goroutine %d: got name %q, want %q", idx, user.Name, expected)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Errorf("concurrent error: %v", err)
+	}
 }

@@ -419,18 +419,11 @@
 //
 // # Observability
 //
-// Add hooks for monitoring:
+// Capture binding metrics with [WithResult]:
 //
-//	binder := binding.MustNew(
-//	    binding.WithEvents(binding.Events{
-//	        FieldBound: func(name, tag string) {
-//	            log.Printf("Bound field %s from %s", name, tag)
-//	        },
-//	        Done: func(stats binding.Stats) {
-//	            log.Printf("Bound %d fields", stats.FieldsBound)
-//	        },
-//	    }),
-//	)
+//	var result binding.Result
+//	user, err := binding.JSON[User](body, binding.WithResult(&result))
+//	// result.FieldsBound, result.Errors, result.Duration, result.Unknown
 //
 // # Security Limits
 //
@@ -463,7 +456,7 @@
 //	WithStrictJSON()  // Convenience: fail on unknown fields
 //	WithUnknownFields(policy UnknownFieldPolicy)
 //	  - UnknownIgnore: Ignore unknown fields (default)
-//	  - UnknownWarn:   Log warnings via events
+//	  - UnknownWarn:   Collect unknown paths into Result.Unknown
 //	  - UnknownError:  Return error on unknown fields (same as WithStrictJSON)
 //
 // ## Slice Parsing
@@ -489,10 +482,11 @@
 //
 // ## Observability
 //
-//	WithEvents(events Events)  // Add hooks for monitoring
-//	  - FieldBound:    Called when field is bound
-//	  - UnknownField:  Called when unknown field detected
-//	  - Done:          Called when binding completes
+//	WithResult(r *Result)  // Capture binding metrics
+//	  - FieldsBound: Number of fields successfully bound
+//	  - Errors:      Number of errors encountered
+//	  - Duration:    Wall-clock time of the binding call
+//	  - Unknown:     Unknown field paths (with UnknownWarn/UnknownError)
 //
 // ## Key Normalization
 //
@@ -683,7 +677,7 @@
 //   - Set security limits ([WithMaxDepth], [WithMaxSliceLen], [WithMaxMapSize])
 //   - Use Reader variants for large payloads (>1MB)
 //   - Use rivaas.dev/validation package for validation (required, enum, etc.)
-//   - Add observability hooks with [WithEvents] for monitoring
+//   - Capture binding metrics with [WithResult] for observability
 //   - Collect all errors with [WithAllErrors] for better UX
 //
 // # Error Types

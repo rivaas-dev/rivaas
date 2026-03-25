@@ -44,8 +44,8 @@ type Option func(*config)
 
 // config holds MessagePack-specific binding configuration.
 type config struct {
-	useJSONTag     bool // Use json tag for field names instead of msgpack
-	disallowUnknow bool // Disallow unknown fields
+	useJSONTag      bool // Use json tag for field names instead of msgpack
+	disallowUnknown bool // Disallow unknown fields
 }
 
 // WithJSONTag enables using JSON struct tags for field names.
@@ -60,7 +60,7 @@ func WithJSONTag() Option {
 // if the MessagePack data contains fields not in the struct.
 func WithDisallowUnknown() Option {
 	return func(c *config) {
-		c.disallowUnknow = true
+		c.disallowUnknown = true
 	}
 }
 
@@ -130,7 +130,7 @@ func MsgPackReaderTo(r io.Reader, out any, opts ...Option) error {
 
 func bindMsgPackBytes(out any, body []byte, cfg *config) error {
 	// If we need custom options, use decoder; otherwise use simple unmarshal
-	if cfg.useJSONTag || cfg.disallowUnknow {
+	if cfg.useJSONTag || cfg.disallowUnknown {
 		return decodeWithOptions(bytes.NewReader(body), out, cfg)
 	}
 
@@ -143,7 +143,7 @@ func decodeWithOptions(r io.Reader, out any, cfg *config) error {
 	if cfg.useJSONTag {
 		dec.SetCustomStructTag("json")
 	}
-	if cfg.disallowUnknow {
+	if cfg.disallowUnknown {
 		dec.DisallowUnknownFields(true)
 	}
 

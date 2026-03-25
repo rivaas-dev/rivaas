@@ -34,7 +34,7 @@ const (
 	// This is the default policy.
 	UnknownIgnore UnknownFieldPolicy = iota
 
-	// UnknownWarn emits warnings via Events.UnknownField but continues binding.
+	// UnknownWarn collects unknown field paths into [Result.Unknown] but continues binding.
 	// It uses two-pass parsing to detect unknown fields at all nesting levels.
 	// Recommended for development and testing environments.
 	UnknownWarn
@@ -95,28 +95,13 @@ type TypeConverter func(string) (any, error)
 // Common uses include case-folding and canonicalization.
 type KeyNormalizer func(string) string
 
-// Events provides hooks for observability without coupling.
-type Events struct {
-	// FieldBound is called after successfully binding a field.
-	// name: struct field name, fromTag: source tag (query, json, etc.)
-	FieldBound func(name, fromTag string)
-
-	// UnknownField is called when an unknown field is encountered.
-	// Only triggered when UnknownFieldPolicy is UnknownWarn or UnknownError.
-	// path: dot-separated field path (e.g., "user.address.unknown")
-	UnknownField func(path string)
-
-	// Done is called at the end of binding with statistics.
-	// Always called, even on error (use defer).
-	Done func(stats Stats)
-}
-
-// Stats tracks binding operation metrics.
-type Stats struct {
-	FieldsProcessed   int           // Total fields attempted
-	FieldsBound       int           // Successfully bound fields
-	ErrorsEncountered int           // Errors hit during binding
-	Duration          time.Duration // Total binding time (if tracked externally)
+// Result captures binding operation metrics when passed via [WithResult].
+// Zero value is valid; all fields are populated by the binding call.
+type Result struct {
+	FieldsBound int           // Successfully bound fields
+	Errors      int           // Errors encountered during binding
+	Duration    time.Duration // Wall-clock time of the binding call
+	Unknown     []string      // Unknown field paths (populated only with UnknownWarn/UnknownError)
 }
 
 // sourceEntry represents a binding source with its getter and tag.
@@ -151,7 +136,7 @@ type config struct {
 	allErrors bool // Collect all errors instead of returning on first
 
 	// Observability
-	events Events // Event hooks
+	result *Result // Destination for binding metrics (nil = don't collect)
 
 	// Key normalization
 	keyNormalizer KeyNormalizer // Custom key normalization
@@ -160,7 +145,10 @@ type config struct {
 	sources []sourceEntry
 
 	// Internal state (not set by users)
-	stats Stats // Accumulated statistics during binding
+	startTime   time.Time // Set when result != nil
+	fieldsBound int       // Counter for successfully bound fields
+	errors      int       // Counter for errors during binding
+	unknowns    []string  // Unknown field paths collected during binding
 }
 
 // Option configures binding behavior.
@@ -539,21 +527,20 @@ func WithAllErrors() Option {
 	}
 }
 
-// WithEvents sets observability hooks.
+// WithResult enables result collection for binding observability.
+// After the binding call completes, the pointed-to [Result] is populated
+// with field counts, error counts, unknown field paths, and wall-clock duration.
+//
+// Passing nil is a no-op (observability is simply not collected).
 //
 // Example:
 //
-//	binding.MustNew(binding.WithEvents(binding.Events{
-//	    FieldBound: func(name, tag string) {
-//	        log.Printf("Bound field %s from %s", name, tag)
-//	    },
-//	    Done: func(stats binding.Stats) {
-//	        log.Printf("Binding complete: %d fields", stats.FieldsBound)
-//	    },
-//	}))
-func WithEvents(events Events) Option {
+//	var result binding.Result
+//	user, err := binding.JSON[User](body, binding.WithResult(&result))
+//	// result.FieldsBound == 3, result.Duration == 142µs
+func WithResult(r *Result) Option {
 	return func(c *config) {
-		c.events = events
+		c.result = r
 	}
 }
 
@@ -628,46 +615,37 @@ func (c *config) clone() *config {
 		maps.Copy(clone.typeConverters, c.typeConverters)
 	}
 
+	// Reset per-call state
+	clone.fieldsBound = 0
+	clone.errors = 0
+	clone.unknowns = nil
+	if clone.result != nil {
+		clone.startTime = time.Now()
+	}
+
 	return &clone
 }
 
-// eventFlags stores event presence flags.
-type eventFlags struct {
-	hasFieldBound   bool
-	hasUnknownField bool
-	hasDone         bool
+// trackField increments the bound-field counter.
+func (c *config) trackField() {
+	c.fieldsBound++
 }
 
-// eventFlags computes event presence flags once.
-func (c *config) eventFlags() eventFlags {
-	return eventFlags{
-		hasFieldBound:   c.events.FieldBound != nil,
-		hasUnknownField: c.events.UnknownField != nil,
-		hasDone:         c.events.Done != nil,
-	}
-}
-
-// trackField records a field that was successfully bound, using event flags
-// to check for event handlers.
-func (c *config) trackField(fieldName, sourceTag string, flags eventFlags) {
-	c.stats.FieldsProcessed++
-	c.stats.FieldsBound++
-	if flags.hasFieldBound {
-		c.events.FieldBound(fieldName, sourceTag)
-	}
-}
-
-// trackError records an error during binding.
+// trackError increments the error counter.
 func (c *config) trackError() {
-	c.stats.ErrorsEncountered++
+	c.errors++
 }
 
-// finish emits the Done event with final statistics.
+// finish writes accumulated metrics to the caller's Result, if set.
 // Always called via defer in binding functions, even on error.
 func (c *config) finish() {
-	if c.events.Done != nil {
-		c.events.Done(c.stats)
+	if c.result == nil {
+		return
 	}
+	c.result.FieldsBound = c.fieldsBound
+	c.result.Errors = c.errors
+	c.result.Duration = time.Since(c.startTime)
+	c.result.Unknown = c.unknowns
 }
 
 // jsonSourceGetter is a marker type for JSON body source.

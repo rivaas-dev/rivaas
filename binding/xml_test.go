@@ -164,6 +164,31 @@ func TestXMLWith_Binder(t *testing.T) {
 	assert.Equal(t, 20, user.Age)
 }
 
+func TestXMLStrictBytes(t *testing.T) {
+	t.Parallel()
+
+	// xml.Decoder.Strict = true rejects non-standard XML such as
+	// missing closing tags or invalid characters. A self-closing-style
+	// mismatch won't trigger it, but a raw '&' (invalid unescaped entity)
+	// will. Without strict mode the default decoder tolerates some of these;
+	// with strict mode enabled, the decoder should return an error.
+	type Item struct {
+		Value string `xml:"value"`
+	}
+
+	// Valid XML works fine with strict mode
+	validBody := []byte(`<Item><value>hello</value></Item>`)
+	item, err := XML[Item](validBody, WithXMLStrict())
+	require.NoError(t, err)
+	assert.Equal(t, "hello", item.Value)
+
+	// Also verify via XMLTo (byte path)
+	var out Item
+	err = XMLTo(validBody, &out, WithXMLStrict())
+	require.NoError(t, err)
+	assert.Equal(t, "hello", out.Value)
+}
+
 func TestBinder_XMLTo(t *testing.T) {
 	t.Parallel()
 	binder := MustNew()

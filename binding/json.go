@@ -42,9 +42,12 @@ import (
 //   - [MultiError]: when [WithAllErrors] is used and multiple errors occur
 func JSON[T any](body []byte, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindJSONBytesInternal(&result, body, cfg); err != nil {
+	if err = bindJSONBytesInternal(&result, body, cfg); err != nil {
 		return result, err
 	}
 
@@ -64,9 +67,12 @@ func JSON[T any](body []byte, opts ...Option) (T, error) {
 //   - [BindError]: field-level binding errors with detailed context
 func JSONReader[T any](r io.Reader, opts ...Option) (T, error) {
 	var result T
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return result, err
+	}
 	defer cfg.finish()
-	if err := bindJSONReaderInternal(&result, r, cfg); err != nil {
+	if err = bindJSONReaderInternal(&result, r, cfg); err != nil {
 		return result, err
 	}
 
@@ -80,7 +86,10 @@ func JSONReader[T any](r io.Reader, opts ...Option) (T, error) {
 //	var user CreateUserRequest
 //	err := binding.JSONTo(body, &user)
 func JSONTo(body []byte, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindJSONBytesInternal(out, body, cfg)
@@ -93,7 +102,10 @@ func JSONTo(body []byte, out any, opts ...Option) error {
 //	var user CreateUserRequest
 //	err := binding.JSONReaderTo(r.Body, &user)
 func JSONReaderTo(r io.Reader, out any, opts ...Option) error {
-	cfg := applyOptions(opts)
+	cfg, err := applyOptions(opts)
+	if err != nil {
+		return err
+	}
 	defer cfg.finish()
 
 	return bindJSONReaderInternal(out, r, cfg)
@@ -148,9 +160,7 @@ func bindJSONBytesInternal(out any, body []byte, cfg *config) error {
 			// Check if error is due to unknown field
 			if strings.Contains(err.Error(), "unknown field") {
 				fieldName := extractUnknownFieldName(err.Error())
-				if cfg.events.UnknownField != nil {
-					cfg.events.UnknownField(fieldName)
-				}
+				cfg.unknowns = append(cfg.unknowns, fieldName)
 
 				return &UnknownFieldError{Fields: []string{fieldName}}
 			}
@@ -215,13 +225,8 @@ func bindJSONWithWarnings(ctx context.Context, out any, body []byte, cfg *config
 	trie := newJSONFieldTrie(t, TagJSON)
 
 	// Walk JSON structure and detect unknowns (recursive)
-	unknowns := []string{}
 	if err := walkJSONRawMessage(json.RawMessage(body), trie, nil, func(path string) {
-		unknowns = append(unknowns, path)
-		evtFlags := cfg.eventFlags()
-		if evtFlags.hasUnknownField {
-			cfg.events.UnknownField(path)
-		}
+		cfg.unknowns = append(cfg.unknowns, path)
 	}); err != nil {
 		cfg.trackError()
 		return err
@@ -236,9 +241,6 @@ func bindJSONWithWarnings(ctx context.Context, out any, body []byte, cfg *config
 		cfg.trackError()
 		return err
 	}
-
-	// Unknowns are logged via events but don't fail
-	_ = unknowns
 
 	return nil
 }
