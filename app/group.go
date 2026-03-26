@@ -19,7 +19,6 @@ import (
 	"net/http"
 	"strings"
 
-	"rivaas.dev/openapi"
 	"rivaas.dev/router"
 	"rivaas.dev/router/route"
 )
@@ -234,6 +233,3 @@ func (g *Group) buildFullPath(path string) string {
 
 	return sb.String()
 }
-
-// Ensure Group uses openapi package (used in addRoute)
-var _ = openapi.WithOp

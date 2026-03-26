@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"time"
 
@@ -280,7 +281,7 @@ func encodeFormValues(values map[string][]string) string {
 	var parts []string
 	for key, vals := range values {
 		for _, val := range vals {
-			parts = append(parts, fmt.Sprintf("%s=%s", key, val))
+			parts = append(parts, url.QueryEscape(key)+"="+url.QueryEscape(val))
 		}
 	}
 	return strings.Join(parts, "&")

@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"rivaas.dev/openapi"
 	"rivaas.dev/router"
 	"rivaas.dev/router/route"
 )
@@ -201,6 +200,3 @@ func (vg *VersionGroup) Group(prefix string, middleware ...HandlerFunc) *Version
 		prefix:        vg.prefix + prefix,
 	}
 }
-
-// Ensure VersionGroup uses openapi package (referenced in doc examples).
-var _ = openapi.WithOp

@@ -145,7 +145,7 @@ var _ = Describe("Server Start", func() {
 	})
 
 	Describe("Debug endpoints", func() {
-		It("should serve /debug/pprof/ when app is started with WithDebugEndpoints(WithPprof)", func() {
+		It("should serve /_internal/debug/pprof/ when app is started with WithDebugEndpoints(WithPprof)", func() {
 			listener, err := net.Listen("tcp", "127.0.0.1:0")
 			Expect(err).NotTo(HaveOccurred())
 			port := listener.Addr().(*net.TCPAddr).Port
@@ -167,7 +167,7 @@ var _ = Describe("Server Start", func() {
 				serverErr <- a.Start(ctx)
 			}()
 
-			pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof/", port)
+			pprofURL := fmt.Sprintf("http://127.0.0.1:%d/_internal/debug/pprof/", port)
 			var resp *http.Response
 			for i := 0; i < 50; i++ {
 				time.Sleep(100 * time.Millisecond)

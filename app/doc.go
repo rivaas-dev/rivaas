@@ -221,9 +221,14 @@
 //   - Request validation
 //   - Access to observability (metrics, tracing, logging)
 //
-// The app uses a single handler type (app.HandlerFunc, which wraps router.HandlerFunc)
-// for consistency across groups, version groups, and individual routes. This ensures
-// the integration layer remains predictable and middleware composition is uniform.
+// The app package defines its own handler type, [HandlerFunc] (func(*[Context])), rather
+// than using [router.HandlerFunc] directly. This is a deliberate design trade-off:
+// [Context] extends [router.Context] with binding, validation, and observability helpers
+// that cannot be provided through [router.Context] alone. The conversion surface is
+// bounded to a single method — [App.WrapHandler] — which adapts an app.HandlerFunc to a
+// [router.HandlerFunc] with context pooling. Middleware written at the router level
+// (using [router.HandlerFunc]) works without wrapping; app.HandlerFunc is only needed
+// when handlers require [Context] features.
 //
 // Example:
 //
