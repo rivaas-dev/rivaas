@@ -39,7 +39,7 @@ func TestRegisterDebugEndpoints_pprofDisabledReturnsNilAndNoRoutes(t *testing.T)
 	require.NoError(t, err)
 	require.NotNil(t, app)
 
-	req := httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_internal/debug/pprof/", nil)
 	rec := httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
@@ -83,14 +83,14 @@ func TestRegisterDebugEndpoints_defaultPrefixRegistersPprof(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, app)
 
-	req := httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_internal/debug/pprof/", nil)
 	rec := httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.True(t, strings.Contains(rec.Body.String(), "heap") || strings.Contains(rec.Body.String(), "goroutine"),
 		"pprof index should list profiles")
 
-	req = httptest.NewRequest(http.MethodGet, "/debug/pprof/heap", nil)
+	req = httptest.NewRequest(http.MethodGet, "/_internal/debug/pprof/heap", nil)
 	rec = httptest.NewRecorder()
 	app.Router().ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)

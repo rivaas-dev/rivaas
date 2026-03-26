@@ -37,7 +37,7 @@ func TestWithDebugEndpoints_defaults(t *testing.T) {
 
 	assert.NotNil(t, app.config.debug)
 	assert.True(t, app.config.debug.enabled)
-	assert.Equal(t, "/debug", app.config.debug.prefix)
+	assert.Equal(t, "/_internal/debug", app.config.debug.prefix)
 	assert.False(t, app.config.debug.pprofEnabled)
 }
 

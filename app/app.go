@@ -104,6 +104,7 @@ type config struct {
 	observability    *observabilitySettings // Unified observability settings (metrics, tracing, logging)
 	health           *healthSettings        // Health endpoint settings (livez, readyz)
 	debug            *debugSettings         // Debug endpoint settings (pprof)
+	mcp              *mcpSettings           // Business MCP server settings (nil = disabled)
 	validationEngine *validation.Engine     // Optional; when set, Bind/Validate use this engine
 	envErrors        []error                // Errors from environment variable parsing
 	validationErrors []error                // Errors from nil options (e.g. WithServer)
@@ -372,6 +373,33 @@ func (c *config) validate() error {
 		}
 	}
 
+	// Validate MCP configuration
+	if c.mcp != nil && c.mcp.enabled {
+		for _, err := range c.mcp.validationErrors {
+			errs.Add(newInvalidValueError("mcp", nil, err.Error()))
+		}
+		seen := make(map[string]bool)
+		for _, t := range c.mcp.tools {
+			if t.name == "" {
+				errs.Add(newInvalidValueError("mcp", nil, "tool name cannot be empty"))
+			}
+			if t.description == "" {
+				errs.Add(newInvalidValueError("mcp", nil, fmt.Sprintf("tool %q description cannot be empty", t.name)))
+			}
+			if seen[t.name] {
+				errs.Add(newInvalidValueError("mcp", nil, fmt.Sprintf("duplicate tool name %q", t.name)))
+			}
+			seen[t.name] = true
+		}
+	}
+
+	// Validate MCP debug configuration
+	if c.debug != nil && c.debug.mcpDebug != nil {
+		for _, err := range c.debug.mcpDebug.validationErrors {
+			errs.Add(newInvalidValueError("mcp-debug", nil, err.Error()))
+		}
+	}
+
 	// Validate environment variable parsing errors
 	for _, err := range c.envErrors {
 		errs.Add(newInvalidValueError("env", nil, err.Error()))
@@ -582,6 +610,13 @@ func New(opts ...Option) (*App, error) {
 	if cfg.debug != nil && cfg.debug.enabled {
 		if debugErr := app.registerDebugEndpoints(cfg.debug); debugErr != nil {
 			return nil, fmt.Errorf("failed to register debug endpoints: %w", debugErr)
+		}
+	}
+
+	// Register business MCP endpoints if configured
+	if cfg.mcp != nil && cfg.mcp.enabled {
+		if mcpErr := app.registerMCPEndpoints(cfg.mcp); mcpErr != nil {
+			return nil, fmt.Errorf("failed to register MCP endpoints: %w", mcpErr)
 		}
 	}
 

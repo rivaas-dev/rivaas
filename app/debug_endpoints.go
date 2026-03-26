@@ -19,18 +19,26 @@ import (
 	"net/http/pprof"
 
 	"rivaas.dev/router"
+	"rivaas.dev/router/route"
 )
 
 // registerDebugEndpoints registers debug endpoints based on the provided settings.
 // app.New() calls this internally when debug endpoints are configured.
 func (a *App) registerDebugEndpoints(s *debugSettings) error {
-	if !s.pprofEnabled {
-		return nil // No debug features enabled
-	}
-
 	prefix := s.prefix
 	if prefix == "" {
-		prefix = "/debug"
+		prefix = "/_internal/debug"
+	}
+
+	// Register MCP debug endpoints if configured
+	if s.mcpDebug != nil && s.mcpDebug.enabled {
+		if err := a.registerMCPDebugEndpoints(s); err != nil {
+			return fmt.Errorf("failed to register MCP debug endpoints: %w", err)
+		}
+	}
+
+	if !s.pprofEnabled {
+		return nil
 	}
 
 	base := prefix + "/pprof"
@@ -63,6 +71,15 @@ func (a *App) registerDebugEndpoints(s *debugSettings) error {
 
 	// Register pprof endpoints
 	registerPprof(a.Router(), base)
+
+	for _, path := range pprofPaths {
+		a.router.UpdateRouteInfo("GET", path, "", func(info *route.Info) {
+			info.HandlerName = "[builtin] pprof"
+		})
+	}
+	a.router.UpdateRouteInfo("POST", base+"/symbol", "", func(info *route.Info) {
+		info.HandlerName = "[builtin] pprof"
+	})
 
 	return nil
 }

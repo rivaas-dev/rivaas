@@ -25,22 +25,23 @@ type debugSettings struct {
 	enabled bool
 
 	// Path configuration
-	prefix string // Mount prefix (default: "/debug")
+	prefix string // Mount prefix (default: "/_internal/debug")
 
 	// Feature toggles
-	pprofEnabled bool // Enable pprof endpoints
+	pprofEnabled bool              // Enable pprof endpoints
+	mcpDebug     *mcpDebugSettings // MCP debug server settings (nil = disabled)
 }
 
 // defaultDebugSettings returns debug settings with sensible defaults.
 func defaultDebugSettings() *debugSettings {
 	return &debugSettings{
 		enabled: true, // Enabled by default when WithDebugEndpoints is called
-		prefix:  "/debug",
+		prefix:  "/_internal/debug",
 	}
 }
 
 // WithDebugPrefix sets the mount prefix for debug endpoints.
-// Default is "/debug", which mounts pprof at "/debug/pprof/*".
+// Default is "/_internal/debug", which mounts pprof at "/_internal/debug/pprof/*".
 //
 // Example:
 //

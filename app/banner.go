@@ -19,6 +19,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/colorprofile"
@@ -221,6 +222,28 @@ func (a *App) printStartupBanner(addr, protocol string) {
 		bw.field("OpenAPI:", specAddr, "14")
 	}
 
+	// === MCP Section ===
+	hasDebugMCP := a.config.debug != nil && a.config.debug.mcpDebug != nil && a.config.debug.mcpDebug.enabled
+	hasMCP := a.config.mcp != nil && a.config.mcp.enabled
+	if hasDebugMCP || hasMCP {
+		bw.blank()
+		bw.category("MCP")
+		if hasDebugMCP {
+			debugPrefix := a.config.debug.prefix
+			if debugPrefix == "" {
+				debugPrefix = "/_internal/debug"
+			}
+			bw.field("Debug:", displayAddr+debugPrefix+"/mcp", "14")
+		}
+		if hasMCP {
+			mcpPrefix := a.config.mcp.prefix
+			if mcpPrefix == "" {
+				mcpPrefix = "/mcp"
+			}
+			bw.field("API:", displayAddr+mcpPrefix, "14")
+		}
+	}
+
 	// Print the banner
 	//nolint:errcheck // Best-effort banner display; write errors don't affect functionality
 	_, _ = fmt.Fprintln(w)
@@ -247,6 +270,9 @@ func (a *App) printStartupBanner(addr, protocol string) {
 
 // renderRoutesTable renders the routes table to the given writer.
 // renderRoutesTable is an internal helper method used by both PrintRoutes and the startup banner.
+//
+// User-defined routes appear first, followed by a horizontal separator, then
+// builtin routes grouped by handler name (sorted by handler, method, path).
 // Columns are dynamically sized based on content.
 func (a *App) renderRoutesTable(w io.Writer) {
 	routes := a.router.Routes()
@@ -254,25 +280,20 @@ func (a *App) renderRoutesTable(w io.Writer) {
 		return
 	}
 
-	// Define styles for different HTTP methods
 	methodStyles := map[string]lipgloss.Style{
-		http.MethodGet:     lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true), // Green
-		http.MethodPost:    lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true), // Blue
-		http.MethodPut:     lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true), // Yellow
-		http.MethodDelete:  lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true),  // Red
-		http.MethodPatch:   lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true), // Magenta
-		http.MethodHead:    lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true), // Cyan
-		http.MethodOptions: lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),  // Gray
+		http.MethodGet:     lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true),
+		http.MethodPost:    lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true),
+		http.MethodPut:     lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true),
+		http.MethodDelete:  lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true),
+		http.MethodPatch:   lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Bold(true),
+		http.MethodHead:    lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true),
+		http.MethodOptions: lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Bold(true),
 	}
-
-	// Style for version column
-	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true) // Orange
-
-	// Determine if we should use colors (only in development, Writer checks terminal)
+	versionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true)
+	dimStyle := lipgloss.NewStyle().Faint(true)
 	useColors := a.config.environment == EnvironmentDevelopment
 
-	// Separate builtin and user routes
-	var builtinRoutes, userRoutes []route.Info
+	var userRoutes, builtinRoutes []route.Info
 	for _, r := range routes {
 		if strings.HasPrefix(r.HandlerName, "[builtin]") {
 			builtinRoutes = append(builtinRoutes, r)
@@ -281,68 +302,152 @@ func (a *App) renderRoutesTable(w io.Writer) {
 		}
 	}
 
-	// Build table rows: builtin routes first, then user routes
-	rows := make([][]string, 0, len(routes))
-	dimStyle := lipgloss.NewStyle().Faint(true) // Dim style for builtin routes
+	sort.Slice(builtinRoutes, func(i, j int) bool {
+		if builtinRoutes[i].HandlerName != builtinRoutes[j].HandlerName {
+			return builtinRoutes[i].HandlerName < builtinRoutes[j].HandlerName
+		}
+		if builtinRoutes[i].Method != builtinRoutes[j].Method {
+			return builtinRoutes[i].Method < builtinRoutes[j].Method
+		}
+		return builtinRoutes[i].Path < builtinRoutes[j].Path
+	})
 
-	// Merge builtin and user routes, preserving order (builtin first)
-	allRoutes := append(builtinRoutes, userRoutes...)
-
-	for _, r := range allRoutes {
-		isBuiltin := strings.HasPrefix(r.HandlerName, "[builtin]")
-
+	renderRow := func(r route.Info, isBuiltin bool) []string {
 		method := r.Method
 		if useColors {
 			if style, ok := methodStyles[method]; ok {
 				method = style.Render(method)
 			}
 		}
-
 		version := r.Version
 		if version == "" {
 			version = "-"
 		} else if useColors {
 			version = versionStyle.Render(version)
 		}
-
 		handlerName := r.HandlerName
 		if useColors && isBuiltin {
 			handlerName = dimStyle.Render(handlerName)
 		}
-
-		rows = append(rows, []string{
-			method,
-			version,
-			r.Path,
-			handlerName,
-		})
+		return []string{method, version, r.Path, handlerName}
 	}
 
-	// Create table with lipgloss/table
-	// Let columns auto-size based on content (no fixed width)
-	t := table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(func() lipgloss.Style {
-			if useColors {
-				return lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Gray border
-			}
+	rows := make([][]string, 0, len(routes))
+	for _, r := range userRoutes {
+		rows = append(rows, renderRow(r, false))
+	}
+	for _, r := range builtinRoutes {
+		rows = append(rows, renderRow(r, true))
+	}
 
-			return lipgloss.NewStyle() // No color for border
-		}()).
-		StyleFunc(func(row, _ int) lipgloss.Style {
-			// Note: In lipgloss/table, row indexing starts at 0 for the first DATA row
-			// Headers are handled separately by the Headers() method
-			style := lipgloss.NewStyle().
+	border := lipgloss.RoundedBorder()
+	borderStyle := lipgloss.NewStyle()
+	if useColors {
+		borderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	}
+
+	t := table.New().
+		Border(border).
+		BorderStyle(borderStyle).
+		StyleFunc(func(_, _ int) lipgloss.Style {
+			return lipgloss.NewStyle().
 				Align(lipgloss.Left).
 				Padding(0, 1)
-
-			return style
 		}).
 		Headers("Method", "Version", "Path", "Handler").
 		Rows(rows...)
 
-	//nolint:errcheck,gosec // Best-effort table display; G705: t.Render() is server-generated route table, not user input
-	_, _ = fmt.Fprintln(w, t.Render())
+	rendered := t.String()
+
+	// Insert a horizontal separator between user and builtin sections.
+	if len(userRoutes) > 0 && len(builtinRoutes) > 0 {
+		rendered = insertRowSeparator(rendered, border, borderStyle, len(userRoutes))
+	}
+
+	//nolint:errcheck,gosec // Best-effort table display
+	_, _ = fmt.Fprintln(w, rendered)
+}
+
+// insertRowSeparator inserts a horizontal border line after the data row at
+// the given index (0-based). It locates data rows by scanning for lines that
+// start with the table's left border character, skipping the header separator.
+func insertRowSeparator(rendered string, border lipgloss.Border, borderStyle lipgloss.Style, afterRow int) string {
+	lines := strings.Split(rendered, "\n")
+
+	// Find the header separator to use as a template for building our own.
+	var sepTemplate string
+	for _, line := range lines {
+		stripped := strings.TrimSpace(stripANSI(line))
+		if strings.HasPrefix(stripped, border.MiddleLeft) {
+			sepTemplate = line
+			break
+		}
+	}
+	if sepTemplate == "" {
+		return rendered
+	}
+
+	// Walk lines, count data rows (lines starting with the left border char,
+	// excluding the header separator), and insert the separator after the target row.
+	var result strings.Builder
+	dataRowIdx := 0
+	pastHeader := false
+	inserted := false
+	for _, line := range lines {
+		result.WriteString(line + "\n")
+
+		if inserted {
+			continue
+		}
+
+		stripped := strings.TrimSpace(stripANSI(line))
+
+		// Detect the header separator (first MiddleLeft line).
+		if !pastHeader {
+			if strings.HasPrefix(stripped, border.MiddleLeft) {
+				pastHeader = true
+			}
+			continue
+		}
+
+		// Data rows start with the Left border character but are not separator/bottom lines.
+		if strings.HasPrefix(stripped, border.Left) &&
+			!strings.HasPrefix(stripped, border.BottomLeft) &&
+			!strings.HasPrefix(stripped, border.MiddleLeft) {
+			dataRowIdx++
+			if dataRowIdx == afterRow {
+				result.WriteString(sepTemplate + "\n")
+				inserted = true
+			}
+		}
+	}
+
+	// Trim trailing extra newline from the split/join.
+	out := result.String()
+	if strings.HasSuffix(out, "\n\n") {
+		out = strings.TrimSuffix(out, "\n")
+	}
+	return out
+}
+
+// stripANSI removes ANSI escape sequences from a string for reliable prefix matching.
+func stripANSI(s string) string {
+	var result strings.Builder
+	inEscape := false
+	for _, r := range s {
+		if r == '\x1b' {
+			inEscape = true
+			continue
+		}
+		if inEscape {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+		result.WriteRune(r)
+	}
+	return result.String()
 }
 
 // PrintRoutes prints all registered routes to stdout in a formatted table.
