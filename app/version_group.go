@@ -135,6 +135,9 @@ func (vg *VersionGroup) OPTIONS(path string, handler HandlerFunc, opts ...RouteO
 //
 // It applies middleware to all later routes registered in this version group.
 //
+// Use panics if any middleware is nil. For nil-safe middleware registration at construction time,
+// use WithMiddleware.
+//
 // Example:
 //
 //	v1 := app.Version("v1")

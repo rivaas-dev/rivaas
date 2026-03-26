@@ -81,7 +81,7 @@ type App struct {
 	tracing               *tracing.Tracer
 	logging               *logging.Logger // Logger instance (can be nil, uses noopLogger fallback)
 	config                *config
-	hooks                 *Hooks
+	hooks                 *hooks
 	readiness             *ReadinessManager
 	openapi               *openapiState // OpenAPI state (nil if disabled)
 	contextPool           *contextPool
@@ -340,6 +340,9 @@ func (c *config) validate() error {
 		}
 		if hasMTLS {
 			mtlsCfg := newMTLSConfig(c.server.mtlsServerCert, c.server.mtlsOpts...)
+			for _, err := range mtlsCfg.validationErrors {
+				errs.Add(newInvalidValueError("server", nil, err.Error()))
+			}
 			if mtlsErr := mtlsCfg.validate(); mtlsErr != nil {
 				errs.Add(newInvalidValueError("server", nil, mtlsErr.Error()))
 			}
@@ -506,7 +509,7 @@ func New(opts ...Option) (*App, error) {
 	app := &App{
 		router:           r,
 		config:           cfg,
-		hooks:            &Hooks{},
+		hooks:            &hooks{},
 		readiness:        &ReadinessManager{gates: make(map[string]Gate)},
 		openapi:          openapiSt,
 		contextPool:      newContextPool(),
@@ -828,10 +831,15 @@ func (a *App) registerRouteWithTarget(target routeTarget, method, path string, h
 	if a.openapi != nil && !cfg.skipDoc && len(cfg.docOpts) > 0 {
 		op, err := openapi.WithOp(method, fullPath, cfg.docOpts...)
 		if err != nil {
-			panic(err)
-		}
-		if addErr := a.openapi.AddOperation(op); addErr != nil {
-			panic(addErr)
+			a.routeValidationMu.Lock()
+			a.routeValidationErrors = append(a.routeValidationErrors,
+				fmt.Errorf("openapi: %s %s: %w", method, fullPath, err))
+			a.routeValidationMu.Unlock()
+		} else if addErr := a.openapi.AddOperation(op); addErr != nil {
+			a.routeValidationMu.Lock()
+			a.routeValidationErrors = append(a.routeValidationErrors,
+				fmt.Errorf("openapi: %s %s: %w", method, fullPath, addErr))
+			a.routeValidationMu.Unlock()
 		}
 	}
 
@@ -1002,6 +1010,9 @@ func (a *App) OPTIONS(path string, handler HandlerFunc, opts ...RouteOption) *ro
 
 // Use adds middleware to the app.
 // Use adds middleware that will be executed for all routes.
+//
+// Use panics if any middleware is nil. For nil-safe middleware registration at construction time,
+// use WithMiddleware.
 //
 // Example:
 //

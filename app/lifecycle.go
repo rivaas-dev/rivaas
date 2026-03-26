@@ -23,9 +23,9 @@ import (
 	"rivaas.dev/router/route"
 )
 
-// Hooks manages application lifecycle hooks.
+// hooks manages application lifecycle hooks.
 // It stores callbacks for different lifecycle events.
-type Hooks struct {
+type hooks struct {
 	onStart    []func(context.Context) error // Sequential, stops on first error
 	onReady    []func()                      // Async OK
 	onReload   []func(context.Context) error // Sequential, stops on first error

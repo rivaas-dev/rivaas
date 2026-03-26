@@ -222,7 +222,7 @@ func applyEnvBool(prefix, key string) (value, isSet bool) {
 }
 
 // applyEnvLogging configures logging from environment variables.
-func applyEnvLogging(c *config, prefix string, _ *envConfig) {
+func applyEnvLogging(c *config, prefix string, env *envConfig) {
 	level := os.Getenv(prefix + EnvLogLevel)
 	format := os.Getenv(prefix + EnvLogFormat)
 
@@ -242,20 +242,18 @@ func applyEnvLogging(c *config, prefix string, _ *envConfig) {
 
 	// Apply logging options
 	if level != "" {
-		var logLevel logging.Level
 		switch strings.ToLower(level) {
 		case "debug":
-			logLevel = logging.LevelDebug
+			c.observability.logging.options = append(c.observability.logging.options, logging.WithLevel(logging.LevelDebug))
 		case "info":
-			logLevel = logging.LevelInfo
+			c.observability.logging.options = append(c.observability.logging.options, logging.WithLevel(logging.LevelInfo))
 		case "warn", "warning":
-			logLevel = logging.LevelWarn
+			c.observability.logging.options = append(c.observability.logging.options, logging.WithLevel(logging.LevelWarn))
 		case "error":
-			logLevel = logging.LevelError
+			c.observability.logging.options = append(c.observability.logging.options, logging.WithLevel(logging.LevelError))
 		default:
-			logLevel = logging.LevelInfo
+			env.addError(prefix+EnvLogLevel, fmt.Errorf("unknown log level %q (valid: debug, info, warn, error)", level))
 		}
-		c.observability.logging.options = append(c.observability.logging.options, logging.WithLevel(logLevel))
 	}
 
 	if format != "" {
@@ -266,6 +264,8 @@ func applyEnvLogging(c *config, prefix string, _ *envConfig) {
 			c.observability.logging.options = append(c.observability.logging.options, logging.WithTextHandler())
 		case "console":
 			c.observability.logging.options = append(c.observability.logging.options, logging.WithConsoleHandler())
+		default:
+			env.addError(prefix+EnvLogFormat, fmt.Errorf("unknown log format %q (valid: json, text, console)", format))
 		}
 	}
 }

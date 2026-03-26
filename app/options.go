@@ -353,7 +353,14 @@ func WithRouter(opts ...router.Option) Option {
 		if c.router == nil {
 			c.router = &routerConfig{}
 		}
-		c.router.options = append(c.router.options, opts...)
+		for i, opt := range opts {
+			if opt == nil {
+				c.validationErrors = append(c.validationErrors,
+					fmt.Errorf("app: router option at index %d cannot be nil", i))
+				continue
+			}
+			c.router.options = append(c.router.options, opt)
+		}
 	}
 }
 

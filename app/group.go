@@ -46,6 +46,9 @@ type Group struct {
 // Use middleware is executed after the router's global middleware but before
 // the route-specific handlers.
 //
+// Use panics if any middleware is nil. For nil-safe middleware registration at construction time,
+// use WithMiddleware.
+//
 // Example:
 //
 //	api := app.Group("/api")

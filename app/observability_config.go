@@ -214,6 +214,12 @@ func (c LoggingConfig) options() ([]logging.Option, error) {
 // ObservabilityConfig is the unified observability configuration.
 // Embed this in your app config struct for seamless config loading.
 //
+// Design note: this exported struct is an intentional exception to the "no user-facing config
+// structs" rule. It exists purely as a DTO (Data Transfer Object) to bridge declarative
+// file-based configuration (YAML/JSON) and the functional options API. Users only interact with
+// it by passing it to [WithObservabilityFromConfig]; they never mutate it directly. See the
+// design decisions document for the full rationale.
+//
 // Example YAML:
 //
 //	observability:

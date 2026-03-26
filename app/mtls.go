@@ -17,6 +17,7 @@ package app
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net/http"
 
 	stderrors "errors"
@@ -31,6 +32,7 @@ type mtlsConfig struct {
 	authorize          func(*x509.Certificate) (principal string, allowed bool)
 	getCertificate     func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 	getConfigForClient func(*tls.ClientHelloInfo) (*tls.Config, error)
+	validationErrors   []error // Errors from nil MTLSOptions; reported during config.validate()
 }
 
 // MTLSOption configures mtlsConfig.
@@ -44,8 +46,10 @@ func newMTLSConfig(serverCert tls.Certificate, opts ...MTLSOption) *mtlsConfig {
 		minVersion: tls.VersionTLS13, // Default to TLS 1.3
 	}
 
-	for _, opt := range opts {
+	for i, opt := range opts {
 		if opt == nil {
+			cfg.validationErrors = append(cfg.validationErrors,
+				fmt.Errorf("app: mTLS option at index %d cannot be nil", i))
 			continue
 		}
 		opt(cfg)
