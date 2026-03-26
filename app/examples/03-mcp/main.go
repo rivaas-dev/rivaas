@@ -22,20 +22,21 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"rivaas.dev/app"
+	"rivaas.dev/logging"
 )
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
 	a := app.MustNew(
 		app.WithServiceName("mcp-demo"),
 		app.WithServiceVersion("1.0.0"),
+		app.WithObservability(
+			app.WithLogging(
+				logging.WithConsoleHandler(),
+			),
+		),
 
 		// Debug MCP: exposes Go runtime internals to AI tools
 		// Available at: http://localhost:8080/_internal/debug/mcp
@@ -143,7 +144,7 @@ func main() {
 		}
 	})
 
-	if err := a.Start(ctx); err != nil {
+	if err := a.Start(context.Background()); err != nil {
 		slog.Error("failed to start server", slog.String("error", err.Error()))
 		os.Exit(1)
 	}

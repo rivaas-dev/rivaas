@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -88,6 +89,7 @@ type App struct {
 	reloadMu              sync.Mutex         // Serializes concurrent reload executions
 	routeValidationErrors []error            // Errors from nil route options; reported by ValidateRoutes()
 	routeValidationMu     sync.Mutex         // Protects routeValidationErrors
+	forceExit             func(int)          // Called on force shutdown (double-signal); defaults to os.Exit
 }
 
 // config holds the internal application configuration.
@@ -509,6 +511,7 @@ func New(opts ...Option) (*App, error) {
 		openapi:          openapiSt,
 		contextPool:      newContextPool(),
 		validationEngine: cfg.validationEngine,
+		forceExit:        os.Exit,
 	}
 
 	// Get observability settings (use defaults if not configured)

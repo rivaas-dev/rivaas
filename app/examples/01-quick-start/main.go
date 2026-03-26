@@ -19,18 +19,11 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"rivaas.dev/app"
 )
 
 func main() {
-	// Create context that listens for interrupt signal
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
 	// Create a new app with default settings and health endpoints
 	a, err := app.New(
 		// Enable standard health endpoints
@@ -58,7 +51,7 @@ func main() {
 	// Health endpoints are available at:
 	//   GET /livez - Liveness probe (returns 200 "ok")
 	//   GET /readyz  - Readiness probe (returns 204)
-	if err = a.Start(ctx); err != nil {
+	if err = a.Start(context.Background()); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
 }

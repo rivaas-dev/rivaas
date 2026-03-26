@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 
 	"rivaas.dev/router"
 	"rivaas.dev/router/route"
@@ -105,12 +106,25 @@ func (a *App) shutdownObservability(ctx context.Context) {
 
 // runServer handles the common lifecycle for starting and shutting down an HTTP server.
 // It is used by [App.Start], [App.StartTLS], and [App.StartMTLS].
-// The context controls the server lifecycle - when canceled, it triggers graceful shutdown.
 //
-// Unlike stdlib's http.Server, which uses separate Shutdown() call, this method combines
-// serving and lifecycle management for a simpler API. Users should pass a context
-// configured with signal.NotifyContext for graceful shutdown on OS signals.
+// The server listens for OS signals (SIGINT/SIGTERM) internally — no signal setup is
+// required from the caller. The context can still be used for programmatic shutdown
+// (e.g. in tests or admin endpoints), but callers no longer need signal.NotifyContext.
+//
+// Shutdown sequence on first signal or context cancellation:
+//  1. OnShutdown hooks execute (LIFO order)
+//  2. In-flight requests drain (up to shutdown timeout)
+//  3. Observability components shut down
+//  4. OnStop hooks execute
+//
+// A second signal during the shutdown window triggers an immediate os.Exit(1).
 func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serverStartFunc, protocol string) error {
+	// Framework-owned shutdown signal channel. Handles SIGINT and SIGTERM so callers
+	// don't need to set up signal.NotifyContext themselves.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, shutdownSignals...)
+	defer signal.Stop(sigCh)
+
 	// Start a server in a goroutine
 	serverErr := make(chan error, 1)
 	serverReady := make(chan struct{})
@@ -122,7 +136,6 @@ func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serv
 		a.flushStartupLogs()
 
 		a.logStartupInfo(ctx, server.Addr, protocol)
-		// Routes are now displayed as part of the startup banner
 
 		// Signal that the server is ready to accept connections
 		close(serverReady)
@@ -146,8 +159,8 @@ func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serv
 		ignoreReloadSignal() // Unix: SIGHUP ignored so the process isn't killed
 	}
 
-	// Event loop: wait for shutdown, reload, or server error
-	// When sighupCh is nil (no reload hooks registered), the nil channel case blocks forever with zero overhead
+	// Event loop: wait for shutdown signal, context cancellation, reload, or server error.
+	// When sighupCh is nil (no reload hooks registered), that case blocks forever with zero overhead.
 	for {
 		select {
 		case err := <-serverErr:
@@ -160,17 +173,38 @@ func (a *App) runServer(ctx context.Context, server *http.Server, startFunc serv
 				_ = err
 			}
 
+		case sig := <-sigCh:
+			a.logLifecycleEvent(ctx, slog.LevelInfo, "shutdown signal received", "signal", sig)
+			goto shutdown
+
 		case <-ctx.Done():
-			a.logLifecycleEvent(ctx, slog.LevelInfo, "server shutting down", "protocol", protocol, "reason", ctx.Err())
+			a.logLifecycleEvent(ctx, slog.LevelInfo, "context canceled, shutting down", "protocol", protocol, "reason", ctx.Err())
 			goto shutdown
 		}
 	}
 
 shutdown:
+	// Inform the user that a second signal will force-terminate immediately.
+	a.logLifecycleEvent(ctx, slog.LevelInfo,
+		"shutting down gracefully, press Ctrl+C again to force")
+
+	// Force-shutdown listener: a second signal during graceful shutdown exits immediately.
+	// sigCh is still registered — the second signal arrives on the same channel.
+	go func() {
+		<-sigCh
+		a.logLifecycleEvent(ctx, slog.LevelWarn,
+			"force shutdown: second signal received, terminating immediately")
+		// Best-effort log flush before exit so the warning above is visible.
+		if a.logging != nil {
+			_ = a.logging.FlushBuffer() //nolint:errcheck // Best-effort flush before force exit; failure here is acceptable
+		}
+		a.forceExit(1)
+	}()
+
 	// Create a deadline for shutdown.
 	// We use context.WithoutCancel() to preserve context values (tracing, logging) while ignoring
-	// the parent's cancellation. The parent ctx is already canceled (that's what triggered shutdown),
-	// but we want to keep its values for observability during shutdown operations.
+	// the parent's cancellation. The parent ctx may already be canceled (signal path leaves it live,
+	// but context-cancel path does not), so we derive a fresh timeout from a non-canceled base.
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.config.server.shutdownTimeout)
 	defer cancel()
 
@@ -281,22 +315,26 @@ func (a *App) registerOpenAPIEndpoints() {
 // Default is :8080 for HTTP and :8443 when using [WithTLS] or [WithMTLS], overridable by
 // [WithPort] and by RIVAAS_PORT and RIVAAS_HOST when [WithEnv] is used.
 //
-// The context controls the application lifecycle - when canceled, it triggers
-// graceful shutdown of the server and all observability components (metrics, tracing).
+// Signal handling is built in — no signal.NotifyContext setup is needed. Start listens
+// for SIGINT (Ctrl+C) and SIGTERM internally and initiates graceful shutdown automatically.
+// A second signal during the shutdown window calls os.Exit(1) immediately.
 //
-// Note: Signal handling should be configured by the caller using signal.NotifyContext.
-// This follows the Go pattern of explicit signal handling at the application boundary.
+// The context parameter is still useful for programmatic shutdown (tests, admin endpoints).
+// Canceling it triggers the same graceful shutdown sequence as a signal.
+//
+// Shutdown sequence:
+//  1. OnShutdown hooks execute (LIFO order, within shutdown timeout)
+//  2. In-flight requests drain (up to shutdown timeout)
+//  3. Observability components shut down (metrics, tracing)
+//  4. OnStop hooks execute (best-effort)
 //
 // Example:
-//
-//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-//	defer cancel()
 //
 //	app := app.MustNew(
 //	    app.WithServiceName("my-service"),
 //	    app.WithPort(3000),
 //	)
-//	if err := app.Start(ctx); err != nil {
+//	if err := app.Start(context.Background()); err != nil {
 //	    log.Fatal(err)
 //	}
 //
@@ -306,7 +344,7 @@ func (a *App) registerOpenAPIEndpoints() {
 //	    app.WithServiceName("my-service"),
 //	    app.WithTLS("server.crt", "server.key"),
 //	)
-//	if err := app.Start(ctx); err != nil { ... }
+//	if err := app.Start(context.Background()); err != nil { ... }
 func (a *App) Start(ctx context.Context) error {
 	addr := a.config.server.ListenAddr()
 

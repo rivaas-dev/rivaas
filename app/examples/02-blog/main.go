@@ -21,9 +21,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/signal"
 	"slices"
-	"syscall"
 	"time"
 
 	"example.com/blog/handlers"
@@ -92,9 +90,6 @@ func (c *BlogConfig) Validate() error {
 }
 
 func main() {
-	// Create context that listens for interrupt signal
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
 	// Create a logger early for initialization-phase logging
 	logger := logging.MustNew(
 		logging.WithConsoleHandler(),
@@ -109,7 +104,7 @@ func main() {
 		config.WithBinding(&blogConfig),
 	)
 
-	if err := cfg.Load(ctx); err != nil {
+	if err := cfg.Load(context.Background()); err != nil {
 		logger.Error("failed to load configuration", "error", err)
 		os.Exit(1)
 	}
@@ -346,7 +341,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := a.Start(ctx); err != nil {
+	if err := a.Start(context.Background()); err != nil {
 		logger.Error("server error", "error", err)
 		os.Exit(1)
 	}

@@ -18,9 +18,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"rivaas.dev/app"
 )
@@ -51,12 +48,8 @@ func ExampleApp_OnReload() {
 		_ = c.String(200, "Hello, World!") //nolint:errcheck // Example code
 	})
 
-	// Set up signal handling for graceful shutdown
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	// Start server - SIGHUP will trigger reload hooks automatically
-	if err := myApp.Start(ctx); err != nil {
+	// Start server - SIGHUP triggers reload hooks; SIGINT/SIGTERM trigger graceful shutdown
+	if err := myApp.Start(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 }

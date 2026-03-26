@@ -88,10 +88,7 @@
 //	    c.JSON(http.StatusOK, map[string]string{"message": "Hello"})
 //	})
 //
-//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-//	defer cancel()
-//
-//	if err := app.Start(ctx); err != nil {
+//	if err := app.Start(context.Background()); err != nil {
 //	    log.Fatal(err)
 //	}
 //

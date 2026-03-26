@@ -40,10 +40,7 @@ import (
     "context"
     "log"
     "net/http"
-    "os"
-    "os/signal"
-    "syscall"
-    
+
     "rivaas.dev/app"
 )
 
@@ -59,10 +56,7 @@ func main() {
         })
     })
 
-    ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-    defer cancel()
-
-    if err := a.Start(ctx); err != nil {
+    if err := a.Start(context.Background()); err != nil {
         log.Fatal(err)
     }
 }
