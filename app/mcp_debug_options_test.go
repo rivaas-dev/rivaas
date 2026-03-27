@@ -56,6 +56,9 @@ func TestWithMCPDebug_allFeatureFlags(t *testing.T) {
 				WithMCPDebugRuntime(),
 				WithMCPDebugConfig(),
 				WithMCPDebugBuild(),
+				WithMCPDebugRoutes(),
+				WithMCPDebugHealth(),
+				WithMCPDebugOpenAPI(),
 			),
 		),
 	)
@@ -67,6 +70,9 @@ func TestWithMCPDebug_allFeatureFlags(t *testing.T) {
 	assert.True(t, s.runtime)
 	assert.True(t, s.config)
 	assert.True(t, s.build)
+	assert.True(t, s.routes)
+	assert.True(t, s.health)
+	assert.True(t, s.openapi)
 }
 
 func TestWithMCPDebug_featureFlagsIndependent(t *testing.T) {
@@ -89,6 +95,9 @@ func TestWithMCPDebug_featureFlagsIndependent(t *testing.T) {
 	assert.False(t, s.runtime)
 	assert.False(t, s.config)
 	assert.True(t, s.build)
+	assert.False(t, s.routes)
+	assert.False(t, s.health)
+	assert.False(t, s.openapi)
 }
 
 func TestWithMCPDebug_mountsAtCorrectPath(t *testing.T) {
@@ -157,6 +166,9 @@ func TestWithMCPDebug_withoutOptionsEnablesAllFeatures(t *testing.T) {
 	assert.True(t, s.runtime, "bare WithMCPDebug() should enable runtime")
 	assert.True(t, s.config, "bare WithMCPDebug() should enable config")
 	assert.True(t, s.build, "bare WithMCPDebug() should enable build")
+	assert.True(t, s.routes, "bare WithMCPDebug() should enable routes")
+	assert.True(t, s.health, "bare WithMCPDebug() should enable health")
+	assert.True(t, s.openapi, "bare WithMCPDebug() should enable openapi")
 
 	req := httptest.NewRequest(http.MethodPost, "/_internal/debug/mcp", nil)
 	rec := httptest.NewRecorder()
@@ -207,4 +219,79 @@ func TestWithMCPDebugIf_conditionFalse(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Nil(t, a.config.debug.mcpDebug)
+}
+
+func TestWithMCPDebugRoutes_enablesRoutes(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithDebugEndpoints(
+			WithMCPDebug(
+				WithMCPDebugRoutes(),
+			),
+		),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, a)
+
+	s := a.config.debug.mcpDebug
+	assert.True(t, s.enabled)
+	assert.True(t, s.routes)
+	assert.False(t, s.runtime)
+	assert.False(t, s.config)
+	assert.False(t, s.build)
+	assert.False(t, s.health)
+	assert.False(t, s.openapi)
+}
+
+func TestWithMCPDebugHealth_enablesHealth(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithDebugEndpoints(
+			WithMCPDebug(
+				WithMCPDebugHealth(),
+			),
+		),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, a)
+
+	s := a.config.debug.mcpDebug
+	assert.True(t, s.enabled)
+	assert.True(t, s.health)
+	assert.False(t, s.runtime)
+	assert.False(t, s.config)
+	assert.False(t, s.build)
+	assert.False(t, s.routes)
+	assert.False(t, s.openapi)
+}
+
+func TestWithMCPDebugOpenAPI_enablesOpenAPI(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(
+		WithServiceName("test"),
+		WithServiceVersion("1.0.0"),
+		WithDebugEndpoints(
+			WithMCPDebug(
+				WithMCPDebugOpenAPI(),
+			),
+		),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, a)
+
+	s := a.config.debug.mcpDebug
+	assert.True(t, s.enabled)
+	assert.True(t, s.openapi)
+	assert.False(t, s.runtime)
+	assert.False(t, s.config)
+	assert.False(t, s.build)
+	assert.False(t, s.routes)
+	assert.False(t, s.health)
 }

@@ -122,7 +122,7 @@ func TestWithErrorFormatterFor_InvalidOptions_ValidationFails(t *testing.T) {
 	var ce *ConfigErrors
 	require.True(t, errors.As(err, &ce))
 	found := false
-	for _, e := range ce.Errors {
+	for _, e := range ce.All() {
 		if e.Field == "errors" {
 			found = true
 			assert.Contains(t, e.Message, "errors:")

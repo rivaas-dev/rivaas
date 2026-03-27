@@ -76,7 +76,7 @@ func Example_testing() {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -433,7 +433,7 @@ func ExampleContext_StartSpan() {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/users", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -456,7 +456,7 @@ func ExampleContext_FinishSpan() {
 		}
 	})
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -480,7 +480,7 @@ func ExampleContext_FinishSpanWithError() {
 		}
 	})
 	req := httptest.NewRequest(http.MethodGet, "/fail", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -513,7 +513,7 @@ func ExampleContext_WithSpan() {
 		}
 	})
 	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -540,7 +540,7 @@ func ExampleContext_AddCounter() {
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/upload", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		log.Fatal(err)
 	}

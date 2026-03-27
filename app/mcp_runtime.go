@@ -15,12 +15,17 @@
 package app
 
 import (
+	"cmp"
+	"context"
 	"fmt"
 	"math"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
+
+	"rivaas.dev/router/route"
 )
 
 const (
@@ -62,6 +67,8 @@ type runtimeMemoryStats struct {
 
 type goroutineProfileResponse struct {
 	TotalGoroutines int              `json:"total_goroutines"`
+	FilteredCount   int              `json:"filtered_count"`
+	StateFilter     string           `json:"state_filter"`
 	StateSummary    map[string]int   `json:"state_summary"`
 	Goroutines      []goroutineEntry `json:"goroutines"`
 	Signals         []string         `json:"signals"`
@@ -160,12 +167,12 @@ func collectRuntimeStats(serviceName, serviceVersion string, start time.Time) *r
 	}
 }
 
-func collectGoroutineProfile() *goroutineProfileResponse {
+func collectGoroutineProfile(stateFilter string) *goroutineProfileResponse {
 	buf := make([]byte, 1<<20) //nolint:makezero // runtime.Stack requires a pre-sized buffer
 	n := runtime.Stack(buf, true)
 	stackDump := string(buf[:n])
 
-	goroutines := parseGoroutineStacks(stackDump)
+	allGoroutines := parseGoroutineStacks(stackDump)
 	numGoroutines := runtime.NumGoroutine()
 
 	var signals []string
@@ -176,14 +183,27 @@ func collectGoroutineProfile() *goroutineProfileResponse {
 	}
 
 	stateCounts := make(map[string]int)
-	for _, g := range goroutines {
+	for _, g := range allGoroutines {
 		stateCounts[g.State]++
+	}
+
+	filterNorm := strings.ToLower(strings.TrimSpace(stateFilter))
+	filtered := allGoroutines
+	if filterNorm != "" && filterNorm != "all" {
+		filtered = make([]goroutineEntry, 0, len(allGoroutines))
+		for _, g := range allGoroutines {
+			if strings.Contains(strings.ToLower(g.State), filterNorm) {
+				filtered = append(filtered, g)
+			}
+		}
 	}
 
 	return &goroutineProfileResponse{
 		TotalGoroutines: numGoroutines,
+		FilteredCount:   len(filtered),
+		StateFilter:     stateFilter,
 		StateSummary:    stateCounts,
-		Goroutines:      goroutines,
+		Goroutines:      filtered,
 		Signals:         signals,
 	}
 }
@@ -299,6 +319,217 @@ func collectBuildInfo() *buildInfoResponse {
 		Dependencies: deps,
 		Settings:     settings,
 		Signals:      []string{},
+	}
+}
+
+// --- Memory Profile ---
+
+type memoryProfileResponse struct {
+	TotalAllocBytes   uint64                `json:"total_alloc_bytes"`
+	TotalAllocObjects int64                 `json:"total_alloc_objects"`
+	InUseBytes        int64                 `json:"in_use_bytes"`
+	InUseObjects      int64                 `json:"in_use_objects"`
+	TopN              int                   `json:"top_n"`
+	Records           []memoryProfileRecord `json:"records"`
+	Signals           []string              `json:"signals"`
+}
+
+type memoryProfileRecord struct {
+	FuncName     string `json:"func_name"`
+	File         string `json:"file"`
+	Line         int    `json:"line"`
+	AllocBytes   int64  `json:"alloc_bytes"`
+	AllocObjects int64  `json:"alloc_objects"`
+	InUseBytes   int64  `json:"in_use_bytes"`
+	InUseObjects int64  `json:"in_use_objects"`
+}
+
+func collectMemoryProfile(topN int) *memoryProfileResponse {
+	if topN <= 0 {
+		topN = 20
+	}
+
+	// MemProfile(nil, true) returns the count of records needing inuse_zero=true
+	n, _ := runtime.MemProfile(nil, true)
+	records := make([]runtime.MemProfileRecord, n+50) //nolint:makezero // runtime.MemProfile requires a pre-sized buffer
+	n, ok := runtime.MemProfile(records, true)
+	if !ok {
+		records = make([]runtime.MemProfileRecord, n*2) //nolint:makezero // retry with larger pre-sized buffer
+		n, _ = runtime.MemProfile(records, true)
+	}
+	records = records[:n]
+
+	slices.SortFunc(records, func(a, b runtime.MemProfileRecord) int {
+		return cmp.Compare(b.InUseBytes(), a.InUseBytes())
+	})
+
+	if topN > len(records) {
+		topN = len(records)
+	}
+
+	var totalInUse int64
+	for _, r := range records {
+		totalInUse += r.InUseBytes()
+	}
+
+	result := make([]memoryProfileRecord, 0, topN)
+	for _, r := range records[:topN] {
+		frames := runtime.CallersFrames(r.Stack())
+		frame, _ := frames.Next()
+		result = append(result, memoryProfileRecord{
+			FuncName:     frame.Function,
+			File:         frame.File,
+			Line:         frame.Line,
+			AllocBytes:   r.AllocBytes,
+			AllocObjects: r.AllocObjects,
+			InUseBytes:   r.InUseBytes(),
+			InUseObjects: r.InUseObjects(),
+		})
+	}
+
+	var signals []string
+	if len(result) > 0 && totalInUse > 0 && result[0].InUseBytes > totalInUse/2 {
+		signals = append(signals, fmt.Sprintf(
+			"top allocation site (%s) accounts for >50%% of heap — investigate for memory concentration",
+			result[0].FuncName,
+		))
+	}
+
+	var totalAllocBytes uint64
+	var totalAllocObjects int64
+	for _, r := range records {
+		totalAllocBytes += uint64(r.AllocBytes) //nolint:gosec // AllocBytes is always non-negative
+		totalAllocObjects += r.AllocObjects
+	}
+
+	return &memoryProfileResponse{
+		TotalAllocBytes:   totalAllocBytes,
+		TotalAllocObjects: totalAllocObjects,
+		InUseBytes:        totalInUse,
+		InUseObjects:      0,
+		TopN:              topN,
+		Records:           result,
+		Signals:           signals,
+	}
+}
+
+// --- Routes ---
+
+type routesResponse struct {
+	TotalRoutes int           `json:"total_routes"`
+	Routes      []routeRecord `json:"routes"`
+	Signals     []string      `json:"signals"`
+}
+
+type routeRecord struct {
+	Method      string            `json:"method"`
+	Path        string            `json:"path"`
+	HandlerName string            `json:"handler_name"`
+	Middleware  []string          `json:"middleware"`
+	Constraints map[string]string `json:"constraints"`
+	IsStatic    bool              `json:"is_static"`
+	Version     string            `json:"version"`
+	ParamCount  int               `json:"param_count"`
+}
+
+func collectRoutes(routes []route.Info) *routesResponse {
+	records := make([]routeRecord, len(routes)) //nolint:makezero // directly indexed by i
+	for i, r := range routes {
+		records[i] = routeRecord{
+			Method:      r.Method,
+			Path:        r.Path,
+			HandlerName: r.HandlerName,
+			Middleware:  r.Middleware,
+			Constraints: r.Constraints,
+			IsStatic:    r.IsStatic,
+			Version:     r.Version,
+			ParamCount:  r.ParamCount,
+		}
+	}
+
+	var signals []string
+	if len(records) == 0 {
+		signals = append(signals, "no routes registered — app may not be fully initialized")
+	}
+
+	return &routesResponse{
+		TotalRoutes: len(records),
+		Routes:      records,
+		Signals:     signals,
+	}
+}
+
+// --- Health Status ---
+
+type healthStatusResponse struct {
+	Liveness  healthCheckResult `json:"liveness"`
+	Readiness healthCheckResult `json:"readiness"`
+	Signals   []string          `json:"signals"`
+}
+
+type healthCheckResult struct {
+	Status   string            `json:"status"`
+	Checks   map[string]string `json:"checks"`
+	Failures map[string]string `json:"failures,omitempty"`
+}
+
+func collectHealthStatus(ctx context.Context, h *healthSettings) *healthStatusResponse {
+	if h == nil || !h.enabled {
+		return &healthStatusResponse{
+			Signals: []string{"health endpoints not configured — no checks to run"},
+		}
+	}
+
+	livenessFailures := runChecks(ctx, h.liveness, h.timeout)
+	readinessFailures := runChecks(ctx, h.readiness, h.timeout)
+
+	liveChecks := make(map[string]string, len(h.liveness))
+	for name := range h.liveness {
+		if msg, failed := livenessFailures[name]; failed {
+			liveChecks[name] = "FAIL: " + msg
+		} else {
+			liveChecks[name] = "PASS"
+		}
+	}
+
+	readyChecks := make(map[string]string, len(h.readiness))
+	for name := range h.readiness {
+		if msg, failed := readinessFailures[name]; failed {
+			readyChecks[name] = "FAIL: " + msg
+		} else {
+			readyChecks[name] = "PASS"
+		}
+	}
+
+	liveStatus := "healthy"
+	if len(livenessFailures) > 0 {
+		liveStatus = "unhealthy"
+	}
+	readyStatus := "ready"
+	if len(readinessFailures) > 0 {
+		readyStatus = "not ready"
+	}
+
+	var signals []string
+	for name, msg := range livenessFailures {
+		signals = append(signals, fmt.Sprintf("liveness check %q failed: %s", name, msg))
+	}
+	for name, msg := range readinessFailures {
+		signals = append(signals, fmt.Sprintf("readiness check %q failed: %s", name, msg))
+	}
+
+	return &healthStatusResponse{
+		Liveness: healthCheckResult{
+			Status:   liveStatus,
+			Checks:   liveChecks,
+			Failures: livenessFailures,
+		},
+		Readiness: healthCheckResult{
+			Status:   readyStatus,
+			Checks:   readyChecks,
+			Failures: readinessFailures,
+		},
+		Signals: signals,
 	}
 }
 

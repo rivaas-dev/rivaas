@@ -190,7 +190,7 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 				t.Helper()
 				var ce *ConfigErrors
 				require.ErrorAs(t, err, &ce)
-				for _, e := range ce.Errors {
+				for _, e := range ce.All() {
 					assert.NotEmpty(t, e.Field, "error should have field name")
 					assert.NotEmpty(t, e.Message, "error should have message")
 				}
@@ -207,7 +207,7 @@ func TestProperty_ErrorMessagesCompleteness(t *testing.T) {
 				t.Helper()
 				var ce *ConfigErrors
 				require.ErrorAs(t, err, &ce)
-				for _, e := range ce.Errors {
+				for _, e := range ce.All() {
 					if e.Field == "server.readTimeout" {
 						assert.NotNil(t, e.Value, "error should include invalid value")
 						assert.NotEmpty(t, e.Constraint, "error should include constraint")

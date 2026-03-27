@@ -130,13 +130,11 @@ func (vg *VersionGroup) OPTIONS(path string, handler HandlerFunc, opts ...RouteO
 }
 
 // Use adds middleware to the version group that will be executed for all routes in this group.
-// Middleware is executed after the router's global middleware but before
-// the route-specific handlers.
+// Middleware is executed after the router's global middleware but before the
+// route-specific handlers.
 //
-// It applies middleware to all later routes registered in this version group.
-//
-// Use panics if any middleware is nil. For nil-safe middleware registration at construction time,
-// use WithMiddleware.
+// Use panics if any middleware is nil because it is called after construction, where a nil
+// middleware is a programming error. For construction-time middleware, use [WithMiddleware].
 //
 // Example:
 //
@@ -177,8 +175,11 @@ func (vg *VersionGroup) Any(path string, handler HandlerFunc, opts ...RouteOptio
 }
 
 // Group creates a nested version group under the current version group.
-// It combines the parent's prefix with the provided prefix.
-// It inherits middleware from the parent group.
+// It combines the parent's prefix with the provided prefix and
+// inherits middleware from the parent group.
+//
+// Group panics if any middleware is nil because it is called after construction, where a nil
+// middleware is a programming error. For construction-time middleware, use [WithMiddleware].
 //
 // Example:
 //

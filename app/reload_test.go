@@ -137,7 +137,7 @@ func TestOnReload_ServerContinuesOnError(t *testing.T) {
 	require.Error(t, err)
 
 	// Server should still be able to handle requests
-	resp, err := app.TestJSON(http.MethodGet, "/test", nil)
+	resp, err := app.TestJSON(context.Background(), http.MethodGet, "/test", nil)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Test code
 

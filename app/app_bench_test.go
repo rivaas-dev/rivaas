@@ -55,7 +55,7 @@ func BenchmarkTestJSON(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		resp, testErr := app.TestJSON(http.MethodPost, "/test", body)
+		resp, testErr := app.TestJSON(context.Background(), http.MethodPost, "/test", body)
 		if testErr != nil {
 			b.Fatal(testErr)
 		}
@@ -81,7 +81,7 @@ func BenchmarkHealthCheckConcurrent(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-			resp, testErr := app.Test(req)
+			resp, testErr := app.Test(context.Background(), req)
 			if testErr != nil {
 				b.Fatal(testErr)
 			}
@@ -126,7 +126,7 @@ func BenchmarkRequestHandling(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		resp, testErr := app.Test(req)
+		resp, testErr := app.Test(context.Background(), req)
 		if testErr != nil {
 			b.Fatal(testErr)
 		}
@@ -158,7 +158,7 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		resp, testErr := app.Test(req)
+		resp, testErr := app.Test(context.Background(), req)
 		if testErr != nil {
 			b.Fatal(testErr)
 		}

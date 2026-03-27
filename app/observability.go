@@ -53,8 +53,8 @@ type observabilityRecorder struct {
 	slowThreshold     time.Duration
 }
 
-// observabilityConfig configures the unified observability recorder.
-type observabilityConfig struct {
+// recorderConfig configures the unified observability recorder.
+type recorderConfig struct {
 	metrics           *metrics.Recorder
 	tracing           *tracing.Tracer
 	logger            *slog.Logger
@@ -65,7 +65,7 @@ type observabilityConfig struct {
 }
 
 // newObservabilityRecorder creates an [observabilityRecorder] from configuration.
-func newObservabilityRecorder(cfg *observabilityConfig) router.ObservabilityRecorder {
+func newObservabilityRecorder(cfg *recorderConfig) router.ObservabilityRecorder {
 	pf := cfg.pathFilter
 	if pf == nil {
 		pf = newPathFilterWithDefaults()

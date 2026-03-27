@@ -77,23 +77,25 @@ func (e *ConfigError) Unwrap() error {
 
 // ConfigErrors represents multiple configuration validation errors.
 // ConfigErrors allows collecting all config errors before returning them.
+// Use [ConfigErrors.Add] and [ConfigErrors.Merge] to build the error list,
+// and [ConfigErrors.All] to read it.
 type ConfigErrors struct {
-	Errors []*ConfigError
+	errors []*ConfigError
 }
 
 // Error implements the error interface and returns a formatted error message
 // listing all config errors.
 func (ce *ConfigErrors) Error() string {
-	if len(ce.Errors) == 0 {
+	if len(ce.errors) == 0 {
 		return "config errors: (no errors)"
 	}
-	if len(ce.Errors) == 1 {
-		return ce.Errors[0].Error()
+	if len(ce.errors) == 1 {
+		return ce.errors[0].Error()
 	}
 
 	var msg strings.Builder
-	fmt.Fprintf(&msg, "config errors (%d):", len(ce.Errors))
-	for i, err := range ce.Errors {
+	fmt.Fprintf(&msg, "config errors (%d):", len(ce.errors))
+	for i, err := range ce.errors {
 		fmt.Fprintf(&msg, "\n  %d. %s", i+1, err.Error())
 	}
 
@@ -103,13 +105,24 @@ func (ce *ConfigErrors) Error() string {
 // Add appends a new ConfigError to the ConfigErrors.
 // It collects config errors for batch reporting.
 func (ce *ConfigErrors) Add(err *ConfigError) {
-	ce.Errors = append(ce.Errors, err)
+	ce.errors = append(ce.errors, err)
+}
+
+// Merge appends all errors from other into ce.
+func (ce *ConfigErrors) Merge(other *ConfigErrors) {
+	if other != nil {
+		ce.errors = append(ce.errors, other.errors...)
+	}
+}
+
+// All returns the collected config errors.
+func (ce *ConfigErrors) All() []*ConfigError {
+	return ce.errors
 }
 
 // HasErrors returns true if there are any config errors.
-// It checks if the ConfigErrors contains any errors.
 func (ce *ConfigErrors) HasErrors() bool {
-	return len(ce.Errors) > 0
+	return len(ce.errors) > 0
 }
 
 // ToError returns nil if there are no errors, otherwise returns the ConfigErrors

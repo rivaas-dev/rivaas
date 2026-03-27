@@ -28,6 +28,21 @@ import (
 	"rivaas.dev/logging"
 )
 
+// SearchProductsInput defines the input schema for the search_products tool.
+// Schema constraints are expressed via jsonschema struct tags.
+type SearchProductsInput struct {
+	Query       string  `json:"query"          jsonschema:"Search query text,minLength=1"`
+	Category    string  `json:"category"       jsonschema:"Product category filter,enum=electronics,enum=clothing,enum=books,enum=all"`
+	MinPrice    float64 `json:"min_price"      jsonschema:"Minimum price in USD,minimum=0"`
+	InStockOnly bool    `json:"in_stock_only"  jsonschema:"Only show in-stock items"`
+	Page        int     `json:"page"           jsonschema:"Page number (1-based),minimum=1,default=1"`
+}
+
+// GetProductInput defines the input schema for the get_product tool.
+type GetProductInput struct {
+	ProductID string `json:"product_id" jsonschema:"The product ID,pattern=^P[0-9]+$"`
+}
+
 func main() {
 	a := app.MustNew(
 		app.WithServiceName("mcp-demo"),
@@ -46,6 +61,9 @@ func main() {
 				app.WithMCPDebugRuntime(),
 				app.WithMCPDebugConfig(),
 				app.WithMCPDebugBuild(),
+				app.WithMCPDebugRoutes(),
+				app.WithMCPDebugHealth(),
+				app.WithMCPDebugOpenAPI(),
 			),
 		),
 
@@ -53,24 +71,17 @@ func main() {
 		// Available at: http://localhost:8080/mcp
 		app.WithMCP(
 			app.WithMCPTool("search_products", "Search the product catalog",
-				func(ctx context.Context, args app.MCPToolArgs) (any, error) {
-					query, err := args.RequireString("query")
-					if err != nil {
-						return nil, err
-					}
-					category := args.StringDefault("category", "all")
-					minPrice := args.Float("min_price")
-					inStockOnly := args.Bool("in_stock_only")
-					page := args.Int("page")
+				func(ctx context.Context, input SearchProductsInput) (any, error) {
+					page := input.Page
 					if page == 0 {
 						page = 1
 					}
 
 					return map[string]any{
-						"query":     query,
-						"category":  category,
-						"min_price": minPrice,
-						"in_stock":  inStockOnly,
+						"query":     input.Query,
+						"category":  input.Category,
+						"min_price": input.MinPrice,
+						"in_stock":  input.InStockOnly,
 						"page":      page,
 						"results": []map[string]any{
 							{"id": "P001", "name": "Laptop", "price": 999.99, "in_stock": true},
@@ -79,21 +90,12 @@ func main() {
 						"total": 2,
 					}, nil
 				},
-				app.WithMCPStringInput("query", "Search query text", app.MCPRequired(), app.MCPMinLength(1)),
-				app.WithMCPStringInput("category", "Product category filter", app.MCPEnum("electronics", "clothing", "books", "all")),
-				app.WithMCPNumberInput("min_price", "Minimum price in USD", app.MCPMinimum(0), app.MCPDefault(0.0)),
-				app.WithMCPBooleanInput("in_stock_only", "Only show in-stock items", app.MCPDefault(false)),
-				app.WithMCPIntegerInput("page", "Page number (1-based)", app.MCPMinimum(1), app.MCPDefault(1.0)),
 			),
 
 			app.WithMCPTool("get_product", "Get a product by ID",
-				func(ctx context.Context, args app.MCPToolArgs) (any, error) {
-					id, err := args.RequireString("product_id")
-					if err != nil {
-						return nil, err
-					}
+				func(ctx context.Context, input GetProductInput) (any, error) {
 					return map[string]any{
-						"id":          id,
+						"id":          input.ProductID,
 						"name":        "Laptop Pro",
 						"price":       1299.99,
 						"description": "A powerful laptop for professionals",
@@ -101,7 +103,6 @@ func main() {
 						"tags":        []string{"electronics", "computers"},
 					}, nil
 				},
-				app.WithMCPStringInput("product_id", "The product ID", app.MCPRequired(), app.MCPPattern("^P[0-9]+$")),
 			),
 
 			app.WithMCPResource("products://catalog", "Product Catalog",

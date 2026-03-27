@@ -129,7 +129,7 @@ func TestListPosts(t *testing.T) {
 
 	t.Run("default pagination", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/posts", nil)
-		resp, err := a.Test(req, app.WithTimeout(5*time.Second))
+		resp, err := a.Test(context.Background(), req, app.WithTimeout(5*time.Second))
 		if err != nil {
 			t.Fatalf("Request failed: %v", err)
 		}
@@ -153,7 +153,7 @@ func TestListPosts(t *testing.T) {
 
 	t.Run("with filters", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/posts?status=published&page=1&perPage=5", nil)
-		resp, err := a.Test(req)
+		resp, err := a.Test(context.Background(), req)
 		if err != nil {
 			t.Fatalf("Request failed: %v", err)
 		}
@@ -181,7 +181,7 @@ func TestGetPostBySlug(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/posts/"+tt.slug, nil)
-			resp, err := a.Test(req)
+			resp, err := a.Test(context.Background(), req)
 			if err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
@@ -216,7 +216,7 @@ func TestCreatePost(t *testing.T) {
 			Tags:     []string{"go", "programming"},
 		}
 
-		resp, err := a.TestJSON(http.MethodPost, "/posts", body)
+		resp, err := a.TestJSON(context.Background(), http.MethodPost, "/posts", body)
 		if err != nil {
 			t.Fatalf("Request failed: %v", err)
 		}
@@ -245,7 +245,7 @@ func TestCreatePost(t *testing.T) {
 			"status":   "invalid-status",
 		}
 
-		resp, err := a.TestJSON(http.MethodPost, "/posts", body)
+		resp, err := a.TestJSON(context.Background(), http.MethodPost, "/posts", body)
 		if err != nil {
 			t.Fatalf("Request failed: %v", err)
 		}
@@ -264,7 +264,7 @@ func TestCreatePost(t *testing.T) {
 			AuthorID: 1,
 		}
 
-		resp, err := a.TestJSON(http.MethodPost, "/posts", body)
+		resp, err := a.TestJSON(context.Background(), http.MethodPost, "/posts", body)
 		if err != nil {
 			t.Fatalf("Request failed: %v", err)
 		}
@@ -280,7 +280,7 @@ func TestPublishPost(t *testing.T) {
 	a := setupTestApp(t)
 
 	req := httptest.NewRequest(http.MethodPatch, "/posts/3/publish", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestListAuthors(t *testing.T) {
 	a := setupTestApp(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/authors", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestGetAuthor(t *testing.T) {
 	a := setupTestApp(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/authors/1", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
@@ -341,7 +341,7 @@ func TestPostComments(t *testing.T) {
 
 	t.Run("list comments", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/posts/getting-started-with-go/comments", nil)
-		resp, err := a.Test(req)
+		resp, err := a.Test(context.Background(), req)
 		if err != nil {
 			t.Fatalf("Request failed: %v", err)
 		}
@@ -359,7 +359,7 @@ func TestPostComments(t *testing.T) {
 			AuthorEmail: "john@example.com",
 		}
 
-		resp, err := a.TestJSON(http.MethodPost, "/posts/getting-started-with-go/comments", body)
+		resp, err := a.TestJSON(context.Background(), http.MethodPost, "/posts/getting-started-with-go/comments", body)
 		if err != nil {
 			t.Fatalf("Request failed: %v", err)
 		}
@@ -381,7 +381,7 @@ func TestBlogStats(t *testing.T) {
 	a := setupTestApp(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/stats", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
@@ -399,7 +399,7 @@ func TestPopularPosts(t *testing.T) {
 	a := setupTestApp(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/popular?limit=5", nil)
-	resp, err := a.Test(req)
+	resp, err := a.Test(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
@@ -424,7 +424,7 @@ func TestWithContext(t *testing.T) {
 	defer cancel()
 
 	req := httptest.NewRequest(http.MethodGet, "/posts", nil)
-	resp, err := a.Test(req, app.WithContext(ctx), app.WithTimeout(-1))
+	resp, err := a.Test(ctx, req, app.WithTimeout(-1))
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}

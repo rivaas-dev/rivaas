@@ -50,10 +50,16 @@ var defaultFormatter = riverrors.MustNew()
 // a Context for tests (e.g. from the pool), set app for app-specific error formatter,
 // logging, and observability. If app is nil, methods like Fail() still work using the
 // default error formatter and slog.Default().
+//
+// The app field is an intentional back-reference to the App instance. It enables
+// convenience methods (Fail, StartSpan, FinishSpan, RecordHistogram, IncrementCounter,
+// Tracer, etc.) to access app-level services without requiring every handler to accept
+// extra parameters. The reference is set once per pool cycle in wrapHandler and does
+// not cause per-request allocation.
 type Context struct {
 	*router.Context // Embed router context for HTTP functionality
 
-	app *App // Back reference to app for app-level services
+	app *App // Back reference to app for app-level services (intentional; see type doc)
 
 	// Binding metadata (per-request)
 	bindingMeta *bindingMetadata

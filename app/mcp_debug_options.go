@@ -23,9 +23,12 @@ type MCPDebugOption func(*mcpDebugSettings)
 // mcpDebugSettings holds debug MCP server configuration.
 type mcpDebugSettings struct {
 	enabled          bool
-	runtime          bool // runtime_stats, goroutine_profile, gc_analysis tools + rivaas://runtime/overview resource
+	runtime          bool // runtime_stats, goroutine_profile, gc_analysis, memory_profile tools + rivaas://runtime/overview resource
 	config           bool // rivaas://config resource
 	build            bool // rivaas://build resource
+	routes           bool // rivaas://routes resource
+	health           bool // health_status tool
+	openapi          bool // rivaas://openapi resource
 	validationErrors []error
 }
 
@@ -55,6 +58,9 @@ type mcpDebugSettings struct {
 //	            app.WithMCPDebugRuntime(),
 //	            app.WithMCPDebugConfig(),
 //	            app.WithMCPDebugBuild(),
+//	            app.WithMCPDebugRoutes(),
+//	            app.WithMCPDebugHealth(),
+//	            app.WithMCPDebugOpenAPI(),
 //	        ),
 //	    ),
 //	)
@@ -74,10 +80,14 @@ func WithMCPDebug(opts ...MCPDebugOption) DebugOption {
 		}
 		// When called without sub-options, enable all features as sensible defaults
 		// rather than creating an empty MCP server with no tools or resources.
-		if !s.mcpDebug.runtime && !s.mcpDebug.config && !s.mcpDebug.build {
+		if !s.mcpDebug.runtime && !s.mcpDebug.config && !s.mcpDebug.build &&
+			!s.mcpDebug.routes && !s.mcpDebug.health && !s.mcpDebug.openapi {
 			s.mcpDebug.runtime = true
 			s.mcpDebug.config = true
 			s.mcpDebug.build = true
+			s.mcpDebug.routes = true
+			s.mcpDebug.health = true
+			s.mcpDebug.openapi = true
 		}
 	}
 }
@@ -138,6 +148,61 @@ func WithMCPDebugConfig() MCPDebugOption {
 func WithMCPDebugBuild() MCPDebugOption {
 	return func(s *mcpDebugSettings) {
 		s.build = true
+	}
+}
+
+// WithMCPDebugRoutes enables the routes resource in the debug MCP server.
+//
+// Resources registered:
+//   - rivaas://routes: registered route table (method, path, handler, middleware, constraints)
+//
+// Example:
+//
+//	app.WithDebugEndpoints(
+//	    app.WithMCPDebug(
+//	        app.WithMCPDebugRoutes(),
+//	    ),
+//	)
+func WithMCPDebugRoutes() MCPDebugOption {
+	return func(s *mcpDebugSettings) {
+		s.routes = true
+	}
+}
+
+// WithMCPDebugHealth enables the health status tool in the debug MCP server.
+//
+// Tools registered:
+//   - health_status: runs all registered liveness and readiness checks
+//
+// Example:
+//
+//	app.WithDebugEndpoints(
+//	    app.WithMCPDebug(
+//	        app.WithMCPDebugHealth(),
+//	    ),
+//	)
+func WithMCPDebugHealth() MCPDebugOption {
+	return func(s *mcpDebugSettings) {
+		s.health = true
+	}
+}
+
+// WithMCPDebugOpenAPI enables the OpenAPI spec resource in the debug MCP server.
+// If OpenAPI is not enabled on the app, the resource returns an informative error.
+//
+// Resources registered:
+//   - rivaas://openapi: generated OpenAPI specification (JSON)
+//
+// Example:
+//
+//	app.WithDebugEndpoints(
+//	    app.WithMCPDebug(
+//	        app.WithMCPDebugOpenAPI(),
+//	    ),
+//	)
+func WithMCPDebugOpenAPI() MCPDebugOption {
+	return func(s *mcpDebugSettings) {
+		s.openapi = true
 	}
 }
 

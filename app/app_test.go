@@ -59,10 +59,10 @@ func TestNew_ConfigErrors(t *testing.T) {
 				var ce *ConfigErrors
 				if errors.As(err, &ce) {
 					assert.True(t, ce.HasErrors())
-					assert.NotEmpty(t, ce.Errors)
+					assert.NotEmpty(t, ce.All())
 					// Check that one of the errors is about serviceName
 					found := false
-					for _, e := range ce.Errors {
+					for _, e := range ce.All() {
 						if e.Field == "serviceName" {
 							found = true
 							assert.Equal(t, "cannot be empty", e.Message)
@@ -83,7 +83,7 @@ func TestNew_ConfigErrors(t *testing.T) {
 				var ce *ConfigErrors
 				if errors.As(err, &ce) {
 					found := false
-					for _, e := range ce.Errors {
+					for _, e := range ce.All() {
 						if e.Field == "serviceVersion" {
 							found = true
 							assert.Equal(t, "cannot be empty", e.Message)
@@ -108,7 +108,7 @@ func TestNew_ConfigErrors(t *testing.T) {
 				var ce *ConfigErrors
 				if errors.As(err, &ce) {
 					found := false
-					for _, e := range ce.Errors {
+					for _, e := range ce.All() {
 						if e.Field == "environment" {
 							found = true
 							assert.Equal(t, "staging", e.Value)
@@ -196,7 +196,7 @@ func TestNew_ConfigErrors(t *testing.T) {
 				var ce *ConfigErrors
 				if errors.As(err, &ce) {
 					found := false
-					for _, e := range ce.Errors {
+					for _, e := range ce.All() {
 						if e.Field == "server.readTimeout" && strings.Contains(e.Message, "read timeout should not exceed") {
 							found = true
 						}
@@ -240,7 +240,7 @@ func TestNew_ConfigErrors(t *testing.T) {
 				var ce *ConfigErrors
 				if errors.As(err, &ce) {
 					// Should have multiple errors
-					assert.Greater(t, len(ce.Errors), 1, "should have multiple config errors")
+					assert.Greater(t, len(ce.All()), 1, "should have multiple config errors")
 					// Check error message format
 					assert.Contains(t, err.Error(), "config errors")
 				}

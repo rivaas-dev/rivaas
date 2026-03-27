@@ -160,7 +160,7 @@ func TestServerConfig_Validate(t *testing.T) {
 				var ce *ConfigErrors
 				require.ErrorAs(t, err, &ce, "should return ConfigErrors")
 				// Should have multiple errors
-				assert.Greater(t, len(ce.Errors), 1, "should have multiple config errors")
+				assert.Greater(t, len(ce.All()), 1, "should have multiple config errors")
 			},
 		},
 		{
@@ -314,7 +314,7 @@ func TestServerConfig_Validate_Integration(t *testing.T) {
 		if errors.As(err, &ce) {
 			// Should have multiple server config errors
 			serverErrorCount := 0
-			for _, e := range ce.Errors {
+			for _, e := range ce.All() {
 				if e.Field == "server.readTimeout" || e.Field == "server.maxHeaderBytes" ||
 					e.Field == "server.shutdownTimeout" {
 

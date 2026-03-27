@@ -43,11 +43,11 @@ type Group struct {
 }
 
 // Use adds middleware to the group that will be executed for all routes in this group.
-// Use middleware is executed after the router's global middleware but before
-// the route-specific handlers.
+// Middleware is executed after the router's global middleware but before the
+// route-specific handlers.
 //
-// Use panics if any middleware is nil. For nil-safe middleware registration at construction time,
-// use WithMiddleware.
+// Use panics if any middleware is nil because it is called after construction, where a nil
+// middleware is a programming error. For construction-time middleware, use [WithMiddleware].
 //
 // Example:
 //
@@ -64,8 +64,11 @@ func (g *Group) Use(middleware ...HandlerFunc) {
 }
 
 // Group creates a nested route group under the current group.
-// It combines the parent's prefix with the provided prefix.
-// It inherits middleware from the parent group.
+// It combines the parent's prefix with the provided prefix and
+// inherits middleware from the parent group.
+//
+// Group panics if any middleware is nil because it is called after construction, where a nil
+// middleware is a programming error. For construction-time middleware, use [WithMiddleware].
 //
 // Example:
 //

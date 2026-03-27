@@ -519,7 +519,7 @@ func TestWithObservability_MultipleConfigErrors(t *testing.T) {
 		// Verify it's a ConfigErrors containing multiple errors
 		var ce *ConfigErrors
 		require.ErrorAs(t, err, &ce)
-		assert.GreaterOrEqual(t, len(ce.Errors), 3, "should have at least 3 observability errors")
+		assert.GreaterOrEqual(t, len(ce.All()), 3, "should have at least 3 observability errors")
 
 		// Check that all invalid patterns are reported
 		errorStr := err.Error()
@@ -542,7 +542,7 @@ func TestWithObservability_MultipleConfigErrors(t *testing.T) {
 		// Should contain both errors
 		var ce *ConfigErrors
 		require.ErrorAs(t, err, &ce)
-		assert.GreaterOrEqual(t, len(ce.Errors), 2, "should have at least 2 errors (serviceName + observability)")
+		assert.GreaterOrEqual(t, len(ce.All()), 2, "should have at least 2 errors (serviceName + observability)")
 
 		// Both errors should be present
 		errorStr := err.Error()

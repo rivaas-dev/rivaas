@@ -136,7 +136,7 @@ func TestApp_Test(t *testing.T) {
 			app := tt.setupApp()
 			tt.setupRoute(app)
 
-			resp, err := app.Test(tt.makeRequest(), tt.opts...)
+			resp, err := app.Test(context.Background(), tt.makeRequest(), tt.opts...)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -167,7 +167,7 @@ func TestApp_Test_NilOptionReturnsError(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/ok", nil)
-	resp, err := app.Test(req, WithTimeout(time.Second), nil)
+	resp, err := app.Test(context.Background(), req, WithTimeout(time.Second), nil)
 	require.Error(t, err)
 	assert.Nil(t, resp)
 	assert.Contains(t, err.Error(), "test option")
@@ -234,7 +234,7 @@ func TestApp_Test_Timeout(t *testing.T) {
 			// This tests that WithTimeout properly handles all cases
 			opts = append(opts, WithTimeout(tt.timeout))
 
-			resp, err := app.Test(req, opts...)
+			resp, err := app.Test(context.Background(), req, opts...)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -254,7 +254,7 @@ func TestApp_Test_Timeout(t *testing.T) {
 	}
 }
 
-// TestApp_Test_Context tests custom context handling.
+// TestApp_Test_Context tests custom context passed as first parameter.
 func TestApp_Test_Context(t *testing.T) {
 	t.Parallel()
 
@@ -323,7 +323,7 @@ func TestApp_Test_Context(t *testing.T) {
 			})
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			resp, err := app.Test(req, WithContext(tt.setupCtx(t)))
+			resp, err := app.Test(tt.setupCtx(t), req)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -467,7 +467,7 @@ func TestApp_TestJSON(t *testing.T) {
 				tt.setupRoute(app)
 			}
 
-			resp, err := app.TestJSON(tt.method, tt.path, tt.body)
+			resp, err := app.TestJSON(context.Background(), tt.method, tt.path, tt.body)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -674,29 +674,36 @@ func TestTestOptions(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		setupCtx   func(*testing.T) context.Context
 		setupOpts  func(*testing.T) []TestOption
 		wantStatus int
 		wantErr    bool
 	}{
 		{
-			name: "multiple options combined",
+			name: "timeout option with custom context",
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return context.WithValue(t.Context(), contextKey("test"), "value")
+			},
 			setupOpts: func(t *testing.T) []TestOption {
 				t.Helper()
 				return []TestOption{
 					WithTimeout(5 * time.Second),
-					WithContext(context.WithValue(t.Context(), contextKey("test"), "value")),
 				}
 			},
 			wantStatus: http.StatusOK,
 			wantErr:    false,
 		},
 		{
-			name: "timeout and context",
+			name: "timeout and context as first param",
+			setupCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				return t.Context()
+			},
 			setupOpts: func(t *testing.T) []TestOption {
 				t.Helper()
 				return []TestOption{
 					WithTimeout(1 * time.Second),
-					WithContext(t.Context()),
 				}
 			},
 			wantStatus: http.StatusOK,
@@ -704,8 +711,10 @@ func TestTestOptions(t *testing.T) {
 		},
 		{
 			name: "no options (defaults)",
+			setupCtx: func(*testing.T) context.Context {
+				return context.Background()
+			},
 			setupOpts: func(*testing.T) []TestOption {
-				t.Helper()
 				return nil
 			},
 			wantStatus: http.StatusOK,
@@ -718,7 +727,7 @@ func TestTestOptions(t *testing.T) {
 			t.Parallel()
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			resp, err := app.Test(req, tt.setupOpts(t)...)
+			resp, err := app.Test(tt.setupCtx(t), req, tt.setupOpts(t)...)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -755,7 +764,7 @@ func TestApp_Test_WithTracingEnabled(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	resp, err := app.Test(req)
+	resp, err := app.Test(context.Background(), req)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)

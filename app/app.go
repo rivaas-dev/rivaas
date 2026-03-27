@@ -324,8 +324,7 @@ func (c *config) validate() error {
 		// Use the dedicated Validate() method for better separation of concerns
 		serverErrs := c.server.Validate()
 		if serverErrs != nil {
-			// Merge server validation errors into the main error collection
-			errs.Errors = append(errs.Errors, serverErrs.Errors...)
+			errs.Merge(serverErrs)
 		}
 		// TLS and mTLS are mutually exclusive
 		hasTLS := c.server.tlsCertFile != "" || c.server.tlsKeyFile != ""
@@ -387,9 +386,6 @@ func (c *config) validate() error {
 		for _, t := range c.mcp.tools {
 			if t.name == "" {
 				errs.Add(newInvalidValueError("mcp", nil, "tool name cannot be empty"))
-			}
-			if t.description == "" {
-				errs.Add(newInvalidValueError("mcp", nil, fmt.Sprintf("tool %q description cannot be empty", t.name)))
 			}
 			if seen[t.name] {
 				errs.Add(newInvalidValueError("mcp", nil, fmt.Sprintf("duplicate tool name %q", t.name)))
@@ -593,7 +589,7 @@ func New(opts ...Option) (*App, error) {
 		// When access log scope is unset, production defaults to errors-only and development to all requests.
 		logErrorsOnly := effectiveLogErrorsOnly(obsSettings, cfg.environment == EnvironmentProduction)
 
-		obsRecorder := newObservabilityRecorder(&observabilityConfig{
+		obsRecorder := newObservabilityRecorder(&recorderConfig{
 			metrics:           metricsCfg,
 			tracing:           tracingCfg,
 			logger:            slogger,
@@ -1008,11 +1004,11 @@ func (a *App) OPTIONS(path string, handler HandlerFunc, opts ...RouteOption) *ro
 	return a.registerRoute(http.MethodOptions, path, handler, opts...)
 }
 
-// Use adds middleware to the app.
 // Use adds middleware that will be executed for all routes.
 //
-// Use panics if any middleware is nil. For nil-safe middleware registration at construction time,
-// use WithMiddleware.
+// Use panics if any middleware is nil because it is called after construction, where a nil
+// middleware is a programming error. For nil-safe middleware registration during construction,
+// use [WithMiddleware] (which collects validation errors instead of panicking).
 //
 // Example:
 //
@@ -1029,9 +1025,11 @@ func (a *App) Use(middleware ...HandlerFunc) {
 	a.router.Use(routerMiddleware...)
 }
 
-// Group creates a new route group.
-// Group creates groups that support [HandlerFunc] (with [Context]),
+// Group creates a new route group with support for [HandlerFunc] (with [Context]),
 // providing access to binding and validation features.
+//
+// Group panics if any middleware is nil because it is called after construction, where a nil
+// middleware is a programming error. For construction-time middleware, use [WithMiddleware].
 //
 // Example:
 //

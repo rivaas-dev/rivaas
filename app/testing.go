@@ -34,7 +34,6 @@ type TestOption func(*testConfig)
 
 type testConfig struct {
 	timeout time.Duration
-	ctx     context.Context //nolint:containedctx // Intentional: test configuration struct
 }
 
 // WithTimeout sets the test request timeout.
@@ -42,18 +41,10 @@ type testConfig struct {
 //
 // Example:
 //
-//	resp, err := app.Test(req, WithTimeout(5*time.Second))
+//	resp, err := app.Test(context.Background(), req, WithTimeout(5*time.Second))
 func WithTimeout(d time.Duration) TestOption {
 	return func(cfg *testConfig) {
 		cfg.timeout = d
-	}
-}
-
-// WithContext uses the provided context for the test request.
-// Useful for testing context propagation and cancellation.
-func WithContext(ctx context.Context) TestOption {
-	return func(cfg *testConfig) {
-		cfg.ctx = ctx
 	}
 }
 
@@ -71,15 +62,14 @@ func WithContext(ctx context.Context) TestOption {
 // Example:
 //
 //	req := httptest.NewRequest("GET", "/users/123", nil)
-//	resp, err := app.Test(req)
+//	resp, err := app.Test(context.Background(), req)
 //	if err != nil {
 //	    t.Fatal(err)
 //	}
 //	assert.Equal(t, 200, resp.StatusCode)
-func (a *App) Test(req *http.Request, opts ...TestOption) (*http.Response, error) {
+func (a *App) Test(ctx context.Context, req *http.Request, opts ...TestOption) (*http.Response, error) { //nolint:contextcheck // Test helper intentionally manages context lifecycle; timeout < 0 discards parent context by design
 	cfg := &testConfig{
 		timeout: 1 * time.Second, // default timeout
-		ctx:     context.Background(),
 	}
 
 	for i, opt := range opts {
@@ -89,14 +79,11 @@ func (a *App) Test(req *http.Request, opts ...TestOption) (*http.Response, error
 		opt(cfg)
 	}
 
-	// Apply timeout via context if specified
-	ctx := cfg.ctx
 	if cfg.timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, cfg.timeout)
 		defer cancel()
 	} else if cfg.timeout < 0 {
-		// -1 means no timeout
 		ctx = context.Background()
 	}
 
@@ -132,8 +119,8 @@ func (a *App) Test(req *http.Request, opts ...TestOption) (*http.Response, error
 // Example:
 //
 //	body := map[string]string{"name": "Alice"}
-//	resp, err := app.TestJSON("POST", "/users", body)
-func (a *App) TestJSON(method, path string, body any, opts ...TestOption) (*http.Response, error) {
+//	resp, err := app.TestJSON(context.Background(), "POST", "/users", body)
+func (a *App) TestJSON(ctx context.Context, method, path string, body any, opts ...TestOption) (*http.Response, error) {
 	var buf bytes.Buffer
 	if body != nil {
 		if err := json.NewEncoder(&buf).Encode(body); err != nil {
@@ -144,7 +131,7 @@ func (a *App) TestJSON(method, path string, body any, opts ...TestOption) (*http
 	req := httptest.NewRequest(method, path, &buf)
 	req.Header.Set("Content-Type", "application/json")
 
-	return a.Test(req, opts...)
+	return a.Test(ctx, req, opts...)
 }
 
 // ExpectJSON is a test helper that asserts a response has the expected status code

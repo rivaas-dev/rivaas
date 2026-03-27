@@ -15,8 +15,7 @@
 package app
 
 import (
-	"errors"
-	"strconv"
+	"fmt"
 
 	"rivaas.dev/openapi"
 )
@@ -121,7 +120,7 @@ func RouteOptions(opts ...RouteOption) RouteOption {
 	return func(c *routeConfig) {
 		for i, opt := range opts {
 			if opt == nil {
-				c.validationErrors = append(c.validationErrors, errors.New("app: route option at index "+strconv.Itoa(i)+" cannot be nil"))
+				c.validationErrors = append(c.validationErrors, fmt.Errorf("app: route option at index %d cannot be nil", i))
 				continue
 			}
 			opt(c)

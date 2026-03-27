@@ -38,8 +38,8 @@ func TestRouteOption_NilOption_ValidatedByValidateRoutes(t *testing.T) {
 
 	var ce *ConfigErrors
 	require.True(t, errors.As(err, &ce))
-	require.Len(t, ce.Errors, 1)
-	assert.Contains(t, ce.Errors[0].Message, "route option at index 0 cannot be nil")
+	require.Len(t, ce.All(), 1)
+	assert.Contains(t, ce.All()[0].Message, "route option at index 0 cannot be nil")
 }
 
 func TestRouteOption_NilOptionAtIndex1_ValidatedByValidateRoutes(t *testing.T) {
@@ -69,7 +69,7 @@ func TestRouteOption_MultipleNilOptions_AllReported(t *testing.T) {
 	require.Error(t, err)
 	var ce *ConfigErrors
 	require.True(t, errors.As(err, &ce))
-	assert.GreaterOrEqual(t, len(ce.Errors), 2, "should report both nil option errors")
+	assert.GreaterOrEqual(t, len(ce.All()), 2, "should report both nil option errors")
 	assert.Contains(t, err.Error(), "route option at index 0 cannot be nil")
 }
 
