@@ -17,6 +17,7 @@ package openapi
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 
@@ -277,9 +278,7 @@ func cloneStringMap(src map[string]string) map[string]string {
 		return nil
 	}
 	out := make(map[string]string, len(src))
-	for k, v := range src {
-		out[k] = v
-	}
+	maps.Copy(out, src)
 	return out
 }
 
