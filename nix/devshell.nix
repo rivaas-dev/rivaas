@@ -6,7 +6,7 @@ pkgs.mkShell {
 
   buildInputs = with pkgs; [
     # Go toolchain
-    go_1_26       # Go compiler
+    go_1_27       # Go compiler. The app module requires Go 1.27.
     gopls         # Go language server
     gotools       # Go tools (godoc, goimports, callgraph, digraph, etc.)
     go-tools      # Go tools (staticcheck, etc.)
