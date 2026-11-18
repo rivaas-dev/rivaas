@@ -794,7 +794,7 @@ func TestPresenceMap_HasPrefix(t *testing.T) {
 		},
 		{
 			name:     "nil map should return false",
-			pm:       (PresenceMap)(nil),
+			pm:       PresenceMap(nil),
 			prefix:   "any",
 			expected: false,
 		},
@@ -1033,7 +1033,7 @@ func TestPresenceMap_LeafPaths(t *testing.T) {
 		},
 		{
 			name:     "nil map returns nil",
-			pm:       (PresenceMap)(nil),
+			pm:       PresenceMap(nil),
 			expected: map[string]bool{},
 		},
 	}
