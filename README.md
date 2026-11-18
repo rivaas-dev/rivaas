@@ -87,7 +87,7 @@ See [full-featured example](./app/examples/02-blog/) for a complete production s
 go get rivaas.dev/app
 ```
 
-Requires Go 1.25+
+The app module requires Go 1.27 or later. Binding method signatures are unchanged, but users on Go 1.25 or 1.26 must upgrade their toolchain to use `rivaas.dev/app`. Other modules in this repository still require Go 1.25 or later.
 
 ## Philosophy
 
