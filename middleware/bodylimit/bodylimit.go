@@ -90,6 +90,10 @@ type limitedReader struct {
 	reader io.ReadCloser
 	limit  int64
 	read   int64
+	// err is sticky. Go 1.27's encoding/json may discard an error
+	// returned together with a non-zero byte count and read again.
+	// A later EOF would hide the limit error, so later reads repeat it.
+	err error
 }
 
 // Read reads data from the underlying reader and enforces the limit.
@@ -98,7 +102,12 @@ type limitedReader struct {
 // Note: This reader is not safe for concurrent use, but that's acceptable since
 // http.Request.Body should not be read from multiple goroutines concurrently.
 func (lr *limitedReader) Read(p []byte) (int, error) {
-	// If we've already read up to the limit, return EOF
+	if lr.err != nil {
+		return 0, lr.err
+	}
+
+	// If we've already read up to the limit, return EOF.
+	// A body that ends exactly at the limit is valid.
 	if lr.read >= lr.limit {
 		return 0, io.EOF
 	}
@@ -123,7 +132,8 @@ func (lr *limitedReader) Read(p []byte) (int, error) {
 		extraN, extraErr := lr.reader.Read(oneByte[:])
 		if extraN > 0 {
 			// There's more data beyond the limit - return error
-			return n, fmt.Errorf("%w: %d bytes", ErrBodyLimitExceeded, lr.limit)
+			lr.err = fmt.Errorf("%w: %d bytes", ErrBodyLimitExceeded, lr.limit)
+			return n, lr.err
 		}
 		// If read returned EOF or 0 bytes, we're exactly at limit (acceptable)
 		if extraErr == io.EOF {
