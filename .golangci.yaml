@@ -1,5 +1,5 @@
 # golangci-lint configuration (HARD/REQUIRED checks)
-# This config contains only critical linters that must pass.
+# This config contains the linters that must pass.
 # For optional quality checks, see .golangci-soft.yaml
 version: "2"
 
@@ -83,6 +83,16 @@ linters:
     # BAD:  io.EOF = errors.New("custom")  // breaks all io.EOF checks!
     # GOOD: Don't reassign package variables
     - reassign
+
+    # === REQUIRED MODERNIZATION ===
+    # modernize: Required simplifications to current Go.
+    # golangci-lint 2.15 runs the stable suite from golang.org/x/tools v0.52.
+    # That suite includes newexpr. newexpr reports only in files whose
+    # language version is Go 1.26 or newer, so a Go 1.25 module is not
+    # asked to use new(expr).
+    # Upstream leaves appendclipped, bloop, fmtappendf, and slicesdelete
+    # out of the suite because those rewrites are not behavior-preserving.
+    - modernize
 
   settings:
     bidichk:

@@ -250,12 +250,6 @@ linters:
     # dupl: Duplicate code detection
     - dupl
 
-    # modernize: Suggests modern Go idioms and stdlib features
-    # - interface{} -> any (Go 1.18+)
-    # - for i := 0; i < n; i++ -> for i := range n (Go 1.22+)
-    # - manual loops -> slices.Contains (Go 1.21+)
-    - modernize
-
     # exptostd: Replaces golang.org/x/exp with stdlib equivalents
     # BAD:  import "golang.org/x/exp/slices"
     # GOOD: import "slices" (Go 1.21+)
@@ -264,8 +258,8 @@ linters:
     # intrange: Suggests integer range syntax for for loops (has autofix)
     # BAD:  for i := 0; i < n; i++ { ... }
     # GOOD: for i := range n { ... }
-    # NOTE: Overlaps with modernize, but intrange has autofix while modernize
-    #       catches this plus other patterns - worth having both.
+    # NOTE: The required modernize linter reports this same loop. intrange
+    #       stays here because it can apply the rewrite with --fix.
     - intrange
 
     # usestdlibvars: Use stdlib constants instead of magic values (has autofix)
@@ -558,11 +552,6 @@ linters:
       # Check all content (code + comments), not just comments
       # mode: restricted would only check comments
       mode: ""
-
-    modernize:
-      disable:
-        # Go 1.26 not released yet
-        - newexpr
 
     nakedret:
       # Allow naked returns in very short functions (easier to understand)
