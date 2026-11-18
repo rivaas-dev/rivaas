@@ -299,7 +299,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 				name: "cookieGetter with prefix",
 				setup: func() (*prefixGetter, string, bool) {
 					cookies := []*http.Cookie{
-						{Name: "user.id", Value: "123"},
+						{Name: "user.id", Value: "123"}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 					}
 					getter := NewCookieGetter(cookies)
 
@@ -314,7 +314,7 @@ func TestPrefixGetter_Has(t *testing.T) {
 				name: "cookieGetter with prefix - nonexistent",
 				setup: func() (*prefixGetter, string, bool) {
 					cookies := []*http.Cookie{
-						{Name: "user.id", Value: "123"},
+						{Name: "user.id", Value: "123"}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 					}
 					getter := NewCookieGetter(cookies)
 

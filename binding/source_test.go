@@ -63,8 +63,8 @@ func TestValueGetter_GetAll(t *testing.T) {
 		t.Parallel()
 
 		cookies := []*http.Cookie{
-			{Name: "session", Value: url.QueryEscape("abc123")},
-			{Name: "session", Value: url.QueryEscape("def456")},
+			{Name: "session", Value: url.QueryEscape("abc123")}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
+			{Name: "session", Value: url.QueryEscape("def456")}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 		}
 		getter := NewCookieGetter(cookies)
 
@@ -108,8 +108,8 @@ func TestCookieGetter_Has(t *testing.T) {
 	t.Parallel()
 
 	cookies := []*http.Cookie{
-		{Name: "session", Value: "abc123"},
-		{Name: "user_id", Value: "42"},
+		{Name: "session", Value: "abc123"}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
+		{Name: "user_id", Value: "42"},     //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 	}
 
 	getter := NewCookieGetter(cookies)
@@ -124,7 +124,7 @@ func TestCookieGetter_Get_UnescapingError(t *testing.T) {
 	t.Parallel()
 
 	cookies := []*http.Cookie{
-		{Name: "data", Value: "%ZZ"}, // Invalid percent encoding
+		{Name: "data", Value: "%ZZ"}, //nolint:gosec // G124: request cookie fixture; %ZZ is invalid percent-encoding
 	}
 
 	getter := NewCookieGetter(cookies)
@@ -139,8 +139,8 @@ func TestCookieGetter_Get_NotFound(t *testing.T) {
 	t.Parallel()
 
 	cookies := []*http.Cookie{
-		{Name: "session_id", Value: "abc123"},
-		{Name: "theme", Value: "dark"},
+		{Name: "session_id", Value: "abc123"}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
+		{Name: "theme", Value: "dark"},        //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 	}
 
 	getter := NewCookieGetter(cookies)
@@ -190,9 +190,9 @@ func TestBind_Cookies(t *testing.T) {
 		{
 			name: "valid cookies",
 			cookies: []*http.Cookie{
-				{Name: "session_id", Value: "abc123"},
-				{Name: "theme", Value: "dark"},
-				{Name: "remember_me", Value: "true"},
+				{Name: "session_id", Value: "abc123"}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
+				{Name: "theme", Value: "dark"},        //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
+				{Name: "remember_me", Value: "true"},  //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 			},
 			params: &SessionCookies{},
 			validate: func(t *testing.T, params any) {
@@ -207,7 +207,7 @@ func TestBind_Cookies(t *testing.T) {
 		{
 			name: "URL encoded cookies",
 			cookies: []*http.Cookie{
-				{Name: "session_id", Value: url.QueryEscape("value with spaces")},
+				{Name: "session_id", Value: url.QueryEscape("value with spaces")}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 			},
 			params: &struct {
 				SessionID string `cookie:"session_id"`
@@ -359,8 +359,8 @@ func TestBind_GetAll(t *testing.T) {
 				name: "multiple cookies with same name",
 				setup: func() []*http.Cookie {
 					return []*http.Cookie{
-						{Name: "session", Value: "abc123"},
-						{Name: "session", Value: "def456"},
+						{Name: "session", Value: "abc123"}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
+						{Name: "session", Value: "def456"}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 					}
 				},
 				params: &CookiesWithSession{},
@@ -376,7 +376,7 @@ func TestBind_GetAll(t *testing.T) {
 			{
 				name: "URL unescaping error path",
 				setup: func() []*http.Cookie {
-					return []*http.Cookie{{Name: "data", Value: "%ZZ"}} // Invalid percent encoding
+					return []*http.Cookie{{Name: "data", Value: "%ZZ"}} //nolint:gosec // G124: request cookie fixture; %ZZ is invalid percent-encoding
 				},
 				params: &CookiesWithData{},
 				validate: func(t *testing.T, cookies any) {

@@ -138,7 +138,7 @@ func setFieldValue(field reflect.Value, value string, opts *config) error {
 	// Priority 2: Check for encoding.TextUnmarshaler interface
 	// This allows custom types to define their own parsing logic
 	if field.CanAddr() && field.Addr().Type().Implements(textUnmarshalerType) {
-		unmarshaler, ok := field.Addr().Interface().(encoding.TextUnmarshaler)
+		unmarshaler, ok := reflect.TypeAssert[encoding.TextUnmarshaler](field.Addr())
 		if !ok {
 			return fmt.Errorf("%w: failed to assert TextUnmarshaler", ErrUnsupportedType)
 		}

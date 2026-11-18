@@ -160,6 +160,7 @@ func TestCookieGetter(t *testing.T, pairs ...string) ValueGetter {
 
 	cookies := make([]*http.Cookie, 0, len(pairs)/2)
 	for i := 0; i < len(pairs); i += 2 {
+		//nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 		cookies = append(cookies, &http.Cookie{
 			Name:  pairs[i],
 			Value: pairs[i+1],

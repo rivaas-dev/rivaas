@@ -153,8 +153,8 @@ func TestBinder_CookieTo(t *testing.T) {
 		Theme   string `cookie:"theme"`
 	}
 	cookies := []*http.Cookie{
-		{Name: "session_id", Value: "xyz"},
-		{Name: "theme", Value: "dark"},
+		{Name: "session_id", Value: "xyz"}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
+		{Name: "theme", Value: "dark"},     //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 	}
 	var out Cookies
 	err = binder.CookieTo(cookies, &out)
@@ -295,7 +295,7 @@ func TestCookieWith(t *testing.T) {
 	type Cookies struct {
 		Session string `cookie:"session"`
 	}
-	cookies := []*http.Cookie{{Name: "session", Value: "abc123"}}
+	cookies := []*http.Cookie{{Name: "session", Value: "abc123"}} //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 	result, err := CookieWith[Cookies](binder, cookies)
 	require.NoError(t, err)
 	assert.Equal(t, "abc123", result.Session)

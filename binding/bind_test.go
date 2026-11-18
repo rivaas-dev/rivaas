@@ -1078,7 +1078,7 @@ func TestBindTo(t *testing.T) {
 			FromPath(map[string]string{"id": "123"}),
 			FromQuery(url.Values{"page": {"5"}}),
 			FromHeader(http.Header{"X-Api-Key": {"secret-key"}}),
-			FromCookie([]*http.Cookie{{Name: "session", Value: "abc123"}}),
+			FromCookie([]*http.Cookie{{Name: "session", Value: "abc123"}}), //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 		)
 		require.NoError(t, err)
 		assert.Equal(t, 123, req.ID)
@@ -1101,7 +1101,7 @@ func TestBindTo(t *testing.T) {
 			FromPath(map[string]string{"id": "123"}),
 			FromQuery(url.Values{"page": {"5"}}),
 			FromHeader(http.Header{"X-Api-Key": {"secret-key"}}),
-			FromCookie([]*http.Cookie{{Name: "session", Value: "abc123"}}),
+			FromCookie([]*http.Cookie{{Name: "session", Value: "abc123"}}), //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 		)
 		require.NoError(t, err)
 		assert.Equal(t, 123, req.ID)
@@ -1368,8 +1368,8 @@ func TestCookie(t *testing.T) {
 		Theme   string `cookie:"theme"`
 	}
 	cookies := []*http.Cookie{
-		{Name: "session_id", Value: "xyz"},
-		{Name: "theme", Value: "dark"},
+		{Name: "session_id", Value: "xyz"}, //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
+		{Name: "theme", Value: "dark"},     //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 	}
 	result, err := Cookie[Cookies](cookies)
 	require.NoError(t, err)
@@ -1384,7 +1384,7 @@ func TestCookieTo(t *testing.T) {
 	type Cookies struct {
 		Session string `cookie:"session"`
 	}
-	cookies := []*http.Cookie{{Name: "session", Value: "abc"}}
+	cookies := []*http.Cookie{{Name: "session", Value: "abc"}} //nolint:gosec // G124: request cookie fixture, not a Set-Cookie
 	var out Cookies
 	err := CookieTo(cookies, &out)
 	require.NoError(t, err)
