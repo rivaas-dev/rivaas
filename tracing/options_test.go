@@ -157,7 +157,6 @@ func TestWithSampleRate(t *testing.T) {
 	}
 
 	for _, tt := range validTests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -182,7 +181,6 @@ func TestWithSampleRate(t *testing.T) {
 	}
 
 	for _, tc := range invalidRates {
-		tc := tc
 		t.Run("New_rejects_"+tc.name, func(t *testing.T) {
 			t.Parallel()
 

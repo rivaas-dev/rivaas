@@ -289,7 +289,7 @@ func TestMustMiddleware_NilOptionPanics(t *testing.T) {
 
 	tracer := TestingTracer(t)
 	var nilOpt MiddlewareOption
-	var recovered interface{}
+	var recovered any
 	func() {
 		defer func() { recovered = recover() }()
 		MustMiddleware(tracer, WithExcludePaths("/health"), nilOpt)

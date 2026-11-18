@@ -1475,7 +1475,7 @@ func TestNew_WithOTLP_NilNestedOptionReturnsError(t *testing.T) {
 func TestMustNew_NilOptionPanics(t *testing.T) {
 	t.Parallel()
 
-	var recovered interface{}
+	var recovered any
 	func() {
 		defer func() { recovered = recover() }()
 		MustNew(WithServiceName("test"), nil)
@@ -1502,7 +1502,7 @@ func TestWithTracerProvider_NilReturnsError(t *testing.T) {
 func TestMustNew_WithTracerProviderNilPanics(t *testing.T) {
 	t.Parallel()
 
-	var recovered interface{}
+	var recovered any
 	func() {
 		defer func() { recovered = recover() }()
 		MustNew(WithTracerProvider(nil), WithServiceName("test"))
