@@ -806,3 +806,168 @@ func TestSendStatus_UnknownCode(t *testing.T) {
 	// Should include numeric code in response
 	assert.Contains(t, w.Body.String(), "999")
 }
+
+// TestNoBodyStatuses checks statuses that must not carry a body.
+// Go 1.27's httptest.ResponseRecorder rejects every Write, including an
+// empty one, for 1xx, 204, and 304. An empty payload returns success and
+// writes nothing. A non-empty payload still returns the write error.
+func TestNoBodyStatuses(t *testing.T) {
+	t.Parallel()
+
+	noBody := []int{
+		http.StatusContinue,
+		http.StatusSwitchingProtocols,
+		199,
+		http.StatusNoContent,
+		http.StatusNotModified,
+	}
+	withBody := []int{
+		http.StatusOK,
+		http.StatusCreated,
+		http.StatusBadRequest,
+	}
+
+	newContext := func() (*Context, *httptest.ResponseRecorder) {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+		return NewContext(w, req), w
+	}
+
+	for _, code := range noBody {
+		t.Run(fmt.Sprintf("string_empty_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.String(code, ""))
+			assert.Equal(t, code, w.Code)
+			assert.Empty(t, w.Body.String())
+			assert.Equal(t, "text/plain", w.Header().Get("Content-Type"))
+		})
+
+		t.Run(fmt.Sprintf("data_empty_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.Data(code, "application/octet-stream", nil))
+			assert.Equal(t, code, w.Code)
+			assert.Empty(t, w.Body.String())
+			assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
+		})
+
+		t.Run(fmt.Sprintf("send_status_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.SendStatus(code))
+			assert.Equal(t, code, w.Code)
+			assert.Empty(t, w.Body.String())
+		})
+
+		t.Run(fmt.Sprintf("stringf_empty_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.Stringf(code, ""))
+			require.NoError(t, c.Stringf(code, "%s", ""))
+			require.NoError(t, c.Stringf(code, "%s%s", "", ""))
+			assert.Equal(t, code, w.Code)
+			assert.Empty(t, w.Body.String())
+			assert.Equal(t, "text/plain", w.Header().Get("Content-Type"))
+		})
+
+		t.Run(fmt.Sprintf("stringf_nonempty_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			err := c.Stringf(code, "id=%d", 7)
+			require.ErrorIs(t, err, http.ErrBodyNotAllowed)
+			assert.Equal(t, code, w.Code)
+
+			c, w = newContext()
+			err = c.Stringf(code, "hello %s", "world")
+			require.ErrorIs(t, err, http.ErrBodyNotAllowed)
+			assert.Equal(t, code, w.Code)
+		})
+
+		t.Run(fmt.Sprintf("string_nonempty_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			// The recorder still buffers the rejected bytes. The contract is
+			// that the error is returned and the write is not reported as success.
+			err := c.String(code, "not allowed")
+			require.ErrorIs(t, err, http.ErrBodyNotAllowed)
+			assert.Equal(t, code, w.Code)
+		})
+
+		t.Run(fmt.Sprintf("data_nonempty_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			err := c.Data(code, "text/plain", []byte("not allowed"))
+			require.ErrorIs(t, err, http.ErrBodyNotAllowed)
+			assert.Equal(t, code, w.Code)
+		})
+	}
+
+	for _, code := range withBody {
+		t.Run(fmt.Sprintf("string_empty_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.String(code, ""))
+			assert.Equal(t, code, w.Code)
+			assert.Empty(t, w.Body.String())
+		})
+
+		t.Run(fmt.Sprintf("stringf_empty_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.Stringf(code, ""))
+			assert.Equal(t, code, w.Code)
+			assert.Empty(t, w.Body.String())
+		})
+
+		t.Run(fmt.Sprintf("stringf_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.Stringf(code, "id=%d", 7))
+			assert.Equal(t, code, w.Code)
+			assert.Equal(t, "id=7", w.Body.String())
+
+			c, w = newContext()
+			require.NoError(t, c.Stringf(code, "hello %s", "world"))
+			assert.Equal(t, "hello world", w.Body.String())
+		})
+
+		t.Run(fmt.Sprintf("string_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.String(code, "hello"))
+			assert.Equal(t, code, w.Code)
+			assert.Equal(t, "hello", w.Body.String())
+		})
+
+		t.Run(fmt.Sprintf("data_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.Data(code, "text/plain", []byte("hello")))
+			assert.Equal(t, code, w.Code)
+			assert.Equal(t, "hello", w.Body.String())
+		})
+
+		t.Run(fmt.Sprintf("send_status_%d", code), func(t *testing.T) {
+			t.Parallel()
+			c, w := newContext()
+
+			require.NoError(t, c.SendStatus(code))
+			assert.Equal(t, code, w.Code)
+			assert.Equal(t, http.StatusText(code), w.Body.String())
+		})
+	}
+}

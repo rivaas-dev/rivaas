@@ -768,10 +768,12 @@ func newMockRegistrar() *mockRegistrar {
 	}
 }
 
-func (m *mockRegistrar) IsFrozen() bool                                     { return m.frozen }
-func (m *mockRegistrar) IsWarmedUp() bool                                   { return m.warmedUp }
-func (m *mockRegistrar) AddPendingRoute(route *Route)                       { m.routes = append(m.routes, route) }
-func (m *mockRegistrar) RegisterRouteNow(route *Route)                      { m.routes = append(m.routes, route) }
+func (m *mockRegistrar) IsFrozen() bool               { return m.frozen }
+func (m *mockRegistrar) IsWarmedUp() bool             { return m.warmedUp }
+func (m *mockRegistrar) AddPendingRoute(route *Route) { m.routes = append(m.routes, route) }
+
+func (m *mockRegistrar) RegisterRouteNow(route *Route) { m.routes = append(m.routes, route) }
+
 func (m *mockRegistrar) GetGlobalMiddleware() []Handler                     { return m.globalMiddleware }
 func (m *mockRegistrar) RecordRouteRegistration(_, _ string)                {}
 func (m *mockRegistrar) Emit(_ DiagnosticKind, _ string, _ map[string]any)  {}

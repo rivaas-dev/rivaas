@@ -183,7 +183,9 @@ func (c *Context) Send(data []byte) error {
 	return err
 }
 
-// SendStatus sends an HTTP status code with the standard status text as body.
+// SendStatus sends an HTTP status code.
+// When the status allows a body, the body is the standard status text.
+// 1xx, 204, and 304 only set the status. Those codes cannot have a body.
 // If the response body is already written, only sets the status.
 //
 // Example:
@@ -200,6 +202,10 @@ func (c *Context) SendStatus(code int) error {
 		}
 	}
 
+	if !statusAllowsBody(code) {
+		return nil
+	}
+
 	// Send status text as body
 	statusText := http.StatusText(code)
 	if statusText == "" {
@@ -209,6 +215,19 @@ func (c *Context) SendStatus(code int) error {
 	_, err := c.Response.Write([]byte(statusText))
 
 	return err
+}
+
+// statusAllowsBody reports whether an HTTP status may include a body.
+// 1xx, 204, and 304 must not.
+func statusAllowsBody(code int) bool {
+	switch {
+	case code >= 100 && code <= 199:
+		return false
+	case code == http.StatusNoContent, code == http.StatusNotModified:
+		return false
+	default:
+		return true
+	}
 }
 
 // JSONP sends a JSON response with JSONP callback support.

@@ -17,6 +17,7 @@ package router
 import (
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 )
 
@@ -315,8 +316,8 @@ func lastUntrustedXFF(xff string, cfg *realIPConfig) string {
 	hops := 0
 	boundary := len(parts) // Position after the last trusted IP we've seen
 
-	for i := len(parts) - 1; i >= 0; i-- {
-		ip := parseOneIP(parts[i])
+	for i, part := range slices.Backward(parts) {
+		ip := parseOneIP(part)
 		if ip == "" {
 			continue
 		}

@@ -629,6 +629,12 @@ func (c *Context) String(code int, value string) error {
 		c.Response.WriteHeader(code)
 	}
 
+	// A status that cannot have a body rejects every Write, including an
+	// empty one, on Go 1.27's httptest.ResponseRecorder.
+	if value == "" && !statusAllowsBody(code) {
+		return nil
+	}
+
 	// String-to-[]byte conversion
 	_, err := c.Response.Write([]byte(value))
 	if err != nil {
@@ -641,6 +647,9 @@ func (c *Context) String(code int, value string) error {
 // Stringf sends a formatted plain text response.
 // This uses fmt.Sprintf-style formatting and supports any number of values.
 // Returns an error if writing fails.
+//
+// 1xx, 204, and 304 cannot have a body. An empty formatted result sets the
+// status and does not write. A non-empty result still returns the write error.
 //
 // Note: This method uses variadic parameters
 // (values ...any). For plain strings without formatting, use String() instead,
@@ -670,8 +679,27 @@ func (c *Context) Stringf(code int, format string, values ...any) error {
 		c.Response.WriteHeader(code)
 	}
 
-	// Handle single %s pattern with single string value (fast path)
+	// Handle single %s pattern with single string value (fast path).
+	// It writes nothing when every piece is empty, so a no-body status
+	// does not see an empty Write.
 	if err := c.tryFastStringFormat(format, values); err == nil {
+		return nil
+	} else if !errors.Is(err, errFastPathNotApplicable) {
+		return err
+	}
+
+	// A status that cannot have a body rejects every Write, including an
+	// empty one, on Go 1.27's httptest.ResponseRecorder.
+	if !statusAllowsBody(code) {
+		formatted := fmt.Sprintf(format, values...)
+		if formatted == "" {
+			return nil
+		}
+		_, err := c.Response.Write([]byte(formatted))
+		if err != nil {
+			return fmt.Errorf("writing formatted string response: %w", err)
+		}
+
 		return nil
 	}
 
@@ -936,11 +964,14 @@ func (c *Context) IsVersion(version string) bool {
 
 // SetCookie sets a cookie with the given name and value.
 // This is a convenience wrapper around http.SetCookie.
+// Secure and HttpOnly are chosen by the caller.
+// SameSite is left unset, so the browser default applies.
 //
 // Example:
 //
 //	c.SetCookie("session_id", "abc123", 3600, "/", "", false, true)
 func (c *Context) SetCookie(name, value string, maxAge int, path, domain string, secure, httpOnly bool) {
+	//nolint:gosec // G124: Secure and HttpOnly are caller arguments; SameSite is not part of this helper
 	cookie := &http.Cookie{
 		Name:     name,
 		Value:    url.QueryEscape(value),
@@ -1078,6 +1109,12 @@ func (c *Context) Data(code int, contentType string, data []byte) error {
 		}
 	} else {
 		c.Response.WriteHeader(code)
+	}
+
+	// A status that cannot have a body rejects every Write, including an
+	// empty one, on Go 1.27's httptest.ResponseRecorder.
+	if len(data) == 0 && !statusAllowsBody(code) {
+		return nil
 	}
 
 	// Write data directly

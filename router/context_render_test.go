@@ -367,7 +367,7 @@ func TestASCIIJSON(t *testing.T) {
 		},
 		{
 			name: "invalid UTF-8 escaped byte-by-byte",
-			data: map[string]interface{}{
+			data: map[string]any{
 				// Invalid 2-byte sequence: 0xC0 (leading) + 0x41 ('A'), not a valid continuation byte
 				"bad": invalidUTF8String("\xc0A"),
 			},

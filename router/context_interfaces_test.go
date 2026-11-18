@@ -184,6 +184,7 @@ func (m *mockResponseWriter) NoContent() {
 }
 
 func (m *mockResponseWriter) SetCookie(name, value string, maxAge int, path, domain string, secure, httpOnly bool) {
+	//nolint:gosec // G124: mirrors SetCookie; Secure and HttpOnly are caller arguments
 	m.cookies = append(m.cookies, http.Cookie{
 		Name:     name,
 		Value:    value,
