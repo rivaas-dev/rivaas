@@ -14,160 +14,10 @@ let
     inputWidth = 72;             # Width for single-line commit input (git convention)
   };
 
-  # =============================================================================
-  # Reusable Shell Script Helpers
-  # =============================================================================
-
-  # Count changes for a module
-  # Returns: staged unstaged untracked (space-separated)
-  countChangesScript = ''
-    count_changes() {
-      local mod="$1"
-      local staged unstaged untracked
-      
-      # Check if this is a root category
-      if is_root_category "$mod"; then
-        # Get patterns for this category
-        patterns=($(get_root_category_patterns "$mod"))
-        staged=0
-        unstaged=0
-        untracked=0
-        
-        for pattern in "''${patterns[@]}"; do
-          # Handle both files and directories
-          if [[ "$pattern" == */ ]]; then
-            # Directory pattern
-            staged=$((staged + $($git diff --cached --name-only -- "$pattern" 2>/dev/null | wc -l)))
-            unstaged=$((unstaged + $($git diff --name-only -- "$pattern" 2>/dev/null | wc -l)))
-            untracked=$((untracked + $($git ls-files --others --exclude-standard -- "$pattern" 2>/dev/null | wc -l)))
-          else
-            # File pattern (may include wildcards)
-            staged=$((staged + $($git diff --cached --name-only -- "$pattern" 2>/dev/null | wc -l)))
-            unstaged=$((unstaged + $($git diff --name-only -- "$pattern" 2>/dev/null | wc -l)))
-            untracked=$((untracked + $($git ls-files --others --exclude-standard -- "$pattern" 2>/dev/null | wc -l)))
-          fi
-        done
-      else
-        staged=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l)
-        unstaged=$($git diff --name-only -- "$mod/" 2>/dev/null | wc -l)
-        untracked=$($git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | wc -l)
-      fi
-      
-      echo "$staged $unstaged $untracked"
-    }
-  '';
-
-  # Ensure we're at the repository root
-  repoRootCheck = ''
-    repo_root=$($git rev-parse --show-toplevel 2>/dev/null)
-    if [ -z "$repo_root" ]; then
-      $gum style --foreground ${lib.colors.error} "✗ Not in a git repository"
-      exit 1
-    fi
-    cd "$repo_root" || exit 1
-  '';
-
-  # Discover root-level Go modules and root categories
-  findModulesScript = ''
-    find_modules() {
-      # Root categories (virtual modules for root-level files)
-      # Only shown if they have changes
-      echo "ci"
-      echo "nix"
-      echo "dotfiles"
-      echo "deps"
-      echo "docs"
-      echo "middleware"
-      
-      # Go modules
-      ${pkgs.findutils}/bin/find . ${lib.findPatterns.rootModules} | sed 's|^\./||' | sort
-    }
-  '';
-
-  # Get file patterns for root categories
-  getRootCategoryPatternsScript = ''
-    get_root_category_patterns() {
-      local category="$1"
-      case "$category" in
-        ci)
-          echo ".github/" "codecov.yml"
-          ;;
-        nix)
-          echo "nix/" "flake.nix" "flake.lock"
-          ;;
-        dotfiles)
-          echo ".editorconfig" ".envrc" ".gitignore" ".golangci.yaml" ".golangci-soft.yaml"
-          ;;
-        deps)
-          echo "go.work" "go.work.sum"
-          ;;
-        docs)
-          echo "README.md" "LICENSE"
-          ;;
-        middleware)
-          echo "middleware/README.md"
-          ;;
-        *)
-          return 1
-          ;;
-      esac
-    }
-  '';
-
-  # Check if a path is a root category
-  isRootCategoryScript = ''
-    is_root_category() {
-      local mod="$1"
-      case "$mod" in
-        ci|nix|dotfiles|deps|docs|middleware)
-          return 0
-          ;;
-        *)
-          return 1
-          ;;
-      esac
-    }
-  '';
-
-  # Check for changes outside Go modules and print warning if any
-  # Args: $1 = newline-separated list of module paths
-  checkOutsideChangesScript = ''
-    check_outside_changes() {
-      local modules="$1"
-      local other_changes module_changes outside_changes
-
-      other_changes=$($git status --porcelain 2>/dev/null | wc -l)
-      module_changes=0
-
-      while IFS= read -r mod; do
-        [ -z "$mod" ] && continue
-        count=$($git status --porcelain -- "$mod/" 2>/dev/null | wc -l)
-        module_changes=$((module_changes + count))
-      done <<< "$modules"
-
-      outside_changes=$((other_changes - module_changes))
-      if [ "$outside_changes" -gt 0 ]; then
-        echo ""
-        $gum style --foreground ${lib.colors.accent4} "  ⚠ $outside_changes file(s) changed outside Go modules"
-        return 0
-      fi
-      return 1
-    }
-  '';
-
-  # Clean AI output: strip quotes and trim whitespace
-  cleanAiOutputScript = ''
-    clean_ai_output() {
-      echo "$1" | sed 's/^"//;s/"$//' | sed "s/^'//;s/'$//" | xargs
-    }
-  '';
-
-  # Strip markdown code fences from AI output
-  stripMarkdownScript = ''
-    strip_markdown() {
-      sed '/^```/d'
-    }
-  '';
+  # Shared with the PR tool. Module discovery, path ownership, and commit
+  # isolation live in this file so a module commit cannot see another module's
+  # staged paths.
+  contrib = ../../scripts/contrib;
 
   # Common AI prompt rules (shared between simple and complex prompts)
   aiPromptRules = ''
@@ -189,13 +39,12 @@ in
 
       gum="${pkgs.gum}/bin/gum"
       git="${pkgs.git}/bin/git"
-
-      ${repoRootCheck}
-      ${countChangesScript}
-      ${findModulesScript}
-      ${getRootCategoryPatternsScript}
-      ${isRootCategoryScript}
-      ${checkOutsideChangesScript}
+      export GIT="$git"
+      export GUM="$gum"
+      export FIND="${pkgs.findutils}/bin/find"
+      # shellcheck source=../../scripts/contrib/lib.sh
+      source ${contrib}/lib.sh
+      require_repo_root || exit 1
 
       $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "Module Changes Status"
       echo ""
@@ -255,15 +104,12 @@ in
 
       gum="${pkgs.gum}/bin/gum"
       git="${pkgs.git}/bin/git"
-
-      ${repoRootCheck}
-      ${countChangesScript}
-      ${findModulesScript}
-      ${getRootCategoryPatternsScript}
-      ${isRootCategoryScript}
-      ${checkOutsideChangesScript}
-      ${cleanAiOutputScript}
-      ${stripMarkdownScript}
+      export GIT="$git"
+      export GUM="$gum"
+      export FIND="${pkgs.findutils}/bin/find"
+      # shellcheck source=../../scripts/contrib/lib.sh
+      source ${contrib}/lib.sh
+      require_repo_root || exit 1
       ${lib.moduleHelpers.shortenPrefixScript}
 
       # Ensure workspace is trusted (one-time operation)
@@ -469,117 +315,32 @@ in
         echo ""
         $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "[$current_idx/$total_selected] $display_name"
 
-        # Show changed files
+        # Paths come from module ownership, so a nested module such as
+        # router/benchmarks is not included in the router commit.
         $gum style --foreground ${lib.colors.info} "Changed files:"
-        {
-          # Root category: show files matching category patterns
-          if is_root_category "$mod"; then
-            patterns=($(get_root_category_patterns "$mod"))
-            for pattern in "''${patterns[@]}"; do
-              $git diff --cached --name-only -- "$pattern" 2>/dev/null | while read -r f; do
-                [ -n "$f" ] && $gum style --foreground ${lib.colors.success} "  [staged] $f"
-              done
-              $git diff --name-only --diff-filter=M -- "$pattern" 2>/dev/null | while read -r f; do
-                [ -n "$f" ] && $gum style --foreground ${lib.colors.accent4} "  [modified] $f"
-              done
-              $git diff --name-only --diff-filter=D -- "$pattern" 2>/dev/null | while read -r f; do
-                [ -n "$f" ] && $gum style --foreground ${lib.colors.error} "  [deleted] $f"
-              done
-              $git ls-files --others --exclude-standard -- "$pattern" 2>/dev/null | while read -r f; do
-                [ -n "$f" ] && $gum style --foreground ${lib.colors.accent1} "  [untracked] $f"
-              done
-            done
-          # Special exclusion for router module: exclude middleware subdirs but include router/middleware/* files
-          elif [ "$mod" = "router" ]; then
-            $git diff --cached --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | while read -r f; do
-              [ -n "$f" ] && $gum style --foreground ${lib.colors.success} "  [staged] $f"
-            done
-            $git diff --name-only --diff-filter=M -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | while read -r f; do
-              [ -n "$f" ] && $gum style --foreground ${lib.colors.accent4} "  [modified] $f"
-            done
-            $git diff --name-only --diff-filter=D -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | while read -r f; do
-              [ -n "$f" ] && $gum style --foreground ${lib.colors.error} "  [deleted] $f"
-            done
-            $git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/" | while read -r f; do
-              [ -n "$f" ] && $gum style --foreground ${lib.colors.accent1} "  [untracked] $f"
-            done
-          else
-            $git diff --cached --name-only -- "$mod/" 2>/dev/null | while read -r f; do
-              [ -n "$f" ] && $gum style --foreground ${lib.colors.success} "  [staged] $f"
-            done
-            $git diff --name-only --diff-filter=M -- "$mod/" 2>/dev/null | while read -r f; do
-              [ -n "$f" ] && $gum style --foreground ${lib.colors.accent4} "  [modified] $f"
-            done
-            $git diff --name-only --diff-filter=D -- "$mod/" 2>/dev/null | while read -r f; do
-              [ -n "$f" ] && $gum style --foreground ${lib.colors.error} "  [deleted] $f"
-            done
-            $git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null | while read -r f; do
-              [ -n "$f" ] && $gum style --foreground ${lib.colors.accent1} "  [untracked] $f"
-            done
-          fi
-        }
+        mapfile -d ''' change_paths < <(list_module_paths "$mod")
+        if [ ''${#change_paths[@]} -eq 0 ]; then
+          $gum style --foreground ${lib.colors.info} "No files to commit in $display_name"
+          continue
+        fi
+        if ! selection_is_safe "$mod"; then
+          $gum style --foreground ${lib.colors.error} "Refusing to commit $display_name"
+          $gum style --faint "  A rename crosses module boundaries. Commit both paths in one commit, or keep the move inside one module."
+          continue
+        fi
+        print_module_changes "$mod"
         echo ""
 
-        # Stage all changes for this module
-        if is_root_category "$mod"; then
-          # Root category: stage files matching category patterns
-          patterns=($(get_root_category_patterns "$mod"))
-          for pattern in "''${patterns[@]}"; do
-            $git add "$pattern" 2>/dev/null || true
-          done
-        # Special handling for router: exclude middleware subdirs (they're separate modules)
-        # but include files directly in router/middleware/ (e.g. README.md)
-        # Use grep-based filtering so deleted files are excluded reliably
-        elif [ "$mod" = "router" ]; then
-          {
-            $git diff --name-only -- "$mod/" 2>/dev/null
-            $git ls-files --others --exclude-standard -- "$mod/" 2>/dev/null
-            $git ls-files --deleted -- "$mod/" 2>/dev/null
-          } | sort -u | grep -v "^router/middleware/[^/]\+/" | xargs -r $git add --
-        else
-          $git add "$mod/"
-        fi
-
-        # Get the diff for AI context (limit by bytes to avoid huge prompts)
+        # Diff against HEAD without staging, so cancelling leaves the index alone.
         diff_limit=${toString cfg.diffTruncateBytes}
-        if is_root_category "$mod"; then
-          # For root categories, get diff for all patterns
-          patterns=($(get_root_category_patterns "$mod"))
-          diff_content=""
-          for pattern in "''${patterns[@]}"; do
-            diff_content="$diff_content"$'\n'"$($git diff --cached -- "$pattern" 2>/dev/null)"
-          done
-          diff_content=$(echo "$diff_content" | head -c "$diff_limit")
-          diff_full_size=$(for pattern in "''${patterns[@]}"; do $git diff --cached -- "$pattern" 2>/dev/null; done | wc -c | tr -d ' ')
-        elif [ "$mod" = "router" ]; then
-          diff_files=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | grep -v "^router/middleware/[^/]\+/")
-          if [ -n "$diff_files" ]; then
-            diff_content=$(echo "$diff_files" | xargs -r $git diff --cached -- 2>/dev/null | head -c "$diff_limit")
-            diff_full_size=$(echo "$diff_files" | xargs -r $git diff --cached -- 2>/dev/null | wc -c | tr -d ' ')
-          else
-            diff_content=""
-            diff_full_size=0
-          fi
-        else
-          diff_content=$($git diff --cached -- "$mod/" 2>/dev/null | head -c "$diff_limit")
-          diff_full_size=$($git diff --cached -- "$mod/" 2>/dev/null | wc -c | tr -d ' ')
-        fi
-
-        if [ "$diff_full_size" -gt "$diff_limit" ]; then
+        diff_content=$(module_diff_text "$mod" "$diff_limit" || true)
+        diff_full_size=''${RIVAAS_DIFF_FULL_SIZE:-0}
+        if [ "''${RIVAAS_DIFF_TRUNCATED:-0}" -eq 1 ]; then
           $gum style --foreground ${lib.colors.accent4} "  (diff truncated: $(($diff_full_size / 1024))KB → $((diff_limit / 1024))KB for AI context)"
           diff_content="$diff_content"$'\n\n'"[... truncated, full diff is $(($diff_full_size / 1024))KB ...]"
         fi
 
-        # Count changed files to determine if this is a complex change
-        if is_root_category "$mod"; then
-          patterns=($(get_root_category_patterns "$mod"))
-          file_count=0
-          for pattern in "''${patterns[@]}"; do
-            file_count=$((file_count + $($git diff --cached --name-only -- "$pattern" 2>/dev/null | wc -l)))
-          done
-        else
-          file_count=$($git diff --cached --name-only -- "$mod/" 2>/dev/null | wc -l | tr -d ' ')
-        fi
+        file_count=''${#change_paths[@]}
 
         $gum style --foreground ${lib.colors.info} "Generating commit message with AI..."
 
@@ -662,14 +423,7 @@ $diff_content"
         fi
 
         if [ -z "$message" ]; then
-          if is_root_category "$mod"; then
-            patterns=($(get_root_category_patterns "$mod"))
-            for pattern in "''${patterns[@]}"; do
-              $git reset HEAD -- "$pattern" >/dev/null 2>&1 || true
-            done
-          else
-            $git reset HEAD -- "$mod/" >/dev/null 2>&1 || true
-          fi
+          # Nothing was staged yet, so the index is unchanged.
           $gum style --foreground ${lib.colors.info} "Skipping $display_name (no message)"
           continue
         fi
@@ -691,10 +445,11 @@ $diff_content"
         echo ""
 
         if $gum confirm "Commit?" </dev/tty; then
-          # Use temp file instead of heredoc to avoid stdin issues in loop
+          # commit_paths uses git commit --only, so staged files from other
+          # modules stay staged and are not part of this commit.
           commit_msg_file=$(mktemp)
           printf '%s\n' "$final_message" > "$commit_msg_file"
-          if $git commit -F "$commit_msg_file"; then
+          if commit_paths "$commit_msg_file" "''${change_paths[@]}"; then
             rm -f "$commit_msg_file"
             $gum style --foreground ${lib.colors.success} "✓ Committed: $display_name"
             committed_count=$((committed_count + 1))
@@ -703,14 +458,6 @@ $diff_content"
             $gum style --foreground ${lib.colors.error} "✗ Failed to commit $display_name"
           fi
         else
-          if is_root_category "$mod"; then
-            patterns=($(get_root_category_patterns "$mod"))
-            for pattern in "''${patterns[@]}"; do
-              $git reset HEAD -- "$pattern" >/dev/null 2>&1 || true
-            done
-          else
-            $git reset HEAD -- "$mod/" >/dev/null 2>&1 || true
-          fi
           $gum style --foreground ${lib.colors.info} "Skipped $display_name"
         fi
       done
