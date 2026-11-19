@@ -7,6 +7,7 @@ let
   release = import ./release.nix { inherit pkgs lib; };
   examples = import ./examples.nix { inherit pkgs lib; };
   commit = import ./commit.nix { inherit pkgs lib; };
+  pr = import ./pr.nix { inherit pkgs lib; };
 in
   # Merge all app sets together
-  testing // quality // release // examples // commit
+  testing // quality // release // examples // commit // pr

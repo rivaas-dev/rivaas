@@ -26,4 +26,7 @@
   # Commit tools (sky blue → pale blue gradient)
   { name = "commit";           category = "Commit Tools"; color = "accent1"; description = "Interactive commit with AI messages"; }
   { name = "commit-check";     category = "Commit Tools"; color = "accent2"; description = "Check uncommitted changes"; }
+
+  # Pull requests
+  { name = "pr";               category = "Pull Requests"; color = "accent2"; description = "Prepare, create, and check pull requests"; }
 ]

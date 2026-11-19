@@ -20,6 +20,7 @@ pkgs.mkShell {
 
     # Version control
     git
+    gh            # GitHub CLI for pull requests and issues
 
     # Shell utilities
     jq            # JSON processing
