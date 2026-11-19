@@ -231,11 +231,9 @@ rivaas/
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests for your changes
-4. Ensure all tests pass (`go test ./...`)
-5. Open a Pull Request
+The repository is a set of independently versioned Go modules. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow: commits, pull requests, tests, dependencies, and releases.
+
+Nix helpers (`nix run .#pr`, `nix run .#commit`, `nix run .#release`) are optional. The same pull request template and the same CI checks apply when you use Git and GitHub directly.
 
 ## License
 
