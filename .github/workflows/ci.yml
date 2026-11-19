@@ -13,6 +13,19 @@ permissions:
   contents: read
 
 jobs:
+  # Shell tests for commit isolation, PR prepare, and PR policy.
+  # These do not build Go modules or duplicate the quality checks below.
+  contrib:
+    name: Contribution Scripts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run contribution script tests
+        run: bash scripts/contrib/tests/run.sh
+
   # Validate flake structure
   validate:
     name: Validate Flake

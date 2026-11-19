@@ -1,0 +1,40 @@
+name: PR Policy
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+# Read the pull request payload and file list only.
+# Do not write, and do not check out a privileged workflow to run contributor code.
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: PR Policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Validate pull request metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          title=$(jq -r '.pull_request.title' "$GITHUB_EVENT_PATH")
+          jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > "${RUNNER_TEMP}/pr-body.md"
+          draft=$(jq -r '.pull_request.draft' "$GITHUB_EVENT_PATH")
+          number=$(jq -r '.pull_request.number' "$GITHUB_EVENT_PATH")
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${number}/files" --jq '.[].filename' > "${RUNNER_TEMP}/pr-files.txt"
+          bash scripts/contrib/pr-policy.sh \
+            --title "$title" \
+            --body-file "${RUNNER_TEMP}/pr-body.md" \
+            --files-file "${RUNNER_TEMP}/pr-files.txt" \
+            --draft "$draft" \
+            --repo-root "$GITHUB_WORKSPACE"
