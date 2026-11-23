@@ -80,8 +80,11 @@ cd "$REPO_ROOT" || {
 
 known_scope() {
   local scope="$1"
-  if is_repo_scope "$scope"; then
+  if is_contrib "$scope"; then
     return 0
+  fi
+  if is_auxiliary_dir "$scope"; then
+    return 1
   fi
   [ -f "$scope/go.mod" ]
 }
@@ -140,16 +143,16 @@ field_value() {
   sed -n "s/^\*\*${label}:\*\*[[:space:]]*//p" "$BODY_FILE" | head -1
 }
 
-TYPES='feat|fix|refactor|perf|docs|test|build|ci|chore|style|revert'
-title_re="^(${TYPES})(\\([A-Za-z0-9._/-]+\\))?: [^[:space:]].{2,}$"
+title_re='^[^[:space:]:]+: [^[:space:]].{2,}$'
 title_scope=""
 
 if ! printf '%s\n' "$TITLE" | grep -Eq "$title_re"; then
-  policy_error "PR title must look like \"feat(router): add configurable timeout\" or \"docs: clarify contribution workflow\". Types: feat, fix, refactor, perf, docs, test, build, ci, chore, style, revert."
+  policy_error "PR title must look like \"app: add generic bind methods\" or \"contrib: improve the pull request helper\"."
 else
-  title_scope=$(printf '%s\n' "$TITLE" | sed -n 's/^[^(]*(\([^)]*\)).*/\1/p')
-  if [ -n "$title_scope" ] && ! known_scope "$title_scope"; then
-    policy_error "Scope \"${title_scope}\" is not a module directory or a repository category (ci, nix, dotfiles, deps, docs, middleware, scripts, repo)."
+  title_scope=${TITLE%%:*}
+  if ! known_scope "$title_scope"; then
+    policy_error "Prefix \"${title_scope}\" is not a released module path or contrib. Example and benchmark directories use the parent module, such as app or router."
+    title_scope=""
   fi
 fi
 
@@ -175,9 +178,9 @@ fi
 primary=$(field_value "Primary module")
 primary=$(printf '%s' "$primary" | sed 's/[[:space:]]*$//')
 if [ -z "$primary" ]; then
-  policy_error "Set **Primary module:** to the module directory (for example router or middleware/cors), a repository category, or repo."
+  policy_error "Set **Primary module:** to the module directory (for example router or middleware/bodylimit) or contrib."
 elif ! known_scope "$primary"; then
-  policy_error "Primary module \"${primary}\" is not a known module or repository category."
+  policy_error "Primary module \"${primary}\" is not a released module path or contrib. Example and benchmark directories use the parent module."
 fi
 
 additional=$(field_value "Additional modules")
@@ -191,7 +194,7 @@ if [ -n "$additional" ] && [ "$additional_norm" != none ]; then
     item=$(printf '%s' "$item" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     [ -z "$item" ] && continue
     if ! known_scope "$item"; then
-      policy_warn "Additional module \"${item}\" is not a known module or repository category."
+      policy_warn "Additional module \"${item}\" is not a released module path or contrib."
     fi
     extra["$item"]=1
   done
@@ -274,7 +277,7 @@ if [ "$gomod_changed" -eq 1 ] && { [ -z "$depends" ] || [ "$depends_norm" = none
 fi
 
 if [ -n "$primary" ] && [ -n "$title_scope" ] && [ "$title_scope" != "$primary" ]; then
-  policy_warn "Title scope (${title_scope}) and primary module (${primary}) differ. Use the primary module as the scope unless you mean both."
+  policy_warn "Title prefix (${title_scope}) and primary module (${primary}) differ. Use the primary module as the prefix unless you mean both."
 fi
 
 if [ "$errors" -gt 0 ]; then

@@ -231,7 +231,7 @@ rivaas/
 
 ## Contributing
 
-The repository is a set of independently versioned Go modules. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow: commits, pull requests, tests, dependencies, and releases.
+The repository is a set of independently versioned Go modules. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow: commits, pull requests, tests, dependencies, and releases. Titles look like `router: add configurable timeout` or `contrib: update the workflow`.
 
 Nix helpers (`nix run .#pr`, `nix run .#commit`, `nix run .#release`) are optional. The same pull request template and the same CI checks apply when you use Git and GitHub directly.
 

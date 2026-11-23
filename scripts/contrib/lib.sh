@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared git and module helpers for the commit tool, PR tool, and tests.
+# Shared git and module helpers for the commit tool and the PR tool.
 # Source this file from bash. Do not execute it directly.
 if [ -z "${BASH_VERSION:-}" ]; then
   printf 'scripts/contrib/lib.sh must be sourced from bash\n' >&2
@@ -78,56 +78,68 @@ require_repo_root() {
   cd "$root" || return 1
 }
 
-is_root_category() {
-  case "$1" in
-    ci|nix|dotfiles|deps|docs|middleware|scripts) return 0 ;;
+# True for the single non-module group. Nix, CI, docs, and other
+# repository-wide files share this group.
+is_contrib() {
+  [ "$1" = contrib ]
+}
+
+# Example, benchmark, and integration trees support a parent module.
+# The path test matches nix/lib/find-patterns.nix rootModules.
+is_auxiliary_dir() {
+  case "/$1/" in
+    */examples/*|*/example/*|*/benchmarks/*|*/integration/*) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-# Repository-wide scopes that are not Go modules.
-# "repo" is a PR-title scope for a change that has no single module.
-is_repo_scope() {
-  case "$1" in
-    ci|nix|dotfiles|deps|docs|middleware|scripts|repo) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-get_root_category_patterns() {
-  case "$1" in
-    ci) printf '%s\n' ".github/" "codecov.yml" ;;
-    nix) printf '%s\n' "nix/" "flake.nix" "flake.lock" ;;
-    dotfiles) printf '%s\n' ".editorconfig" ".envrc" ".gitignore" ".golangci.yaml" ".golangci-soft.yaml" ;;
-    deps) printf '%s\n' "go.work" "go.work.sum" ;;
-    docs) printf '%s\n' "README.md" "LICENSE" "CONTRIBUTING.md" "docs/" ;;
-    middleware) printf '%s\n' "middleware/README.md" ;;
-    scripts) printf '%s\n' "scripts/" ;;
-    *) return 1 ;;
-  esac
-}
-
-find_modules() {
-  printf '%s\n' ci nix dotfiles deps docs middleware scripts
-  # Match nix/lib/find-patterns.nix rootModules: publishable modules, not
-  # examples, benchmarks, or integration fixtures.
+# Publishable module directories. A go.mod in an auxiliary tree does not
+# start a new module. A deleted go.mod still counts until that deletion is committed.
+list_publishable_modules() {
+  local gomod dir
   "$FIND" . -name go.mod -type f \
     ! -path '*/examples/*' \
     ! -path '*/example/*' \
     ! -path '*/benchmarks/*' \
     ! -path '*/integration/*' \
-    -exec dirname {} \; | sed 's|^\./||' | LC_ALL=C sort
+    -exec dirname {} \; | sed 's|^\./||'
+  while IFS= read -r -d '' gomod; do
+    case "$gomod" in
+      go.mod|*/go.mod) ;;
+      *) continue ;;
+    esac
+    dir=$(dirname -- "$gomod")
+    [ "$dir" = "." ] && continue
+    is_auxiliary_dir "$dir" && continue
+    printf '%s\n' "$dir"
+  done < <("$GIT" ls-files -d -z)
 }
 
-# Directory of the nearest Go module that owns this path.
-# Checks the worktree and HEAD so a deleted nested module is still attributed.
+find_modules() {
+  list_publishable_modules | LC_ALL=C sort -u
+  printf '%s\n' contrib
+}
+
+# True when this directory is a publishable module in the worktree or in HEAD.
+publishable_module_dir() {
+  local dir="$1"
+  [ -n "$dir" ] && [ "$dir" != "." ] || return 1
+  is_auxiliary_dir "$dir" && return 1
+  if [ -f "$dir/go.mod" ]; then
+    return 0
+  fi
+  "$GIT" cat-file -e "HEAD:$dir/go.mod" 2>/dev/null
+}
+
+# Nearest publishable module. Auxiliary go.mod directories are skipped so
+# app/examples and router/benchmarks stay with their parent.
 owning_module() {
   local path="$1"
   local dir
   dir=$(dirname -- "$path")
   [ "$dir" = "." ] && return 0
   while [ -n "$dir" ] && [ "$dir" != "." ] && [ "$dir" != "/" ]; do
-    if [ -f "$dir/go.mod" ] || "$GIT" cat-file -e "HEAD:$dir/go.mod" 2>/dev/null; then
+    if publishable_module_dir "$dir"; then
       printf '%s\n' "$dir"
       return 0
     fi
@@ -135,25 +147,66 @@ owning_module() {
   done
 }
 
-# Module directory or root category for a repo-relative path. Empty if unknown.
+# Publishable module, or contrib when no parent module owns the path.
 category_for_path() {
   local path="$1"
   local owner
+  [ -n "$path" ] || return 0
   owner=$(owning_module "$path")
   if [ -n "$owner" ]; then
     printf '%s\n' "$owner"
     return 0
   fi
-  case "$path" in
-    .github/*|codecov.yml) printf '%s\n' ci ;;
-    nix/*|flake.nix|flake.lock) printf '%s\n' nix ;;
-    .editorconfig|.envrc|.gitignore|.golangci.yaml|.golangci-soft.yaml) printf '%s\n' dotfiles ;;
-    go.work|go.work.sum) printf '%s\n' deps ;;
-    README.md|LICENSE|CONTRIBUTING.md|docs/*) printf '%s\n' docs ;;
-    middleware/README.md) printf '%s\n' middleware ;;
-    scripts/*) printf '%s\n' scripts ;;
-    *) return 0 ;;
-  esac
+  printf '%s\n' contrib
+}
+
+# Map a stored group name onto the current publishable module.
+# Old plans may name an example or benchmark directory.
+canonical_group() {
+  local name="$1"
+  local parent
+  [ -n "$name" ] || return 0
+  if is_contrib "$name"; then
+    printf '%s\n' contrib
+    return 0
+  fi
+  if is_auxiliary_dir "$name"; then
+    parent=$(category_for_path "$name/go.mod")
+    if [ -n "$parent" ]; then
+      printf '%s\n' "$parent"
+      return 0
+    fi
+    printf '%s\n' contrib
+    return 0
+  fi
+  printf '%s\n' "$name"
+}
+
+# JSON object of auxiliary directory -> parent group. Used to rewrite old plans.
+auxiliary_parent_json() {
+  local gomod dir parent
+  local tmp
+  tmp=$(mktemp)
+  while IFS= read -r gomod; do
+    [ -n "$gomod" ] || continue
+    dir=$(dirname -- "$gomod")
+    dir=${dir#./}
+    is_auxiliary_dir "$dir" || continue
+    parent=$(category_for_path "$dir/go.mod")
+    [ -n "$parent" ] || parent=contrib
+    printf '%s\t%s\n' "$dir" "$parent"
+  done < <("$FIND" . -name go.mod -type f) >"$tmp"
+  if [ ! -s "$tmp" ]; then
+    rm -f -- "$tmp"
+    printf '%s\n' '{}'
+    return 0
+  fi
+  "$JQ" -R -s '
+    split("\n")
+    | map(select(length > 0) | split("\t") | {(.[0]): .[1]})
+    | add // {}
+  ' "$tmp"
+  rm -f -- "$tmp"
 }
 
 # Fill STAT_* from git status. Includes individual untracked files (-uall)
@@ -571,20 +624,15 @@ ensure_state_file() {
 declare -gA RIVAAS_MODPATH=()
 
 load_module_index() {
-  local gomod dir mpath
+  local dir mpath
   RIVAAS_MODPATH=()
-  while IFS= read -r gomod; do
-    [ -z "$gomod" ] && continue
-    dir=$(dirname -- "$gomod")
-    dir=${dir#./}
-    mpath=$(sed -n 's/^module[[:space:]]\+//p' "$gomod" | head -1)
+  while IFS= read -r dir; do
+    [ -z "$dir" ] && continue
+    [ -f "$dir/go.mod" ] || continue
+    mpath=$(sed -n 's/^module[[:space:]]\+//p' "$dir/go.mod" | head -1)
     [ -n "$mpath" ] || continue
     RIVAAS_MODPATH["$mpath"]=$dir
-  done < <("$FIND" . -name go.mod -type f \
-    ! -path '*/examples/*' \
-    ! -path '*/example/*' \
-    ! -path '*/benchmarks/*' \
-    ! -path '*/integration/*')
+  done < <(list_publishable_modules)
 }
 
 # Print module directories that this unit requires via go.mod.
@@ -700,13 +748,51 @@ default_branch_name() {
   printf '%s\n' main
 }
 
+# Resolve the published base for a local branch.
+# Prefers the branch's configured upstream (main@{upstream}) over origin,
+# because origin is not always the remote that publishes this repository.
+# Sets BASE_BRANCH, BASE_REMOTE, BASE_REF, BASE_LOCAL_SHA, BASE_REMOTE_SHA.
+load_base_context() {
+  local branch="${1:-}"
+  local upstream=""
+  if [ -z "$branch" ]; then
+    branch=$(default_branch_name)
+  fi
+  BASE_BRANCH=$branch
+  BASE_REMOTE=""
+  BASE_REF=""
+  BASE_LOCAL_SHA=""
+  BASE_REMOTE_SHA=""
+  if "$GIT" show-ref --verify --quiet "refs/heads/${branch}"; then
+    BASE_LOCAL_SHA=$("$GIT" rev-parse "refs/heads/${branch}")
+    upstream=$("$GIT" rev-parse --abbrev-ref "${branch}@{upstream}" 2>/dev/null || true)
+  else
+    BASE_LOCAL_SHA=$("$GIT" rev-parse HEAD)
+  fi
+  if [ -n "$upstream" ] && [[ "$upstream" == */* ]] && [[ "$upstream" != *"@{upstream}"* ]]; then
+    BASE_REMOTE=${upstream%%/*}
+    BASE_REF="refs/remotes/${upstream}"
+  elif "$GIT" remote get-url origin >/dev/null 2>&1; then
+    BASE_REMOTE=origin
+    BASE_REF="refs/remotes/origin/${branch}"
+  fi
+  if [ -n "$BASE_REF" ] && "$GIT" show-ref --verify --quiet "$BASE_REF"; then
+    BASE_REMOTE_SHA=$("$GIT" rev-parse "$BASE_REF")
+  fi
+}
+
 base_sha_for() {
   local branch="$1"
-  if "$GIT" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
-    "$GIT" rev-parse "origin/$branch"
-  else
-    "$GIT" rev-parse "$branch"
+  load_base_context "$branch"
+  if [ -n "$BASE_REMOTE_SHA" ]; then
+    printf '%s\n' "$BASE_REMOTE_SHA"
+    return 0
   fi
+  if [ -n "$BASE_LOCAL_SHA" ]; then
+    printf '%s\n' "$BASE_LOCAL_SHA"
+    return 0
+  fi
+  return 1
 }
 
 # True when a tag for the module contains the given commit.

@@ -24,6 +24,7 @@ let
 RULES:
 - Start with lowercase verb (add, fix, refactor, update, etc.)
 - No module name in message
+- No feat(), fix(), or other type prefix
 - Max 50 chars for title line
 - PLAIN TEXT ONLY - no markdown, no code fences, no quotes
 - Just output the message, nothing else'';
@@ -65,25 +66,16 @@ in
         read -r staged unstaged untracked <<< "$(count_changes "$mod")"
         total=$((staged + unstaged + untracked))
 
-        # Format display name for root categories
-        if is_root_category "$mod"; then
-          display_name="root($mod)"
-        else
-          display_name="$mod"
-        fi
-
         if [ "$total" -gt 0 ]; then
-          $gum style --foreground ${lib.colors.accent3} --bold "● $display_name"
+          $gum style --foreground ${lib.colors.accent3} --bold "● $mod"
           [ "$staged" -gt 0 ] && $gum style --foreground ${lib.colors.success} "  Staged: $staged file(s)"
           [ "$unstaged" -gt 0 ] && $gum style --foreground ${lib.colors.accent4} "  Modified: $unstaged file(s)"
           [ "$untracked" -gt 0 ] && $gum style --foreground ${lib.colors.accent1} "  Untracked: $untracked file(s)"
           has_changes=$((has_changes + 1))
+          echo ""
         else
-          $gum style --foreground ${lib.colors.success} "✓ $display_name"
-          $gum style --faint "  Nothing to commit"
           clean=$((clean + 1))
         fi
-        echo ""
       done
 
       # Summary
@@ -230,7 +222,7 @@ in
       modules_with_changes=$(echo "$modules_with_changes" | sed '/^$/d')
 
       if [ -z "$modules_with_changes" ]; then
-        $gum style --foreground ${lib.colors.info} "Nothing to commit in Go modules"
+        $gum style --foreground ${lib.colors.info} "Nothing to commit"
 
         if check_outside_changes "$modules"; then
           $gum style --faint "  Use 'git status' to see all changes"
@@ -246,13 +238,7 @@ in
       while IFS= read -r mod; do
         [ -z "$mod" ] && continue
         read -r staged unstaged untracked <<< "$(count_changes "$mod")"
-        # Display root categories as root(name) for clarity
-        if is_root_category "$mod"; then
-          display_name="root($mod)"
-        else
-          display_name="$mod"
-        fi
-        table_data="$table_data"$'\n'"$display_name,$staged,$unstaged,$untracked"
+        table_data="$table_data"$'\n'"$mod,$staged,$unstaged,$untracked"
       done <<< "$modules_with_changes"
 
       echo "$table_data" | $gum table --print --border.foreground ${lib.colors.accent1}
@@ -261,35 +247,12 @@ in
       # Multi-select modules to commit (pipe newline-separated list to gum choose)
       $gum style --faint "Use Space to select, Enter to confirm"
       
-      # Format modules with root() prefix for display
-      formatted_modules=""
-      while IFS= read -r mod; do
-        [ -z "$mod" ] && continue
-        if is_root_category "$mod"; then
-          formatted_modules="$formatted_modules"$'\n'"root($mod)|$mod"
-        else
-          formatted_modules="$formatted_modules"$'\n'"$mod|$mod"
-        fi
-      done <<< "$modules_with_changes"
-      formatted_modules=$(echo "$formatted_modules" | sed '/^$/d')
+      selected=$(echo "$modules_with_changes" | $gum choose --no-limit --header "Select modules to commit:")
       
-      # Show formatted names but get original module names
-      selected_display=$(echo "$formatted_modules" | cut -d'|' -f1 | $gum choose --no-limit --header "Select modules to commit:")
-      
-      if [ -z "$selected_display" ]; then
+      if [ -z "$selected" ]; then
         $gum style --foreground ${lib.colors.info} "No modules selected"
         exit 0
       fi
-      
-      # Convert back to original module names
-      selected=""
-      while IFS= read -r display_name; do
-        [ -z "$display_name" ] && continue
-        # Extract original name from formatted list
-        original=$(echo "$formatted_modules" | grep "^$display_name|" | cut -d'|' -f2)
-        selected="$selected"$'\n'"$original"
-      done <<< "$selected_display"
-      selected=$(echo "$selected" | sed '/^$/d')
 
       # Count selected modules for progress indicator
       total_selected=$(echo "$selected" | wc -l)
@@ -305,18 +268,13 @@ in
         [ -z "$mod" ] && continue
         current_idx=$((current_idx + 1))
 
-        # Format display name for root categories
-        if is_root_category "$mod"; then
-          display_name="root($mod)"
-        else
-          display_name="$mod"
-        fi
+        display_name="$mod"
 
         echo ""
         $gum style --foreground ${lib.colors.header} --bold --border rounded --padding "0 1" "[$current_idx/$total_selected] $display_name"
 
-        # Paths come from module ownership, so a nested module such as
-        # router/benchmarks is not included in the router commit.
+        # Paths come from module ownership. Examples and benchmarks belong to
+        # the parent. An independent nested module stays in its own commit.
         $gum style --foreground ${lib.colors.info} "Changed files:"
         mapfile -d ''' change_paths < <(list_module_paths "$mod")
         if [ ''${#change_paths[@]} -eq 0 ]; then

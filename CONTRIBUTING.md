@@ -37,7 +37,7 @@ The modules that are published live in their own directories:
 
 `go.work` ties those modules together on your machine. It is for local development. People who `go get` a released module do not use this workspace.
 
-A directory with its own `go.mod` is its own module, even when it sits inside another directory. `router/benchmarks` is not part of `router`. `middleware/cors` is not part of a single middleware module. `app/examples/02-blog` is an example module, not part of `app`.
+A released module has its own tag. `middleware/cors` is one of those, even though it sits under `middleware/`. `app/examples/02-blog` and `router/benchmarks` also have a `go.mod`, so they can build on their own, but they are not released separately. Changes there belong to `app` and `router`. Files outside every released module, such as Nix files, workflows, and the root README, use the `contrib` group.
 
 Module boundaries matter because each module is versioned on its own. A commit that mixes `router` and `app` is hard to tag, hard to review, and easy to release in the wrong order.
 
@@ -109,7 +109,7 @@ Then:
 nix run .#pr -- create
 ```
 
-Create compares the branch with the default branch, refuses to open a second pull request for the same branch, and fills in the pull request template. You can edit the title and the body. The title looks like `feat(router): add configurable timeout`.
+Create compares the branch with the default branch, refuses to open a second pull request for the same branch, and fills in the pull request template. You can edit the title and the body. The title looks like `router: add configurable timeout`. It uses the same prefix as the commit: the module path, or `contrib` for repository-wide files.
 
 The body uses `Refs #123` for the parent issue. It does not use `Fixes` or `Closes` on the parent. An intermediate pull request must leave the parent issue open.
 
@@ -123,13 +123,23 @@ Check progress with:
 nix run .#pr -- status 123
 ```
 
-Status reads Git and GitHub. It does not close the parent issue. Close the parent yourself when every planned pull request has merged and any required module tag exists.
+Status reads Git and GitHub. It lists prepared branches and, separately, commits already on the default branch that you have referenced. It does not close the parent issue. Close the parent yourself when every planned pull request has merged and any required module tag exists.
+
+You can run `prepare` again for the same issue. A later run adds work. It does not remove a worktree you already prepared, and it does not drop commit references you already saved. Selecting the same commit again does not create a second entry.
+
+To record commits that are already on the default branch, choose `Reference commit(s) on main` (the name follows the repository's default branch). The list shows the 20 newest commits, newest first. Each row has the abbreviated SHA and the subject. Type to filter the list. Space selects, Enter confirms. You can select more than one.
+
+The stored value is the full SHA. The abbreviated SHA is only the label. A later run can add more commits. References are local bookkeeping: the command does not create a commit, branch, or pull request, and it does not edit the GitHub issue.
+
+A row marked `[local only]` is on your local default branch and not on the fetched remote. A row marked `[unverified]` could not be checked against the remote. The helper asks before saving those. It does not describe them as published on GitHub.
+
+A new pull request branch is cut from the remote-tracking branch your default branch follows, after `git fetch` of that remote. Commits that exist only on your local default branch stay there. They are not part of the new branch. If the fetch fails, the helper prints Git's own error and does not create the branch. Fix the remote, then run `git fetch <remote>` and try again. Nothing in your working tree is reset.
 
 If the work already exists, prepare can adopt it:
 
 - a local branch with commits
 - a pull request that is already open
-- a commit that is already on the default branch
+- one or more commits that are already on the default branch
 
 Adopting records that work. It does not make a replacement commit or a second pull request.
 
@@ -168,7 +178,7 @@ git commit --only -- router
 
 `git commit` with no path commits every staged file. If `app` was already staged, that commit would include it. `git commit --only -- router` commits the router paths and leaves other staged files staged.
 
-A nested module stays out of the parent. Do not `git add router` if you also changed `router/benchmarks`. Add the files that belong to `router` itself.
+Examples and benchmarks belong with the parent. `git add app` includes `app/examples`. Add one released module at a time: `git add middleware/bodylimit` does not include `middleware/cors`.
 
 Commit messages in this repository look like this:
 
@@ -185,7 +195,7 @@ router: add configurable timeout
 - return 504 when the handler exceeds it
 ```
 
-The first line is short, lowercase, and imperative. The prefix is the module directory (`router`, `middleware/cors`) or a repository area (`nix`, `ci`, `docs`, `deps`). A commit is not a release.
+The first line is short, lowercase, and imperative. The prefix is the released module path (`router`, `middleware/bodylimit`) or `contrib` when the files sit outside every released module. An example or benchmark change uses the parent prefix, such as `app: update blog example` or `router: improve benchmark coverage`. Nix files, workflows, `go.work`, and the root README are `contrib`. A commit is not a release. A change that only touches examples or benchmarks does not by itself call for a new module tag. Older commits may use prefixes such as `nix:` or `docs:`. Leave that history as it is.
 
 If you already committed on `main` or on another branch, do not redo the commit. Open the pull request from that branch, or mention the commit on the issue if it is already on the default branch.
 
@@ -193,7 +203,7 @@ If you already committed on `main` or on another branch, do not redo the commit.
 
 ```bash
 git push -u origin HEAD
-gh pr create --base main --title "feat(router): add configurable timeout" --body-file /tmp/pr-body.md
+gh pr create --base main --title "router: add configurable timeout" --body-file /tmp/pr-body.md
 ```
 
 You can also push and open the pull request on github.com. GitHub loads [`.github/pull_request_template.md`](.github/pull_request_template.md). Fill it in. Delete the HTML comments if you want a shorter page. The policy check ignores those comments.
@@ -203,7 +213,7 @@ Use `Refs #123` in **Related Issue**. Use `Closes #124` only when this pull requ
 If the pull request is waiting on another module, open it as a draft:
 
 ```bash
-gh pr create --draft --base main --title "feat(app): use the router timeout" --body-file /tmp/pr-body.md
+gh pr create --draft --base main --title "app: use the router timeout" --body-file /tmp/pr-body.md
 ```
 
 ### Update after review
@@ -230,25 +240,28 @@ Force-push only when you and the reviewer have agreed to rewrite history. The de
 
 ### Title
 
-Use a Conventional Commit title:
+Use the same shape as a commit:
 
 ```text
-type(scope): description
+<module>: <description>
 ```
 
-Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, `chore`, `style`, `revert`.
-
-The scope is the module directory (`router`, `middleware/cors`) or a repository area (`ci`, `nix`, `dotfiles`, `deps`, `docs`, `middleware`, `scripts`, `repo`). You can omit the scope when the title is already specific, as in `docs: clarify contribution workflow`.
+`contrib` is the prefix when the change is not inside a Go module.
 
 Examples:
 
-- `feat(router): add configurable timeout`
-- `fix(binding): handle invalid values`
-- `refactor(app): simplify startup lifecycle`
-- `chore(app): update router dependency`
-- `docs: clarify contribution workflow`
+- `router: add configurable timeout`
+- `binding: handle invalid values`
+- `app: simplify startup lifecycle`
+- `middleware/bodylimit: handle repeated reads`
+- `app: update blog example`
+- `contrib: improve the pull request helper`
 
-You choose the final title. A suggestion from a tool is only a starting point.
+`app/examples/02-blog` and `router/benchmarks` are not title prefixes. Use the parent module.
+
+A pull request that is only the app part of a larger issue uses `app:`, not the parent issue's title. Open an issue with the same shape (`app: add generic bind methods to Context`, or `contrib: improve release documentation` when no module owns the request). A sub-issue, if you create one, uses the module that sub-issue actually changes. This repository does not rename issues that already exist.
+
+You choose the final title. A suggestion from a tool is only a starting point. Put the kind of change in a GitHub label when you want one. The title does not need `feat`, `fix`, or `docs`.
 
 ### Body
 
@@ -317,7 +330,7 @@ Warnings from PR Policy do not fail the check. They cover extra modules, a multi
 PR Policy fails the check when:
 
 - the title is not `type(scope): description` or `type: description` with a known type
-- the scope is not a real module or repository area
+- the prefix is not a Go module path or `contrib`
 - **Summary** is empty
 - **Related Issue** has no issue number and is not `No related issue (maintenance).`
 - **Primary module** is empty or unknown
@@ -340,12 +353,6 @@ go test -C router ./... -tags=integration -race -count=1
 ```
 
 Repeat for each module you changed. To list publishable modules the way CI does, skip `examples`, `example`, and run the commands in each directory that contains a `go.mod` you touched. `nix run .#test` walks the modules for you and is what CI matches, including the race detector on `nix run .#test-race`.
-
-Changes to the helper scripts have their own tests:
-
-```bash
-bash scripts/contrib/tests/run.sh
-```
 
 ## Dependencies across modules
 
@@ -458,6 +465,9 @@ Update your branch from the default branch, fix the conflicts in the module you 
 
 **`prepare` stopped halfway.**
 The original checkout is left unchanged. Plans are stored under the Git common directory in `rivaas/pr-state.json`, not on the GitHub issue. Run `nix run .#pr -- status 123`. If a worktree is half-updated, remove that worktree with `git worktree remove` and run prepare again. The helper will not reset your original tree.
+
+**`prepare` says it failed to fetch.**
+The message includes the remote name and Git's own error. A dirty worktree does not cause that failure. The Nix warning about a dirty Git tree is separate. Check `git remote -v` and `git status -sb`. The branch's upstream remote is the one that is fetched, which is not always `origin`. Run `git fetch <that-remote>` yourself. Until that succeeds, new pull request branches are not created. Referencing local commits still asks for confirmation and records them as unverified or local-only. Your commits and uncommitted files are left where they are.
 
 **You need to close the parent issue.**
 `status` tells you when every recorded plan is merged or already on the default branch. Close the issue yourself after you have checked that the feature is actually complete. Sub-issues closing does not close the parent.

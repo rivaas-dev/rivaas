@@ -61,6 +61,7 @@
         ${lib.moduleHelpers.shortenPrefixScript}
         ${lib.moduleHelpers.filterCommitsByScopeScript}
         ${lib.moduleHelpers.filterRouterCommitsScript}
+        ${lib.moduleHelpers.moduleLogScript}
 
         needs_release=0
         up_to_date=0
@@ -71,7 +72,7 @@
           latest_tag=$($git tag -l "$mod/v*" --sort=-v:refname | head -1)
 
           if [ -z "$latest_tag" ]; then
-            raw_commits=$($git log --oneline HEAD -- "$mod/" 2>/dev/null)
+            raw_commits=$(module_log "" "$mod" 2>/dev/null)
             commits=$(echo "$raw_commits" | filter_router_commits "$mod" | filter_commits_by_scope "$mod")
             commit_count=$(echo "$commits" | grep -c . 2>/dev/null || true)
             if [ "$commit_count" -gt 0 ]; then
@@ -84,7 +85,7 @@
               needs_release=$((needs_release + 1))
             fi
           else
-            raw_commits=$($git log --oneline "$latest_tag"..HEAD -- "$mod/" 2>/dev/null)
+            raw_commits=$(module_log "$latest_tag..HEAD" "$mod" 2>/dev/null)
             commits=$(echo "$raw_commits" | filter_router_commits "$mod" | filter_commits_by_scope "$mod")
             commit_count=$(echo "$commits" | grep -c . 2>/dev/null || true)
 
@@ -163,6 +164,7 @@
       ${lib.moduleHelpers.shortenPrefixScript}
       ${lib.moduleHelpers.filterCommitsByScopeScript}
       ${lib.moduleHelpers.filterRouterCommitsScript}
+      ${lib.moduleHelpers.moduleLogScript}
 
       # Root-level modules only
       modules=$(${pkgs.findutils}/bin/find . ${lib.findPatterns.rootModules} | sed 's|^\./||' | sort)
@@ -179,11 +181,11 @@
         latest_tag=$($git tag -l "$mod/v*" --sort=-v:refname | head -1)
 
         if [ -z "$latest_tag" ]; then
-          raw_commits=$($git log --oneline HEAD -- "$mod/" 2>/dev/null)
+          raw_commits=$(module_log "" "$mod" 2>/dev/null)
           commit_count=$(echo "$raw_commits" | filter_router_commits "$mod" | filter_commits_by_scope "$mod" | grep -c . || true)
           [ "$commit_count" -gt 0 ] && modules_needing_release="$modules_needing_release $mod"
         else
-          raw_commits=$($git log --oneline "$latest_tag"..HEAD -- "$mod/" 2>/dev/null)
+          raw_commits=$(module_log "$latest_tag..HEAD" "$mod" 2>/dev/null)
           commit_count=$(echo "$raw_commits" | filter_router_commits "$mod" | filter_commits_by_scope "$mod" | grep -c . || true)
           [ "$commit_count" -gt 0 ] && modules_needing_release="$modules_needing_release $mod"
         fi
@@ -204,7 +206,7 @@
       table_data="Module,Version,Commits"
       for mod in $modules_needing_release; do
         latest_tag=$($git tag -l "$mod/v*" --sort=-v:refname | head -1)
-        raw_commits=$($git log --oneline "''${latest_tag:-HEAD~100}"..HEAD -- "$mod/" 2>/dev/null)
+        raw_commits=$(module_log "''${latest_tag:-HEAD~100}..HEAD" "$mod" 2>/dev/null)
         commit_count=$(echo "$raw_commits" | filter_router_commits "$mod" | filter_commits_by_scope "$mod" | grep -c . || true)
         version="''${latest_tag#$mod/}"
         version="''${version:-new}"
@@ -280,9 +282,9 @@ $mod,$version,$commit_count"
 
         # Auto-generate changelog from commits
         if [ -n "$latest_tag" ]; then
-          raw_commits=$($git log --oneline "$latest_tag"..HEAD -- "$mod/" 2>/dev/null | filter_router_commits "$mod")
+          raw_commits=$(module_log "$latest_tag..HEAD" "$mod" 2>/dev/null | filter_router_commits "$mod")
         else
-          raw_commits=$($git log --oneline HEAD -- "$mod/" 2>/dev/null | head -20 | filter_router_commits "$mod")
+          raw_commits=$(module_log "" "$mod" 2>/dev/null | head -20 | filter_router_commits "$mod")
         fi
 
         # Filter commits by scope (keep only commits scoped to this module or unscoped)

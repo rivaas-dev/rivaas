@@ -7,9 +7,9 @@
     }
   '';
 
-  # Filter commits by conventional commit scope
-  # Keeps commits whose scope matches the module or have no scope
-  # Excludes commits scoped to parent modules
+  # Keep commits whose prefix (the text before the first colon) names this
+  # module. A contrib: commit is not a module release. Commits with no
+  # colon stay, so older unscoped messages still count. History is not rewritten.
   filterCommitsByScopeScript = ''
     filter_commits_by_scope() {
       local mod="$1"
@@ -45,6 +45,32 @@
   filterRouterCommitsScript = ''
     filter_router_commits() {
       cat
+    }
+  '';
+
+  # Log commits that can require a release of this module.
+  # Example, benchmark, and integration trees belong to the parent for commits
+  # and pull requests. A commit that only touches those trees does not.
+  moduleLogScript = ''
+    module_log() {
+      local range="$1"
+      local mod="$2"
+      local -a spec=(
+        "$mod"
+        ":(exclude,glob)$mod/examples/**"
+        ":(exclude,glob)$mod/**/examples/**"
+        ":(exclude,glob)$mod/example/**"
+        ":(exclude,glob)$mod/**/example/**"
+        ":(exclude,glob)$mod/benchmarks/**"
+        ":(exclude,glob)$mod/**/benchmarks/**"
+        ":(exclude,glob)$mod/integration/**"
+        ":(exclude,glob)$mod/**/integration/**"
+      )
+      if [ -n "$range" ]; then
+        $git log --oneline "$range" -- "''${spec[@]}"
+      else
+        $git log --oneline HEAD -- "''${spec[@]}"
+      fi
     }
   '';
 }

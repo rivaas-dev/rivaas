@@ -1,3 +1,5 @@
+<!-- Title: <module>: <description> or contrib: <description>. Example: app: add generic bind methods. -->
+
 # Summary
 
 <!-- Briefly describe what changed and why. -->

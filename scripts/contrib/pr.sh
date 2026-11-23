@@ -8,8 +8,36 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$script_dir/lib.sh"
 
 GH="${GH:-gh}"
+STATE_LOCK_HELD=""
+
+state_lock() {
+  local dir lock pid i
+  dir=$(dirname -- "$(state_file)")
+  mkdir -p -- "$dir"
+  lock="$dir/pr-state.lockdir"
+  i=0
+  while ! mkdir -- "$lock" 2>/dev/null; do
+    pid=$(cat "$lock/pid" 2>/dev/null || true)
+    if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+      rm -rf -- "$lock"
+      continue
+    fi
+    i=$((i + 1))
+    [ "$i" -lt 50 ] || die "Timed out waiting for ${lock}. If no other pr command is running, remove that directory and retry."
+    sleep 0.1
+  done
+  printf '%s\n' "$$" >"$lock/pid"
+  STATE_LOCK_HELD=$lock
+}
+
+state_unlock() {
+  [ -n "${STATE_LOCK_HELD:-}" ] || return 0
+  rm -rf -- "$STATE_LOCK_HELD"
+  STATE_LOCK_HELD=""
+}
 
 die() {
+  state_unlock
   ui_error "$*"
   exit 1
 }
@@ -49,6 +77,37 @@ prompt_line() {
   ui_gum input --header "$label" --value "$value" </dev/tty
 }
 
+# gum choose takes choices as arguments. Piping them and then reading stdin
+# from /dev/tty drops the list, and gum exits with "no options provided".
+gum_choose() {
+  local mode="$1"
+  local header="$2"
+  shift 2
+  [ "$#" -gt 0 ] || return 1
+  local -a flags=(--header "$header")
+  if [ "$mode" = many ]; then
+    flags=(--no-limit "${flags[@]}")
+  fi
+  if : </dev/tty 2>/dev/null; then
+    ui_gum choose "${flags[@]}" "$@" </dev/tty
+  else
+    ui_gum choose "${flags[@]}" "$@"
+  fi
+}
+
+# gum filter is the searchable multi-select. Choices are arguments, same as choose.
+gum_filter_many() {
+  local header="$1"
+  shift
+  [ "$#" -gt 0 ] || return 1
+  local -a flags=(--no-limit --fuzzy --height 15 --placeholder "Filter..." --header "$header")
+  if : </dev/tty 2>/dev/null; then
+    ui_gum filter "${flags[@]}" "$@" </dev/tty
+  else
+    ui_gum filter "${flags[@]}" "$@"
+  fi
+}
+
 require_gh() {
   if [ ! -x "$GH" ] && ! command -v "$GH" >/dev/null 2>&1; then
     die "The gh command is not available. Install GitHub CLI and run 'gh auth login', or open the pull request in the browser. CONTRIBUTING.md has the manual steps."
@@ -85,16 +144,51 @@ read_issue() {
 }
 
 maybe_fetch() {
-  if [ "${RIVAAS_SKIP_FETCH:-}" = 1 ] || [ "${RIVAAS_OFFLINE:-}" = 1 ]; then
+  local branch="${1:-}"
+  load_base_context "$branch"
+  if [ "${RIVAAS_SKIP_FETCH:-}" = 1 ]; then
+    BASE_FETCH_STATUS=skipped
     return 0
   fi
-  if ! "$GIT" remote get-url origin >/dev/null 2>&1; then
-    ui_warn "No origin remote. Using local branches only."
+  if [ -z "$BASE_REMOTE" ]; then
+    BASE_FETCH_STATUS=no-remote
+    ui_warn "No remote tracks ${BASE_BRANCH}. Using local history only."
     return 0
   fi
-  if ! "$GIT" fetch origin --prune >/dev/null 2>&1; then
-    ui_warn "Could not fetch origin. Using local git data."
+  local err ref_label
+  ref_label="${BASE_REMOTE}/${BASE_BRANCH}"
+  err=$(mktemp)
+  if "$GIT" fetch "$BASE_REMOTE" --prune >"$err" 2>&1; then
+    BASE_FETCH_STATUS=ok
+    rm -f -- "$err"
+    if [ -n "$BASE_REF" ] && "$GIT" show-ref --verify --quiet "$BASE_REF"; then
+      BASE_REMOTE_SHA=$("$GIT" rev-parse "$BASE_REF")
+    fi
+    return 0
   fi
+  BASE_FETCH_STATUS=failed
+  BASE_FETCH_ERROR=$(cat "$err" 2>/dev/null || true)
+  rm -f -- "$err"
+  ui_error "Failed to fetch ${ref_label}."
+  echo "" >&2
+  ui_info "Git error:"
+  if [ -n "$BASE_FETCH_ERROR" ]; then
+    printf '%s\n' "$BASE_FETCH_ERROR" >&2
+  else
+    ui_info "(git produced no output)"
+  fi
+  echo "" >&2
+  ui_info "Remote ${BASE_BRANCH} could not be verified."
+  ui_info "Commit references can use local history after you confirm."
+  ui_info "Preparing a new pull request branch is blocked until a safe base is available."
+  if [ -n "$BASE_REMOTE_SHA" ]; then
+    local ahead
+    ahead=$("$GIT" rev-list --count "${BASE_REMOTE_SHA}..${BASE_LOCAL_SHA}" 2>/dev/null || printf '?')
+    ui_info "Last known ${BASE_REF} is ${BASE_REMOTE_SHA:0:7}. Local ${BASE_BRANCH} is ${ahead} commit(s) ahead of it."
+  else
+    ui_info "No remote-tracking ref ${BASE_REF:-${ref_label}} is available."
+  fi
+  ui_info "Retry with: git fetch ${BASE_REMOTE}"
 }
 
 warn_if_linked_worktree() {
@@ -124,11 +218,7 @@ show_change_table() {
   while IFS= read -r unit; do
     [ -z "$unit" ] && continue
     read -r staged unstaged untracked <<<"$(count_changes "$unit")"
-    if is_root_category "$unit"; then
-      printf 'root(%s)\t%s\t%s\t%s\n' "$unit" "$staged" "$unstaged" "$untracked"
-    else
-      printf '%s\t%s\t%s\t%s\n' "$unit" "$staged" "$unstaged" "$untracked"
-    fi
+    printf '%s\t%s\t%s\t%s\n' "$unit" "$staged" "$unstaged" "$untracked"
   done
 }
 
@@ -147,13 +237,23 @@ pick_modules() {
     return 0
   fi
   ui_info "Modules with uncommitted changes:"
-  echo ""
-  show_change_table <<<"$available" | ui_gum table --print --separator "$(printf '\t')" || show_change_table <<<"$available"
-  echo ""
+  echo "" >&2
+  {
+    show_change_table <<<"$available" | ui_gum table --print --separator "$(printf '\t')"
+  } >&2 || show_change_table <<<"$available" >&2
+  echo "" >&2
   ui_info "Space selects a module. Enter confirms. Each module becomes its own pull request unless you group them."
+  local -a options=()
+  local unit
+  mapfile -t options <<<"$available"
+  local -a choices=()
+  for unit in "${options[@]}"; do
+    [ -n "$unit" ] || continue
+    choices+=("$unit")
+  done
   local picked
-  picked=$(printf '%s\n' "$available" | ui_gum choose --no-limit --header "Select modules for this issue:" </dev/tty) || true
-  [ -n "$picked" ] || die "No modules selected."
+  picked=$(gum_choose many "Select modules for this issue:" "${choices[@]}") || return 1
+  [ -n "$picked" ] || return 1
   printf '%s\n' "$picked"
 }
 
@@ -165,9 +265,9 @@ ask_group() {
     return
   fi
   local choice
-  choice=$(ui_gum choose --header "How should these modules be split?" \
+  choice=$(gum_choose one "How should these modules be split?" \
     "Separate pull requests (recommended)" \
-    "One pull request for all selected modules" </dev/tty) || true
+    "One pull request for all selected modules") || true
   [ "$choice" = "One pull request for all selected modules" ]
 }
 
@@ -198,7 +298,7 @@ ask_change_deps() {
     done
     return 0
   fi
-  echo ""
+  echo "" >&2
   ui_info "Declared Go requirements among the selection (not the same as a change-level dependency):"
   local unit deps
   local any=0
@@ -212,12 +312,12 @@ ask_change_deps() {
       any=1
       while IFS= read -r dep; do
         [ -z "$dep" ] && continue
-        printf '  %s requires %s\n' "$unit" "$dep"
+        printf '  %s requires %s\n' "$unit" "$dep" >&2
       done <<<"$deps"
     fi
   done <<<"$selected"
   [ "$any" -eq 1 ] || ui_info "  None."
-  echo ""
+  echo "" >&2
   ui_info "Select changes that need new, unpublished functionality from another selected module."
   local -a options=()
   local a b
@@ -229,8 +329,9 @@ ask_change_deps() {
       options+=("$a -> $b")
     done <<<"$selected"
   done <<<"$selected"
+  [ "${#options[@]}" -gt 0 ] || return 0
   local picked
-  picked=$(printf '%s\n' "${options[@]}" | ui_gum choose --no-limit --header "Change-level dependencies:" </dev/tty) || true
+  picked=$(gum_choose many "Change-level dependencies:" "${options[@]}") || return 1
   while IFS= read -r edge; do
     [ -z "$edge" ] && continue
     printf '%s\t%s\n' "${edge%% -> *}" "${edge##* -> }"
@@ -249,7 +350,7 @@ branch_for_unit() {
   generated="${type}/${safe}/${issue}-${slug}"
   key=$(printf '%s' "$unit" | tr '/' '_')
   var="RIVAAS_BRANCH_${key}"
-  if [ -n "${!var:-}" ]; then
+  if [[ "$var" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && [ -n "${!var:-}" ]; then
     printf '%s\n' "${!var}"
     return 0
   fi
@@ -280,7 +381,7 @@ ensure_worktree() {
       ;;
   esac
   if "$GIT" worktree list --porcelain | grep -Fxq "worktree ${dest}"; then
-    printf '%s\n' "$dest"
+    WORKTREE_DEST=$dest
     return 0
   fi
   mkdir -p -- "$(dirname -- "$dest")"
@@ -289,7 +390,7 @@ ensure_worktree() {
   else
     "$GIT" worktree add -b "$branch" "$dest" "$base_sha" >&2 || die "Could not create branch ${branch}."
   fi
-  printf '%s\n' "$dest"
+  WORKTREE_DEST=$dest
 }
 
 worktree_commit_count() {
@@ -298,32 +399,96 @@ worktree_commit_count() {
   "$GIT" -C "$dest" rev-list --count "${base_sha}..HEAD"
 }
 
+# Historical references used to be stored as plans with landed_commit set.
+# Move those into .references so they cannot replace a prepared module plan.
+state_normalize='
+def canon:
+  if type == "string" and ($aux[.] != null) and ($aux[.] != "") then $aux[.] else . end;
+def normalize_issue:
+  .references = (
+    (((.references // [])
+      + [(.plans // [])[]
+        | select((.landed_commit // null) != null
+            and ((.worktree // "") == "")
+            and ((.pr_number // null) == null))
+        | {
+            sha: .landed_commit,
+            subject: "",
+            abbrev: (.landed_commit[0:7]),
+            status: "unverified",
+            committed_at: (.prepared_at // ""),
+            added_at: (.prepared_at // "")
+          }])
+    | reverse | unique_by(.sha) | reverse
+    | sort_by([.committed_at, .sha]) | reverse)
+  )
+  | .plans = [
+      (.plans // [])[]
+      | select(((.landed_commit // null) == null)
+          or ((.worktree // "") != "")
+          or ((.pr_number // null) != null))
+    ]
+  | .plans as $orig
+  | .plans = (
+      $orig
+      | map(
+          . as $p
+          | .modules = ([(.modules // [])[] | canon] | unique)
+          | .depends_on = ([(.depends_on // [])[] | canon] | unique)
+          | (if ($aux[$p.id] != null) then $aux[$p.id] else $p.id end) as $newid
+          | ([$orig[].id | if ($aux[.] != null) then $aux[.] else . end] | map(select(. == $newid)) | length) as $hits
+          | if ($newid != $p.id and $hits == 1) then .id = $newid else . end
+        )
+    );
+'
+
+write_state() {
+  local filter="${*: -1}"
+  local -a args=()
+  if [ "$#" -gt 1 ]; then
+    args=("${@:1:$#-1}")
+  fi
+  state_lock
+  local file tmp aux
+  file=$(ensure_state_file)
+  tmp=$(mktemp "$(dirname -- "$file")/pr-state.XXXXXX")
+  aux=$(auxiliary_parent_json)
+  if ! "$JQ" --argjson aux "$aux" "${args[@]+"${args[@]}"}" "$filter" "$file" >"$tmp"; then
+    rm -f -- "$tmp"
+    state_unlock
+    return 1
+  fi
+  mv -- "$tmp" "$file"
+  state_unlock
+}
+
 upsert_issue() {
   local issue="$1"
   local title="$2"
   local base="$3"
-  local file tmp
-  file=$(ensure_state_file)
-  tmp=$(mktemp)
-  "$JQ" --arg issue "$issue" --arg title "$title" --arg base "$base" '
-    .issues[$issue] = (.issues[$issue] // {issue: ($issue | tonumber), title: $title, base: $base, plans: []})
-    | .issues[$issue].title = $title
-    | .issues[$issue].base = $base
-  ' "$file" >"$tmp"
-  mv "$tmp" "$file"
+  write_state \
+    --arg issue "$issue" --arg title "$title" --arg base "$base" \
+    "${state_normalize}
+    .issues[\$issue] = (.issues[\$issue] // {issue: (\$issue | tonumber), title: \$title, base: \$base, plans: [], references: []})
+    | .issues[\$issue].title = \$title
+    | .issues[\$issue].base = \$base
+    | .issues[\$issue].references //= []
+    | .issues[\$issue] |= normalize_issue" \
+    || die "Could not update local pull request state."
 }
 
 upsert_plan() {
   local issue="$1"
   local plan="$2"
-  local file tmp id
-  file=$(ensure_state_file)
+  local id
   id=$(printf '%s' "$plan" | "$JQ" -r '.id')
-  tmp=$(mktemp)
-  "$JQ" --arg issue "$issue" --arg id "$id" --argjson plan "$plan" '
-    .issues[$issue].plans = ((.issues[$issue].plans // []) | map(select(.id != $id))) + [$plan]
-  ' "$file" >"$tmp"
-  mv "$tmp" "$file"
+  write_state \
+    --arg issue "$issue" --arg id "$id" --argjson plan "$plan" \
+    "${state_normalize}
+    .issues[\$issue].plans = ((.issues[\$issue].plans // []) | map(select(.id != \$id))) + [\$plan]
+    | .issues[\$issue].references //= []
+    | .issues[\$issue] |= normalize_issue" \
+    || die "Could not update local pull request state."
 }
 
 get_plan() {
@@ -415,18 +580,21 @@ prepare_one_plan() {
   if ! selection_is_safe "${units[@]}"; then
     die "Cannot isolate ${id}. A rename or copy crosses a module boundary that is not part of this pull request."
   fi
-  dest=$(ensure_worktree "$branch" "$base_sha")
+  ensure_worktree "$branch" "$base_sha"
+  dest=$WORKTREE_DEST
   count=$(worktree_commit_count "$dest" "$base_sha")
   if [ "$count" -gt 0 ]; then
     ui_info "Branch ${branch} already has ${count} commit(s). Adopting it without copying."
-    printf '%s\n' "$dest"
+    PREPARED_WORKTREE=$dest
     return 0
   fi
   if [ -n "$("$GIT" -C "$dest" status --porcelain)" ]; then
-    die "Worktree ${dest} already has uncommitted changes. Commit or remove that worktree, then run prepare again. The original working tree was not modified."
+    ui_info "Worktree ${dest} already has uncommitted changes. Leaving it as it is."
+    PREPARED_WORKTREE=$dest
+    return 0
   fi
   isolate_units "$dest" "${units[@]}" || die "Could not copy ${id} into ${dest}. The original working tree was not modified."
-  printf '%s\n' "$dest"
+  PREPARED_WORKTREE=$dest
 }
 
 prepare_new() {
@@ -434,11 +602,18 @@ prepare_new() {
   local base="$2"
   local base_sha="$3"
   local available selected count group justification
+  require_pr_base
+  base_sha=$PR_BASE_SHA
+  if [ -n "$BASE_LOCAL_SHA" ] && [ "$BASE_LOCAL_SHA" != "$base_sha" ]; then
+    ui_info "Local ${BASE_BRANCH} has commits that are not in the new branch base ${base_sha:0:7}. Those commits stay on local ${BASE_BRANCH}."
+  fi
   available=$(modules_with_changes)
   if [ -z "$available" ]; then
     die "No uncommitted module changes. Adopt an existing branch or commit, or change a module first."
   fi
-  selected=$(pick_modules "$available")
+  if ! selected=$(pick_modules "$available"); then
+    die "No modules selected."
+  fi
   count=$(printf '%s\n' "$selected" | grep -c . || true)
   group=0
   justification=""
@@ -463,7 +638,9 @@ prepare_new() {
     : >"$edges_file"
   else
     printf '%s\n' "${units[@]}" >"$nodes_file"
-    ask_change_deps "$selected" >"$edges_file"
+    if ! ask_change_deps "$selected" >"$edges_file"; then
+      die "Dependency selection was cancelled. Nothing was prepared."
+    fi
     if ! topo_sort "$nodes_file" "$edges_file" >/dev/null; then
       die "Those change-level dependencies form a cycle. Drop an edge and try again."
     fi
@@ -554,7 +731,7 @@ prepare_new() {
     ui_info "Ready to prepare now:"
     printf '  %s\n' "${ready[@]}"
     local picked
-    picked=$(printf '%s\n' "${ready[@]}" | ui_gum choose --no-limit --header "Prepare these pull requests now:" </dev/tty) || true
+    picked=$(gum_choose many "Prepare these pull requests now:" "${ready[@]}") || true
     [ -n "$picked" ] || {
       ui_info "Nothing prepared. The plan is saved."
       return 0
@@ -569,8 +746,9 @@ prepare_new() {
     local plan modules_line
     plan=$(get_plan "$issue" "$id")
     branch=$(printf '%s' "$plan" | "$JQ" -r '.branch')
-    mapfile -t modules_line < <(printf '%s' "$plan" | "$JQ" -r '.modules[]')
-    dest=$(prepare_one_plan "$issue" "$base_sha" "$id" "$branch" "${modules_line[@]}")
+    mapfile -t modules_line < <(plan_modules "$plan")
+    prepare_one_plan "$issue" "$base_sha" "$id" "$branch" "${modules_line[@]}"
+    dest=$PREPARED_WORKTREE
     plan=$(printf '%s' "$plan" | "$JQ" --arg worktree "$dest" '.worktree = $worktree')
     upsert_plan "$issue" "$plan"
     echo ""
@@ -584,6 +762,14 @@ prepare_new() {
   ui_info "The original working tree was not modified. Unrelated changes are still there."
   ui_info "This command did not commit, push, or open a pull request."
   rm -f "$edges_file" "$nodes_file"
+}
+
+plan_modules() {
+  local plan="$1"
+  printf '%s' "$plan" | "$JQ" -r '.modules[]?' | while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    canonical_group "$name"
+  done | awk 'NF && !seen[$0]++'
 }
 
 modules_from_range() {
@@ -610,14 +796,21 @@ adopt_branch() {
   if [ "${RIVAAS_NONINTERACTIVE:-}" = 1 ]; then
     branch=${RIVAAS_ADOPT_BRANCH:-}
   else
-    branch=$(
-      "$GIT" for-each-ref --format='%(refname:short)' refs/heads/ | grep -vx "$base" | ui_gum choose --header "Branch to adopt" </dev/tty
-    ) || true
+    local -a branch_choices=()
+    local name
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      [ "$name" = "$base" ] && continue
+      branch_choices+=("$name")
+    done < <("$GIT" for-each-ref --format='%(refname:short)' refs/heads/)
+    [ "${#branch_choices[@]}" -gt 0 ] || die "No local branch to adopt."
+    branch=$(gum_choose one "Branch to adopt" "${branch_choices[@]}") || true
   fi
   [ -n "$branch" ] || die "No branch selected."
   "$GIT" show-ref --verify --quiet "refs/heads/${branch}" || die "No local branch ${branch}."
   local dest
-  dest=$(ensure_worktree "$branch" "$base_sha")
+  ensure_worktree "$branch" "$base_sha"
+  dest=$WORKTREE_DEST
   local -a units=()
   mapfile -t units < <(modules_from_range "$base_sha" "$branch")
   [ "${#units[@]}" -gt 0 ] || die "Branch ${branch} does not change a known module relative to ${base}."
@@ -670,33 +863,227 @@ link_pr() {
   ui_info "No duplicate pull request will be created for branch ${head}."
 }
 
-reference_commit() {
+require_pr_base() {
+  PR_BASE_SHA=""
+  case "${BASE_FETCH_STATUS:-skipped}" in
+    ok)
+      if [ -z "$BASE_REMOTE_SHA" ]; then
+        die "Fetch of ${BASE_REMOTE} succeeded but ${BASE_REF} does not exist. Refusing to branch from local ${BASE_BRANCH}."
+      fi
+      PR_BASE_SHA=$BASE_REMOTE_SHA
+      ;;
+    skipped|no-remote)
+      if [ -n "$BASE_REMOTE_SHA" ]; then
+        PR_BASE_SHA=$BASE_REMOTE_SHA
+      else
+        PR_BASE_SHA=$BASE_LOCAL_SHA
+      fi
+      ;;
+    failed)
+      if [ "${RIVAAS_TRUST_REMOTE_BASE:-}" = 1 ] && [ -n "$BASE_REMOTE_SHA" ]; then
+        ui_warn "Using last known ${BASE_REF} (${BASE_REMOTE_SHA:0:7}) without a successful fetch. It may be stale."
+        PR_BASE_SHA=$BASE_REMOTE_SHA
+        return 0
+      fi
+      if [ "${RIVAAS_NONINTERACTIVE:-}" != 1 ] && [ -n "$BASE_REMOTE_SHA" ]; then
+        if confirm_default_no "Use the last known ${BASE_REF} (${BASE_REMOTE_SHA:0:7}) as the branch base? It may be stale. Local-only commits on ${BASE_BRANCH} will not be included."; then
+          PR_BASE_SHA=$BASE_REMOTE_SHA
+          return 0
+        fi
+      fi
+      die "Refusing to create a pull request branch. Fetch of ${BASE_REMOTE}/${BASE_BRANCH} failed, and there is no confirmed base. Local ${BASE_BRANCH} was not used. Retry with: git fetch ${BASE_REMOTE}"
+      ;;
+    *)
+      die "Refusing to create a pull request branch. The remote base was not checked."
+      ;;
+  esac
+  [ -n "$PR_BASE_SHA" ] || die "No base commit is available."
+}
+
+commit_remote_status() {
+  local sha="$1"
+  local on_remote=0
+  if [ -n "${BASE_REMOTE_SHA:-}" ] && "$GIT" merge-base --is-ancestor "$sha" "$BASE_REMOTE_SHA" 2>/dev/null; then
+    on_remote=1
+  fi
+  case "${BASE_FETCH_STATUS:-unknown}" in
+    ok)
+      if [ "$on_remote" -eq 1 ]; then
+        printf 'published\n'
+      else
+        printf 'local-only\n'
+      fi
+      ;;
+    *)
+      if [ -z "${BASE_REMOTE_SHA:-}" ] || [ "$on_remote" -eq 1 ]; then
+        printf 'unverified\n'
+      else
+        printf 'local-only\n'
+      fi
+      ;;
+  esac
+}
+
+# Print one row per commit, newest first, at most 20:
+# full SHA, abbrev, committer date, subject, remote status. Fields are separated by \x1f.
+recent_commit_rows() {
+  local base="$1"
+  local limit="${2:-20}"
+  load_base_context "$base"
+  local line full abbrev date subject status
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    full=${line%%$'\x1f'*}
+    line=${line#*$'\x1f'}
+    abbrev=${line%%$'\x1f'*}
+    line=${line#*$'\x1f'}
+    date=${line%%$'\x1f'*}
+    subject=${line#*$'\x1f'}
+    status=$(commit_remote_status "$full")
+    printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$full" "$abbrev" "$date" "$subject" "$status"
+  done < <("$GIT" log "refs/heads/${base}" -n "$limit" --format='%H%x1f%h%x1f%cI%x1f%s')
+}
+
+commit_choice_label() {
+  local abbrev="$1"
+  local subject="$2"
+  local status="$3"
+  local suffix=""
+  case "$status" in
+    local-only) suffix="  [local only]" ;;
+    unverified) suffix="  [unverified]" ;;
+  esac
+  printf '%s  %s%s\n' "$abbrev" "$subject" "$suffix"
+}
+
+reference_commits() {
   local issue="$1"
   local base="$2"
-  local base_sha="$3"
-  local sha
+  load_base_context "$base"
+  local -a labels=() chosen=()
+  local -A label_sha=()
+  local line full abbrev date subject status label
+  local count=0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    full=${line%%$'\x1f'*}
+    line=${line#*$'\x1f'}
+    abbrev=${line%%$'\x1f'*}
+    line=${line#*$'\x1f'}
+    date=${line%%$'\x1f'*}
+    line=${line#*$'\x1f'}
+    subject=${line%%$'\x1f'*}
+    status=${line#*$'\x1f'}
+    label=$(commit_choice_label "$abbrev" "$subject" "$status")
+    labels+=("$label")
+    label_sha["$label"]=$full
+    count=$((count + 1))
+  done < <(recent_commit_rows "$base" 20)
+  [ "$count" -gt 0 ] || die "No commits on ${base}."
+
   if [ "${RIVAAS_NONINTERACTIVE:-}" = 1 ]; then
-    sha=${RIVAAS_COMMIT:-}
+    local raw="${RIVAAS_COMMITS:-${RIVAAS_COMMIT:-}}"
+    [ -n "$raw" ] || die "Set RIVAAS_COMMITS to the commit SHAs to reference."
+    local token resolved
+    local -a tokens=()
+    local -A seen=()
+    IFS=',' read -r -a tokens <<<"$raw"
+    for token in "${tokens[@]}"; do
+      [ -n "$token" ] || continue
+      resolved=$("$GIT" rev-parse --verify "${token}^{commit}") || die "Not a commit: ${token}"
+      if ! "$GIT" merge-base --is-ancestor "$resolved" "$BASE_LOCAL_SHA"; then
+        die "${resolved} is not on ${base}. Open a pull request from its branch instead."
+      fi
+      if [ -z "${seen[$resolved]:-}" ]; then
+        seen["$resolved"]=1
+        chosen+=("$resolved")
+      fi
+    done
   else
-    sha=$(prompt_line "Commit already on ${base}" "")
+    ui_info "Showing the ${count} newest commit(s) on ${base}."
+    ui_info "Space selects. Type to filter. Enter confirms."
+    local picked row
+    picked=$(gum_filter_many "Select one or more commits:" "${labels[@]}") || {
+      ui_info "No commits referenced. Existing state was not changed."
+      return 0
+    }
+    [ -n "$picked" ] || {
+      ui_info "No commits referenced. Existing state was not changed."
+      return 0
+    }
+    local -A seen=()
+    while IFS= read -r row; do
+      [ -n "$row" ] || continue
+      full=${label_sha[$row]:-}
+      [ -n "$full" ] || die "Could not map a selected row back to a commit."
+      if ! "$GIT" merge-base --is-ancestor "$full" "$BASE_LOCAL_SHA"; then
+        die "${full} is not on ${base}."
+      fi
+      if [ -z "${seen[$full]:-}" ]; then
+        seen["$full"]=1
+        chosen+=("$full")
+      fi
+    done <<<"$picked"
   fi
-  [ -n "$sha" ] || die "Commit SHA is required."
-  sha=$("$GIT" rev-parse --verify "${sha}^{commit}") || die "Not a commit: ${sha}"
-  if ! "$GIT" merge-base --is-ancestor "$sha" "$base_sha"; then
-    die "${sha} is not on ${base}. Open a pull request from its branch instead."
+  [ "${#chosen[@]}" -gt 0 ] || {
+    ui_info "No commits referenced. Existing state was not changed."
+    return 0
+  }
+
+  local needs_confirm=0 sha
+  for sha in "${chosen[@]}"; do
+    status=$(commit_remote_status "$sha")
+    case "$status" in
+      published) ;;
+      *) needs_confirm=1 ;;
+    esac
+  done
+  if [ "$needs_confirm" -eq 1 ]; then
+    if [ "${RIVAAS_NONINTERACTIVE:-}" = 1 ]; then
+      if [ "${RIVAAS_CONFIRM_LOCAL:-}" != 1 ]; then
+        die "Selected commits are not confirmed on the remote. Set RIVAAS_CONFIRM_LOCAL=1 to reference them in local state only. Nothing was saved."
+      fi
+    elif ! confirm_default_no "Some selected commits are not confirmed on the remote. Reference them in local state only?"; then
+      ui_info "No commits referenced. Existing state was not changed."
+      return 0
+    fi
   fi
-  local -a units=()
-  local parent
-  parent=$("$GIT" rev-parse "${sha}^" 2>/dev/null || printf '%s' "$sha")
-  mapfile -t units < <(modules_from_range "$parent" "$sha")
-  [ "${#units[@]}" -gt 0 ] || units=("repo")
-  local id="${units[0]}"
-  local plan
-  plan=$(make_plan_json "$id" "$(json_array "${units[@]}")" "$base" "" '[]' "" true "$sha")
-  upsert_issue "$issue" "$ISSUE_TITLE" "$base"
-  upsert_plan "$issue" "$plan"
-  ui_ok "Recorded ${sha} on ${base} for ${id}."
-  ui_info "No pull request was opened. The commit is already on the default branch."
+
+  local added subject abbrev committed obj
+  added=$("$JQ" -n 'now | todate')
+  local -a objects=()
+  for sha in "${chosen[@]}"; do
+    subject=$("$GIT" log -1 --format='%s' "$sha")
+    abbrev=$("$GIT" rev-parse --short=7 "$sha")
+    committed=$("$GIT" log -1 --format='%cI' "$sha")
+    status=$(commit_remote_status "$sha")
+    obj=$("$JQ" -n \
+      --arg sha "$sha" \
+      --arg subject "$subject" \
+      --arg abbrev "$abbrev" \
+      --arg status "$status" \
+      --arg committed "$committed" \
+      --arg added "$added" \
+      '{sha: $sha, subject: $subject, abbrev: $abbrev, status: $status, committed_at: $committed, added_at: $added}')
+    objects+=("$obj")
+  done
+  local new_json
+  new_json=$(printf '%s\n' "${objects[@]}" | "$JQ" -s '.')
+  write_state \
+    --arg issue "$issue" --arg title "$ISSUE_TITLE" --arg base "$base" --argjson new "$new_json" \
+    "${state_normalize}
+    .issues[\$issue] = (.issues[\$issue] // {issue: (\$issue | tonumber), title: \$title, base: \$base, plans: [], references: []})
+    | .issues[\$issue].title = \$title
+    | .issues[\$issue].base = \$base
+    | .issues[\$issue].references = (
+        (((.issues[\$issue].references // []) + \$new)
+        | reverse | unique_by(.sha) | reverse
+        | sort_by([.committed_at, .sha]) | reverse)
+      )
+    | .issues[\$issue] |= normalize_issue" \
+    || die "Could not update local pull request state."
+  ui_ok "Referenced ${#chosen[@]} commit(s) on ${base} for #${issue}."
+  ui_info "This did not create a commit, branch, or pull request, and it did not change the GitHub issue."
 }
 
 cmd_prepare() {
@@ -721,17 +1108,17 @@ cmd_prepare() {
   if [ "${RIVAAS_NONINTERACTIVE:-}" = 1 ]; then
     action=${RIVAAS_ACTION:-prepare}
   else
-    action=$(ui_gum choose --header "What do you want to do?" \
+    action=$(gum_choose one "What do you want to do?" \
       "Prepare uncommitted changes" \
       "Adopt an existing branch" \
       "Link an existing pull request" \
-      "Reference a commit on ${base}" </dev/tty) || die "No action selected."
+      "Reference commit(s) on ${base}") || die "No action selected."
   fi
   case "$action" in
     prepare|"Prepare uncommitted changes") prepare_new "$issue" "$base" "$base_sha" ;;
     adopt|"Adopt an existing branch") adopt_branch "$issue" "$base" "$base_sha" ;;
     link|"Link an existing pull request") link_pr "$issue" "$base" ;;
-    commit|"Reference a commit on ${base}") reference_commit "$issue" "$base" "$base_sha" ;;
+    commit|reference|"Reference commit(s) on ${base}"|"Reference a commit on ${base}") reference_commits "$issue" "$base" ;;
     *) die "Unknown action: ${action}" ;;
   esac
 }
@@ -853,7 +1240,7 @@ maybe_subissue() {
   fi
   require_gh
   local url number slug child_id parent_id
-  url=$("$GH" issue create --title "[${primary}] ${summary}" --body "Part of #${parent}.") || {
+  url=$("$GH" issue create --title "$(default_title "$primary" "$summary")" --body "Part of #${parent}.") || {
     ui_warn "Could not create a sub-issue. The pull request will only reference #${parent}."
     return 0
   }
@@ -880,18 +1267,23 @@ maybe_subissue() {
   printf '%s\n' "$number"
 }
 
+# module: description, or contrib: description. The description comes from
+# the branch commit, not from a parent issue that may cover other modules.
 default_title() {
   local primary="$1"
   local summary="$2"
-  local type slug
-  type=${RIVAAS_TYPE:-feat}
-  slug=$(slugify "$summary")
-  [ -n "$slug" ] || slug=update
-  if is_repo_scope "$primary" && [ "$type" = docs ]; then
-    printf '%s\n' "docs: ${slug}"
-    return 0
+  local desc prefix rest
+  desc=$(printf '%s\n' "$summary" | sed -n '1p' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  if [[ "$desc" == *:* ]]; then
+    prefix=${desc%%:*}
+    rest=$(printf '%s' "${desc#*:}" | sed 's/^[[:space:]]*//')
+    if [ -n "$rest" ]; then
+      printf '%s: %s\n' "$primary" "$rest"
+      return 0
+    fi
   fi
-  printf '%s\n' "${type}(${primary}): ${slug}"
+  [ -n "$desc" ] || desc=update
+  printf '%s: %s\n' "$primary" "$desc"
 }
 
 cmd_create() {
@@ -939,7 +1331,7 @@ cmd_create() {
 
   local -a units=()
   if [ -n "$plan" ]; then
-    mapfile -t units < <(printf '%s' "$plan" | "$JQ" -r '.modules[]')
+    mapfile -t units < <(plan_modules "$plan")
   else
     mapfile -t units < <(modules_from_range "$base_sha" HEAD)
   fi
@@ -962,22 +1354,23 @@ cmd_create() {
     [ -n "$justification" ] || die "A multi-module pull request needs a one-line reason."
   fi
 
-  local summary
+  local summary commit_subject
   summary=${ISSUE_TITLE:-}
   if [ -z "$summary" ] && [ -n "$plan" ]; then
     summary=$(issue_title_from_state "$issue")
   fi
-  [ -n "$summary" ] || summary=$("$GIT" log -1 --pretty=%s)
+  commit_subject=$("$GIT" log -1 --pretty=%s)
+  [ -n "$summary" ] || summary=$commit_subject
   if [ -n "$justification" ]; then
     summary="${summary} ${justification}"
   fi
 
   local title
   if [ "${RIVAAS_NONINTERACTIVE:-}" = 1 ]; then
-    title=${RIVAAS_TITLE:-$(default_title "$primary" "$summary")}
+    title=${RIVAAS_TITLE:-$(default_title "$primary" "$commit_subject")}
   else
     local suggested
-    suggested=$(default_title "$primary" "$summary")
+    suggested=$(default_title "$primary" "$commit_subject")
     title=$(prompt_line "Pull request title" "$suggested")
   fi
   [ -n "$title" ] || die "A title is required."
@@ -987,7 +1380,7 @@ cmd_create() {
     sub_existing=$(printf '%s' "$plan" | "$JQ" -r '.sub_issue // empty')
   fi
   local sub_issue close_sub=0
-  sub_issue=$(maybe_subissue "$issue" "$primary" "$summary" "$sub_existing" || true)
+  sub_issue=$(maybe_subissue "$issue" "$primary" "${commit_subject:-$summary}" "$sub_existing" || true)
   if [ -n "$sub_issue" ]; then
     close_sub=1
   fi
@@ -1144,8 +1537,27 @@ cmd_status() {
       fi
     done < <("$JQ" -c --arg issue "$key" '.issues[$issue].plans[]?' "$file")
     echo ""
+    ui_info "Referenced commits on ${base}:"
+    local ref_count=0
+    local ref sha abbrev subject ref_status
+    while IFS= read -r ref; do
+      [ -n "$ref" ] || continue
+      ref_count=$((ref_count + 1))
+      sha=$(printf '%s' "$ref" | "$JQ" -r '.sha')
+      abbrev=$(printf '%s' "$ref" | "$JQ" -r '.abbrev // .sha[0:7]')
+      subject=$(printf '%s' "$ref" | "$JQ" -r '.subject // ""')
+      ref_status=$(printf '%s' "$ref" | "$JQ" -r '.status // "unverified"')
+      case "$ref_status" in
+        local-only) ref_status="local only" ;;
+      esac
+      printf '  %s  %s  %s  [%s]\n' "$abbrev" "$sha" "$subject" "$ref_status"
+    done < <("$JQ" -c --arg issue "$key" '.issues[$issue].references[]?' "$file")
+    if [ "$ref_count" -eq 0 ]; then
+      ui_info "  None."
+    fi
+    echo ""
     if [ "$total" -eq 0 ]; then
-      ui_info "No plans recorded."
+      ui_info "No prepared pull requests."
     elif [ "$open_plans" -eq 0 ]; then
       ui_info "Every recorded plan for #${key} is merged or already on ${base}."
       ui_info "Close #${key} only after you have checked that the whole feature is done. This command will not close it."
@@ -1153,6 +1565,7 @@ cmd_status() {
       ui_info "Issue #${key} stays open. ${open_plans} plan(s) are not merged yet."
       ui_info "Do not put Fixes #${key} on an intermediate pull request."
     fi
+    ui_info "Referenced commits are existing history. They do not close #${key}."
   done <<<"$keys"
 }
 
@@ -1160,12 +1573,13 @@ cmd_help() {
   cat <<'EOF'
 Usage: nix run .#pr -- <command>
 
-  prepare <issue-number>   Select module changes for an existing issue
+  prepare <issue-number>   Select module changes or reference existing commits
   create                    Open or reuse a pull request for the current branch
-  status [issue-number]    Show recorded plans, dependencies, and pull requests
+  status [issue-number]    Show plans, referenced commits, and dependencies
 
 prepare copies the selected module into a new worktree and leaves the
-original working tree alone. It does not commit, push, or release.
+original working tree alone. Run it again to reference commits already
+on the default branch. It does not commit, push, or release.
 Commit with: nix run .#commit
 Release with: nix run .#release
 
